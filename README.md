@@ -800,6 +800,23 @@ crebain/
 
 ---
 
+## Disclaimer
+
+This software is provided for **research and educational purposes only**. CREBAIN is intended as a technical demonstration and research platform for studying sensor fusion, multi-modal tracking, and autonomous systems visualization.
+
+**The contributors and maintainers of this project:**
+
+- Make no representations or warranties of any kind concerning the fitness, safety, or suitability of this software for any purpose
+- Are not responsible for any direct, indirect, incidental, special, exemplary, or consequential damages arising from the use or misuse of this software
+- Do not endorse or encourage any specific application of this technology
+- Assume no liability for any actions taken with this software, whether lawful or unlawful
+
+Users are solely responsible for ensuring compliance with all applicable laws, regulations, and ethical guidelines in their jurisdiction. This includes but is not limited to aviation regulations, privacy laws, export controls, and any restrictions on autonomous systems or surveillance technology.
+
+**By using this software, you acknowledge that you understand these terms and accept full responsibility for your use of the software.**
+
+---
+
 ## License
 
 MIT License - See [LICENSE](LICENSE) for details.
