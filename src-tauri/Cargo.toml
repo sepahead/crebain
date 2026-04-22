@@ -54,9 +54,6 @@ rand_distr = "0.5"
 # Lazy initialization (consider migrating to std::sync::OnceLock in future)
 lazy_static = "1.5"
 
-# Dynamic library loading for Zig detector
-libloading = "0.8"
-
 # ONNX Runtime for cross-platform ML inference (fallback/universal backend)
 # Using latest RC - production ready, API stabilizing
 ort = "2.0.0-rc.10"

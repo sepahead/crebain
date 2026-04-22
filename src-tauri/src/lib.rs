@@ -3,14 +3,12 @@
 //!
 //! Cross-platform native backend with multiple ML inference backends:
 //! - macOS: CoreML via direct FFI (Neural Engine/Metal/GPU)
-//! - Linux: ONNX Runtime with CUDA, or Zig detector with CUDA backend
-//! - Windows: ONNX Runtime with CUDA (future)
+//! - Linux/Windows: ONNX Runtime with CUDA/TensorRT/CPU
 
 // Core modules
 pub mod common;
 mod coreml;
 mod sensor_fusion;
-mod zig_detector;
 mod onnx_detector;
 
 // Inference backends (conditional compilation)
@@ -91,8 +89,6 @@ fn init_onnx_detector() {
         }
         Err(e) => {
             log::warn!("Failed to initialize ONNX detector: {}", e);
-            #[cfg(target_os = "linux")]
-            log::info!("Falling back to Zig detector with CUDA backend");
         }
     }
 }
@@ -139,71 +135,6 @@ fn validate_scene_file_path(path: &str, allowed_root: &std::path::Path) -> Resul
     match validated.extension().and_then(|ext| ext.to_str()) {
         Some(ext) if ext.eq_ignore_ascii_case("json") => Ok(validated),
         _ => Err("Scene file path must end with .json".to_string()),
-    }
-}
-
-#[allow(dead_code)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum NativeBackendChoice {
-    Onnx,
-    Zig,
-}
-
-#[allow(dead_code)]
-fn contains_gpu_backend(name: &str) -> bool {
-    let lower = name.to_ascii_lowercase();
-    lower.contains("tensorrt") || lower.contains("cuda") || lower.contains("coreml")
-}
-
-#[allow(dead_code)]
-fn select_backend_choice(
-    forced_backend: Option<&str>,
-    onnx_ready: bool,
-    onnx_backend: Option<&str>,
-    zig_ready: bool,
-    zig_backend: Option<&str>,
-) -> Option<NativeBackendChoice> {
-    if !onnx_ready && !zig_ready {
-        return None;
-    }
-    if onnx_ready && !zig_ready {
-        return Some(NativeBackendChoice::Onnx);
-    }
-    if zig_ready && !onnx_ready {
-        return Some(NativeBackendChoice::Zig);
-    }
-
-    let onnx_backend = onnx_backend.unwrap_or("");
-    let zig_backend = zig_backend.unwrap_or("");
-
-    let forced = forced_backend.unwrap_or("").trim().to_ascii_lowercase();
-
-    // In mixed deployments (NixOS), ONNX may load with CPU-only runtime while the
-    // Zig detector can still provide CUDA acceleration. Prefer GPU paths unless
-    // the user explicitly forces ONNX.
-    match forced.as_str() {
-        "onnx" => Some(NativeBackendChoice::Onnx),
-        "zig" => Some(NativeBackendChoice::Zig),
-        "cuda" | "tensorrt" => {
-            if contains_gpu_backend(onnx_backend) {
-                Some(NativeBackendChoice::Onnx)
-            } else if zig_backend.to_ascii_lowercase().contains("cuda") {
-                Some(NativeBackendChoice::Zig)
-            } else {
-                Some(NativeBackendChoice::Onnx)
-            }
-        }
-        // Unknown/other: auto-select. Prefer ONNX when it is already using a GPU EP;
-        // otherwise prefer Zig when it reports CUDA.
-        _ => {
-            if contains_gpu_backend(onnx_backend) {
-                Some(NativeBackendChoice::Onnx)
-            } else if zig_backend.to_ascii_lowercase().contains("cuda") {
-                Some(NativeBackendChoice::Zig)
-            } else {
-                Some(NativeBackendChoice::Onnx)
-            }
-        }
     }
 }
 
@@ -260,7 +191,6 @@ async fn detect_coreml_raw(
 /// This provides a single IPC entry point for the frontend:
 /// - macOS: native CoreML FFI
 /// - Linux/others: ONNX Runtime (TensorRT/CUDA/CPU execution providers)
-/// - Optional fallback: Zig detector if ONNX is unavailable
 #[tauri::command]
 async fn detect_native_raw(
     rgba_data: Vec<u8>,
@@ -358,145 +288,25 @@ async fn detect_native_raw(
 
         #[cfg(not(target_os = "macos"))]
         {
-            let onnx_ready = onnx_detector::is_onnx_detector_ready();
-            let zig_ready = zig_detector::is_zig_detector_ready();
-            // Only apply forced backend selection when both backends are available.
-            // This keeps the behavior predictable in minimal deployments.
-            let forced_backend = if onnx_ready && zig_ready {
-                std::env::var("CREBAIN_BACKEND").ok()
-            } else {
-                None
-            };
-            let onnx_backend = onnx_detector::get_global_detector()
-                .map(|d| d.get_backend_name().to_string());
-            let zig_backend = zig_detector::get_global_detector().map(|d| d.get_backend_name());
-
-            let choice = select_backend_choice(
-                forced_backend.as_deref(),
-                onnx_ready,
-                onnx_backend.as_deref(),
-                zig_ready,
-                zig_backend.as_deref(),
-            );
-
-            let run_onnx = || -> Result<serde_json::Value, String> {
-                let mut result = onnx_detector::detect_with_onnx(&rgba_data, width, height)?;
-                let conf_f32 = conf as f32;
-                if conf_f32 > 0.0 {
-                    result.detections.retain(|d| d.confidence >= conf_f32);
-                }
-                if result.detections.len() > max_det {
-                    result.detections.truncate(max_det);
-                }
-                serde_json::to_value(&result)
-                    .map_err(|e| format!("Failed to serialize ONNX result: {}", e))
-            };
-
-            let run_zig = || -> Result<serde_json::Value, String> {
-                let result = zig_detector::detect_with_zig(&rgba_data, width, height)?;
-                use std::time::{SystemTime, UNIX_EPOCH};
-
-                let now_ms = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_millis() as i64;
-
-                let mut detections = Vec::with_capacity(result.detections.len().min(max_det));
-                for (i, det) in result.detections.into_iter().enumerate() {
-                    if (det.confidence as f64) < conf {
-                        continue;
-                    }
-                    if detections.len() >= max_det {
-                        break;
-                    }
-
-                    detections.push(serde_json::json!({
-                        "id": format!("DET-ZIG-{}-{:03}", now_ms, i),
-                        "classLabel": det.class_name,
-                        "classIndex": det.class_index,
-                        "confidence": det.confidence,
-                        "bbox": { "x1": det.x1, "y1": det.y1, "x2": det.x2, "y2": det.y2 },
-                        "timestamp": now_ms,
-                    }));
-                }
-
-                Ok(serde_json::json!({
-                    "success": result.success,
-                    "detections": detections,
-                    "inferenceTimeMs": result.inference_time_ms,
-                    "preprocessTimeMs": result.preprocess_time_ms,
-                    "postprocessTimeMs": result.postprocess_time_ms,
-                    "backend": result.backend,
-                    "error": result.error,
-                }))
-            };
-
-            match choice {
-                Some(NativeBackendChoice::Onnx) => match run_onnx() {
-                    Ok(value) => Ok(value),
-                    Err(onnx_err) => {
-                        if zig_ready {
-                            match run_zig() {
-                                Ok(value) => Ok(value),
-                                Err(zig_err) => Ok(failure(
-                                    "ONNX/Zig",
-                                    format!("ONNX failed: {}; Zig failed: {}", onnx_err, zig_err),
-                                )),
-                            }
-                        } else {
-                            Ok(failure("ONNX Runtime", onnx_err))
-                        }
-                    }
-                },
-                Some(NativeBackendChoice::Zig) => match run_zig() {
-                    Ok(value) => Ok(value),
-                    Err(zig_err) => {
-                        if onnx_ready {
-                            match run_onnx() {
-                                Ok(value) => Ok(value),
-                                Err(onnx_err) => Ok(failure(
-                                    "Zig/ONNX",
-                                    format!("Zig failed: {}; ONNX failed: {}", zig_err, onnx_err),
-                                )),
-                            }
-                        } else {
-                            Ok(failure("Zig Detector", zig_err))
-                        }
-                    }
-                },
-                None => Ok(failure(
+            if !onnx_detector::is_onnx_detector_ready() {
+                return Ok(failure(
                     "No Backend Available",
                     "No detector initialized (missing model or backend unavailable)".to_string(),
-                )),
+                ));
             }
-        }
-    })
-    .await
-    .map_err(|e| format!("Task join error: {}", e))?
-}
 
-/// Run detection using the Zig detector library
-#[tauri::command]
-async fn detect_zig(
-    rgba_data: Vec<u8>,
-    width: u32,
-    height: u32,
-) -> Result<zig_detector::ZigDetectionResult, String> {
-    // Validate inputs
-    let expected_size = (width as usize)
-        .checked_mul(height as usize)
-        .and_then(|s| s.checked_mul(4))
-        .ok_or_else(|| format!("Image dimensions overflow: {}x{}", width, height))?;
-    if rgba_data.len() != expected_size {
-        return Err(format!(
-            "Invalid RGBA data size: expected {} bytes, got {}",
-            expected_size, rgba_data.len()
-        ));
-    }
-    
-    // Spawn blocking task
-    tauri::async_runtime::spawn_blocking(move || {
-        zig_detector::detect_with_zig(&rgba_data, width, height)
+            let mut result = onnx_detector::detect_with_onnx(&rgba_data, width, height)
+                .map_err(|e| failure("ONNX Runtime", e))?;
+            let conf_f32 = conf as f32;
+            if conf_f32 > 0.0 {
+                result.detections.retain(|d| d.confidence >= conf_f32);
+            }
+            if result.detections.len() > max_det {
+                result.detections.truncate(max_det);
+            }
+            serde_json::to_value(&result)
+                .map_err(|e| format!("Failed to serialize ONNX result: {}", e))
+        }
     })
     .await
     .map_err(|e| format!("Task join error: {}", e))?
@@ -529,7 +339,7 @@ async fn detect_onnx(
     .map_err(|e| format!("Task join error: {}", e))?
 }
 
-/// Get system info including CoreML and Zig detector availability
+/// Get system info including detector availability
 #[tauri::command]
 fn get_system_info() -> serde_json::Value {
     #[cfg(target_os = "macos")]
@@ -546,7 +356,6 @@ fn get_system_info() -> serde_json::Value {
     #[cfg(not(target_os = "macos"))]
     let coreml_available = false;
 
-    let zig_info = zig_detector::get_zig_detector_info();
     let onnx_info = onnx_detector::get_onnx_detector_info();
     
     let fusion_info = FUSION_ENGINE.lock().ok().and_then(|guard| {
@@ -558,10 +367,6 @@ fn get_system_info() -> serde_json::Value {
         .get("backend")
         .and_then(|v| v.as_str())
         .unwrap_or("ONNX Runtime");
-    let _zig_backend = zig_info
-        .get("backend")
-        .and_then(|v| v.as_str())
-        .unwrap_or("Zig Detector");
 
     #[cfg(target_os = "macos")]
     let backend = if coreml_available {
@@ -572,29 +377,7 @@ fn get_system_info() -> serde_json::Value {
         "No Backend Available".to_string()
     };
 
-    #[cfg(target_os = "linux")]
-    let backend = {
-        let forced_backend = std::env::var("CREBAIN_BACKEND").ok();
-
-        let onnx_ready = onnx_detector::is_onnx_detector_ready();
-        let zig_ready = zig_detector::is_zig_detector_ready();
-
-        let choice = select_backend_choice(
-            forced_backend.as_deref(),
-            onnx_ready,
-            Some(onnx_backend),
-            zig_ready,
-            Some(_zig_backend),
-        );
-
-        match choice {
-            Some(NativeBackendChoice::Zig) => _zig_backend.to_string(),
-            Some(NativeBackendChoice::Onnx) => onnx_backend.to_string(),
-            None => "No Backend Available".to_string(),
-        }
-    };
-
-    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    #[cfg(not(target_os = "macos"))]
     let backend = if onnx_detector::is_onnx_detector_ready() {
         onnx_backend.to_string()
     } else {
@@ -608,7 +391,6 @@ fn get_system_info() -> serde_json::Value {
         "onnxAvailable": onnx_detector::is_onnx_detector_ready(),
         "backend": backend,
         "mode": "zero-copy",
-        "zigDetector": zig_info,
         "onnxDetector": onnx_info,
         "sensorFusion": fusion_info
     })
@@ -881,7 +663,6 @@ pub fn run() {
             detect_coreml,
             detect_coreml_raw,
             detect_native_raw,
-            detect_zig,
             detect_onnx,
             get_system_info,
             // Scene state persistence (filesystem)
@@ -928,22 +709,12 @@ pub fn run() {
 
                 // Try ONNX as secondary fallback (uses CoreML execution provider)
                 init_onnx_detector();
-
-                // Try to initialize the Zig detector as tertiary fallback
-                if let Err(e) = zig_detector::init_global_detector() {
-                    log::warn!("Zig detector not available: {}", e);
-                }
             }
 
             #[cfg(target_os = "linux")]
             {
                 // Initialize ONNX Runtime detector (primary on Linux, uses CUDA if available)
                 init_onnx_detector();
-
-                // Try Zig detector with CUDA as alternative
-                if let Err(e) = zig_detector::init_global_detector() {
-                    log::warn!("Zig detector not available: {}", e);
-                }
             }
 
             #[cfg(not(any(target_os = "macos", target_os = "linux")))]
@@ -1026,77 +797,10 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
-    fn select_backend_prefers_onnx_when_only_onnx_ready() {
-        assert_eq!(
-            select_backend_choice(None, true, Some("ONNX Runtime (CPU)"), false, None),
-            Some(NativeBackendChoice::Onnx)
-        );
-    }
-
-    #[test]
-    fn select_backend_prefers_zig_when_only_zig_ready() {
-        assert_eq!(
-            select_backend_choice(None, false, None, true, Some("CUDA")),
-            Some(NativeBackendChoice::Zig)
-        );
-    }
-
-    #[test]
-    fn select_backend_auto_prefers_zig_cuda_over_onnx_cpu() {
-        assert_eq!(
-            select_backend_choice(
-                None,
-                true,
-                Some("ONNX Runtime (CPU)"),
-                true,
-                Some("CUDA")
-            ),
-            Some(NativeBackendChoice::Zig)
-        );
-    }
-
-    #[test]
-    fn select_backend_forced_onnx_wins_even_if_zig_cuda() {
-        assert_eq!(
-            select_backend_choice(
-                Some("onnx"),
-                true,
-                Some("ONNX Runtime (CPU)"),
-                true,
-                Some("CUDA")
-            ),
-            Some(NativeBackendChoice::Onnx)
-        );
-    }
-
-    #[test]
-    fn select_backend_forced_cuda_prefers_gpu_path() {
-        assert_eq!(
-            select_backend_choice(
-                Some("cuda"),
-                true,
-                Some("ONNX Runtime (CPU)"),
-                true,
-                Some("CUDA")
-            ),
-            Some(NativeBackendChoice::Zig)
-        );
-    }
-
-    #[test]
-    fn select_backend_forced_tensorrt_accepts_onnx_cuda() {
-        assert_eq!(
-            select_backend_choice(
-                Some("tensorrt"),
-                true,
-                Some("ONNX Runtime (CUDA)"),
-                true,
-                Some("CUDA")
-            ),
-            Some(NativeBackendChoice::Onnx)
-        );
+    fn placeholder_backend_test() {
+        // Backend selection tests were removed along with the Zig detector.
+        // ONNX is now the sole non-macOS backend.
+        assert!(true);
     }
 }
