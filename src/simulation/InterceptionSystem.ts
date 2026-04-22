@@ -655,7 +655,3 @@ export function getInterceptionSystem(): InterceptionSystem {
   }
   return instance
 }
-
-export function resetInterceptionSystem(): void {
-  instance = null
-}

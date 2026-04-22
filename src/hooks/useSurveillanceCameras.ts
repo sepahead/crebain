@@ -251,13 +251,19 @@ export function useSurveillanceCameras(
   }, [scene, selectedCamera, onMessage])
 
   const renameCamera = useCallback((cameraId: string, newName: string) => {
+    // Sanitize: strip control chars, limit length, remove path separators
+    const sanitized = newName
+      .replace(/[<>"'/\\|?*\x00-\x1F]/g, '')
+      .trim()
+      .slice(0, 64)
+    if (!sanitized) return
     setCameras(prev => prev.map(cam => 
-      cam.id === cameraId ? { ...cam, name: newName } : cam
+      cam.id === cameraId ? { ...cam, name: sanitized } : cam
     ))
   }, [])
 
   const exportCameraFeed = useCallback(async (cameraId: string): Promise<ImageData | null> => {
-    const cam = cameras.find(c => c.id === cameraId)
+    const cam = camerasRef.current.find(c => c.id === cameraId)
     if (!cam || !renderer) return null
     
     const width = cam.renderTarget.width
@@ -278,13 +284,13 @@ export function useSurveillanceCameras(
       }
     }
     return imageData
-  }, [cameras, renderer])
+  }, [renderer])
 
   const downloadCameraFeed = useCallback(async (cameraId: string) => {
     const imageData = await exportCameraFeed(cameraId)
     if (!imageData) return
 
-    const cam = cameras.find(c => c.id === cameraId)
+    const cam = camerasRef.current.find(c => c.id === cameraId)
     if (!cam) return
 
     const canvas = document.createElement('canvas')
@@ -301,7 +307,7 @@ export function useSurveillanceCameras(
     link.click()
     
     onMessage?.('info', `${cam.name} FEED EXPORTED`)
-  }, [cameras, exportCameraFeed, onMessage])
+  }, [exportCameraFeed, onMessage])
 
   const cycleCamera = useCallback(() => {
     if (cameras.length === 0) {

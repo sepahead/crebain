@@ -166,6 +166,9 @@ export function useKeyboardControls(options: UseKeyboardControlsOptions = {}) {
   }, [enabled, handleKeyDown, handleKeyUp])
   
   // Convert key state to drone control input with smoothing
+  // Track last call time to prevent throttle ramping at multiples of intended rate
+  // when getControlInput is called more than once per frame.
+  const lastThrottleUpdateRef = useRef(0)
   const getControlInput = useCallback((): DroneControlInput => {
     let targetPitch = 0
     let targetRoll = 0
@@ -184,12 +187,16 @@ export function useKeyboardControls(options: UseKeyboardControlsOptions = {}) {
     if (keyState.yawLeft) targetYaw -= sensitivity
     if (keyState.yawRight) targetYaw += sensitivity
     
-    // Throttle
-    if (keyState.up) {
-      baseThrottleRef.current = Math.min(1, baseThrottleRef.current + 0.01)
-    }
-    if (keyState.down) {
-      baseThrottleRef.current = Math.max(0, baseThrottleRef.current - 0.01)
+    // Throttle — only mutate once per frame to avoid compounding on multiple calls
+    const now = performance.now()
+    if (now - lastThrottleUpdateRef.current > 8) { // ~120fps guard
+      lastThrottleUpdateRef.current = now
+      if (keyState.up) {
+        baseThrottleRef.current = Math.min(1, baseThrottleRef.current + 0.01)
+      }
+      if (keyState.down) {
+        baseThrottleRef.current = Math.max(0, baseThrottleRef.current - 0.01)
+      }
     }
     throttle = baseThrottleRef.current
     

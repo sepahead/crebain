@@ -463,8 +463,10 @@ export function clamp(value: number, min: number, max: number): number {
  * Wrap angle to [-PI, PI]
  */
 export function wrapAngle(angle: number): number {
-  while (angle > Math.PI) angle -= 2 * Math.PI
-  while (angle < -Math.PI) angle += 2 * Math.PI
+  if (!Number.isFinite(angle)) return 0
+  angle = angle % (2 * Math.PI)
+  if (angle > Math.PI) angle -= 2 * Math.PI
+  if (angle < -Math.PI) angle += 2 * Math.PI
   return angle
 }
 

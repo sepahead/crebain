@@ -243,19 +243,20 @@ export class ZenohBridge {
     }
 
     // Select appropriate mapper based on type
+    // Use arrow wrappers to preserve `this` context for mapper methods
     let mapper: (data: any) => any = (d) => d
     if (type === 'sensor_msgs/Image') {
-      mapper = this.mapImageFrame
+      mapper = (d) => this.mapImageFrame(d)
     } else if (type === 'sensor_msgs/CompressedImage') {
-      mapper = this.mapCompressedImageFrame
+      mapper = (d) => this.mapCompressedImageFrame(d)
     } else if (type === 'sensor_msgs/CameraInfo') {
-      mapper = this.mapCameraInfoData
+      mapper = (d) => this.mapCameraInfoData(d)
     } else if (type === 'sensor_msgs/Imu') {
-      mapper = this.mapImuData
+      mapper = (d) => this.mapImuData(d)
     } else if (type === 'geometry_msgs/PoseStamped') {
-      mapper = this.mapPoseData
+      mapper = (d) => this.mapPoseData(d)
     } else if (type === 'gazebo_msgs/ModelStates') {
-      mapper = this.mapModelStates
+      mapper = (d) => this.mapModelStates(d)
     }
 
     // Set up listener FIRST to avoid race condition
@@ -508,16 +509,4 @@ export class ZenohBridge {
   async arm() { log.warn('arm not supported'); return false }
   async takeoff() { log.warn('takeoff not supported'); return false }
   async land() { log.warn('land not supported'); return false }
-}
-
-// Singleton
-let defaultBridge: ZenohBridge | null = null
-
-export function getZenohBridge(): ZenohBridge | null {
-  return defaultBridge
-}
-
-export function createZenohBridge(): ZenohBridge {
-  defaultBridge = new ZenohBridge()
-  return defaultBridge
 }

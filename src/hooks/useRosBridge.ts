@@ -76,8 +76,18 @@ const DEFAULT_CONFIG: UseRosBridgeConfig = {
 export function useRosBridge(
   config: Partial<UseRosBridgeConfig> = {}
 ): UseRosBridgeReturn {
-  const mergedConfig = { ...DEFAULT_CONFIG, ...config }
-  
+  // Memoize config values individually to avoid re-creating the bridge on every render.
+  // Spreading config into a new object would produce a new reference each render,
+  // causing the useEffect below to tear down and reconnect the bridge continuously.
+  const transport = config.transport ?? DEFAULT_CONFIG.transport
+  const url = config.url ?? DEFAULT_CONFIG.url
+  const autoConnect = config.autoConnect ?? DEFAULT_CONFIG.autoConnect
+  const autoReconnect = config.autoReconnect ?? DEFAULT_CONFIG.autoReconnect
+  const reconnectIntervalMs = config.reconnectIntervalMs ?? DEFAULT_CONFIG.reconnectIntervalMs
+  const maxReconnectAttempts = config.maxReconnectAttempts ?? DEFAULT_CONFIG.maxReconnectAttempts
+  const enablePerformanceMonitoring = config.enablePerformanceMonitoring ?? DEFAULT_CONFIG.enablePerformanceMonitoring
+  const highLatencyThresholdMs = config.highLatencyThresholdMs ?? DEFAULT_CONFIG.highLatencyThresholdMs
+
   const [state, setState] = useState<ConnectionState>('disconnected')
   const [error, setError] = useState<string | null>(null)
   const [alerts, setAlerts] = useState<PerformanceAlert[]>([])
@@ -91,21 +101,21 @@ export function useRosBridge(
   useEffect(() => {
     let bridge: ROSBridge | ZenohBridge
 
-    if (mergedConfig.transport === 'zenoh') {
+    if (transport === 'zenoh') {
       bridge = new ZenohBridge()
       bridge.onStateChange = setState
       // Handle auto-connect for Zenoh
-      if (mergedConfig.autoConnect) {
+      if (autoConnect) {
         bridge.connect().catch((err) => {
           setError(err instanceof Error ? err.message : String(err))
         })
       }
     } else {
       bridge = new ROSBridge({
-        url: mergedConfig.url,
-        autoReconnect: mergedConfig.autoReconnect,
-        reconnectIntervalMs: mergedConfig.reconnectIntervalMs,
-        maxReconnectAttempts: mergedConfig.maxReconnectAttempts,
+        url,
+        autoReconnect,
+        reconnectIntervalMs,
+        maxReconnectAttempts,
         onStateChange: setState,
         onError: (err) => setError(err.message),
         onConnect: () => {
@@ -115,9 +125,7 @@ export function useRosBridge(
         },
       })
       
-      // Auto-connect if configured (ROSBridge handles this internally if passed in constructor? 
-      // No, ROSBridge constructor doesn't take autoConnect, useRosBridge handles it)
-      if (mergedConfig.autoConnect) {
+      if (autoConnect) {
         bridge.connect().catch((err) => {
           setError(err.message)
         })
@@ -127,9 +135,10 @@ export function useRosBridge(
     bridgeRef.current = bridge
 
     // Initialize performance monitor if enabled
-    if (mergedConfig.enablePerformanceMonitoring) {
+    let statsInterval: ReturnType<typeof setInterval> | null = null
+    if (enablePerformanceMonitoring) {
       const monitor = new ROSPerformanceMonitor({
-        highLatencyThresholdMs: mergedConfig.highLatencyThresholdMs,
+        highLatencyThresholdMs,
       })
       
       // Subscribe to alerts
@@ -140,36 +149,29 @@ export function useRosBridge(
       performanceMonitorRef.current = monitor
 
       // Update stats periodically
-      const statsInterval = setInterval(() => {
+      statsInterval = setInterval(() => {
         if (performanceMonitorRef.current) {
           setQuality(performanceMonitorRef.current.getConnectionQuality())
           setTopicStats(performanceMonitorRef.current.getAllTopicStats())
         }
       }, 1000)
-
-      // Cleanup stats interval
-      // Monkey-patch disconnect to clear interval
-      const originalDisconnect = bridge.disconnect.bind(bridge)
-      bridge.disconnect = async () => {
-        clearInterval(statsInterval)
-        await originalDisconnect()
-      }
     }
 
     return () => {
+      if (statsInterval) clearInterval(statsInterval)
       bridge.disconnect()
       bridgeRef.current = null
       performanceMonitorRef.current = null
     }
   }, [
-    mergedConfig.transport,
-    mergedConfig.url,
-    mergedConfig.autoConnect,
-    mergedConfig.autoReconnect,
-    mergedConfig.reconnectIntervalMs,
-    mergedConfig.maxReconnectAttempts,
-    mergedConfig.enablePerformanceMonitoring,
-    mergedConfig.highLatencyThresholdMs,
+    transport,
+    url,
+    autoConnect,
+    autoReconnect,
+    reconnectIntervalMs,
+    maxReconnectAttempts,
+    enablePerformanceMonitoring,
+    highLatencyThresholdMs,
   ])
 
   // Connect function

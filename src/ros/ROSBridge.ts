@@ -531,15 +531,3 @@ let defaultBridge: ROSBridge | null = null
 export function getROSBridge(): ROSBridge | null {
   return defaultBridge
 }
-
-export function createROSBridge(config: Partial<ROSBridgeConfig> & { url: string }): ROSBridge {
-  defaultBridge = new ROSBridge(config)
-  return defaultBridge
-}
-
-export function destroyROSBridge(): void {
-  if (defaultBridge) {
-    defaultBridge.disconnect()
-    defaultBridge = null
-  }
-}

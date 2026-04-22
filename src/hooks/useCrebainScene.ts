@@ -3,7 +3,7 @@
  * Manages Three.js scene, camera, renderer, and controls lifecycle
  */
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
@@ -114,6 +114,8 @@ export function useCrebainScene(
   const glbLoaderRef = useRef<GLTFLoader | null>(null)
   const gridRef = useRef<THREE.Mesh | null>(null)
   const gridLabelsRef = useRef<THREE.Group | null>(null)
+  // Signal consumers to re-render once the scene objects are populated
+  const [isReady, setIsReady] = useState(false)
   const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster())
   const mouseRef = useRef<THREE.Vector2>(new THREE.Vector2())
 
@@ -262,6 +264,9 @@ export function useCrebainScene(
     gridRef.current = createTacticalGrid(scene)
     gridLabelsRef.current = createGridLabels(scene)
 
+    // Signal consumers that scene objects are ready
+    setIsReady(true)
+
     // Resize handler
     const handleResize = () => {
       const newWidth = container.clientWidth
@@ -271,6 +276,15 @@ export function useCrebainScene(
       renderer.setSize(newWidth, newHeight)
     }
     window.addEventListener('resize', handleResize)
+
+    // Pre-allocate scratch vectors to avoid GC pressure in the 60fps animate loop
+    const _forward = new THREE.Vector3()
+    const _right = new THREE.Vector3()
+    const _targetVelocity = new THREE.Vector3()
+    const _velocityDiff = new THREE.Vector3()
+    const _movement = new THREE.Vector3()
+    const _offset = new THREE.Vector3()
+    const _yAxis = new THREE.Vector3(0, 1, 0)
 
     // Animation loop with WASD movement
     const animate = () => {
@@ -286,30 +300,28 @@ export function useCrebainScene(
       if (ms.precision) speedMultiplier = cfg.precisionMultiplier
       const targetSpeed = cfg.baseSpeed * speedMultiplier
 
-      const forward = new THREE.Vector3()
-      camera.getWorldDirection(forward)
-      forward.y = 0
-      forward.normalize()
-      const right = new THREE.Vector3()
-      right.crossVectors(forward, camera.up).normalize()
+      camera.getWorldDirection(_forward)
+      _forward.y = 0
+      _forward.normalize()
+      _right.crossVectors(_forward, camera.up).normalize()
 
-      const targetVelocity = new THREE.Vector3()
-      if (ms.forward) targetVelocity.addScaledVector(forward, targetSpeed)
-      if (ms.backward) targetVelocity.addScaledVector(forward, -targetSpeed)
-      if (ms.left) targetVelocity.addScaledVector(right, -targetSpeed)
-      if (ms.right) targetVelocity.addScaledVector(right, targetSpeed)
-      if (ms.up) targetVelocity.y += cfg.verticalSpeed * speedMultiplier
-      if (ms.down) targetVelocity.y -= cfg.verticalSpeed * speedMultiplier
+      _targetVelocity.set(0, 0, 0)
+      if (ms.forward) _targetVelocity.addScaledVector(_forward, targetSpeed)
+      if (ms.backward) _targetVelocity.addScaledVector(_forward, -targetSpeed)
+      if (ms.left) _targetVelocity.addScaledVector(_right, -targetSpeed)
+      if (ms.right) _targetVelocity.addScaledVector(_right, targetSpeed)
+      if (ms.up) _targetVelocity.y += cfg.verticalSpeed * speedMultiplier
+      if (ms.down) _targetVelocity.y -= cfg.verticalSpeed * speedMultiplier
 
-      const isMoving = targetVelocity.length() > 0.001
+      const isMoving = _targetVelocity.length() > 0.001
       const accelRate = isMoving ? cfg.acceleration : cfg.deceleration
-      const velocityDiff = new THREE.Vector3().subVectors(targetVelocity, velocityRef.current)
+      _velocityDiff.subVectors(_targetVelocity, velocityRef.current)
       const maxDelta = accelRate * deltaTime
 
-      if (velocityDiff.length() <= maxDelta) {
-        velocityRef.current.copy(targetVelocity)
+      if (_velocityDiff.length() <= maxDelta) {
+        velocityRef.current.copy(_targetVelocity)
       } else {
-        velocityRef.current.addScaledVector(velocityDiff.normalize(), maxDelta)
+        velocityRef.current.addScaledVector(_velocityDiff.normalize(), maxDelta)
       }
 
       if (velocityRef.current.length() > cfg.maxVelocity) {
@@ -317,18 +329,18 @@ export function useCrebainScene(
       }
 
       if (velocityRef.current.length() > 0.001) {
-        const movement = velocityRef.current.clone().multiplyScalar(deltaTime)
-        camera.position.add(movement)
-        controls.target.add(movement)
+        _movement.copy(velocityRef.current).multiplyScalar(deltaTime)
+        camera.position.add(_movement)
+        controls.target.add(_movement)
       }
 
       // Keyboard look rotation
       if (ms.rotateLeft || ms.rotateRight) {
         const rotateAmount = cfg.rotateSpeed * deltaTime * (Math.PI / 180)
         const direction = ms.rotateLeft ? 1 : -1
-        const offset = new THREE.Vector3().subVectors(controls.target, camera.position)
-        offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), rotateAmount * direction)
-        controls.target.copy(camera.position).add(offset)
+        _offset.subVectors(controls.target, camera.position)
+        _offset.applyAxisAngle(_yAxis, rotateAmount * direction)
+        controls.target.copy(camera.position).add(_offset)
       }
 
       controls.update()
@@ -402,17 +414,19 @@ export function useCrebainScene(
       controls.dispose()
       renderer.dispose()
       container.removeChild(renderer.domElement)
+      setIsReady(false)
     }
   }, [config.backgroundColor, config.fogColor, config.fogNear, config.fogFar, 
       config.ambientLightIntensity, config.enableShadows, movementConfig, onMessage])
 
+  // Re-read refs when isReady flips so consumers get non-null values
   return {
     containerRef,
-    scene: sceneRef.current,
-    camera: cameraRef.current,
-    renderer: rendererRef.current,
-    controls: controlsRef.current,
-    glbLoader: glbLoaderRef.current,
+    scene: isReady ? sceneRef.current : null,
+    camera: isReady ? cameraRef.current : null,
+    renderer: isReady ? rendererRef.current : null,
+    controls: isReady ? controlsRef.current : null,
+    glbLoader: isReady ? glbLoaderRef.current : null,
     raycaster: raycasterRef.current,
     mouse: mouseRef.current,
     gridVisible: gridVisibleRef.current,

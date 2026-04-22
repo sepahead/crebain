@@ -15,15 +15,6 @@ import {
   getThreatLevel,
 } from './types'
 
-// YOLO class mapping - customize based on trained model
-const YOLO_CLASSES: DetectionClass[] = [
-  'drone',
-  'bird',
-  'aircraft',
-  'helicopter',
-  'unknown',
-]
-
 // Default COCO classes that might map to our detection classes
 const COCO_TO_DETECTION: Record<number, DetectionClass> = {
   0: 'unknown',    // person -> might be operator
@@ -39,7 +30,7 @@ export class YOLODetector implements ObjectDetector {
   name = 'YOLOv8-Nano'
   modelPath: string
   inputSize = { width: 640, height: 640 }
-  classes = YOLO_CLASSES
+  classes: DetectionClass[] = ['drone', 'bird', 'aircraft', 'helicopter', 'unknown']
 
   private session: ort.InferenceSession | null = null
   private config: DetectorConfig

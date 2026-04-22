@@ -427,9 +427,15 @@ export class SensorFusion {
       track.lostAt = timestamp
     }
 
-    // Predict position based on velocity
-    const dt = (timestamp - track.updatedAt) / 1000
-    track.position.add(track.velocity.clone().multiplyScalar(dt))
+    // Predict position based on velocity using time since last update.
+    // Clamp dt to prevent unbounded drift when frames are missed or
+    // the track goes unmatched for many consecutive frames.
+    const dt = Math.min((timestamp - track.updatedAt) / 1000, 1.0)
+    if (dt > 0) {
+      track.position.x += track.velocity.x * dt
+      track.position.y += track.velocity.y * dt
+      track.position.z += track.velocity.z * dt
+    }
     track.updatedAt = timestamp
 
     // Decay confidence

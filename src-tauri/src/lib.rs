@@ -281,7 +281,10 @@ async fn detect_native_raw(
         ));
     }
 
-    let expected_size = (width as usize) * (height as usize) * 4;
+    let expected_size = (width as usize)
+        .checked_mul(height as usize)
+        .and_then(|s| s.checked_mul(4))
+        .ok_or_else(|| format!("Image dimensions overflow: {}x{}", width, height))?;
     if expected_size > MAX_IMAGE_SIZE_BYTES {
         return Err(format!(
             "Image too large: {} bytes exceeds maximum {} bytes",
@@ -480,7 +483,10 @@ async fn detect_zig(
     height: u32,
 ) -> Result<zig_detector::ZigDetectionResult, String> {
     // Validate inputs
-    let expected_size = (width as usize) * (height as usize) * 4;
+    let expected_size = (width as usize)
+        .checked_mul(height as usize)
+        .and_then(|s| s.checked_mul(4))
+        .ok_or_else(|| format!("Image dimensions overflow: {}x{}", width, height))?;
     if rgba_data.len() != expected_size {
         return Err(format!(
             "Invalid RGBA data size: expected {} bytes, got {}",
@@ -504,7 +510,10 @@ async fn detect_onnx(
     height: u32,
 ) -> Result<onnx_detector::OnnxDetectionResult, String> {
     // Validate inputs
-    let expected_size = (width as usize) * (height as usize) * 4;
+    let expected_size = (width as usize)
+        .checked_mul(height as usize)
+        .and_then(|s| s.checked_mul(4))
+        .ok_or_else(|| format!("Image dimensions overflow: {}x{}", width, height))?;
     if rgba_data.len() != expected_size {
         return Err(format!(
             "Invalid RGBA data size: expected {} bytes, got {}",

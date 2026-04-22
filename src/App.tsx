@@ -62,10 +62,10 @@ export default function App() {
       if (e.key.toLowerCase() === 'p') {
         setShowPerformancePanel(prev => !prev)
       }
-      if (e.key.toLowerCase() === 'g') {
+      if (e.key.toLowerCase() === 'n') {
         setShowROSPanel(prev => !prev)
       }
-      if (e.key.toLowerCase() === 'f') {
+      if (e.key.toLowerCase() === 'u') {
         setShowFusionPanel(prev => !prev)
       }
     }

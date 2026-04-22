@@ -267,7 +267,6 @@ impl NativeCoreMLDetector {
         confidence_threshold: f64,
         max_detections: usize,
     ) -> Result<DetectionResult, String> {
-        let start_time = Instant::now();
 
         // SAFETY: This block uses Core Graphics and Vision FFI.
         // Key safety invariants:
@@ -484,14 +483,13 @@ impl NativeCoreMLDetector {
             detections.sort_by(|a, b| b.confidence.partial_cmp(&a.confidence).unwrap_or(std::cmp::Ordering::Equal));
             
             let postprocess_time = postprocess_start.elapsed();
-            let total_time = start_time.elapsed();
             
             Ok(DetectionResult {
                 success: true,
                 detections,
-                inference_time_ms: total_time.as_secs_f64() * 1000.0,
+                inference_time_ms: inference_time.as_secs_f64() * 1000.0,
                 preprocess_time_ms: Some(preprocess_time.as_secs_f64() * 1000.0),
-                postprocess_time_ms: Some(postprocess_time.as_secs_f64() * 1000.0 + inference_time.as_secs_f64() * 1000.0),
+                postprocess_time_ms: Some(postprocess_time.as_secs_f64() * 1000.0),
                 error: None,
             })
         }

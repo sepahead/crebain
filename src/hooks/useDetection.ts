@@ -148,13 +148,17 @@ export function useDetection(options: UseDetectionOptions = {}): UseDetectionRet
 
       // Set initialization timeout (30 seconds)
       initTimeoutRef.current = window.setTimeout(() => {
-        if (!workerRef.current) return
+        const w = workerRef.current
+        if (!w) return
         setState(prev => ({
           ...prev,
           error: 'Worker initialization timed out after 30 seconds',
           isLoading: false,
         }))
-        workerRef.current?.terminate()
+        // Clear handlers before terminating to prevent stale callbacks
+        w.onmessage = null
+        w.onerror = null
+        w.terminate()
         workerRef.current = null
       }, 30000)
 
