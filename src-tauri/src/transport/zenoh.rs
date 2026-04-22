@@ -194,8 +194,9 @@ fn read_cdr_string(data: &[u8], offset: &mut usize, is_little_endian: bool) -> R
         ));
     }
 
-    // CDR strings include null terminator in length
+    // CDR strings include null terminator in length — strip it
     let string = String::from_utf8_lossy(&data[*offset..end_offset])
+        .trim_end_matches('\0')
         .to_string();
     *offset = end_offset;
 
@@ -621,8 +622,8 @@ fn decode_model_states_cdr(data: &[u8]) -> Result<ModelStates> {
 fn encode_twist_cdr(cmd: &VelocityCmd) -> Vec<u8> {
     let mut data = Vec::with_capacity(CDR_HEADER_SIZE + 48);
 
-    // CDR header (little-endian)
-    data.extend_from_slice(&[0x00, 0x01, 0x00, 0x00]);
+    // CDR header (little-endian): byte 0 = encoding (0x01 = LE), bytes 1-3 = options
+    data.extend_from_slice(&[0x01, 0x00, 0x00, 0x00]);
 
     // Linear velocity (x, y, z)
     for v in &cmd.linear {
@@ -643,8 +644,8 @@ fn encode_twist_stamped_cdr(cmd: &TwistStampedData) -> Vec<u8> {
     // Header + string + padding + 6*f64. Conservatively reserve ~128 bytes.
     let mut data = Vec::with_capacity(CDR_HEADER_SIZE + 128);
 
-    // CDR encapsulation header (little-endian)
-    data.extend_from_slice(&[0x00, 0x01, 0x00, 0x00]);
+    // CDR encapsulation header (little-endian): byte 0 = encoding (0x01 = LE)
+    data.extend_from_slice(&[0x01, 0x00, 0x00, 0x00]);
 
     // Header timestamp
     let sec = cmd.timestamp as i32;
@@ -683,8 +684,8 @@ fn encode_twist_stamped_cdr(cmd: &TwistStampedData) -> Vec<u8> {
 fn encode_pose_cdr(pose: &PoseData) -> Vec<u8> {
     let mut data = Vec::with_capacity(CDR_HEADER_SIZE + 100);
 
-    // CDR header
-    data.extend_from_slice(&[0x00, 0x01, 0x00, 0x00]);
+    // CDR header (little-endian): byte 0 = encoding (0x01 = LE)
+    data.extend_from_slice(&[0x01, 0x00, 0x00, 0x00]);
 
     // Header timestamp
     let sec = pose.timestamp as i32;
@@ -700,12 +701,12 @@ fn encode_pose_cdr(pose: &PoseData) -> Vec<u8> {
     data.push(0); // Null terminator
 
     // Align to 4 bytes (relative to payload start)
-    while (data.len() - CDR_HEADER_SIZE) % 4 != 0 {
+    while (data.len().saturating_sub(CDR_HEADER_SIZE)) % 4 != 0 {
         data.push(0);
     }
 
     // Align to 8 for f64 fields (relative to payload start)
-    while (data.len() - CDR_HEADER_SIZE) % 8 != 0 {
+    while (data.len().saturating_sub(CDR_HEADER_SIZE)) % 8 != 0 {
         data.push(0);
     }
 
@@ -1325,8 +1326,8 @@ mod tests {
         // CDR header + 6 * f64 = 4 + 48 = 52 bytes
         assert_eq!(data.len(), 52);
 
-        // Check CDR header
-        assert_eq!(&data[0..4], &[0x00, 0x01, 0x00, 0x00]);
+        // Check CDR header (little-endian: byte 0 = 0x01)
+        assert_eq!(&data[0..4], &[0x01, 0x00, 0x00, 0x00]);
 
         // Check first linear value
         let val = f64::from_le_bytes(data[4..12].try_into().unwrap());
