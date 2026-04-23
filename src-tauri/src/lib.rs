@@ -93,12 +93,6 @@ fn init_onnx_detector() {
     }
 }
 
-/// No-op detector init for other platforms
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
-fn init_platform_detector() {
-    log::warn!("No native detector available for this platform");
-}
-
 /// Run CoreML detection on an image - NATIVE FFI (zero subprocess overhead)
 #[tauri::command]
 async fn detect_coreml(
@@ -296,7 +290,7 @@ async fn detect_native_raw(
             }
 
             let mut result = onnx_detector::detect_with_onnx(&rgba_data, width, height)
-                .map_err(|e| failure("ONNX Runtime", e))?;
+                .map_err(|e| format!("ONNX Runtime: {}", e))?;
             let conf_f32 = conf as f32;
             if conf_f32 > 0.0 {
                 result.detections.retain(|d| d.confidence >= conf_f32);
@@ -319,11 +313,28 @@ async fn detect_onnx(
     width: u32,
     height: u32,
 ) -> Result<onnx_detector::OnnxDetectionResult, String> {
+    // Validate dimensions
+    if width == 0 || height == 0 {
+        return Err("Image dimensions must be non-zero".to_string());
+    }
+    if width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION {
+        return Err(format!(
+            "Image dimensions {}x{} exceed maximum {}x{}",
+            width, height, MAX_IMAGE_DIMENSION, MAX_IMAGE_DIMENSION
+        ));
+    }
+
     // Validate inputs
     let expected_size = (width as usize)
         .checked_mul(height as usize)
         .and_then(|s| s.checked_mul(4))
         .ok_or_else(|| format!("Image dimensions overflow: {}x{}", width, height))?;
+    if expected_size > MAX_IMAGE_SIZE_BYTES {
+        return Err(format!(
+            "Image size {} exceeds maximum {}",
+            expected_size, MAX_IMAGE_SIZE_BYTES
+        ));
+    }
     if rgba_data.len() != expected_size {
         return Err(format!(
             "Invalid RGBA data size: expected {} bytes, got {}",

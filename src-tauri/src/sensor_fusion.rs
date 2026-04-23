@@ -143,15 +143,17 @@ pub struct TrackOutput {
 
 impl From<&TrackState> for TrackOutput {
     fn from(track: &TrackState) -> Self {
+        // Guard against negative covariance diagonals (numerical drift)
+        // which would produce NaN from sqrt and break JSON serialization.
         let pos_unc = [
-            track.covariance[(0, 0)].sqrt(),
-            track.covariance[(1, 1)].sqrt(),
-            track.covariance[(2, 2)].sqrt(),
+            track.covariance[(0, 0)].max(0.0).sqrt(),
+            track.covariance[(1, 1)].max(0.0).sqrt(),
+            track.covariance[(2, 2)].max(0.0).sqrt(),
         ];
         let vel_unc = [
-            track.covariance[(3, 3)].sqrt(),
-            track.covariance[(4, 4)].sqrt(),
-            track.covariance[(5, 5)].sqrt(),
+            track.covariance[(3, 3)].max(0.0).sqrt(),
+            track.covariance[(4, 4)].max(0.0).sqrt(),
+            track.covariance[(5, 5)].max(0.0).sqrt(),
         ];
 
         let threat_level = calculate_threat_level(&track.class_label, track.confidence);
@@ -550,17 +552,11 @@ impl UnscentedKalmanFilter {
         new_state
     }
 
-    /// Measurement function (Cartesian to polar)
+    /// Measurement function (extract Cartesian position from state)
+    /// The fusion engine passes Cartesian position measurements, so the
+    /// measurement function is simply the identity on the position components.
     fn measurement_function(state: &DVector<f64>) -> DVector<f64> {
-        let x = state[0];
-        let y = state[1];
-        let z = state[2];
-
-        let range = (x * x + y * y + z * z).sqrt().max(1e-6);
-        let azimuth = y.atan2(x);
-        let elevation = (z / range).asin();
-
-        DVector::from_vec(vec![range, azimuth, elevation])
+        DVector::from_vec(vec![state[0], state[1], state[2]])
     }
 
     pub fn predict(&self, state: &mut Vector6<f64>, cov: &mut Matrix6<f64>, dt: f64) {
@@ -1092,6 +1088,7 @@ pub struct MultiSensorFusion {
     imm_filters: HashMap<String, IMMFilter>,
     next_track_id: u64,
     frame_count: u64,
+    last_predict_ms: u64,
 }
 
 impl MultiSensorFusion {
@@ -1106,6 +1103,7 @@ impl MultiSensorFusion {
             tracks: HashMap::new(),
             next_track_id: 1,
             frame_count: 0,
+            last_predict_ms: 0,
         }
     }
 
@@ -1118,7 +1116,13 @@ impl MultiSensorFusion {
         self.frame_count += 1;
 
         // Step 1: Predict all tracks forward
-        let dt = 0.1; // Assume 10 Hz for now, could calculate from timestamps
+        // Compute dt from actual timestamps; fall back to 0.1s (10 Hz) on first frame
+        let dt = if self.last_predict_ms > 0 && timestamp_ms > self.last_predict_ms {
+            ((timestamp_ms - self.last_predict_ms) as f64 / 1000.0).min(1.0)
+        } else {
+            0.1
+        };
+        self.last_predict_ms = timestamp_ms;
         self.predict_all(dt);
 
         // Step 2: Associate measurements to tracks
@@ -1377,7 +1381,7 @@ impl MultiSensorFusion {
         self.tracks.insert(track_id, track);
     }
 
-    fn handle_missed_detections(&mut self, _timestamp_ms: u64) {
+    fn handle_missed_detections(&mut self, timestamp_ms: u64) {
         let mut tracks_to_remove = Vec::new();
 
         for (track_id, track) in &mut self.tracks {
@@ -1386,7 +1390,13 @@ impl MultiSensorFusion {
                 continue;
             }
 
-            track.missed_detections += 1;
+            // Only increment missed_detections for tracks that were NOT
+            // updated this frame. update_track resets missed_detections = 0
+            // and sets last_update_ms = timestamp_ms, so any track with a
+            // different last_update_ms was not associated this frame.
+            if track.last_update_ms != timestamp_ms {
+                track.missed_detections += 1;
+            }
 
             if track.missed_detections >= self.config.max_missed_detections {
                 track.state_label = TrackStateLabel::Lost;
@@ -1444,10 +1454,19 @@ impl MultiSensorFusion {
 
     /// Update configuration
     pub fn set_config(&mut self, config: FusionConfig) {
+        let algorithm_changed = self.config.algorithm != config.algorithm;
         self.config = config.clone();
         self.kf = KalmanFilter::new(config.process_noise, config.measurement_noise);
         self.ekf = ExtendedKalmanFilter::new(config.process_noise, config.measurement_noise);
         self.ukf = UnscentedKalmanFilter::new(config.process_noise, config.measurement_noise);
+
+        // When the algorithm changes, per-track filter state (particles, IMM
+        // mode probabilities) from the old algorithm is invalid.  Clear them
+        // so they get re-created on the next update_track / create_track call.
+        if algorithm_changed {
+            self.particle_filters.clear();
+            self.imm_filters.clear();
+        }
     }
 }
 

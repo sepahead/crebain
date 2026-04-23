@@ -18,27 +18,12 @@
 //! ```
 
 use super::{Backend, Detection, Detector, InferenceError, InferenceStats, Result};
+use crate::common::coco;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 use candle_core::{Device, Tensor, DType};
-
-// YOLOv8 class labels (COCO dataset)
-const YOLO_CLASSES: [&str; 80] = [
-    "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck",
-    "boat", "traffic light", "fire hydrant", "stop sign", "parking meter", "bench",
-    "bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra",
-    "giraffe", "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee",
-    "skis", "snowboard", "sports ball", "kite", "baseball bat", "baseball glove",
-    "skateboard", "surfboard", "tennis racket", "bottle", "wine glass", "cup",
-    "fork", "knife", "spoon", "bowl", "banana", "apple", "sandwich", "orange",
-    "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "couch",
-    "potted plant", "bed", "dining table", "toilet", "tv", "laptop", "mouse",
-    "remote", "keyboard", "cell phone", "microwave", "oven", "toaster", "sink",
-    "refrigerator", "book", "clock", "vase", "scissors", "teddy bear", "hair drier",
-    "toothbrush",
-];
 
 // Model configuration
 const INPUT_SIZE: usize = 640;
@@ -522,8 +507,8 @@ fn postprocess_output(output: &Tensor, orig_width: f32, orig_height: f32) -> Res
             bbox: [x1, y1, x2, y2],
             confidence: max_score,
             class_id: max_class as u32,
-            class_label: YOLO_CLASSES.get(max_class)
-                .unwrap_or(&"unknown")
+            class_label: coco::get_class_name_ref(max_class)
+                .unwrap_or("unknown")
                 .to_string(),
         });
     }

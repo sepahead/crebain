@@ -21,8 +21,13 @@ pub async fn transport_connect() -> Result<(), String> {
     // Connect
     bridge.connect().await.map_err(|e| e.to_string())?;
     
-    // Store in global state
+    // Disconnect any existing transport before replacing it
     let mut guard = TRANSPORT_ENGINE.lock().await;
+    if let Some(old_bridge) = guard.as_mut() {
+        if let Err(e) = old_bridge.disconnect().await {
+            log::warn!("Failed to disconnect old transport: {}", e);
+        }
+    }
     *guard = Some(bridge);
     
     log::info!("Transport connected successfully");
