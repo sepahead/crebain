@@ -50,7 +50,7 @@ interface PendingServiceCall {
 const ALLOWED_SCHEMES = ['ws:', 'wss:']
 
 // Validate ROS bridge URL for security
-function validateRosUrl(url: string): { valid: boolean; error?: string } {
+export function validateRosUrl(url: string): { valid: boolean; error?: string } {
   try {
     const parsed = new URL(url)
     

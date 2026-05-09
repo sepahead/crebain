@@ -10,24 +10,17 @@
 
 import { useCallback, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import type { Detection, CoreMLDetection, CoreMLDetectionResult } from '../detection/types'
+import type { Detection, CoreMLDetectionResult } from '../detection/types'
 import {
-  mapToDetectionClass,
-  getThreatLevel,
   DEFAULT_CONFIDENCE_THRESHOLD,
   DEFAULT_IOU_THRESHOLD,
   DEFAULT_MAX_DETECTIONS,
 } from '../detection/types'
 import { detectionLogger as log } from '../lib/logger'
+import { convertDetection, imageDataToRGBA } from './useDetectionLoop'
+import { normalizeSystemInfo, type SystemInfo } from '../lib/diagnostics'
 
 type NativeDetectionResult = CoreMLDetectionResult & { backend?: string }
-
-interface SystemInfo {
-  platform: string
-  arch: string
-  coremlAvailable: boolean
-  backend: string
-}
 
 interface CoreMLDetectionState {
   isReady: boolean
@@ -44,36 +37,6 @@ interface UseCoreMLDetectionReturn extends CoreMLDetectionState {
   detect: (imageData: ImageData) => Promise<Detection[]>
   detectFromCanvas: (canvas: HTMLCanvasElement | OffscreenCanvas) => Promise<Detection[]>
   getSystemInfo: () => Promise<SystemInfo>
-}
-
-// Convert CoreML detection (bbox is in pixel coordinates) to our Detection format
-function convertDetection(coremlDet: CoreMLDetection, frameWidth: number, frameHeight: number): Detection {
-  const detClass = mapToDetectionClass(coremlDet.classLabel)
-  const threatLevel = getThreatLevel(detClass, coremlDet.confidence)
-  
-  return {
-    id: coremlDet.id,
-    class: detClass,
-    confidence: coremlDet.confidence,
-    bbox: [
-      coremlDet.bbox.x1,
-      coremlDet.bbox.y1,
-      coremlDet.bbox.x2,
-      coremlDet.bbox.y2,
-    ],
-    timestamp: coremlDet.timestamp,
-    threatLevel,
-    frameWidth,
-    frameHeight,
-  }
-}
-
-function imageDataToRGBA(imageData: ImageData): Uint8Array {
-  return new Uint8Array(
-    imageData.data.buffer,
-    imageData.data.byteOffset,
-    imageData.data.byteLength
-  )
 }
 
 function canvasToImageData(canvas: HTMLCanvasElement | OffscreenCanvas): ImageData {
@@ -108,16 +71,11 @@ export function useCoreMLDetection(): UseCoreMLDetectionReturn {
    */
   const getSystemInfo = useCallback(async (): Promise<SystemInfo> => {
     try {
-      const info = await invoke<SystemInfo>('get_system_info')
-      return info
+      const info = await invoke<unknown>('get_system_info')
+      return normalizeSystemInfo(info)
     } catch (error) {
       log.error('Failed to get system info', { error })
-      return {
-        platform: 'unknown',
-        arch: 'unknown',
-        coremlAvailable: false,
-        backend: 'Unknown',
-      }
+      return normalizeSystemInfo(null)
     }
   }, [])
 
