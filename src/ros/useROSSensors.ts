@@ -5,7 +5,7 @@
  * Subscribes to ROS sensor topics and feeds measurements to the native fusion backend
  */
 
-import { useEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
 import { ROSBridge, type ConnectionState } from './ROSBridge'
 import type {
   ThermalDetection,
@@ -57,6 +57,10 @@ export interface ROSSensorConfig {
   fusionRateHz: number
 }
 
+export type ROSSensorConfigInput = Partial<Omit<ROSSensorConfig, 'topics'>> & {
+  topics?: Partial<ROSSensorConfig['topics']>
+}
+
 export interface ROSSensorState {
   connectionState: ConnectionState
   connectionError: string | null
@@ -90,7 +94,7 @@ export interface UseROSSensorsReturn extends ROSSensorState {
 // DEFAULT CONFIG
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const DEFAULT_CONFIG: ROSSensorConfig = {
+export const DEFAULT_ROS_SENSOR_CONFIG: ROSSensorConfig = {
   rosUrl: 'ws://localhost:9090',
   autoConnect: false,
   algorithm: 'ExtendedKalman',
@@ -110,11 +114,28 @@ const DEFAULT_CONFIG: ROSSensorConfig = {
 // Prevents memory spikes if a ROS topic floods with data
 const MAX_MEASUREMENTS_PER_CYCLE = 10_000
 
+export function clampFusionRateHz(rateHz: number): number {
+  if (!Number.isFinite(rateHz)) return DEFAULT_ROS_SENSOR_CONFIG.fusionRateHz
+  return Math.min(Math.max(rateHz, 1), 60)
+}
+
+export function mergeROSSensorConfig(config: ROSSensorConfigInput = {}): ROSSensorConfig {
+  return {
+    ...DEFAULT_ROS_SENSOR_CONFIG,
+    ...config,
+    topics: {
+      ...DEFAULT_ROS_SENSOR_CONFIG.topics,
+      ...config.topics,
+    },
+    fusionRateHz: clampFusionRateHz(config.fusionRateHz ?? DEFAULT_ROS_SENSOR_CONFIG.fusionRateHz),
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // CONVERSION HELPERS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function thermalToMeasurement(det: ThermalDetection, sensorId: string): SensorMeasurement {
+export function thermalToMeasurement(det: ThermalDetection, sensorId: string): SensorMeasurement {
   return {
     sensor_id: sensorId,
     modality: 'thermal',
@@ -130,7 +151,7 @@ function thermalToMeasurement(det: ThermalDetection, sensorId: string): SensorMe
   }
 }
 
-function acousticToMeasurement(det: AcousticDetection, sensorId: string): SensorMeasurement {
+export function acousticToMeasurement(det: AcousticDetection, sensorId: string): SensorMeasurement {
   // Convert spherical to Cartesian
   const r = det.range_estimate
   const az = det.azimuth
@@ -167,7 +188,7 @@ function acousticToMeasurement(det: AcousticDetection, sensorId: string): Sensor
   }
 }
 
-function radarToMeasurement(det: RadarDetection, sensorId: string): SensorMeasurement {
+export function radarToMeasurement(det: RadarDetection, sensorId: string): SensorMeasurement {
   // Convert spherical to Cartesian
   const r = det.range
   const az = det.azimuth
@@ -200,7 +221,7 @@ function radarToMeasurement(det: RadarDetection, sensorId: string): SensorMeasur
   }
 }
 
-function lidarToMeasurement(det: LidarDetection, sensorId: string): SensorMeasurement {
+export function lidarToMeasurement(det: LidarDetection, sensorId: string): SensorMeasurement {
   return {
     sensor_id: sensorId,
     modality: 'lidar',
@@ -224,9 +245,9 @@ function lidarToMeasurement(det: LidarDetection, sensorId: string): SensorMeasur
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export function useROSSensors(
-  config: Partial<ROSSensorConfig> = {}
+  config: ROSSensorConfigInput = {}
 ): UseROSSensorsReturn {
-  const fullConfig = { ...DEFAULT_CONFIG, ...config }
+  const fullConfig = useMemo(() => mergeROSSensorConfig(config), [config])
 
   const [state, setState] = useState<ROSSensorState>({
     connectionState: 'disconnected',
