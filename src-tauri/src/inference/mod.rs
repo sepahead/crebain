@@ -185,14 +185,7 @@ pub struct InferenceStats {
 pub fn create_detector() -> Result<Box<dyn Detector>> {
     // Check environment variable for forced backend
     if let Ok(backend) = std::env::var("CREBAIN_BACKEND") {
-        return create_detector_with_backend(match backend.to_lowercase().as_str() {
-            "coreml" => Backend::CoreML,
-            "mlx" => Backend::MLX,
-            "cuda" => Backend::CUDA,
-            "tensorrt" => Backend::TensorRT,
-            "onnx" => Backend::ONNX,
-            _ => return Err(InferenceError::BackendNotAvailable(Backend::ONNX)),
-        });
+        return create_detector_with_backend(parse_backend_name(&backend)?);
     }
 
     // Auto-select based on platform
@@ -304,7 +297,18 @@ pub fn available_backends() -> Vec<Backend> {
 }
 
 fn is_truthy_env_value(value: &str) -> bool {
-    matches!(value.to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on")
+    matches!(value.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on")
+}
+
+fn parse_backend_name(value: &str) -> Result<Backend> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "coreml" => Ok(Backend::CoreML),
+        "mlx" => Ok(Backend::MLX),
+        "cuda" => Ok(Backend::CUDA),
+        "tensorrt" => Ok(Backend::TensorRT),
+        "onnx" => Ok(Backend::ONNX),
+        _ => Err(InferenceError::BackendNotAvailable(Backend::ONNX)),
+    }
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -333,9 +337,20 @@ mod tests {
         assert!(is_truthy_env_value("1"));
         assert!(is_truthy_env_value("true"));
         assert!(is_truthy_env_value("YES"));
+        assert!(is_truthy_env_value(" on "));
         assert!(is_truthy_env_value("on"));
         assert!(!is_truthy_env_value(""));
         assert!(!is_truthy_env_value("0"));
         assert!(!is_truthy_env_value("false"));
+    }
+
+    #[test]
+    fn test_parse_backend_name() {
+        assert_eq!(parse_backend_name("coreml").unwrap(), Backend::CoreML);
+        assert_eq!(parse_backend_name(" MLX ").unwrap(), Backend::MLX);
+        assert_eq!(parse_backend_name("cuda").unwrap(), Backend::CUDA);
+        assert_eq!(parse_backend_name("tensorrt").unwrap(), Backend::TensorRT);
+        assert_eq!(parse_backend_name("onnx").unwrap(), Backend::ONNX);
+        assert!(parse_backend_name("zig").is_err());
     }
 }
