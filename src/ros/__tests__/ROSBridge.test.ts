@@ -1,58 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ROSBridge, validateRosUrl, type ROSBridgeConfig } from '../ROSBridge'
 import type { PoseStamped, TwistStamped } from '../types'
+import { installMockWebSocket, MockWebSocket, sentMessages } from '../../test/mockWebSocket'
 
-const originalWebSocket = globalThis.WebSocket
-
-class MockWebSocket {
-  static instances: MockWebSocket[] = []
-  static OPEN = 1
-
-  readyState = MockWebSocket.OPEN
-  sent: string[] = []
-  closeCalls = 0
-  onopen: ((event: Event) => void) | null = null
-  onclose: ((event: Event) => void) | null = null
-  onerror: ((event: Event) => void) | null = null
-  onmessage: ((event: MessageEvent) => void) | null = null
-
-  constructor(public readonly url: string) {
-    MockWebSocket.instances.push(this)
-  }
-
-  send(data: string) {
-    this.sent.push(data)
-  }
-
-  close() {
-    this.closeCalls += 1
-    this.readyState = 3
-    this.onclose?.(new Event('close'))
-  }
-
-  open() {
-    this.readyState = MockWebSocket.OPEN
-    this.onopen?.(new Event('open'))
-  }
-
-  error(type = 'error') {
-    this.onerror?.(new Event(type))
-  }
-
-  receive(message: Record<string, unknown>) {
-    this.onmessage?.({ data: JSON.stringify(message) } as MessageEvent)
-  }
-
-  static last() {
-    const ws = MockWebSocket.instances[MockWebSocket.instances.length - 1]
-    if (!ws) throw new Error('Expected WebSocket instance')
-    return ws
-  }
-}
-
-function sentMessages(ws: MockWebSocket) {
-  return ws.sent.map((data) => JSON.parse(data) as Record<string, any>)
-}
+let restoreWebSocket: () => void
 
 async function connectBridge(config: Partial<ROSBridgeConfig> = {}) {
   const bridge = new ROSBridge({
@@ -69,14 +20,13 @@ async function connectBridge(config: Partial<ROSBridgeConfig> = {}) {
 
 describe('ROSBridge', () => {
   beforeEach(() => {
-    MockWebSocket.instances = []
-    ;(globalThis as any).WebSocket = MockWebSocket
+    restoreWebSocket = installMockWebSocket()
   })
 
   afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
-    ;(globalThis as any).WebSocket = originalWebSocket
+    restoreWebSocket()
   })
 
   it('accepts websocket URLs', () => {

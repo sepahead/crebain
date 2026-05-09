@@ -2,64 +2,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createRoot } from 'react-dom/client'
 import { act } from 'react'
 import { useRosBridge, type UseRosBridgeConfig, type UseRosBridgeReturn } from '../useRosBridge'
+import { installMockWebSocket, MockWebSocket, sentMessages } from '../../test/mockWebSocket'
 
 ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
 
-const originalWebSocket = globalThis.WebSocket
-
-class MockWebSocket {
-  static instances: MockWebSocket[] = []
-  static OPEN = 1
-
-  readyState = MockWebSocket.OPEN
-  sent: string[] = []
-  onopen: ((event: Event) => void) | null = null
-  onclose: ((event: Event) => void) | null = null
-  onerror: ((event: Event) => void) | null = null
-  onmessage: ((event: MessageEvent) => void) | null = null
-
-  constructor(public readonly url: string) {
-    MockWebSocket.instances.push(this)
-  }
-
-  send(data: string) {
-    this.sent.push(data)
-  }
-
-  close() {
-    this.readyState = 3
-    this.onclose?.(new Event('close'))
-  }
-
-  open() {
-    this.readyState = MockWebSocket.OPEN
-    this.onopen?.(new Event('open'))
-  }
-
-  error(type = 'error') {
-    this.onerror?.(new Event(type))
-  }
-
-  receive(message: Record<string, unknown>) {
-    this.onmessage?.({ data: JSON.stringify(message) } as MessageEvent)
-  }
-
-  static last() {
-    const ws = MockWebSocket.instances[MockWebSocket.instances.length - 1]
-    if (!ws) throw new Error('Expected WebSocket instance')
-    return ws
-  }
-}
-
 let hook: UseRosBridgeReturn
+let restoreWebSocket: () => void
 
 function Harness({ config }: { config: Partial<UseRosBridgeConfig> }) {
   hook = useRosBridge(config)
   return null
-}
-
-function sentMessages(ws: MockWebSocket) {
-  return ws.sent.map((data) => JSON.parse(data) as Record<string, any>)
 }
 
 async function renderHook(config: Partial<UseRosBridgeConfig> = {}) {
@@ -87,14 +39,13 @@ async function connectHook() {
 
 describe('useRosBridge', () => {
   beforeEach(() => {
-    MockWebSocket.instances = []
-    ;(globalThis as any).WebSocket = MockWebSocket
+    restoreWebSocket = installMockWebSocket()
   })
 
   afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
-    ;(globalThis as any).WebSocket = originalWebSocket
+    restoreWebSocket()
   })
 
   it('connects a websocket bridge and delegates topic and service operations', async () => {
