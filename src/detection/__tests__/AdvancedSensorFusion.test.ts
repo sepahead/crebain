@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const invokeMock = vi.hoisted(() => vi.fn())
 
@@ -15,6 +15,7 @@ import {
   initFusion,
   processMeasurements,
   setFusionConfig,
+  type FusedTrack,
   type FusionConfig,
   type SensorMeasurement,
 } from '../AdvancedSensorFusion'
@@ -22,6 +23,10 @@ import {
 describe('AdvancedSensorFusion IPC', () => {
   beforeEach(() => {
     invokeMock.mockReset()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('routes fusion initialization through the centralized command name', async () => {
@@ -60,6 +65,43 @@ describe('AdvancedSensorFusion IPC', () => {
     expect(invokeMock).toHaveBeenCalledWith('fusion_process', {
       measurements: [measurement],
       timestampMs: 456,
+    })
+  })
+
+  it('uses a deterministic clock fallback and returns fused tracks', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(1_700_000_000_000)
+    const track: FusedTrack = {
+      id: 'track-1',
+      position: [1, 2, 3],
+      velocity: [0.1, 0.2, 0.3],
+      position_uncertainty: [0.5, 0.5, 0.5],
+      velocity_uncertainty: [0.1, 0.1, 0.1],
+      class_label: 'drone',
+      confidence: 0.95,
+      sensor_sources: ['visual', 'thermal'],
+      last_update_ms: 1_700_000_000_000,
+      age: 0,
+      state: 'Confirmed',
+      threat_level: 3,
+    }
+    const measurement: SensorMeasurement = {
+      sensor_id: 'camera-1',
+      modality: 'visual',
+      timestamp_ms: 1_700_000_000_000,
+      position: [1, 2, 3],
+      covariance: [1, 1, 1],
+      confidence: 0.9,
+      class_label: 'drone',
+      metadata: {},
+    }
+    invokeMock.mockResolvedValue([track])
+
+    await expect(processMeasurements([measurement])).resolves.toEqual([track])
+
+    expect(invokeMock).toHaveBeenCalledWith('fusion_process', {
+      measurements: [measurement],
+      timestampMs: 1_700_000_000_000,
     })
   })
 

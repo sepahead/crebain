@@ -41,6 +41,11 @@ jobs:
         with:
           components: clippy
 
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         run: |
@@ -58,14 +63,11 @@ jobs:
             src-tauri/target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Check (no default features)
-        working-directory: src-tauri
-        run: cargo check --no-default-features
+      - name: Check Rust
+        run: bun run check:rust
 
       - name: Clippy
-        working-directory: src-tauri
-        run: cargo clippy -- -D warnings
+        run: bun run clippy:rust
 
       - name: Run tests
-        working-directory: src-tauri
-        run: cargo test
+        run: bun run test:rust
