@@ -36,7 +36,9 @@ A professional-grade tactical reconnaissance platform with 3D Gaussian Splatting
 - [Performance Optimizations](#performance-optimizations)
 - [Configuration](#configuration)
 - [Project Structure](#project-structure)
+- [Validation](#validation)
 - [Development Roadmap](#development-roadmap)
+- [Next 10 Steps](#next-10-steps)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -305,14 +307,15 @@ brew install bun rust
 
 # Clone and setup
 git clone https://github.com/crebain/crebain.git
-cd crebain
+
+# From the repository root
 bun install
 
 # Build backend (CoreML is used automatically on macOS)
-cd src-tauri && cargo build --release && cd ..
+cargo build --manifest-path src-tauri/Cargo.toml --release
 
 # Run
-bun run tauri dev
+bun run tauri:dev
 ```
 
 ### NixOS (NVIDIA CUDA)
@@ -320,7 +323,6 @@ bun run tauri dev
 ```bash
 # Clone
 git clone https://github.com/crebain/crebain.git
-cd crebain
 
 # Enter Nix dev environment (auto-detects CUDA on NixOS with NVIDIA drivers)
 nix develop
@@ -333,7 +335,7 @@ nix develop
 
 # Install frontend deps and run
 bun install
-bun run tauri dev
+bun run tauri:dev
 ```
 
 ### Model Setup
@@ -362,7 +364,7 @@ export CREBAIN_ONNX_MODEL=/path/to/your/model.onnx
 
 ## Usage
 
-1. **Launch the app**: `bun run tauri dev`
+1. **Launch the app**: `bun run tauri:dev`
 2. **Load a scene**: Drag and drop a .spz/.ply/.splat file, or use Ctrl+O
 3. **Place cameras**: Press 1/2/3 to enter camera placement mode, click to place
 4. **Enable detection**: Detection runs automatically on camera feeds
@@ -602,7 +604,7 @@ export RMW_IMPLEMENTATION=rmw_zenoh_cpp
 gzserver --headless your_world.sdf
 
 # Terminal 2: CREBAIN
-cd crebain && bun run tauri dev
+bun run tauri:dev
 ```
 
 ---
@@ -746,28 +748,49 @@ crebain/
 
 ---
 
+## Validation
+
+Use the same commands in local development, CI, and PR review:
+
+```bash
+# Frontend typecheck + Vitest
+bun run validate
+
+# Full validation: frontend + Rust check/test/clippy
+bun run validate:all
+```
+
+Useful focused checks:
+
+```bash
+bun run typecheck
+bun run test:run
+bun run check:rust
+bun run test:rust
+bun run clippy:rust
+```
+
+---
+
 ## Development Roadmap
 
-### In Progress (v0.4.0)
+### Stabilization Baseline (v0.4.x)
 
-- [ ] Core 3D visualization with Gaussian Splatting
-- [ ] Multi-camera surveillance system
-- [ ] ML detection pipeline (CoreML/CUDA)
-- [ ] Sensor fusion (5 algorithms)
-- [ ] ROS integration (rosbridge)
-- [ ] Performance optimizations (CircularBuffer, memoization)
-- [ ] Zenoh transport layer (stub implementation)
-- [ ] Cross-platform ML abstraction
-- [ ] Nix flake for reproducible builds
+- [x] Centralized keyboard shortcut constants and tests
+- [x] Centralized Tauri IPC command constants and registration-drift tests
+- [x] Detection, diagnostics, scene state, sensor fusion, ROS, Zenoh, and Gazebo mocked test coverage
+- [x] ROS namespace normalization and shared WebSocket test helpers
+- [x] Frontend validation script and full frontend/Rust validation script
 
-### In Progress (v0.5.0)
+### Near-Term Engineering Focus (v0.5.x)
 
-- [ ] Full Zenoh integration with camera streaming
-- [ ] TensorRT engine building from ONNX
-- [ ] MLX detector implementation
-- [ ] WebGPU renderer (Three.js r160+)
+- [ ] Guidance controller loop tests and safety envelope checks
+- [ ] Backend command registration/source tests in Rust
+- [ ] End-to-end detection/fusion smoke tests with mocked model outputs
+- [ ] CI backend alignment to package scripts
+- [ ] MLX implementation or stronger documentation demotion
 
-### Planned (v0.6.0)
+### Planned Capability Work (v0.6.x)
 
 - [ ] Hardware-in-the-loop (HIL) testing
 - [ ] Real PX4/ArduPilot integration
@@ -783,6 +806,25 @@ crebain/
 
 ---
 
+## Next 10 Steps
+
+These next steps combine recommendations from 10 complementary scientific and engineering perspectives:
+
+| # | Perspective | Next Step | Primary Outcome |
+|---|-------------|-----------|-----------------|
+| 1 | **Systems Engineer** | Define a top-level acceptance matrix for detection, fusion, ROS, Zenoh, Gazebo, scene state, and UI workflows | Clear release gates |
+| 2 | **Robotics Engineer** | Add `GuidanceController` loop tests for setpoint publication, stop behavior, and namespace normalization | Safer simulated actuation |
+| 3 | **Control Systems Scientist** | Add bounded-response tests for velocity ramping, emergency stop, and arrival thresholds | Stable control behavior |
+| 4 | **ML Engineer** | Add deterministic detection/fusion smoke tests with mocked model outputs and fixed timestamps | Reproducible perception checks |
+| 5 | **Rust Backend Engineer** | Add Rust-side command registration/source tests for IPC drift and transport command coverage | Stronger frontend/backend contract |
+| 6 | **Frontend Engineer** | Extract reusable hook-test harness utilities for React root setup, `act`, and cleanup | Less duplicated test code |
+| 7 | **Performance Engineer** | Add benchmark guardrails for hot-path helpers such as detection conversion, NMS, and position history | Regression visibility |
+| 8 | **Security Engineer** | Document and test unsafe input boundaries for scene files, model paths, ROS URLs, and transport topics | Reduced attack surface |
+| 9 | **DevOps Engineer** | Align CI jobs with `bun run validate`, `bun run validate:all`, and package scripts | Local/CI parity |
+| 10 | **Technical Writer** | Keep README, AGENTS, CONTRIBUTING, SECURITY, ROS, model, and issue-template docs synchronized with package scripts | Lower onboarding friction |
+
+---
+
 ## Contributing
 
 1. Fork the repository
@@ -795,7 +837,7 @@ crebain/
 
 - TypeScript strict mode
 - Rust clippy clean
-- No console.log in production
+- Use the centralized logger instead of `console.*` in production
 - Memoize expensive computations
 - Use CircularBuffer for high-frequency data
 - Prefer squared distance for comparisons

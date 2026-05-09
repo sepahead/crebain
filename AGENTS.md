@@ -1,4 +1,4 @@
-# AGENTS.md - CREBAIN Development Guide
+# CREBAIN Development Guide
 
 ## Build Commands
 
@@ -17,24 +17,29 @@ bun run test             # Run tests in watch mode
 bun run test:run         # Run tests once
 bun run test:coverage    # Run tests with coverage
 bun run test:benchmark   # Run detector benchmarks
+bun run validate         # TypeScript typecheck + frontend tests
+bun run validate:all     # Frontend validation + Rust check/test/clippy
 
 # Rust backend
-cd src-tauri && cargo check    # Type check Rust code
-cd src-tauri && cargo build    # Build Rust backend
-cd src-tauri && cargo clippy   # Lint Rust code
+bun run check:rust       # cargo check --manifest-path src-tauri/Cargo.toml
+bun run test:rust        # cargo test --manifest-path src-tauri/Cargo.toml
+bun run clippy:rust      # cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+cargo build --manifest-path src-tauri/Cargo.toml
 ```
 
 ## Code Style
 
 ### TypeScript/React
+
 - Use functional components with hooks
 - Prefer `useMemo` and `useCallback` for expensive computations
 - Use `useRef` for mutable values that don't trigger re-renders
-- Avoid `console.log` in production code
+- Use the centralized logger (`src/lib/logger.ts`) instead of `console.*` in production code
 - Use named constants for magic numbers
 - Always clean up effects (intervals, subscriptions, event listeners)
 
 ### Rust
+
 - Run `cargo clippy` before committing
 - Use `log::info/warn/error` instead of `println!`
 - Validate all external inputs (paths, user data)
@@ -43,17 +48,22 @@ cd src-tauri && cargo clippy   # Lint Rust code
 ## Architecture Notes
 
 ### Frontend (`src/`)
+
 - `components/` - React UI components
 - `hooks/` - Custom React hooks
-- `ros/` - ROS bridge and Gazebo integration
+- `ros/` - ROS bridge, Gazebo integration, Zenoh transport adapters, performance monitoring
 - `detection/` - ML detection types and sensor fusion
 - `physics/` - Drone physics simulation
 - `simulation/` - Interception system
+- `state/` - Scene serialization and persistence
 
 ### Backend (`src-tauri/`)
-- `inference/` - ML abstraction layer (CoreML, ONNX)
-- `transport/` - Zenoh low-latency transport
-- `sensor_fusion.rs` - Kalman/Particle/IMM filters
+
+- `common/` - Shared detection, NMS, YOLO, error, and path validation utilities
+- `inference/` - ML abstraction layer (CoreML, MLX, CUDA, TensorRT, ONNX)
+- `transport/` - Zenoh low-latency transport and Tauri transport commands
+- `sensor_fusion.rs` - Kalman/EKF/UKF/Particle/IMM filters
+- `lib.rs` - Tauri IPC commands and app setup
 
 ## Performance Guidelines
 
@@ -67,6 +77,8 @@ cd src-tauri && cargo clippy   # Lint Rust code
 
 Test files use Vitest. Place tests in `__tests__/` directories or use `.test.ts` suffix.
 
-```typescript
-import { describe, it, expect } from 'vitest'
+```ts
+import { describe, expect, it } from 'vitest'
 ```
+
+Before committing, prefer `bun run validate:all` unless the change is documentation-only and clearly cannot affect code.

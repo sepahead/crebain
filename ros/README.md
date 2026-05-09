@@ -30,16 +30,18 @@ ros/
 These are reference files. To use with a full ROS package:
 
 1. Create a catkin package:
+
    ```bash
-   cd ~/catkin_ws/src
+   # Run from ~/catkin_ws/src
    catkin_create_pkg crebain_msgs std_msgs geometry_msgs
    ```
 
 2. Copy msg/ and srv/ to the package
 3. Update CMakeLists.txt and package.xml
 4. Build:
+
    ```bash
-   cd ~/catkin_ws && catkin_make
+   catkin_make
    ```
 
 ## Topics
@@ -65,7 +67,7 @@ These are reference files. To use with a full ROS package:
 roslaunch crebain_gazebo simulation.launch
 
 # Terminal 2: Start CREBAIN
-cd /path/to/crebain && bun run dev
+bun run dev
 ```
 
 Connect to `ws://localhost:9090` in CREBAIN.

@@ -1,11 +1,11 @@
-# Security Policy
+# CREBAIN Security Policy
 
 ## Supported Versions
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 0.4.x   | :white_check_mark: |
-| < 0.4   | :x:                |
+| Version | Supported |
+|---------|-----------|
+| 0.4.x | Supported |
+| < 0.4 | Unsupported |
 
 ## Reporting a Vulnerability
 

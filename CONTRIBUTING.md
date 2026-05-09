@@ -1,4 +1,4 @@
-# Contributing to CREBAIN
+# CREBAIN Contributing Guide
 
 Thank you for your interest in contributing to CREBAIN! This document provides guidelines and instructions for contributing.
 
@@ -20,12 +20,14 @@ Please be respectful and constructive in all interactions. We welcome contributo
 ```bash
 # Clone the repository
 git clone https://github.com/crebain/crebain.git
-cd crebain
 
-# Install dependencies
+# From the repository root
 bun install
 
 # Start development server
+bun run dev
+
+# Or start the full Tauri app
 bun run tauri:dev
 ```
 
@@ -51,14 +53,11 @@ bun run tauri:dev
 Before submitting a PR, ensure:
 
 ```bash
-# TypeScript
-bun run typecheck        # No type errors
-bun run test:run         # All tests pass
+# Frontend validation
+bun run validate
 
-# Rust
-cd src-tauri
-cargo clippy             # No warnings
-cargo test               # All tests pass
+# Full validation: frontend + Rust check/test/clippy
+bun run validate:all
 ```
 
 ### Code Style
@@ -67,14 +66,16 @@ cargo test               # All tests pass
 
 - Use functional components with hooks
 - Prefer `useMemo` and `useCallback` for expensive computations
-- Use the centralized logger (`src/lib/logger.ts`) instead of `console.*`
+- Use `useRef` for mutable values that do not trigger re-renders
+- Use the centralized logger (`src/lib/logger.ts`) instead of `console.*` in production code
 - Use named constants for magic numbers
+- Always clean up effects (intervals, subscriptions, event listeners)
 
 #### Rust
 
 - Run `cargo clippy` before committing
 - Use `log::info/warn/error` instead of `println!`
-- Add documentation comments for public APIs
+- Validate all external inputs (paths, user data)
 - Use `spawn_blocking` for CPU-intensive operations in async contexts
 
 ### Commit Messages
