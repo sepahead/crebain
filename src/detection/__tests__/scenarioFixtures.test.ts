@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createDroneApproachScenario } from '../scenarioFixtures'
+import { createDroneApproachScenario, toFusionInputs } from '../scenarioFixtures'
 
 describe('scenarioFixtures', () => {
   it('creates a coherent two-camera drone approach fixture', () => {
@@ -12,6 +12,16 @@ describe('scenarioFixtures', () => {
     expect(cameraIds).toEqual(['cam-left', 'cam-right'])
     expect(Object.keys(scenario.detectionsByCamera).sort()).toEqual([...cameraIds].sort())
     expect(scenario.expectedTrack.contributingCameras.sort()).toEqual([...cameraIds].sort())
+  })
+
+  it('converts scenario fixtures into fusion input maps', () => {
+    const scenario = createDroneApproachScenario()
+    const inputs = toFusionInputs(scenario)
+
+    expect([...inputs.cameras.keys()].sort()).toEqual(scenario.expectedTrack.contributingCameras)
+    expect([...inputs.detections.keys()].sort()).toEqual(scenario.expectedTrack.contributingCameras)
+    expect(inputs.cameras.get('cam-left')?.position.x).toBe(-8)
+    expect(inputs.detections.get('cam-right')?.[0].id).toBe('right-drone-1')
   })
 
   it('keeps fixture detections inside frame bounds', () => {

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import * as THREE from 'three'
 import { SensorFusion } from '../SensorFusion'
+import { createDroneApproachScenario, toFusionInputs } from '../scenarioFixtures'
 import type { CameraParams, Detection } from '../types'
 
 function makeCameraParams(
@@ -86,6 +87,28 @@ describe('SensorFusion triangulation', () => {
     expect(tracks).toHaveLength(1)
     expect(tracks[0].triangulatedPosition.distanceTo(target)).toBeLessThan(1e-3)
     expect(tracks[0].triangulationError).toBeLessThan(1e-3)
+  })
+
+  it('processes the drone approach scenario fixture into one fused track', () => {
+    const scenario = createDroneApproachScenario()
+    const inputs = toFusionInputs(scenario)
+    const fusion = new SensorFusion({ correlationThreshold: 0.1 })
+
+    const tracks = fusion.processFrame(inputs.detections, inputs.cameras)
+    const [track] = tracks
+
+    expect(tracks).toHaveLength(1)
+    expect(track.class).toBe(scenario.expectedTrack.class)
+    expect(track.fusedConfidence).toBeGreaterThanOrEqual(scenario.expectedTrack.minConfidence)
+    expect(track.contributingCameras).toEqual(expect.arrayContaining(scenario.expectedTrack.contributingCameras))
+    expect(track.triangulatedPosition.toArray().every(Number.isFinite)).toBe(true)
+    expect(Number.isFinite(track.triangulationError)).toBe(true)
+    expect(fusion.getStats()).toMatchObject({
+      totalTracks: 1,
+      tentativeTracks: 1,
+      multiCameraTracks: 1,
+      frameCount: 1,
+    })
   })
 })
 

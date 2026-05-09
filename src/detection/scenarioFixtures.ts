@@ -13,6 +13,11 @@ export interface DetectionFusionScenarioFixture {
   }
 }
 
+export interface DetectionFusionInputs {
+  detections: Map<string, Detection[]>
+  cameras: Map<string, CameraParams>
+}
+
 const FRAME_WIDTH = 1280
 const FRAME_HEIGHT = 720
 const TIMESTAMP = 1_700_000_000_000
@@ -65,5 +70,12 @@ export function createDroneApproachScenario(): DetectionFusionScenarioFixture {
       minConfidence: 0.85,
       approximatePosition: [0, 42, 18],
     },
+  }
+}
+
+export function toFusionInputs(scenario: DetectionFusionScenarioFixture): DetectionFusionInputs {
+  return {
+    detections: new Map(Object.entries(scenario.detectionsByCamera)),
+    cameras: new Map(scenario.cameras.map(camera => [camera.id, camera])),
   }
 }
