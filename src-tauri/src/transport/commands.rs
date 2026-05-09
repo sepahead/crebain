@@ -263,6 +263,13 @@ mod tests {
     }
 
     #[test]
+    fn validate_topic_accepts_exact_length_limit() {
+        let exact = format!("/{}", "a".repeat(MAX_TOPIC_LEN - 1));
+        assert_eq!(exact.len(), MAX_TOPIC_LEN);
+        assert!(validate_topic(&exact).is_ok());
+    }
+
+    #[test]
     fn validate_topic_rejects_empty_null_and_oversized_topics() {
         assert!(validate_topic("").unwrap_err().contains("must not be empty"));
         assert!(validate_topic("   ").unwrap_err().contains("must not be empty"));

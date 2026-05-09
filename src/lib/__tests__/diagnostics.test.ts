@@ -33,6 +33,28 @@ describe('diagnostics', () => {
     })
   })
 
+  it('falls back for blank strings and non-boolean availability flags', () => {
+    const info = normalizeSystemInfo({
+      platform: '',
+      arch: '',
+      coremlAvailable: 'true',
+      onnxAvailable: 1,
+      backend: '',
+      mode: '',
+    })
+
+    expect(info).toEqual({
+      platform: 'unknown',
+      arch: 'unknown',
+      coremlAvailable: false,
+      onnxAvailable: false,
+      backend: 'Unknown',
+      mode: 'unknown',
+      onnxDetector: undefined,
+      sensorFusion: undefined,
+    })
+  })
+
   it('classifies backend health', () => {
     expect(getBackendHealth({ backend: 'No Backend Available', coremlAvailable: false, onnxAvailable: false })).toBe('unavailable')
     expect(getBackendHealth({ backend: 'ONNX Runtime', coremlAvailable: false, onnxAvailable: true })).toBe('ready')
@@ -69,6 +91,18 @@ describe('diagnostics', () => {
       min: 10,
       max: 50,
       fps: 1000 / 30,
+    })
+  })
+
+  it('calculates latency stats for single-sample benchmarks', () => {
+    expect(calculateLatencyStats([25])).toEqual({
+      mean: 25,
+      p50: 25,
+      p95: 25,
+      p99: 25,
+      min: 25,
+      max: 25,
+      fps: 40,
     })
   })
 

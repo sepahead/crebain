@@ -98,6 +98,16 @@ describe('MessageRegistry', () => {
     }
   })
 
+  it('returns false for malformed builtin payloads without throwing', () => {
+    const registry = createMessageRegistry()
+
+    for (const type of registry.getBuiltinTypes()) {
+      expect(() => registry.validate(type, null)).not.toThrow()
+      expect(registry.validate(type, null)).toBe(false)
+    }
+    expect(registry.validate('rosgraph_msgs/Clock', {})).toBe(false)
+  })
+
   it('supports custom message registration', () => {
     const registry = createMessageRegistry()
     const mapper = (data: { value: number }) => ({ doubled: data.value * 2 })

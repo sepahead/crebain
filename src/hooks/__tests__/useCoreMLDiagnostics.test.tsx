@@ -118,4 +118,50 @@ describe('useCoreMLDiagnostics', () => {
 
     await act(async () => root.unmount())
   })
+
+  it('surfaces detector test failures without completion callbacks', async () => {
+    invokeMock.mockResolvedValue({
+      success: false,
+      detections: [],
+      inferenceTimeMs: 0,
+      preprocessTimeMs: null,
+      postprocessTimeMs: null,
+      error: 'model missing',
+    })
+    const root = await renderHarness()
+
+    await act(async () => {
+      await hook.runTest()
+    })
+
+    expect(onMessage).toHaveBeenCalledWith('error', 'DETECTOR TEST FAILED: model missing')
+    expect(onDetectionComplete).not.toHaveBeenCalled()
+    expect(hook.isTesting).toBe(false)
+
+    await act(async () => root.unmount())
+  })
+
+  it('reports benchmark failures when no measured iterations succeed', async () => {
+    invokeMock.mockResolvedValue({
+      success: false,
+      detections: [],
+      inferenceTimeMs: 0,
+      preprocessTimeMs: null,
+      postprocessTimeMs: null,
+      error: 'backend unavailable',
+    })
+    const root = await renderHarness()
+
+    await act(async () => {
+      await hook.runBenchmark(2)
+    })
+
+    expect(invokeMock).toHaveBeenCalledTimes(7)
+    expect(onMessage).toHaveBeenCalledWith('error', 'BENCHMARK: No successful runs')
+    expect(onDetectionComplete).not.toHaveBeenCalled()
+    expect(hook.isBenchmarking).toBe(false)
+    expect(hook.benchmarkProgress).toBe(0)
+
+    await act(async () => root.unmount())
+  })
 })

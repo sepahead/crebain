@@ -232,7 +232,11 @@ class MessageRegistry {
     const handler = this.handlers.get(type)
     if (!handler) return false
     if (!handler.validator) return true // No validator, assume valid
-    return handler.validator(data)
+    try {
+      return Boolean(handler.validator(data))
+    } catch {
+      return false
+    }
   }
 
   /**

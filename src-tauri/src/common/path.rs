@@ -232,6 +232,19 @@ mod tests {
     }
 
     #[test]
+    fn test_model_extension_validation_is_case_insensitive() {
+        let model_path = std::env::temp_dir().join(format!(
+            "crebain-model-case-{}.ONNX",
+            std::process::id()
+        ));
+        std::fs::write(&model_path, b"model").unwrap();
+
+        assert!(validate_model_path(model_path.to_str().unwrap(), Some(&["onnx"])).is_ok());
+
+        let _ = std::fs::remove_file(model_path);
+    }
+
+    #[test]
     fn test_allowed_root_rejects_escaped_absolute_path() {
         let root = std::env::temp_dir().join(format!(
             "crebain-root-{}",
@@ -247,5 +260,6 @@ mod tests {
         assert!(validate_path(outside.to_str().unwrap(), Some(&root)).is_err());
 
         let _ = std::fs::remove_file(outside);
+        let _ = std::fs::remove_dir(root);
     }
 }
