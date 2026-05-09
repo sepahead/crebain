@@ -299,4 +299,24 @@ mod tests {
         let oversized = format!("/{}", "a".repeat(MAX_TOPIC_LEN));
         assert!(validate_topic(&oversized).unwrap_err().contains("too long"));
     }
+
+    #[test]
+    fn transport_event_name_preserves_safe_ascii() {
+        assert_eq!(
+            transport_event_name("camera.image-raw_1"),
+            "crebain.transport.camera.image-raw_1"
+        );
+    }
+
+    #[test]
+    fn transport_event_name_encodes_ros_separators_spaces_and_utf8() {
+        assert_eq!(
+            transport_event_name("/camera/image raw"),
+            "crebain.transport.%2Fcamera%2Fimage%20raw"
+        );
+        assert_eq!(
+            transport_event_name("/über/image"),
+            "crebain.transport.%2F%C3%BCber%2Fimage"
+        );
+    }
 }

@@ -13,6 +13,7 @@ vi.mock('@tauri-apps/api/event', () => ({
 }))
 
 import { ZenohBridge } from '../ZenohBridge'
+import { getTransportEventName } from '../../lib/transportEvents'
 
 describe('ZenohBridge', () => {
   beforeEach(() => {
@@ -79,12 +80,26 @@ describe('ZenohBridge', () => {
     const callback = vi.fn()
 
     const unsubscribe = bridge.subscribe('/camera/image', 'sensor_msgs/Image', callback)
+    await vi.waitFor(() => expect(listenMock).toHaveBeenCalledWith(getTransportEventName('/camera/image'), expect.any(Function)))
     await vi.waitFor(() => expect(invokeMock).toHaveBeenCalledWith('transport_subscribe_camera', { topic: '/camera/image' }))
 
     unsubscribe()
 
-    expect(unlisten).toHaveBeenCalled()
+    await vi.waitFor(() => expect(unlisten).toHaveBeenCalled())
     expect(invokeMock).toHaveBeenCalledWith('transport_unsubscribe', { topic: '/camera/image' })
+  })
+
+  it('listens on sanitized event names for unsafe topic characters', async () => {
+    invokeMock.mockResolvedValue(undefined)
+    const bridge = new ZenohBridge()
+
+    bridge.subscribe('/über/image raw', 'sensor_msgs/Image', vi.fn())
+
+    await vi.waitFor(() => expect(listenMock).toHaveBeenCalledWith(
+      getTransportEventName('/über/image raw'),
+      expect.any(Function)
+    ))
+    expect(getTransportEventName('/über/image raw')).toBe('crebain.transport.%2F%C3%BCber%2Fimage%20raw')
   })
 
   it('cleans up the event listener when backend subscription fails', async () => {
