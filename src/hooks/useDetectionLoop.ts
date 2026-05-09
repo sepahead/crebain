@@ -59,7 +59,7 @@ interface DetectionLoopOptions {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Convert CoreML detection to our Detection format
-function convertDetection(coremlDet: CoreMLDetection, frameWidth: number, frameHeight: number): Detection {
+export function convertDetection(coremlDet: CoreMLDetection, frameWidth: number, frameHeight: number): Detection {
   const detClass = mapToDetectionClass(coremlDet.classLabel)
   const threatLevel = getThreatLevel(detClass, coremlDet.confidence)
   
@@ -82,7 +82,7 @@ function convertDetection(coremlDet: CoreMLDetection, frameWidth: number, frameH
 
 // Extract raw RGBA buffer from ImageData for zero-copy path
 // Note: Legacy base64 path removed - use `detect_native_raw` for cross-platform demos/tests.
-function imageDataToRGBA(imageData: ImageData): Uint8Array {
+export function imageDataToRGBA(imageData: ImageData): Uint8Array {
   return new Uint8Array(
     imageData.data.buffer,
     imageData.data.byteOffset,
@@ -129,11 +129,13 @@ export function useDetectionLoop(options: DetectionLoopOptions): void {
     if (activeCameras.length === 0) return
 
     isProcessingRef.current = true
+    let processingCameraId: string | undefined
 
     try {
       // Round-robin: process one camera per cycle for better performance
       const cameraIndex = currentCameraIndexRef.current % activeCameras.length
       const camera = activeCameras[cameraIndex]
+      processingCameraId = camera.id
       currentCameraIndexRef.current = (cameraIndex + 1) % activeCameras.length
 
       // Export camera feed
@@ -178,9 +180,7 @@ export function useDetectionLoop(options: DetectionLoopOptions): void {
 
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      const activeCameras = cameras.filter(c => c.isActive)
-      const cameraId = activeCameras[currentCameraIndexRef.current]?.id
-      onError?.(message, cameraId)
+      onError?.(message, processingCameraId)
     } finally {
       isProcessingRef.current = false
     }

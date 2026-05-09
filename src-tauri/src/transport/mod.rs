@@ -251,7 +251,7 @@ pub struct TransportStats {
 pub async fn create_bridge() -> Result<Box<dyn Transport>> {
     // Check if Zenoh is enabled
     let use_zenoh = std::env::var("CREBAIN_ZENOH")
-        .map(|v| v == "1" || v.to_lowercase() == "true")
+        .map(|v| parse_zenoh_enabled(&v))
         .unwrap_or(true); // Default to Zenoh
 
     if use_zenoh {
@@ -265,5 +265,32 @@ pub async fn create_bridge() -> Result<Box<dyn Transport>> {
         Err(TransportError::ConnectionFailed(
             "rosbridge fallback not implemented in Rust".to_string(),
         ))
+    }
+}
+
+fn parse_zenoh_enabled(value: &str) -> bool {
+    matches!(value.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_zenoh_enabled() {
+        assert!(parse_zenoh_enabled("1"));
+        assert!(parse_zenoh_enabled("true"));
+        assert!(parse_zenoh_enabled(" YES "));
+        assert!(parse_zenoh_enabled("on"));
+        assert!(!parse_zenoh_enabled(""));
+        assert!(!parse_zenoh_enabled("0"));
+        assert!(!parse_zenoh_enabled("false"));
+    }
+
+    #[test]
+    fn test_transport_error_display() {
+        let err = TransportError::ConnectionFailed("missing zenoh router".to_string());
+        assert_eq!(err.to_string(), "Connection failed: missing zenoh router");
+        assert_eq!(TransportError::Timeout.to_string(), "Operation timed out");
     }
 }

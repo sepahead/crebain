@@ -18,6 +18,7 @@ import { UIScaleProvider } from './context/UIScaleContext'
 import { usePerformanceTracker } from './hooks/usePerformanceTracker'
 import { useGazeboSimulation } from './hooks/useGazeboSimulation'
 import { useROSSensors } from './ros/useROSSensors'
+import { APP_SHORTCUTS, isTextInputTarget, normalizeShortcutKey } from './lib/shortcuts'
 
 export default function App() {
   const performanceTracker = usePerformanceTracker({ maxHistory: 100 })
@@ -57,15 +58,17 @@ export default function App() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't trigger if typing in an input
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (isTextInputTarget(e.target)) return
       
-      if (e.key.toLowerCase() === 'p') {
+      const key = normalizeShortcutKey(e.key)
+
+      if (key === APP_SHORTCUTS.togglePerformancePanel) {
         setShowPerformancePanel(prev => !prev)
       }
-      if (e.key.toLowerCase() === 'n') {
+      if (key === APP_SHORTCUTS.toggleROSPanel) {
         setShowROSPanel(prev => !prev)
       }
-      if (e.key.toLowerCase() === 'u') {
+      if (key === APP_SHORTCUTS.toggleFusionPanel) {
         setShowFusionPanel(prev => !prev)
       }
     }
