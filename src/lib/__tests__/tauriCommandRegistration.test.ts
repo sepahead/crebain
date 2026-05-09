@@ -4,6 +4,7 @@ import { TAURI_COMMANDS } from '../tauriCommands'
 
 const BACKEND = readFileSync(`${process.cwd()}/src-tauri/src/lib.rs`, 'utf8')
 const TRANSPORT_COMMANDS = readFileSync(`${process.cwd()}/src-tauri/src/transport/commands.rs`, 'utf8')
+const ONNX_DETECTOR = readFileSync(`${process.cwd()}/src-tauri/src/onnx_detector.rs`, 'utf8')
 const COMMAND_SOURCES = `${BACKEND}\n${TRANSPORT_COMMANDS}`
 
 function commandValues(value: unknown): string[] {
@@ -73,5 +74,12 @@ describe('Tauri command registration', () => {
     expect(loadBlock).toContain('validate_scene_file_path(&path, &scenes_dir)?')
     expect(loadBlock).toContain('meta.len() as usize > MAX_SCENE_STATE_BYTES')
     expect(loadBlock).toContain('serde_json::from_str(&contents)')
+  })
+
+  it('keeps model path environment variables guarded by model-path validation', () => {
+    expect(BACKEND).toContain('validate_model_path(&custom_path, Some(&["mlmodelc"]))')
+    expect(ONNX_DETECTOR).toContain('validate_model_path(&custom_path, Some(&["onnx"]))')
+    expect(ONNX_DETECTOR).toContain('CREBAIN_ONNX_MODEL')
+    expect(ONNX_DETECTOR).toContain('CREBAIN_MODEL_PATH')
   })
 })

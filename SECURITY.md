@@ -42,3 +42,14 @@ When using CREBAIN:
 - Treat model paths, scene files, ROS URLs, and transport topics as untrusted input
 - Do not expose rosbridge or Zenoh endpoints directly to untrusted networks without authentication, network policy, and transport security appropriate for the deployment
 - Validate externally supplied ML models before use; this repository does not provide or endorse model weights
+
+## Threat Model Summary
+
+| Boundary | Untrusted Inputs | Current Controls | Required Review Before Release Claims |
+|----------|------------------|------------------|---------------------------------------|
+| Model loading | `CREBAIN_MODEL_PATH`, `CREBAIN_ONNX_MODEL`, local model files | Path validation, extension checks, missing-model error paths | Verify provenance, rights, tensor contracts, preprocessing, class mapping, and benchmark context |
+| Scene persistence | Scene file path and serialized scene JSON | Allowed-root path validation, `.json` extension check, size limit, JSON parse check | Exercise save/load rejection paths in automated or manual smoke testing |
+| Native detection IPC | Raw RGBA payload, dimensions, thresholds, max detections | Dimension and byte-length validation, threshold clamping, structured error payloads | Confirm malformed payloads fail without frontend crash |
+| ROS bridge | WebSocket URL and ROS graph messages | User-controlled connection state and visible errors | Restrict network exposure; require deployment-appropriate authentication and transport security |
+| Zenoh transport | Topic names, pub/sub payloads, event names | Topic validation and deterministic event-name encoding | Review namespace policy, access control, and payload assumptions for deployment |
+| Tauri commands/events | Frontend command constants and emitted transport events | Command registration tests and event-name guardrails | Keep frontend/backend command contracts and event names synchronized |

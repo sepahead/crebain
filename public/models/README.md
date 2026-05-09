@@ -2,6 +2,8 @@
 
 This directory is for local development model files. Model weights are not committed to the repository.
 
+For the required model validation record, backend-specific assumptions, and minimum acceptance criteria, see [`../../docs/MODEL_CONTRACTS.md`](../../docs/MODEL_CONTRACTS.md).
+
 ## YOLO (Default)
 
 - `yolov8n.onnx` - Default browser ONNX path used by `YOLODetector`

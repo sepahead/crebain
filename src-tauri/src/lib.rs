@@ -163,7 +163,7 @@ fn validate_scene_file_path(path: &str, allowed_root: &std::path::Path) -> Resul
     }
 }
 
-/// Run CoreML detection on raw RGBA data - ZERO COPY PATH
+/// Run CoreML detection on raw RGBA data.
 #[tauri::command]
 async fn detect_coreml_raw(
     rgba_data: Vec<u8>,

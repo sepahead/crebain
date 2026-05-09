@@ -819,9 +819,16 @@ bun run clippy:rust
 Latest validated stabilization baseline:
 
 - **Command**: `bun run validate:all`
-- **Frontend**: 148 tests passed, 8 benchmark tests skipped by default
+- **Frontend**: 152 tests passed, 8 benchmark tests skipped by default
 - **Rust**: 56 tests passed
 - **Linting**: `cargo clippy -- -D warnings` passed
+
+Release readiness artifacts:
+
+- **Acceptance matrix**: `docs/RELEASE_ACCEPTANCE.md`
+- **Model contracts**: `docs/MODEL_CONTRACTS.md`
+- **Manual smoke checklist**: `docs/MANUAL_SMOKE_TEST.md`
+- **Security threat model**: `SECURITY.md`
 
 ---
 
@@ -845,6 +852,7 @@ Latest validated stabilization baseline:
 - [x] End-to-end detection/fusion smoke tests with mocked model outputs
 - [x] CI backend alignment to package scripts
 - [x] MLX status demoted in user-facing docs and UI while it remains a scaffold
+- [x] Release acceptance matrix, model contracts, security threat model, and manual smoke checklist
 - [ ] Real MLX YOLOv8 forward pass implementation
 - [ ] Executable negative IPC integration tests for scene/model/transport boundaries
 - [ ] Multi-frame scenario tests for track confirmation and motion
