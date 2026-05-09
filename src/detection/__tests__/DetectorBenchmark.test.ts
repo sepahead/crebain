@@ -39,14 +39,16 @@ interface BenchmarkStats {
 }
 
 function calculateStats(values: number[]): BenchmarkStats {
-  if (values.length === 0) {
+  const validValues = values.filter(value => Number.isFinite(value) && value >= 0)
+
+  if (validValues.length === 0) {
     return { mean: 0, std: 0, min: 0, max: 0, median: 0, p95: 0, samples: 0 }
   }
 
-  const sorted = [...values].sort((a, b) => a - b)
-  const n = values.length
-  const mean = values.reduce((a, b) => a + b, 0) / n
-  const variance = values.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / n
+  const sorted = [...validValues].sort((a, b) => a - b)
+  const n = validValues.length
+  const mean = validValues.reduce((a, b) => a + b, 0) / n
+  const variance = validValues.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / n
   const std = Math.sqrt(variance)
   const min = sorted[0]
   const max = sorted[n - 1]
@@ -65,7 +67,7 @@ function formatMs(ms: number): string {
 }
 
 function formatFps(ms: number): string {
-  if (ms === 0) return '∞'
+  if (!Number.isFinite(ms) || ms <= 0) return 'N/A'
   return `${(1000 / ms).toFixed(1)}`
 }
 
@@ -396,6 +398,36 @@ function generateSummaryTable(summary: BenchmarkSummary): string {
 
   return lines.join('\n')
 }
+
+describe('Detector benchmark utilities', () => {
+  it('calculates stats using only finite non-negative samples', () => {
+    expect(calculateStats([10, Number.POSITIVE_INFINITY, -1, 20, Number.NaN])).toMatchObject({
+      mean: 15,
+      min: 10,
+      max: 20,
+      median: 15,
+      samples: 2,
+    })
+  })
+
+  it('returns zeroed stats when no benchmark samples are valid', () => {
+    expect(calculateStats([Number.POSITIVE_INFINITY, Number.NaN, -1])).toEqual({
+      mean: 0,
+      std: 0,
+      min: 0,
+      max: 0,
+      median: 0,
+      p95: 0,
+      samples: 0,
+    })
+  })
+
+  it('does not report infinite FPS for missing benchmark samples', () => {
+    expect(formatFps(0)).toBe('N/A')
+    expect(formatFps(Number.POSITIVE_INFINITY)).toBe('N/A')
+    expect(formatFps(25)).toBe('40.0')
+  })
+})
 
 // ─────────────────────────────────────────────────────────────────────────────
 // VITEST TEST SUITE
