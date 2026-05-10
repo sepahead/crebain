@@ -10,7 +10,7 @@
 
 use nalgebra::{DMatrix, DVector, Matrix3, Matrix6, Vector3, Vector6};
 use rand::Rng;
-use rand_distr::{Distribution, Normal};
+use rand_distr::{Distribution, StandardNormal};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::f64::consts::PI;
@@ -702,27 +702,24 @@ impl ParticleFilter {
         let weight = 1.0 / self.num_particles as f64;
         let mut rng = rand::rng();
 
-        // Pre-create normal distributions for each state dimension
+        // Precompute standard deviations for each state dimension
         // Use fallback std=1.0 if variance is invalid (negative or NaN)
-        let normals: Vec<Normal<f64>> = (0..6)
+        let stds: Vec<f64> = (0..6)
             .map(|i| {
                 let variance = initial_cov[(i, i)];
-                let std = if variance > 0.0 && variance.is_finite() {
+                if variance > 0.0 && variance.is_finite() {
                     variance.sqrt()
                 } else {
                     1.0 // Fallback for invalid variance
-                };
-                // SAFETY: std is guaranteed positive and finite here
-                Normal::new(0.0, std).unwrap_or_else(|_| {
-                    Normal::new(0.0, 1.0).unwrap_or_else(|_| Normal::new(0.0, 1e-10).unwrap())
-                })
+                }
             })
             .collect();
 
         for _p in 0..self.num_particles {
             let mut state = *initial_state;
             for i in 0..6 {
-                state[i] += normals[i].sample(&mut rng);
+                let sample: f64 = StandardNormal.sample(&mut rng);
+                state[i] += sample * stds[i];
             }
             self.particles.push(Particle { state, weight });
         }
@@ -730,7 +727,7 @@ impl ParticleFilter {
 
     /// Predict step - propagate particles
     pub fn predict(&mut self, dt: f64) {
-        // Ensure process_noise is valid for Normal distribution
+        // Ensure process_noise is valid for standard-normal scaling
         let noise_std = if self.process_noise > 0.0 && self.process_noise.is_finite() {
             self.process_noise
         } else {
@@ -740,19 +737,22 @@ impl ParticleFilter {
             );
             1.0
         };
-        let noise = Normal::new(0.0, noise_std).unwrap_or_else(|_| {
-            Normal::new(0.0, 1.0).unwrap_or_else(|_| Normal::new(0.0, 1e-10).unwrap())
-        });
         let mut rng = rand::rng();
 
         for particle in &mut self.particles {
             // Constant velocity motion model with noise
-            particle.state[0] += particle.state[3] * dt + noise.sample(&mut rng) * dt * 0.1;
-            particle.state[1] += particle.state[4] * dt + noise.sample(&mut rng) * dt * 0.1;
-            particle.state[2] += particle.state[5] * dt + noise.sample(&mut rng) * dt * 0.1;
-            particle.state[3] += noise.sample(&mut rng) * dt;
-            particle.state[4] += noise.sample(&mut rng) * dt;
-            particle.state[5] += noise.sample(&mut rng) * dt;
+            let position_noise_x: f64 = StandardNormal.sample(&mut rng);
+            let position_noise_y: f64 = StandardNormal.sample(&mut rng);
+            let position_noise_z: f64 = StandardNormal.sample(&mut rng);
+            let velocity_noise_x: f64 = StandardNormal.sample(&mut rng);
+            let velocity_noise_y: f64 = StandardNormal.sample(&mut rng);
+            let velocity_noise_z: f64 = StandardNormal.sample(&mut rng);
+            particle.state[0] += particle.state[3] * dt + position_noise_x * noise_std * dt * 0.1;
+            particle.state[1] += particle.state[4] * dt + position_noise_y * noise_std * dt * 0.1;
+            particle.state[2] += particle.state[5] * dt + position_noise_z * noise_std * dt * 0.1;
+            particle.state[3] += velocity_noise_x * noise_std * dt;
+            particle.state[4] += velocity_noise_y * noise_std * dt;
+            particle.state[5] += velocity_noise_z * noise_std * dt;
         }
     }
 

@@ -1,5 +1,19 @@
 pub const MAX_IMAGE_DIMENSION: u32 = 8192;
 pub const MAX_IMAGE_SIZE_BYTES: usize = 64 * 1024 * 1024;
+pub const MAX_BASE64_IMAGE_CHARS: usize = MAX_IMAGE_SIZE_BYTES.div_ceil(3) * 4;
+
+pub fn validate_base64_image_len(base64_len: usize) -> Result<usize, String> {
+    if base64_len == 0 {
+        return Err("Empty image data".to_string());
+    }
+    if base64_len > MAX_BASE64_IMAGE_CHARS {
+        return Err(format!(
+            "Base64 image data too large: {} characters exceeds maximum {} characters",
+            base64_len, MAX_BASE64_IMAGE_CHARS
+        ));
+    }
+    Ok(base64_len)
+}
 
 pub fn validate_rgba_input_len(rgba_len: usize, width: u32, height: u32) -> Result<usize, String> {
     if width == 0 || height == 0 {
@@ -39,6 +53,13 @@ mod tests {
     #[test]
     fn accepts_exact_rgba_size() {
         assert_eq!(validate_rgba_input_len(16, 2, 2).unwrap(), 16);
+    }
+
+    #[test]
+    fn validates_base64_payload_boundaries() {
+        assert!(validate_base64_image_len(1).is_ok());
+        assert!(validate_base64_image_len(0).is_err());
+        assert!(validate_base64_image_len(MAX_BASE64_IMAGE_CHARS + 1).is_err());
     }
 
     #[test]

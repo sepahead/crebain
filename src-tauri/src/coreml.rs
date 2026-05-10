@@ -556,6 +556,7 @@ pub fn detect_base64(
     confidence_threshold: f64,
     max_detections: usize,
 ) -> Result<DetectionResult, String> {
+    crate::common::image::validate_base64_image_len(image_base64.len())?;
     let start = Instant::now();
     
     // Decode base64 using the Engine trait correctly
@@ -570,6 +571,7 @@ pub fn detect_base64(
     let rgba = img.to_rgba8();
     let (width, height) = rgba.dimensions();
     let raw_data = rgba.into_raw();
+    crate::common::image::validate_rgba_input_len(raw_data.len(), width, height)?;
     
     let decode_time = start.elapsed();
     log::debug!("Image decode took: {:?}", decode_time);

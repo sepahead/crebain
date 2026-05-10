@@ -102,9 +102,7 @@ async fn detect_coreml(
     max_detections: Option<i32>,
 ) -> Result<DetectionResult, String> {
     // Validate inputs
-    if image_base64.is_empty() {
-        return Err("Empty image data".to_string());
-    }
+    common::image::validate_base64_image_len(image_base64.len())?;
     
     let conf = confidence_threshold.unwrap_or(0.25).clamp(0.0, 1.0);
     let max_det = max_detections.unwrap_or(100).clamp(1, 1000) as usize;
@@ -819,6 +817,33 @@ mod tests {
         .unwrap_err();
 
         assert!(error.contains("width and height must be > 0"));
+    }
+
+    #[test]
+    fn detect_coreml_rejects_empty_base64_before_backend_selection() {
+        let error = tauri::async_runtime::block_on(detect_coreml(
+            String::new(),
+            None,
+            None,
+            None,
+        ))
+        .unwrap_err();
+
+        assert!(error.contains("Empty image data"));
+    }
+
+    #[test]
+    fn detect_coreml_rejects_oversized_base64_before_backend_selection() {
+        let image_base64 = "A".repeat(common::image::MAX_BASE64_IMAGE_CHARS + 1);
+        let error = tauri::async_runtime::block_on(detect_coreml(
+            image_base64,
+            None,
+            None,
+            None,
+        ))
+        .unwrap_err();
+
+        assert!(error.contains("Base64 image data too large"));
     }
 
     #[test]
