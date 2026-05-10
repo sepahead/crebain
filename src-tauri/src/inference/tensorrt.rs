@@ -388,10 +388,20 @@ impl Detector for TensorRtDetector {
 /// # Returns
 /// Result indicating success or failure
 pub fn build_engine(onnx_path: &str, engine_path: &str, fp16: bool, int8: bool) -> Result<()> {
+    if int8 {
+        return Err(InferenceError::BackendError(
+            "TensorRT INT8 engine building requires calibration data and is not supported by this command".to_string(),
+        ));
+    }
+
+    let onnx_path = path::validate_model_path(onnx_path, Some(&["onnx"]))
+        .map_err(|e| InferenceError::BackendError(format!("Invalid ONNX model path: {}", e)))?;
+    let engine_path = validate_tensorrt_engine_output_path(engine_path)?;
+
     log::info!(
         "[TensorRT] Building engine: {} -> {} (FP16: {}, INT8: {})",
-        onnx_path,
-        engine_path,
+        onnx_path.display(),
+        engine_path.display(),
         fp16,
         int8
     );
@@ -401,16 +411,12 @@ pub fn build_engine(onnx_path: &str, engine_path: &str, fp16: bool, int8: bool) 
         .ok_or_else(|| InferenceError::BackendError("trtexec not found".to_string()))?;
 
     let mut cmd = Command::new(&trtexec);
-    cmd.arg(format!("--onnx={}", onnx_path))
-        .arg(format!("--saveEngine={}", engine_path))
+    cmd.arg(format!("--onnx={}", onnx_path.display()))
+        .arg(format!("--saveEngine={}", engine_path.display()))
         .arg("--workspace=4096"); // 4GB workspace
 
     if fp16 {
         cmd.arg("--fp16");
-    }
-    if int8 {
-        cmd.arg("--int8");
-        // INT8 requires calibration data - not implemented here
     }
 
     // Add optimization flags
@@ -430,8 +436,48 @@ pub fn build_engine(onnx_path: &str, engine_path: &str, fp16: bool, int8: bool) 
         )));
     }
 
-    log::info!("[TensorRT] Engine built successfully: {}", engine_path);
+    log::info!("[TensorRT] Engine built successfully: {}", engine_path.display());
     Ok(())
+}
+
+fn validate_tensorrt_engine_output_path(engine_path: &str) -> Result<PathBuf> {
+    let path = path::validate_path(engine_path, None)
+        .map_err(|e| InferenceError::BackendError(format!("Invalid TensorRT engine output path: {}", e)))?;
+
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
+    if !ext.eq_ignore_ascii_case("engine") {
+        return Err(InferenceError::BackendError(format!(
+            "Invalid TensorRT engine extension '{}', expected 'engine'",
+            ext
+        )));
+    }
+
+    if path.exists() && path.is_dir() {
+        return Err(InferenceError::BackendError(format!(
+            "TensorRT engine output path is a directory: {}",
+            path.display()
+        )));
+    }
+
+    if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
+        if !parent.exists() {
+            return Err(InferenceError::BackendError(format!(
+                "TensorRT engine output parent does not exist: {}",
+                parent.display()
+            )));
+        }
+        if !parent.is_dir() {
+            return Err(InferenceError::BackendError(format!(
+                "TensorRT engine output parent is not a directory: {}",
+                parent.display()
+            )));
+        }
+    }
+
+    Ok(path)
 }
 
 /// Find the trtexec binary
@@ -608,5 +654,46 @@ mod tests {
         assert!(validate_tensorrt_model_path("test", "/tmp/model\0.onnx").is_none());
 
         let _ = std::fs::remove_file(wrong_ext);
+    }
+
+    #[test]
+    fn build_engine_rejects_int8_without_calibration_before_path_checks() {
+        let error = build_engine("", "", false, true).unwrap_err().to_string();
+
+        assert!(error.contains("INT8"));
+        assert!(error.contains("calibration"));
+    }
+
+    #[test]
+    fn validates_tensorrt_engine_output_path() {
+        let engine_path = std::env::temp_dir().join(format!(
+            "crebain-tensorrt-engine-{}.engine",
+            std::process::id()
+        ));
+
+        let valid = validate_tensorrt_engine_output_path(engine_path.to_str().unwrap()).unwrap();
+
+        assert_eq!(valid.as_path(), engine_path.as_path());
+    }
+
+    #[test]
+    fn rejects_invalid_tensorrt_engine_output_paths() {
+        let wrong_ext = std::env::temp_dir().join(format!(
+            "crebain-tensorrt-engine-{}.txt",
+            std::process::id()
+        ));
+        let missing_parent = std::env::temp_dir()
+            .join(format!("crebain-missing-{}", std::process::id()))
+            .join("model.engine");
+
+        let wrong_ext_error =
+            validate_tensorrt_engine_output_path(wrong_ext.to_str().unwrap()).unwrap_err();
+        let traversal_error = validate_tensorrt_engine_output_path("../model.engine").unwrap_err();
+        let missing_parent_error =
+            validate_tensorrt_engine_output_path(missing_parent.to_str().unwrap()).unwrap_err();
+
+        assert!(wrong_ext_error.to_string().contains("extension"));
+        assert!(traversal_error.to_string().contains("traversal"));
+        assert!(missing_parent_error.to_string().contains("parent does not exist"));
     }
 }
