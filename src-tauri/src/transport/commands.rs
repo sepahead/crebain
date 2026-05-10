@@ -11,6 +11,7 @@ lazy_static::lazy_static! {
 }
 
 const MAX_TOPIC_LEN: usize = 512;
+const MAX_FRAME_ID_LEN: usize = 256;
 const TRANSPORT_EVENT_PREFIX: &str = "crebain.transport.";
 
 fn validate_topic(topic: &str) -> Result<(), String> {
@@ -28,6 +29,60 @@ fn validate_topic(topic: &str) -> Result<(), String> {
         ));
     }
     Ok(())
+}
+
+fn validate_frame_id(name: &str, frame_id: &str) -> Result<(), String> {
+    if frame_id.contains('\0') {
+        return Err(format!("{} must not contain null bytes", name));
+    }
+    if frame_id.len() > MAX_FRAME_ID_LEN {
+        return Err(format!(
+            "{} is too long: {} bytes exceeds {}",
+            name,
+            frame_id.len(),
+            MAX_FRAME_ID_LEN
+        ));
+    }
+    Ok(())
+}
+
+fn validate_finite_array(name: &str, values: &[f64]) -> Result<(), String> {
+    for (index, value) in values.iter().enumerate() {
+        if !value.is_finite() {
+            return Err(format!("{}[{}] must be finite", name, index));
+        }
+    }
+    Ok(())
+}
+
+fn validate_timestamp(name: &str, timestamp: f64) -> Result<(), String> {
+    if !timestamp.is_finite() || timestamp < 0.0 || timestamp > i32::MAX as f64 {
+        return Err(format!(
+            "{} must be finite and within [0, {}], got {}",
+            name,
+            i32::MAX,
+            timestamp
+        ));
+    }
+    Ok(())
+}
+
+fn validate_velocity_cmd(name: &str, cmd: &VelocityCmd) -> Result<(), String> {
+    validate_finite_array(&format!("{}.linear", name), &cmd.linear)?;
+    validate_finite_array(&format!("{}.angular", name), &cmd.angular)
+}
+
+fn validate_twist_stamped(cmd: &TwistStampedData) -> Result<(), String> {
+    validate_velocity_cmd("cmd.twist", &cmd.twist)?;
+    validate_timestamp("cmd.timestamp", cmd.timestamp)?;
+    validate_frame_id("cmd.frame_id", &cmd.frame_id)
+}
+
+fn validate_pose_data(pose: &PoseData) -> Result<(), String> {
+    validate_finite_array("pose.position", &pose.position)?;
+    validate_finite_array("pose.orientation", &pose.orientation)?;
+    validate_timestamp("pose.timestamp", pose.timestamp)?;
+    validate_frame_id("pose.frame_id", &pose.frame_id)
 }
 
 fn transport_event_name(topic: &str) -> String {
@@ -227,6 +282,7 @@ pub async fn transport_publish_velocity(
     cmd: VelocityCmd,
 ) -> Result<(), String> {
     validate_topic(&topic)?;
+    validate_velocity_cmd("cmd", &cmd)?;
     let guard = TRANSPORT_ENGINE.lock().await;
     let bridge = guard.as_ref().ok_or("Transport not connected")?;
     
@@ -239,6 +295,7 @@ pub async fn transport_publish_velocity(
 #[tauri::command]
 pub async fn transport_publish_twist_stamped(topic: String, cmd: TwistStampedData) -> Result<(), String> {
     validate_topic(&topic)?;
+    validate_twist_stamped(&cmd)?;
     let guard = TRANSPORT_ENGINE.lock().await;
     let bridge = guard.as_ref().ok_or("Transport not connected")?;
 
@@ -257,6 +314,7 @@ pub async fn transport_publish_pose(
     pose: PoseData,
 ) -> Result<(), String> {
     validate_topic(&topic)?;
+    validate_pose_data(&pose)?;
     let guard = TRANSPORT_ENGINE.lock().await;
     let bridge = guard.as_ref().ok_or("Transport not connected")?;
     
@@ -336,6 +394,57 @@ mod tests {
             .unwrap_err();
 
         assert!(error.contains("too long"));
+    }
+
+    #[test]
+    fn transport_publish_velocity_rejects_non_finite_payload_before_connection_check() {
+        let cmd = VelocityCmd {
+            linear: [0.0, f64::NAN, 0.0],
+            angular: [0.0, 0.0, 0.0],
+        };
+        let error = tauri::async_runtime::block_on(transport_publish_velocity(
+            "/cmd_vel".to_string(),
+            cmd,
+        ))
+        .unwrap_err();
+
+        assert!(error.contains("cmd.linear[1] must be finite"));
+    }
+
+    #[test]
+    fn transport_publish_twist_stamped_rejects_invalid_header_before_connection_check() {
+        let cmd = TwistStampedData {
+            twist: VelocityCmd {
+                linear: [0.0, 0.0, 0.0],
+                angular: [0.0, 0.0, 0.0],
+            },
+            timestamp: f64::INFINITY,
+            frame_id: "map".to_string(),
+        };
+        let error = tauri::async_runtime::block_on(transport_publish_twist_stamped(
+            "/cmd_vel".to_string(),
+            cmd,
+        ))
+        .unwrap_err();
+
+        assert!(error.contains("cmd.timestamp must be finite"));
+    }
+
+    #[test]
+    fn transport_publish_pose_rejects_invalid_frame_id_before_connection_check() {
+        let pose = PoseData {
+            position: [0.0, 0.0, 0.0],
+            orientation: [0.0, 0.0, 0.0, 1.0],
+            timestamp: 0.0,
+            frame_id: "map\0bad".to_string(),
+        };
+        let error = tauri::async_runtime::block_on(transport_publish_pose(
+            "/setpoint".to_string(),
+            pose,
+        ))
+        .unwrap_err();
+
+        assert!(error.contains("pose.frame_id must not contain null bytes"));
     }
 
     #[test]
