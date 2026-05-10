@@ -51,12 +51,20 @@ export class MockWebSocket {
 export function installMockWebSocket() {
   const originalWebSocket = globalThis.WebSocket
   MockWebSocket.reset()
-  ;(globalThis as any).WebSocket = MockWebSocket
+  Object.defineProperty(globalThis, 'WebSocket', {
+    configurable: true,
+    writable: true,
+    value: MockWebSocket,
+  })
   return () => {
-    ;(globalThis as any).WebSocket = originalWebSocket
+    Object.defineProperty(globalThis, 'WebSocket', {
+      configurable: true,
+      writable: true,
+      value: originalWebSocket,
+    })
   }
 }
 
 export function sentMessages(ws: MockWebSocket) {
-  return ws.sent.map((data) => JSON.parse(data) as Record<string, any>)
+  return ws.sent.map((data) => JSON.parse(data) as Record<string, unknown>)
 }

@@ -1,14 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createGazeboController } from '../GazeboController'
+import type { ROSBridge } from '../ROSBridge'
 import type { Pose, Twist } from '../types'
 
-function createBridge(overrides: Record<string, unknown> = {}): any {
+type ClockMessage = { clock: { secs: number; nsecs: number } }
+type TestBridge = {
+  isConnected: ReturnType<typeof vi.fn<() => boolean>>
+  subscribe: ReturnType<typeof vi.fn<(topic: string, type: string, callback: (msg: ClockMessage) => void, throttleRate?: number) => () => void>>
+  callService: ReturnType<typeof vi.fn<(service: string, request: unknown) => Promise<unknown>>>
+}
+
+function createBridge(overrides: Partial<TestBridge> = {}): TestBridge {
   return {
     isConnected: vi.fn(() => true),
     subscribe: vi.fn(() => vi.fn()),
     callService: vi.fn(async () => ({})),
     ...overrides,
   }
+}
+
+function connectTestBridge(controller: ReturnType<typeof createGazeboController>, bridge: TestBridge): void {
+  controller.connect(bridge as unknown as ROSBridge)
 }
 
 const pose: Pose = {
@@ -39,7 +51,7 @@ describe('GazeboController', () => {
     const onStateChange = vi.fn()
     controller.onStateChange(onStateChange)
 
-    controller.connect(bridge)
+    connectTestBridge(controller, bridge)
     clockCallback?.({ clock: { secs: 12, nsecs: 500_000_000 } })
     controller.disconnect()
 
@@ -53,7 +65,7 @@ describe('GazeboController', () => {
   it('routes pause and unpause through Gazebo services and updates pause state', async () => {
     const bridge = createBridge()
     const controller = createGazeboController()
-    controller.connect(bridge)
+    connectTestBridge(controller, bridge)
 
     await expect(controller.pause()).resolves.toBe(true)
     expect(controller.isPaused()).toBe(true)
@@ -81,7 +93,7 @@ describe('GazeboController', () => {
       return vi.fn()
     })
     const controller = createGazeboController()
-    controller.connect(bridge)
+    connectTestBridge(controller, bridge)
     clockCallback?.({ clock: { secs: 42, nsecs: 0 } })
 
     await expect(controller.resetSimulation()).resolves.toBe(true)
@@ -95,7 +107,7 @@ describe('GazeboController', () => {
       callService: vi.fn(async () => ({ success: true, status_message: 'ok' })),
     })
     const controller = createGazeboController()
-    controller.connect(bridge)
+    connectTestBridge(controller, bridge)
 
     await expect(controller.spawnSDF('drone1', '<sdf />', pose, '/drone1', 'world')).resolves.toBe(true)
     await expect(controller.spawnURDF('robot1', '<robot />', pose, '/robot1', 'map')).resolves.toBe(true)
@@ -128,7 +140,7 @@ describe('GazeboController', () => {
       }),
     })
     const controller = createGazeboController()
-    controller.connect(bridge)
+    connectTestBridge(controller, bridge)
 
     await expect(controller.getModelState('drone1')).resolves.toEqual({ pose, twist })
     await expect(controller.setModelState('drone1', pose, twist, 'map')).resolves.toBe(true)
@@ -165,7 +177,7 @@ describe('GazeboController', () => {
       }),
     })
     const controller = createGazeboController()
-    controller.connect(bridge)
+    connectTestBridge(controller, bridge)
 
     try {
       await expect(controller.pause()).resolves.toBe(false)

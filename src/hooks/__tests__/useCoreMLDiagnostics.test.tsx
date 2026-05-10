@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createRoot } from 'react-dom/client'
 import { act } from 'react'
-import { useCoreMLDiagnostics } from '../useCoreMLDiagnostics'
+import { useCoreMLDiagnostics, type CoreMLDiagnosticsConfig } from '../useCoreMLDiagnostics'
 
 const invokeMock = vi.hoisted(() => vi.fn())
 
@@ -9,12 +9,12 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: invokeMock,
 }))
 
-;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
+;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 let hook: ReturnType<typeof useCoreMLDiagnostics>
-let onMessage: any
-let onDetectionComplete: any
-let getContextSpy: any
+let onMessage: NonNullable<CoreMLDiagnosticsConfig['onMessage']>
+let onDetectionComplete: NonNullable<CoreMLDiagnosticsConfig['onDetectionComplete']>
+let getContextSpy: ReturnType<typeof vi.spyOn>
 
 function Harness() {
   hook = useCoreMLDiagnostics({ onMessage, onDetectionComplete })
@@ -22,7 +22,7 @@ function Harness() {
 }
 
 function mockCanvasContext() {
-  getContextSpy = vi.spyOn(HTMLCanvasElement.prototype as any, 'getContext').mockImplementation(() => ({
+  const context = {
     createLinearGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
     fillRect: vi.fn(),
     beginPath: vi.fn(),
@@ -39,7 +39,10 @@ function mockCanvasContext() {
     set strokeStyle(_value: unknown) {},
     set lineWidth(_value: unknown) {},
     set font(_value: unknown) {},
-  }))
+  } as unknown as CanvasRenderingContext2D
+  getContextSpy = vi
+    .spyOn(HTMLCanvasElement.prototype, 'getContext')
+    .mockImplementation(((contextId: string) => (contextId === '2d' ? context : null)) as HTMLCanvasElement['getContext'])
 }
 
 async function renderHarness() {

@@ -1,17 +1,18 @@
 import { afterEach, describe, it, expect, vi } from 'vitest'
 import { createRoot } from 'react-dom/client'
 import { act } from 'react'
-import { useGazeboDrones, type UseGazeboDronesReturn } from '../useGazeboDrones'
+import { useGazeboDrones, type UseGazeboDronesConfig, type UseGazeboDronesReturn } from '../useGazeboDrones'
 import type { ModelStates } from '../../ros/types'
 
-;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
+;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 let result: UseGazeboDronesReturn
+type TestBridge = Pick<NonNullable<UseGazeboDronesConfig['bridge']>, 'isConnected' | 'subscribeToModelStates'>
 
-function Harness({ bridge, tick, config = {} }: { bridge: any; tick: number; config?: Record<string, unknown> }) {
+function Harness({ bridge, tick, config = {} }: { bridge: TestBridge; tick: number; config?: Partial<UseGazeboDronesConfig> }) {
   // tick forces re-render when we change the bridge's internal connection state
   void tick
-  result = useGazeboDrones({ bridge, ...config })
+  result = useGazeboDrones({ bridge: bridge as NonNullable<UseGazeboDronesConfig['bridge']>, ...config })
   return null
 }
 
@@ -75,7 +76,7 @@ describe('useGazeboDrones', () => {
     let modelStatesCallback: ((msg: ModelStates) => void) | undefined
     const bridge = {
       isConnected: () => true,
-      subscribeToModelStates: vi.fn((callback) => {
+      subscribeToModelStates: vi.fn((callback: (msg: ModelStates) => void) => {
         modelStatesCallback = callback
         return vi.fn()
       }),
@@ -114,7 +115,7 @@ describe('useGazeboDrones', () => {
     let modelStatesCallback: ((msg: ModelStates) => void) | undefined
     const bridge = {
       isConnected: () => true,
-      subscribeToModelStates: vi.fn((callback) => {
+      subscribeToModelStates: vi.fn((callback: (msg: ModelStates) => void) => {
         modelStatesCallback = callback
         return vi.fn()
       }),

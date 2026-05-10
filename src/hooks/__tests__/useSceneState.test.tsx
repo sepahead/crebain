@@ -11,11 +11,12 @@ import {
   type CrebainCamera,
 } from '../useSceneState'
 import { sceneStateManager, type SceneState } from '../../state/SceneState'
+import type { ManagedDrone } from '../useDroneController'
 
-;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
+;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 let hook: ReturnType<typeof useSceneState>
-let onStateRestored: any
+let onStateRestored: (state: SceneState) => void
 
 function Harness({ autosaveInterval = 0 }: { autosaveInterval?: number }) {
   hook = useSceneState({ autosaveInterval, onStateRestored })
@@ -61,7 +62,7 @@ function camera(): CrebainCamera {
   }
 }
 
-function drone(): any {
+function drone(): ManagedDrone {
   return {
     id: 'maverick_1',
     type: 'maverick',
@@ -75,8 +76,8 @@ function drone(): any {
         armed: true,
         battery: 87,
       },
-    },
-    flightController: {},
+    } as ManagedDrone['physicsBody'],
+    flightController: {} as ManagedDrone['flightController'],
     mesh: null,
     route: { waypoints: [], mode: 'none', currentWaypointIndex: 0, isActive: false, arrivalThreshold: 1 },
   }

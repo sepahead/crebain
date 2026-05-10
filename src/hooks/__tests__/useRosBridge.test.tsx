@@ -4,7 +4,7 @@ import { act } from 'react'
 import { useRosBridge, type UseRosBridgeConfig, type UseRosBridgeReturn } from '../useRosBridge'
 import { installMockWebSocket, MockWebSocket, sentMessages } from '../../test/mockWebSocket'
 
-;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
+;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 let hook: UseRosBridgeReturn
 let restoreWebSocket: () => void
