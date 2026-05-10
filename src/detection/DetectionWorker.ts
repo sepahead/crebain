@@ -23,11 +23,71 @@ let detector: ObjectDetector | null = null
 let isInitializing = false
 let currentDetectorType: DetectorType = 'yolo'
 
+const DETECTOR_TYPES = new Set<DetectorType>(['yolo', 'rf-detr', 'moondream', 'coreml'])
+const WORKER_MESSAGE_TYPES = new Set<DetectionWorkerMessage['type']>(['init', 'detect', 'dispose', 'status'])
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function isDetectorType(value: unknown): value is DetectorType {
+  return typeof value === 'string' && DETECTOR_TYPES.has(value as DetectorType)
+}
+
+function isWorkerMessageType(value: unknown): value is DetectionWorkerMessage['type'] {
+  return typeof value === 'string' && WORKER_MESSAGE_TYPES.has(value as DetectionWorkerMessage['type'])
+}
+
+function isImageData(value: unknown): value is ImageData {
+  return typeof ImageData !== 'undefined' && value instanceof ImageData
+}
+
+function normalizeWorkerMessage(value: unknown): DetectionWorkerMessage | null {
+  if (!isRecord(value)) return null
+  if (!isWorkerMessageType(value.type)) return null
+
+  if (!isRecord(value.payload)) {
+    return { type: value.type }
+  }
+
+  if (value.type === 'init') {
+    return {
+      type: value.type,
+      payload: {
+        detectorType: isDetectorType(value.payload.detectorType) ? value.payload.detectorType : undefined,
+        config: isRecord(value.payload.config) ? value.payload.config as Partial<DetectorConfig> : undefined,
+      },
+    }
+  }
+
+  if (value.type === 'detect') {
+    return {
+      type: value.type,
+      payload: {
+        imageData: isImageData(value.payload.imageData) ? value.payload.imageData : undefined,
+        imageWidth: typeof value.payload.imageWidth === 'number' ? value.payload.imageWidth : undefined,
+        imageHeight: typeof value.payload.imageHeight === 'number' ? value.payload.imageHeight : undefined,
+      },
+    }
+  }
+
+  return { type: value.type }
+}
+
 /**
  * Handle incoming messages from main thread
  */
-self.onmessage = async (event: MessageEvent<DetectionWorkerMessage>) => {
-  const { type, payload } = event.data
+self.onmessage = async (event: MessageEvent<unknown>) => {
+  const message = normalizeWorkerMessage(event.data)
+  if (!message) {
+    sendResponse({
+      type: 'error',
+      payload: { error: 'Malformed worker message' },
+    })
+    return
+  }
+
+  const { type, payload } = message
 
   switch (type) {
     case 'init':

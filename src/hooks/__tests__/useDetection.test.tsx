@@ -202,6 +202,30 @@ describe('useDetection', () => {
     await act(async () => root.unmount())
   })
 
+  it('rejects pending calls and terminates the worker on fatal worker errors', async () => {
+    const root = await renderHarness()
+    await act(async () => {
+      await hook.initialize()
+      workers[0].emit({
+        type: 'ready',
+        payload: { status: { isReady: true, modelLoaded: true, averageLatency: 0 } },
+      })
+    })
+    const worker = workers[0]
+    const pending = hook.detect(imageData())
+
+    await act(async () => {
+      worker.fail('boom')
+      await expect(pending).rejects.toThrow('Worker error: boom')
+    })
+
+    expect(worker.terminated).toBe(true)
+    expect(hook.isReady).toBe(false)
+    expect(hook.error).toBe('Worker error: boom')
+
+    await act(async () => root.unmount())
+  })
+
   it('auto-initializes and cleans up the worker on unmount', async () => {
     const root = await renderHarness(true)
 

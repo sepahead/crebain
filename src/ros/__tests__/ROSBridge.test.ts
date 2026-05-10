@@ -130,6 +130,23 @@ describe('ROSBridge', () => {
     expect(secondCallback).toHaveBeenCalledWith({ frame: 1 })
   })
 
+  it('ignores malformed inbound publish and service response payloads', async () => {
+    const { bridge, ws } = await connectBridge()
+    const callback = vi.fn()
+
+    bridge.subscribe('/camera', 'sensor_msgs/Image', callback)
+    const response = bridge.callService('/service', {}, 100)
+    const call = sentMessages(ws).find((message) => message.op === 'call_service')
+
+    ws.receive({ op: 'publish', msg: { frame: 1 } })
+    ws.receive({ op: 'service_response', id: call?.id, values: { success: true }, result: 'true' })
+
+    expect(callback).not.toHaveBeenCalled()
+
+    ws.receive({ op: 'service_response', id: call?.id, values: { success: true }, result: true })
+    await expect(response).resolves.toEqual({ success: true })
+  })
+
   it('serializes advertise, publish, and unadvertise operations', async () => {
     const { bridge, ws } = await connectBridge()
 

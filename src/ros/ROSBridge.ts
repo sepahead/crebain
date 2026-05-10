@@ -50,6 +50,10 @@ interface PendingServiceCall {
 // Allowed URL schemes for ROS bridge connections
 const ALLOWED_SCHEMES = ['ws:', 'wss:']
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
 // Validate ROS bridge URL for security
 export function validateRosUrl(url: string): { valid: boolean; error?: string } {
   try {
@@ -210,20 +214,26 @@ export class ROSBridge {
   // ───────────────────────────────────────────────────────────────────────────
 
   private handleMessage(data: string): void {
-    let message: ROSBridgeMessage
+    let message: unknown
     try {
       message = JSON.parse(data)
-    } catch (e) {
+    } catch {
       // Malformed JSON - ignore invalid messages
+      return
+    }
+
+    if (!isRecord(message) || typeof message.op !== 'string') {
       return
     }
 
     switch (message.op) {
       case 'publish':
-        this.handleTopicMessage(message.topic!, message.msg)
+        if (typeof message.topic !== 'string') return
+        this.handleTopicMessage(message.topic, message.msg)
         break
       case 'service_response':
-        this.handleServiceResponse(message.id!, message.values, message.result as boolean)
+        if (typeof message.id !== 'string' || typeof message.result !== 'boolean') return
+        this.handleServiceResponse(message.id, message.values, message.result)
         break
       default:
         // Ignore other message types

@@ -56,6 +56,13 @@ export function useDetection(options: UseDetectionOptions = {}): UseDetectionRet
     averageLatency: 0,
   })
 
+  const rejectPendingCalls = useCallback((error: Error) => {
+    pendingCallsRef.current.forEach(({ reject }) => {
+      reject(error)
+    })
+    pendingCallsRef.current = []
+  }, [])
+
   /**
    * Handle messages from worker
    */
@@ -141,7 +148,15 @@ export function useDetection(options: UseDetectionOptions = {}): UseDetectionRet
           ...prev,
           error: `Worker error: ${error.message}`,
           isLoading: false,
+          isReady: false,
         }))
+        rejectPendingCalls(new Error(`Worker error: ${error.message}`))
+        worker.onmessage = null
+        worker.onerror = null
+        worker.terminate()
+        if (workerRef.current === worker) {
+          workerRef.current = null
+        }
       }
 
       workerRef.current = worker
@@ -176,7 +191,7 @@ export function useDetection(options: UseDetectionOptions = {}): UseDetectionRet
         isLoading: false,
       }))
     }
-  }, [config, handleWorkerMessage])
+  }, [config, handleWorkerMessage, rejectPendingCalls])
 
   /**
    * Run detection on image data
@@ -213,10 +228,7 @@ export function useDetection(options: UseDetectionOptions = {}): UseDetectionRet
       initTimeoutRef.current = null
     }
     // Reject any pending calls
-    pendingCallsRef.current.forEach(({ reject }) => {
-      reject(new Error('Worker disposed'))
-    })
-    pendingCallsRef.current = []
+    rejectPendingCalls(new Error('Worker disposed'))
 
     if (workerRef.current) {
       // Clean up worker listeners before disposing
@@ -235,7 +247,7 @@ export function useDetection(options: UseDetectionOptions = {}): UseDetectionRet
       inferenceTime: 0,
       averageLatency: 0,
     })
-  }, [])
+  }, [rejectPendingCalls])
 
   // Auto-initialize if enabled
   useEffect(() => {
@@ -250,10 +262,7 @@ export function useDetection(options: UseDetectionOptions = {}): UseDetectionRet
         initTimeoutRef.current = null
       }
       // Reject pending calls
-      pendingCallsRef.current.forEach(({ reject }) => {
-        reject(new Error('Component unmounted'))
-      })
-      pendingCallsRef.current = []
+      rejectPendingCalls(new Error('Component unmounted'))
 
       if (workerRef.current) {
         // Clean up worker listeners to prevent memory leaks
@@ -263,7 +272,7 @@ export function useDetection(options: UseDetectionOptions = {}): UseDetectionRet
         workerRef.current = null
       }
     }
-  }, [autoInit, initialize])
+  }, [autoInit, initialize, rejectPendingCalls])
 
   return {
     ...state,
