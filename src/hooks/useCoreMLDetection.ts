@@ -10,18 +10,17 @@
 
 import { useCallback, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import type { Detection, CoreMLDetectionResult } from '../detection/types'
+import type { Detection } from '../detection/types'
 import {
   DEFAULT_CONFIDENCE_THRESHOLD,
   DEFAULT_IOU_THRESHOLD,
   DEFAULT_MAX_DETECTIONS,
 } from '../detection/types'
+import { normalizeNativeDetectionResult } from '../detection/nativeDetectionResult'
 import { detectionLogger as log } from '../lib/logger'
 import { convertDetection, imageDataToRGBA } from './useDetectionLoop'
 import { normalizeSystemInfo, type SystemInfo } from '../lib/diagnostics'
 import { TAURI_COMMANDS } from '../lib/tauriCommands'
-
-type NativeDetectionResult = CoreMLDetectionResult & { backend?: string }
 
 interface CoreMLDetectionState {
   isReady: boolean
@@ -89,7 +88,7 @@ export function useCoreMLDetection(): UseCoreMLDetectionReturn {
     try {
       const rgbaData = imageDataToRGBA(imageData)
 
-      const result = await invoke<NativeDetectionResult>(TAURI_COMMANDS.detection.nativeRaw, {
+      const response = await invoke<unknown>(TAURI_COMMANDS.detection.nativeRaw, {
         rgbaData: Array.from(rgbaData),
         width: imageData.width,
         height: imageData.height,
@@ -97,6 +96,7 @@ export function useCoreMLDetection(): UseCoreMLDetectionReturn {
         iouThreshold: DEFAULT_IOU_THRESHOLD, // retained for API parity (backend may ignore)
         maxDetections: DEFAULT_MAX_DETECTIONS
       })
+      const result = normalizeNativeDetectionResult(response)
 
       if (!result.success) {
         throw new Error(result.error || 'Detection failed')
@@ -139,7 +139,7 @@ export function useCoreMLDetection(): UseCoreMLDetectionReturn {
       const imageData = canvasToImageData(canvas)
       const rgbaData = imageDataToRGBA(imageData)
 
-      const result = await invoke<NativeDetectionResult>(TAURI_COMMANDS.detection.nativeRaw, {
+      const response = await invoke<unknown>(TAURI_COMMANDS.detection.nativeRaw, {
         rgbaData: Array.from(rgbaData),
         width: imageData.width,
         height: imageData.height,
@@ -147,6 +147,7 @@ export function useCoreMLDetection(): UseCoreMLDetectionReturn {
         iouThreshold: DEFAULT_IOU_THRESHOLD, // retained for API parity (backend may ignore)
         maxDetections: DEFAULT_MAX_DETECTIONS
       })
+      const result = normalizeNativeDetectionResult(response)
 
       if (!result.success) {
         throw new Error(result.error || 'Detection failed')

@@ -1,8 +1,73 @@
-import { describe, it, expect } from 'vitest'
-import { convertDetection, imageDataToRGBA } from '../useDetectionLoop'
+import { act, createElement } from 'react'
+import { createRoot } from 'react-dom/client'
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest'
+import { convertDetection, imageDataToRGBA, useDetectionLoop } from '../useDetectionLoop'
 import type { CoreMLDetection } from '../../detection/types'
 
+const invokeMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: invokeMock,
+}))
+
+;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+
+function imageData(): ImageData {
+  return {
+    data: new Uint8ClampedArray([1, 2, 3, 4]),
+    width: 1,
+    height: 1,
+    colorSpace: 'srgb',
+  } as ImageData
+}
+
+function renderDetectionLoop({
+  enabled = true,
+  exportCameraFeed = vi.fn(() => imageData()),
+  onDetection = vi.fn(),
+  onError = vi.fn(),
+  onPerformance = vi.fn(),
+}: {
+  enabled?: boolean
+  exportCameraFeed?: (cameraId: string) => ImageData | null | Promise<ImageData | null>
+  onDetection?: (cameraId: string, detections: ReturnType<typeof convertDetection>[], inferenceTimeMs: number) => void
+  onError?: (error: string, cameraId?: string) => void
+  onPerformance?: (metrics: { inferenceTimeMs: number; preprocessTimeMs: number; postprocessTimeMs: number; detectionCount: number; cameraId: string }) => void
+} = {}) {
+  function Harness({ active }: { active: boolean }) {
+    useDetectionLoop({
+      cameras: [{ id: 'cam-1', name: 'Camera 1', isActive: true }],
+      exportCameraFeed,
+      enabled: active,
+      intervalMs: 1_000,
+      onDetection,
+      onError,
+      onPerformance,
+    })
+    return null
+  }
+
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  return {
+    root,
+    render: (active = enabled) => root.render(createElement(Harness, { active })),
+    onDetection,
+    onError,
+    onPerformance,
+  }
+}
+
 describe('useDetectionLoop helpers', () => {
+  beforeEach(() => {
+    invokeMock.mockReset()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
   it('maps native detections to tactical detections', () => {
     const nativeDetection: CoreMLDetection = {
       id: 'det-1',
@@ -84,5 +149,59 @@ describe('useDetectionLoop helpers', () => {
     expect(Array.from(rgba)).toEqual([4, 5, 6, 7])
     imageData.data[1] = 9
     expect(rgba[1]).toBe(9)
+  })
+
+  it('reports malformed native detection responses instead of dispatching detections', async () => {
+    invokeMock.mockResolvedValue({
+      success: true,
+      detections: [{ id: 'bad', classLabel: 'drone', classIndex: 0, confidence: 0.9, timestamp: 1 }],
+      inferenceTimeMs: 1,
+      preprocessTimeMs: null,
+      postprocessTimeMs: null,
+      error: null,
+    })
+    const { root, render, onDetection, onError } = renderDetectionLoop()
+
+    await act(async () => {
+      render()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(onDetection).not.toHaveBeenCalled()
+    expect(onError).toHaveBeenCalledWith(
+      'Invalid native detection response: detections[0].bbox must be an object',
+      'cam-1'
+    )
+
+    await act(async () => root.unmount())
+  })
+
+  it('does not invoke native detection after cancellation during feed export', async () => {
+    let resolveFeed!: (value: ImageData) => void
+    const exportCameraFeed = vi.fn(() => new Promise<ImageData>((resolve) => {
+      resolveFeed = resolve
+    }))
+    const { root, render, onDetection, onError } = renderDetectionLoop({ exportCameraFeed })
+
+    await act(async () => {
+      render(true)
+      await Promise.resolve()
+    })
+    await act(async () => {
+      render(false)
+      await Promise.resolve()
+    })
+    await act(async () => {
+      resolveFeed(imageData())
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(invokeMock).not.toHaveBeenCalled()
+    expect(onDetection).not.toHaveBeenCalled()
+    expect(onError).not.toHaveBeenCalled()
+
+    await act(async () => root.unmount())
   })
 })

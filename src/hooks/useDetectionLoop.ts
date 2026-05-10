@@ -10,7 +10,7 @@
 
 import { useEffect, useRef, useCallback } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import type { Detection, CoreMLDetection, CoreMLDetectionResult } from '../detection/types'
+import type { Detection, CoreMLDetection } from '../detection/types'
 import {
   mapToDetectionClass,
   getThreatLevel,
@@ -18,6 +18,8 @@ import {
   DEFAULT_MAX_DETECTIONS,
   DEFAULT_DETECTION_INTERVAL_MS,
 } from '../detection/types'
+import { normalizeNativeDetectionResult } from '../detection/nativeDetectionResult'
+import { TAURI_COMMANDS } from '../lib/tauriCommands'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -119,9 +121,10 @@ export function useDetectionLoop(options: DetectionLoopOptions): void {
   const isProcessingRef = useRef(false)
   // Track current camera index for round-robin processing
   const currentCameraIndexRef = useRef(0)
+  const loopGenerationRef = useRef(0)
 
   // Stable reference to the detection function
-  const runDetectionCycle = useCallback(async () => {
+  const runDetectionCycle = useCallback(async (isCurrent: () => boolean = () => true) => {
     // Skip if already processing or no cameras
     if (isProcessingRef.current) return
     
@@ -140,6 +143,7 @@ export function useDetectionLoop(options: DetectionLoopOptions): void {
 
       // Export camera feed
       const imageData = await exportCameraFeed(camera.id)
+      if (!isCurrent()) return
       if (!imageData) {
         isProcessingRef.current = false
         return
@@ -149,13 +153,15 @@ export function useDetectionLoop(options: DetectionLoopOptions): void {
       // Uint8Array is serializable by Tauri 2.x to Vec<u8>.
       const rgbaData = imageDataToRGBA(imageData)
 
-      const result = await invoke<CoreMLDetectionResult>('detect_native_raw', {
+      const response = await invoke<unknown>(TAURI_COMMANDS.detection.nativeRaw, {
         rgbaData,
         width: imageData.width,
         height: imageData.height,
         confidenceThreshold,
         maxDetections: DEFAULT_MAX_DETECTIONS,
       })
+      if (!isCurrent()) return
+      const result = normalizeNativeDetectionResult(response)
 
       if (!result.success) {
         onError?.(result.error || 'Detection failed', camera.id)
@@ -190,14 +196,18 @@ export function useDetectionLoop(options: DetectionLoopOptions): void {
   // This prevents queue buildup when detection takes longer than intervalMs
   useEffect(() => {
     if (!enabled) {
+      loopGenerationRef.current += 1
       return
     }
 
     let cancelled = false
+    const generation = loopGenerationRef.current + 1
+    loopGenerationRef.current = generation
+    const isCurrent = () => !cancelled && loopGenerationRef.current === generation
 
     const loop = async () => {
       while (!cancelled) {
-        await runDetectionCycle()
+        await runDetectionCycle(isCurrent)
         
         if (!cancelled) {
           await new Promise(resolve => setTimeout(resolve, intervalMs))
@@ -209,6 +219,7 @@ export function useDetectionLoop(options: DetectionLoopOptions): void {
 
     return () => {
       cancelled = true
+      loopGenerationRef.current += 1
     }
   }, [enabled, intervalMs, runDetectionCycle])
 }
