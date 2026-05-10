@@ -15,14 +15,19 @@
 //! trtexec --onnx=yolov8s.onnx --saveEngine=yolov8s.engine --fp16 --workspace=4096
 //! ```
 
-use super::{
-    validate_rgba_input_len, Backend, Detection, Detector, InferenceError, InferenceStats, Result,
-};
-use crate::common::{coco, path, yolo};
+use super::{Backend, Detection, Detector, InferenceError, Result};
+#[cfg(target_os = "linux")]
+use super::{validate_rgba_input_len, InferenceStats};
+use crate::common::path;
+#[cfg(target_os = "linux")]
+use crate::common::{coco, yolo};
 use std::path::PathBuf;
 use std::process::Command;
+#[cfg(target_os = "linux")]
 use std::sync::atomic::{AtomicU64, Ordering};
+#[cfg(target_os = "linux")]
 use std::sync::Mutex;
+#[cfg(target_os = "linux")]
 use std::time::Instant;
 
 #[cfg(target_os = "linux")]
@@ -220,6 +225,7 @@ impl TensorRtDetector {
 }
 
 /// Compute IoU between two bounding boxes
+#[cfg(target_os = "linux")]
 fn compute_iou(a: &[f32; 4], b: &[f32; 4]) -> f32 {
     let inter_x1 = a[0].max(b[0]);
     let inter_y1 = a[1].max(b[1]);
@@ -470,18 +476,17 @@ fn find_trtexec() -> Option<PathBuf> {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 /// Find ONNX model path
+#[cfg(target_os = "linux")]
 fn find_model_path() -> Option<PathBuf> {
-    if let Ok(path) = std::env::var("CREBAIN_ONNX_MODEL") {
-        let p = PathBuf::from(&path);
-        if p.exists() {
-            return Some(p);
+    if let Ok(custom_path) = std::env::var("CREBAIN_ONNX_MODEL") {
+        if let Some(path) = validate_tensorrt_model_path("CREBAIN_ONNX_MODEL", &custom_path) {
+            return Some(path);
         }
     }
 
-    if let Ok(path) = std::env::var("CREBAIN_MODEL_PATH") {
-        let p = PathBuf::from(&path);
-        if p.exists() {
-            return Some(p);
+    if let Ok(custom_path) = std::env::var("CREBAIN_MODEL_PATH") {
+        if let Some(path) = validate_tensorrt_model_path("CREBAIN_MODEL_PATH", &custom_path) {
+            return Some(path);
         }
     }
 
@@ -493,14 +498,27 @@ fn find_model_path() -> Option<PathBuf> {
         "/opt/crebain/models/yolov8s.onnx",
     ];
 
-    for path in paths {
-        let p = PathBuf::from(path);
-        if p.exists() {
-            return Some(p);
+    for candidate in paths {
+        if let Some(path) = validate_tensorrt_model_path("candidate", candidate) {
+            return Some(path);
         }
     }
 
     None
+}
+
+fn validate_tensorrt_model_path(source: &str, model_path: &str) -> Option<PathBuf> {
+    match path::validate_model_path(model_path, Some(&["onnx"])) {
+        Ok(path) => Some(path),
+        Err(e) => {
+            if source == "candidate" {
+                log::debug!("[TensorRT] Skipping model candidate {}: {}", model_path, e);
+            } else {
+                log::warn!("[TensorRT] Invalid {} path: {}", source, e);
+            }
+            None
+        }
+    }
 }
 
 /// Check if TensorRT is available
@@ -555,5 +573,40 @@ impl Detector for TensorRtDetector {
 
     fn detect(&self, _data: &[u8], _width: u32, _height: u32) -> Result<Vec<Detection>> {
         Err(InferenceError::BackendNotAvailable(Backend::TensorRT))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn validates_tensorrt_model_path_extension_and_security() {
+        let model_path = std::env::temp_dir().join(format!(
+            "crebain-tensorrt-model-{}.onnx",
+            std::process::id()
+        ));
+        std::fs::write(&model_path, b"model").unwrap();
+
+        let valid = validate_tensorrt_model_path("test", model_path.to_str().unwrap());
+
+        assert_eq!(valid.as_deref(), Some(model_path.as_path()));
+
+        let _ = std::fs::remove_file(model_path);
+    }
+
+    #[test]
+    fn rejects_invalid_tensorrt_model_paths() {
+        let wrong_ext = std::env::temp_dir().join(format!(
+            "crebain-tensorrt-model-{}.txt",
+            std::process::id()
+        ));
+        std::fs::write(&wrong_ext, b"model").unwrap();
+
+        assert!(validate_tensorrt_model_path("test", wrong_ext.to_str().unwrap()).is_none());
+        assert!(validate_tensorrt_model_path("test", "../models/model.onnx").is_none());
+        assert!(validate_tensorrt_model_path("test", "/tmp/model\0.onnx").is_none());
+
+        let _ = std::fs::remove_file(wrong_ext);
     }
 }

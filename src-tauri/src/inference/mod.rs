@@ -29,7 +29,7 @@ pub mod mlx;
 #[cfg(target_os = "linux")]
 pub mod cuda;
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", test))]
 pub mod tensorrt;
 
 // ONNX is available on all platforms as fallback
