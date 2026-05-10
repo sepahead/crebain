@@ -9,6 +9,8 @@
 
 /// YOLOv8 COCO output features: 4 box coords + 80 class scores.
 pub const YOLOV8_OUTPUT_FEATURES: usize = 84;
+pub const YOLOV8_BBOX_FEATURES: usize = 4;
+pub const YOLOV8_CLASS_COUNT: usize = YOLOV8_OUTPUT_FEATURES - YOLOV8_BBOX_FEATURES;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OutputLayout {
@@ -17,17 +19,46 @@ pub enum OutputLayout {
 }
 
 pub fn infer_yolov8_output_layout(shape_dims: &[usize]) -> Result<(OutputLayout, usize), String> {
-    if shape_dims.len() == 3 {
-        if shape_dims[1] == YOLOV8_OUTPUT_FEATURES {
-            Ok((OutputLayout::ChannelsFirst, shape_dims[2]))
-        } else if shape_dims[2] == YOLOV8_OUTPUT_FEATURES {
-            Ok((OutputLayout::AnchorsFirst, shape_dims[1]))
-        } else {
-            Err(format!("Unexpected output shape: {:?}", shape_dims))
+    match shape_dims {
+        [1, features, anchors] if *features == YOLOV8_OUTPUT_FEATURES && *anchors > 0 => {
+            Ok((OutputLayout::ChannelsFirst, *anchors))
         }
-    } else {
-        Err(format!("Unexpected output shape: {:?}", shape_dims))
+        [1, anchors, features] if *features == YOLOV8_OUTPUT_FEATURES && *anchors > 0 => {
+            Ok((OutputLayout::AnchorsFirst, *anchors))
+        }
+        _ => Err(format!("Unexpected output shape: {:?}", shape_dims)),
     }
+}
+
+pub fn validate_yolov8_output_len(
+    layout: OutputLayout,
+    num_anchors: usize,
+    output_len: usize,
+) -> Result<(), String> {
+    let required_len = match layout {
+        OutputLayout::ChannelsFirst | OutputLayout::AnchorsFirst => YOLOV8_OUTPUT_FEATURES
+            .checked_mul(num_anchors)
+            .ok_or_else(|| format!("YOLO output shape overflows: {} anchors", num_anchors))?,
+    };
+
+    if output_len < required_len {
+        Err(format!(
+            "YOLO output data too short: expected at least {} values, got {}",
+            required_len, output_len
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+fn read_output_value(output_data: &[f32], index: usize) -> Result<f32, String> {
+    output_data.get(index).copied().ok_or_else(|| {
+        format!(
+            "YOLO output index {} out of bounds for {} values",
+            index,
+            output_data.len()
+        )
+    })
 }
 
 pub fn read_bbox(
@@ -35,26 +66,26 @@ pub fn read_bbox(
     output_data: &[f32],
     num_anchors: usize,
     anchor_idx: usize,
-) -> (f32, f32, f32, f32) {
+) -> Result<(f32, f32, f32, f32), String> {
     match layout {
         // Layout: [1, 84, N]
         // Index [0, j, i] = j * N + i
-        OutputLayout::ChannelsFirst => (
-            output_data[anchor_idx],
-            output_data[num_anchors + anchor_idx],
-            output_data[2 * num_anchors + anchor_idx],
-            output_data[3 * num_anchors + anchor_idx],
-        ),
+        OutputLayout::ChannelsFirst => Ok((
+            read_output_value(output_data, anchor_idx)?,
+            read_output_value(output_data, num_anchors + anchor_idx)?,
+            read_output_value(output_data, 2 * num_anchors + anchor_idx)?,
+            read_output_value(output_data, 3 * num_anchors + anchor_idx)?,
+        )),
         // Layout: [1, N, 84]
         // Index [0, i, j] = i * 84 + j
         OutputLayout::AnchorsFirst => {
             let base = anchor_idx * YOLOV8_OUTPUT_FEATURES;
-            (
-                output_data[base],
-                output_data[base + 1],
-                output_data[base + 2],
-                output_data[base + 3],
-            )
+            Ok((
+                read_output_value(output_data, base)?,
+                read_output_value(output_data, base + 1)?,
+                read_output_value(output_data, base + 2)?,
+                read_output_value(output_data, base + 3)?,
+            ))
         }
     }
 }
@@ -65,10 +96,23 @@ pub fn read_class_score(
     num_anchors: usize,
     anchor_idx: usize,
     class_idx: usize,
-) -> f32 {
+) -> Result<f32, String> {
+    if class_idx >= YOLOV8_CLASS_COUNT {
+        return Err(format!(
+            "YOLO class index {} out of range for {} classes",
+            class_idx, YOLOV8_CLASS_COUNT
+        ));
+    }
+
     match layout {
-        OutputLayout::ChannelsFirst => output_data[(4 + class_idx) * num_anchors + anchor_idx],
-        OutputLayout::AnchorsFirst => output_data[anchor_idx * YOLOV8_OUTPUT_FEATURES + 4 + class_idx],
+        OutputLayout::ChannelsFirst => read_output_value(
+            output_data,
+            (YOLOV8_BBOX_FEATURES + class_idx) * num_anchors + anchor_idx,
+        ),
+        OutputLayout::AnchorsFirst => read_output_value(
+            output_data,
+            anchor_idx * YOLOV8_OUTPUT_FEATURES + YOLOV8_BBOX_FEATURES + class_idx,
+        ),
     }
 }
 
@@ -93,9 +137,11 @@ mod tests {
         // class score (class 5) for anchor 0
         data[(4 + 5) * num_anchors] = 0.9;
 
-        let (cx, cy, w, h) = read_bbox(layout, &data, anchors, 1);
+        validate_yolov8_output_len(layout, anchors, data.len()).unwrap();
+
+        let (cx, cy, w, h) = read_bbox(layout, &data, anchors, 1).unwrap();
         assert_eq!((cx, cy, w, h), (11.0, 21.0, 31.0, 41.0));
-        assert_eq!(read_class_score(layout, &data, anchors, 0, 5), 0.9);
+        assert_eq!(read_class_score(layout, &data, anchors, 0, 5).unwrap(), 0.9);
     }
 
     #[test]
@@ -116,14 +162,39 @@ mod tests {
         // class score (class 5) for anchor 0
         data[4 + 5] = 0.9;
 
-        let (cx, cy, w, h) = read_bbox(layout, &data, anchors, 1);
+        validate_yolov8_output_len(layout, anchors, data.len()).unwrap();
+
+        let (cx, cy, w, h) = read_bbox(layout, &data, anchors, 1).unwrap();
         assert_eq!((cx, cy, w, h), (11.0, 21.0, 31.0, 41.0));
-        assert_eq!(read_class_score(layout, &data, anchors, 0, 5), 0.9);
+        assert_eq!(read_class_score(layout, &data, anchors, 0, 5).unwrap(), 0.9);
     }
 
     #[test]
     fn yolov8_layout_rejects_unexpected_shapes() {
         assert!(infer_yolov8_output_layout(&[1, 85, 8400]).is_err());
         assert!(infer_yolov8_output_layout(&[1, 8400]).is_err());
+        assert!(infer_yolov8_output_layout(&[2, YOLOV8_OUTPUT_FEATURES, 8400]).is_err());
+        assert!(infer_yolov8_output_layout(&[1, YOLOV8_OUTPUT_FEATURES, 0]).is_err());
+    }
+
+    #[test]
+    fn yolov8_output_length_validation_rejects_short_data() {
+        let (layout, anchors) =
+            infer_yolov8_output_layout(&[1, YOLOV8_OUTPUT_FEATURES, 2]).unwrap();
+
+        let error =
+            validate_yolov8_output_len(layout, anchors, YOLOV8_OUTPUT_FEATURES - 1).unwrap_err();
+
+        assert!(error.contains("too short"));
+    }
+
+    #[test]
+    fn yolov8_read_helpers_reject_out_of_bounds_access() {
+        let data = vec![0.0f32; YOLOV8_OUTPUT_FEATURES];
+
+        assert!(read_bbox(OutputLayout::AnchorsFirst, &data, 1, 1).is_err());
+        assert!(
+            read_class_score(OutputLayout::AnchorsFirst, &data, 1, 0, YOLOV8_CLASS_COUNT).is_err()
+        );
     }
 }

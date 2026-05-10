@@ -4,7 +4,9 @@
 //! Runtime with CUDA execution provider. For more optimized NVIDIA inference,
 //! use the TensorRT backend instead.
 
-use super::{Backend, Detection, Detector, InferenceError, InferenceStats, Result};
+use super::{
+    validate_rgba_input_len, Backend, Detection, Detector, InferenceError, InferenceStats, Result,
+};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
@@ -57,14 +59,7 @@ impl Detector for CudaDetector {
     fn detect(&self, data: &[u8], width: u32, height: u32) -> Result<Vec<Detection>> {
         let start = Instant::now();
 
-        let expected_size = (width * height * 4) as usize;
-        if data.len() != expected_size {
-            return Err(InferenceError::InvalidInput(format!(
-                "Expected {} bytes, got {}",
-                expected_size,
-                data.len()
-            )));
-        }
+        validate_rgba_input_len(data.len(), width, height)?;
 
         // Delegate to ONNX Runtime (which uses CUDA on Linux)
         let result = crate::onnx_detector::detect_with_onnx(data, width, height)
@@ -83,7 +78,8 @@ impl Detector for CudaDetector {
 
         let elapsed_ms = start.elapsed().as_millis() as u64;
         self.inference_count.fetch_add(1, Ordering::Relaxed);
-        self.total_inference_ms.fetch_add(elapsed_ms, Ordering::Relaxed);
+        self.total_inference_ms
+            .fetch_add(elapsed_ms, Ordering::Relaxed);
 
         result
     }
@@ -93,7 +89,11 @@ impl Detector for CudaDetector {
         let total_ms = self.total_inference_ms.load(Ordering::Relaxed);
 
         InferenceStats {
-            avg_inference_ms: if count > 0 { total_ms as f64 / count as f64 } else { 0.0 },
+            avg_inference_ms: if count > 0 {
+                total_ms as f64 / count as f64
+            } else {
+                0.0
+            },
             total_inferences: count,
             model_load_ms: self.model_load_ms,
             backend: "CUDA (ONNX Runtime)".to_string(),
@@ -110,7 +110,9 @@ pub fn is_available() -> bool {
         use ort::execution_providers::{CUDAExecutionProvider, ExecutionProvider};
 
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            CUDAExecutionProvider::default().is_available().unwrap_or(false)
+            CUDAExecutionProvider::default()
+                .is_available()
+                .unwrap_or(false)
         }))
         .unwrap_or(false)
     }

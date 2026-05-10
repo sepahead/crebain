@@ -9,16 +9,15 @@
 //!
 //! This serves as the universal fallback when the native CoreML FFI backend is unavailable
 
-use crate::common::{coco, yolo};
 #[cfg(target_os = "linux")]
 use crate::common::path;
-use ort::{
-    session::Session,
-    value::Value,
-};
+use crate::common::{coco, image, yolo};
+use ort::{session::Session, value::Value};
 
 #[cfg(target_os = "linux")]
-use ort::execution_providers::{CUDAExecutionProvider, TensorRTExecutionProvider, ExecutionProvider};
+use ort::execution_providers::{
+    CUDAExecutionProvider, ExecutionProvider, TensorRTExecutionProvider,
+};
 
 #[cfg(target_os = "macos")]
 use ort::execution_providers::{CoreMLExecutionProvider, ExecutionProvider};
@@ -147,7 +146,9 @@ impl OnnxDetector {
                 }
             }
 
-            let cuda_available = CUDAExecutionProvider::default().is_available().unwrap_or(false);
+            let cuda_available = CUDAExecutionProvider::default()
+                .is_available()
+                .unwrap_or(false);
 
             if cuda_available {
                 log::info!("ONNX: CUDA execution provider available, attempting to use it");
@@ -160,10 +161,7 @@ impl OnnxDetector {
                 {
                     Ok(session) => return Ok((session, "ONNX Runtime (CUDA)".to_string())),
                     Err(e) => {
-                        log::warn!(
-                            "ONNX: Failed to use CUDA EP (falling back to CPU): {}",
-                            e
-                        );
+                        log::warn!("ONNX: Failed to use CUDA EP (falling back to CPU): {}", e);
                     }
                 }
             }
@@ -189,8 +187,9 @@ impl OnnxDetector {
     fn create_session(model_path: &str) -> Result<(Session, String), String> {
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             // Try CoreML first (uses Neural Engine on Apple Silicon), fall back to CPU.
-            let coreml_available =
-                CoreMLExecutionProvider::default().is_available().unwrap_or(false);
+            let coreml_available = CoreMLExecutionProvider::default()
+                .is_available()
+                .unwrap_or(false);
 
             if coreml_available {
                 log::info!("ONNX: CoreML execution provider available, using Neural Engine/GPU");
@@ -202,10 +201,7 @@ impl OnnxDetector {
                 {
                     Ok(session) => return Ok((session, "ONNX Runtime (CoreML)".to_string())),
                     Err(e) => {
-                        log::warn!(
-                            "ONNX: Failed to use CoreML EP (falling back to CPU): {}",
-                            e
-                        );
+                        log::warn!("ONNX: Failed to use CoreML EP (falling back to CPU): {}", e);
                     }
                 }
             }
@@ -221,7 +217,8 @@ impl OnnxDetector {
         match result {
             Ok(inner) => inner,
             Err(_) => Err(
-                "ONNX Runtime panicked while initializing (check ORT_DYLIB_PATH/LD_LIBRARY_PATH)".to_string(),
+                "ONNX Runtime panicked while initializing (check ORT_DYLIB_PATH/LD_LIBRARY_PATH)"
+                    .to_string(),
             ),
         }
     }
@@ -241,7 +238,8 @@ impl OnnxDetector {
         match result {
             Ok(inner) => inner,
             Err(_) => Err(
-                "ONNX Runtime panicked while initializing (check ORT_DYLIB_PATH/LD_LIBRARY_PATH)".to_string(),
+                "ONNX Runtime panicked while initializing (check ORT_DYLIB_PATH/LD_LIBRARY_PATH)"
+                    .to_string(),
             ),
         }
     }
@@ -274,9 +272,9 @@ impl OnnxDetector {
                 // Channel offsets for NCHW layout (batch=1, channels=3)
                 let channel_stride = target_h * target_w;
                 let pixel_offset = y * target_w + x;
-                output[pixel_offset] = r;                           // Channel 0 (R)
-                output[channel_stride + pixel_offset] = g;          // Channel 1 (G)
-                output[2 * channel_stride + pixel_offset] = b;      // Channel 2 (B)
+                output[pixel_offset] = r; // Channel 0 (R)
+                output[channel_stride + pixel_offset] = g; // Channel 1 (G)
+                output[2 * channel_stride + pixel_offset] = b; // Channel 2 (B)
             }
         }
 
@@ -290,6 +288,8 @@ impl OnnxDetector {
         width: u32,
         height: u32,
     ) -> Result<OnnxDetectionResult, String> {
+        image::validate_rgba_input_len(rgba_data.len(), width, height)?;
+
         // Preprocess
         let preprocess_start = Instant::now();
         let input_tensor = self.preprocess(rgba_data, width, height);
@@ -303,7 +303,8 @@ impl OnnxDetector {
             .map_err(|e| format!("Failed to create input tensor: {}", e))?;
 
         // Run inference
-        let mut session = self.session
+        let mut session = self
+            .session
             .lock()
             .map_err(|e| format!("Failed to lock session: {}", e))?;
         let outputs = session
@@ -319,11 +320,7 @@ impl OnnxDetector {
         // - [1, 84, N] where 84 = 4 (box) + 80 (classes)
         // - [1, N, 84]
         // Get first output tensor
-        let output = outputs
-            .iter()
-            .next()
-            .ok_or("No output tensor found")?
-            .1;
+        let output = outputs.iter().next().ok_or("No output tensor found")?.1;
 
         let (shape, output_data) = output
             .try_extract_tensor::<f32>()
@@ -331,6 +328,7 @@ impl OnnxDetector {
 
         let shape_dims: Vec<usize> = shape.iter().map(|&d| d as usize).collect();
         let (layout, num_anchors) = yolo::infer_yolov8_output_layout(&shape_dims)?;
+        yolo::validate_yolov8_output_len(layout, num_anchors, output_data.len())?;
 
         // Pre-allocate with reasonable capacity to avoid reallocations
         // Typical YOLO models produce 100-500 raw detections before NMS
@@ -339,13 +337,13 @@ impl OnnxDetector {
         let img_h = height as f32;
 
         for i in 0..num_anchors {
-            let (cx, cy, w, h) = yolo::read_bbox(layout, output_data, num_anchors, i);
+            let (cx, cy, w, h) = yolo::read_bbox(layout, output_data, num_anchors, i)?;
 
             // Find best class
             let mut max_score = 0.0f32;
             let mut max_class = 0i32;
             for c in 0..self.num_classes {
-                let score = yolo::read_class_score(layout, output_data, num_anchors, i, c);
+                let score = yolo::read_class_score(layout, output_data, num_anchors, i, c)?;
                 if score > max_score {
                     max_score = score;
                     max_class = c as i32;
@@ -362,7 +360,9 @@ impl OnnxDetector {
             let x2 = ((cx + w / 2.0) * img_w / self.input_width as f32).min(img_w);
             let y2 = ((cy + h / 2.0) * img_h / self.input_height as f32).min(img_h);
 
-            let det_id = self.detection_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let det_id = self
+                .detection_counter
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
             detections.push(Detection {
                 id: format!("DET-{:08X}", det_id),
@@ -396,7 +396,11 @@ impl OnnxDetector {
     /// Non-maximum suppression
     fn nms(&self, mut detections: Vec<Detection>) -> Vec<Detection> {
         // Sort by confidence (descending)
-        detections.sort_by(|a, b| b.confidence.partial_cmp(&a.confidence).unwrap_or(std::cmp::Ordering::Equal));
+        detections.sort_by(|a, b| {
+            b.confidence
+                .partial_cmp(&a.confidence)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         let mut keep = vec![true; detections.len()];
 
@@ -489,9 +493,10 @@ fn find_onnx_model_path() -> Option<PathBuf> {
             .ok()
             .and_then(|p| p.parent().map(|p| p.join("../Resources/yolov8s.onnx"))),
         // Nix-style install layout: $out/bin/<exe> and $out/share/crebain/models/yolov8s.onnx
-        std::env::current_exe()
-            .ok()
-            .and_then(|p| p.parent().map(|p| p.join("../share/crebain/models/yolov8s.onnx"))),
+        std::env::current_exe().ok().and_then(|p| {
+            p.parent()
+                .map(|p| p.join("../share/crebain/models/yolov8s.onnx"))
+        }),
         // Development paths
         std::env::current_dir()
             .ok()
@@ -504,7 +509,9 @@ fn find_onnx_model_path() -> Option<PathBuf> {
     // Add platform-specific paths
     #[cfg(target_os = "linux")]
     {
-        possible_paths.push(Some(PathBuf::from("/usr/share/crebain/models/yolov8s.onnx")));
+        possible_paths.push(Some(PathBuf::from(
+            "/usr/share/crebain/models/yolov8s.onnx",
+        )));
         possible_paths.push(Some(PathBuf::from("/opt/crebain/models/yolov8s.onnx")));
     }
 
@@ -516,7 +523,9 @@ fn find_onnx_model_path() -> Option<PathBuf> {
                 home
             ))));
         }
-        possible_paths.push(Some(PathBuf::from("/usr/local/share/crebain/models/yolov8s.onnx")));
+        possible_paths.push(Some(PathBuf::from(
+            "/usr/local/share/crebain/models/yolov8s.onnx",
+        )));
     }
 
     possible_paths.into_iter().flatten().find(|p| p.exists())

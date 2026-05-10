@@ -72,6 +72,19 @@ describe('ZenohBridge', () => {
     })
   })
 
+  it('handles malformed legacy publish payloads as unsupported messages', () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const bridge = new ZenohBridge()
+
+    try {
+      bridge.publish('/cmd_vel', null)
+    } finally {
+      consoleError.mockRestore()
+    }
+
+    expect(invokeMock).not.toHaveBeenCalled()
+  })
+
   it('subscribes through the registry command and unsubscribes when the last listener is removed', async () => {
     invokeMock.mockResolvedValue(undefined)
     const unlisten = vi.fn()
@@ -103,6 +116,7 @@ describe('ZenohBridge', () => {
   })
 
   it('cleans up the event listener when backend subscription fails', async () => {
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const unlisten = vi.fn()
     listenMock.mockResolvedValueOnce(unlisten)
@@ -113,6 +127,7 @@ describe('ZenohBridge', () => {
       bridge.subscribe('/camera/info', 'sensor_msgs/CameraInfo', vi.fn())
       await vi.waitFor(() => expect(unlisten).toHaveBeenCalled())
     } finally {
+      consoleWarn.mockRestore()
       consoleError.mockRestore()
     }
 

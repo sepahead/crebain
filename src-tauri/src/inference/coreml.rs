@@ -3,7 +3,9 @@
 //! This module provides the Detector trait implementation that delegates to
 //! the real CoreML FFI implementation in `src/coreml.rs`.
 
-use super::{Backend, Detection, Detector, InferenceError, InferenceStats, Result};
+use super::{
+    validate_rgba_input_len, Backend, Detection, Detector, InferenceError, InferenceStats, Result,
+};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
@@ -36,11 +38,12 @@ impl CoreMlDetector {
                 let mut initialized = false;
                 for path in &model_paths {
                     if std::path::Path::new(path).exists()
-                        && crate::coreml::init_detector(path).is_ok() {
-                            initialized = true;
-                            log::info!("[CoreML] Initialized with model: {}", path);
-                            break;
-                        }
+                        && crate::coreml::init_detector(path).is_ok()
+                    {
+                        initialized = true;
+                        log::info!("[CoreML] Initialized with model: {}", path);
+                        break;
+                    }
                 }
 
                 if !initialized {
@@ -79,15 +82,7 @@ impl Detector for CoreMlDetector {
     fn detect(&self, data: &[u8], width: u32, height: u32) -> Result<Vec<Detection>> {
         let start = Instant::now();
 
-        // Validate input
-        let expected_size = (width * height * 4) as usize;
-        if data.len() != expected_size {
-            return Err(InferenceError::InvalidInput(format!(
-                "Expected {} bytes, got {}",
-                expected_size,
-                data.len()
-            )));
-        }
+        validate_rgba_input_len(data.len(), width, height)?;
 
         // Delegate to the real CoreML implementation
         #[cfg(target_os = "macos")]
@@ -113,11 +108,13 @@ impl Detector for CoreMlDetector {
         };
 
         #[cfg(not(target_os = "macos"))]
-        let result: Result<Vec<Detection>> = Err(InferenceError::BackendNotAvailable(Backend::CoreML));
+        let result: Result<Vec<Detection>> =
+            Err(InferenceError::BackendNotAvailable(Backend::CoreML));
 
         let elapsed_ms = start.elapsed().as_millis() as u64;
         self.inference_count.fetch_add(1, Ordering::Relaxed);
-        self.total_inference_ms.fetch_add(elapsed_ms, Ordering::Relaxed);
+        self.total_inference_ms
+            .fetch_add(elapsed_ms, Ordering::Relaxed);
 
         result
     }
@@ -127,7 +124,11 @@ impl Detector for CoreMlDetector {
         let total_ms = self.total_inference_ms.load(Ordering::Relaxed);
 
         InferenceStats {
-            avg_inference_ms: if count > 0 { total_ms as f64 / count as f64 } else { 0.0 },
+            avg_inference_ms: if count > 0 {
+                total_ms as f64 / count as f64
+            } else {
+                0.0
+            },
             total_inferences: count,
             model_load_ms: self.model_load_ms,
             backend: "CoreML".to_string(),

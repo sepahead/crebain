@@ -118,41 +118,16 @@ async fn detect_coreml(
 }
 
 /// Maximum allowed image dimension (8K resolution)
-const MAX_IMAGE_DIMENSION: u32 = 8192;
+#[cfg(test)]
+const MAX_IMAGE_DIMENSION: u32 = common::image::MAX_IMAGE_DIMENSION;
 /// Maximum allowed image size in bytes (64MB)
-const MAX_IMAGE_SIZE_BYTES: usize = 64 * 1024 * 1024;
+#[cfg(test)]
+const MAX_IMAGE_SIZE_BYTES: usize = common::image::MAX_IMAGE_SIZE_BYTES;
 /// Maximum allowed serialized scene state size (10MB).
 const MAX_SCENE_STATE_BYTES: usize = 10 * 1024 * 1024;
 
 fn validate_rgba_input_len(rgba_len: usize, width: u32, height: u32) -> Result<usize, String> {
-    if width == 0 || height == 0 {
-        return Err("Invalid image dimensions: width and height must be > 0".to_string());
-    }
-    if width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION {
-        return Err(format!(
-            "Image dimensions too large: {}x{} exceeds maximum {}x{}",
-            width, height, MAX_IMAGE_DIMENSION, MAX_IMAGE_DIMENSION
-        ));
-    }
-
-    let expected_size = (width as usize)
-        .checked_mul(height as usize)
-        .and_then(|s| s.checked_mul(4))
-        .ok_or_else(|| format!("Image dimensions overflow: {}x{}", width, height))?;
-    if expected_size > MAX_IMAGE_SIZE_BYTES {
-        return Err(format!(
-            "Image too large: {} bytes exceeds maximum {} bytes",
-            expected_size, MAX_IMAGE_SIZE_BYTES
-        ));
-    }
-    if rgba_len != expected_size {
-        return Err(format!(
-            "Invalid RGBA data size: expected {} bytes for {}x{}, got {}",
-            expected_size, width, height, rgba_len
-        ));
-    }
-
-    Ok(expected_size)
+    common::image::validate_rgba_input_len(rgba_len, width, height)
 }
 
 fn validate_scene_file_path(path: &str, allowed_root: &std::path::Path) -> Result<std::path::PathBuf, String> {

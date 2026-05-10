@@ -15,8 +15,10 @@
 //! trtexec --onnx=yolov8s.onnx --saveEngine=yolov8s.engine --fp16 --workspace=4096
 //! ```
 
+use super::{
+    validate_rgba_input_len, Backend, Detection, Detector, InferenceError, InferenceStats, Result,
+};
 use crate::common::{coco, path, yolo};
-use super::{Backend, Detection, Detector, InferenceError, InferenceStats, Result};
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -25,7 +27,7 @@ use std::time::Instant;
 
 #[cfg(target_os = "linux")]
 use ort::{
-    execution_providers::{TensorRTExecutionProvider, ExecutionProvider, CUDAExecutionProvider},
+    execution_providers::{CUDAExecutionProvider, ExecutionProvider, TensorRTExecutionProvider},
     session::Session,
     value::Value,
 };
@@ -122,7 +124,10 @@ impl TensorRtDetector {
             {
                 Ok(session) => return Ok((session, true)),
                 Err(e) => {
-                    log::warn!("[TensorRT] Failed to use TensorRT EP: {}, falling back to CUDA", e);
+                    log::warn!(
+                        "[TensorRT] Failed to use TensorRT EP: {}, falling back to CUDA",
+                        e
+                    );
                 }
             }
         }
@@ -258,14 +263,7 @@ impl Detector for TensorRtDetector {
     fn detect(&self, data: &[u8], width: u32, height: u32) -> Result<Vec<Detection>> {
         let start = Instant::now();
 
-        let expected_size = (width * height * 4) as usize;
-        if data.len() != expected_size {
-            return Err(InferenceError::InvalidInput(format!(
-                "Expected {} bytes, got {}",
-                expected_size,
-                data.len()
-            )));
-        }
+        validate_rgba_input_len(data.len(), width, height)?;
 
         // Preprocess
         let input_tensor = self.preprocess(data, width, height);
@@ -298,18 +296,22 @@ impl Detector for TensorRtDetector {
         let shape_dims: Vec<usize> = shape.iter().map(|&d| d as usize).collect();
         let (layout, num_anchors) = yolo::infer_yolov8_output_layout(&shape_dims)
             .map_err(InferenceError::InferenceError)?;
+        yolo::validate_yolov8_output_len(layout, num_anchors, output_data.len())
+            .map_err(InferenceError::InferenceError)?;
 
         let mut detections = Vec::new();
         let img_w = width as f32;
         let img_h = height as f32;
 
         for i in 0..num_anchors {
-            let (cx, cy, w, h) = yolo::read_bbox(layout, output_data, num_anchors, i);
+            let (cx, cy, w, h) = yolo::read_bbox(layout, output_data, num_anchors, i)
+                .map_err(InferenceError::InferenceError)?;
 
             let mut max_score = 0.0f32;
             let mut max_class = 0u32;
             for c in 0..self.num_classes {
-                let score = yolo::read_class_score(layout, output_data, num_anchors, i, c);
+                let score = yolo::read_class_score(layout, output_data, num_anchors, i, c)
+                    .map_err(InferenceError::InferenceError)?;
                 if score > max_score {
                     max_score = score;
                     max_class = c as u32;
@@ -338,7 +340,8 @@ impl Detector for TensorRtDetector {
 
         let elapsed_ms = start.elapsed().as_millis() as u64;
         self.inference_count.fetch_add(1, Ordering::Relaxed);
-        self.total_inference_ms.fetch_add(elapsed_ms, Ordering::Relaxed);
+        self.total_inference_ms
+            .fetch_add(elapsed_ms, Ordering::Relaxed);
 
         Ok(detections)
     }
@@ -512,7 +515,9 @@ pub fn is_available() -> bool {
                     TensorRTExecutionProvider::default()
                         .is_available()
                         .unwrap_or(false),
-                    CUDAExecutionProvider::default().is_available().unwrap_or(false),
+                    CUDAExecutionProvider::default()
+                        .is_available()
+                        .unwrap_or(false),
                 )
             }))
             .unwrap_or((false, false));

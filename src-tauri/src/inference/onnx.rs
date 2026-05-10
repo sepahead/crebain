@@ -3,7 +3,9 @@
 //! This module provides the Detector trait implementation that delegates to
 //! the real ONNX Runtime implementation in `src/onnx_detector.rs`.
 
-use super::{Backend, Detection, Detector, InferenceError, InferenceStats, Result};
+use super::{
+    validate_rgba_input_len, Backend, Detection, Detector, InferenceError, InferenceStats, Result,
+};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
@@ -23,8 +25,7 @@ impl OnnxDetector {
 
         // Initialize the global ONNX detector if not already done
         if !crate::onnx_detector::is_onnx_detector_ready() {
-            crate::onnx_detector::init_global_detector()
-                .map_err(InferenceError::ModelLoadError)?;
+            crate::onnx_detector::init_global_detector().map_err(InferenceError::ModelLoadError)?;
         }
 
         let model_load_ms = start.elapsed().as_secs_f64() * 1000.0;
@@ -50,15 +51,7 @@ impl Detector for OnnxDetector {
     fn detect(&self, data: &[u8], width: u32, height: u32) -> Result<Vec<Detection>> {
         let start = Instant::now();
 
-        // Validate input
-        let expected_size = (width * height * 4) as usize; // RGBA
-        if data.len() != expected_size {
-            return Err(InferenceError::InvalidInput(format!(
-                "Expected {} bytes, got {}",
-                expected_size,
-                data.len()
-            )));
-        }
+        validate_rgba_input_len(data.len(), width, height)?;
 
         // Delegate to the real ONNX implementation
         let result = crate::onnx_detector::detect_with_onnx(data, width, height)
@@ -78,7 +71,8 @@ impl Detector for OnnxDetector {
         // Update stats
         let elapsed_ms = start.elapsed().as_millis() as u64;
         self.inference_count.fetch_add(1, Ordering::Relaxed);
-        self.total_inference_ms.fetch_add(elapsed_ms, Ordering::Relaxed);
+        self.total_inference_ms
+            .fetch_add(elapsed_ms, Ordering::Relaxed);
 
         result
     }

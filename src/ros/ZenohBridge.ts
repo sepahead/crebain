@@ -84,6 +84,12 @@ interface RustTwistStampedData {
   frame_id: string
 }
 
+type UnknownRecord = Record<string, unknown>
+
+function isRecord(value: unknown): value is UnknownRecord {
+  return typeof value === 'object' && value !== null
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ZENOH BRIDGE CLIENT
 // ─────────────────────────────────────────────────────────────────────────────
@@ -253,19 +259,19 @@ export class ZenohBridge {
 
     // Select appropriate mapper based on type
     // Use arrow wrappers to preserve `this` context for mapper methods
-    let mapper: (data: any) => any = (d) => d
+    let mapper: (data: unknown) => unknown = (d) => d
     if (type === 'sensor_msgs/Image') {
-      mapper = (d) => this.mapImageFrame(d)
+      mapper = (d) => this.mapImageFrame(d as RustCameraFrame)
     } else if (type === 'sensor_msgs/CompressedImage') {
-      mapper = (d) => this.mapCompressedImageFrame(d)
+      mapper = (d) => this.mapCompressedImageFrame(d as RustCameraFrame)
     } else if (type === 'sensor_msgs/CameraInfo') {
-      mapper = (d) => this.mapCameraInfoData(d)
+      mapper = (d) => this.mapCameraInfoData(d as RustCameraInfoData)
     } else if (type === 'sensor_msgs/Imu') {
-      mapper = (d) => this.mapImuData(d)
+      mapper = (d) => this.mapImuData(d as RustImuData)
     } else if (type === 'geometry_msgs/PoseStamped') {
-      mapper = (d) => this.mapPoseData(d)
+      mapper = (d) => this.mapPoseData(d as RustPoseData)
     } else if (type === 'gazebo_msgs/ModelStates') {
-      mapper = (d) => this.mapModelStates(d)
+      mapper = (d) => this.mapModelStates(d as RustModelStates)
     }
 
     // Set up listener FIRST to avoid race condition
@@ -343,14 +349,17 @@ export class ZenohBridge {
    * Infer message type from message structure (legacy support)
    * Prefer explicit type parameter in publish(topic, type, msg)
    */
-  private inferMessageType(msg: any): string {
-    if (msg.linear && msg.angular && !msg.header) {
+  private inferMessageType(msg: unknown): string {
+    if (!isRecord(msg)) {
+      return 'unknown'
+    }
+    if ('linear' in msg && 'angular' in msg && !('header' in msg)) {
       return 'geometry_msgs/Twist'
     }
-    if (msg.header && msg.twist) {
+    if ('header' in msg && 'twist' in msg) {
       return 'geometry_msgs/TwistStamped'
     }
-    if (msg.pose && msg.header) {
+    if ('pose' in msg && 'header' in msg) {
       return 'geometry_msgs/PoseStamped'
     }
     return 'unknown'

@@ -17,7 +17,7 @@
 //!   model = torch.load('yolov8s.pt'); save_file(model, 'yolov8s.safetensors')"
 //! ```
 
-use super::{Backend, Detection, Detector, InferenceError, InferenceStats, Result};
+use super::{Backend, Detection, Detector, InferenceError, InferenceStats, Result, validate_rgba_input_len};
 use crate::common::coco;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
@@ -199,13 +199,7 @@ impl Detector for MlxDetector {
     fn detect(&self, data: &[u8], width: u32, height: u32) -> Result<Vec<Detection>> {
         let start = Instant::now();
 
-        let expected_size = (width * height * 4) as usize;
-        if data.len() != expected_size {
-            return Err(InferenceError::InvalidInput(format!(
-                "Expected {} bytes ({}x{}x4), got {}",
-                expected_size, width, height, data.len()
-            )));
-        }
+        validate_rgba_input_len(data.len(), width, height)?;
 
         #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
         {

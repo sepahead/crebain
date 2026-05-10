@@ -110,8 +110,7 @@ impl fmt::Display for InferenceError {
             InferenceError::InvalidBackend(s) => write!(
                 f,
                 "Invalid backend '{}'; expected one of: {}",
-                s,
-                SUPPORTED_BACKEND_NAMES
+                s, SUPPORTED_BACKEND_NAMES
             ),
             InferenceError::ModelLoadError(s) => write!(f, "Model load error: {}", s),
             InferenceError::InferenceError(s) => write!(f, "Inference error: {}", s),
@@ -124,6 +123,11 @@ impl fmt::Display for InferenceError {
 impl Error for InferenceError {}
 
 pub type Result<T> = std::result::Result<T, InferenceError>;
+
+pub(crate) fn validate_rgba_input_len(rgba_len: usize, width: u32, height: u32) -> Result<usize> {
+    crate::common::image::validate_rgba_input_len(rgba_len, width, height)
+        .map_err(InferenceError::InvalidInput)
+}
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // DETECTOR TRAIT
@@ -156,7 +160,8 @@ pub trait Detector: Send + Sync {
         data: &[u8],
         width: u32,
         height: u32,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<Detection>>> + Send + '_>> {
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<Detection>>> + Send + '_>>
+    {
         let data = data.to_vec();
         Box::pin(async move { self.detect(&data, width, height) })
     }
@@ -310,7 +315,10 @@ pub fn available_backends() -> Vec<Backend> {
 }
 
 fn is_truthy_env_value(value: &str) -> bool {
-    matches!(value.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on")
+    matches!(
+        value.trim().to_ascii_lowercase().as_str(),
+        "1" | "true" | "yes" | "on"
+    )
 }
 
 pub fn experimental_mlx_enabled() -> bool {
@@ -360,6 +368,14 @@ mod tests {
         assert!(!is_truthy_env_value(""));
         assert!(!is_truthy_env_value("0"));
         assert!(!is_truthy_env_value("false"));
+    }
+
+    #[test]
+    fn test_rgba_input_len_validation() {
+        assert_eq!(validate_rgba_input_len(16, 2, 2).unwrap(), 16);
+        assert!(validate_rgba_input_len(0, 0, 1).is_err());
+        assert!(validate_rgba_input_len(15, 2, 2).is_err());
+        assert!(validate_rgba_input_len(0, u32::MAX, u32::MAX).is_err());
     }
 
     #[test]
