@@ -1,24 +1,39 @@
-## Description
-Brief description of changes.
+## Summary
+
+Describe what changed and why.
 
 ## Type of Change
 
-- [ ] Bug fix (non-breaking change that fixes an issue)
-- [ ] New feature (non-breaking change that adds functionality)
-- [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
+- [ ] Bug fix
+- [ ] New feature
+- [ ] Breaking change
 - [ ] Documentation update
+- [ ] Refactor / maintenance
+- [ ] Test-only change
+
+## Risk and Scope
+
+- **Primary area**: frontend / Rust backend / Tauri IPC / ML / ROS / Zenoh / sensor fusion / docs
+- **External inputs touched**: none / paths / model files / scene files / IPC payloads / ROS URLs / transport topics
+- **User-visible behavior changed**: yes / no
+
+## Validation
+
+| Command | Result | Notes |
+|---------|--------|-------|
+| `bun run validate` | not run |  |
+| `bun run validate:all` | not run | Required for Rust, IPC, transport, model-loading, or integration changes |
+| Manual smoke checklist | not run | Required before release-candidate claims |
 
 ## Checklist
 
-- [ ] My code follows the project's style guidelines
-- [ ] I have run `bun run validate` with no errors
-- [ ] I have run `bun run validate:all` for code changes that can affect Rust or integration behavior
-- [ ] I have added tests that prove my fix/feature works
-- [ ] I have updated documentation if needed
-- [ ] I have checked that new performance, safety, ML, ROS, or transport claims are either sourced, measured, or clearly labeled as assumptions
-
-## Testing
-How has this been tested?
+- [ ] Code follows project style guidelines
+- [ ] Relevant tests were added or updated
+- [ ] Documentation was updated where behavior, commands, status, or security boundaries changed
+- [ ] README, AGENTS, CONTRIBUTING, SECURITY, ROS/model docs, and templates remain aligned
+- [ ] New performance, safety, ML, ROS, or transport claims are measured, sourced, or clearly labeled as assumptions
+- [ ] New external input paths validate null bytes, traversal, size/range limits, and unsupported modes as appropriate
 
 ## Related Issues
-Fixes #(issue number)
+
+Fixes #

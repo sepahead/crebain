@@ -1,6 +1,6 @@
 # CREBAIN ROS Integration
 
-Reference files for ROS/Gazebo integration. These files document message formats and launch configurations intended for CREBAIN-compatible ROS packages.
+Reference files for ROS/Gazebo integration. These files document message formats and launch configurations intended for CREBAIN-compatible ROS packages; they are not a complete standalone ROS package.
 
 ## Structure
 
@@ -27,7 +27,7 @@ ros/
 
 ## Usage
 
-These are reference files, not a complete standalone ROS package. To use them with a full ROS package:
+To use these definitions with a full ROS package:
 
 1. Create a catkin package:
 
@@ -36,8 +36,8 @@ These are reference files, not a complete standalone ROS package. To use them wi
    catkin_create_pkg crebain_msgs std_msgs geometry_msgs
    ```
 
-2. Copy msg/ and srv/ to the package
-3. Update CMakeLists.txt and package.xml
+2. Copy `msg/` and `srv/` to the package.
+3. Update `CMakeLists.txt` and `package.xml`.
 4. Build:
 
    ```bash
@@ -65,7 +65,7 @@ CREBAIN also contains WebSocket-based rosbridge integration and Zenoh-oriented t
 ## Quick Start
 
 ```bash
-# Terminal 1: Launch simulation
+# Terminal 1: Launch simulation / rosbridge
 roslaunch crebain_gazebo simulation.launch
 
 # Terminal 2: Start CREBAIN
@@ -73,3 +73,15 @@ bun run dev
 ```
 
 Connect to `ws://localhost:9090` in CREBAIN.
+
+For Zenoh-oriented ROS 2 deployments, set the middleware explicitly in the ROS environment:
+
+```bash
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+```
+
+## Security and Validation Notes
+
+- Treat ROS URLs, topic names, service names, message types, queue parameters, and transport topics as untrusted input.
+- Do not expose rosbridge or Zenoh endpoints to untrusted networks without deployment-appropriate authentication, network policy, and transport security.
+- Keep README, SECURITY, and release-acceptance docs aligned when adding topics, services, or transport assumptions.

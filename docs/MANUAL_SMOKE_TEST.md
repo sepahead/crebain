@@ -1,6 +1,6 @@
 # CREBAIN Manual Smoke Test
 
-Run this checklist after automated validation when preparing a release candidate or reviewing a cross-cutting stabilization batch. Record the platform, commit hash, model files, and any deviations from expected behavior.
+Run this checklist after automated validation when preparing a release candidate, demo build, or cross-cutting stabilization batch. Record platform details, commit hash, model files, transport mode, and any deviation from expected behavior.
 
 ## Environment Record
 
@@ -10,7 +10,9 @@ Run this checklist after automated validation when preparing a release candidate
 | OS / Hardware |  |
 | App Mode | `bun run dev` / `bun run tauri:dev` / packaged build |
 | Model Files |  |
+| Detection Backend | CoreML / ONNX / CUDA / TensorRT / MLX |
 | ROS / Zenoh Setup |  |
+| Validation Command |  |
 | Validator |  |
 | Date |  |
 
@@ -29,6 +31,8 @@ Run this checklist after automated validation when preparing a release candidate
 | ROS websocket mode | URL field is used only for rosbridge mode; connection state and errors are visible |  |
 | Zenoh transport mode | Zenoh mode does not require a rosbridge URL; connect/disconnect state is visible |  |
 | Transport subscriptions | Expected topics map to deterministic safe Tauri event names |  |
+| Transport publish path | Invalid topics, non-finite numeric payloads, invalid timestamps, and invalid frame IDs are rejected before publish |  |
+| Raw image transport | Malformed raw image metadata does not crash the app and is surfaced as a controlled transport error |  |
 | Fusion display | Tracks/stats render or show an explicit empty/disabled state |  |
 | Keyboard shortcuts | Documented shortcuts work and do not conflict with browser/system shortcuts in the tested shell |  |
 | Close app | App exits without panic or hanging transport tasks |  |

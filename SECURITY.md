@@ -1,5 +1,7 @@
 # CREBAIN Security Policy
 
+CREBAIN handles local files, model paths, Tauri IPC payloads, ROS URLs, and Zenoh transport data. Treat every external boundary as untrusted unless it has explicit validation and release evidence.
+
 ## Supported Versions
 
 | Version | Supported |
@@ -15,15 +17,16 @@ If you discover a security vulnerability in CREBAIN, please report it responsibl
 
 ### How to Report
 
-1. **Email**: Send details to the maintainers via GitHub's [Private vulnerability reporting](https://github.com/crebain/crebain/security/advisories/new)
-2. **GitHub Security Advisories**: Use the [Advisories page](https://github.com/crebain/crebain/security/advisories)
+1. **Private vulnerability reporting**: Send details through GitHub’s [private vulnerability reporting flow](https://github.com/crebain/crebain/security/advisories/new).
+2. **GitHub Security Advisories**: Use the [Advisories page](https://github.com/crebain/crebain/security/advisories).
 
 ### What to Include
 
 - Description of the vulnerability
 - Steps to reproduce
 - Potential impact
-- Suggested fix (if any)
+- Affected commit, platform, app mode, and backend/transport path
+- Suggested fix, if known
 
 ### Response Timeline
 
@@ -35,21 +38,30 @@ If you discover a security vulnerability in CREBAIN, please report it responsibl
 
 When using CREBAIN:
 
-- Keep ML models and inference backends updated
-- Restrict network access to ROS/Zenoh bridges
-- Run with least privilege
-- Review scene file imports from untrusted sources
-- Treat model paths, scene files, ROS URLs, and transport topics as untrusted input
-- Do not expose rosbridge or Zenoh endpoints directly to untrusted networks without authentication, network policy, and transport security appropriate for the deployment
-- Validate externally supplied ML models before use; this repository does not provide or endorse model weights
+- Keep ML models and inference backends updated.
+- Restrict network access to rosbridge and Zenoh endpoints.
+- Run with least privilege.
+- Review scene file imports from untrusted sources.
+- Treat model paths, scene files, ROS URLs, IPC payloads, CDR payloads, and transport topics as untrusted input.
+- Do not expose rosbridge or Zenoh endpoints directly to untrusted networks without authentication, network policy, and deployment-appropriate transport security.
+- Validate externally supplied ML models before use; this repository does not provide or endorse model weights.
 
 ## Threat Model Summary
 
 | Boundary | Untrusted Inputs | Current Controls | Required Review Before Release Claims |
 |----------|------------------|------------------|---------------------------------------|
-| Model loading | `CREBAIN_MODEL_PATH`, `CREBAIN_ONNX_MODEL`, local model files | Path validation, extension checks, missing-model error paths | Verify provenance, rights, tensor contracts, preprocessing, class mapping, and benchmark context |
+| Model loading | `CREBAIN_MODEL_PATH`, `CREBAIN_ONNX_MODEL`, `CREBAIN_MLX_MODEL`, local model files | Path validation, extension checks, missing-model error paths, TensorRT engine build input validation | Verify provenance, rights, tensor contracts, preprocessing, class mapping, and benchmark context |
 | Scene persistence | Scene file path and serialized scene JSON | Allowed-root path validation, `.json` extension check, size limit, JSON parse check | Exercise save/load rejection paths in automated or manual smoke testing |
 | Native detection IPC | Raw RGBA payload, dimensions, thresholds, max detections | Dimension and byte-length validation, threshold clamping, structured error payloads | Confirm malformed payloads fail without frontend crash |
-| ROS bridge | WebSocket URL and ROS graph messages | User-controlled connection state and visible errors | Restrict network exposure; require deployment-appropriate authentication and transport security |
-| Zenoh transport | Topic names, pub/sub payloads, event names | Topic validation and deterministic event-name encoding | Review namespace policy, access control, and payload assumptions for deployment |
-| Tauri commands/events | Frontend command constants and emitted transport events | Command registration tests and event-name guardrails | Keep frontend/backend command contracts and event names synchronized |
+| ROS bridge | WebSocket URL, topic/service names, message types, queue parameters, timeouts | URL/message validation, open-socket connection checks, immediate service-call failure on disconnect/send failure | Restrict network exposure; require deployment-appropriate authentication and transport security |
+| Zenoh transport | Topic names, CDR payloads, publish payloads, event names | Topic validation, deterministic event-name encoding, bounded CDR strings/sequences/data arrays, image metadata validation, finite publish payload validation | Review namespace policy, access control, and payload assumptions for deployment |
+| Tauri commands/events | Frontend command constants and emitted transport events | Command registration tests, source-contract tests, event-name guardrails, typed response validation on frontend boundaries | Keep frontend/backend command contracts and event names synchronized |
+
+## Release Security Gate
+
+Before making release-readiness claims, confirm that:
+
+1. `bun run validate:all` passes.
+2. `docs/MANUAL_SMOKE_TEST.md` has no unresolved release-blocking findings.
+3. New external input paths are documented in this file or explicitly ruled out of scope.
+4. Performance, ML accuracy, transport latency, and safety claims cite measured evidence from the target environment.

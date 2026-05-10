@@ -1,8 +1,15 @@
 # CREBAIN Detection Models
 
-This directory is for local development model files. Model weights are not committed to the repository.
+This directory is for local development model files used by browser-side detection experiments. Model weights are not committed to the repository.
 
 For the required model validation record, backend-specific assumptions, and minimum acceptance criteria, see [`../../docs/MODEL_CONTRACTS.md`](../../docs/MODEL_CONTRACTS.md).
+
+## Rules
+
+- Do not commit model weights or downloaded artifacts.
+- Confirm model rights before demos, benchmarks, or redistribution.
+- Record input/output tensor contracts before trusting detections.
+- Treat browser-side and native-backend model paths as separate contracts.
 
 ## YOLO (Default)
 
@@ -16,7 +23,7 @@ For the required model validation record, backend-specific assumptions, and mini
 
 ## Moondream (Vision-Language Model)
 
-- Uses `@xenova/transformers` with Hugging Face model
+- Uses `@xenova/transformers` with a Hugging Face model
 - Model ID: `Xenova/moondream2` (auto-downloaded)
 - `@xenova/transformers` is already declared in `package.json`
 - Zero-shot detection via natural language prompting
@@ -40,3 +47,5 @@ In `DetectorConfig`:
   useWebGPU: true
 }
 ```
+
+Native model paths are configured separately with `CREBAIN_MODEL_PATH` or `CREBAIN_ONNX_MODEL`; see the root README and `docs/MODEL_CONTRACTS.md`.

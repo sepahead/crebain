@@ -1,10 +1,10 @@
 # CREBAIN Contributing Guide
 
-Thank you for your interest in contributing to CREBAIN! This document provides guidelines and instructions for contributing.
+Thank you for contributing to CREBAIN. This guide keeps changes reviewable, reproducible, and aligned with the project’s safety, validation, and documentation boundaries.
 
 ## Code of Conduct
 
-Please be respectful and constructive in all interactions. We welcome contributors of all experience levels.
+Please be respectful and constructive in all interactions. CREBAIN follows the standards in [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
 
 ## Getting Started
 
@@ -13,7 +13,7 @@ Please be respectful and constructive in all interactions. We welcome contributo
 - **Bun** 1.0+ for project scripts; **Node.js** 20+ if running Node-based tooling directly
 - **Rust** 1.81+ with `cargo`
 - **macOS**: Xcode Command Line Tools
-- **Linux**: CUDA Toolkit (optional, for GPU acceleration)
+- **Linux**: CUDA Toolkit and NVIDIA runtime libraries when testing CUDA/TensorRT paths
 
 ### Development Setup
 
@@ -24,7 +24,7 @@ git clone https://github.com/crebain/crebain.git
 # From the repository root
 bun install
 
-# Start development server
+# Start the frontend development server
 bun run dev
 
 # Or start the full Tauri app
@@ -38,19 +38,19 @@ bun run tauri:dev
 - `feature/description` - New features
 - `fix/description` - Bug fixes
 - `docs/description` - Documentation changes
-- `refactor/description` - Code refactoring
+- `refactor/description` - Refactoring or maintenance
 
 ### Making Changes
 
 1. Fork the repository
 2. Create a feature branch from `main`
 3. Make your changes
-4. Run tests and linting
+4. Run the relevant validation commands
 5. Submit a pull request
 
-### Code Quality Requirements
+### Validation Requirements
 
-Before submitting a PR, ensure:
+Use the smallest check that is honest for the change:
 
 ```bash
 # Frontend validation
@@ -60,7 +60,14 @@ bun run validate
 bun run validate:all
 ```
 
-For documentation-only changes, make sure the Markdown files stay aligned with the current validation commands, backend status, roadmap items, and security boundaries. If the edit can affect code, IPC, model loading, transport, or Rust behavior, run `bun run validate:all`.
+| Change Type | Required Check |
+|-------------|----------------|
+| Markdown-only, no command/status changes | `git diff --check` |
+| Frontend-only source/test changes | `bun run validate` |
+| Rust, Tauri IPC, model loading, scene persistence, ROS, Zenoh, transport, or sensor fusion changes | `bun run validate:all` |
+| Release-candidate claims | `bun run validate:all` plus `docs/MANUAL_SMOKE_TEST.md` |
+
+For documentation-only changes, keep Markdown files aligned on validation commands, backend status, roadmap items, model assumptions, and security boundaries.
 
 ### Code Style
 
@@ -75,9 +82,9 @@ For documentation-only changes, make sure the Markdown files stay aligned with t
 
 #### Rust
 
-- Run `cargo clippy` before committing
+- Run `bun run clippy:rust` before committing Rust changes
 - Use `log::info/warn/error` instead of `println!`
-- Validate all external inputs (paths, user data)
+- Validate all external inputs, including paths, model files, scene JSON, IPC payloads, ROS URLs, and transport topics
 - Use `spawn_blocking` for CPU-intensive operations in async contexts
 
 ### Commit Messages
@@ -94,28 +101,31 @@ docs(readme): update installation instructions
 
 ## Pull Request Process
 
-1. Update documentation if needed
-2. Add tests for new functionality
-3. Ensure relevant checks pass (`bun run validate` for frontend-only changes; `bun run validate:all` for Rust, IPC, integration, or cross-cutting changes)
-4. Request review from maintainers
-5. Address feedback promptly
+1. Keep the change focused and explain the risk.
+2. Add or update tests for behavior changes.
+3. Update documentation when behavior, commands, backend status, model assumptions, or security boundaries change.
+4. Ensure relevant checks pass (`bun run validate` for frontend-only changes; `bun run validate:all` for Rust, IPC, integration, or cross-cutting changes).
+5. Request review and address feedback promptly.
 
 ## Reporting Issues
 
 When reporting bugs, please include:
 
-- Operating system and version
+- Operating system, hardware, app mode, and commit/version
 - Steps to reproduce
 - Expected vs actual behavior
-- Relevant logs or screenshots
+- Backend/model/ROS/Zenoh context where relevant
+- Relevant logs, screenshots, or validation output
 
 ## Feature Requests
 
 Open an issue with:
 
 - Clear description of the feature
-- Use case / motivation
-- Proposed implementation (if any)
+- Use case and motivation
+- Proposed behavior and acceptance criteria
+- Security, model, ROS/Zenoh, and performance assumptions
+- Proposed implementation, if known
 
 ## Questions?
 

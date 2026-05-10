@@ -3,7 +3,8 @@
 **Adaptive Response & Awareness System (ARAS)**
 
 *DE: Adaptives Reaktions- und Aufklärungssystem (ARAS)*
-Version 0.4.0
+
+**Version:** 0.4.0
 
 <p align="center">
   <img src="public/crebain-logo.png" alt="CREBAIN Logo" width="120" />
@@ -39,7 +40,7 @@ A research-oriented tactical visualization and autonomy prototype with 3D scene 
 - [Project Structure](#project-structure)
 - [Validation](#validation)
 - [Development Roadmap](#development-roadmap)
-- [Next 10 Steps](#next-10-steps)
+- [Current Engineering Backlog](#current-engineering-backlog)
 - [Contributing](#contributing)
 - [Disclaimer](#disclaimer)
 - [License](#license)
@@ -232,7 +233,7 @@ pub fn create_detector() -> Box<dyn Detector> {
 
 ### 3. Headless Simulation, Rich Visualization
 
-**Problem**: Gazebo's GUI competes for GPU resources and doesn't integrate with custom UIs.
+**Problem**: Gazebo's GUI competes for GPU resources and does not integrate with custom UIs.
 
 **Solution**: Run Gazebo headless; render everything in SparkJS/Three.js.
 
@@ -264,11 +265,11 @@ flowchart TB
 
 ### 4. Sim2Real Awareness
 
-**Problem**: Simulated sensor data doesn't transfer perfectly to real hardware.
+**Problem**: Simulated sensor data does not transfer perfectly to real hardware.
 
 **Solution**: Use simulation for logic testing, not perception training.
 
-| Use Gazebo For | Don't Use Gazebo For |
+| Use Gazebo For | Do Not Use Gazebo For |
 |----------------|---------------------|
 | UI/UX development | Final detection model training |
 | Integration testing | Control loop tuning |
@@ -335,7 +336,7 @@ git clone https://github.com/crebain/crebain.git
 # Enter Nix dev environment (auto-detects CUDA on NixOS with NVIDIA drivers)
 nix develop
 #
-# If CUDA isn't detected (or you're on a non-standard setup), force the CUDA shell:
+# If CUDA is not detected (or you are on a non-standard setup), force the CUDA shell:
 # nix develop .#cuda
 #
 # The Nix shells set `LD_LIBRARY_PATH` for CUDA/TensorRT and driver libraries.
@@ -823,6 +824,15 @@ Latest validated stabilization baseline:
 - **Rust**: 92 tests passed
 - **Linting**: `cargo clippy -- -D warnings` passed
 
+Current backend boundary hardening covers:
+
+- Native detection image ingress and structured failure payloads
+- Scene path/JSON validation and saved-scene listing guards
+- Sensor-fusion config, measurement, track, and stats validation
+- ROSBridge outbound graph/service validation and disconnected service-call rejection
+- Zenoh topic/event naming, CDR sequence bounds, raw image metadata validation, and transport publish payload validation
+- TensorRT model path and engine-build input validation, including unsupported INT8 build rejection without calibration data
+
 Release readiness artifacts:
 
 - **Acceptance matrix**: `docs/RELEASE_ACCEPTANCE.md`
@@ -844,6 +854,7 @@ Release readiness artifacts:
 - [x] Runtime diagnostics, benchmark cancellation, backend availability UI, and transport event-name guardrails
 - [x] Calibrated detection/fusion scenario fixture and smoke coverage
 - [x] Source-contract guardrails for transport topic validation and scene file path/JSON checks
+- [x] Backend IPC and transport boundary hardening for native detection, scene files, fusion, ROSBridge, Zenoh CDR, transport publish payloads, and TensorRT paths/build inputs
 
 ### Near-Term Engineering Focus (v0.5.x)
 
@@ -853,7 +864,7 @@ Release readiness artifacts:
 - [x] CI backend alignment to package scripts
 - [x] MLX status demoted in user-facing docs and UI while it remains a scaffold
 - [x] Release acceptance matrix, model contracts, security threat model, and manual smoke checklist
-- [x] Executable negative guard tests for native detection, model path, scene path, and transport topic boundaries
+- [x] Executable negative guard tests for native detection, model path, scene path, and transport topic boundaries, including TensorRT build inputs, fusion, Zenoh CDR, and transport payloads
 - [ ] Real MLX YOLOv8 forward pass implementation
 - [ ] Full Tauri AppHandle-backed negative IPC integration tests for scene/model/transport boundaries
 - [ ] Multi-frame scenario tests for track confirmation and motion
@@ -874,38 +885,39 @@ Release readiness artifacts:
 
 ---
 
-## Next 10 Steps
+## Current Engineering Backlog
 
-These next steps combine recommendations from 10 complementary scientific and engineering perspectives:
+These are the next high-leverage engineering tasks after the current stabilization baseline:
 
 | # | Perspective | Next Step | Primary Outcome |
 |---|-------------|-----------|-----------------|
-| 1 | **Systems Engineer** | Define a release acceptance matrix for detection, fusion, ROS, Zenoh, Gazebo, scene state, and UI workflows | Clear v0.5 release gates |
-| 2 | **ML Engineer** | Replace the MLX zero-output scaffold with a real YOLOv8 forward pass or keep it excluded from auto-selection | Honest backend behavior |
+| 1 | **ML Engineer** | Replace the MLX zero-output scaffold with a real YOLOv8 forward pass, tensor decoding, and backend tests | Honest Apple Silicon backend behavior |
+| 2 | **Rust Backend Engineer** | Add AppHandle-backed negative IPC integration tests for scene, model, transport, and fusion boundaries | Stronger end-to-end IPC evidence |
 | 3 | **Robotics Engineer** | Add multi-frame scenario tests for track confirmation, target motion, and stale-track cleanup | More realistic perception/fusion checks |
-| 4 | **Rust Backend Engineer** | Add executable negative IPC tests for scene file, model path, and transport topic rejection paths | Stronger runtime safety |
-| 5 | **Security Engineer** | Threat-model local file paths, model loading, ROS URLs, and Zenoh topic/event boundaries | Reduced attack surface |
-| 6 | **Frontend Engineer** | Extract reusable hook-test harness utilities for React root setup, `act`, IPC mocks, and cleanup | Less duplicated test code |
-| 7 | **Performance Engineer** | Add regression benchmarks for detection conversion, NMS, sensor fusion, transport event routing, and position history | Better latency visibility |
-| 8 | **DevOps Engineer** | Add CI artifacts or summaries for frontend/Rust test counts and skipped benchmark tests | Faster PR review |
-| 9 | **QA Engineer** | Add manual smoke-test scripts for native app launch, camera placement, detection diagnostics, scene save/load, and ROS connection | Repeatable release checks |
-| 10 | **Technical Writer** | Keep README, AGENTS, CONTRIBUTING, SECURITY, ROS, model, and issue-template docs synchronized after each stabilization batch | Lower onboarding friction |
+| 4 | **Transport Engineer** | Run ROS/Gazebo/Zenoh multi-frame smoke tests against a target topology | Deployment-specific transport confidence |
+| 5 | **Performance Engineer** | Add regression benchmarks for detection conversion, NMS, sensor fusion, transport event routing, and position history | Better latency visibility |
+| 6 | **QA Engineer** | Execute and archive manual smoke-test results for native launch, diagnostics, scene save/load, and ROS/Zenoh modes | Repeatable release checks |
+| 7 | **Model Engineer** | Validate at least one full model contract with fixture frames, class mapping, thresholds, and benchmark context | Trustworthy demo/model evidence |
+| 8 | **Frontend Engineer** | Extract reusable hook-test harness utilities for React root setup, `act`, IPC mocks, and cleanup | Less duplicated test code |
+| 9 | **DevOps Engineer** | Add CI artifacts or summaries for frontend/Rust test counts and skipped benchmark tests | Faster PR review |
+| 10 | **Technical Writer** | Keep tracked Markdown docs synchronized after each behavior, validation, or security-boundary change | Lower onboarding friction |
 
 ---
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing`)
-5. Open a Pull Request
+1. Fork the repository.
+2. Create a feature branch from `main`.
+3. Keep the change focused and document the risk.
+4. Run the relevant validation command.
+5. Open a pull request using the template.
 
 ### Code Quality Requirements
 
 - TypeScript strict mode
 - Rust clippy clean
 - Use the centralized logger instead of `console.*` in production
+- Validate external inputs at IPC, file, model, ROS, Zenoh, and CDR boundaries
 - Memoize expensive computations
 - Use CircularBuffer for high-frequency data
 - Prefer squared distance for comparisons

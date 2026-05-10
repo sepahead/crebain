@@ -1,6 +1,6 @@
 # CREBAIN Development Guide
 
-## Build Commands
+## Build and Validation Commands
 
 ```bash
 # Frontend development
@@ -12,7 +12,7 @@ bun run typecheck        # TypeScript type checking only
 bun run tauri:dev        # Development mode with hot reload
 bun run tauri:build      # Production build
 
-# Testing
+# Validation and testing
 bun run test             # Run tests in watch mode
 bun run test:run         # Run tests once
 bun run test:coverage    # Run tests with coverage
@@ -29,20 +29,20 @@ cargo build --manifest-path src-tauri/Cargo.toml
 
 ## Code Style
 
-### TypeScript/React
+### TypeScript / React
 
 - Use functional components with hooks
 - Prefer `useMemo` and `useCallback` for expensive computations
-- Use `useRef` for mutable values that don't trigger re-renders
+- Use `useRef` for mutable values that do not trigger re-renders
 - Use the centralized logger (`src/lib/logger.ts`) instead of `console.*` in production code
 - Use named constants for magic numbers
 - Always clean up effects (intervals, subscriptions, event listeners)
 
-### Rust
+### Rust / Tauri
 
-- Run `cargo clippy` before committing
+- Run `bun run clippy:rust` before committing Rust changes
 - Use `log::info/warn/error` instead of `println!`
-- Validate all external inputs (paths, user data)
+- Validate all external inputs, including paths, scene files, model files, IPC payloads, ROS URLs, Zenoh topics, and CDR payload metadata
 - Use `spawn_blocking` for CPU-intensive operations in async contexts
 
 ## Architecture Notes
@@ -60,8 +60,8 @@ cargo build --manifest-path src-tauri/Cargo.toml
 ### Backend (`src-tauri/`)
 
 - `common/` - Shared detection, NMS, YOLO, error, and path validation utilities
-- `inference/` - ML abstraction layer (CoreML default on macOS, experimental MLX scaffold, CUDA, TensorRT, ONNX)
-- `transport/` - Zenoh-oriented transport and Tauri transport commands
+- `inference/` - ML abstraction layer with CoreML default on macOS, experimental MLX scaffold, CUDA/TensorRT on Linux, and ONNX fallback
+- `transport/` - Zenoh-oriented transport, CDR validation, and Tauri transport commands
 - `sensor_fusion.rs` - Kalman/EKF/UKF/Particle/IMM filters
 - `lib.rs` - Tauri IPC commands and app setup
 
@@ -83,4 +83,15 @@ import { describe, expect, it } from 'vitest'
 
 Before committing, prefer `bun run validate:all` unless the change is documentation-only and clearly cannot affect code.
 
-Documentation updates should keep `README.md`, `AGENTS.md`, `CONTRIBUTING.md`, `SECURITY.md`, ROS/model docs, and GitHub templates aligned when changing validation commands, backend status, roadmap items, or security boundaries.
+## Documentation Consistency
+
+Tracked Markdown files should agree on validation commands, backend status, roadmap items, model assumptions, and security boundaries. Keep these files synchronized when behavior changes:
+
+- `README.md`, `AGENTS.md`, `CONTRIBUTING.md`, `SECURITY.md`, and `CODE_OF_CONDUCT.md`
+- `docs/*.md`
+- `public/models/README.md`
+- `ros/README.md`
+- `.github/**/*.md`
+- `.windsurf/workflows/*.md`
+
+For documentation-only edits, run `git diff --check` at minimum. Run `bun run validate:all` when the edit reflects or accompanies Rust, IPC, model-loading, transport, ROS, scene, or sensor-fusion behavior changes.
