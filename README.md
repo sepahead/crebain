@@ -819,7 +819,7 @@ bun run clippy:rust
 Latest validated stabilization baseline:
 
 - **Command**: `bun run validate:all`
-- **Frontend**: 161 tests passed, 8 benchmark tests skipped by default
+- **Frontend**: 164 tests passed, 8 benchmark tests skipped by default
 - **Rust**: 73 tests passed
 - **Linting**: `cargo clippy -- -D warnings` passed
 

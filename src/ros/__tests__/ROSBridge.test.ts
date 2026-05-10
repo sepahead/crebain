@@ -161,6 +161,17 @@ describe('ROSBridge', () => {
     })
   })
 
+  it('rejects invalid outbound topics, message types, and queue parameters', async () => {
+    const { bridge } = await connectBridge()
+
+    expect(() => bridge.subscribe('relative/topic', 'sensor_msgs/Image', vi.fn())).toThrow('Invalid ROS topic: name must be absolute')
+    expect(() => bridge.subscribe('/bad topic', 'sensor_msgs/Image', vi.fn())).toThrow('Invalid ROS topic: name contains invalid characters')
+    expect(() => bridge.subscribe('/camera', 'Image', vi.fn())).toThrow('Invalid ROS message type')
+    expect(() => bridge.subscribe('/camera', 'sensor_msgs/Image', vi.fn(), -1)).toThrow('Invalid ROS throttle rate')
+    expect(() => bridge.advertise('/cmd_vel', 'Twist')).toThrow('Invalid ROS message type')
+    expect(() => bridge.publish('//cmd_vel', {})).toThrow('Invalid ROS topic: name contains invalid characters')
+  })
+
   it('resolves service calls from service_response messages', async () => {
     const { bridge, ws } = await connectBridge()
 
@@ -183,6 +194,20 @@ describe('ROSBridge', () => {
     ws.receive({ op: 'service_response', id: call?.id, values: {}, result: false })
 
     await expect(response).rejects.toThrow('Service call failed')
+  })
+
+  it('rejects service calls immediately when disconnected', async () => {
+    const bridge = new ROSBridge({ url: 'ws://localhost:9090', autoReconnect: false })
+
+    await expect(bridge.callService('/service', {})).rejects.toThrow('ROS bridge not connected')
+  })
+
+  it('rejects invalid service calls before sending', async () => {
+    const { bridge, ws } = await connectBridge()
+
+    await expect(bridge.callService('relative/service', {})).rejects.toThrow('Invalid ROS service: name must be absolute')
+    await expect(bridge.callService('/service', {}, 0)).rejects.toThrow('Invalid ROS service timeout')
+    expect(sentMessages(ws).filter((message) => message.op === 'call_service')).toHaveLength(0)
   })
 
   it('rejects service calls that time out', async () => {

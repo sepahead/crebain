@@ -49,9 +49,39 @@ interface PendingServiceCall {
 
 // Allowed URL schemes for ROS bridge connections
 const ALLOWED_SCHEMES = ['ws:', 'wss:']
+const MAX_ROS_NAME_LENGTH = 256
+const ROS_GRAPH_NAME_PATTERN = /^\/[A-Za-z0-9_/]+$/
+const ROS_MESSAGE_TYPE_PATTERN = /^[A-Za-z][A-Za-z0-9_]*\/[A-Za-z][A-Za-z0-9_]*$/
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
+}
+
+function validateRosGraphName(name: string, kind: 'topic' | 'service'): void {
+  if (name.length === 0 || name.trim() !== name) {
+    throw new Error(`Invalid ROS ${kind}: name must not be empty or padded`)
+  }
+  if (name.length > MAX_ROS_NAME_LENGTH) {
+    throw new Error(`Invalid ROS ${kind}: name exceeds ${MAX_ROS_NAME_LENGTH} characters`)
+  }
+  if (name === '/' || !name.startsWith('/')) {
+    throw new Error(`Invalid ROS ${kind}: name must be absolute`)
+  }
+  if (name.includes('//') || name.includes('\0') || /\s/.test(name) || !ROS_GRAPH_NAME_PATTERN.test(name)) {
+    throw new Error(`Invalid ROS ${kind}: name contains invalid characters`)
+  }
+}
+
+function validateRosMessageType(type: string): void {
+  if (!ROS_MESSAGE_TYPE_PATTERN.test(type)) {
+    throw new Error('Invalid ROS message type')
+  }
+}
+
+function validateNonNegativeNumber(value: number | undefined, field: string): void {
+  if (value !== undefined && (!Number.isFinite(value) || value < 0)) {
+    throw new Error(`Invalid ROS ${field}: value must be a non-negative finite number`)
+  }
 }
 
 // Validate ROS bridge URL for security
@@ -206,7 +236,11 @@ export class ROSBridge {
   }
 
   isConnected(): boolean {
-    return this.state === 'connected' && this.ws !== null
+    return this.state === 'connected' && this.canSend()
+  }
+
+  private canSend(): boolean {
+    return this.ws !== null && this.ws.readyState === WebSocket.OPEN
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -264,10 +298,13 @@ export class ROSBridge {
     }
   }
 
-  private send(message: ROSBridgeMessage): void {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(message))
+  private send(message: ROSBridgeMessage): boolean {
+    const ws = this.ws
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(message))
+      return true
     }
+    return false
   }
 
   private generateId(): string {
@@ -285,6 +322,11 @@ export class ROSBridge {
     throttleRate?: number,
     queueLength?: number
   ): () => void {
+    validateRosGraphName(topic, 'topic')
+    validateRosMessageType(type)
+    validateNonNegativeNumber(throttleRate, 'throttle rate')
+    validateNonNegativeNumber(queueLength, 'queue length')
+
     const subscription: Subscription = {
       topic,
       type,
@@ -315,6 +357,7 @@ export class ROSBridge {
   }
 
   unsubscribe(topic: string, callback: ROSMessageCallback<unknown>): void {
+    validateRosGraphName(topic, 'topic')
     const subs = this.subscriptions.get(topic)
     if (!subs) return
 
@@ -335,6 +378,8 @@ export class ROSBridge {
   }
 
   advertise(topic: string, type: string): void {
+    validateRosGraphName(topic, 'topic')
+    validateRosMessageType(type)
     this.advertisedTopics.set(topic, type)
     this.send({
       op: 'advertise',
@@ -345,6 +390,7 @@ export class ROSBridge {
   }
 
   unadvertise(topic: string): void {
+    validateRosGraphName(topic, 'topic')
     this.advertisedTopics.delete(topic)
     this.send({
       op: 'unadvertise',
@@ -354,6 +400,7 @@ export class ROSBridge {
   }
 
   publish<T>(topic: string, msg: T): void {
+    validateRosGraphName(topic, 'topic')
     this.send({
       op: 'publish',
       id: this.generateId(),
@@ -399,6 +446,19 @@ export class ROSBridge {
     request: TRequest,
     timeoutMs: number = 10000
   ): Promise<TResponse> {
+    try {
+      validateRosGraphName(service, 'service')
+      if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+        throw new Error('Invalid ROS service timeout: value must be a positive finite number')
+      }
+    } catch (error) {
+      return Promise.reject(error instanceof Error ? error : new Error(String(error)))
+    }
+
+    if (!this.isConnected()) {
+      return Promise.reject(new Error('ROS bridge not connected'))
+    }
+
     return new Promise((resolve, reject) => {
       const id = this.generateId()
 
@@ -413,12 +473,17 @@ export class ROSBridge {
         timeout,
       })
 
-      this.send({
+      const sent = this.send({
         op: 'call_service',
         id,
         service,
         args: request,
       })
+      if (!sent) {
+        clearTimeout(timeout)
+        this.pendingServiceCalls.delete(id)
+        reject(new Error('ROS bridge not connected'))
+      }
     })
   }
 
