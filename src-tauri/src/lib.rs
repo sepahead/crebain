@@ -17,7 +17,8 @@ pub mod transport;
 
 use coreml::DetectionResult;
 use sensor_fusion::{
-    FusionConfig, FusionStats, MultiSensorFusion, SensorMeasurement, TrackOutput,
+    validate_fusion_config, validate_sensor_measurements, FusionConfig, FusionStats,
+    MultiSensorFusion, SensorMeasurement, TrackOutput,
 };
 use std::sync::{Mutex, Once};
 use tauri::{Manager, Emitter};
@@ -497,6 +498,7 @@ async fn scene_load_file(path: String, app: tauri::AppHandle) -> Result<String, 
 #[tauri::command]
 fn fusion_init(config: Option<FusionConfig>) -> Result<(), String> {
     let cfg = config.unwrap_or_default();
+    validate_fusion_config(&cfg)?;
     let fusion = MultiSensorFusion::new(cfg);
     
     let mut guard = FUSION_ENGINE.lock().map_err(|e| e.to_string())?;
@@ -513,6 +515,7 @@ async fn fusion_process(
     measurements: Vec<SensorMeasurement>,
     timestamp_ms: u64,
 ) -> Result<Vec<TrackOutput>, String> {
+    validate_sensor_measurements(&measurements)?;
     tauri::async_runtime::spawn_blocking(move || {
         let mut guard = FUSION_ENGINE.lock().map_err(|e| e.to_string())?;
         let fusion = guard.as_mut().ok_or("Fusion engine not initialized")?;
@@ -544,6 +547,7 @@ fn fusion_get_stats() -> Result<FusionStats, String> {
 /// Update fusion configuration
 #[tauri::command]
 fn fusion_set_config(config: FusionConfig) -> Result<(), String> {
+    validate_fusion_config(&config)?;
     let mut guard = FUSION_ENGINE.lock().map_err(|e| e.to_string())?;
     
     let fusion = guard.as_mut().ok_or("Fusion engine not initialized")?;
@@ -844,6 +848,56 @@ mod tests {
         .unwrap_err();
 
         assert!(error.contains("Base64 image data too large"));
+    }
+
+    fn test_fusion_config() -> FusionConfig {
+        FusionConfig::default()
+    }
+
+    fn test_sensor_measurement() -> SensorMeasurement {
+        SensorMeasurement {
+            sensor_id: "cam1".to_string(),
+            modality: sensor_fusion::SensorModality::Visual,
+            timestamp_ms: 1000,
+            position: [1.0, 2.0, 3.0],
+            velocity: Some([0.0, 0.0, 0.0]),
+            covariance: [1.0, 1.0, 1.0],
+            confidence: 0.9,
+            class_label: "drone".to_string(),
+            metadata: std::collections::HashMap::new(),
+        }
+    }
+
+    #[test]
+    fn fusion_init_rejects_invalid_config_before_engine_creation() {
+        let mut config = test_fusion_config();
+        config.particle_count = sensor_fusion::MAX_FUSION_PARTICLE_COUNT + 1;
+
+        let error = fusion_init(Some(config)).unwrap_err();
+
+        assert!(error.contains("particle_count"));
+    }
+
+    #[test]
+    fn fusion_process_rejects_non_finite_measurement_before_locking_engine() {
+        let mut measurement = test_sensor_measurement();
+        measurement.position[1] = f64::NAN;
+
+        let error = tauri::async_runtime::block_on(fusion_process(vec![measurement], 1000))
+            .unwrap_err();
+
+        assert!(error.contains("position[1] must be finite"));
+    }
+
+    #[test]
+    fn fusion_process_rejects_oversized_measurement_batch() {
+        let measurements =
+            vec![test_sensor_measurement(); sensor_fusion::MAX_FUSION_MEASUREMENTS_PER_BATCH + 1];
+
+        let error = tauri::async_runtime::block_on(fusion_process(measurements, 1000))
+            .unwrap_err();
+
+        assert!(error.contains("Too many sensor measurements"));
     }
 
     #[test]

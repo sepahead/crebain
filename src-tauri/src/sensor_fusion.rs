@@ -15,6 +15,16 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::f64::consts::PI;
 
+pub const MAX_FUSION_MEASUREMENTS_PER_BATCH: usize = 512;
+pub const MAX_FUSION_TRACKS: usize = 1024;
+pub const MAX_FUSION_PARTICLE_COUNT: usize = 1000;
+const MAX_FUSION_STRING_LEN: usize = 256;
+const MAX_FUSION_METADATA_ENTRIES: usize = 64;
+const MAX_FUSION_NOISE: f64 = 10_000.0;
+const MAX_ASSOCIATION_THRESHOLD: f64 = 100_000.0;
+const MAX_MISSED_DETECTIONS: u32 = 1_000;
+const MAX_CONFIRMATION_HITS: u32 = 1_000;
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // SENSOR TYPES
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1077,6 +1087,140 @@ impl Default for FusionConfig {
     }
 }
 
+fn validate_finite_range(name: &str, value: f64, min: f64, max: f64) -> Result<(), String> {
+    if !value.is_finite() || value < min || value > max {
+        return Err(format!(
+            "{} must be finite and within [{}, {}], got {}",
+            name, min, max, value
+        ));
+    }
+    Ok(())
+}
+
+fn validate_finite_array(name: &str, values: &[f64; 3]) -> Result<(), String> {
+    for (index, value) in values.iter().enumerate() {
+        if !value.is_finite() {
+            return Err(format!("{}[{}] must be finite", name, index));
+        }
+    }
+    Ok(())
+}
+
+fn validate_bounded_text(name: &str, value: &str) -> Result<(), String> {
+    if value.trim().is_empty() {
+        return Err(format!("{} must not be empty", name));
+    }
+    if value.len() > MAX_FUSION_STRING_LEN {
+        return Err(format!(
+            "{} too long: {} bytes exceeds maximum {}",
+            name,
+            value.len(),
+            MAX_FUSION_STRING_LEN
+        ));
+    }
+    if value.contains('\0') {
+        return Err(format!("{} must not contain null bytes", name));
+    }
+    Ok(())
+}
+
+pub fn validate_fusion_config(config: &FusionConfig) -> Result<(), String> {
+    validate_finite_range(
+        "process_noise",
+        config.process_noise,
+        f64::EPSILON,
+        MAX_FUSION_NOISE,
+    )?;
+    validate_finite_range(
+        "measurement_noise",
+        config.measurement_noise,
+        f64::EPSILON,
+        MAX_FUSION_NOISE,
+    )?;
+    validate_finite_range(
+        "association_threshold",
+        config.association_threshold,
+        f64::EPSILON,
+        MAX_ASSOCIATION_THRESHOLD,
+    )?;
+    if config.max_missed_detections == 0 || config.max_missed_detections > MAX_MISSED_DETECTIONS {
+        return Err(format!(
+            "max_missed_detections must be within [1, {}], got {}",
+            MAX_MISSED_DETECTIONS, config.max_missed_detections
+        ));
+    }
+    if config.min_confirmation_hits == 0 || config.min_confirmation_hits > MAX_CONFIRMATION_HITS {
+        return Err(format!(
+            "min_confirmation_hits must be within [1, {}], got {}",
+            MAX_CONFIRMATION_HITS, config.min_confirmation_hits
+        ));
+    }
+    if config.particle_count == 0 || config.particle_count > MAX_FUSION_PARTICLE_COUNT {
+        return Err(format!(
+            "particle_count must be within [1, {}], got {}",
+            MAX_FUSION_PARTICLE_COUNT, config.particle_count
+        ));
+    }
+    Ok(())
+}
+
+pub fn validate_sensor_measurements(measurements: &[SensorMeasurement]) -> Result<(), String> {
+    if measurements.len() > MAX_FUSION_MEASUREMENTS_PER_BATCH {
+        return Err(format!(
+            "Too many sensor measurements: {} exceeds maximum {}",
+            measurements.len(),
+            MAX_FUSION_MEASUREMENTS_PER_BATCH
+        ));
+    }
+
+    for (index, measurement) in measurements.iter().enumerate() {
+        validate_bounded_text(
+            &format!("measurements[{}].sensor_id", index),
+            &measurement.sensor_id,
+        )?;
+        validate_bounded_text(
+            &format!("measurements[{}].class_label", index),
+            &measurement.class_label,
+        )?;
+        validate_finite_array(
+            &format!("measurements[{}].position", index),
+            &measurement.position,
+        )?;
+        validate_finite_array(
+            &format!("measurements[{}].covariance", index),
+            &measurement.covariance,
+        )?;
+        if let Some(velocity) = &measurement.velocity {
+            validate_finite_array(&format!("measurements[{}].velocity", index), velocity)?;
+        }
+        validate_finite_range(
+            &format!("measurements[{}].confidence", index),
+            measurement.confidence,
+            0.0,
+            1.0,
+        )?;
+        if measurement.metadata.len() > MAX_FUSION_METADATA_ENTRIES {
+            return Err(format!(
+                "measurements[{}].metadata has {} entries, maximum {}",
+                index,
+                measurement.metadata.len(),
+                MAX_FUSION_METADATA_ENTRIES
+            ));
+        }
+        for (key, value) in &measurement.metadata {
+            validate_bounded_text(&format!("measurements[{}].metadata key", index), key)?;
+            if !value.is_finite() {
+                return Err(format!(
+                    "measurements[{}].metadata['{}'] must be finite",
+                    index, key
+                ));
+            }
+        }
+    }
+
+    Ok(())
+}
+
 /// Multi-sensor fusion engine
 pub struct MultiSensorFusion {
     config: FusionConfig,
@@ -1113,7 +1257,7 @@ impl MultiSensorFusion {
         measurements: Vec<SensorMeasurement>,
         timestamp_ms: u64,
     ) -> Vec<TrackOutput> {
-        self.frame_count += 1;
+        self.frame_count = self.frame_count.saturating_add(1);
 
         // Step 1: Predict all tracks forward
         // Compute dt from actual timestamps; fall back to 0.1s (10 Hz) on first frame
@@ -1135,6 +1279,9 @@ impl MultiSensorFusion {
 
         // Step 4: Create new tracks from unassociated measurements
         for meas_idx in unassociated {
+            if self.tracks.len() >= MAX_FUSION_TRACKS {
+                break;
+            }
             self.create_track(&measurements[meas_idx], timestamp_ms);
         }
 
@@ -1324,8 +1471,12 @@ impl MultiSensorFusion {
     }
 
     fn create_track(&mut self, measurement: &SensorMeasurement, timestamp_ms: u64) {
+        if self.tracks.len() >= MAX_FUSION_TRACKS {
+            return;
+        }
+
         let track_id = format!("TRK-{:05}", self.next_track_id);
-        self.next_track_id += 1;
+        self.next_track_id = self.next_track_id.saturating_add(1);
 
         let initial_state = Vector6::new(
             measurement.position[0],
