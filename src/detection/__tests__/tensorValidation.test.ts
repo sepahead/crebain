@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { validateRank3Tensor } from '../tensorValidation'
+import { tensorElementCount, validateRank3Tensor } from '../tensorValidation'
 
 describe('tensorValidation', () => {
   it('accepts valid rank-3 Float32 tensors', () => {
@@ -17,5 +17,12 @@ describe('tensorValidation', () => {
     const data = new Float32Array([1, Number.NaN, 3, 4])
 
     expect(() => validateRank3Tensor(data, [1, 2, 2], 'test')).toThrow('must be finite')
+  })
+
+  it('rejects unsafe tensor dimensions and element counts', () => {
+    expect(() => validateRank3Tensor(new Float32Array(1), [1, Number.MAX_SAFE_INTEGER + 1, 1], 'test'))
+      .toThrow('dimension 1 must be a positive integer')
+    expect(() => tensorElementCount([Number.MAX_SAFE_INTEGER, 2], 'test'))
+      .toThrow('tensor dimensions exceed safe element count')
   })
 })
