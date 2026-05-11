@@ -20,9 +20,12 @@ use sensor_fusion::{
     validate_fusion_config, validate_sensor_measurements, FusionConfig, FusionStats,
     MultiSensorFusion, SensorMeasurement, TrackOutput,
 };
-use std::sync::{Mutex, Once};
+use std::sync::Mutex;
+#[cfg(target_os = "macos")]
+use std::sync::Once;
 use tauri::{Manager, Emitter};
 
+#[cfg(target_os = "macos")]
 static INIT: Once = Once::new();
 
 // Global sensor fusion engine (thread-safe)

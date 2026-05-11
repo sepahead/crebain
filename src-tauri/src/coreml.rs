@@ -9,6 +9,7 @@ use objc::{class, msg_send, sel, sel_impl, runtime::Object};
 #[cfg(target_os = "macos")]
 use std::ffi::CString;
 
+#[cfg(target_os = "macos")]
 use std::sync::OnceLock;
 use std::time::Instant;
 use base64::Engine;
