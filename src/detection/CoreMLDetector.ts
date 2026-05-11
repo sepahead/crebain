@@ -16,10 +16,36 @@ import {
   getThreatLevel,
 } from './types'
 import {
+  averageLatency,
+  centerBoxToCorners,
+  clampBoxToImage,
+  computeLetterboxGeometry,
+  findMaxScore,
+  findMaxYoloClassScore,
+  isLikelyNormalizedBox,
+  isValidBox,
+  nonMaxSuppression,
+  projectLetterboxBoxToImage,
+  readYoloCenterBox,
+  recordLatency,
+  scaleNormalizedBox,
+  type BoundingBox,
+  type LetterboxGeometry,
+} from './detectorMath'
+import {
+  normalizeImageNetRgb,
+  normalizeRawRgb,
+  normalizeUnitRgb,
+  normalizeVisionBiasRgb,
+  RGB_CHANNELS,
+  rgbaToNchwRgbFloat32,
+} from './detectorPreprocess'
+import {
   assertDims,
   assertFiniteTensorValues,
   assertFloat32Tensor,
   assertTensorLength,
+  tensorElementCount,
   validateRank2Tensor,
   validateRank3Tensor,
 } from './tensorValidation'
@@ -217,11 +243,7 @@ export class CoreMLDetector implements ObjectDetector {
       }
 
       // Record latency
-      const latency = performance.now() - startTime
-      this.latencyHistory.push(latency)
-      if (this.latencyHistory.length > this.maxLatencyHistory) {
-        this.latencyHistory.shift()
-      }
+      recordLatency(this.latencyHistory, this.maxLatencyHistory, startTime)
 
       return detections
     } catch (error) {
@@ -257,81 +279,56 @@ export class CoreMLDetector implements ObjectDetector {
     tempCtx.putImageData(tempImageData, 0, 0)
 
     // Resize with aspect ratio preservation (letterboxing)
-    const scale = Math.min(targetWidth / width, targetHeight / height)
-    const scaledWidth = Math.round(width * scale)
-    const scaledHeight = Math.round(height * scale)
-    const offsetX = Math.round((targetWidth - scaledWidth) / 2)
-    const offsetY = Math.round((targetHeight - scaledHeight) / 2)
+    const geometry = computeLetterboxGeometry(
+      { width, height },
+      { width: targetWidth, height: targetHeight },
+      true
+    )
 
     // Fill with neutral color based on preprocess mode
     ctx.fillStyle = this.config.preprocessMode === 'vision_bias' ? '#808080' : '#000000'
     ctx.fillRect(0, 0, targetWidth, targetHeight)
 
     // Draw resized image
-    ctx.drawImage(tempCanvas, offsetX, offsetY, scaledWidth, scaledHeight)
+    ctx.drawImage(tempCanvas, geometry.offsetX, geometry.offsetY, geometry.scaledWidth, geometry.scaledHeight)
 
     // Get resized image data
     const resizedData = ctx.getImageData(0, 0, targetWidth, targetHeight).data
 
     // Convert to tensor with appropriate normalization
-    const channels = 3
-    const tensorData = new Float32Array(1 * channels * targetHeight * targetWidth)
+    const tensorData = rgbaToNchwRgbFloat32(
+      resizedData,
+      targetWidth,
+      targetHeight,
+      (r, g, b) => this.normalizePixel(r, g, b)
+    )
 
-    for (let y = 0; y < targetHeight; y++) {
-      for (let x = 0; x < targetWidth; x++) {
-        const pixelIndex = (y * targetWidth + x) * 4
-        const tensorIndex = y * targetWidth + x
-
-        const r = resizedData[pixelIndex]
-        const g = resizedData[pixelIndex + 1]
-        const b = resizedData[pixelIndex + 2]
-
-        // Apply normalization based on mode
-        const [nr, ng, nb] = this.normalizePixel(r, g, b)
-
-        // NCHW format (batch, channels, height, width)
-        tensorData[0 * targetHeight * targetWidth + tensorIndex] = nr // R
-        tensorData[1 * targetHeight * targetWidth + tensorIndex] = ng // G
-        tensorData[2 * targetHeight * targetWidth + tensorIndex] = nb // B
-      }
-    }
-
-    return new ort.Tensor('float32', tensorData, [1, channels, targetHeight, targetWidth])
+    return new ort.Tensor('float32', tensorData, [1, RGB_CHANNELS, targetHeight, targetWidth])
   }
 
   /**
    * Normalize pixel values based on preprocessing mode
    */
-  private normalizePixel(r: number, g: number, b: number): [number, number, number] {
+  private normalizePixel(r: number, g: number, b: number): readonly [number, number, number] {
     switch (this.config.preprocessMode) {
       case 'vision':
         // Apple Vision default: scale to [0, 1]
-        return [r / 255, g / 255, b / 255]
+        return normalizeUnitRgb(r, g, b)
 
       case 'vision_bias':
         // Apple Vision with bias: scale to [-1, 1]
-        return [
-          (r / 255) * 2 - 1,
-          (g / 255) * 2 - 1,
-          (b / 255) * 2 - 1,
-        ]
+        return normalizeVisionBiasRgb(r, g, b)
 
       case 'imagenet':
         // Standard ImageNet normalization
-        const mean = [0.485, 0.456, 0.406]
-        const std = [0.229, 0.224, 0.225]
-        return [
-          (r / 255 - mean[0]) / std[0],
-          (g / 255 - mean[1]) / std[1],
-          (b / 255 - mean[2]) / std[2],
-        ]
+        return normalizeImageNetRgb(r, g, b)
 
       case 'raw':
         // No normalization, keep [0, 255]
-        return [r, g, b]
+        return normalizeRawRgb(r, g, b)
 
       default:
-        return [r / 255, g / 255, b / 255]
+        return normalizeUnitRgb(r, g, b)
     }
   }
 
@@ -349,9 +346,10 @@ export class CoreMLDetector implements ObjectDetector {
     const detections: Detection[] = []
 
     // Calculate scale factors for coordinate conversion
-    const scale = Math.min(this.inputSize.width / origWidth, this.inputSize.height / origHeight)
-    const offsetX = (this.inputSize.width - origWidth * scale) / 2
-    const offsetY = (this.inputSize.height - origHeight * scale) / 2
+    const geometry = computeLetterboxGeometry(
+      { width: origWidth, height: origHeight },
+      this.inputSize
+    )
 
     // Try to detect output format from dimensions
     // Common formats:
@@ -376,9 +374,7 @@ export class CoreMLDetector implements ObjectDetector {
         classes,
         origWidth,
         origHeight,
-        scale,
-        offsetX,
-        offsetY
+        geometry
       )
     }
 
@@ -398,22 +394,16 @@ export class CoreMLDetector implements ObjectDetector {
 
       let classId: number
       let score: number
-      let x1: number, y1: number, x2: number, y2: number
+      let box: BoundingBox
 
       if (predSize === 6) {
         // Format: [class_id, score, x1, y1, x2, y2]
         classId = Math.round(output[baseIdx])
         score = output[baseIdx + 1]
-        x1 = output[baseIdx + 2]
-        y1 = output[baseIdx + 3]
-        x2 = output[baseIdx + 4]
-        y2 = output[baseIdx + 5]
+        box = [output[baseIdx + 2], output[baseIdx + 3], output[baseIdx + 4], output[baseIdx + 5]]
       } else if (predSize === 5) {
         // Format: [x1, y1, x2, y2, score] - single class
-        x1 = output[baseIdx]
-        y1 = output[baseIdx + 1]
-        x2 = output[baseIdx + 2]
-        y2 = output[baseIdx + 3]
+        box = [output[baseIdx], output[baseIdx + 1], output[baseIdx + 2], output[baseIdx + 3]]
         score = output[baseIdx + 4]
         classId = 0
       } else if (hasClassScores) {
@@ -423,23 +413,11 @@ export class CoreMLDetector implements ObjectDetector {
         const w = output[baseIdx + 2]
         const h = output[baseIdx + 3]
 
-        x1 = cx - w / 2
-        y1 = cy - h / 2
-        x2 = cx + w / 2
-        y2 = cy + h / 2
+        box = centerBoxToCorners(cx, cy, w, h)
 
         // Find max class score
         const numClasses = predSize - 4
-        let maxScore = 0
-        let maxClassIdx = 0
-
-        for (let c = 0; c < numClasses; c++) {
-          const classScore = output[baseIdx + 4 + c]
-          if (classScore > maxScore) {
-            maxScore = classScore
-            maxClassIdx = c
-          }
-        }
+        const { classIndex: maxClassIdx, score: maxScore } = findMaxScore(output, baseIdx + 4, numClasses)
 
         classId = maxClassIdx
         score = maxScore
@@ -453,29 +431,20 @@ export class CoreMLDetector implements ObjectDetector {
       }
 
       // Check if coordinates are normalized
-      const isNormalized = x1 <= 1 && y1 <= 1 && x2 <= 1 && y2 <= 1
+      const isNormalized = isLikelyNormalizedBox(box)
 
       if (isNormalized) {
-        x1 = x1 * this.inputSize.width
-        y1 = y1 * this.inputSize.height
-        x2 = x2 * this.inputSize.width
-        y2 = y2 * this.inputSize.height
+        box = scaleNormalizedBox(box, this.inputSize)
       }
 
       // Convert from model coordinates to original image coordinates
-      x1 = (x1 - offsetX) / scale
-      y1 = (y1 - offsetY) / scale
-      x2 = (x2 - offsetX) / scale
-      y2 = (y2 - offsetY) / scale
+      box = projectLetterboxBoxToImage(box, geometry)
 
       // Clamp to image bounds
-      x1 = Math.max(0, Math.min(origWidth, x1))
-      y1 = Math.max(0, Math.min(origHeight, y1))
-      x2 = Math.max(0, Math.min(origWidth, x2))
-      y2 = Math.max(0, Math.min(origHeight, y2))
+      box = clampBoxToImage(box, { width: origWidth, height: origHeight })
 
       // Skip invalid boxes
-      if (x2 <= x1 || y2 <= y1) {
+      if (!isValidBox(box)) {
         continue
       }
 
@@ -485,14 +454,14 @@ export class CoreMLDetector implements ObjectDetector {
         id: generateDetectionId(),
         class: detClass,
         confidence: score,
-        bbox: [x1, y1, x2, y2],
+        bbox: box,
         timestamp: Date.now(),
         threatLevel: getThreatLevel(detClass, score),
       })
     }
 
     // Apply NMS and limit results
-    const nmsDetections = this.nonMaxSuppression(detections)
+    const nmsDetections = nonMaxSuppression(detections, this.config.iouThreshold)
     return nmsDetections.slice(0, this.config.maxDetections)
   }
 
@@ -506,9 +475,7 @@ export class CoreMLDetector implements ObjectDetector {
     classes: Float32Array | undefined,
     origWidth: number,
     origHeight: number,
-    scale: number,
-    offsetX: number,
-    offsetY: number
+    geometry: LetterboxGeometry
   ): Detection[] {
     const detections: Detection[] = []
     if (boxDims.length !== 2 && boxDims.length !== 3) {
@@ -520,7 +487,7 @@ export class CoreMLDetector implements ObjectDetector {
       throw new Error(`[CoreMLDetector boxes]: expected 4 box coordinates, got ${boxCoordinateDim}`)
     }
     const numPredictions = boxDims.length === 3 ? boxDims[1] : boxDims[0]
-    assertTensorLength(boxes, numPredictions * 4, '[CoreMLDetector boxes]')
+    assertTensorLength(boxes, tensorElementCount([numPredictions, 4], '[CoreMLDetector boxes]'), '[CoreMLDetector boxes]')
     assertFiniteTensorValues(boxes, '[CoreMLDetector boxes]')
     assertFiniteTensorValues(scores, '[CoreMLDetector scores]')
     if (scores.length < numPredictions) {
@@ -540,35 +507,25 @@ export class CoreMLDetector implements ObjectDetector {
         continue
       }
 
-      // Get box coordinates
-      let x1 = boxes[i * 4]
-      let y1 = boxes[i * 4 + 1]
-      let x2 = boxes[i * 4 + 2]
-      let y2 = boxes[i * 4 + 3]
+      let box: BoundingBox = [
+        boxes[i * 4],
+        boxes[i * 4 + 1],
+        boxes[i * 4 + 2],
+        boxes[i * 4 + 3],
+      ]
 
       // Handle normalized coordinates
-      const isNormalized = x1 <= 1 && y1 <= 1 && x2 <= 1 && y2 <= 1
-
-      if (isNormalized) {
-        x1 = x1 * this.inputSize.width
-        y1 = y1 * this.inputSize.height
-        x2 = x2 * this.inputSize.width
-        y2 = y2 * this.inputSize.height
+      if (isLikelyNormalizedBox(box)) {
+        box = scaleNormalizedBox(box, this.inputSize)
       }
 
       // Convert to original image coordinates
-      x1 = (x1 - offsetX) / scale
-      y1 = (y1 - offsetY) / scale
-      x2 = (x2 - offsetX) / scale
-      y2 = (y2 - offsetY) / scale
+      box = projectLetterboxBoxToImage(box, geometry)
 
       // Clamp to image bounds
-      x1 = Math.max(0, Math.min(origWidth, x1))
-      y1 = Math.max(0, Math.min(origHeight, y1))
-      x2 = Math.max(0, Math.min(origWidth, x2))
-      y2 = Math.max(0, Math.min(origHeight, y2))
+      box = clampBoxToImage(box, { width: origWidth, height: origHeight })
 
-      if (x2 <= x1 || y2 <= y1) {
+      if (!isValidBox(box)) {
         continue
       }
 
@@ -579,13 +536,13 @@ export class CoreMLDetector implements ObjectDetector {
         id: generateDetectionId(),
         class: detClass,
         confidence: score,
-        bbox: [x1, y1, x2, y2],
+        bbox: box,
         timestamp: Date.now(),
         threatLevel: getThreatLevel(detClass, score),
       })
     }
 
-    const nmsDetections = this.nonMaxSuppression(detections)
+    const nmsDetections = nonMaxSuppression(detections, this.config.iouThreshold)
     return nmsDetections.slice(0, this.config.maxDetections)
   }
 
@@ -667,9 +624,10 @@ export class CoreMLDetector implements ObjectDetector {
 
     const detections: Detection[] = []
 
-    const scale = Math.min(this.inputSize.width / origWidth, this.inputSize.height / origHeight)
-    const offsetX = (this.inputSize.width - origWidth * scale) / 2
-    const offsetY = (this.inputSize.height - origHeight * scale) / 2
+    const geometry = computeLetterboxGeometry(
+      { width: origWidth, height: origHeight },
+      this.inputSize
+    )
 
     // YOLOv8 format: [1, 84, 8400] (84 = 4 bbox + 80 classes)
     const numClasses = dims[1] - 4
@@ -677,43 +635,20 @@ export class CoreMLDetector implements ObjectDetector {
 
     for (let i = 0; i < numPredictions; i++) {
       // Find max class score
-      let maxScore = 0
-      let maxClassIdx = 0
-
-      for (let c = 0; c < numClasses; c++) {
-        const score = output[(4 + c) * numPredictions + i]
-        if (score > maxScore) {
-          maxScore = score
-          maxClassIdx = c
-        }
-      }
+      const { classIndex: maxClassIdx, score: maxScore } = findMaxYoloClassScore(output, numPredictions, i, numClasses)
 
       if (maxScore < this.config.confidenceThreshold) {
         continue
       }
 
       // Get bounding box (center format)
-      const cx = output[0 * numPredictions + i]
-      const cy = output[1 * numPredictions + i]
-      const w = output[2 * numPredictions + i]
-      const h = output[3 * numPredictions + i]
-
-      let x1 = cx - w / 2
-      let y1 = cy - h / 2
-      let x2 = cx + w / 2
-      let y2 = cy + h / 2
+      let box = readYoloCenterBox(output, numPredictions, i)
 
       // Convert to original image coordinates
-      x1 = (x1 - offsetX) / scale
-      y1 = (y1 - offsetY) / scale
-      x2 = (x2 - offsetX) / scale
-      y2 = (y2 - offsetY) / scale
+      box = projectLetterboxBoxToImage(box, geometry)
 
       // Clamp
-      x1 = Math.max(0, Math.min(origWidth, x1))
-      y1 = Math.max(0, Math.min(origHeight, y1))
-      x2 = Math.max(0, Math.min(origWidth, x2))
-      y2 = Math.max(0, Math.min(origHeight, y2))
+      box = clampBoxToImage(box, { width: origWidth, height: origHeight })
 
       const detClass = this.classMapping[maxClassIdx] || 'unknown'
 
@@ -721,68 +656,21 @@ export class CoreMLDetector implements ObjectDetector {
         id: generateDetectionId(),
         class: detClass,
         confidence: maxScore,
-        bbox: [x1, y1, x2, y2],
+        bbox: box,
         timestamp: Date.now(),
         threatLevel: getThreatLevel(detClass, maxScore),
       })
     }
 
-    const nmsDetections = this.nonMaxSuppression(detections)
+    const nmsDetections = nonMaxSuppression(detections, this.config.iouThreshold)
     return nmsDetections.slice(0, this.config.maxDetections)
-  }
-
-  /**
-   * Non-Maximum Suppression
-   */
-  private nonMaxSuppression(detections: Detection[]): Detection[] {
-    if (detections.length === 0) return []
-
-    const sorted = [...detections].sort((a, b) => b.confidence - a.confidence)
-    const kept: Detection[] = []
-
-    while (sorted.length > 0) {
-      const best = sorted.shift()!
-      kept.push(best)
-
-      for (let i = sorted.length - 1; i >= 0; i--) {
-        if (this.iou(best.bbox, sorted[i].bbox) > this.config.iouThreshold) {
-          sorted.splice(i, 1)
-        }
-      }
-    }
-
-    return kept
-  }
-
-  /**
-   * Calculate Intersection over Union
-   */
-  private iou(boxA: [number, number, number, number], boxB: [number, number, number, number]): number {
-    const [ax1, ay1, ax2, ay2] = boxA
-    const [bx1, by1, bx2, by2] = boxB
-
-    const ix1 = Math.max(ax1, bx1)
-    const iy1 = Math.max(ay1, by1)
-    const ix2 = Math.min(ax2, bx2)
-    const iy2 = Math.min(ay2, by2)
-
-    const iw = Math.max(0, ix2 - ix1)
-    const ih = Math.max(0, iy2 - iy1)
-    const intersection = iw * ih
-
-    const areaA = (ax2 - ax1) * (ay2 - ay1)
-    const areaB = (bx2 - bx1) * (by2 - by1)
-    const union = areaA + areaB - intersection
-
-    return union > 0 ? intersection / union : 0
   }
 
   /**
    * Get average inference latency
    */
   getAverageLatency(): number {
-    if (this.latencyHistory.length === 0) return 0
-    return this.latencyHistory.reduce((a, b) => a + b, 0) / this.latencyHistory.length
+    return averageLatency(this.latencyHistory)
   }
 
   /**

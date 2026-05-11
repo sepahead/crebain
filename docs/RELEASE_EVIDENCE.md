@@ -10,7 +10,7 @@ This log records release-readiness evidence for stabilization batches. It does n
 | Branch | `main` |
 | Remote CI run | GitHub Actions run `25698909002` for `sepehrmn/crebain` passed before the final evidence-pointer doc update |
 | Local validation | `bun run validate:all` passed on final candidate |
-| Frontend local result | 186 tests passed, 8 benchmark tests skipped by default |
+| Frontend local result | 195 tests passed, 8 benchmark tests skipped by default |
 | Rust local result | 94 tests passed, 0 failed; clippy passed with `-D warnings` |
 | Boundary focus | Release evidence, CI summaries, fusion lifecycle, MLX safetensors validation, diagnostics honesty, transport/model/fusion guardrails |
 

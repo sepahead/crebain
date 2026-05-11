@@ -12,6 +12,7 @@ import type {
   DetectionClass,
   DetectorConfig,
 } from './types'
+import { averageLatency, intersectionOverUnion, recordLatency, type BoundingBox } from './detectorMath'
 import { generateDetectionId, getThreatLevel } from './types'
 
 // Type declaration for @xenova/transformers (optional dependency)
@@ -170,11 +171,7 @@ export class MoondreamDetector implements ObjectDetector {
         .slice(0, this.config.maxDetections)
 
       // Record latency
-      const latency = performance.now() - startTime
-      this.latencyHistory.push(latency)
-      if (this.latencyHistory.length > this.maxLatencyHistory) {
-        this.latencyHistory.shift()
-      }
+      recordLatency(this.latencyHistory, this.maxLatencyHistory, startTime)
 
       return detections
     } catch (error) {
@@ -515,35 +512,15 @@ export class MoondreamDetector implements ObjectDetector {
   /**
    * Calculate Intersection over Union
    */
-  private calculateIoU(
-    boxA: [number, number, number, number],
-    boxB: [number, number, number, number]
-  ): number {
-    const [ax1, ay1, ax2, ay2] = boxA
-    const [bx1, by1, bx2, by2] = boxB
-
-    const ix1 = Math.max(ax1, bx1)
-    const iy1 = Math.max(ay1, by1)
-    const ix2 = Math.min(ax2, bx2)
-    const iy2 = Math.min(ay2, by2)
-
-    const iw = Math.max(0, ix2 - ix1)
-    const ih = Math.max(0, iy2 - iy1)
-    const intersection = iw * ih
-
-    const areaA = (ax2 - ax1) * (ay2 - ay1)
-    const areaB = (bx2 - bx1) * (by2 - by1)
-    const union = areaA + areaB - intersection
-
-    return union > 0 ? intersection / union : 0
+  private calculateIoU(boxA: BoundingBox, boxB: BoundingBox): number {
+    return intersectionOverUnion(boxA, boxB)
   }
 
   /**
    * Get average inference latency
    */
   getAverageLatency(): number {
-    if (this.latencyHistory.length === 0) return 0
-    return this.latencyHistory.reduce((a, b) => a + b, 0) / this.latencyHistory.length
+    return averageLatency(this.latencyHistory)
   }
 
   /**
