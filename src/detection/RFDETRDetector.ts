@@ -15,6 +15,19 @@ import {
   generateDetectionId,
   getThreatLevel,
 } from './types'
+import {
+  averageLatency,
+  clampBoxToImage,
+  computeLetterboxGeometry,
+  findMaxScore,
+  isLikelyNormalizedBox,
+  isValidBox,
+  projectLetterboxBoxToImage,
+  recordLatency,
+  scaleNormalizedBox,
+  type BoundingBox,
+} from './detectorMath'
+import { normalizeImageNetRgb, RGB_CHANNELS, rgbaToNchwRgbFloat32 } from './detectorPreprocess'
 import { validateRank3Tensor } from './tensorValidation'
 
 // RF-DETR class mapping - customize based on trained model
@@ -141,11 +154,7 @@ export class RFDETRDetector implements ObjectDetector {
       )
 
       // Record latency
-      const latency = performance.now() - startTime
-      this.latencyHistory.push(latency)
-      if (this.latencyHistory.length > this.maxLatencyHistory) {
-        this.latencyHistory.shift()
-      }
+      recordLatency(this.latencyHistory, this.maxLatencyHistory, startTime)
 
       return detections
     } catch (error) {
@@ -181,47 +190,27 @@ export class RFDETRDetector implements ObjectDetector {
     tempCtx.putImageData(tempImageData, 0, 0)
 
     // Resize to target size with letterboxing (preserve aspect ratio)
-    const scale = Math.min(targetWidth / width, targetHeight / height)
-    const scaledWidth = Math.round(width * scale)
-    const scaledHeight = Math.round(height * scale)
-    const offsetX = Math.round((targetWidth - scaledWidth) / 2)
-    const offsetY = Math.round((targetHeight - scaledHeight) / 2)
+    const geometry = computeLetterboxGeometry(
+      { width, height },
+      { width: targetWidth, height: targetHeight },
+      true
+    )
 
     // Fill with gray (letterbox padding)
     ctx.fillStyle = '#808080'
     ctx.fillRect(0, 0, targetWidth, targetHeight)
 
     // Draw resized image
-    ctx.drawImage(tempCanvas, offsetX, offsetY, scaledWidth, scaledHeight)
+    ctx.drawImage(tempCanvas, geometry.offsetX, geometry.offsetY, geometry.scaledWidth, geometry.scaledHeight)
 
     // Get resized image data
     const resizedData = ctx.getImageData(0, 0, targetWidth, targetHeight).data
 
     // Convert to NCHW format with normalization (0-1)
     // RF-DETR typically uses ImageNet normalization
-    const channels = 3
-    const tensorData = new Float32Array(1 * channels * targetHeight * targetWidth)
+    const tensorData = rgbaToNchwRgbFloat32(resizedData, targetWidth, targetHeight, normalizeImageNetRgb)
 
-    // ImageNet mean and std for normalization
-    const mean = [0.485, 0.456, 0.406]
-    const std = [0.229, 0.224, 0.225]
-
-    for (let y = 0; y < targetHeight; y++) {
-      for (let x = 0; x < targetWidth; x++) {
-        const pixelIndex = (y * targetWidth + x) * 4
-        const tensorIndex = y * targetWidth + x
-
-        // RGB channels (normalized with ImageNet stats)
-        tensorData[0 * targetHeight * targetWidth + tensorIndex] = 
-          (resizedData[pixelIndex] / 255 - mean[0]) / std[0]     // R
-        tensorData[1 * targetHeight * targetWidth + tensorIndex] = 
-          (resizedData[pixelIndex + 1] / 255 - mean[1]) / std[1] // G
-        tensorData[2 * targetHeight * targetWidth + tensorIndex] = 
-          (resizedData[pixelIndex + 2] / 255 - mean[2]) / std[2] // B
-      }
-    }
-
-    return new ort.Tensor('float32', tensorData, [1, channels, targetHeight, targetWidth])
+    return new ort.Tensor('float32', tensorData, [1, RGB_CHANNELS, targetHeight, targetWidth])
   }
 
   /**
@@ -242,9 +231,10 @@ export class RFDETRDetector implements ObjectDetector {
     const detections: Detection[] = []
 
     // Calculate scale factors for coordinate conversion
-    const scale = Math.min(this.inputSize.width / origWidth, this.inputSize.height / origHeight)
-    const offsetX = (this.inputSize.width - origWidth * scale) / 2
-    const offsetY = (this.inputSize.height - origHeight * scale) / 2
+    const geometry = computeLetterboxGeometry(
+      { width: origWidth, height: origHeight },
+      this.inputSize
+    )
 
     // Determine output format based on dimensions
     // Format A: [1, N, 6] - class_id, score, x1, y1, x2, y2
@@ -260,35 +250,20 @@ export class RFDETRDetector implements ObjectDetector {
 
       let classId: number
       let score: number
-      let x1: number, y1: number, x2: number, y2: number
+      let box: BoundingBox
 
       if (isFormatA) {
         // Format A: [class_id, score, x1, y1, x2, y2]
         classId = Math.round(output[baseIdx])
         score = output[baseIdx + 1]
-        x1 = output[baseIdx + 2]
-        y1 = output[baseIdx + 3]
-        x2 = output[baseIdx + 4]
-        y2 = output[baseIdx + 5]
+        box = [output[baseIdx + 2], output[baseIdx + 3], output[baseIdx + 4], output[baseIdx + 5]]
       } else {
         // Format B: [x1, y1, x2, y2, class_scores...]
-        x1 = output[baseIdx]
-        y1 = output[baseIdx + 1]
-        x2 = output[baseIdx + 2]
-        y2 = output[baseIdx + 3]
+        box = [output[baseIdx], output[baseIdx + 1], output[baseIdx + 2], output[baseIdx + 3]]
 
         // Find max class score
         const numClasses = predSize - 4
-        let maxScore = 0
-        let maxClassIdx = 0
-
-        for (let c = 0; c < numClasses; c++) {
-          const classScore = output[baseIdx + 4 + c]
-          if (classScore > maxScore) {
-            maxScore = classScore
-            maxClassIdx = c
-          }
-        }
+        const { classIndex: maxClassIdx, score: maxScore } = findMaxScore(output, baseIdx + 4, numClasses)
 
         classId = maxClassIdx
         score = maxScore
@@ -301,30 +276,21 @@ export class RFDETRDetector implements ObjectDetector {
 
       // Convert from model input coordinates to original image coordinates
       // RF-DETR may output normalized [0,1] or absolute pixel coordinates
-      const isNormalized = x1 <= 1 && y1 <= 1 && x2 <= 1 && y2 <= 1
+      const isNormalized = isLikelyNormalizedBox(box)
 
       if (isNormalized) {
         // Convert from normalized to pixel coordinates
-        x1 = x1 * this.inputSize.width
-        y1 = y1 * this.inputSize.height
-        x2 = x2 * this.inputSize.width
-        y2 = y2 * this.inputSize.height
+        box = scaleNormalizedBox(box, this.inputSize)
       }
 
       // Remove letterbox padding and scale to original image
-      x1 = (x1 - offsetX) / scale
-      y1 = (y1 - offsetY) / scale
-      x2 = (x2 - offsetX) / scale
-      y2 = (y2 - offsetY) / scale
+      box = projectLetterboxBoxToImage(box, geometry)
 
       // Clamp to image bounds
-      x1 = Math.max(0, Math.min(origWidth, x1))
-      y1 = Math.max(0, Math.min(origHeight, y1))
-      x2 = Math.max(0, Math.min(origWidth, x2))
-      y2 = Math.max(0, Math.min(origHeight, y2))
+      box = clampBoxToImage(box, { width: origWidth, height: origHeight })
 
       // Skip invalid boxes
-      if (x2 <= x1 || y2 <= y1) {
+      if (!isValidBox(box)) {
         continue
       }
 
@@ -335,7 +301,7 @@ export class RFDETRDetector implements ObjectDetector {
         id: generateDetectionId(),
         class: detClass,
         confidence: score,
-        bbox: [x1, y1, x2, y2],
+        bbox: box,
         timestamp: Date.now(),
         threatLevel: getThreatLevel(detClass, score),
       })
@@ -351,8 +317,7 @@ export class RFDETRDetector implements ObjectDetector {
    * Get average inference latency
    */
   getAverageLatency(): number {
-    if (this.latencyHistory.length === 0) return 0
-    return this.latencyHistory.reduce((a, b) => a + b, 0) / this.latencyHistory.length
+    return averageLatency(this.latencyHistory)
   }
 
   /**
