@@ -429,7 +429,9 @@ export class GuidanceController {
       twist,
     }
 
-    this.bridge.publishSetpointVelocity(this.namespace, msg)
+    Promise.resolve(this.bridge.publishSetpointVelocity(this.namespace, msg)).catch(error => {
+      log.error('Failed to publish guidance velocity setpoint', { error })
+    })
   }
 
   // ───────────────────────────────────────────────────────────────────────────

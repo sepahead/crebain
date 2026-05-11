@@ -7,7 +7,7 @@
  */
 
 import type { ROSBridge } from './ROSBridge'
-import type { Waypoint, NavSatFix } from './types'
+import type { Waypoint, WaypointList, NavSatFix } from './types'
 import { rosLogger as log } from '../lib/logger'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -140,6 +140,8 @@ const MAVROS_TOPICS = {
   CURRENT_WP: '/mavros/mission/current',
   GLOBAL_POS: '/mavros/global_position/global',
 } as const
+
+const MISSION_DOWNLOAD_TIMEOUT_MS = 5_000
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPER FUNCTIONS
@@ -413,22 +415,76 @@ export class WaypointManager {
   async downloadMission(): Promise<Mission | null> {
     if (!this.bridge) return null
 
+    const waypointSubscription: { unsubscribe?: () => void; timeout?: ReturnType<typeof setTimeout> } = {}
     try {
+      let resolveWaypoints: (waypoints: Waypoint[]) => void = () => {}
+      const waypointListPromise = new Promise<Waypoint[]>((resolve) => {
+        resolveWaypoints = resolve
+      })
+      waypointSubscription.timeout = setTimeout(() => resolveWaypoints([]), MISSION_DOWNLOAD_TIMEOUT_MS)
+      waypointSubscription.unsubscribe = this.bridge.subscribe<WaypointList>(
+        this.prefixTopic(MAVROS_TOPICS.WP_WAYPOINTS),
+        'mavros_msgs/WaypointList',
+        (msg) => {
+          if (waypointSubscription.timeout) {
+            clearTimeout(waypointSubscription.timeout)
+            waypointSubscription.timeout = undefined
+          }
+          resolveWaypoints(msg.waypoints)
+        }
+      )
+
       const response = await this.bridge.callService<
         Record<string, never>,
         { success: boolean; wp_received: number }
       >(this.prefixService(MAVROS_SERVICES.WP_PULL), {})
 
       if (!response.success) return null
+      if (!Number.isSafeInteger(response.wp_received) || response.wp_received < 0) {
+        log.warn('Mission download received invalid waypoint count', { received: response.wp_received })
+        return null
+      }
 
-      // Create a new mission from downloaded waypoints
-      // The waypoints will come via subscription, so we return a placeholder
-      const mission = this.createMission('Downloaded Mission')
+      const waypoints = response.wp_received > 0 ? await waypointListPromise : []
+      if (waypoints.length < response.wp_received) {
+        log.warn('Mission download did not receive the expected waypoint list before timeout', {
+          expected: response.wp_received,
+          received: waypoints.length,
+        })
+        return null
+      }
+
+      const mission = this.createMission(
+        'Downloaded Mission',
+        waypoints.map((waypoint, index) => this.waypointToMissionItem(waypoint, index))
+      )
       mission.isUploaded = true
       return mission
     } catch (error) {
       log.error('Failed to download mission', { error })
       return null
+    } finally {
+      if (waypointSubscription.timeout) {
+        clearTimeout(waypointSubscription.timeout)
+      }
+      waypointSubscription.unsubscribe?.()
+    }
+  }
+
+  private waypointToMissionItem(waypoint: Waypoint, index: number): MissionItem {
+    return {
+      seq: index,
+      frame: waypoint.frame as WaypointFrame,
+      command: waypoint.command as WaypointCommand,
+      isCurrent: waypoint.is_current,
+      autoContinue: waypoint.autocontinue,
+      holdTime: waypoint.param1,
+      acceptRadius: waypoint.param2,
+      passRadius: waypoint.param3,
+      yaw: waypoint.param4,
+      latitude: waypoint.x_lat,
+      longitude: waypoint.y_long,
+      altitude: waypoint.z_alt,
     }
   }
 

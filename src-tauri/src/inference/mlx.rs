@@ -5,8 +5,8 @@
 //!
 //! ## Status
 //! This backend is a scaffold: preprocessing/postprocessing are implemented, but
-//! the YOLOv8 forward pass is not yet wired up. `detect()` currently returns an
-//! empty set of detections (the forward pass returns a zeroed output tensor).
+//! the YOLOv8 forward pass is not yet wired up. `detect()` returns an explicit
+//! backend error instead of reporting fake empty detections.
 //! See `README.md` "Development Roadmap" for the current MLX status.
 //!
 //! # Model Format
@@ -81,85 +81,19 @@ impl MlxDetector {
 
     /// Run YOLOv8 inference
     fn run_inference(&self, input: &Tensor) -> Result<Tensor> {
-        // NOTE: The MLX backend is currently a scaffold; the full YOLOv8 forward
-        // pass is not implemented yet. We return a shape-correct output tensor
-        // (postprocess -> empty detections) so the rest of the pipeline can be
-        // exercised without panicking.
-        if self.model_weights.is_empty() {
-            log::debug!("[MLX] No model weights loaded, returning empty detections");
-            // Return dummy output shape [1, 84, 8400] for YOLOv8
-            let output = Tensor::zeros((1, 84, 8400), DType::F32, &self.device)
-                .map_err(|e| InferenceError::InferenceError(e.to_string()))?;
-            return Ok(output);
-        }
-
-        // Optional wiring test (first conv+SiLU), then a zeroed YOLOv8 output.
         self.yolov8_forward(input)
     }
 
-    /// YOLOv8 forward pass (simplified)
+    /// YOLOv8 forward pass
     fn yolov8_forward(&self, x: &Tensor) -> Result<Tensor> {
-        // YOLOv8s has:
-        // - CSPDarknet backbone
-        // - PAFPN neck
-        // - Detection head
-        //
-        // NOTE: Minimal wiring only. This is not a real YOLOv8 forward pass yet:
-        // we optionally apply the first conv+SiLU, then return a zeroed tensor
-        // shaped like YOLOv8 output ([B, 84, 8400]).
-
-        let mut out = x.clone();
-
-        // Apply first conv if available
-        if let Some(conv0_w) = self.model_weights.get("model.0.conv.weight") {
-            if let Some(conv0_b) = self.model_weights.get("model.0.conv.bias") {
-                out = self.conv2d(&out, conv0_w, Some(conv0_b), 1, 1)?;
-                out = self.silu(&out)?;
-            }
-        }
-
-        // Return zeros: postprocessing yields no detections. Use the CoreML
-        // backend on macOS for real inference until MLX forward pass lands.
-        let batch_size = out.dim(0).unwrap_or(1);
-        let output = Tensor::zeros((batch_size, 84, 8400), DType::F32, &self.device)
-            .map_err(|e| InferenceError::InferenceError(e.to_string()))?;
-
-        Ok(output)
-    }
-
-    /// 2D convolution
-    fn conv2d(&self, x: &Tensor, _weight: &Tensor, bias: Option<&Tensor>, _stride: usize, _padding: usize) -> Result<Tensor> {
-        // Get dimensions
-        let x_shape = x.dims();
-        if x_shape.len() != 4 {
+        if x.dims().len() != 4 {
             return Err(InferenceError::InvalidInput("Expected 4D input tensor".to_string()));
         }
 
-        // NOTE: Placeholder implementation. We do not perform a convolution yet;
-        // we only validate shape and optionally add a bias tensor. A real
-        // implementation would use Candle's conv2d (where available) or a Metal
-        // kernel (e.g. MPS) and honor stride/padding.
-        let result = x.clone();
-
-        // Apply bias if present
-        if let Some(b) = bias {
-            let b_reshaped = b.reshape((1, b.dim(0).unwrap_or(1), 1, 1))
-                .map_err(|e| InferenceError::InferenceError(e.to_string()))?;
-            return result.broadcast_add(&b_reshaped)
-                .map_err(|e| InferenceError::InferenceError(e.to_string()));
-        }
-
-        Ok(result)
-    }
-
-    /// SiLU activation (x * sigmoid(x))
-    fn silu(&self, x: &Tensor) -> Result<Tensor> {
-        let sigmoid = (x.neg().map_err(|e| InferenceError::InferenceError(e.to_string()))?
-            .exp().map_err(|e| InferenceError::InferenceError(e.to_string()))?
-            + 1.0).map_err(|e| InferenceError::InferenceError(e.to_string()))?
-            .recip().map_err(|e| InferenceError::InferenceError(e.to_string()))?;
-
-        x.mul(&sigmoid).map_err(|e| InferenceError::InferenceError(e.to_string()))
+        Err(InferenceError::BackendError(format!(
+            "MLX YOLOv8 forward pass is not implemented; loaded {} tensors but refusing to return fake detections",
+            self.model_weights.len()
+        )))
     }
 }
 

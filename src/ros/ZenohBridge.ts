@@ -104,7 +104,7 @@ export class ZenohBridge {
 
   // Configuration (mocking ROSBridge config)
   public config = {
-    url: 'zenoh://localhost', // Placeholder
+    url: 'zenoh://localhost',
     autoReconnect: true,
   }
 
@@ -156,6 +156,13 @@ export class ZenohBridge {
   private setState(state: ConnectionState) {
     this.state = state
     this.onStateChange?.(state)
+  }
+
+  private unsupported(feature: string): Error {
+    return new Error(
+      `[ZenohBridge] ${feature} is not supported over Zenoh transport. ` +
+      'Use ROSBridge for this capability or add a native Zenoh request/response implementation.'
+    )
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -309,6 +316,12 @@ export class ZenohBridge {
   }
 
   publish<T>(topic: string, msgOrType: T | string, msg?: T): void {
+    this.publishAsync(topic, msgOrType, msg).catch(e => {
+      log.error(`Failed to publish to ${topic}`, { error: e })
+    })
+  }
+
+  async publishAsync<T>(topic: string, msgOrType: T | string, msg?: T): Promise<void> {
     // Support both old and new signatures for compatibility
     // Old: publish(topic, message)
     // New: publish(topic, type, message)
@@ -327,21 +340,15 @@ export class ZenohBridge {
 
     if (type === 'geometry_msgs/Twist') {
       const cmd = this.mapTwistToRust(message as unknown as Twist)
-      invoke(TAURI_COMMANDS.transport.publishVelocity, { topic, cmd }).catch(e => {
-        log.error(`Failed to publish velocity to ${topic}`, { error: e })
-      })
+      await invoke(TAURI_COMMANDS.transport.publishVelocity, { topic, cmd })
     } else if (type === 'geometry_msgs/TwistStamped') {
       const cmd = this.mapTwistStampedToRust(message as unknown as TwistStamped)
-      invoke(TAURI_COMMANDS.transport.publishTwistStamped, { topic, cmd }).catch(e => {
-        log.error(`Failed to publish stamped velocity to ${topic}`, { error: e })
-      })
+      await invoke(TAURI_COMMANDS.transport.publishTwistStamped, { topic, cmd })
     } else if (type === 'geometry_msgs/PoseStamped') {
       const pose = this.mapPoseStampedToRust(message as unknown as PoseStamped)
-      invoke(TAURI_COMMANDS.transport.publishPose, { topic, pose }).catch(e => {
-        log.error(`Failed to publish pose to ${topic}`, { error: e })
-      })
+      await invoke(TAURI_COMMANDS.transport.publishPose, { topic, pose })
     } else {
-      log.error(`Unsupported message type: ${type}`)
+      throw this.unsupported(`Publish message type ${type}`)
     }
   }
 
@@ -511,22 +518,21 @@ export class ZenohBridge {
     )
   }
 
-  // Stubs for unsupported features to prevent crash
-  subscribeToOdometry(_ns: string, _cb: (msg: unknown) => void) { log.warn('Odom not supported'); return () => {} }
-  subscribeToState(_ns: string, _cb: (msg: unknown) => void) { log.warn('State not supported'); return () => {} }
+  subscribeToOdometry(_ns: string, _cb: (msg: unknown) => void): () => void { throw this.unsupported('Odometry subscriptions') }
+  subscribeToState(_ns: string, _cb: (msg: unknown) => void): () => void { throw this.unsupported('MAVROS state subscriptions') }
   
-  publishSetpointPosition(ns: string, pose: PoseStamped) {
+  publishSetpointPosition(ns: string, pose: PoseStamped): Promise<void> {
     const n = normalizeRosNamespace(ns)
-    this.publish(`/${n}/mavros/setpoint_position/local`, 'geometry_msgs/PoseStamped', pose)
+    return this.publishAsync(`/${n}/mavros/setpoint_position/local`, 'geometry_msgs/PoseStamped', pose)
   }
 
-  publishSetpointVelocity(ns: string, twist: TwistStamped) {
+  publishSetpointVelocity(ns: string, twist: TwistStamped): Promise<void> {
     const n = normalizeRosNamespace(ns)
-    this.publish(`/${n}/mavros/setpoint_velocity/cmd_vel`, 'geometry_msgs/TwistStamped', twist)
+    return this.publishAsync(`/${n}/mavros/setpoint_velocity/cmd_vel`, 'geometry_msgs/TwistStamped', twist)
   }
 
-  async setMode() { log.warn('setMode not supported'); return false }
-  async arm() { log.warn('arm not supported'); return false }
-  async takeoff() { log.warn('takeoff not supported'); return false }
-  async land() { log.warn('land not supported'); return false }
+  async setMode(_namespace: string, _mode: string): Promise<boolean> { throw this.unsupported('MAVROS setMode') }
+  async arm(_namespace: string, _value: boolean = true): Promise<boolean> { throw this.unsupported('MAVROS arming') }
+  async takeoff(_namespace: string, _altitude: number, _latitude: number = 0, _longitude: number = 0): Promise<boolean> { throw this.unsupported('MAVROS takeoff') }
+  async land(_namespace: string): Promise<boolean> { throw this.unsupported('MAVROS landing') }
 }

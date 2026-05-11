@@ -322,49 +322,67 @@ export class ROSCameraStream {
     }
 
     const { width, height, encoding } = msg
+    if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width <= 0 || height <= 0) {
+      return null
+    }
+
+    const bytesPerPixel = this.rawBytesPerPixel(encoding)
+    if (bytesPerPixel === null) {
+      log.warn(`Unsupported encoding: ${encoding}`)
+      return null
+    }
+
+    const minStep = width * bytesPerPixel
+    const step = msg.step ?? minStep
+    const expectedLength = step * height
+    if (
+      !Number.isSafeInteger(minStep) ||
+      !Number.isSafeInteger(step) ||
+      !Number.isSafeInteger(expectedLength) ||
+      step < minStep
+    ) {
+      return null
+    }
+    if (bytes.length < expectedLength) {
+      return null
+    }
 
     // Create RGBA ImageData
     const imageData = new ImageData(width, height)
     const rgba = imageData.data
 
-    if (encoding === 'rgba8') {
-      // Direct copy
-      rgba.set(bytes)
-    } else if (encoding === 'rgb8') {
-      // RGB to RGBA
-      for (let i = 0, j = 0; i < bytes.length; i += 3, j += 4) {
-        rgba[j] = bytes[i]
-        rgba[j + 1] = bytes[i + 1]
-        rgba[j + 2] = bytes[i + 2]
-        rgba[j + 3] = 255
+    for (let y = 0; y < height; y++) {
+      const srcRow = y * step
+      const dstRow = y * width * 4
+      if (encoding === 'rgba8') {
+        rgba.set(bytes.subarray(srcRow, srcRow + minStep), dstRow)
+      } else {
+        for (let x = 0; x < width; x++) {
+          const src = srcRow + x * bytesPerPixel
+          const dst = dstRow + x * 4
+          if (encoding === 'rgb8') {
+            rgba[dst] = bytes[src]
+            rgba[dst + 1] = bytes[src + 1]
+            rgba[dst + 2] = bytes[src + 2]
+            rgba[dst + 3] = 255
+          } else if (encoding === 'bgr8') {
+            rgba[dst] = bytes[src + 2]
+            rgba[dst + 1] = bytes[src + 1]
+            rgba[dst + 2] = bytes[src]
+            rgba[dst + 3] = 255
+          } else if (encoding === 'bgra8') {
+            rgba[dst] = bytes[src + 2]
+            rgba[dst + 1] = bytes[src + 1]
+            rgba[dst + 2] = bytes[src]
+            rgba[dst + 3] = bytes[src + 3]
+          } else if (encoding === 'mono8') {
+            rgba[dst] = bytes[src]
+            rgba[dst + 1] = bytes[src]
+            rgba[dst + 2] = bytes[src]
+            rgba[dst + 3] = 255
+          }
+        }
       }
-    } else if (encoding === 'bgr8') {
-      // BGR to RGBA
-      for (let i = 0, j = 0; i < bytes.length; i += 3, j += 4) {
-        rgba[j] = bytes[i + 2]
-        rgba[j + 1] = bytes[i + 1]
-        rgba[j + 2] = bytes[i]
-        rgba[j + 3] = 255
-      }
-    } else if (encoding === 'bgra8') {
-      // BGRA to RGBA
-      for (let i = 0; i < bytes.length; i += 4) {
-        rgba[i] = bytes[i + 2]
-        rgba[i + 1] = bytes[i + 1]
-        rgba[i + 2] = bytes[i]
-        rgba[i + 3] = bytes[i + 3]
-      }
-    } else if (encoding === 'mono8') {
-      // Grayscale to RGBA
-      for (let i = 0, j = 0; i < bytes.length; i++, j += 4) {
-        rgba[j] = bytes[i]
-        rgba[j + 1] = bytes[i]
-        rgba[j + 2] = bytes[i]
-        rgba[j + 3] = 255
-      }
-    } else {
-      log.warn(`Unsupported encoding: ${encoding}`)
-      return null
     }
 
     // Optionally convert to ImageBitmap for GPU use
@@ -401,6 +419,13 @@ export class ROSCameraStream {
       bytes[i] = binary.charCodeAt(i)
     }
     return bytes
+  }
+
+  private rawBytesPerPixel(encoding: string): number | null {
+    if (encoding === 'rgba8' || encoding === 'bgra8') return 4
+    if (encoding === 'rgb8' || encoding === 'bgr8') return 3
+    if (encoding === 'mono8') return 1
+    return null
   }
 
   // ───────────────────────────────────────────────────────────────────────────

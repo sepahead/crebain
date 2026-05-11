@@ -46,7 +46,7 @@ describe('ZenohBridge', () => {
     expect(bridge.isConnected()).toBe(false)
   })
 
-  it('publishes normalized setpoint velocity commands', () => {
+  it('publishes normalized setpoint velocity commands', async () => {
     invokeMock.mockResolvedValue(undefined)
     const bridge = new ZenohBridge()
     const twist: TwistStamped = {
@@ -57,7 +57,7 @@ describe('ZenohBridge', () => {
       },
     }
 
-    bridge.publishSetpointVelocity('/drone1/', twist)
+    await bridge.publishSetpointVelocity('/drone1/', twist)
 
     expect(invokeMock).toHaveBeenCalledWith('transport_publish_twist_stamped', {
       topic: '/drone1/mavros/setpoint_velocity/cmd_vel',
@@ -72,17 +72,39 @@ describe('ZenohBridge', () => {
     })
   })
 
-  it('handles malformed legacy publish payloads as unsupported messages', () => {
+  it('handles malformed legacy publish payloads as unsupported messages', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const bridge = new ZenohBridge()
 
     try {
       bridge.publish('/cmd_vel', null)
+      await vi.waitFor(() => expect(consoleError).toHaveBeenCalled())
     } finally {
       consoleError.mockRestore()
     }
 
     expect(invokeMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects unsupported publish payloads through the awaitable API', async () => {
+    const bridge = new ZenohBridge()
+
+    await expect(bridge.publishAsync('/cmd_vel', null)).rejects.toThrow('Publish message type unknown is not supported')
+    expect(invokeMock).not.toHaveBeenCalled()
+  })
+
+  it('propagates native publish failures through setpoint helpers', async () => {
+    invokeMock.mockRejectedValue(new Error('native publish failed'))
+    const bridge = new ZenohBridge()
+    const twist: TwistStamped = {
+      header: { stamp: { secs: 10, nsecs: 0 }, frame_id: 'map' },
+      twist: {
+        linear: { x: 1, y: 0, z: 0 },
+        angular: { x: 0, y: 0, z: 0 },
+      },
+    }
+
+    await expect(bridge.publishSetpointVelocity('/drone1', twist)).rejects.toThrow('native publish failed')
   })
 
   it('subscribes through the registry command and unsubscribes when the last listener is removed', async () => {
@@ -138,5 +160,13 @@ describe('ZenohBridge', () => {
     const bridge = new ZenohBridge()
 
     await expect(bridge.callService('/gazebo/reset', {})).rejects.toThrow('Service calls are not supported')
+  })
+
+  it('rejects unsupported MAVROS compatibility methods explicitly', async () => {
+    const bridge = new ZenohBridge()
+
+    expect(() => bridge.subscribeToOdometry('/drone1', vi.fn())).toThrow('Odometry subscriptions is not supported')
+    expect(() => bridge.subscribeToState('/drone1', vi.fn())).toThrow('MAVROS state subscriptions is not supported')
+    await expect(bridge.arm('/drone1')).rejects.toThrow('MAVROS arming is not supported')
   })
 })

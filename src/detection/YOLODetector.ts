@@ -14,6 +14,7 @@ import {
   generateDetectionId,
   getThreatLevel,
 } from './types'
+import { validateRank3Tensor } from './tensorValidation'
 
 // Default COCO classes that might map to our detection classes
 const COCO_TO_DETECTION: Record<number, DetectionClass> = {
@@ -116,10 +117,11 @@ export class YOLODetector implements ObjectDetector {
       if (!output) {
         throw new Error('No output from model')
       }
+      const outputData = validateRank3Tensor(output.data, output.dims as number[], '[YOLODetector]')
 
       // Postprocess to get detections
       const detections = this.postprocess(
-        output.data as Float32Array,
+        outputData,
         output.dims as number[],
         imageData.width,
         imageData.height
@@ -211,6 +213,10 @@ export class YOLODetector implements ObjectDetector {
     origWidth: number,
     origHeight: number
   ): Detection[] {
+    if (dims[0] !== 1 || dims[1] <= 4 || dims[2] <= 0) {
+      throw new Error(`[YOLODetector] Invalid YOLO output shape: [${dims.join(', ')}]`)
+    }
+
     const numClasses = dims[1] - 4 // 84 - 4 = 80 classes for COCO
     const numPredictions = dims[2]  // 8400 predictions
 

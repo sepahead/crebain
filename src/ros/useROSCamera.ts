@@ -41,7 +41,7 @@ export interface UseROSCameraResult {
   isStreaming: boolean
   /** Any error that occurred */
   error: Error | null
-  /** Manually trigger a frame request (for testing) */
+  /** Manually trigger a frame request */
   requestFrame: () => void
 }
 
@@ -176,9 +176,10 @@ export function useROSCamera(
     }
   }, [bridge, namespace, enabled])
 
-  // Manual frame request (placeholder for service-based frame requests)
   const requestFrame = useCallback(() => {
-    // No-op: in production, this would publish to a ROS service
+    const err = new Error('Manual ROS frame requests are not supported by the streaming camera hook')
+    setError(err)
+    throw err
   }, [])
 
   return {

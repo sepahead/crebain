@@ -15,6 +15,7 @@ import {
   generateDetectionId,
   getThreatLevel,
 } from './types'
+import { validateRank3Tensor } from './tensorValidation'
 
 // RF-DETR class mapping - customize based on trained model
 const RFDETR_CLASSES: DetectionClass[] = [
@@ -129,10 +130,11 @@ export class RFDETRDetector implements ObjectDetector {
       if (!output) {
         throw new Error('No output from model')
       }
+      const outputData = validateRank3Tensor(output.data, output.dims as number[], '[RFDETRDetector]')
 
       // Postprocess to get detections
       const detections = this.postprocess(
-        output.data as Float32Array,
+        outputData,
         output.dims as number[],
         imageData.width,
         imageData.height
@@ -233,6 +235,10 @@ export class RFDETRDetector implements ObjectDetector {
     origWidth: number,
     origHeight: number
   ): Detection[] {
+    if (dims[0] !== 1 || dims[1] <= 0 || dims[2] < 5) {
+      throw new Error(`[RFDETRDetector] Invalid RF-DETR output shape: [${dims.join(', ')}]`)
+    }
+
     const detections: Detection[] = []
 
     // Calculate scale factors for coordinate conversion

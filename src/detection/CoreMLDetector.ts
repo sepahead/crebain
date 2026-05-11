@@ -15,6 +15,14 @@ import {
   generateDetectionId,
   getThreatLevel,
 } from './types'
+import {
+  assertDims,
+  assertFiniteTensorValues,
+  assertFloat32Tensor,
+  assertTensorLength,
+  validateRank2Tensor,
+  validateRank3Tensor,
+} from './tensorValidation'
 
 // CoreML detector class mapping
 const COREML_CLASSES: DetectionClass[] = [
@@ -164,31 +172,44 @@ export class CoreMLDetector implements ObjectDetector {
       if (!output) {
         throw new Error('No output from model')
       }
+      const outputDims = output.dims as number[]
 
       // Postprocess based on output format
       let detections: Detection[]
       switch (this.config.outputFormat) {
         case 'classification':
+          if (outputDims.length === 2) {
+            const classData = validateRank2Tensor(output.data, outputDims, '[CoreMLDetector]')
+            detections = this.postprocessClassification(
+              classData,
+              outputDims,
+              imageData.width,
+              imageData.height
+            )
+            break
+          }
           detections = this.postprocessClassification(
-            output.data as Float32Array,
-            output.dims as number[],
+            assertFloat32Tensor(output.data, '[CoreMLDetector]'),
+            outputDims,
             imageData.width,
             imageData.height
           )
           break
         case 'yolo':
+          const yoloData = validateRank3Tensor(output.data, outputDims, '[CoreMLDetector]')
           detections = this.postprocessYOLO(
-            output.data as Float32Array,
-            output.dims as number[],
+            yoloData,
+            outputDims,
             imageData.width,
             imageData.height
           )
           break
         case 'detection':
         default:
+          const detectionData = assertFloat32Tensor(output.data, '[CoreMLDetector]')
           detections = this.postprocessDetection(
-            output.data as Float32Array,
-            output.dims as number[],
+            detectionData,
+            outputDims,
             imageData.width,
             imageData.height,
             results
@@ -344,12 +365,15 @@ export class CoreMLDetector implements ObjectDetector {
     const classesOutput = allResults['classes'] || allResults['labels']
 
     if (boxesOutput && scoresOutput) {
+      const boxes = assertFloat32Tensor(boxesOutput.data, '[CoreMLDetector boxes]')
+      const scores = assertFloat32Tensor(scoresOutput.data, '[CoreMLDetector scores]')
+      const classes = classesOutput ? assertFloat32Tensor(classesOutput.data, '[CoreMLDetector classes]') : undefined
       // Separate outputs format
       return this.postprocessSeparateOutputs(
-        boxesOutput.data as Float32Array,
+        boxes,
         boxesOutput.dims as number[],
-        scoresOutput.data as Float32Array,
-        classesOutput?.data as Float32Array | undefined,
+        scores,
+        classes,
         origWidth,
         origHeight,
         scale,
@@ -359,8 +383,12 @@ export class CoreMLDetector implements ObjectDetector {
     }
 
     // Single output tensor format
+    validateRank3Tensor(output, dims, '[CoreMLDetector]')
     const numPredictions = dims[1]
     const predSize = dims[2] || dims[1]
+    if (dims[0] !== 1 || numPredictions <= 0 || predSize < 5) {
+      throw new Error(`[CoreMLDetector] Invalid detection output shape: [${dims.join(', ')}]`)
+    }
 
     // Determine format based on prediction size
     const hasClassScores = predSize > 6
@@ -483,7 +511,27 @@ export class CoreMLDetector implements ObjectDetector {
     offsetY: number
   ): Detection[] {
     const detections: Detection[] = []
-    const numPredictions = boxDims[1] || boxes.length / 4
+    if (boxDims.length !== 2 && boxDims.length !== 3) {
+      throw new Error(`[CoreMLDetector] Invalid boxes output rank: ${boxDims.length}`)
+    }
+    assertDims(boxDims, boxDims.length, '[CoreMLDetector boxes]')
+    const boxCoordinateDim = boxDims[boxDims.length - 1]
+    if (boxCoordinateDim !== 4) {
+      throw new Error(`[CoreMLDetector boxes]: expected 4 box coordinates, got ${boxCoordinateDim}`)
+    }
+    const numPredictions = boxDims.length === 3 ? boxDims[1] : boxDims[0]
+    assertTensorLength(boxes, numPredictions * 4, '[CoreMLDetector boxes]')
+    assertFiniteTensorValues(boxes, '[CoreMLDetector boxes]')
+    assertFiniteTensorValues(scores, '[CoreMLDetector scores]')
+    if (scores.length < numPredictions) {
+      throw new Error('[CoreMLDetector scores]: tensor length is shorter than box count')
+    }
+    if (classes && classes.length < numPredictions) {
+      throw new Error('[CoreMLDetector classes]: tensor length is shorter than box count')
+    }
+    if (classes) {
+      assertFiniteTensorValues(classes, '[CoreMLDetector classes]')
+    }
 
     for (let i = 0; i < numPredictions; i++) {
       const score = scores[i]
@@ -552,6 +600,14 @@ export class CoreMLDetector implements ObjectDetector {
     origHeight: number
   ): Detection[] {
     const detections: Detection[] = []
+    if (output.length === 0) {
+      throw new Error('[CoreMLDetector] Classification output must not be empty')
+    }
+    for (let i = 0; i < output.length; i++) {
+      if (!Number.isFinite(output[i])) {
+        throw new Error(`[CoreMLDetector] Classification score ${i} must be finite`)
+      }
+    }
 
     // Find top predictions
     const numClasses = output.length
@@ -605,6 +661,10 @@ export class CoreMLDetector implements ObjectDetector {
     origWidth: number,
     origHeight: number
   ): Detection[] {
+    if (dims[0] !== 1 || dims[1] <= 4 || dims[2] <= 0) {
+      throw new Error(`[CoreMLDetector] Invalid YOLO output shape: [${dims.join(', ')}]`)
+    }
+
     const detections: Detection[] = []
 
     const scale = Math.min(this.inputSize.width / origWidth, this.inputSize.height / origHeight)
