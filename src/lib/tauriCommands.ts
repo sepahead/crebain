@@ -1,6 +1,9 @@
 export const TAURI_COMMANDS = {
   detection: {
+    coremlBase64: 'detect_coreml',
+    coremlRaw: 'detect_coreml_raw',
     nativeRaw: 'detect_native_raw',
+    onnxRaw: 'detect_onnx',
     systemInfo: 'get_system_info',
   },
   scene: {

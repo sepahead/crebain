@@ -3,7 +3,10 @@ import { TAURI_COMMANDS } from '../tauriCommands'
 
 describe('TAURI_COMMANDS', () => {
   it('centralizes detection and scene command names', () => {
+    expect(TAURI_COMMANDS.detection.coremlBase64).toBe('detect_coreml')
+    expect(TAURI_COMMANDS.detection.coremlRaw).toBe('detect_coreml_raw')
     expect(TAURI_COMMANDS.detection.nativeRaw).toBe('detect_native_raw')
+    expect(TAURI_COMMANDS.detection.onnxRaw).toBe('detect_onnx')
     expect(TAURI_COMMANDS.detection.systemInfo).toBe('get_system_info')
     expect(TAURI_COMMANDS.scene.saveFile).toBe('scene_save_file')
     expect(TAURI_COMMANDS.scene.loadFile).toBe('scene_load_file')
