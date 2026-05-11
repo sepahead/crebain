@@ -58,14 +58,23 @@ export function SaveLoadPanel({
   }, [sceneName, onSave, refreshSavedStates])
 
   // Save to file
-  const handleSaveToFile = useCallback(() => {
+  const handleSaveToFile = useCallback(async () => {
     const state = sceneStateManager.getState()
     if (state) {
-      state.name = sceneName
-      sceneStateManager.updateState({ name: sceneName })
-      sceneStateManager.saveToFile(`crebain_${sceneName.replace(/\s+/g, '_')}_${Date.now()}.json`)
-      setLastSaveTime(Date.now())
-      onSave?.(state)
+      setSaveStatus('saving')
+      try {
+        state.name = sceneName
+        sceneStateManager.updateState({ name: sceneName })
+        await sceneStateManager.saveToFileSystem(`crebain_${sceneName.replace(/\s+/g, '_')}_${Date.now()}.json`)
+        setLastSaveTime(Date.now())
+        setSaveStatus('saved')
+        onSave?.(state)
+        setTimeout(() => setSaveStatus('idle'), 2000)
+      } catch (error) {
+        log.error('Failed to save scene to file', { error })
+        setSaveStatus('error')
+        setTimeout(() => setSaveStatus('idle'), 3000)
+      }
     }
   }, [sceneName, onSave])
 
@@ -170,6 +179,7 @@ export function SaveLoadPanel({
         {/* Save to File */}
         <button
           onClick={handleSaveToFile}
+          disabled={saveStatus === 'saving'}
           className="w-full py-1 bg-[#1a2a3a] border border-[#2a4a5a] text-[#4a9aff] hover:bg-[#2a3a4a] font-bold"
         >
           📁 ALS DATEI EXPORTIEREN

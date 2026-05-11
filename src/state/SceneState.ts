@@ -5,7 +5,7 @@
 
 import * as THREE from 'three'
 import { sceneLogger as log } from '../lib/logger'
-import { invoke } from '@tauri-apps/api/core'
+import { invoke, isTauri } from '@tauri-apps/api/core'
 import { TAURI_COMMANDS } from '../lib/tauriCommands'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -609,6 +609,10 @@ export class SceneStateManager {
     try {
       await invoke(TAURI_COMMANDS.scene.saveFile, { path, json: this.serialize() })
     } catch (e) {
+      if (isTauri()) {
+        log.warn('Failed to save via Tauri filesystem', { error: e, path })
+        throw e
+      }
       log.warn('Failed to save via Tauri; falling back to download', { error: e, path })
       // Browser fallback: trigger a download; ignore directory components.
       this.saveToFile(path.split('/').pop())

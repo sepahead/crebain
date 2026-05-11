@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const invokeMock = vi.hoisted(() => vi.fn())
+const isTauriMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: invokeMock,
+  isTauri: isTauriMock,
 }))
 
 import { SceneStateManager, type SceneState } from '../SceneState'
@@ -80,6 +82,8 @@ function validScene(name = 'Valid Scene'): SceneState {
 describe('SceneStateManager filesystem IPC', () => {
   beforeEach(() => {
     invokeMock.mockReset()
+    isTauriMock.mockReset()
+    isTauriMock.mockReturnValue(false)
     localStorage.clear()
   })
 
@@ -118,6 +122,24 @@ describe('SceneStateManager filesystem IPC', () => {
     }
 
     expect(saveToFile).toHaveBeenCalledWith('fallback-scene.json')
+  })
+
+  it('surfaces Tauri filesystem save failures without browser fallback', async () => {
+    const error = new Error('permission denied')
+    invokeMock.mockRejectedValue(error)
+    isTauriMock.mockReturnValue(true)
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const manager = new SceneStateManager()
+    const saveToFile = vi.spyOn(manager, 'saveToFile').mockImplementation(() => undefined)
+    manager.createNew('Desktop Scene')
+
+    try {
+      await expect(manager.saveToFileSystem('/tmp/desktop-scene.json')).rejects.toThrow('permission denied')
+    } finally {
+      consoleWarn.mockRestore()
+    }
+
+    expect(saveToFile).not.toHaveBeenCalled()
   })
 
   it('loads scene state through the Tauri filesystem command', async () => {

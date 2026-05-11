@@ -1,11 +1,25 @@
 import { describe, expect, it } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { TAURI_COMMANDS } from '../tauriCommands'
 
 const BACKEND = readFileSync(`${process.cwd()}/src-tauri/src/lib.rs`, 'utf8')
 const TRANSPORT_COMMANDS = readFileSync(`${process.cwd()}/src-tauri/src/transport/commands.rs`, 'utf8')
 const ONNX_DETECTOR = readFileSync(`${process.cwd()}/src-tauri/src/onnx_detector.rs`, 'utf8')
 const COMMAND_SOURCES = `${BACKEND}\n${TRANSPORT_COMMANDS}`
+const FRONTEND_SOURCES = readSourceFiles(`${process.cwd()}/src`)
+
+function readSourceFiles(directory: string): string {
+  return readdirSync(directory, { withFileTypes: true })
+    .filter(entry => !entry.name.startsWith('.'))
+    .flatMap(entry => {
+      const path = `${directory}/${entry.name}`
+      if (entry.isDirectory()) return [readSourceFiles(path)]
+      if (!entry.isFile() || !/\.(ts|tsx)$/.test(entry.name)) return []
+      if (statSync(path).size === 0) return []
+      return [readFileSync(path, 'utf8')]
+    })
+    .join('\n')
+}
 
 function commandValues(value: unknown): string[] {
   if (typeof value === 'string') return [value]
@@ -36,6 +50,18 @@ describe('Tauri command registration', () => {
     for (const command of commandValues(TAURI_COMMANDS)) {
       expect(registered.has(command)).toBe(true)
     }
+  })
+
+  it('exposes every registered backend command through the frontend command contract', () => {
+    const frontendCommands = new Set(commandValues(TAURI_COMMANDS))
+
+    for (const command of invokeHandlerCommands(BACKEND)) {
+      expect(frontendCommands.has(command)).toBe(true)
+    }
+  })
+
+  it('keeps frontend invokes routed through centralized command constants', () => {
+    expect(FRONTEND_SOURCES).not.toMatch(/invoke(?:<[^>]+>)?\(\s*['"`][a-z0-9_]+['"`]/)
   })
 
   it('keeps registered command symbols backed by command functions', () => {
