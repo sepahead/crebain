@@ -32,6 +32,7 @@ Run this checklist after automated validation when preparing a release candidate
 | Zenoh transport mode | Zenoh mode does not require a rosbridge URL; connect/disconnect state is visible |  |
 | Transport subscriptions | Expected topics map to deterministic safe Tauri event names |  |
 | Transport publish path | Invalid topics, non-finite numeric payloads, invalid timestamps, and invalid frame IDs are rejected before publish |  |
+| Gazebo spawn service path | Invalid spawn names/XML/poses are rejected; successful spawn is only claimed when a target Gazebo/rosbridge setup is connected |  |
 | Raw image transport | Malformed raw image metadata does not crash the app and is surfaced as a controlled transport error |  |
 | Fusion display | Tracks/stats render or show an explicit empty/disabled state |  |
 | Keyboard shortcuts | Documented shortcuts work and do not conflict with browser/system shortcuts in the tested shell |  |

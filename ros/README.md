@@ -61,6 +61,7 @@ CREBAIN also contains WebSocket-based rosbridge integration and Zenoh-oriented t
 |---------|------|-------------|
 | `/crebain/initiate_intercept` | InitiateIntercept | Start interception |
 | `/crebain/abort_mission` | AbortMission | Abort mission |
+| `/gazebo/spawn_entity` | gazebo_msgs/SpawnEntity | Spawn a Gazebo model through the validated transport command path |
 
 ## Quick Start
 

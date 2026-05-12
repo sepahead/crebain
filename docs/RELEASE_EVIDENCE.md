@@ -6,7 +6,7 @@ This log records release-readiness evidence for stabilization batches. It does n
 
 | Field | Evidence |
 |-------|----------|
-| Validated code baseline | Current MLX/rosbridge/fusion hardening candidate |
+| Validated code baseline | `0afecfe fix: complete mlx rosbridge fusion hardening` plus current documentation consistency edits |
 | Branch | `main` |
 | Remote CI run | GitHub Actions run `25701811000` for `sepehrmn/crebain` passed before the final evidence-pointer doc update |
 | Local validation | `bun run validate:all` passed locally on this candidate |
@@ -18,7 +18,7 @@ This log records release-readiness evidence for stabilization batches. It does n
 
 | Area | Required Evidence | Current Status |
 |------|-------------------|----------------|
-| Hosted CI | Frontend and Rust matrix jobs pass on GitHub Actions | Passed in run `25701811000` |
+| Hosted CI | Frontend and Rust matrix jobs pass on GitHub Actions | Not run for current local documentation candidate; previous hosted baseline passed in run `25701811000` |
 | Frontend validation | `bun run validate` passes | Passed locally; CI summary records test counts |
 | Full local validation | `bun run validate:all` passes | Passed locally |
 | Diff hygiene | `git diff --check` and `git diff --cached --check` pass | Passed before commit |

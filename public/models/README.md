@@ -48,4 +48,4 @@ In `DetectorConfig`:
 }
 ```
 
-Native model paths are configured separately with `CREBAIN_MODEL_PATH`, `CREBAIN_ONNX_MODEL`, or experimental `CREBAIN_MLX_MODEL`; see the root README and `docs/MODEL_CONTRACTS.md`.
+Native model paths are configured separately with `CREBAIN_MODEL_PATH`, `CREBAIN_ONNX_MODEL`, experimental `CREBAIN_MLX_MODEL`, or optional `CREBAIN_MLX_MODEL_SHA256`; see the root README and `docs/MODEL_CONTRACTS.md`.

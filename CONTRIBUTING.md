@@ -84,7 +84,7 @@ For documentation-only changes, keep Markdown files aligned on validation comman
 
 - Run `bun run clippy:rust` before committing Rust changes
 - Use `log::info/warn/error` instead of `println!`
-- Validate all external inputs, including paths, model files, scene JSON, IPC payloads, ROS URLs, and transport topics
+- Validate all external inputs, including paths, model files, scene JSON, IPC payloads, ROS URLs, transport topics, and CDR payload metadata
 - Use `spawn_blocking` for CPU-intensive operations in async contexts
 
 ### Commit Messages

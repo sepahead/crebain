@@ -14,7 +14,7 @@ Describe what changed and why.
 ## Risk and Scope
 
 - **Primary area**: frontend / Rust backend / Tauri IPC / ML / ROS / Zenoh / sensor fusion / docs
-- **External inputs touched**: none / paths / model files / scene files / IPC payloads / ROS URLs / transport topics
+- **External inputs touched**: none / paths / model files / scene files / IPC payloads / ROS URLs / transport topics / CDR payload metadata
 - **User-visible behavior changed**: yes / no
 
 ## Validation

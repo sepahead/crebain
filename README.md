@@ -227,7 +227,7 @@ pub fn create_detector() -> Box<dyn Detector> {
 
 **Justification**:
 - CoreML is Apple’s supported framework for integrating machine-learning models into Apple-platform apps
-- MLX is intentionally opt-in until its YOLOv8 forward pass is fully implemented
+- MLX stays experimental and opt-in until an approved safetensors model contract, fixture detections, and target-hardware benchmarks are recorded
 - TensorRT is NVIDIA’s SDK for optimizing inference engines on NVIDIA GPUs
 - ONNX Runtime provides a cross-platform inference fallback and supports multiple hardware/OS targets
 
@@ -605,6 +605,9 @@ stateDiagram-v2
 /crebain/thermal/detections:       crebain_msgs/ThermalDetectionArray
 /crebain/acoustic/detections:      crebain_msgs/AcousticDetectionArray
 /crebain/radar/detections:         crebain_msgs/RadarDetectionArray
+
+# Gazebo services (rosbridge fallback)
+/gazebo/spawn_entity:              gazebo_msgs/SpawnEntity
 ```
 
 ### Quick Start
@@ -894,7 +897,7 @@ These are the next high-leverage engineering tasks after the current stabilizati
 
 | # | Perspective | Next Step | Primary Outcome |
 |---|-------------|-----------|-----------------|
-| 1 | **ML Engineer** | Replace the MLX explicit unimplemented-backend error with a real YOLOv8 forward pass, tensor decoding, and backend tests | Honest Apple Silicon backend behavior |
+| 1 | **ML Engineer** | Validate the experimental MLX YOLOv8 safetensors path with an approved model contract, fixture detections, class mapping, and target-hardware benchmarks | Trustworthy Apple Silicon model evidence |
 | 2 | **Rust Backend Engineer** | Add AppHandle-backed negative IPC integration tests for scene, model, transport, and fusion boundaries | Stronger end-to-end IPC evidence |
 | 3 | **Robotics Engineer** | Add multi-frame scenario tests for track confirmation, target motion, and stale-track cleanup | More realistic perception/fusion checks |
 | 4 | **Transport Engineer** | Run ROS/Gazebo/Zenoh multi-frame smoke tests against a target topology | Deployment-specific transport confidence |
