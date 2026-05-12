@@ -26,6 +26,14 @@ const MAX_TOPIC_LEN: usize = 256;
 const MAX_MESSAGE_TYPE_LEN: usize = 128;
 const DEFAULT_ROSBRIDGE_URL: &str = "ws://localhost:9090";
 
+pub fn validate_topic_for_test(topic: &str) -> Result<()> {
+    validate_topic(topic)
+}
+
+pub fn validate_message_type_for_test(msg_type: &str) -> Result<()> {
+    validate_message_type(msg_type)
+}
+
 fn validate_topic(topic: &str) -> Result<()> {
     if topic.is_empty() || topic.len() > MAX_TOPIC_LEN {
         return Err(TransportError::SubscriptionFailed(format!(
@@ -592,6 +600,27 @@ impl Transport for RosbridgeTransport {
                 }
             });
             self.send_json(publish_msg)
+        })
+    }
+
+    fn call_service<'a>(
+        &'a self,
+        service: &'a str,
+        service_type: &'a str,
+        args: serde_json::Value,
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
+        let service = service.to_string();
+        let service_type = service_type.to_string();
+        Box::pin(async move {
+            validate_topic(&service)?;
+            validate_message_type(&service_type)?;
+            let call_msg = serde_json::json!({
+                "op": "call_service",
+                "service": service,
+                "type": service_type,
+                "args": args
+            });
+            self.send_json(call_msg)
         })
     }
 

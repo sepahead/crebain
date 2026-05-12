@@ -1,0 +1,24 @@
+{
+  "default": {
+    "maxP95LatencyMs": 250,
+    "minThroughputFps": 4
+  },
+  "detectors": {
+    "yolo": {
+      "maxP95LatencyMs": 250,
+      "minThroughputFps": 4
+    },
+    "rf-detr": {
+      "maxP95LatencyMs": 400,
+      "minThroughputFps": 2.5
+    },
+    "moondream": {
+      "maxP95LatencyMs": 1000,
+      "minThroughputFps": 1
+    },
+    "coreml": {
+      "maxP95LatencyMs": 120,
+      "minThroughputFps": 8
+    }
+  }
+}

@@ -119,7 +119,8 @@ describe('CI workflow', () => {
     expect(CREBAIN_VIEWER).not.toContain('AES-256')
     expect(CREBAIN_VIEWER).not.toContain('<span className="text-[#808080]">YOLOv8s</span>')
 
-    expect(README).toContain('explicit backend error until the real YOLOv8 forward pass lands')
+    expect(README).toContain('MLX is experimental, opt-in')
+    expect(README).toContain('requires external model-contract validation before release claims')
     expect(README).not.toContain('zero-output scaffold')
     expect(README).not.toContain('scaffolded zero-output detections')
   })

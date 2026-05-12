@@ -80,7 +80,7 @@ A research-oriented tactical visualization and autonomy prototype with 3D scene 
 
 ### ML Detection Pipeline
 - **Platform-Native Acceleration**:
-  - macOS: CoreML by default; MLX is experimental, opt-in, and currently returns an explicit error until the real YOLOv8 forward pass is implemented
+  - macOS: CoreML by default; MLX is experimental, opt-in, and implements a YOLOv8 safetensors forward/postprocess path that still requires external model-contract validation before release claims
   - Linux: CUDA / TensorRT (NVIDIA GPU)
   - Fallback: ONNX Runtime (CPU)
 - **YOLO-Family Models**: Detection backends are designed around YOLO-style model outputs; model weights are not shipped in this repository
@@ -458,7 +458,7 @@ src-tauri/src/
 ├── inference/            # ML abstraction layer
 │   ├── mod.rs            # Detector trait + factory
 │   ├── coreml.rs         # macOS CoreML backend
-│   ├── mlx.rs            # macOS MLX backend scaffold (experimental)
+│   ├── mlx.rs            # macOS MLX backend (experimental)
 │   ├── cuda.rs           # Linux CUDA backend
 │   ├── tensorrt.rs       # Linux TensorRT backend
 │   └── onnx.rs           # Cross-platform fallback
@@ -516,7 +516,7 @@ flowchart TB
     
     subgraph Backend["Rust Backend: create_detector()"]
         subgraph Backends["Platform Backends"]
-            macOS["macOS<br/>CoreML default<br/>MLX opt-in scaffold"]
+            macOS["macOS<br/>CoreML default<br/>MLX opt-in experimental"]
             Linux["Linux<br/>TensorRT/CUDA candidates"]
             Fallback["Fallback<br/>ONNX"]
         end
@@ -661,7 +661,9 @@ bun run tauri:dev
 | `CREBAIN_MODEL_PATH` | ML model path | Path to `.mlmodelc` or `.onnx` |
 | `CREBAIN_ONNX_MODEL` | ONNX model path (override) | Path to `.onnx` |
 | `CREBAIN_BACKEND` | Force ML backend | `coreml`, `mlx`, `tensorrt`, `cuda`, `onnx` |
-| `CREBAIN_ENABLE_EXPERIMENTAL_MLX` | Allow experimental MLX auto-selection on Apple Silicon; MLX still returns an explicit backend error until the real YOLOv8 forward pass lands | `1` / `true` |
+| `CREBAIN_ENABLE_EXPERIMENTAL_MLX` | Allow experimental MLX auto-selection on Apple Silicon after model-contract validation | `1` / `true` |
+| `CREBAIN_MLX_MODEL` | MLX safetensors model path | Path to `.safetensors` |
+| `CREBAIN_MLX_MODEL_SHA256` | Optional MLX model digest pin | 64-character SHA-256 hex digest |
 | `CREBAIN_TRT_CACHE_DIR` | TensorRT engine cache dir | Directory path (Linux) |
 | `CREBAIN_DISABLE_TRT_CACHE` | Disable TensorRT caching | `1` / `true` |
 | `ORT_DYLIB_PATH` | ONNX Runtime library path (load-dynamic) | Path to `libonnxruntime.*` |
@@ -820,8 +822,8 @@ bun run clippy:rust
 Latest validated stabilization baseline:
 
 - **Command**: `bun run validate:all`
-- **Frontend**: 199 tests passed, 8 benchmark tests skipped by default
-- **Rust**: 94 tests passed
+- **Frontend**: 200 tests passed, 8 benchmark tests skipped by default
+- **Rust**: 138 tests passed
 - **Linting**: `cargo clippy -- -D warnings` passed
 
 Current backend boundary hardening covers:
@@ -863,10 +865,10 @@ Release readiness artifacts:
 - [x] Backend command registration/source tests in Rust
 - [x] End-to-end detection/fusion smoke tests with mocked model outputs
 - [x] CI backend alignment to package scripts
-- [x] MLX status demoted in user-facing docs and UI while it remains a scaffold
+- [x] MLX remains experimental/opt-in while the YOLOv8 safetensors path awaits external model-contract evidence
 - [x] Release acceptance matrix, model contracts, security threat model, and manual smoke checklist
 - [x] Executable negative guard tests for native detection, model path, scene path, and transport topic boundaries, including TensorRT build inputs, fusion, Zenoh CDR, and transport payloads
-- [ ] Real MLX YOLOv8 forward pass implementation
+- [x] Experimental MLX YOLOv8 forward pass implementation with DFL postprocessing and profiling
 - [ ] Full Tauri AppHandle-backed negative IPC integration tests for scene/model/transport boundaries
 - [ ] Multi-frame scenario tests for track confirmation and motion
 

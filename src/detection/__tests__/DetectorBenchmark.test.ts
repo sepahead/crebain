@@ -8,6 +8,7 @@
 
 import { describe, it, expect } from 'vitest'
 import type { ObjectDetector, DetectorType } from '../types'
+import benchmarkBudgets from '../benchmarkBudgets.json'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BENCHMARK CONFIGURATION
@@ -427,6 +428,16 @@ describe('Detector benchmark utilities', () => {
     expect(formatFps(Number.POSITIVE_INFINITY)).toBe('N/A')
     expect(formatFps(25)).toBe('40.0')
   })
+
+  it('keeps detector benchmark budgets finite and positive', () => {
+    for (const detector of ['yolo', 'rf-detr', 'moondream', 'coreml'] as const) {
+      const budget = benchmarkBudgets.detectors[detector]
+      expect(Number.isFinite(budget.maxP95LatencyMs)).toBe(true)
+      expect(Number.isFinite(budget.minThroughputFps)).toBe(true)
+      expect(budget.maxP95LatencyMs).toBeGreaterThan(0)
+      expect(budget.minThroughputFps).toBeGreaterThan(0)
+    }
+  })
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -451,10 +462,12 @@ describe.skipIf(!process.env.RUN_BENCHMARKS)('Detector Benchmarks', () => {
           for (const [sizeName, stats] of result.inferenceStats) {
             if (stats.samples > 0) {
               console.log(`    ${sizeName}: mean=${formatMs(stats.mean)}, std=${formatMs(stats.std)}, fps=${formatFps(stats.mean)}`)
+              expect(stats.p95).toBeLessThanOrEqual(benchmarkBudgets.detectors[type].maxP95LatencyMs)
             }
           }
 
           expect(result.averageLatencyMs).toBeGreaterThan(0)
+          expect(result.throughputFps).toBeGreaterThanOrEqual(benchmarkBudgets.detectors[type].minThroughputFps)
         } else {
           console.log(`  ✗ Failed to initialize: ${result.initError}`)
           // Test still passes - we just record the failure

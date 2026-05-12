@@ -32,6 +32,7 @@ export const TAURI_COMMANDS = {
     publishVelocity: 'transport_publish_velocity',
     publishTwistStamped: 'transport_publish_twist_stamped',
     publishPose: 'transport_publish_pose',
+    spawnGazeboModel: 'transport_spawn_gazebo_model',
     getStats: 'transport_get_stats',
   },
 } as const

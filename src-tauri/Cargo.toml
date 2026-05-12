@@ -40,6 +40,7 @@ tauri-plugin-log = "2"
 
 # Encoding
 base64 = "0.22"
+sha2 = "0.10"
 
 # Image processing
 image = "0.25"

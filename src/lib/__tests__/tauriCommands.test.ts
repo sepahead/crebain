@@ -29,6 +29,7 @@ describe('TAURI_COMMANDS', () => {
     expect(TAURI_COMMANDS.transport.connect).toBe('transport_connect')
     expect(TAURI_COMMANDS.transport.disconnect).toBe('transport_disconnect')
     expect(TAURI_COMMANDS.transport.publishTwistStamped).toBe('transport_publish_twist_stamped')
+    expect(TAURI_COMMANDS.transport.spawnGazeboModel).toBe('transport_spawn_gazebo_model')
     expect(TAURI_COMMANDS.transport.subscribeModelStates).toBe('transport_subscribe_model_states')
   })
 })

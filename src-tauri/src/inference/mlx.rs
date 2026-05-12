@@ -95,69 +95,93 @@ impl MlxDetector {
         detect_head(&vb.pp("model.22"), &p3, &p4, &p5)
     }
 
-    /// YOLOv8 forward pass using loaded safetensors weights.
-    /// Returns (P3, P4, P5) feature maps for the Detect head.
+    /// YOLOv8 forward pass with optional per-layer timing.
+    /// Set CREBAIN_PROFILE_MLX=1 to enable per-layer latency logging.
     fn yolov8_forward(&self, x: &Tensor, vb: &VarBuilder) -> Result<(Tensor, Tensor, Tensor)> {
         if x.dims().len() != 4 {
             return Err(InferenceError::InvalidInput("Expected 4D input tensor".to_string()));
         }
 
+        let profile = std::env::var("CREBAIN_PROFILE_MLX").unwrap_or_default() == "1";
+        let mut layer_times: Vec<(&str, f64)> = Vec::new();
+
         let prefix = |name: &str| vb.pp(name);
+
+        macro_rules! timed {
+            ($label:expr, $expr:expr) => {{
+                let start = if profile { Some(Instant::now()) } else { None };
+                let result = $expr;
+                if let Some(s) = start {
+                    layer_times.push(($label, s.elapsed().as_secs_f64() * 1000.0));
+                }
+                result
+            }};
+        }
 
         // ── Backbone ──────────────────────────────────────────────────
         // model.0: Conv(3->64, k=3, s=2)
-        let x = conv_block(&prefix("model.0"), x, 64, 3, 2)?;
+        let x = timed!("model.0", conv_block(&prefix("model.0"), x, 64, 3, 2)?);
         // model.1: Conv(64->128, k=3, s=2)
-        let x = conv_block(&prefix("model.1"), &x, 128, 3, 2)?;
+        let x = timed!("model.1", conv_block(&prefix("model.1"), &x, 128, 3, 2)?);
         // model.2: C2f(128->128, n=3, shortcut=True)
-        let x = c2f_block(&prefix("model.2"), &x, 128, 128, 3, true)?;
+        let x = timed!("model.2", c2f_block(&prefix("model.2"), &x, 128, 128, 3, true)?);
         // model.3: Conv(128->256, k=3, s=2)
-        let x = conv_block(&prefix("model.3"), &x, 256, 3, 2)?;
+        let x = timed!("model.3", conv_block(&prefix("model.3"), &x, 256, 3, 2)?);
         // model.4: C2f(256->256, n=6, shortcut=True)
-        let p4_in = c2f_block(&prefix("model.4"), &x, 256, 256, 6, true)?;
+        let p4_in = timed!("model.4", c2f_block(&prefix("model.4"), &x, 256, 256, 6, true)?);
         // model.5: Conv(256->512, k=3, s=2)
-        let x = conv_block(&prefix("model.5"), &p4_in, 512, 3, 2)?;
+        let x = timed!("model.5", conv_block(&prefix("model.5"), &p4_in, 512, 3, 2)?);
         // model.6: C2f(512->512, n=6, shortcut=True)
-        let p3_in = c2f_block(&prefix("model.6"), &x, 512, 512, 6, true)?;
+        let p3_in = timed!("model.6", c2f_block(&prefix("model.6"), &x, 512, 512, 6, true)?);
         // model.7: Conv(512->1024, k=3, s=2)
-        let x = conv_block(&prefix("model.7"), &p3_in, 1024, 3, 2)?;
+        let x = timed!("model.7", conv_block(&prefix("model.7"), &p3_in, 1024, 3, 2)?);
         // model.8: C2f(1024->1024, n=3, shortcut=True)
-        let x = c2f_block(&prefix("model.8"), &x, 1024, 1024, 3, true)?;
+        let x = timed!("model.8", c2f_block(&prefix("model.8"), &x, 1024, 1024, 3, true)?);
         // model.9: SPPF(1024->1024, k=5)
-        let p5_in = sppf_block(&prefix("model.9"), &x, 1024, 1024, 5)?;
+        let p5_in = timed!("model.9", sppf_block(&prefix("model.9"), &x, 1024, 1024, 5)?);
 
         // ── Head (PAN-FPN) ───────────────────────────────────────────
         // model.10: Upsample(2x) + model.11: Concat with p3_in
-        let up = upsample_2x(&p5_in)?;
-        let cat = Tensor::cat(&[&up, &p3_in], 1)
-            .map_err(|e| InferenceError::InferenceError(e.to_string()))?;
+        let up = timed!("model.10", upsample_2x(&p5_in)?);
+        let cat = timed!("model.11", Tensor::cat(&[&up, &p3_in], 1)
+            .map_err(|e| InferenceError::InferenceError(e.to_string()))?);
         // model.12: C2f(cat_channels->512, n=3, shortcut=False)
         let cat_channels = cat.dims()[1];
-        let x = c2f_block(&prefix("model.12"), &cat, cat_channels, 512, 3, false)?;
+        let x = timed!("model.12", c2f_block(&prefix("model.12"), &cat, cat_channels, 512, 3, false)?);
 
         // model.13: Upsample(2x) + model.14: Concat with p4_in
-        let up = upsample_2x(&x)?;
-        let cat = Tensor::cat(&[&up, &p4_in], 1)
-            .map_err(|e| InferenceError::InferenceError(e.to_string()))?;
+        let up = timed!("model.13", upsample_2x(&x)?);
+        let cat = timed!("model.14", Tensor::cat(&[&up, &p4_in], 1)
+            .map_err(|e| InferenceError::InferenceError(e.to_string()))?);
         // model.15: C2f(cat_channels->256, n=3, shortcut=False) -> P3
         let cat_channels = cat.dims()[1];
-        let p3 = c2f_block(&prefix("model.15"), &cat, cat_channels, 256, 3, false)?;
+        let p3 = timed!("model.15", c2f_block(&prefix("model.15"), &cat, cat_channels, 256, 3, false)?);
 
         // model.16: Conv(256->256, k=3, s=2) + model.17: Concat
-        let down = conv_block(&prefix("model.16"), &p3, 256, 3, 2)?;
-        let cat = Tensor::cat(&[&down, &x], 1)
-            .map_err(|e| InferenceError::InferenceError(e.to_string()))?;
+        let down = timed!("model.16", conv_block(&prefix("model.16"), &p3, 256, 3, 2)?);
+        let cat = timed!("model.17", Tensor::cat(&[&down, &x], 1)
+            .map_err(|e| InferenceError::InferenceError(e.to_string()))?);
         // model.18: C2f(cat_channels->512, n=3, shortcut=False) -> P4
         let cat_channels = cat.dims()[1];
-        let p4 = c2f_block(&prefix("model.18"), &cat, cat_channels, 512, 3, false)?;
+        let p4 = timed!("model.18", c2f_block(&prefix("model.18"), &cat, cat_channels, 512, 3, false)?);
 
         // model.19: Conv(512->512, k=3, s=2) + model.20: Concat
-        let down = conv_block(&prefix("model.19"), &p4, 512, 3, 2)?;
-        let cat = Tensor::cat(&[&down, &p5_in], 1)
-            .map_err(|e| InferenceError::InferenceError(e.to_string()))?;
+        let down = timed!("model.19", conv_block(&prefix("model.19"), &p4, 512, 3, 2)?);
+        let cat = timed!("model.20", Tensor::cat(&[&down, &p5_in], 1)
+            .map_err(|e| InferenceError::InferenceError(e.to_string()))?);
         // model.21: C2f(cat_channels->1024, n=3, shortcut=False) -> P5
         let cat_channels = cat.dims()[1];
-        let p5 = c2f_block(&prefix("model.21"), &cat, cat_channels, 1024, 3, false)?;
+        let p5 = timed!("model.21", c2f_block(&prefix("model.21"), &cat, cat_channels, 1024, 3, false)?);
+
+        if profile {
+            let total: f64 = layer_times.iter().map(|(_, t)| t).sum();
+            log::info!("[MLX Profile] Total forward: {:.2}ms", total);
+            for (layer, ms) in &layer_times {
+                if *ms > 1.0 {
+                    log::info!("[MLX Profile]   {}: {:.2}ms", layer, ms);
+                }
+            }
+        }
 
         Ok((p3, p4, p5))
     }
@@ -441,6 +465,7 @@ fn load_safetensors(path: &str, device: &Device) -> Result<std::collections::Has
     // Load file
     let data = std::fs::read(path)
         .map_err(|e| InferenceError::ModelLoadError(format!("Failed to read model: {}", e)))?;
+    validate_model_checksum(path, &data)?;
 
     // Parse safetensors
     let tensors = SafeTensors::deserialize(&data)
@@ -485,6 +510,31 @@ fn load_safetensors(path: &str, device: &Device) -> Result<std::collections::Has
     }
 
     Ok(weights)
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn validate_model_checksum(path: &str, data: &[u8]) -> Result<()> {
+    use sha2::{Digest, Sha256};
+
+    let expected = match std::env::var("CREBAIN_MLX_MODEL_SHA256") {
+        Ok(value) if !value.trim().is_empty() => value.trim().to_ascii_lowercase(),
+        _ => return Ok(()),
+    };
+    if expected.len() != 64 || !expected.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err(InferenceError::ModelLoadError(
+            "CREBAIN_MLX_MODEL_SHA256 must be a 64-character hexadecimal SHA-256 digest"
+                .to_string(),
+        ));
+    }
+
+    let actual = format!("{:x}", Sha256::digest(data));
+    if actual != expected {
+        return Err(InferenceError::ModelLoadError(format!(
+            "MLX model checksum mismatch for {}: expected {}, got {}",
+            path, expected, actual
+        )));
+    }
+    Ok(())
 }
 
 /// Preprocess image for YOLOv8 input
@@ -765,6 +815,18 @@ fn compute_iou(box1: &[f32; 4], box2: &[f32; 4]) -> f32 {
 mod tests {
     use super::*;
 
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    static MLX_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    fn restore_env_var(name: &str, value: Option<String>) {
+        if let Some(value) = value {
+            std::env::set_var(name, value);
+        } else {
+            std::env::remove_var(name);
+        }
+    }
+
     #[test]
     fn test_is_available() {
         let result = std::panic::catch_unwind(is_available);
@@ -879,6 +941,38 @@ mod tests {
 
     #[test]
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    fn mlx_checksum_accepts_expected_digest() {
+        let _guard = MLX_ENV_LOCK.lock().unwrap();
+        let original = std::env::var("CREBAIN_MLX_MODEL_SHA256").ok();
+        std::env::set_var(
+            "CREBAIN_MLX_MODEL_SHA256",
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+        );
+
+        let result = validate_model_checksum("model.safetensors", b"abc");
+
+        restore_env_var("CREBAIN_MLX_MODEL_SHA256", original);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    fn mlx_checksum_rejects_mismatch() {
+        let _guard = MLX_ENV_LOCK.lock().unwrap();
+        let original = std::env::var("CREBAIN_MLX_MODEL_SHA256").ok();
+        std::env::set_var(
+            "CREBAIN_MLX_MODEL_SHA256",
+            "0000000000000000000000000000000000000000000000000000000000000000",
+        );
+
+        let error = validate_model_checksum("model.safetensors", b"abc").unwrap_err();
+
+        restore_env_var("CREBAIN_MLX_MODEL_SHA256", original);
+        assert!(error.to_string().contains("checksum mismatch"));
+    }
+
+    #[test]
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     fn postprocess_rejects_wrong_output_channels() {
         let device = Device::Cpu;
         let output = Tensor::zeros(&[1, 84, 8400], DType::F32, &device).unwrap();
@@ -913,5 +1007,68 @@ mod tests {
         };
         let result = non_max_suppression(vec![det], 0.45);
         assert_eq!(result.len(), 1);
+    }
+
+    #[test]
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    fn e2e_mlx_smoke_test_with_minimal_model() {
+        let device = Device::Cpu;
+        let model_path = std::env::temp_dir().join(format!(
+            "crebain-e2e-mlx-{}.safetensors",
+            std::process::id()
+        ));
+
+        let mut weights = std::collections::HashMap::new();
+        let conv_weight = Tensor::ones(&[64, 3, 3, 3], DType::F32, &device).unwrap();
+        let conv_bias = Tensor::zeros(&[64], DType::F32, &device).unwrap();
+        let bn_weight = Tensor::ones(&[64], DType::F32, &device).unwrap();
+        let bn_bias = Tensor::zeros(&[64], DType::F32, &device).unwrap();
+        let bn_mean = Tensor::zeros(&[64], DType::F32, &device).unwrap();
+        let bn_var = Tensor::ones(&[64], DType::F32, &device).unwrap();
+
+        weights.insert("model.0.conv.weight".to_string(), conv_weight);
+        weights.insert("model.0.conv.bias".to_string(), conv_bias);
+        weights.insert("model.0.bn.weight".to_string(), bn_weight);
+        weights.insert("model.0.bn.bias".to_string(), bn_bias);
+        weights.insert("model.0.bn.running_mean".to_string(), bn_mean);
+        weights.insert("model.0.bn.running_var".to_string(), bn_var);
+
+        candle_core::safetensors::save(&weights, &model_path).unwrap();
+
+        let loaded = load_safetensors(model_path.to_str().unwrap(), &device).unwrap();
+        assert!(!loaded.is_empty());
+
+        let detector = MlxDetector {
+            device,
+            model_weights: loaded,
+            inference_count: AtomicU64::new(0),
+            total_inference_ms: AtomicU64::new(0),
+            model_load_ms: 0.0,
+        };
+
+        let input = Tensor::zeros(&[1, 3, 640, 640], DType::F32, &detector.device).unwrap();
+        let vb = VarBuilder::from_tensors(detector.model_weights.clone(), DType::F32, &detector.device);
+        let result = detector.yolov8_forward(&input, &vb);
+        assert!(result.is_err());
+
+        let _ = std::fs::remove_file(model_path);
+    }
+
+    #[test]
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    fn e2e_mlx_detect_validates_rgba_and_runs_pipeline() {
+        let device = Device::Cpu;
+        let weights = std::collections::HashMap::new();
+        let detector = MlxDetector {
+            device,
+            model_weights: weights,
+            inference_count: AtomicU64::new(0),
+            total_inference_ms: AtomicU64::new(0),
+            model_load_ms: 0.0,
+        };
+        let rgba = vec![0u8; 640 * 480 * 4];
+        let result = detector.detect(&rgba, 640, 480);
+        assert!(result.is_err());
+        assert!(!result.unwrap_err().to_string().contains("Invalid input"));
     }
 }

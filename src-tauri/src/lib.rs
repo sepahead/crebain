@@ -127,6 +127,7 @@ const MAX_IMAGE_DIMENSION: u32 = common::image::MAX_IMAGE_DIMENSION;
 const MAX_IMAGE_SIZE_BYTES: usize = common::image::MAX_IMAGE_SIZE_BYTES;
 /// Maximum allowed serialized scene state size (10MB).
 const MAX_SCENE_STATE_BYTES: usize = 10 * 1024 * 1024;
+const CURRENT_SCENE_VERSION: &str = "1.0.0";
 
 fn validate_rgba_input_len(rgba_len: usize, width: u32, height: u32) -> Result<usize, String> {
     common::image::validate_rgba_input_len(rgba_len, width, height)
@@ -138,6 +139,48 @@ fn validate_scene_file_path(path: &str, allowed_root: &std::path::Path) -> Resul
         Some(ext) if ext.eq_ignore_ascii_case("json") => Ok(validated),
         _ => Err("Scene file path must end with .json".to_string()),
     }
+}
+
+fn migrate_scene_json(mut value: serde_json::Value) -> Result<serde_json::Value, String> {
+    let object = value
+        .as_object_mut()
+        .ok_or_else(|| "Scene JSON must be an object".to_string())?;
+
+    match object.get("version").and_then(|version| version.as_str()) {
+        Some(CURRENT_SCENE_VERSION) => {}
+        Some("0.4.0" | "0.5.0") | None => {
+            object.insert(
+                "version".to_string(),
+                serde_json::Value::String(CURRENT_SCENE_VERSION.to_string()),
+            );
+        }
+        Some(version) => {
+            return Err(format!("Unsupported scene version: {}", version));
+        }
+    }
+
+    if !object.get("name").is_some_and(|name| name.is_string()) {
+        return Err("Scene JSON must include a string name".to_string());
+    }
+    if !object.get("timestamp").is_some_and(|timestamp| timestamp.is_number()) {
+        object.insert(
+            "timestamp".to_string(),
+            serde_json::Value::Number(serde_json::Number::from(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_millis() as u64,
+            )),
+        );
+    }
+
+    for key in ["cameras", "assets", "drones", "annotations"] {
+        if !object.get(key).is_some_and(|entry| entry.is_array()) {
+            object.insert(key.to_string(), serde_json::Value::Array(Vec::new()));
+        }
+    }
+
+    Ok(value)
 }
 
 /// Run CoreML detection on raw RGBA data.
@@ -385,6 +428,7 @@ async fn scene_save_file(path: String, json: String, app: tauri::AppHandle) -> R
         // Validate JSON before writing.
         let value: serde_json::Value =
             serde_json::from_str(&json).map_err(|e| format!("Invalid scene JSON: {}", e))?;
+        let value = migrate_scene_json(value)?;
         let pretty =
             serde_json::to_string_pretty(&value).map_err(|e| format!("JSON encode error: {}", e))?;
 
@@ -484,10 +528,11 @@ async fn scene_load_file(path: String, app: tauri::AppHandle) -> Result<String, 
         })?;
 
         // Validate JSON so callers get consistent errors.
-        let _: serde_json::Value =
+        let value: serde_json::Value =
             serde_json::from_str(&contents).map_err(|e| format!("Invalid scene JSON: {}", e))?;
+        let value = migrate_scene_json(value)?;
 
-        Ok(contents)
+        serde_json::to_string_pretty(&value).map_err(|e| format!("JSON encode error: {}", e))
     })
     .await
     .map_err(|e| format!("Task join error: {}", e))?
@@ -652,6 +697,7 @@ pub fn run() {
             transport_publish_velocity,
             transport_publish_twist_stamped,
             transport_publish_pose,
+            transport_spawn_gazebo_model,
             transport_get_stats
         ])
         .setup(|app| {
@@ -904,6 +950,32 @@ mod tests {
     }
 
     #[test]
+    fn migrate_scene_json_upgrades_legacy_scene_shape() {
+        let migrated = migrate_scene_json(serde_json::json!({
+            "version": "0.4.0",
+            "name": "Legacy Scene"
+        }))
+        .unwrap();
+
+        assert_eq!(migrated["version"], CURRENT_SCENE_VERSION);
+        assert!(migrated["timestamp"].is_number());
+        for key in ["cameras", "assets", "drones", "annotations"] {
+            assert!(migrated[key].is_array());
+        }
+    }
+
+    #[test]
+    fn migrate_scene_json_rejects_unsupported_version() {
+        let error = migrate_scene_json(serde_json::json!({
+            "version": "9.9.9",
+            "name": "Future Scene"
+        }))
+        .unwrap_err();
+
+        assert!(error.contains("Unsupported scene version"));
+    }
+
+    #[test]
     fn validate_scene_file_path_accepts_json_under_allowed_root() {
         let root = std::env::temp_dir().join(format!(
             "crebain-scene-path-{}",
@@ -1008,6 +1080,7 @@ mod tests {
             "transport_publish_velocity",
             "transport_publish_twist_stamped",
             "transport_publish_pose",
+            "transport_spawn_gazebo_model",
             "transport_get_stats",
         ] {
             assert!(handler.contains(command), "missing command {command}");

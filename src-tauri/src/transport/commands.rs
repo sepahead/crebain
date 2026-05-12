@@ -12,6 +12,8 @@ lazy_static::lazy_static! {
 
 const MAX_TOPIC_LEN: usize = 512;
 const MAX_FRAME_ID_LEN: usize = 256;
+const MAX_GAZEBO_MODEL_NAME_LEN: usize = 128;
+const MAX_GAZEBO_MODEL_XML_BYTES: usize = 2 * 1024 * 1024;
 const TRANSPORT_EVENT_PREFIX: &str = "crebain.transport.";
 
 fn validate_topic(topic: &str) -> Result<(), String> {
@@ -83,6 +85,63 @@ fn validate_pose_data(pose: &PoseData) -> Result<(), String> {
     validate_finite_array("pose.orientation", &pose.orientation)?;
     validate_timestamp("pose.timestamp", pose.timestamp)?;
     validate_frame_id("pose.frame_id", &pose.frame_id)
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct GazeboSpawnModelRequest {
+    pub name: String,
+    pub xml: String,
+    pub robot_namespace: Option<String>,
+    pub initial_pose: PoseData,
+    pub reference_frame: Option<String>,
+}
+
+fn validate_gazebo_spawn_request(request: &GazeboSpawnModelRequest) -> Result<(), String> {
+    validate_bounded_graph_name("model name", &request.name, MAX_GAZEBO_MODEL_NAME_LEN)?;
+    if request.xml.trim().is_empty() {
+        return Err("model XML must not be empty".to_string());
+    }
+    if request.xml.contains('\0') {
+        return Err("model XML must not contain null bytes".to_string());
+    }
+    if request.xml.len() > MAX_GAZEBO_MODEL_XML_BYTES {
+        return Err(format!(
+            "model XML too large: {} bytes exceeds maximum {}",
+            request.xml.len(),
+            MAX_GAZEBO_MODEL_XML_BYTES
+        ));
+    }
+    if let Some(namespace) = &request.robot_namespace {
+        validate_bounded_graph_name("robot namespace", namespace, MAX_FRAME_ID_LEN)?;
+    }
+    if let Some(reference_frame) = &request.reference_frame {
+        validate_frame_id("reference_frame", reference_frame)?;
+    }
+    validate_pose_data(&request.initial_pose)
+}
+
+fn validate_bounded_graph_name(name: &str, value: &str, max_len: usize) -> Result<(), String> {
+    if value.trim().is_empty() {
+        return Err(format!("{} must not be empty", name));
+    }
+    if value.contains('\0') {
+        return Err(format!("{} must not contain null bytes", name));
+    }
+    if value.len() > max_len {
+        return Err(format!(
+            "{} too long: {} bytes exceeds maximum {}",
+            name,
+            value.len(),
+            max_len
+        ));
+    }
+    if !value
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '/' | '.'))
+    {
+        return Err(format!("{} contains unsupported characters", name));
+    }
+    Ok(())
 }
 
 fn transport_event_name(topic: &str) -> String {
@@ -323,6 +382,37 @@ pub async fn transport_publish_pose(
     Ok(())
 }
 
+#[tauri::command]
+pub async fn transport_spawn_gazebo_model(request: GazeboSpawnModelRequest) -> Result<(), String> {
+    validate_gazebo_spawn_request(&request)?;
+    let guard = TRANSPORT_ENGINE.lock().await;
+    let bridge = guard.as_ref().ok_or("Transport not connected")?;
+    let pose = request.initial_pose;
+    let args = serde_json::json!({
+        "name": request.name,
+        "xml": request.xml,
+        "robot_namespace": request.robot_namespace.unwrap_or_default(),
+        "initial_pose": {
+            "position": {
+                "x": pose.position[0],
+                "y": pose.position[1],
+                "z": pose.position[2]
+            },
+            "orientation": {
+                "x": pose.orientation[0],
+                "y": pose.orientation[1],
+                "z": pose.orientation[2],
+                "w": pose.orientation[3]
+            }
+        },
+        "reference_frame": request.reference_frame.unwrap_or_else(|| pose.frame_id.clone())
+    });
+    bridge
+        .call_service("/gazebo/spawn_entity", "gazebo_msgs/SpawnEntity", args)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// Get transport statistics
 #[tauri::command]
 pub async fn transport_get_stats() -> Result<TransportStats, String> {
@@ -342,6 +432,12 @@ pub fn validate_topic_for_test(topic: &str) -> Result<(), String> {
 
 pub fn validate_message_type_for_test(msg_type: &str) -> Result<(), String> {
     validate_message_type(msg_type)
+}
+
+pub fn validate_gazebo_spawn_request_for_test(
+    request: &GazeboSpawnModelRequest,
+) -> Result<(), String> {
+    validate_gazebo_spawn_request(request)
 }
 
 fn validate_message_type(msg_type: &str) -> Result<(), String> {
@@ -473,6 +569,47 @@ mod tests {
         .unwrap_err();
 
         assert!(error.contains("pose.frame_id must not contain null bytes"));
+    }
+
+    fn valid_spawn_request() -> GazeboSpawnModelRequest {
+        GazeboSpawnModelRequest {
+            name: "drone_1".to_string(),
+            xml: "<sdf version=\"1.7\"><model name=\"drone_1\" /></sdf>".to_string(),
+            robot_namespace: Some("/drone_1".to_string()),
+            initial_pose: PoseData {
+                position: [0.0, 0.0, 1.0],
+                orientation: [0.0, 0.0, 0.0, 1.0],
+                timestamp: 0.0,
+                frame_id: "world".to_string(),
+            },
+            reference_frame: Some("world".to_string()),
+        }
+    }
+
+    #[test]
+    fn gazebo_spawn_validation_accepts_valid_request() {
+        assert!(validate_gazebo_spawn_request(&valid_spawn_request()).is_ok());
+    }
+
+    #[test]
+    fn gazebo_spawn_rejects_invalid_name_before_connection_check() {
+        let mut request = valid_spawn_request();
+        request.name = "bad model!".to_string();
+
+        let error = tauri::async_runtime::block_on(transport_spawn_gazebo_model(request))
+            .unwrap_err();
+
+        assert!(error.contains("unsupported characters"));
+    }
+
+    #[test]
+    fn gazebo_spawn_rejects_oversized_xml() {
+        let mut request = valid_spawn_request();
+        request.xml = "x".repeat(MAX_GAZEBO_MODEL_XML_BYTES + 1);
+
+        let error = validate_gazebo_spawn_request(&request).unwrap_err();
+
+        assert!(error.contains("model XML too large"));
     }
 
     #[test]

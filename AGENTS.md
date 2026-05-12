@@ -60,7 +60,7 @@ cargo build --manifest-path src-tauri/Cargo.toml
 ### Backend (`src-tauri/`)
 
 - `common/` - Shared detection, NMS, YOLO, error, and path validation utilities
-- `inference/` - ML abstraction layer with CoreML default on macOS, experimental MLX scaffold, CUDA/TensorRT on Linux, and ONNX fallback
+- `inference/` - ML abstraction layer with CoreML default on macOS, experimental MLX YOLOv8 safetensors path, CUDA/TensorRT on Linux, and ONNX fallback
 - `transport/` - Zenoh-oriented transport, CDR validation, and Tauri transport commands
 - `sensor_fusion.rs` - Kalman/EKF/UKF/Particle/IMM filters
 - `lib.rs` - Tauri IPC commands and app setup

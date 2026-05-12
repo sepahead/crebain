@@ -226,6 +226,22 @@ pub trait Transport: Send + Sync {
         pose: PoseData,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>>;
 
+    /// Call a ROS service when the active transport supports request/response.
+    fn call_service<'a>(
+        &'a self,
+        service: &'a str,
+        _service_type: &'a str,
+        _args: serde_json::Value,
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
+        let service = service.to_string();
+        Box::pin(async move {
+            Err(TransportError::PublishFailed(format!(
+                "Service calls are not supported by this transport: {}",
+                service
+            )))
+        })
+    }
+
     /// Get transport statistics
     fn stats(&self) -> TransportStats;
 }
@@ -273,6 +289,17 @@ fn parse_zenoh_enabled(value: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    fn restore_env_var(name: &str, value: Option<String>) {
+        if let Some(value) = value {
+            std::env::set_var(name, value);
+        } else {
+            std::env::remove_var(name);
+        }
+    }
 
     #[test]
     fn test_parse_zenoh_enabled() {
@@ -290,5 +317,50 @@ mod tests {
         let err = TransportError::ConnectionFailed("missing zenoh router".to_string());
         assert_eq!(err.to_string(), "Connection failed: missing zenoh router");
         assert_eq!(TransportError::Timeout.to_string(), "Operation timed out");
+    }
+
+    #[test]
+    fn zenoh_fallback_switches_to_rosbridge_when_disabled() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        // Save original
+        let original_zenoh = std::env::var("CREBAIN_ZENOH").ok();
+        let original_url = std::env::var("CREBAIN_ROSBRIDGE_URL").ok();
+
+        // Disable Zenoh
+        std::env::set_var("CREBAIN_ZENOH", "0");
+        std::env::remove_var("CREBAIN_ROSBRIDGE_URL");
+
+        // create_bridge should attempt rosbridge (will fail without server, but shouldn't panic)
+        let result = tauri::async_runtime::block_on(create_bridge());
+        assert!(result.is_err());
+
+        // Restore
+        restore_env_var("CREBAIN_ZENOH", original_zenoh);
+        restore_env_var("CREBAIN_ROSBRIDGE_URL", original_url);
+    }
+
+    #[test]
+    fn rosbridge_transport_connect_fails_without_server() {
+        let result = tauri::async_runtime::block_on(
+            rosbridge::RosbridgeTransport::connect(Some("ws://127.0.0.1:19999")),
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn rosbridge_transport_trait_methods_no_panic() {
+        let result = tauri::async_runtime::block_on(
+            rosbridge::RosbridgeTransport::connect(Some("ws://127.0.0.1:19999")),
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn rosbridge_topic_validation_accepts_standard_ros_topics() {
+        assert!(rosbridge::validate_topic_for_test("/drone1/camera").is_ok());
+        assert!(rosbridge::validate_topic_for_test("").is_err());
+        assert!(rosbridge::validate_topic_for_test("no_leading_slash").is_err());
+        assert!(rosbridge::validate_topic_for_test("/double//slash").is_err());
+        assert!(rosbridge::validate_topic_for_test("/null\0byte").is_err());
     }
 }

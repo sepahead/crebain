@@ -53,7 +53,7 @@ pub struct SensorMeasurement {
     pub sensor_id: String,
     pub modality: SensorModality,
     pub timestamp_ms: u64,
-    /// Position in sensor frame [x, y, z] or [azimuth, elevation, range]
+    /// Position in sensor frame [x, y, z] or [range, azimuth, elevation]
     pub position: [f64; 3],
     /// Velocity if available [vx, vy, vz]
     pub velocity: Option<[f64; 3]>,
@@ -65,6 +65,41 @@ pub struct SensorMeasurement {
     pub class_label: String,
     /// Additional sensor-specific data
     pub metadata: HashMap<String, f64>,
+}
+
+fn polar_to_cartesian(range: f64, azimuth: f64, elevation: f64) -> Vector3<f64> {
+    let cos_el = elevation.cos();
+    Vector3::new(
+        range * cos_el * azimuth.cos(),
+        range * cos_el * azimuth.sin(),
+        range * elevation.sin(),
+    )
+}
+
+fn measurement_position_cartesian(measurement: &SensorMeasurement) -> Vector3<f64> {
+    match measurement.modality {
+        SensorModality::Radar | SensorModality::Lidar => polar_to_cartesian(
+            measurement.position[0],
+            measurement.position[1],
+            measurement.position[2],
+        ),
+        _ => Vector3::new(
+            measurement.position[0],
+            measurement.position[1],
+            measurement.position[2],
+        ),
+    }
+}
+
+fn measurement_position_polar(measurement: &SensorMeasurement) -> Option<Vector3<f64>> {
+    match measurement.modality {
+        SensorModality::Radar | SensorModality::Lidar => Some(Vector3::new(
+            measurement.position[0],
+            measurement.position[1],
+            measurement.position[2],
+        )),
+        _ => None,
+    }
 }
 
 /// Thermal-specific measurement for IR camera integration.
@@ -1333,7 +1368,7 @@ impl MultiSensorFusion {
         let mut unassociated: Vec<usize> = Vec::new();
 
         for (meas_idx, meas) in measurements.iter().enumerate() {
-            let meas_pos = Vector3::new(meas.position[0], meas.position[1], meas.position[2]);
+            let meas_pos = measurement_position_cartesian(meas);
 
             let mut best_track: Option<&str> = None;
             let mut best_distance = f64::MAX;
@@ -1408,8 +1443,7 @@ impl MultiSensorFusion {
         for &idx in meas_indices {
             let meas = &measurements[idx];
             let weight = meas.confidence;
-            fused_position +=
-                Vector3::new(meas.position[0], meas.position[1], meas.position[2]) * weight;
+            fused_position += measurement_position_cartesian(meas) * weight;
             total_weight += weight;
 
             if !sensor_sources.contains(&meas.modality) {
@@ -1428,8 +1462,21 @@ impl MultiSensorFusion {
                 self.kf.update(track, &fused_position, None);
             }
             FilterAlgorithm::ExtendedKalman => {
-                // Use Cartesian update for simplicity
-                self.kf.update(track, &fused_position, None);
+                if meas_indices.len() == 1 {
+                    let meas = &measurements[meas_indices[0]];
+                    if let Some(polar) = measurement_position_polar(meas) {
+                        let r = Matrix3::from_diagonal(&Vector3::new(
+                            meas.covariance[0],
+                            meas.covariance[1],
+                            meas.covariance[2],
+                        ));
+                        self.ekf.update_polar(track, &polar, &r);
+                    } else {
+                        self.kf.update(track, &fused_position, None);
+                    }
+                } else {
+                    self.kf.update(track, &fused_position, None);
+                }
             }
             FilterAlgorithm::UnscentedKalman => {
                 self.ukf
@@ -1478,10 +1525,11 @@ impl MultiSensorFusion {
         let track_id = format!("TRK-{:05}", self.next_track_id);
         self.next_track_id = self.next_track_id.saturating_add(1);
 
+        let initial_position = measurement_position_cartesian(measurement);
         let initial_state = Vector6::new(
-            measurement.position[0],
-            measurement.position[1],
-            measurement.position[2],
+            initial_position[0],
+            initial_position[1],
+            initial_position[2],
             measurement.velocity.map(|v| v[0]).unwrap_or(0.0),
             measurement.velocity.map(|v| v[1]).unwrap_or(0.0),
             measurement.velocity.map(|v| v[2]).unwrap_or(0.0),
@@ -1854,6 +1902,70 @@ mod tests {
         // Position should be updated toward the measurement
         assert!(track.state[0] > 9.0 && track.state[0] < 12.0);
         assert!(track.state[2] > 4.0 && track.state[2] < 6.0);
+    }
+
+    #[test]
+    fn radar_measurement_creates_cartesian_track_from_polar_input() {
+        let config = FusionConfig::default();
+        let mut fusion = MultiSensorFusion::new(config);
+
+        let tracks = fusion.process_measurements(
+            vec![SensorMeasurement {
+                sensor_id: "radar1".to_string(),
+                modality: SensorModality::Radar,
+                timestamp_ms: 1000,
+                position: [10.0, std::f64::consts::FRAC_PI_2, 0.0],
+                velocity: None,
+                covariance: [1.0, 0.01, 0.01],
+                confidence: 0.9,
+                class_label: "drone".to_string(),
+                metadata: HashMap::new(),
+            }],
+            1000,
+        );
+
+        assert_eq!(tracks.len(), 1);
+        assert!(tracks[0].position[0].abs() < 1e-6);
+        assert!((tracks[0].position[1] - 10.0).abs() < 1e-6);
+        assert!(tracks[0].position[2].abs() < 1e-6);
+    }
+
+    #[test]
+    fn extended_kalman_pipeline_updates_radar_track_with_polar_measurement() {
+        let config = FusionConfig {
+            algorithm: FilterAlgorithm::ExtendedKalman,
+            ..FusionConfig::default()
+        };
+        let mut fusion = MultiSensorFusion::new(config);
+
+        let first = SensorMeasurement {
+            sensor_id: "radar1".to_string(),
+            modality: SensorModality::Radar,
+            timestamp_ms: 1000,
+            position: [10.0, 0.0, 0.0],
+            velocity: None,
+            covariance: [0.1, 0.01, 0.01],
+            confidence: 0.9,
+            class_label: "drone".to_string(),
+            metadata: HashMap::new(),
+        };
+        fusion.process_measurements(vec![first], 1000);
+
+        let second = SensorMeasurement {
+            sensor_id: "radar1".to_string(),
+            modality: SensorModality::Radar,
+            timestamp_ms: 1100,
+            position: [12.0, 0.0, 0.0],
+            velocity: None,
+            covariance: [0.1, 0.01, 0.01],
+            confidence: 0.9,
+            class_label: "drone".to_string(),
+            metadata: HashMap::new(),
+        };
+        let tracks = fusion.process_measurements(vec![second], 1100);
+
+        assert_eq!(tracks.len(), 1);
+        assert!(tracks[0].position[0] > 10.0);
     }
 
     #[test]

@@ -6,13 +6,13 @@ This log records release-readiness evidence for stabilization batches. It does n
 
 | Field | Evidence |
 |-------|----------|
-| Validated code baseline | `cb29dec fix: wire gui scene saves to backend contract` |
+| Validated code baseline | Current MLX/rosbridge/fusion hardening candidate |
 | Branch | `main` |
 | Remote CI run | GitHub Actions run `25701811000` for `sepehrmn/crebain` passed before the final evidence-pointer doc update |
-| Local validation | `bun run validate:all` passed on final candidate |
-| Frontend local result | 199 tests passed, 8 benchmark tests skipped by default |
-| Rust local result | 120 tests passed, 0 failed; clippy passed with `-D warnings` |
-| Boundary focus | Release evidence, CI summaries, fusion lifecycle, MLX safetensors validation + forward pass, rosbridge WebSocket fallback, diagnostics honesty, transport/model/fusion guardrails |
+| Local validation | `bun run validate:all` passed locally on this candidate |
+| Frontend local result | 200 tests passed, 8 benchmark tests skipped by default |
+| Rust local result | 138 tests passed, 0 failed; clippy passed with `-D warnings` |
+| Boundary focus | MLX safetensors checksum validation + forward profiling, rosbridge WebSocket fallback/service calls, Gazebo spawn IPC validation, scene schema migration, radar/lidar polar fusion, benchmark budgets, transport/model/fusion guardrails |
 
 ## Automated Evidence Required
 
