@@ -94,4 +94,4 @@ Tracked Markdown files should agree on validation commands, backend status, road
 - `.github/**/*.md`
 - `.windsurf/workflows/*.md`
 
-For documentation-only edits, run `git diff --check` at minimum. Run `bun run validate:all` when the edit reflects or accompanies Rust, IPC, model-loading, transport, ROS, scene, or sensor-fusion behavior changes.
+For documentation-only edits, run `git diff --check` at minimum. Run `bun run validate:all` when the edit reflects or accompanies Rust, IPC, model-loading, transport, ROS, scene, or sensor-fusion behavior changes. For documentation-only edits (Markdown files with no command, status, or behavior changes), run `git diff --check` at minimum.

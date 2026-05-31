@@ -4,10 +4,12 @@
 //! Provides MLX-style tensor operations on Apple Silicon.
 //!
 //! ## Status
-//! This backend is a scaffold: preprocessing/postprocessing are implemented, but
-//! the YOLOv8 forward pass is not yet wired up. `detect()` returns an explicit
-//! backend error instead of reporting fake empty detections.
-//! See `README.md` "Development Roadmap" for the current MLX status.
+//! This backend is experimental and opt-in. The full YOLOv8 forward pass
+//! (backbone, PAN-FPN neck, Detect head with DFL postprocessing) is implemented,
+//! but it requires an externally supplied safetensors model with validated
+//! tensor contracts, class mapping, and target-hardware benchmarks before
+//! release claims. Enable with `CREBAIN_ENABLE_EXPERIMENTAL_MLX=1`.
+//! See `docs/MODEL_CONTRACTS.md` and `README.md` for the current MLX status.
 //!
 //! # Model Format
 //! Models are loaded from safetensors format (compatible with MLX/PyTorch).
@@ -784,27 +786,10 @@ fn non_max_suppression(mut detections: Vec<Detection>, iou_threshold: f32) -> Ve
     keep
 }
 
-/// Compute IoU between two bboxes
+/// Compute IoU between two bboxes — delegates to shared common/nms utility.
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 fn compute_iou(box1: &[f32; 4], box2: &[f32; 4]) -> f32 {
-    let x1 = box1[0].max(box2[0]);
-    let y1 = box1[1].max(box2[1]);
-    let x2 = box1[2].min(box2[2]);
-    let y2 = box1[3].min(box2[3]);
-
-    let inter_w = (x2 - x1).max(0.0);
-    let inter_h = (y2 - y1).max(0.0);
-    let inter_area = inter_w * inter_h;
-
-    let area1 = (box1[2] - box1[0]) * (box1[3] - box1[1]);
-    let area2 = (box2[2] - box2[0]) * (box2[3] - box2[1]);
-    let union_area = area1 + area2 - inter_area;
-
-    if union_area > 0.0 {
-        inter_area / union_area
-    } else {
-        0.0
-    }
+    crate::common::nms::compute_iou_array(box1, box2)
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

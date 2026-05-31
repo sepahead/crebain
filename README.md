@@ -426,7 +426,7 @@ src/
 ├── components/
 │   ├── CrebainViewer.tsx      # Main 3D viewer (orchestrates everything)
 │   ├── CameraFeed.tsx         # Individual camera with detection overlay
-│   ├── CameraGrid.tsx         # Multi-camera layout
+
 │   ├── DetectionOverlay.tsx   # Bounding box rendering
 │   └── *Panel.tsx             # Draggable UI panels
 │

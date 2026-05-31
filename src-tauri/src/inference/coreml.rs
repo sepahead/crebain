@@ -29,11 +29,38 @@ impl CoreMlDetector {
             // Check if the real detector is already initialized
             if crate::coreml::NativeCoreMLDetector::get_global().is_none() {
                 // Try common model paths
-                let model_paths = [
+                // Check CREBAIN_MODEL_PATH env var first (validated for security)
+                let mut model_paths: Vec<String> = Vec::new();
+                if let Ok(env_path) = std::env::var("CREBAIN_MODEL_PATH") {
+                    let trimmed = env_path.trim();
+                    if !trimmed.is_empty() {
+                        if let Ok(validated) = crate::common::path::validate_model_path(
+                            trimmed,
+                            Some(&["mlmodelc"]),
+                        ) {
+                            model_paths.push(validated.to_string_lossy().to_string());
+                        } else {
+                            log::warn!(
+                                "[CoreML] CREBAIN_MODEL_PATH '{}' failed validation, falling back to defaults",
+                                trimmed
+                            );
+                        }
+                    }
+                }
+
+                // Fall back to common default locations (validated for security)
+                for fallback in &[
                     "resources/yolov8s.mlmodelc",
                     "../resources/yolov8s.mlmodelc",
                     "src-tauri/resources/yolov8s.mlmodelc",
-                ];
+                ] {
+                    if let Ok(validated) = crate::common::path::validate_model_path(
+                        fallback,
+                        Some(&["mlmodelc"]),
+                    ) {
+                        model_paths.push(validated.to_string_lossy().to_string());
+                    }
+                }
 
                 let mut initialized = false;
                 for path in &model_paths {

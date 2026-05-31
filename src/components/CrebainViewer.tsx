@@ -594,7 +594,7 @@ export default function CrebainViewer({
       canvas.width = COREML_TEST_WIDTH
       canvas.height = COREML_TEST_HEIGHT
       const ctx = canvas.getContext('2d')
-      if (!ctx) throw new Error('Canvas context nicht verfügbar')
+      if (!ctx) throw new Error('Canvas context not available')
 
       const gradient = ctx.createLinearGradient(0, 0, 0, COREML_TEST_HEIGHT)
       gradient.addColorStop(0, '#87CEEB')
@@ -697,7 +697,7 @@ export default function CrebainViewer({
       canvas.width = COREML_TEST_WIDTH
       canvas.height = COREML_TEST_HEIGHT
       const ctx = canvas.getContext('2d')
-      if (!ctx) throw new Error('Canvas context nicht verfügbar')
+      if (!ctx) throw new Error('Canvas context not available')
 
       const gradient = ctx.createLinearGradient(0, 0, 0, COREML_TEST_HEIGHT)
       gradient.addColorStop(0, '#87CEEB')
@@ -764,7 +764,7 @@ export default function CrebainViewer({
       }
 
       if (latencies.length === 0) {
-        throw new Error('Keine erfolgreichen Benchmark-Messwerte')
+        throw new Error('No successful benchmark measurements')
       }
 
       const totalTimeMs = performance.now() - benchmarkStart
