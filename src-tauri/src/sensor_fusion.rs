@@ -104,7 +104,7 @@ fn measurement_position_polar(measurement: &SensorMeasurement) -> Option<Vector3
 
 /// Thermal-specific measurement for IR camera integration.
 /// Roadmap: v0.6.0 - Hardware-in-the-loop testing with FLIR cameras
-#[allow(dead_code)]
+#[expect(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ThermalMeasurement {
     pub base: SensorMeasurement,
@@ -118,7 +118,7 @@ pub struct ThermalMeasurement {
 
 /// Acoustic-specific measurement for audio sensor arrays.
 /// Roadmap: v0.6.0 - Multi-sensor hardware integration
-#[allow(dead_code)]
+#[expect(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AcousticMeasurement {
     pub base: SensorMeasurement,
@@ -392,7 +392,6 @@ impl ExtendedKalmanFilter {
     }
 
     /// Convert Cartesian state to polar measurement
-    #[allow(dead_code)] // Used by update_polar for radar/lidar fusion
     fn cartesian_to_polar(state: &Vector6<f64>) -> Vector3<f64> {
         let x = state[0];
         let y = state[1];
@@ -410,7 +409,6 @@ impl ExtendedKalmanFilter {
     }
 
     /// Jacobian of polar measurement function
-    #[allow(dead_code)] // Used by update_polar for radar/lidar fusion
     fn measurement_jacobian(state: &Vector6<f64>) -> nalgebra::Matrix3x6<f64> {
         let x = state[0];
         let y = state[1];
@@ -440,7 +438,6 @@ impl ExtendedKalmanFilter {
     }
 
     /// Update with polar measurement [range, azimuth, elevation]
-    #[allow(dead_code)] // Placeholder for radar/lidar sensor integration
     pub fn update_polar(
         &self,
         state: &mut TrackState,
@@ -892,7 +889,7 @@ impl ParticleFilter {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// Motion model types for IMM
-#[allow(dead_code)] // CoordinatedTurn to be implemented for maneuvering targets
+#[expect(dead_code)]
 #[derive(Debug, Clone, Copy)]
 pub enum MotionModel {
     /// Constant velocity (CV)
@@ -1075,7 +1072,7 @@ impl IMMFilter {
     }
 
     /// Get model probabilities [CV, CA]
-    #[allow(dead_code)] // Public API for diagnostics
+    #[expect(dead_code)]
     pub fn get_model_probabilities(&self) -> [f64; 2] {
         self.model_probs
     }

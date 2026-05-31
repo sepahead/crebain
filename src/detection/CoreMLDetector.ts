@@ -198,7 +198,7 @@ export class CoreMLDetector implements ObjectDetector {
       if (!output) {
         throw new Error('No output from model')
       }
-      const outputDims = output.dims as number[]
+      const outputDims = output.dims
 
       // Postprocess based on output format
       let detections: Detection[]
@@ -338,7 +338,7 @@ export class CoreMLDetector implements ObjectDetector {
    */
   private postprocessDetection(
     output: Float32Array,
-    dims: number[],
+    dims: readonly number[],
     origWidth: number,
     origHeight: number,
     allResults: ort.InferenceSession.OnnxValueMapType
@@ -369,7 +369,7 @@ export class CoreMLDetector implements ObjectDetector {
       // Separate outputs format
       return this.postprocessSeparateOutputs(
         boxes,
-        boxesOutput.dims as number[],
+        boxesOutput.dims,
         scores,
         classes,
         origWidth,
@@ -470,7 +470,7 @@ export class CoreMLDetector implements ObjectDetector {
    */
   private postprocessSeparateOutputs(
     boxes: Float32Array,
-    boxDims: number[],
+    boxDims: readonly number[],
     scores: Float32Array,
     classes: Float32Array | undefined,
     origWidth: number,
@@ -552,7 +552,7 @@ export class CoreMLDetector implements ObjectDetector {
    */
   private postprocessClassification(
     output: Float32Array,
-    _dims: number[],
+    _dims: readonly number[],
     origWidth: number,
     origHeight: number
   ): Detection[] {
@@ -614,7 +614,7 @@ export class CoreMLDetector implements ObjectDetector {
    */
   private postprocessYOLO(
     output: Float32Array,
-    dims: number[],
+    dims: readonly number[],
     origWidth: number,
     origHeight: number
   ): Detection[] {

@@ -143,12 +143,12 @@ export class RFDETRDetector implements ObjectDetector {
       if (!output) {
         throw new Error('No output from model')
       }
-      const outputData = validateRank3Tensor(output.data, output.dims as number[], '[RFDETRDetector]')
+      const outputData = validateRank3Tensor(output.data, output.dims, '[RFDETRDetector]')
 
       // Postprocess to get detections
       const detections = this.postprocess(
         outputData,
-        output.dims as number[],
+        output.dims,
         imageData.width,
         imageData.height
       )
@@ -220,7 +220,7 @@ export class RFDETRDetector implements ObjectDetector {
    */
   private postprocess(
     output: Float32Array,
-    dims: number[],
+    dims: readonly number[],
     origWidth: number,
     origHeight: number
   ): Detection[] {
