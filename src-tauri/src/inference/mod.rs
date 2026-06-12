@@ -421,7 +421,7 @@ mod tests {
         }
 
         // ONNX backend structural check (always compiles)
-        let onnx_shape = vec![1usize, 144, 8400];
+        let onnx_shape = [1usize, 144, 8400];
         assert_eq!(onnx_shape.len(), 3);
         assert_eq!(onnx_shape[1], 144); // reg_max*4 + nc
     }

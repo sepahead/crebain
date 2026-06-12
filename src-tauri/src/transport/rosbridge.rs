@@ -8,8 +8,8 @@
 //! See: https://github.com/RobotWebTools/rosbridge_suite
 
 use super::{
-    CameraFrame, CameraInfoData, ImuData, ModelStates, PoseData, Result, Transport,
-    TransportError, TransportStats, TwistStampedData, VelocityCmd,
+    CameraFrame, CameraInfoData, ImuData, ModelStates, PoseData, Result, Transport, TransportError,
+    TransportStats, TwistStampedData, VelocityCmd,
 };
 use futures_util::{SinkExt, StreamExt};
 use std::collections::HashMap;
@@ -92,9 +92,9 @@ impl RosbridgeTransport {
     pub async fn connect(url: Option<&str>) -> Result<Self> {
         let ws_url = url.unwrap_or(DEFAULT_ROSBRIDGE_URL);
 
-        let (ws_stream, _) = connect_async(ws_url)
-            .await
-            .map_err(|e| TransportError::ConnectionFailed(format!("WebSocket connect failed: {}", e)))?;
+        let (ws_stream, _) = connect_async(ws_url).await.map_err(|e| {
+            TransportError::ConnectionFailed(format!("WebSocket connect failed: {}", e))
+        })?;
 
         let (mut write, mut read) = ws_stream.split();
         let (write_tx, mut write_rx) = mpsc::unbounded_channel::<String>();
@@ -134,8 +134,12 @@ impl RosbridgeTransport {
                 match msg {
                     Ok(Message::Text(text)) => {
                         let len = text.len() as u64;
-                        inner_clone2.bytes_received.fetch_add(len, Ordering::Relaxed);
-                        inner_clone2.messages_received.fetch_add(1, Ordering::Relaxed);
+                        inner_clone2
+                            .bytes_received
+                            .fetch_add(len, Ordering::Relaxed);
+                        inner_clone2
+                            .messages_received
+                            .fetch_add(1, Ordering::Relaxed);
 
                         if let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) {
                             if let Some(topic) = value.get("topic").and_then(|v| v.as_str()) {
@@ -249,10 +253,7 @@ impl Transport for RosbridgeTransport {
                                 .get("is_bigendian")
                                 .and_then(|v| v.as_u64())
                                 .unwrap_or(0) as u8,
-                            step: msg
-                                .get("step")
-                                .and_then(|v| v.as_u64())
-                                .unwrap_or(0) as u32,
+                            step: msg.get("step").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
                         };
                         callback(frame);
                     }
@@ -341,20 +342,40 @@ impl Transport for RosbridgeTransport {
                     if let Some(msg) = value.get("msg") {
                         let imu = ImuData {
                             orientation: [
-                                msg.pointer("/orientation/x").and_then(|v| v.as_f64()).unwrap_or(0.0),
-                                msg.pointer("/orientation/y").and_then(|v| v.as_f64()).unwrap_or(0.0),
-                                msg.pointer("/orientation/z").and_then(|v| v.as_f64()).unwrap_or(0.0),
-                                msg.pointer("/orientation/w").and_then(|v| v.as_f64()).unwrap_or(1.0),
+                                msg.pointer("/orientation/x")
+                                    .and_then(|v| v.as_f64())
+                                    .unwrap_or(0.0),
+                                msg.pointer("/orientation/y")
+                                    .and_then(|v| v.as_f64())
+                                    .unwrap_or(0.0),
+                                msg.pointer("/orientation/z")
+                                    .and_then(|v| v.as_f64())
+                                    .unwrap_or(0.0),
+                                msg.pointer("/orientation/w")
+                                    .and_then(|v| v.as_f64())
+                                    .unwrap_or(1.0),
                             ],
                             angular_velocity: [
-                                msg.pointer("/angular_velocity/x").and_then(|v| v.as_f64()).unwrap_or(0.0),
-                                msg.pointer("/angular_velocity/y").and_then(|v| v.as_f64()).unwrap_or(0.0),
-                                msg.pointer("/angular_velocity/z").and_then(|v| v.as_f64()).unwrap_or(0.0),
+                                msg.pointer("/angular_velocity/x")
+                                    .and_then(|v| v.as_f64())
+                                    .unwrap_or(0.0),
+                                msg.pointer("/angular_velocity/y")
+                                    .and_then(|v| v.as_f64())
+                                    .unwrap_or(0.0),
+                                msg.pointer("/angular_velocity/z")
+                                    .and_then(|v| v.as_f64())
+                                    .unwrap_or(0.0),
                             ],
                             linear_acceleration: [
-                                msg.pointer("/linear_acceleration/x").and_then(|v| v.as_f64()).unwrap_or(0.0),
-                                msg.pointer("/linear_acceleration/y").and_then(|v| v.as_f64()).unwrap_or(0.0),
-                                msg.pointer("/linear_acceleration/z").and_then(|v| v.as_f64()).unwrap_or(0.0),
+                                msg.pointer("/linear_acceleration/x")
+                                    .and_then(|v| v.as_f64())
+                                    .unwrap_or(0.0),
+                                msg.pointer("/linear_acceleration/y")
+                                    .and_then(|v| v.as_f64())
+                                    .unwrap_or(0.0),
+                                msg.pointer("/linear_acceleration/z")
+                                    .and_then(|v| v.as_f64())
+                                    .unwrap_or(0.0),
                             ],
                             timestamp: msg
                                 .get("header")
@@ -394,15 +415,29 @@ impl Transport for RosbridgeTransport {
                         if let Some(pose) = msg.get("pose") {
                             let pose_data = PoseData {
                                 position: [
-                                    pose.pointer("/position/x").and_then(|v| v.as_f64()).unwrap_or(0.0),
-                                    pose.pointer("/position/y").and_then(|v| v.as_f64()).unwrap_or(0.0),
-                                    pose.pointer("/position/z").and_then(|v| v.as_f64()).unwrap_or(0.0),
+                                    pose.pointer("/position/x")
+                                        .and_then(|v| v.as_f64())
+                                        .unwrap_or(0.0),
+                                    pose.pointer("/position/y")
+                                        .and_then(|v| v.as_f64())
+                                        .unwrap_or(0.0),
+                                    pose.pointer("/position/z")
+                                        .and_then(|v| v.as_f64())
+                                        .unwrap_or(0.0),
                                 ],
                                 orientation: [
-                                    pose.pointer("/orientation/x").and_then(|v| v.as_f64()).unwrap_or(0.0),
-                                    pose.pointer("/orientation/y").and_then(|v| v.as_f64()).unwrap_or(0.0),
-                                    pose.pointer("/orientation/z").and_then(|v| v.as_f64()).unwrap_or(0.0),
-                                    pose.pointer("/orientation/w").and_then(|v| v.as_f64()).unwrap_or(1.0),
+                                    pose.pointer("/orientation/x")
+                                        .and_then(|v| v.as_f64())
+                                        .unwrap_or(0.0),
+                                    pose.pointer("/orientation/y")
+                                        .and_then(|v| v.as_f64())
+                                        .unwrap_or(0.0),
+                                    pose.pointer("/orientation/z")
+                                        .and_then(|v| v.as_f64())
+                                        .unwrap_or(0.0),
+                                    pose.pointer("/orientation/w")
+                                        .and_then(|v| v.as_f64())
+                                        .unwrap_or(1.0),
                                 ],
                                 timestamp: msg
                                     .get("header")
@@ -463,15 +498,29 @@ impl Transport for RosbridgeTransport {
                                 arr.iter()
                                     .map(|p| PoseData {
                                         position: [
-                                            p.pointer("/position/x").and_then(|v| v.as_f64()).unwrap_or(0.0),
-                                            p.pointer("/position/y").and_then(|v| v.as_f64()).unwrap_or(0.0),
-                                            p.pointer("/position/z").and_then(|v| v.as_f64()).unwrap_or(0.0),
+                                            p.pointer("/position/x")
+                                                .and_then(|v| v.as_f64())
+                                                .unwrap_or(0.0),
+                                            p.pointer("/position/y")
+                                                .and_then(|v| v.as_f64())
+                                                .unwrap_or(0.0),
+                                            p.pointer("/position/z")
+                                                .and_then(|v| v.as_f64())
+                                                .unwrap_or(0.0),
                                         ],
                                         orientation: [
-                                            p.pointer("/orientation/x").and_then(|v| v.as_f64()).unwrap_or(0.0),
-                                            p.pointer("/orientation/y").and_then(|v| v.as_f64()).unwrap_or(0.0),
-                                            p.pointer("/orientation/z").and_then(|v| v.as_f64()).unwrap_or(0.0),
-                                            p.pointer("/orientation/w").and_then(|v| v.as_f64()).unwrap_or(1.0),
+                                            p.pointer("/orientation/x")
+                                                .and_then(|v| v.as_f64())
+                                                .unwrap_or(0.0),
+                                            p.pointer("/orientation/y")
+                                                .and_then(|v| v.as_f64())
+                                                .unwrap_or(0.0),
+                                            p.pointer("/orientation/z")
+                                                .and_then(|v| v.as_f64())
+                                                .unwrap_or(0.0),
+                                            p.pointer("/orientation/w")
+                                                .and_then(|v| v.as_f64())
+                                                .unwrap_or(1.0),
                                         ],
                                         timestamp: 0.0,
                                         frame_id: String::new(),
@@ -487,14 +536,26 @@ impl Transport for RosbridgeTransport {
                                 arr.iter()
                                     .map(|t| VelocityCmd {
                                         linear: [
-                                            t.pointer("/linear/x").and_then(|v| v.as_f64()).unwrap_or(0.0),
-                                            t.pointer("/linear/y").and_then(|v| v.as_f64()).unwrap_or(0.0),
-                                            t.pointer("/linear/z").and_then(|v| v.as_f64()).unwrap_or(0.0),
+                                            t.pointer("/linear/x")
+                                                .and_then(|v| v.as_f64())
+                                                .unwrap_or(0.0),
+                                            t.pointer("/linear/y")
+                                                .and_then(|v| v.as_f64())
+                                                .unwrap_or(0.0),
+                                            t.pointer("/linear/z")
+                                                .and_then(|v| v.as_f64())
+                                                .unwrap_or(0.0),
                                         ],
                                         angular: [
-                                            t.pointer("/angular/x").and_then(|v| v.as_f64()).unwrap_or(0.0),
-                                            t.pointer("/angular/y").and_then(|v| v.as_f64()).unwrap_or(0.0),
-                                            t.pointer("/angular/z").and_then(|v| v.as_f64()).unwrap_or(0.0),
+                                            t.pointer("/angular/x")
+                                                .and_then(|v| v.as_f64())
+                                                .unwrap_or(0.0),
+                                            t.pointer("/angular/y")
+                                                .and_then(|v| v.as_f64())
+                                                .unwrap_or(0.0),
+                                            t.pointer("/angular/z")
+                                                .and_then(|v| v.as_f64())
+                                                .unwrap_or(0.0),
                                         ],
                                     })
                                     .collect()

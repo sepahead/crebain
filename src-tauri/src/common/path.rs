@@ -38,7 +38,10 @@ pub fn tensorrt_engine_cache_dir() -> Option<PathBuf> {
     } else if let Ok(xdg_cache) = std::env::var("XDG_CACHE_HOME") {
         PathBuf::from(xdg_cache).join("crebain").join("trt_cache")
     } else if let Ok(home) = std::env::var("HOME") {
-        PathBuf::from(home).join(".cache").join("crebain").join("trt_cache")
+        PathBuf::from(home)
+            .join(".cache")
+            .join("crebain")
+            .join("trt_cache")
     } else {
         std::env::temp_dir().join("crebain").join("trt_cache")
     };
@@ -72,7 +75,9 @@ pub fn tensorrt_engine_cache_dir() -> Option<PathBuf> {
 pub fn validate_path_strict(path: &str, allowed_root: Option<&Path>) -> PathResult<PathBuf> {
     // Check for null bytes (C string truncation attack)
     if path.contains('\0') {
-        return Err(PathError::InvalidCharacters("null byte in path".to_string()));
+        return Err(PathError::InvalidCharacters(
+            "null byte in path".to_string(),
+        ));
     }
 
     // Check for empty path
@@ -106,9 +111,9 @@ pub fn validate_path_strict(path: &str, allowed_root: Option<&Path>) -> PathResu
     // If allowed_root is specified, ensure path is under it
     if let Some(root) = allowed_root {
         // Canonicalize both paths for comparison
-        let canonical_root = root.canonicalize().map_err(|e| {
-            PathError::CanonicalizationFailed(format!("root path: {}", e))
-        })?;
+        let canonical_root = root
+            .canonicalize()
+            .map_err(|e| PathError::CanonicalizationFailed(format!("root path: {}", e)))?;
 
         let candidate_path = if path_buf.is_absolute() {
             path_buf
@@ -119,13 +124,13 @@ pub fn validate_path_strict(path: &str, allowed_root: Option<&Path>) -> PathResu
         // Try to canonicalize the target path.
         // If it doesn't exist, construct what it would be under the allowed root.
         let canonical_path = if candidate_path.exists() {
-            candidate_path.canonicalize().map_err(|e| {
-                PathError::CanonicalizationFailed(format!("target path: {}", e))
-            })?
+            candidate_path
+                .canonicalize()
+                .map_err(|e| PathError::CanonicalizationFailed(format!("target path: {}", e)))?
         } else if let Some(parent) = candidate_path.parent().filter(|p| p.exists()) {
-            let canonical_parent = parent.canonicalize().map_err(|e| {
-                PathError::CanonicalizationFailed(format!("target parent: {}", e))
-            })?;
+            let canonical_parent = parent
+                .canonicalize()
+                .map_err(|e| PathError::CanonicalizationFailed(format!("target parent: {}", e)))?;
             match candidate_path.file_name() {
                 Some(file_name) => canonical_parent.join(file_name),
                 None => canonical_parent,
@@ -167,21 +172,24 @@ pub fn validate_path(path: &str, allowed_root: Option<&Path>) -> Result<PathBuf,
 /// # Arguments
 /// * `path` - The model path to validate
 /// * `expected_extensions` - Optional list of allowed extensions (e.g., ["onnx", "mlmodelc"])
-pub fn validate_model_path(path: &str, expected_extensions: Option<&[&str]>) -> Result<PathBuf, String> {
+pub fn validate_model_path(
+    path: &str,
+    expected_extensions: Option<&[&str]>,
+) -> Result<PathBuf, String> {
     // Basic security validation
     let validated = validate_path(path, None)?;
 
     // Check file exists
     if !validated.exists() {
-        return Err(format!("Model file does not exist: {}", validated.display()));
+        return Err(format!(
+            "Model file does not exist: {}",
+            validated.display()
+        ));
     }
 
     // Check extension if specified
     if let Some(extensions) = expected_extensions {
-        let ext = validated
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("");
+        let ext = validated.extension().and_then(|e| e.to_str()).unwrap_or("");
 
         if !extensions.iter().any(|&e| e.eq_ignore_ascii_case(ext)) {
             return Err(format!(
@@ -230,10 +238,8 @@ mod tests {
 
     #[test]
     fn test_existing_model_extension_validation() {
-        let model_path = std::env::temp_dir().join(format!(
-            "crebain-model-{}.onnx",
-            std::process::id()
-        ));
+        let model_path =
+            std::env::temp_dir().join(format!("crebain-model-{}.onnx", std::process::id()));
         std::fs::write(&model_path, b"model").unwrap();
 
         assert!(validate_model_path(model_path.to_str().unwrap(), Some(&["onnx"])).is_ok());
@@ -244,10 +250,8 @@ mod tests {
 
     #[test]
     fn test_model_extension_validation_is_case_insensitive() {
-        let model_path = std::env::temp_dir().join(format!(
-            "crebain-model-case-{}.ONNX",
-            std::process::id()
-        ));
+        let model_path =
+            std::env::temp_dir().join(format!("crebain-model-case-{}.ONNX", std::process::id()));
         std::fs::write(&model_path, b"model").unwrap();
 
         assert!(validate_model_path(model_path.to_str().unwrap(), Some(&["onnx"])).is_ok());
@@ -271,10 +275,8 @@ mod tests {
 
     #[test]
     fn test_model_path_rejects_existing_file_without_expected_extension() {
-        let model_path = std::env::temp_dir().join(format!(
-            "crebain-model-no-ext-{}",
-            std::process::id()
-        ));
+        let model_path =
+            std::env::temp_dir().join(format!("crebain-model-no-ext-{}", std::process::id()));
         std::fs::write(&model_path, b"model").unwrap();
 
         let error = validate_model_path(model_path.to_str().unwrap(), Some(&["onnx"])).unwrap_err();
@@ -286,10 +288,8 @@ mod tests {
 
     #[test]
     fn test_model_path_accepts_mlmodelc_directory() {
-        let model_path = std::env::temp_dir().join(format!(
-            "crebain-model-dir-{}.mlmodelc",
-            std::process::id()
-        ));
+        let model_path =
+            std::env::temp_dir().join(format!("crebain-model-dir-{}.mlmodelc", std::process::id()));
         std::fs::create_dir_all(&model_path).unwrap();
 
         assert!(validate_model_path(model_path.to_str().unwrap(), Some(&["mlmodelc"])).is_ok());
@@ -299,15 +299,10 @@ mod tests {
 
     #[test]
     fn test_allowed_root_rejects_escaped_absolute_path() {
-        let root = std::env::temp_dir().join(format!(
-            "crebain-root-{}",
-            std::process::id()
-        ));
+        let root = std::env::temp_dir().join(format!("crebain-root-{}", std::process::id()));
         std::fs::create_dir_all(&root).unwrap();
-        let outside = std::env::temp_dir().join(format!(
-            "crebain-outside-{}.json",
-            std::process::id()
-        ));
+        let outside =
+            std::env::temp_dir().join(format!("crebain-outside-{}.json", std::process::id()));
         std::fs::write(&outside, "{}").unwrap();
 
         assert!(validate_path(outside.to_str().unwrap(), Some(&root)).is_err());
@@ -318,10 +313,8 @@ mod tests {
 
     #[test]
     fn test_allowed_root_resolves_relative_nonexistent_path_under_root() {
-        let root = std::env::temp_dir().join(format!(
-            "crebain-relative-root-{}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("crebain-relative-root-{}", std::process::id()));
         std::fs::create_dir_all(&root).unwrap();
 
         let validated = validate_path("nested/scene.json", Some(&root)).unwrap();

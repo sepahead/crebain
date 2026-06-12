@@ -37,11 +37,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 
 #[cfg(feature = "zenoh-transport")]
-use {
-    std::collections::HashMap,
-    std::sync::Mutex,
-    zenoh::Session,
-};
+use {std::collections::HashMap, std::sync::Mutex, zenoh::Session};
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // CDR (Common Data Representation) DECODING
@@ -97,28 +93,23 @@ fn read_u32(data: &[u8], offset: &mut usize, is_little_endian: bool) -> Result<u
     align_cdr(offset, 4);
     let end = *offset + 4;
     if data.len() < end {
-        return Err(TransportError::DecodingError(
-            format!("Buffer underflow reading u32 at offset {}", *offset),
-        ));
+        return Err(TransportError::DecodingError(format!(
+            "Buffer underflow reading u32 at offset {}",
+            *offset
+        )));
     }
     let val = if is_little_endian {
-        u32::from_le_bytes(
-            data[*offset..end]
-                .try_into()
-                .map_err(|_| TransportError::DecodingError("u32 slice conversion failed".to_string()))?,
-        )
+        u32::from_le_bytes(data[*offset..end].try_into().map_err(|_| {
+            TransportError::DecodingError("u32 slice conversion failed".to_string())
+        })?)
     } else {
-        u32::from_be_bytes(
-            data[*offset..end]
-                .try_into()
-                .map_err(|_| TransportError::DecodingError("u32 slice conversion failed".to_string()))?,
-        )
+        u32::from_be_bytes(data[*offset..end].try_into().map_err(|_| {
+            TransportError::DecodingError("u32 slice conversion failed".to_string())
+        })?)
     };
     *offset = end;
     Ok(val)
 }
-
-
 
 #[cfg(feature = "zenoh-transport")]
 /// Read a little-endian i32 from the buffer at the given offset, advancing the offset.
@@ -127,15 +118,15 @@ fn read_i32_le(data: &[u8], offset: &mut usize) -> Result<i32> {
     align_cdr(offset, 4);
     let end = *offset + 4;
     if data.len() < end {
-        return Err(TransportError::DecodingError(
-            format!("Buffer underflow reading i32 at offset {}", *offset),
-        ));
+        return Err(TransportError::DecodingError(format!(
+            "Buffer underflow reading i32 at offset {}",
+            *offset
+        )));
     }
-    let val = i32::from_le_bytes(
-        data[*offset..end]
-            .try_into()
-            .map_err(|_| TransportError::DecodingError("i32 slice conversion failed".to_string()))?,
-    );
+    let val =
+        i32::from_le_bytes(data[*offset..end].try_into().map_err(|_| {
+            TransportError::DecodingError("i32 slice conversion failed".to_string())
+        })?);
     *offset = end;
     Ok(val)
 }
@@ -147,28 +138,23 @@ fn read_f64(data: &[u8], offset: &mut usize, is_little_endian: bool) -> Result<f
     align_cdr(offset, 8);
     let end = *offset + 8;
     if data.len() < end {
-        return Err(TransportError::DecodingError(
-            format!("Buffer underflow reading f64 at offset {}", *offset),
-        ));
+        return Err(TransportError::DecodingError(format!(
+            "Buffer underflow reading f64 at offset {}",
+            *offset
+        )));
     }
     let val = if is_little_endian {
-        f64::from_le_bytes(
-            data[*offset..end]
-                .try_into()
-                .map_err(|_| TransportError::DecodingError("f64 slice conversion failed".to_string()))?,
-        )
+        f64::from_le_bytes(data[*offset..end].try_into().map_err(|_| {
+            TransportError::DecodingError("f64 slice conversion failed".to_string())
+        })?)
     } else {
-        f64::from_be_bytes(
-            data[*offset..end]
-                .try_into()
-                .map_err(|_| TransportError::DecodingError("f64 slice conversion failed".to_string()))?,
-        )
+        f64::from_be_bytes(data[*offset..end].try_into().map_err(|_| {
+            TransportError::DecodingError("f64 slice conversion failed".to_string())
+        })?)
     };
     *offset = end;
     Ok(val)
 }
-
-
 
 #[cfg(feature = "zenoh-transport")]
 fn read_bounded_sequence_len(
@@ -195,22 +181,23 @@ fn read_cdr_string(data: &[u8], offset: &mut usize, is_little_endian: bool) -> R
 
     // Reject unreasonable string lengths to prevent overflow
     if str_len_u32 > MAX_CDR_STRING_LEN as u32 {
-        return Err(TransportError::DecodingError(
-            format!("CDR string length {} exceeds maximum {}", str_len_u32, MAX_CDR_STRING_LEN),
-        ));
+        return Err(TransportError::DecodingError(format!(
+            "CDR string length {} exceeds maximum {}",
+            str_len_u32, MAX_CDR_STRING_LEN
+        )));
     }
     let str_len = str_len_u32 as usize;
 
     // Check bounds safely: offset + str_len can still overflow on 32-bit
-    let end_offset = offset.checked_add(str_len)
-        .ok_or_else(|| TransportError::DecodingError(
-            format!("String offset overflow at {}", *offset),
-        ))?;
-    
+    let end_offset = offset.checked_add(str_len).ok_or_else(|| {
+        TransportError::DecodingError(format!("String offset overflow at {}", *offset))
+    })?;
+
     if data.len() < end_offset {
-        return Err(TransportError::DecodingError(
-            format!("String truncated at offset {}, need {} bytes", *offset, str_len),
-        ));
+        return Err(TransportError::DecodingError(format!(
+            "String truncated at offset {}, need {} bytes",
+            *offset, str_len
+        )));
     }
 
     // CDR strings include null terminator in length — strip it
@@ -227,7 +214,11 @@ fn read_cdr_string(data: &[u8], offset: &mut usize, is_little_endian: bool) -> R
 #[cfg(feature = "zenoh-transport")]
 /// Decode a ROS2 Header (std_msgs/Header) from CDR
 /// Layout: stamp (sec: i32, nanosec: u32), frame_id (string)
-fn decode_ros2_header(data: &[u8], offset: &mut usize, is_little_endian: bool) -> Result<(f64, String)> {
+fn decode_ros2_header(
+    data: &[u8],
+    offset: &mut usize,
+    is_little_endian: bool,
+) -> Result<(f64, String)> {
     // Timestamp: sec (i32) + nanosec (u32)
     let sec = if is_little_endian {
         read_i32_le(data, offset)?
@@ -248,7 +239,8 @@ fn min_bytes_per_pixel(encoding: &str) -> usize {
     match encoding.trim().to_ascii_lowercase().as_str() {
         "rgb8" | "bgr8" | "8uc3" => 3,
         "rgba8" | "bgra8" | "8uc4" | "32fc1" => 4,
-        "mono16" | "16uc1" | "16sc1" | "bayer_rggb16" | "bayer_bggr16" | "bayer_gbrg16" | "bayer_grbg16" => 2,
+        "mono16" | "16uc1" | "16sc1" | "bayer_rggb16" | "bayer_bggr16" | "bayer_gbrg16"
+        | "bayer_grbg16" => 2,
         _ => 1,
     }
 }
@@ -307,15 +299,15 @@ fn read_i32_be(data: &[u8], offset: &mut usize) -> Result<i32> {
     align_cdr(offset, 4);
     let end = *offset + 4;
     if data.len() < end {
-        return Err(TransportError::DecodingError(
-            format!("Buffer underflow reading i32 at offset {}", *offset),
-        ));
+        return Err(TransportError::DecodingError(format!(
+            "Buffer underflow reading i32 at offset {}",
+            *offset
+        )));
     }
-    let val = i32::from_be_bytes(
-        data[*offset..end]
-            .try_into()
-            .map_err(|_| TransportError::DecodingError("i32 slice conversion failed".to_string()))?,
-    );
+    let val =
+        i32::from_be_bytes(data[*offset..end].try_into().map_err(|_| {
+            TransportError::DecodingError("i32 slice conversion failed".to_string())
+        })?);
     *offset = end;
     Ok(val)
 }
@@ -346,7 +338,9 @@ fn decode_image_cdr(data: &[u8]) -> Result<CameraFrame> {
 
     // is_bigendian (1 byte)
     if data.len() <= offset {
-        return Err(TransportError::DecodingError("Missing is_bigendian".to_string()));
+        return Err(TransportError::DecodingError(
+            "Missing is_bigendian".to_string(),
+        ));
     }
     let is_bigendian = data[offset];
     if is_bigendian > 1 {
@@ -365,12 +359,13 @@ fn decode_image_cdr(data: &[u8]) -> Result<CameraFrame> {
 
     // Data array (length-prefixed)
     let data_len_u32 = read_u32(data, &mut offset, is_little_endian)?;
-    
+
     // Reject unreasonable data lengths to prevent overflow
     if data_len_u32 > MAX_CDR_DATA_LEN as u32 {
-        return Err(TransportError::DecodingError(
-            format!("CDR data length {} exceeds maximum {}", data_len_u32, MAX_CDR_DATA_LEN),
-        ));
+        return Err(TransportError::DecodingError(format!(
+            "CDR data length {} exceeds maximum {}",
+            data_len_u32, MAX_CDR_DATA_LEN
+        )));
     }
     let data_len = data_len_u32 as usize;
     if data_len != expected_data_len {
@@ -381,15 +376,15 @@ fn decode_image_cdr(data: &[u8]) -> Result<CameraFrame> {
     }
 
     // Check bounds safely: offset + data_len can overflow
-    let end_offset = offset.checked_add(data_len)
-        .ok_or_else(|| TransportError::DecodingError(
-            format!("Data offset overflow at offset {}", offset),
-        ))?;
-    
+    let end_offset = offset.checked_add(data_len).ok_or_else(|| {
+        TransportError::DecodingError(format!("Data offset overflow at offset {}", offset))
+    })?;
+
     if data.len() < end_offset {
-        return Err(TransportError::DecodingError(
-            format!("Image data truncated: need {} bytes at offset {}", data_len, offset),
-        ));
+        return Err(TransportError::DecodingError(format!(
+            "Image data truncated: need {} bytes at offset {}",
+            data_len, offset
+        )));
     }
     let image_data_b64 = general_purpose::STANDARD.encode(&data[offset..end_offset]);
 
@@ -432,20 +427,21 @@ fn decode_compressed_image_cdr(data: &[u8]) -> Result<CameraFrame> {
 
     // Reject unreasonable data lengths to prevent overflow
     if data_len_u32 > MAX_CDR_DATA_LEN as u32 {
-        return Err(TransportError::DecodingError(
-            format!("CDR data length {} exceeds maximum {}", data_len_u32, MAX_CDR_DATA_LEN),
-        ));
+        return Err(TransportError::DecodingError(format!(
+            "CDR data length {} exceeds maximum {}",
+            data_len_u32, MAX_CDR_DATA_LEN
+        )));
     }
     let data_len = data_len_u32 as usize;
 
-    let end_offset = offset.checked_add(data_len)
-        .ok_or_else(|| TransportError::DecodingError(
-            format!("Data offset overflow at {}", offset),
-        ))?;
+    let end_offset = offset.checked_add(data_len).ok_or_else(|| {
+        TransportError::DecodingError(format!("Data offset overflow at {}", offset))
+    })?;
     if data.len() < end_offset {
-        return Err(TransportError::DecodingError(
-            format!("Compressed image data truncated: need {} bytes at offset {}", data_len, offset),
-        ));
+        return Err(TransportError::DecodingError(format!(
+            "Compressed image data truncated: need {} bytes at offset {}",
+            data_len, offset
+        )));
     }
     let image_data_b64 = general_purpose::STANDARD.encode(&data[offset..end_offset]);
 
@@ -533,7 +529,9 @@ fn decode_camera_info_cdr(data: &[u8]) -> Result<CameraInfoData> {
 /// Decode sensor_msgs/Imu from CDR
 fn decode_imu_cdr(data: &[u8]) -> Result<ImuData> {
     if data.len() < CDR_HEADER_SIZE + 100 {
-        return Err(TransportError::DecodingError("IMU data too short".to_string()));
+        return Err(TransportError::DecodingError(
+            "IMU data too short".to_string(),
+        ));
     }
 
     // Read CDR header for endianness
@@ -553,7 +551,9 @@ fn decode_imu_cdr(data: &[u8]) -> Result<ImuData> {
 
     // Skip orientation covariance (9 * f64 = 72 bytes)
     if data.len() < offset + 72 {
-        return Err(TransportError::DecodingError("Orientation covariance truncated".to_string()));
+        return Err(TransportError::DecodingError(
+            "Orientation covariance truncated".to_string(),
+        ));
     }
     offset += 72;
 
@@ -566,7 +566,9 @@ fn decode_imu_cdr(data: &[u8]) -> Result<ImuData> {
 
     // Skip angular velocity covariance (72 bytes)
     if data.len() < offset + 72 {
-        return Err(TransportError::DecodingError("Angular velocity covariance truncated".to_string()));
+        return Err(TransportError::DecodingError(
+            "Angular velocity covariance truncated".to_string(),
+        ));
     }
     offset += 72;
 
@@ -589,7 +591,9 @@ fn decode_imu_cdr(data: &[u8]) -> Result<ImuData> {
 /// Decode geometry_msgs/PoseStamped from CDR
 fn decode_pose_cdr(data: &[u8]) -> Result<PoseData> {
     if data.len() < CDR_HEADER_SIZE + 60 {
-        return Err(TransportError::DecodingError("Pose data too short".to_string()));
+        return Err(TransportError::DecodingError(
+            "Pose data too short".to_string(),
+        ));
     }
 
     // Read CDR header for endianness
@@ -623,7 +627,11 @@ fn decode_pose_cdr(data: &[u8]) -> Result<PoseData> {
 }
 
 #[cfg(feature = "zenoh-transport")]
-fn read_pose_from_stream(data: &[u8], offset: &mut usize, is_little_endian: bool) -> Result<PoseData> {
+fn read_pose_from_stream(
+    data: &[u8],
+    offset: &mut usize,
+    is_little_endian: bool,
+) -> Result<PoseData> {
     // Position (x, y, z)
     let position = [
         read_f64(data, offset, is_little_endian)?,
@@ -646,7 +654,11 @@ fn read_pose_from_stream(data: &[u8], offset: &mut usize, is_little_endian: bool
 }
 
 #[cfg(feature = "zenoh-transport")]
-fn read_twist_from_stream(data: &[u8], offset: &mut usize, is_little_endian: bool) -> Result<VelocityCmd> {
+fn read_twist_from_stream(
+    data: &[u8],
+    offset: &mut usize,
+    is_little_endian: bool,
+) -> Result<VelocityCmd> {
     // Linear
     let linear = [
         read_f64(data, offset, is_little_endian)?,
@@ -666,7 +678,9 @@ fn read_twist_from_stream(data: &[u8], offset: &mut usize, is_little_endian: boo
 /// Decode gazebo_msgs/ModelStates from CDR
 fn decode_model_states_cdr(data: &[u8]) -> Result<ModelStates> {
     if data.len() < CDR_HEADER_SIZE + 4 {
-        return Err(TransportError::DecodingError("ModelStates data too short".to_string()));
+        return Err(TransportError::DecodingError(
+            "ModelStates data too short".to_string(),
+        ));
     }
 
     // Read CDR header for endianness
@@ -674,21 +688,24 @@ fn decode_model_states_cdr(data: &[u8]) -> Result<ModelStates> {
     let mut offset = CDR_HEADER_SIZE;
 
     // name[]
-    let name_len = read_bounded_sequence_len(data, &mut offset, is_little_endian, "ModelStates.name")?;
+    let name_len =
+        read_bounded_sequence_len(data, &mut offset, is_little_endian, "ModelStates.name")?;
     let mut name = Vec::with_capacity(name_len);
     for _ in 0..name_len {
         name.push(read_cdr_string(data, &mut offset, is_little_endian)?);
     }
 
     // pose[]
-    let pose_len = read_bounded_sequence_len(data, &mut offset, is_little_endian, "ModelStates.pose")?;
+    let pose_len =
+        read_bounded_sequence_len(data, &mut offset, is_little_endian, "ModelStates.pose")?;
     let mut pose = Vec::with_capacity(pose_len);
     for _ in 0..pose_len {
         pose.push(read_pose_from_stream(data, &mut offset, is_little_endian)?);
     }
 
     // twist[]
-    let twist_len = read_bounded_sequence_len(data, &mut offset, is_little_endian, "ModelStates.twist")?;
+    let twist_len =
+        read_bounded_sequence_len(data, &mut offset, is_little_endian, "ModelStates.twist")?;
     let mut twist = Vec::with_capacity(twist_len);
     for _ in 0..twist_len {
         twist.push(read_twist_from_stream(data, &mut offset, is_little_endian)?);
@@ -1231,7 +1248,7 @@ impl Transport for ZenohBridge {
             avg_latency_ms,
             bytes_received: self.bytes_received.load(Ordering::Relaxed),
             bytes_sent: self.bytes_sent.load(Ordering::Relaxed),
-                uptime_secs: self.start_time.elapsed().as_secs_f64(),
+            uptime_secs: self.start_time.elapsed().as_secs_f64(),
         }
     }
 }

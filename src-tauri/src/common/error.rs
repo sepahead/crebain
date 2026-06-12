@@ -82,7 +82,11 @@ impl fmt::Display for PathError {
             PathError::TraversalAttempt(path) => write!(f, "Path traversal detected: {}", path),
             PathError::NotFound(path) => write!(f, "Path not found: {}", path),
             PathError::InvalidExtension { expected, got } => {
-                write!(f, "Invalid extension '{}', expected one of: {:?}", got, expected)
+                write!(
+                    f,
+                    "Invalid extension '{}', expected one of: {:?}",
+                    got, expected
+                )
             }
             PathError::CanonicalizationFailed(msg) => write!(f, "Path resolution failed: {}", msg),
         }

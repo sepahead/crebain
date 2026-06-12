@@ -1,6 +1,6 @@
 fn main() {
     tauri_build::build();
-    
+
     // Link macOS frameworks for native CoreML FFI
     #[cfg(target_os = "macos")]
     {

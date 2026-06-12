@@ -1,9 +1,9 @@
-use tauri::{AppHandle, Emitter};
-use tokio::sync::Mutex;
 use super::{
     create_bridge, CameraFrame, CameraInfoData, ImuData, ModelStates, PoseData, Transport,
     TransportStats, TwistStampedData, VelocityCmd,
 };
+use tauri::{AppHandle, Emitter};
+use tokio::sync::Mutex;
 
 // Global transport instance
 lazy_static::lazy_static! {
@@ -161,13 +161,13 @@ fn transport_event_name(topic: &str) -> String {
 #[tauri::command]
 pub async fn transport_connect() -> Result<(), String> {
     log::info!("Connecting to transport layer...");
-    
+
     // Create bridge (will pick Zenoh if enabled/configured)
     let mut bridge = create_bridge().await.map_err(|e| e.to_string())?;
-    
+
     // Connect
     bridge.connect().await.map_err(|e| e.to_string())?;
-    
+
     // Disconnect any existing transport before replacing it
     let mut guard = TRANSPORT_ENGINE.lock().await;
     if let Some(old_bridge) = guard.as_mut() {
@@ -176,7 +176,7 @@ pub async fn transport_connect() -> Result<(), String> {
         }
     }
     *guard = Some(bridge);
-    
+
     log::info!("Transport connected successfully");
     Ok(())
 }
@@ -185,13 +185,13 @@ pub async fn transport_connect() -> Result<(), String> {
 #[tauri::command]
 pub async fn transport_disconnect() -> Result<(), String> {
     log::info!("Disconnecting transport...");
-    
+
     let mut guard = TRANSPORT_ENGINE.lock().await;
-    
+
     if let Some(bridge) = guard.as_mut() {
         bridge.disconnect().await.map_err(|e| e.to_string())?;
     }
-    
+
     *guard = None;
     Ok(())
 }
@@ -199,17 +199,18 @@ pub async fn transport_disconnect() -> Result<(), String> {
 /// Subscribe to a camera topic
 /// frames will be emitted as events with the same name as the topic
 #[tauri::command]
-pub async fn transport_subscribe_camera(
-    app: AppHandle,
-    topic: String,
-) -> Result<(), String> {
+pub async fn transport_subscribe_camera(app: AppHandle, topic: String) -> Result<(), String> {
     validate_topic(&topic)?;
     let guard = TRANSPORT_ENGINE.lock().await;
     let bridge = guard.as_ref().ok_or("Transport not connected")?;
-    
+
     let event_name = transport_event_name(&topic);
-    log::debug!("Subscribing transport topic '{}' as event '{}'", topic, event_name);
-    
+    log::debug!(
+        "Subscribing transport topic '{}' as event '{}'",
+        topic,
+        event_name
+    );
+
     // Create callback that emits event to frontend
     // Note: This callback runs on the transport thread
     let callback = Box::new(move |frame: CameraFrame| {
@@ -219,9 +220,12 @@ pub async fn transport_subscribe_camera(
             log::warn!("Failed to emit camera frame: {}", e);
         }
     });
-    
-    bridge.subscribe_camera(&topic, callback).await.map_err(|e| e.to_string())?;
-    
+
+    bridge
+        .subscribe_camera(&topic, callback)
+        .await
+        .map_err(|e| e.to_string())?;
+
     Ok(())
 }
 
@@ -234,7 +238,11 @@ pub async fn transport_subscribe_camera_info(app: AppHandle, topic: String) -> R
     let bridge = guard.as_ref().ok_or("Transport not connected")?;
 
     let event_name = transport_event_name(&topic);
-    log::debug!("Subscribing transport topic '{}' as event '{}'", topic, event_name);
+    log::debug!(
+        "Subscribing transport topic '{}' as event '{}'",
+        topic,
+        event_name
+    );
 
     let callback = Box::new(move |info: CameraInfoData| {
         if let Err(e) = app.emit(&event_name, info) {
@@ -252,73 +260,85 @@ pub async fn transport_subscribe_camera_info(app: AppHandle, topic: String) -> R
 
 /// Subscribe to an IMU topic
 #[tauri::command]
-pub async fn transport_subscribe_imu(
-    app: AppHandle,
-    topic: String,
-) -> Result<(), String> {
+pub async fn transport_subscribe_imu(app: AppHandle, topic: String) -> Result<(), String> {
     validate_topic(&topic)?;
     let guard = TRANSPORT_ENGINE.lock().await;
     let bridge = guard.as_ref().ok_or("Transport not connected")?;
-    
+
     let event_name = transport_event_name(&topic);
-    log::debug!("Subscribing transport topic '{}' as event '{}'", topic, event_name);
-    
+    log::debug!(
+        "Subscribing transport topic '{}' as event '{}'",
+        topic,
+        event_name
+    );
+
     let callback = Box::new(move |data: ImuData| {
         if let Err(e) = app.emit(&event_name, data) {
             log::warn!("Failed to emit IMU data: {}", e);
         }
     });
-    
-    bridge.subscribe_imu(&topic, callback).await.map_err(|e| e.to_string())?;
-    
+
+    bridge
+        .subscribe_imu(&topic, callback)
+        .await
+        .map_err(|e| e.to_string())?;
+
     Ok(())
 }
 
 /// Subscribe to a Pose topic
 #[tauri::command]
-pub async fn transport_subscribe_pose(
-    app: AppHandle,
-    topic: String,
-) -> Result<(), String> {
+pub async fn transport_subscribe_pose(app: AppHandle, topic: String) -> Result<(), String> {
     validate_topic(&topic)?;
     let guard = TRANSPORT_ENGINE.lock().await;
     let bridge = guard.as_ref().ok_or("Transport not connected")?;
-    
+
     let event_name = transport_event_name(&topic);
-    log::debug!("Subscribing transport topic '{}' as event '{}'", topic, event_name);
-    
+    log::debug!(
+        "Subscribing transport topic '{}' as event '{}'",
+        topic,
+        event_name
+    );
+
     let callback = Box::new(move |data: PoseData| {
         if let Err(e) = app.emit(&event_name, data) {
             log::warn!("Failed to emit Pose data: {}", e);
         }
     });
-    
-    bridge.subscribe_pose(&topic, callback).await.map_err(|e| e.to_string())?;
-    
+
+    bridge
+        .subscribe_pose(&topic, callback)
+        .await
+        .map_err(|e| e.to_string())?;
+
     Ok(())
 }
 
 /// Subscribe to Model States
 #[tauri::command]
-pub async fn transport_subscribe_model_states(
-    app: AppHandle,
-    topic: String,
-) -> Result<(), String> {
+pub async fn transport_subscribe_model_states(app: AppHandle, topic: String) -> Result<(), String> {
     validate_topic(&topic)?;
     let guard = TRANSPORT_ENGINE.lock().await;
     let bridge = guard.as_ref().ok_or("Transport not connected")?;
-    
+
     let event_name = transport_event_name(&topic);
-    log::debug!("Subscribing transport topic '{}' as event '{}'", topic, event_name);
-    
+    log::debug!(
+        "Subscribing transport topic '{}' as event '{}'",
+        topic,
+        event_name
+    );
+
     let callback = Box::new(move |data: ModelStates| {
         if let Err(e) = app.emit(&event_name, data) {
             log::warn!("Failed to emit ModelStates: {}", e);
         }
     });
-    
-    bridge.subscribe_model_states(&topic, callback).await.map_err(|e| e.to_string())?;
-    
+
+    bridge
+        .subscribe_model_states(&topic, callback)
+        .await
+        .map_err(|e| e.to_string())?;
+
     Ok(())
 }
 
@@ -328,7 +348,10 @@ pub async fn transport_unsubscribe(topic: String) -> Result<(), String> {
     validate_topic(&topic)?;
     let guard = TRANSPORT_ENGINE.lock().await;
     let Some(bridge) = guard.as_ref() else {
-        log::debug!("Ignoring unsubscribe for '{}' because transport is disconnected", topic);
+        log::debug!(
+            "Ignoring unsubscribe for '{}' because transport is disconnected",
+            topic
+        );
         return Ok(());
     };
     bridge.unsubscribe(&topic).await.map_err(|e| e.to_string())
@@ -336,23 +359,26 @@ pub async fn transport_unsubscribe(topic: String) -> Result<(), String> {
 
 /// Publish velocity command
 #[tauri::command]
-pub async fn transport_publish_velocity(
-    topic: String,
-    cmd: VelocityCmd,
-) -> Result<(), String> {
+pub async fn transport_publish_velocity(topic: String, cmd: VelocityCmd) -> Result<(), String> {
     validate_topic(&topic)?;
     validate_velocity_cmd("cmd", &cmd)?;
     let guard = TRANSPORT_ENGINE.lock().await;
     let bridge = guard.as_ref().ok_or("Transport not connected")?;
-    
-    bridge.publish_velocity(&topic, cmd).await.map_err(|e| e.to_string())?;
-    
+
+    bridge
+        .publish_velocity(&topic, cmd)
+        .await
+        .map_err(|e| e.to_string())?;
+
     Ok(())
 }
 
 /// Publish stamped velocity command (geometry_msgs/TwistStamped)
 #[tauri::command]
-pub async fn transport_publish_twist_stamped(topic: String, cmd: TwistStampedData) -> Result<(), String> {
+pub async fn transport_publish_twist_stamped(
+    topic: String,
+    cmd: TwistStampedData,
+) -> Result<(), String> {
     validate_topic(&topic)?;
     validate_twist_stamped(&cmd)?;
     let guard = TRANSPORT_ENGINE.lock().await;
@@ -368,17 +394,17 @@ pub async fn transport_publish_twist_stamped(topic: String, cmd: TwistStampedDat
 
 /// Publish pose setpoint
 #[tauri::command]
-pub async fn transport_publish_pose(
-    topic: String,
-    pose: PoseData,
-) -> Result<(), String> {
+pub async fn transport_publish_pose(topic: String, pose: PoseData) -> Result<(), String> {
     validate_topic(&topic)?;
     validate_pose_data(&pose)?;
     let guard = TRANSPORT_ENGINE.lock().await;
     let bridge = guard.as_ref().ok_or("Transport not connected")?;
-    
-    bridge.publish_pose(&topic, pose).await.map_err(|e| e.to_string())?;
-    
+
+    bridge
+        .publish_pose(&topic, pose)
+        .await
+        .map_err(|e| e.to_string())?;
+
     Ok(())
 }
 
@@ -418,7 +444,7 @@ pub async fn transport_spawn_gazebo_model(request: GazeboSpawnModelRequest) -> R
 pub async fn transport_get_stats() -> Result<TransportStats, String> {
     let guard = TRANSPORT_ENGINE.lock().await;
     let bridge = guard.as_ref().ok_or("Transport not connected")?;
-    
+
     Ok(bridge.stats())
 }
 
@@ -448,10 +474,7 @@ fn validate_message_type(msg_type: &str) -> Result<(), String> {
         return Err("Message type must not contain null bytes".to_string());
     }
     if !msg_type.contains('/') {
-        return Err(format!(
-            "Message type must contain '/': {}",
-            msg_type
-        ));
+        return Err(format!("Message type must contain '/': {}", msg_type));
     }
     Ok(())
 }
@@ -475,17 +498,23 @@ mod tests {
 
     #[test]
     fn validate_topic_rejects_empty_null_and_oversized_topics() {
-        assert!(validate_topic("").unwrap_err().contains("must not be empty"));
-        assert!(validate_topic("   ").unwrap_err().contains("must not be empty"));
-        assert!(validate_topic("/camera\0/image").unwrap_err().contains("null bytes"));
+        assert!(validate_topic("")
+            .unwrap_err()
+            .contains("must not be empty"));
+        assert!(validate_topic("   ")
+            .unwrap_err()
+            .contains("must not be empty"));
+        assert!(validate_topic("/camera\0/image")
+            .unwrap_err()
+            .contains("null bytes"));
         let oversized = format!("/{}", "a".repeat(MAX_TOPIC_LEN));
         assert!(validate_topic(&oversized).unwrap_err().contains("too long"));
     }
 
     #[test]
     fn transport_unsubscribe_rejects_invalid_topic_before_connection_check() {
-        let error = tauri::async_runtime::block_on(transport_unsubscribe(" ".to_string()))
-            .unwrap_err();
+        let error =
+            tauri::async_runtime::block_on(transport_unsubscribe(" ".to_string())).unwrap_err();
 
         assert!(error.contains("must not be empty"));
     }
@@ -514,8 +543,8 @@ mod tests {
             frame_id: "map".to_string(),
         };
         let oversized = format!("/{}", "a".repeat(MAX_TOPIC_LEN));
-        let error = tauri::async_runtime::block_on(transport_publish_pose(oversized, pose))
-            .unwrap_err();
+        let error =
+            tauri::async_runtime::block_on(transport_publish_pose(oversized, pose)).unwrap_err();
 
         assert!(error.contains("too long"));
     }
@@ -526,11 +555,9 @@ mod tests {
             linear: [0.0, f64::NAN, 0.0],
             angular: [0.0, 0.0, 0.0],
         };
-        let error = tauri::async_runtime::block_on(transport_publish_velocity(
-            "/cmd_vel".to_string(),
-            cmd,
-        ))
-        .unwrap_err();
+        let error =
+            tauri::async_runtime::block_on(transport_publish_velocity("/cmd_vel".to_string(), cmd))
+                .unwrap_err();
 
         assert!(error.contains("cmd.linear[1] must be finite"));
     }
@@ -562,11 +589,9 @@ mod tests {
             timestamp: 0.0,
             frame_id: "map\0bad".to_string(),
         };
-        let error = tauri::async_runtime::block_on(transport_publish_pose(
-            "/setpoint".to_string(),
-            pose,
-        ))
-        .unwrap_err();
+        let error =
+            tauri::async_runtime::block_on(transport_publish_pose("/setpoint".to_string(), pose))
+                .unwrap_err();
 
         assert!(error.contains("pose.frame_id must not contain null bytes"));
     }
@@ -596,8 +621,8 @@ mod tests {
         let mut request = valid_spawn_request();
         request.name = "bad model!".to_string();
 
-        let error = tauri::async_runtime::block_on(transport_spawn_gazebo_model(request))
-            .unwrap_err();
+        let error =
+            tauri::async_runtime::block_on(transport_spawn_gazebo_model(request)).unwrap_err();
 
         assert!(error.contains("unsupported characters"));
     }

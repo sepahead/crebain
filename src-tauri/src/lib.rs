@@ -8,8 +8,8 @@
 // Core modules
 pub mod common;
 mod coreml;
-mod sensor_fusion;
 mod onnx_detector;
+mod sensor_fusion;
 
 // Inference backends (conditional compilation)
 pub mod inference;
@@ -23,7 +23,7 @@ use sensor_fusion::{
 use std::sync::Mutex;
 #[cfg(target_os = "macos")]
 use std::sync::Once;
-use tauri::{Manager, Emitter};
+use tauri::{Emitter, Manager};
 
 #[cfg(target_os = "macos")]
 static INIT: Once = Once::new();
@@ -40,7 +40,8 @@ fn init_coreml_detector(app: &tauri::App) {
         // Try multiple model paths in order of preference
         let mut possible_paths: Vec<Option<std::path::PathBuf>> = vec![
             // Bundled resource path (production)
-            app.path().resource_dir()
+            app.path()
+                .resource_dir()
                 .map(|p| p.join("resources/yolov8s.mlmodelc"))
                 .ok(),
             // Development path (relative to project root)
@@ -48,7 +49,7 @@ fn init_coreml_detector(app: &tauri::App) {
                 .map(|p| p.join("src-tauri/resources/yolov8s.mlmodelc"))
                 .ok(),
         ];
-        
+
         // Add user-specified model path from environment variable (for custom deployments)
         // Security: validate path to prevent traversal attacks
         if let Ok(custom_path) = std::env::var("CREBAIN_MODEL_PATH") {
@@ -65,8 +66,11 @@ fn init_coreml_detector(app: &tauri::App) {
         for path_opt in possible_paths.into_iter().flatten() {
             if path_opt.exists() {
                 let path_str = path_opt.to_string_lossy().to_string();
-                log::info!("Initializing native CoreML detector with model: {}", path_str);
-                
+                log::info!(
+                    "Initializing native CoreML detector with model: {}",
+                    path_str
+                );
+
                 match coreml::init_detector(&path_str) {
                     Ok(()) => {
                         log::info!("Native CoreML detector initialized successfully");
@@ -78,7 +82,7 @@ fn init_coreml_detector(app: &tauri::App) {
                 }
             }
         }
-        
+
         log::error!("Could not find CoreML model at any expected path");
     });
 }
@@ -107,10 +111,10 @@ async fn detect_coreml(
 ) -> Result<DetectionResult, String> {
     // Validate inputs
     common::image::validate_base64_image_len(image_base64.len())?;
-    
+
     let conf = confidence_threshold.unwrap_or(0.25).clamp(0.0, 1.0);
     let max_det = max_detections.unwrap_or(100).clamp(1, 1000) as usize;
-    
+
     // Spawn blocking task to avoid blocking the async runtime
     tauri::async_runtime::spawn_blocking(move || {
         coreml::detect_base64(&image_base64, conf, max_det)
@@ -133,7 +137,10 @@ fn validate_rgba_input_len(rgba_len: usize, width: u32, height: u32) -> Result<u
     common::image::validate_rgba_input_len(rgba_len, width, height)
 }
 
-fn validate_scene_file_path(path: &str, allowed_root: &std::path::Path) -> Result<std::path::PathBuf, String> {
+fn validate_scene_file_path(
+    path: &str,
+    allowed_root: &std::path::Path,
+) -> Result<std::path::PathBuf, String> {
     let validated = common::path::validate_path(path, Some(allowed_root))?;
     match validated.extension().and_then(|ext| ext.to_str()) {
         Some(ext) if ext.eq_ignore_ascii_case("json") => Ok(validated),
@@ -162,7 +169,10 @@ fn migrate_scene_json(mut value: serde_json::Value) -> Result<serde_json::Value,
     if !object.get("name").is_some_and(|name| name.is_string()) {
         return Err("Scene JSON must include a string name".to_string());
     }
-    if !object.get("timestamp").is_some_and(|timestamp| timestamp.is_number()) {
+    if !object
+        .get("timestamp")
+        .is_some_and(|timestamp| timestamp.is_number())
+    {
         object.insert(
             "timestamp".to_string(),
             serde_json::Value::Number(serde_json::Number::from(
@@ -193,10 +203,10 @@ async fn detect_coreml_raw(
     max_detections: Option<i32>,
 ) -> Result<DetectionResult, String> {
     validate_rgba_input_len(rgba_data.len(), width, height)?;
-    
+
     let conf = confidence_threshold.unwrap_or(0.25).clamp(0.0, 1.0);
     let max_det = max_detections.unwrap_or(100).clamp(1, 1000) as usize;
-    
+
     // Spawn blocking task
     tauri::async_runtime::spawn_blocking(move || {
         coreml::detect_raw(&rgba_data, width, height, conf, max_det)
@@ -247,7 +257,9 @@ async fn detect_native_raw(
                     if let serde_json::Value::Object(ref mut map) = value {
                         map.insert(
                             "backend".to_string(),
-                            serde_json::Value::String("CoreML Native FFI (Metal/Neural Engine)".to_string()),
+                            serde_json::Value::String(
+                                "CoreML Native FFI (Metal/Neural Engine)".to_string(),
+                            ),
                         );
                     }
                     Ok(value)
@@ -264,8 +276,9 @@ async fn detect_native_raw(
                                 if result.detections.len() > max_det {
                                     result.detections.truncate(max_det);
                                 }
-                                let mut value = serde_json::to_value(&result)
-                                    .map_err(|e| format!("Failed to serialize ONNX result: {}", e))?;
+                                let mut value = serde_json::to_value(&result).map_err(|e| {
+                                    format!("Failed to serialize ONNX result: {}", e)
+                                })?;
                                 if let serde_json::Value::Object(ref mut map) = value {
                                     map.insert(
                                         "backend".to_string(),
@@ -327,7 +340,7 @@ async fn detect_onnx(
     height: u32,
 ) -> Result<onnx_detector::OnnxDetectionResult, String> {
     validate_rgba_input_len(rgba_data.len(), width, height)?;
-    
+
     // Spawn blocking task
     tauri::async_runtime::spawn_blocking(move || {
         onnx_detector::detect_with_onnx(&rgba_data, width, height)
@@ -354,15 +367,16 @@ fn get_system_info() -> serde_json::Value {
     let coreml_available = false;
 
     let onnx_info = onnx_detector::get_onnx_detector_info();
-    
-    let fusion_info = FUSION_ENGINE.lock().ok().and_then(|guard| {
-        guard.as_ref().map(|f| f.get_stats())
-    });
+
+    let fusion_info = FUSION_ENGINE
+        .lock()
+        .ok()
+        .and_then(|guard| guard.as_ref().map(|f| f.get_stats()));
     let available_backends: Vec<String> = inference::available_backends()
         .iter()
         .map(|backend| backend.to_string())
         .collect();
-    
+
     // Determine primary backend based on platform and availability
     let onnx_backend = onnx_info
         .get("backend")
@@ -384,7 +398,7 @@ fn get_system_info() -> serde_json::Value {
     } else {
         "No Backend Available".to_string()
     };
-    
+
     serde_json::json!({
         "platform": platform,
         "arch": std::env::consts::ARCH,
@@ -415,13 +429,15 @@ async fn scene_save_file(path: String, json: String, app: tauri::AppHandle) -> R
         ));
     }
 
-    let scenes_dir = app.path().app_data_dir()
+    let scenes_dir = app
+        .path()
+        .app_data_dir()
         .map_err(|e| format!("Failed to get app data directory: {}", e))?
         .join("scenes");
-    
+
     std::fs::create_dir_all(&scenes_dir)
         .map_err(|e| format!("Failed to create scenes directory: {}", e))?;
-    
+
     let validated_path = validate_scene_file_path(&path, &scenes_dir)?;
 
     tauri::async_runtime::spawn_blocking(move || {
@@ -429,13 +445,15 @@ async fn scene_save_file(path: String, json: String, app: tauri::AppHandle) -> R
         let value: serde_json::Value =
             serde_json::from_str(&json).map_err(|e| format!("Invalid scene JSON: {}", e))?;
         let value = migrate_scene_json(value)?;
-        let pretty =
-            serde_json::to_string_pretty(&value).map_err(|e| format!("JSON encode error: {}", e))?;
+        let pretty = serde_json::to_string_pretty(&value)
+            .map_err(|e| format!("JSON encode error: {}", e))?;
 
-        if let Some(parent) = validated_path.parent().filter(|p| !p.as_os_str().is_empty()) {
-            std::fs::create_dir_all(parent).map_err(|e| {
-                format!("Failed to create directory {}: {}", parent.display(), e)
-            })?;
+        if let Some(parent) = validated_path
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+        {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create directory {}: {}", parent.display(), e))?;
         }
 
         let file_name = validated_path
@@ -493,24 +511,21 @@ async fn scene_save_file(path: String, json: String, app: tauri::AppHandle) -> R
 /// Frontend calls this via `invoke<string>('scene_load_file', { path })`.
 #[tauri::command]
 async fn scene_load_file(path: String, app: tauri::AppHandle) -> Result<String, String> {
-    let scenes_dir = app.path().app_data_dir()
+    let scenes_dir = app
+        .path()
+        .app_data_dir()
         .map_err(|e| format!("Failed to get app data directory: {}", e))?
         .join("scenes");
-    
+
     // Ensure the scenes directory exists
     std::fs::create_dir_all(&scenes_dir)
         .map_err(|e| format!("Failed to create scenes directory: {}", e))?;
-    
+
     let validated_path = validate_scene_file_path(&path, &scenes_dir)?;
 
     tauri::async_runtime::spawn_blocking(move || {
-        let meta = std::fs::metadata(&validated_path).map_err(|e| {
-            format!(
-                "Failed to stat {}: {}",
-                validated_path.display(),
-                e
-            )
-        })?;
+        let meta = std::fs::metadata(&validated_path)
+            .map_err(|e| format!("Failed to stat {}: {}", validated_path.display(), e))?;
         if meta.len() as usize > MAX_SCENE_STATE_BYTES {
             return Err(format!(
                 "Scene file too large: {} bytes exceeds maximum {} bytes",
@@ -519,13 +534,8 @@ async fn scene_load_file(path: String, app: tauri::AppHandle) -> Result<String, 
             ));
         }
 
-        let contents = std::fs::read_to_string(&validated_path).map_err(|e| {
-            format!(
-                "Failed to read {}: {}",
-                validated_path.display(),
-                e
-            )
-        })?;
+        let contents = std::fs::read_to_string(&validated_path)
+            .map_err(|e| format!("Failed to read {}: {}", validated_path.display(), e))?;
 
         // Validate JSON so callers get consistent errors.
         let value: serde_json::Value =
@@ -548,10 +558,10 @@ fn fusion_init(config: Option<FusionConfig>) -> Result<(), String> {
     let cfg = config.unwrap_or_default();
     validate_fusion_config(&cfg)?;
     let fusion = MultiSensorFusion::new(cfg);
-    
+
     let mut guard = FUSION_ENGINE.lock().map_err(|e| e.to_string())?;
     *guard = Some(fusion);
-    
+
     log::info!("Sensor fusion engine initialized");
     Ok(())
 }
@@ -578,7 +588,7 @@ async fn fusion_process(
 #[tauri::command]
 fn fusion_get_tracks() -> Result<Vec<TrackOutput>, String> {
     let guard = FUSION_ENGINE.lock().map_err(|e| e.to_string())?;
-    
+
     let fusion = guard.as_ref().ok_or("Fusion engine not initialized")?;
     Ok(fusion.get_tracks())
 }
@@ -587,7 +597,7 @@ fn fusion_get_tracks() -> Result<Vec<TrackOutput>, String> {
 #[tauri::command]
 fn fusion_get_stats() -> Result<FusionStats, String> {
     let guard = FUSION_ENGINE.lock().map_err(|e| e.to_string())?;
-    
+
     let fusion = guard.as_ref().ok_or("Fusion engine not initialized")?;
     Ok(fusion.get_stats())
 }
@@ -597,10 +607,10 @@ fn fusion_get_stats() -> Result<FusionStats, String> {
 fn fusion_set_config(config: FusionConfig) -> Result<(), String> {
     validate_fusion_config(&config)?;
     let mut guard = FUSION_ENGINE.lock().map_err(|e| e.to_string())?;
-    
+
     let fusion = guard.as_mut().ok_or("Fusion engine not initialized")?;
     fusion.set_config(config);
-    
+
     log::info!("Sensor fusion configuration updated");
     Ok(())
 }
@@ -609,10 +619,10 @@ fn fusion_set_config(config: FusionConfig) -> Result<(), String> {
 #[tauri::command]
 fn fusion_clear() -> Result<(), String> {
     let mut guard = FUSION_ENGINE.lock().map_err(|e| e.to_string())?;
-    
+
     let fusion = guard.as_mut().ok_or("Fusion engine not initialized")?;
     fusion.clear();
-    
+
     log::info!("Sensor fusion tracks cleared");
     Ok(())
 }
@@ -709,7 +719,7 @@ pub fn run() {
                     .build();
                 app.handle().plugin(log_plugin)?;
             }
-            
+
             // Platform-specific detector initialization
             #[cfg(target_os = "macos")]
             {
@@ -732,29 +742,31 @@ pub fn run() {
                 init_onnx_detector();
                 log::warn!("Running on unsupported platform - limited functionality");
             }
-            
+
             // Initialize sensor fusion with default config
             let fusion = MultiSensorFusion::new(FusionConfig::default());
             if let Ok(mut guard) = FUSION_ENGINE.lock() {
                 *guard = Some(fusion);
                 log::info!("Sensor fusion engine initialized with EKF");
             }
-            
+
             Ok(())
         })
         .menu(|handle| {
             let menu = tauri::menu::Menu::new(handle)?;
-            
+
             #[cfg(target_os = "macos")]
             {
-                let app_menu = tauri::menu::Submenu::new(
+                let app_menu = tauri::menu::Submenu::new(handle, "Crebain", true)?;
+
+                let about_item = tauri::menu::MenuItem::with_id(
                     handle,
-                    "Crebain",
-                    true
+                    "about_crebain",
+                    "About Crebain",
+                    true,
+                    None::<&str>,
                 )?;
-                
-                let about_item = tauri::menu::MenuItem::with_id(handle, "about_crebain", "About Crebain", true, None::<&str>)?;
-                
+
                 app_menu.append(&about_item)?;
                 app_menu.append(&tauri::menu::PredefinedMenuItem::separator(handle)?)?;
                 app_menu.append(&tauri::menu::PredefinedMenuItem::services(handle, None)?)?;
@@ -766,7 +778,9 @@ pub fn run() {
                 app_menu.append(&tauri::menu::PredefinedMenuItem::quit(handle, None)?)?;
 
                 let file_menu = tauri::menu::Submenu::new(handle, "File", true)?;
-                file_menu.append(&tauri::menu::PredefinedMenuItem::close_window(handle, None)?)?;
+                file_menu.append(&tauri::menu::PredefinedMenuItem::close_window(
+                    handle, None,
+                )?)?;
 
                 let edit_menu = tauri::menu::Submenu::new(handle, "Edit", true)?;
                 edit_menu.append(&tauri::menu::PredefinedMenuItem::undo(handle, None)?)?;
@@ -779,7 +793,7 @@ pub fn run() {
 
                 let view_menu = tauri::menu::Submenu::new(handle, "View", true)?;
                 view_menu.append(&tauri::menu::PredefinedMenuItem::fullscreen(handle, None)?)?;
-                
+
                 let window_menu = tauri::menu::Submenu::new(handle, "Window", true)?;
                 window_menu.append(&tauri::menu::PredefinedMenuItem::minimize(handle, None)?)?;
 
@@ -789,13 +803,13 @@ pub fn run() {
                 menu.append(&view_menu)?;
                 menu.append(&window_menu)?;
             }
-            
+
             Ok(menu)
         })
         .on_menu_event(|app, event| {
-             if event.id().as_ref() == "about_crebain" {
-                 let _ = app.emit("show-about", ());
-             }
+            if event.id().as_ref() == "about_crebain" {
+                let _ = app.emit("show-about", ());
+            }
         })
         .run(tauri::generate_context!())
         .unwrap_or_else(|e| {
@@ -860,27 +874,16 @@ mod tests {
 
     #[test]
     fn detect_coreml_raw_rejects_zero_dimensions_before_backend_selection() {
-        let error = tauri::async_runtime::block_on(detect_coreml_raw(
-            Vec::new(),
-            0,
-            1,
-            None,
-            None,
-        ))
-        .unwrap_err();
+        let error = tauri::async_runtime::block_on(detect_coreml_raw(Vec::new(), 0, 1, None, None))
+            .unwrap_err();
 
         assert!(error.contains("width and height must be > 0"));
     }
 
     #[test]
     fn detect_coreml_rejects_empty_base64_before_backend_selection() {
-        let error = tauri::async_runtime::block_on(detect_coreml(
-            String::new(),
-            None,
-            None,
-            None,
-        ))
-        .unwrap_err();
+        let error = tauri::async_runtime::block_on(detect_coreml(String::new(), None, None, None))
+            .unwrap_err();
 
         assert!(error.contains("Empty image data"));
     }
@@ -888,13 +891,8 @@ mod tests {
     #[test]
     fn detect_coreml_rejects_oversized_base64_before_backend_selection() {
         let image_base64 = "A".repeat(common::image::MAX_BASE64_IMAGE_CHARS + 1);
-        let error = tauri::async_runtime::block_on(detect_coreml(
-            image_base64,
-            None,
-            None,
-            None,
-        ))
-        .unwrap_err();
+        let error = tauri::async_runtime::block_on(detect_coreml(image_base64, None, None, None))
+            .unwrap_err();
 
         assert!(error.contains("Base64 image data too large"));
     }
@@ -932,8 +930,8 @@ mod tests {
         let mut measurement = test_sensor_measurement();
         measurement.position[1] = f64::NAN;
 
-        let error = tauri::async_runtime::block_on(fusion_process(vec![measurement], 1000))
-            .unwrap_err();
+        let error =
+            tauri::async_runtime::block_on(fusion_process(vec![measurement], 1000)).unwrap_err();
 
         assert!(error.contains("position[1] must be finite"));
     }
@@ -943,8 +941,7 @@ mod tests {
         let measurements =
             vec![test_sensor_measurement(); sensor_fusion::MAX_FUSION_MEASUREMENTS_PER_BATCH + 1];
 
-        let error = tauri::async_runtime::block_on(fusion_process(measurements, 1000))
-            .unwrap_err();
+        let error = tauri::async_runtime::block_on(fusion_process(measurements, 1000)).unwrap_err();
 
         assert!(error.contains("Too many sensor measurements"));
     }
@@ -977,10 +974,7 @@ mod tests {
 
     #[test]
     fn validate_scene_file_path_accepts_json_under_allowed_root() {
-        let root = std::env::temp_dir().join(format!(
-            "crebain-scene-path-{}",
-            std::process::id()
-        ));
+        let root = std::env::temp_dir().join(format!("crebain-scene-path-{}", std::process::id()));
         std::fs::create_dir_all(&root).unwrap();
         let scene_path = root.join("scene.json");
         std::fs::write(&scene_path, "{}").unwrap();
@@ -992,10 +986,7 @@ mod tests {
 
     #[test]
     fn validate_scene_file_path_rejects_non_json_extension() {
-        let root = std::env::temp_dir().join(format!(
-            "crebain-scene-ext-{}",
-            std::process::id()
-        ));
+        let root = std::env::temp_dir().join(format!("crebain-scene-ext-{}", std::process::id()));
         std::fs::create_dir_all(&root).unwrap();
         let scene_path = root.join("scene.txt");
         std::fs::write(&scene_path, "{}").unwrap();
@@ -1007,10 +998,8 @@ mod tests {
 
     #[test]
     fn validate_scene_file_path_rejects_traversal() {
-        let root = std::env::temp_dir().join(format!(
-            "crebain-scene-traversal-{}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("crebain-scene-traversal-{}", std::process::id()));
         std::fs::create_dir_all(&root).unwrap();
 
         let error = validate_scene_file_path("../scene.json", &root).unwrap_err();
@@ -1020,15 +1009,10 @@ mod tests {
 
     #[test]
     fn validate_scene_file_path_rejects_absolute_path_outside_allowed_root() {
-        let root = std::env::temp_dir().join(format!(
-            "crebain-scene-root-{}",
-            std::process::id()
-        ));
+        let root = std::env::temp_dir().join(format!("crebain-scene-root-{}", std::process::id()));
         std::fs::create_dir_all(&root).unwrap();
-        let outside = std::env::temp_dir().join(format!(
-            "crebain-scene-outside-{}.json",
-            std::process::id()
-        ));
+        let outside =
+            std::env::temp_dir().join(format!("crebain-scene-outside-{}.json", std::process::id()));
         std::fs::write(&outside, "{}").unwrap();
 
         let error = validate_scene_file_path(outside.to_str().unwrap(), &root).unwrap_err();

@@ -155,7 +155,14 @@ pub fn non_max_suppression_agnostic(
 mod tests {
     use super::*;
 
-    fn make_detection(x1: f32, y1: f32, x2: f32, y2: f32, confidence: f32, class_id: u32) -> Detection {
+    fn make_detection(
+        x1: f32,
+        y1: f32,
+        x2: f32,
+        y2: f32,
+        confidence: f32,
+        class_id: u32,
+    ) -> Detection {
         Detection {
             bbox: BBox::new(x1, y1, x2, y2),
             confidence,

@@ -15,9 +15,9 @@
 //! trtexec --onnx=yolov8s.onnx --saveEngine=yolov8s.engine --fp16 --workspace=4096
 //! ```
 
-use super::{Backend, Detection, Detector, InferenceError, Result};
 #[cfg(target_os = "linux")]
 use super::{validate_rgba_input_len, InferenceStats};
+use super::{Backend, Detection, Detector, InferenceError, Result};
 use crate::common::path;
 #[cfg(target_os = "linux")]
 use crate::common::{coco, yolo};
@@ -436,18 +436,19 @@ pub fn build_engine(onnx_path: &str, engine_path: &str, fp16: bool, int8: bool) 
         )));
     }
 
-    log::info!("[TensorRT] Engine built successfully: {}", engine_path.display());
+    log::info!(
+        "[TensorRT] Engine built successfully: {}",
+        engine_path.display()
+    );
     Ok(())
 }
 
 fn validate_tensorrt_engine_output_path(engine_path: &str) -> Result<PathBuf> {
-    let path = path::validate_path(engine_path, None)
-        .map_err(|e| InferenceError::BackendError(format!("Invalid TensorRT engine output path: {}", e)))?;
+    let path = path::validate_path(engine_path, None).map_err(|e| {
+        InferenceError::BackendError(format!("Invalid TensorRT engine output path: {}", e))
+    })?;
 
-    let ext = path
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("");
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
     if !ext.eq_ignore_ascii_case("engine") {
         return Err(InferenceError::BackendError(format!(
             "Invalid TensorRT engine extension '{}', expected 'engine'",
@@ -643,10 +644,8 @@ mod tests {
 
     #[test]
     fn rejects_invalid_tensorrt_model_paths() {
-        let wrong_ext = std::env::temp_dir().join(format!(
-            "crebain-tensorrt-model-{}.txt",
-            std::process::id()
-        ));
+        let wrong_ext =
+            std::env::temp_dir().join(format!("crebain-tensorrt-model-{}.txt", std::process::id()));
         std::fs::write(&wrong_ext, b"model").unwrap();
 
         assert!(validate_tensorrt_model_path("test", wrong_ext.to_str().unwrap()).is_none());
@@ -694,6 +693,8 @@ mod tests {
 
         assert!(wrong_ext_error.to_string().contains("extension"));
         assert!(traversal_error.to_string().contains("traversal"));
-        assert!(missing_parent_error.to_string().contains("parent does not exist"));
+        assert!(missing_parent_error
+            .to_string()
+            .contains("parent does not exist"));
     }
 }

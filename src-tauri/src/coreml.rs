@@ -5,14 +5,14 @@
 //! Avoids subprocess and base64 payload overhead on the native path.
 
 #[cfg(target_os = "macos")]
-use objc::{class, msg_send, sel, sel_impl, runtime::Object};
+use objc::{class, msg_send, runtime::Object, sel, sel_impl};
 #[cfg(target_os = "macos")]
 use std::ffi::CString;
 
+use base64::Engine;
 #[cfg(target_os = "macos")]
 use std::sync::OnceLock;
 use std::time::Instant;
-use base64::Engine;
 
 use serde::{Deserialize, Serialize};
 
@@ -143,12 +143,12 @@ impl NativeCoreMLDetector {
         if DETECTOR.get().is_some() {
             return Ok(());
         }
-        
+
         // Check if previous init failed
         if let Some(err) = INIT_ERROR.get() {
             return Err(err.clone());
         }
-        
+
         // Try to initialize
         match Self::new(model_path) {
             Ok(detector) => {
@@ -161,12 +161,12 @@ impl NativeCoreMLDetector {
             }
         }
     }
-    
+
     /// Get the global detector instance
     pub fn get_global() -> Option<&'static NativeCoreMLDetector> {
         DETECTOR.get()
     }
-    
+
     /// Create a new detector with the given model path
     ///
     /// # Safety
@@ -187,46 +187,50 @@ impl NativeCoreMLDetector {
         unsafe {
             // Create NSURL for model path
             let path_str = CString::new(model_path).map_err(|e| e.to_string())?;
-            let ns_string: *mut Object = msg_send![class!(NSString), stringWithUTF8String: path_str.as_ptr()];
+            let ns_string: *mut Object =
+                msg_send![class!(NSString), stringWithUTF8String: path_str.as_ptr()];
             let url: *mut Object = msg_send![class!(NSURL), fileURLWithPath: ns_string];
-            
+
             if url.is_null() {
                 return Err(format!("Failed to create URL for path: {}", model_path));
             }
-            
+
             // Load MLModel with the preferred local inference configuration.
             let config: *mut Object = msg_send![class!(MLModelConfiguration), new];
-            
+
             // Set compute units to cpuAndNeuralEngine for the native CoreML path.
             // MLComputeUnits: .all = 0, .cpuOnly = 1, .cpuAndGPU = 2, .cpuAndNeuralEngine = 3
             let _: () = msg_send![config, setComputeUnits: 3_i64]; // cpuAndNeuralEngine
-            
+
             // Allow low precision accumulation for GPU fallback operations.
             let _: () = msg_send![config, setAllowLowPrecisionAccumulationOnGPU: true];
-            
+
             // Load compiled model
             let mut error: *mut Object = std::ptr::null_mut();
             let model: *mut Object = msg_send![class!(MLModel), modelWithContentsOfURL: url configuration: config error: &mut error];
-            
+
             if model.is_null() || !error.is_null() {
                 let error_desc: *mut Object = msg_send![error, localizedDescription];
                 let error_cstr: *const i8 = msg_send![error_desc, UTF8String];
                 let error_str = if error_cstr.is_null() {
                     "Unknown error".to_string()
                 } else {
-                    std::ffi::CStr::from_ptr(error_cstr).to_string_lossy().to_string()
+                    std::ffi::CStr::from_ptr(error_cstr)
+                        .to_string_lossy()
+                        .to_string()
                 };
                 return Err(format!("Failed to load CoreML model: {}", error_str));
             }
-            
+
             // Create VNCoreMLModel for Vision framework
             let mut vn_error: *mut Object = std::ptr::null_mut();
-            let vn_model: *mut Object = msg_send![class!(VNCoreMLModel), modelForMLModel: model error: &mut vn_error];
-            
+            let vn_model: *mut Object =
+                msg_send![class!(VNCoreMLModel), modelForMLModel: model error: &mut vn_error];
+
             if vn_model.is_null() || !vn_error.is_null() {
                 return Err("Failed to create VNCoreMLModel".to_string());
             }
-            
+
             // Retain the model so it's not deallocated
             // NOTE: The ThreadSafeVNModel Drop impl will release this
             let _: () = msg_send![vn_model, retain];
@@ -238,18 +242,18 @@ impl NativeCoreMLDetector {
                 vn_model: ThreadSafeVNModel::new(vn_model),
                 detection_counter: std::sync::atomic::AtomicU64::new(0),
             };
-            
+
             // Create a small dummy image for warmup
             let warmup_data = vec![128u8; 64 * 64 * 4]; // Small RGBA image
             let _ = detector.detect_raw(&warmup_data, 64, 64, 0.5, 100);
             let _ = detector.detect_raw(&warmup_data, 64, 64, 0.5, 100);
             let _ = detector.detect_raw(&warmup_data, 64, 64, 0.5, 100);
             log::info!("CoreML warmup complete");
-            
+
             Ok(detector)
         }
     }
-    
+
     /// Run detection on raw RGBA pixel data.
     ///
     /// # Safety
@@ -268,7 +272,6 @@ impl NativeCoreMLDetector {
         confidence_threshold: f64,
         max_detections: usize,
     ) -> Result<DetectionResult, String> {
-
         // SAFETY: This block uses Core Graphics and Vision FFI.
         // Key safety invariants:
         // 1. rgba_data is borrowed and valid for the entire function
@@ -308,12 +311,12 @@ impl NativeCoreMLDetector {
                 fn CGDataProviderRelease(provider: *mut std::ffi::c_void);
                 fn CGImageRelease(image: *mut std::ffi::c_void);
             }
-            
+
             let color_space = CGColorSpaceCreateDeviceRGB();
             if color_space.is_null() {
                 return Err("Failed to create color space".to_string());
             }
-            
+
             let data_provider = CGDataProviderCreateWithData(
                 std::ptr::null_mut(),
                 rgba_data.as_ptr(),
@@ -324,13 +327,13 @@ impl NativeCoreMLDetector {
                 CGColorSpaceRelease(color_space);
                 return Err("Failed to create data provider".to_string());
             }
-            
+
             let bits_per_component: usize = 8;
             let bits_per_pixel: usize = 32;
             let bytes_per_row: usize = (width as usize) * 4;
             // kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big
             let bitmap_info: u32 = 1; // kCGImageAlphaLast
-            
+
             let cg_image = CGImageCreate(
                 width as usize,
                 height as usize,
@@ -344,28 +347,28 @@ impl NativeCoreMLDetector {
                 false,
                 0, // kCGRenderingIntentDefault
             );
-            
+
             // Release intermediate objects
             CGColorSpaceRelease(color_space);
             CGDataProviderRelease(data_provider);
-            
+
             if cg_image.is_null() {
                 return Err("Failed to create CGImage from raw data".to_string());
             }
-            
+
             let preprocess_time = preprocess_start.elapsed();
-            
+
             // Create Vision request
             let inference_start = Instant::now();
-            
+
             let request: *mut Object = msg_send![class!(VNCoreMLRequest), alloc];
             let request: *mut Object = msg_send![request, initWithModel: self.vn_model.as_ptr()];
-            
+
             // Set request options for best performance
             let _: () = msg_send![request, setImageCropAndScaleOption: 2_i64]; // scaleFill = 2
             let _: () = msg_send![request, setPreferBackgroundProcessing: false];
             let _: () = msg_send![request, setUsesCPUOnly: false];
-            
+
             // Create request handler with CGImage
             let handler: *mut Object = msg_send![class!(VNImageRequestHandler), alloc];
             let handler: *mut Object = msg_send![
@@ -373,21 +376,21 @@ impl NativeCoreMLDetector {
                 initWithCGImage: cg_image
                 options: std::ptr::null::<Object>()
             ];
-            
+
             if handler.is_null() {
                 // Release the request and CGImage to prevent memory leaks
                 let _: () = msg_send![request, release];
                 CGImageRelease(cg_image);
                 return Err("Failed to create VNImageRequestHandler".to_string());
             }
-            
+
             let requests: *mut Object = msg_send![class!(NSArray), arrayWithObject: request];
-            
+
             let mut error: *mut Object = std::ptr::null_mut();
             let success: bool = msg_send![handler, performRequests: requests error: &mut error];
-            
+
             let inference_time = inference_start.elapsed();
-            
+
             if !success {
                 let error_msg = if !error.is_null() {
                     let error_desc: *mut Object = msg_send![error, localizedDescription];
@@ -395,63 +398,75 @@ impl NativeCoreMLDetector {
                     if error_cstr.is_null() {
                         "Unknown Vision error".to_string()
                     } else {
-                        std::ffi::CStr::from_ptr(error_cstr).to_string_lossy().to_string()
+                        std::ffi::CStr::from_ptr(error_cstr)
+                            .to_string_lossy()
+                            .to_string()
                     }
                 } else {
                     "Vision request failed".to_string()
                 };
-                
+
                 // Release objects (including CGImage to prevent leak)
                 let _: () = msg_send![request, release];
                 let _: () = msg_send![handler, release];
                 CGImageRelease(cg_image);
-                
+
                 return Err(error_msg);
             }
-            
+
             // Process results
             let postprocess_start = Instant::now();
-            
+
             let results: *mut Object = msg_send![request, results];
-            let result_count: usize = if results.is_null() { 0 } else { msg_send![results, count] };
-            
+            let result_count: usize = if results.is_null() {
+                0
+            } else {
+                msg_send![results, count]
+            };
+
             let mut detections = Vec::with_capacity(result_count.min(max_detections));
             let image_width = width as f64;
             let image_height = height as f64;
-            
+
             for i in 0..result_count.min(max_detections) {
                 let observation: *mut Object = msg_send![results, objectAtIndex: i];
-                
+
                 // Get confidence
                 let confidence: f32 = msg_send![observation, confidence];
                 if (confidence as f64) < confidence_threshold {
                     continue;
                 }
-                
+
                 // Get bounding box (Vision coords: origin bottom-left, normalized)
                 let bbox_struct: CGRect = msg_send![observation, boundingBox];
-                
+
                 // Convert to pixel coordinates (origin top-left)
                 let x1 = bbox_struct.origin.x * image_width;
                 let y1 = (1.0 - bbox_struct.origin.y - bbox_struct.size.height) * image_height;
                 let x2 = (bbox_struct.origin.x + bbox_struct.size.width) * image_width;
                 let y2 = (1.0 - bbox_struct.origin.y) * image_height;
-                
+
                 // Get class label
                 let labels: *mut Object = msg_send![observation, labels];
-                let label_count: usize = if labels.is_null() { 0 } else { msg_send![labels, count] };
-                
+                let label_count: usize = if labels.is_null() {
+                    0
+                } else {
+                    msg_send![labels, count]
+                };
+
                 let (class_label, class_index) = if label_count > 0 {
                     let top_label: *mut Object = msg_send![labels, objectAtIndex: 0_usize];
                     let identifier: *mut Object = msg_send![top_label, identifier];
                     let id_cstr: *const i8 = msg_send![identifier, UTF8String];
-                    
+
                     let label = if id_cstr.is_null() {
                         "unknown".to_string()
                     } else {
-                        std::ffi::CStr::from_ptr(id_cstr).to_string_lossy().to_string()
+                        std::ffi::CStr::from_ptr(id_cstr)
+                            .to_string_lossy()
+                            .to_string()
                     };
-                    
+
                     let idx = crate::common::coco::COCO_CLASSES
                         .iter()
                         .position(|&c| c == label.as_str())
@@ -461,9 +476,11 @@ impl NativeCoreMLDetector {
                 } else {
                     ("unknown".to_string(), -1)
                 };
-                
-                let det_id = self.detection_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                
+
+                let det_id = self
+                    .detection_counter
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
                 detections.push(Detection {
                     id: format!("DET-{:08X}", det_id),
                     class_label,
@@ -476,17 +493,21 @@ impl NativeCoreMLDetector {
                         .as_millis() as i64,
                 });
             }
-            
+
             // Release objects
             let _: () = msg_send![request, release];
             let _: () = msg_send![handler, release];
             CGImageRelease(cg_image);
-            
+
             // Sort by confidence
-            detections.sort_by(|a, b| b.confidence.partial_cmp(&a.confidence).unwrap_or(std::cmp::Ordering::Equal));
-            
+            detections.sort_by(|a, b| {
+                b.confidence
+                    .partial_cmp(&a.confidence)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+
             let postprocess_time = postprocess_start.elapsed();
-            
+
             Ok(DetectionResult {
                 success: true,
                 detections,
@@ -542,35 +563,47 @@ pub fn detect_base64(
 ) -> Result<DetectionResult, String> {
     crate::common::image::validate_base64_image_len(image_base64.len())?;
     let start = Instant::now();
-    
+
     // Decode base64 using the Engine trait correctly
     let image_data = base64::engine::general_purpose::STANDARD
         .decode(image_base64)
         .map_err(|e| format!("Base64 decode error: {}", e))?;
-    
+
     // Decode PNG/JPEG to raw RGBA
-    let img = image::load_from_memory(&image_data)
-        .map_err(|e| format!("Image decode error: {}", e))?;
-    
+    let img =
+        image::load_from_memory(&image_data).map_err(|e| format!("Image decode error: {}", e))?;
+
     let rgba = img.to_rgba8();
     let (width, height) = rgba.dimensions();
     let raw_data = rgba.into_raw();
     crate::common::image::validate_rgba_input_len(raw_data.len(), width, height)?;
-    
+
     let decode_time = start.elapsed();
     log::debug!("Image decode took: {:?}", decode_time);
-    
+
     // Run detection
     #[cfg(target_os = "macos")]
     {
-        let detector = NativeCoreMLDetector::get_global()
-            .ok_or("CoreML detector not initialized")?;
-        detector.detect_raw(&raw_data, width, height, confidence_threshold, max_detections)
+        let detector =
+            NativeCoreMLDetector::get_global().ok_or("CoreML detector not initialized")?;
+        detector.detect_raw(
+            &raw_data,
+            width,
+            height,
+            confidence_threshold,
+            max_detections,
+        )
     }
-    
+
     #[cfg(not(target_os = "macos"))]
     {
-        let _ = (raw_data, width, height, confidence_threshold, max_detections);
+        let _ = (
+            raw_data,
+            width,
+            height,
+            confidence_threshold,
+            max_detections,
+        );
         Err("CoreML is only available on macOS".to_string())
     }
 }
@@ -585,14 +618,26 @@ pub fn detect_raw(
 ) -> Result<DetectionResult, String> {
     #[cfg(target_os = "macos")]
     {
-        let detector = NativeCoreMLDetector::get_global()
-            .ok_or("CoreML detector not initialized")?;
-        detector.detect_raw(rgba_data, width, height, confidence_threshold, max_detections)
+        let detector =
+            NativeCoreMLDetector::get_global().ok_or("CoreML detector not initialized")?;
+        detector.detect_raw(
+            rgba_data,
+            width,
+            height,
+            confidence_threshold,
+            max_detections,
+        )
     }
-    
+
     #[cfg(not(target_os = "macos"))]
     {
-        let _ = (rgba_data, width, height, confidence_threshold, max_detections);
+        let _ = (
+            rgba_data,
+            width,
+            height,
+            confidence_threshold,
+            max_detections,
+        );
         Err("CoreML is only available on macOS".to_string())
     }
 }

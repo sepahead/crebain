@@ -1815,8 +1815,10 @@ mod tests {
 
     #[test]
     fn test_stale_track_cleanup() {
-        let mut config = FusionConfig::default();
-        config.max_missed_detections = 3;
+        let config = FusionConfig {
+            max_missed_detections: 3,
+            ..Default::default()
+        };
         let mut fusion = MultiSensorFusion::new(config);
 
         // Create a track
@@ -1846,8 +1848,10 @@ mod tests {
 
     #[test]
     fn test_track_coasting_state() {
-        let mut config = FusionConfig::default();
-        config.max_missed_detections = 5;
+        let config = FusionConfig {
+            max_missed_detections: 5,
+            ..Default::default()
+        };
         let mut fusion = MultiSensorFusion::new(config);
 
         // Create and confirm a track

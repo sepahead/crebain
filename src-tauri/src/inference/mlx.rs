@@ -19,7 +19,9 @@
 //!   model = torch.load('yolov8s.pt'); save_file(model, 'yolov8s.safetensors')"
 //! ```
 
-use super::{Backend, Detection, Detector, InferenceError, InferenceStats, Result, validate_rgba_input_len};
+use super::{
+    validate_rgba_input_len, Backend, Detection, Detector, InferenceError, InferenceStats, Result,
+};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
@@ -27,7 +29,7 @@ use std::time::Instant;
 use crate::common::{coco, path};
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-use candle_core::{Device, Tensor, DType, Module, ModuleT};
+use candle_core::{DType, Device, Module, ModuleT, Tensor};
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 use candle_nn::{Conv2dConfig, VarBuilder};
@@ -74,8 +76,11 @@ impl MlxDetector {
         let model_weights = load_safetensors(&model_path, &device)?;
 
         let model_load_ms = start.elapsed().as_secs_f64() * 1000.0;
-        log::info!("[MLX] Model loaded in {:.2}ms ({} tensors)",
-            model_load_ms, model_weights.len());
+        log::info!(
+            "[MLX] Model loaded in {:.2}ms ({} tensors)",
+            model_load_ms,
+            model_weights.len()
+        );
 
         Ok(Self {
             device,
@@ -88,11 +93,7 @@ impl MlxDetector {
 
     /// Run YOLOv8 inference
     fn run_inference(&self, input: &Tensor) -> Result<Tensor> {
-        let vb = VarBuilder::from_tensors(
-            self.model_weights.clone(),
-            DType::F32,
-            &self.device,
-        );
+        let vb = VarBuilder::from_tensors(self.model_weights.clone(), DType::F32, &self.device);
         let (p3, p4, p5) = self.yolov8_forward(input, &vb)?;
         detect_head(&vb.pp("model.22"), &p3, &p4, &p5)
     }
@@ -101,7 +102,9 @@ impl MlxDetector {
     /// Set CREBAIN_PROFILE_MLX=1 to enable per-layer latency logging.
     fn yolov8_forward(&self, x: &Tensor, vb: &VarBuilder) -> Result<(Tensor, Tensor, Tensor)> {
         if x.dims().len() != 4 {
-            return Err(InferenceError::InvalidInput("Expected 4D input tensor".to_string()));
+            return Err(InferenceError::InvalidInput(
+                "Expected 4D input tensor".to_string(),
+            ));
         }
 
         let profile = std::env::var("CREBAIN_PROFILE_MLX").unwrap_or_default() == "1";
@@ -126,54 +129,99 @@ impl MlxDetector {
         // model.1: Conv(64->128, k=3, s=2)
         let x = timed!("model.1", conv_block(&prefix("model.1"), &x, 128, 3, 2)?);
         // model.2: C2f(128->128, n=3, shortcut=True)
-        let x = timed!("model.2", c2f_block(&prefix("model.2"), &x, 128, 128, 3, true)?);
+        let x = timed!(
+            "model.2",
+            c2f_block(&prefix("model.2"), &x, 128, 128, 3, true)?
+        );
         // model.3: Conv(128->256, k=3, s=2)
         let x = timed!("model.3", conv_block(&prefix("model.3"), &x, 256, 3, 2)?);
         // model.4: C2f(256->256, n=6, shortcut=True)
-        let p4_in = timed!("model.4", c2f_block(&prefix("model.4"), &x, 256, 256, 6, true)?);
+        let p4_in = timed!(
+            "model.4",
+            c2f_block(&prefix("model.4"), &x, 256, 256, 6, true)?
+        );
         // model.5: Conv(256->512, k=3, s=2)
-        let x = timed!("model.5", conv_block(&prefix("model.5"), &p4_in, 512, 3, 2)?);
+        let x = timed!(
+            "model.5",
+            conv_block(&prefix("model.5"), &p4_in, 512, 3, 2)?
+        );
         // model.6: C2f(512->512, n=6, shortcut=True)
-        let p3_in = timed!("model.6", c2f_block(&prefix("model.6"), &x, 512, 512, 6, true)?);
+        let p3_in = timed!(
+            "model.6",
+            c2f_block(&prefix("model.6"), &x, 512, 512, 6, true)?
+        );
         // model.7: Conv(512->1024, k=3, s=2)
-        let x = timed!("model.7", conv_block(&prefix("model.7"), &p3_in, 1024, 3, 2)?);
+        let x = timed!(
+            "model.7",
+            conv_block(&prefix("model.7"), &p3_in, 1024, 3, 2)?
+        );
         // model.8: C2f(1024->1024, n=3, shortcut=True)
-        let x = timed!("model.8", c2f_block(&prefix("model.8"), &x, 1024, 1024, 3, true)?);
+        let x = timed!(
+            "model.8",
+            c2f_block(&prefix("model.8"), &x, 1024, 1024, 3, true)?
+        );
         // model.9: SPPF(1024->1024, k=5)
-        let p5_in = timed!("model.9", sppf_block(&prefix("model.9"), &x, 1024, 1024, 5)?);
+        let p5_in = timed!(
+            "model.9",
+            sppf_block(&prefix("model.9"), &x, 1024, 1024, 5)?
+        );
 
         // ── Head (PAN-FPN) ───────────────────────────────────────────
         // model.10: Upsample(2x) + model.11: Concat with p3_in
         let up = timed!("model.10", upsample_2x(&p5_in)?);
-        let cat = timed!("model.11", Tensor::cat(&[&up, &p3_in], 1)
-            .map_err(|e| InferenceError::InferenceError(e.to_string()))?);
+        let cat = timed!(
+            "model.11",
+            Tensor::cat(&[&up, &p3_in], 1)
+                .map_err(|e| InferenceError::InferenceError(e.to_string()))?
+        );
         // model.12: C2f(cat_channels->512, n=3, shortcut=False)
         let cat_channels = cat.dims()[1];
-        let x = timed!("model.12", c2f_block(&prefix("model.12"), &cat, cat_channels, 512, 3, false)?);
+        let x = timed!(
+            "model.12",
+            c2f_block(&prefix("model.12"), &cat, cat_channels, 512, 3, false)?
+        );
 
         // model.13: Upsample(2x) + model.14: Concat with p4_in
         let up = timed!("model.13", upsample_2x(&x)?);
-        let cat = timed!("model.14", Tensor::cat(&[&up, &p4_in], 1)
-            .map_err(|e| InferenceError::InferenceError(e.to_string()))?);
+        let cat = timed!(
+            "model.14",
+            Tensor::cat(&[&up, &p4_in], 1)
+                .map_err(|e| InferenceError::InferenceError(e.to_string()))?
+        );
         // model.15: C2f(cat_channels->256, n=3, shortcut=False) -> P3
         let cat_channels = cat.dims()[1];
-        let p3 = timed!("model.15", c2f_block(&prefix("model.15"), &cat, cat_channels, 256, 3, false)?);
+        let p3 = timed!(
+            "model.15",
+            c2f_block(&prefix("model.15"), &cat, cat_channels, 256, 3, false)?
+        );
 
         // model.16: Conv(256->256, k=3, s=2) + model.17: Concat
         let down = timed!("model.16", conv_block(&prefix("model.16"), &p3, 256, 3, 2)?);
-        let cat = timed!("model.17", Tensor::cat(&[&down, &x], 1)
-            .map_err(|e| InferenceError::InferenceError(e.to_string()))?);
+        let cat = timed!(
+            "model.17",
+            Tensor::cat(&[&down, &x], 1)
+                .map_err(|e| InferenceError::InferenceError(e.to_string()))?
+        );
         // model.18: C2f(cat_channels->512, n=3, shortcut=False) -> P4
         let cat_channels = cat.dims()[1];
-        let p4 = timed!("model.18", c2f_block(&prefix("model.18"), &cat, cat_channels, 512, 3, false)?);
+        let p4 = timed!(
+            "model.18",
+            c2f_block(&prefix("model.18"), &cat, cat_channels, 512, 3, false)?
+        );
 
         // model.19: Conv(512->512, k=3, s=2) + model.20: Concat
         let down = timed!("model.19", conv_block(&prefix("model.19"), &p4, 512, 3, 2)?);
-        let cat = timed!("model.20", Tensor::cat(&[&down, &p5_in], 1)
-            .map_err(|e| InferenceError::InferenceError(e.to_string()))?);
+        let cat = timed!(
+            "model.20",
+            Tensor::cat(&[&down, &p5_in], 1)
+                .map_err(|e| InferenceError::InferenceError(e.to_string()))?
+        );
         // model.21: C2f(cat_channels->1024, n=3, shortcut=False) -> P5
         let cat_channels = cat.dims()[1];
-        let p5 = timed!("model.21", c2f_block(&prefix("model.21"), &cat, cat_channels, 1024, 3, false)?);
+        let p5 = timed!(
+            "model.21",
+            c2f_block(&prefix("model.21"), &cat, cat_channels, 1024, 3, false)?
+        );
 
         if profile {
             let total: f64 = layer_times.iter().map(|(_, t)| t).sum();
@@ -214,7 +262,8 @@ impl Detector for MlxDetector {
             let _ = self.run_inference(&dummy)?;
 
             // Sync Metal device
-            self.device.synchronize()
+            self.device
+                .synchronize()
                 .map_err(|e| InferenceError::BackendError(format!("Metal sync failed: {}", e)))?;
 
             log::info!("[MLX] Metal GPU warmed up");
@@ -240,10 +289,14 @@ impl Detector for MlxDetector {
 
             let elapsed_ms = start.elapsed().as_millis() as u64;
             self.inference_count.fetch_add(1, Ordering::Relaxed);
-            self.total_inference_ms.fetch_add(elapsed_ms, Ordering::Relaxed);
+            self.total_inference_ms
+                .fetch_add(elapsed_ms, Ordering::Relaxed);
 
-            log::debug!("[MLX] Inference completed in {}ms, {} detections",
-                elapsed_ms, detections.len());
+            log::debug!(
+                "[MLX] Inference completed in {}ms, {} detections",
+                elapsed_ms,
+                detections.len()
+            );
 
             Ok(detections)
         }
@@ -260,7 +313,11 @@ impl Detector for MlxDetector {
         let total_ms = self.total_inference_ms.load(Ordering::Relaxed);
 
         InferenceStats {
-            avg_inference_ms: if count > 0 { total_ms as f64 / count as f64 } else { 0.0 },
+            avg_inference_ms: if count > 0 {
+                total_ms as f64 / count as f64
+            } else {
+                0.0
+            },
             total_inferences: count,
             #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
             model_load_ms: self.model_load_ms,
@@ -276,7 +333,13 @@ impl Detector for MlxDetector {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-fn conv_block(vb: &VarBuilder, x: &Tensor, out_channels: usize, k: usize, s: usize) -> Result<Tensor> {
+fn conv_block(
+    vb: &VarBuilder,
+    x: &Tensor,
+    out_channels: usize,
+    k: usize,
+    s: usize,
+) -> Result<Tensor> {
     let conv_cfg = Conv2dConfig {
         stride: s,
         padding: k / 2,
@@ -286,15 +349,26 @@ fn conv_block(vb: &VarBuilder, x: &Tensor, out_channels: usize, k: usize, s: usi
         .map_err(|e| InferenceError::InferenceError(e.to_string()))?;
     let bn = candle_nn::batch_norm(out_channels, 1e-5, vb.pp("bn"))
         .map_err(|e| InferenceError::InferenceError(e.to_string()))?;
-    let x = conv.forward(x).map_err(|e| InferenceError::InferenceError(e.to_string()))?;
-    let x = bn.forward_t(&x, true).map_err(|e| InferenceError::InferenceError(e.to_string()))?;
-    let sigmoid = candle_nn::ops::sigmoid(&x)
+    let x = conv
+        .forward(x)
         .map_err(|e| InferenceError::InferenceError(e.to_string()))?;
-    x.mul(&sigmoid).map_err(|e| InferenceError::InferenceError(e.to_string()))
+    let x = bn
+        .forward_t(&x, true)
+        .map_err(|e| InferenceError::InferenceError(e.to_string()))?;
+    let sigmoid =
+        candle_nn::ops::sigmoid(&x).map_err(|e| InferenceError::InferenceError(e.to_string()))?;
+    x.mul(&sigmoid)
+        .map_err(|e| InferenceError::InferenceError(e.to_string()))
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-fn bottleneck_block(vb: &VarBuilder, x: &Tensor, c1: usize, c2: usize, shortcut: bool) -> Result<Tensor> {
+fn bottleneck_block(
+    vb: &VarBuilder,
+    x: &Tensor,
+    c1: usize,
+    c2: usize,
+    shortcut: bool,
+) -> Result<Tensor> {
     let hidden = if c1 != c2 { c2 } else { c1 };
     let cv1 = conv_block(&vb.pp("cv1"), x, hidden, 3, 1)?;
     let cv2 = conv_block(&vb.pp("cv2"), &cv1, c2, 3, 1)?;
@@ -306,11 +380,20 @@ fn bottleneck_block(vb: &VarBuilder, x: &Tensor, c1: usize, c2: usize, shortcut:
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-fn c2f_block(vb: &VarBuilder, x: &Tensor, _c1: usize, c2: usize, n: usize, shortcut: bool) -> Result<Tensor> {
+fn c2f_block(
+    vb: &VarBuilder,
+    x: &Tensor,
+    _c1: usize,
+    c2: usize,
+    n: usize,
+    shortcut: bool,
+) -> Result<Tensor> {
     let hidden = c2 / 2;
     let cv1 = conv_block(&vb.pp("cv1"), x, 2 * hidden, 1, 1)?;
     let mut ys = Vec::with_capacity(n + 1);
-    let splits = cv1.chunk(2, 1).map_err(|e| InferenceError::InferenceError(e.to_string()))?;
+    let splits = cv1
+        .chunk(2, 1)
+        .map_err(|e| InferenceError::InferenceError(e.to_string()))?;
     ys.push(splits[0].clone());
     let mut current = splits[1].clone();
     for i in 0..n {
@@ -364,13 +447,14 @@ fn detect_head(vb: &VarBuilder, p3: &Tensor, p4: &Tensor, p5: &Tensor) -> Result
         let cv3 = conv_block_detect(&vb.pp(format!("cv3.{}.2", idx)), &cv3_1, nc, 1, 1)?;
 
         let (b, _c, h, w) = (cv2.dims()[0], cv2.dims()[1], cv2.dims()[2], cv2.dims()[3]);
-        let cv2_r = cv2.reshape(&[b, reg_max * 4, h * w])
+        let cv2_r = cv2
+            .reshape(&[b, reg_max * 4, h * w])
             .map_err(|e| InferenceError::InferenceError(e.to_string()))?;
-        let cv3_r = cv3.reshape(&[b, nc, h * w])
+        let cv3_r = cv3
+            .reshape(&[b, nc, h * w])
             .map_err(|e| InferenceError::InferenceError(e.to_string()))?;
 
-        Tensor::cat(&[&cv2_r, &cv3_r], 1)
-            .map_err(|e| InferenceError::InferenceError(e.to_string()))
+        Tensor::cat(&[&cv2_r, &cv3_r], 1).map_err(|e| InferenceError::InferenceError(e.to_string()))
     };
 
     let d0 = detect_layer(vb, p3, 0)?;
@@ -378,13 +462,18 @@ fn detect_head(vb: &VarBuilder, p3: &Tensor, p4: &Tensor, p5: &Tensor) -> Result
     let d2 = detect_layer(vb, p5, 2)?;
 
     // Concatenate all detections along last dim: [1, reg_max*4+nc, total_anchors]
-    Tensor::cat(&[&d0, &d1, &d2], 2)
-        .map_err(|e| InferenceError::InferenceError(e.to_string()))
+    Tensor::cat(&[&d0, &d1, &d2], 2).map_err(|e| InferenceError::InferenceError(e.to_string()))
 }
 
 /// Conv block without batch_norm (used for Detect head output projections).
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-fn conv_block_detect(vb: &VarBuilder, x: &Tensor, out_channels: usize, k: usize, s: usize) -> Result<Tensor> {
+fn conv_block_detect(
+    vb: &VarBuilder,
+    x: &Tensor,
+    out_channels: usize,
+    k: usize,
+    s: usize,
+) -> Result<Tensor> {
     let conv_cfg = Conv2dConfig {
         stride: s,
         padding: k / 2,
@@ -392,7 +481,8 @@ fn conv_block_detect(vb: &VarBuilder, x: &Tensor, out_channels: usize, k: usize,
     };
     let conv = candle_nn::conv2d(x.dims()[1], out_channels, k, conv_cfg, vb.pp("conv"))
         .map_err(|e| InferenceError::InferenceError(e.to_string()))?;
-    conv.forward(x).map_err(|e| InferenceError::InferenceError(e.to_string()))
+    conv.forward(x)
+        .map_err(|e| InferenceError::InferenceError(e.to_string()))
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -439,7 +529,8 @@ fn find_model_path() -> Result<String> {
     }
 
     Err(InferenceError::ModelLoadError(
-        "No validated MLX safetensors model found; set CREBAIN_MLX_MODEL to a .safetensors file".to_string(),
+        "No validated MLX safetensors model found; set CREBAIN_MLX_MODEL to a .safetensors file"
+            .to_string(),
     ))
 }
 
@@ -452,7 +543,10 @@ fn validate_mlx_model_path(name: &str, model_path: &str) -> Result<String> {
 
 /// Load safetensors model weights
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-fn load_safetensors(path: &str, device: &Device) -> Result<std::collections::HashMap<String, Tensor>> {
+fn load_safetensors(
+    path: &str,
+    device: &Device,
+) -> Result<std::collections::HashMap<String, Tensor>> {
     use safetensors::SafeTensors;
     use std::collections::HashMap;
 
@@ -470,8 +564,9 @@ fn load_safetensors(path: &str, device: &Device) -> Result<std::collections::Has
     validate_model_checksum(path, &data)?;
 
     // Parse safetensors
-    let tensors = SafeTensors::deserialize(&data)
-        .map_err(|e| InferenceError::ModelLoadError(format!("Failed to parse safetensors: {}", e)))?;
+    let tensors = SafeTensors::deserialize(&data).map_err(|e| {
+        InferenceError::ModelLoadError(format!("Failed to parse safetensors: {}", e))
+    })?;
 
     let mut weights = HashMap::new();
 
@@ -490,13 +585,15 @@ fn load_safetensors(path: &str, device: &Device) -> Result<std::collections::Has
         // Create tensor from bytes
         let tensor = match dtype {
             DType::F32 => {
-                let floats: Vec<f32> = bytes.chunks_exact(4)
+                let floats: Vec<f32> = bytes
+                    .chunks_exact(4)
                     .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
                     .collect();
                 Tensor::from_vec(floats, shape.as_slice(), device)
             }
             DType::F16 => {
-                let halfs: Vec<half::f16> = bytes.chunks_exact(2)
+                let halfs: Vec<half::f16> = bytes
+                    .chunks_exact(2)
                     .map(|b| half::f16::from_le_bytes([b[0], b[1]]))
                     .collect();
                 // Convert to f32 for processing
@@ -552,21 +649,20 @@ fn preprocess_image(data: &[u8], width: u32, height: u32, device: &Device) -> Re
     }
 
     // Create tensor [H, W, C]
-    let tensor = Tensor::from_vec(
-        rgb_data,
-        &[height as usize, width as usize, 3],
-        device,
-    ).map_err(|e| InferenceError::InvalidInput(e.to_string()))?;
+    let tensor = Tensor::from_vec(rgb_data, &[height as usize, width as usize, 3], device)
+        .map_err(|e| InferenceError::InvalidInput(e.to_string()))?;
 
     // Transpose to [C, H, W]
-    let tensor = tensor.permute((2, 0, 1))
+    let tensor = tensor
+        .permute((2, 0, 1))
         .map_err(|e| InferenceError::InvalidInput(e.to_string()))?;
 
     // Resize to INPUT_SIZE x INPUT_SIZE using bilinear interpolation
     let tensor = resize_tensor(&tensor, INPUT_SIZE, INPUT_SIZE, device)?;
 
     // Add batch dimension [1, C, H, W]
-    let tensor = tensor.unsqueeze(0)
+    let tensor = tensor
+        .unsqueeze(0)
         .map_err(|e| InferenceError::InvalidInput(e.to_string()))?;
 
     Ok(tensor)
@@ -574,10 +670,17 @@ fn preprocess_image(data: &[u8], width: u32, height: u32, device: &Device) -> Re
 
 /// Resize tensor using nearest neighbor (fast approximation)
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-fn resize_tensor(tensor: &Tensor, target_h: usize, target_w: usize, device: &Device) -> Result<Tensor> {
+fn resize_tensor(
+    tensor: &Tensor,
+    target_h: usize,
+    target_w: usize,
+    device: &Device,
+) -> Result<Tensor> {
     let dims = tensor.dims();
     if dims.len() != 3 {
-        return Err(InferenceError::InvalidInput("Expected 3D tensor [C, H, W]".to_string()));
+        return Err(InferenceError::InvalidInput(
+            "Expected 3D tensor [C, H, W]".to_string(),
+        ));
     }
 
     let (channels, src_h, src_w) = (dims[0], dims[1], dims[2]);
@@ -592,7 +695,8 @@ fn resize_tensor(tensor: &Tensor, target_h: usize, target_w: usize, device: &Dev
     let scale_x = src_w as f32 / target_w as f32;
 
     // Get tensor data as Vec<f32>
-    let data = tensor.flatten_all()
+    let data = tensor
+        .flatten_all()
         .map_err(|e| InferenceError::InferenceError(e.to_string()))?
         .to_vec1::<f32>()
         .map_err(|e| InferenceError::InferenceError(e.to_string()))?;
@@ -622,7 +726,11 @@ fn resize_tensor(tensor: &Tensor, target_h: usize, target_w: usize, device: &Dev
 /// The Detect head produces: [1, reg_max*4 + nc, total_anchors]
 /// where reg_max=16 (distribution-focused bounding box regression).
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-fn postprocess_output(output: &Tensor, orig_width: f32, orig_height: f32) -> Result<Vec<Detection>> {
+fn postprocess_output(
+    output: &Tensor,
+    orig_width: f32,
+    orig_height: f32,
+) -> Result<Vec<Detection>> {
     const REG_MAX: usize = 16;
     const NC: usize = 80;
     const OUTPUT_CHANNELS: usize = REG_MAX * 4 + NC; // 64 + 80 = 144
@@ -634,7 +742,8 @@ fn postprocess_output(output: &Tensor, orig_width: f32, orig_height: f32) -> Res
 
     let num_anchors = dims[2];
 
-    let data = output.flatten_all()
+    let data = output
+        .flatten_all()
         .map_err(|e| InferenceError::InferenceError(e.to_string()))?
         .to_vec1::<f32>()
         .map_err(|e| InferenceError::InferenceError(e.to_string()))?;
@@ -824,10 +933,8 @@ mod tests {
     #[test]
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     fn mlx_model_path_validation_rejects_wrong_extension_and_traversal() {
-        let wrong_ext = std::env::temp_dir().join(format!(
-            "crebain-mlx-model-{}.onnx",
-            std::process::id()
-        ));
+        let wrong_ext =
+            std::env::temp_dir().join(format!("crebain-mlx-model-{}.onnx", std::process::id()));
         std::fs::write(&wrong_ext, b"model").unwrap();
 
         let wrong_ext_error =
@@ -836,7 +943,10 @@ mod tests {
 
         assert!(wrong_ext_error.to_string().contains("Invalid test"));
         assert!(wrong_ext_error.to_string().contains("extension"));
-        assert!(traversal_error.to_string().contains("Traversal") || traversal_error.to_string().contains("traversal"));
+        assert!(
+            traversal_error.to_string().contains("Traversal")
+                || traversal_error.to_string().contains("traversal")
+        );
 
         let _ = std::fs::remove_file(wrong_ext);
     }
@@ -884,7 +994,11 @@ mod tests {
             model_load_ms: 0.0,
         };
         let input = Tensor::zeros(&[1, 3, 640], DType::F32, &detector.device).unwrap();
-        let vb = VarBuilder::from_tensors(std::collections::HashMap::new(), DType::F32, &detector.device);
+        let vb = VarBuilder::from_tensors(
+            std::collections::HashMap::new(),
+            DType::F32,
+            &detector.device,
+        );
         let result = detector.yolov8_forward(&input, &vb);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("4D"));
@@ -903,7 +1017,11 @@ mod tests {
             model_load_ms: 0.0,
         };
         let input = Tensor::zeros(&[1, 3, 640, 640], DType::F32, &detector.device).unwrap();
-        let vb = VarBuilder::from_tensors(std::collections::HashMap::new(), DType::F32, &detector.device);
+        let vb = VarBuilder::from_tensors(
+            std::collections::HashMap::new(),
+            DType::F32,
+            &detector.device,
+        );
         let result = detector.yolov8_forward(&input, &vb);
         assert!(result.is_err());
     }
@@ -1032,7 +1150,8 @@ mod tests {
         };
 
         let input = Tensor::zeros(&[1, 3, 640, 640], DType::F32, &detector.device).unwrap();
-        let vb = VarBuilder::from_tensors(detector.model_weights.clone(), DType::F32, &detector.device);
+        let vb =
+            VarBuilder::from_tensors(detector.model_weights.clone(), DType::F32, &detector.device);
         let result = detector.yolov8_forward(&input, &vb);
         assert!(result.is_err());
 

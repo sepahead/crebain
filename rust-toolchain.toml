@@ -1,0 +1,4 @@
+[toolchain]
+# Keep in sync with the MSRV note in src-tauri/Cargo.toml (rust-version) and CI.
+channel = "1.91.1"
+components = ["rustfmt", "clippy"]

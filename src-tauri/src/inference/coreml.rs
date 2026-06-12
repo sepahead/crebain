@@ -34,10 +34,9 @@ impl CoreMlDetector {
                 if let Ok(env_path) = std::env::var("CREBAIN_MODEL_PATH") {
                     let trimmed = env_path.trim();
                     if !trimmed.is_empty() {
-                        if let Ok(validated) = crate::common::path::validate_model_path(
-                            trimmed,
-                            Some(&["mlmodelc"]),
-                        ) {
+                        if let Ok(validated) =
+                            crate::common::path::validate_model_path(trimmed, Some(&["mlmodelc"]))
+                        {
                             model_paths.push(validated.to_string_lossy().to_string());
                         } else {
                             log::warn!(
@@ -54,10 +53,9 @@ impl CoreMlDetector {
                     "../resources/yolov8s.mlmodelc",
                     "src-tauri/resources/yolov8s.mlmodelc",
                 ] {
-                    if let Ok(validated) = crate::common::path::validate_model_path(
-                        fallback,
-                        Some(&["mlmodelc"]),
-                    ) {
+                    if let Ok(validated) =
+                        crate::common::path::validate_model_path(fallback, Some(&["mlmodelc"]))
+                    {
                         model_paths.push(validated.to_string_lossy().to_string());
                     }
                 }

@@ -29,9 +29,9 @@
 //! bridge.publish_velocity("/drone1/cmd_vel", velocity).await?;
 //! ```
 
-pub mod zenoh;
 pub mod commands;
 pub mod rosbridge;
+pub mod zenoh;
 
 use std::future::Future;
 use std::pin::Pin;
@@ -81,8 +81,8 @@ pub struct CameraInfoData {
 /// IMU data from ROS2
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ImuData {
-    pub orientation: [f64; 4],       // Quaternion [x, y, z, w]
-    pub angular_velocity: [f64; 3],  // rad/s
+    pub orientation: [f64; 4],         // Quaternion [x, y, z, w]
+    pub angular_velocity: [f64; 3],    // rad/s
     pub linear_acceleration: [f64; 3], // m/s²
     pub timestamp: f64,
 }
@@ -283,7 +283,10 @@ pub async fn create_bridge() -> Result<Box<dyn Transport>> {
 }
 
 fn parse_zenoh_enabled(value: &str) -> bool {
-    matches!(value.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on")
+    matches!(
+        value.trim().to_ascii_lowercase().as_str(),
+        "1" | "true" | "yes" | "on"
+    )
 }
 
 #[cfg(test)]
@@ -341,17 +344,17 @@ mod tests {
 
     #[test]
     fn rosbridge_transport_connect_fails_without_server() {
-        let result = tauri::async_runtime::block_on(
-            rosbridge::RosbridgeTransport::connect(Some("ws://127.0.0.1:19999")),
-        );
+        let result = tauri::async_runtime::block_on(rosbridge::RosbridgeTransport::connect(Some(
+            "ws://127.0.0.1:19999",
+        )));
         assert!(result.is_err());
     }
 
     #[test]
     fn rosbridge_transport_trait_methods_no_panic() {
-        let result = tauri::async_runtime::block_on(
-            rosbridge::RosbridgeTransport::connect(Some("ws://127.0.0.1:19999")),
-        );
+        let result = tauri::async_runtime::block_on(rosbridge::RosbridgeTransport::connect(Some(
+            "ws://127.0.0.1:19999",
+        )));
         assert!(result.is_err());
     }
 
