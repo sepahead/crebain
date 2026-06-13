@@ -25,16 +25,12 @@ jobs:
         include:
           - language: javascript-typescript
             build-mode: none
+          # Buildless extraction: reliable in CI and does not require the native
+          # build toolchain. Compiled-path checks are covered by clippy + cargo-deny.
           - language: rust
-            build-mode: autobuild
+            build-mode: none
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Linux dependencies (Rust build)
-        if: matrix.language == 'rust'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
