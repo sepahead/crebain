@@ -13,6 +13,9 @@ export default defineConfig({
   build: {
     target: 'esnext',
     minify: 'esbuild',
+    // Emit dist/.vite/manifest.json so scripts/check-bundle-size.mjs can measure
+    // the initial (eager) load and exclude lazy chunks (rapier, the worker).
+    manifest: true,
     rollupOptions: {
       output: {
         manualChunks: {

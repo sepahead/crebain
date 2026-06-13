@@ -31,6 +31,7 @@
     "dev": "bunx --bun vite",
     "build": "bun run typecheck && bunx --bun vite build",
     "preview": "bunx --bun vite preview",
+    "check:bundle": "bun run build && node scripts/check-bundle-size.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
