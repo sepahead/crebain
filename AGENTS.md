@@ -13,12 +13,15 @@ bun run tauri:dev        # Development mode with hot reload
 bun run tauri:build      # Production build
 
 # Validation and testing
+bun run lint             # ESLint
+bun run format           # Prettier (write); format:check verifies
 bun run test             # Run tests in watch mode
 bun run test:run         # Run tests once
-bun run test:coverage    # Run tests with coverage
+bun run test:coverage    # Run tests with coverage (enforces thresholds)
 bun run test:benchmark   # Run detector benchmarks
-bun run validate         # TypeScript typecheck + frontend tests
-bun run validate:all     # Frontend validation + Rust check/test/clippy
+bun run check:bundle     # Build + initial-bundle size budget
+bun run validate         # typecheck + lint + format:check + frontend tests
+bun run validate:all     # Frontend validation + Rust fmt/check/test/clippy
 
 # Rust backend
 bun run check:rust       # cargo check --manifest-path src-tauri/Cargo.toml
@@ -31,6 +34,8 @@ cargo build --manifest-path src-tauri/Cargo.toml
 
 ### TypeScript / React
 
+- ESLint (typescript-eslint type-checked + react-hooks) and Prettier are
+  enforced; run `bun run lint` and `bun run format:check` (or `bun run validate`)
 - Use functional components with hooks
 - Prefer `useMemo` and `useCallback` for expensive computations
 - Use `useRef` for mutable values that do not trigger re-renders

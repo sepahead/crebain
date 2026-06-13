@@ -6,7 +6,6 @@ import type { Detection, FusedTrack } from '../../../detection/types'
 import type { SurveillanceCamera } from '../types'
 import HeaderBar from '../HeaderBar'
 import DetectionPanel from '../DetectionPanel'
-
 ;(
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true

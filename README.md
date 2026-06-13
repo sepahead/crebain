@@ -6,6 +6,11 @@
 
 **Version:** 0.4.0
 
+[![CI](https://github.com/sepehrmn/crebain/actions/workflows/ci.yml/badge.svg)](https://github.com/sepehrmn/crebain/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/sepehrmn/crebain/actions/workflows/codeql.yml/badge.svg)](https://github.com/sepehrmn/crebain/actions/workflows/codeql.yml)
+[![Supply chain audit](https://github.com/sepehrmn/crebain/actions/workflows/audit.yml/badge.svg)](https://github.com/sepehrmn/crebain/actions/workflows/audit.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 <p align="center">
   <img src="public/crebain-logo.png" alt="CREBAIN Logo" width="120" />
 </p>
@@ -823,18 +828,21 @@ Useful focused checks:
 
 ```bash
 bun run typecheck
+bun run lint            # ESLint
+bun run format:check    # Prettier
 bun run test:run
+bun run test:coverage   # Vitest coverage (enforces thresholds)
+bun run check:bundle    # build + initial-bundle size budget
 bun run check:rust
+bun run fmt:rust:check
 bun run test:rust
 bun run clippy:rust
 ```
 
-Latest validated stabilization baseline:
-
-- **Command**: `bun run validate:all`
-- **Frontend**: 200 tests passed, 8 benchmark tests skipped by default
-- **Rust**: 138 tests passed
-- **Linting**: `cargo clippy -- -D warnings` passed
+The authoritative pass/fail status and test counts are the
+[CI runs](https://github.com/sepehrmn/crebain/actions/workflows/ci.yml); see
+`CHANGELOG.md` for what changed per release. `bun run validate:all` runs the full
+frontend + Rust gate locally.
 
 Current backend boundary hardening covers:
 

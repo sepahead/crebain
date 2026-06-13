@@ -73,6 +73,8 @@ For documentation-only changes, keep Markdown files aligned on validation comman
 
 #### TypeScript/React
 
+- ESLint and Prettier are enforced (`bun run lint`, `bun run format:check`, both
+  part of `bun run validate`); fix findings before opening a PR
 - Use functional components with hooks
 - Prefer `useMemo` and `useCallback` for expensive computations
 - Use `useRef` for mutable values that do not trigger re-renders
