@@ -4,7 +4,7 @@ version = "0.4.0"
 description = "CREBAIN - Adaptive Response & Awareness System (ARAS)"
 authors = ["CREBAIN Contributors"]
 license = "MIT"
-repository = "https://github.com/crebain/crebain"
+repository = "https://github.com/sepehrmn/crebain"
 edition = "2021"
 rust-version = "1.81.0"
 

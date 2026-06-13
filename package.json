@@ -6,11 +6,11 @@
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "https://github.com/crebain/crebain.git"
+    "url": "https://github.com/sepehrmn/crebain.git"
   },
-  "homepage": "https://github.com/crebain/crebain#readme",
+  "homepage": "https://github.com/sepehrmn/crebain#readme",
   "bugs": {
-    "url": "https://github.com/crebain/crebain/issues"
+    "url": "https://github.com/sepehrmn/crebain/issues"
   },
   "keywords": [
     "drone-detection",

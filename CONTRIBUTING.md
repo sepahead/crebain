@@ -19,7 +19,7 @@ Please be respectful and constructive in all interactions. CREBAIN follows the s
 
 ```bash
 # Clone the repository
-git clone https://github.com/crebain/crebain.git
+git clone https://github.com/sepehrmn/crebain.git
 
 # From the repository root
 bun install
@@ -129,7 +129,7 @@ Open an issue with:
 
 ## Questions?
 
-Open a [discussion](https://github.com/crebain/crebain/discussions) for general questions.
+Open a [discussion](https://github.com/sepehrmn/crebain/discussions) for general questions.
 
 ---
 

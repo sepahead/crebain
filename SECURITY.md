@@ -17,8 +17,8 @@ If you discover a security vulnerability in CREBAIN, please report it responsibl
 
 ### How to Report
 
-1. **Private vulnerability reporting**: Send details through GitHub’s [private vulnerability reporting flow](https://github.com/crebain/crebain/security/advisories/new).
-2. **GitHub Security Advisories**: Use the [Advisories page](https://github.com/crebain/crebain/security/advisories).
+1. **Private vulnerability reporting**: Send details through GitHub’s [private vulnerability reporting flow](https://github.com/sepehrmn/crebain/security/advisories/new).
+2. **GitHub Security Advisories**: Use the [Advisories page](https://github.com/sepehrmn/crebain/security/advisories).
 
 ### What to Include
 

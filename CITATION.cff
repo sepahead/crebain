@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+title: CREBAIN - Adaptive Response & Awareness System (ARAS)
+message: >-
+  If you use this software in your research, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - family-names: Mahmoudian
+    given-names: Sepehr
+repository-code: 'https://github.com/sepehrmn/crebain'
+url: 'https://github.com/sepehrmn/crebain'
+abstract: >-
+  A research-oriented tactical visualization and autonomy prototype with 3D
+  scene rendering, multi-camera surveillance, ML-assisted detection,
+  multi-modal sensor fusion, drone physics simulation, and ROS/Gazebo
+  integration. Built with Tauri 2, React 19, Three.js, and Rust.
+keywords:
+  - drone-detection
+  - sensor-fusion
+  - tauri
+  - ros2
+  - gaussian-splatting
+  - computer-vision
+license: MIT
+version: 0.4.0

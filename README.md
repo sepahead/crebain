@@ -315,7 +315,7 @@ xcode-select --install
 brew install bun rust
 
 # Clone and setup
-git clone https://github.com/crebain/crebain.git
+git clone https://github.com/sepehrmn/crebain.git
 
 # From the repository root
 bun install
@@ -331,7 +331,7 @@ bun run tauri:dev
 
 ```bash
 # Clone
-git clone https://github.com/crebain/crebain.git
+git clone https://github.com/sepehrmn/crebain.git
 
 # Enter Nix dev environment (auto-detects CUDA on NixOS with NVIDIA drivers)
 nix develop
