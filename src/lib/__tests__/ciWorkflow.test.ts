@@ -22,6 +22,15 @@ const PERFORMANCE_PANEL = readFileSync(
   'utf8'
 )
 const CREBAIN_VIEWER = readFileSync(`${process.cwd()}/src/components/CrebainViewer.tsx`, 'utf8')
+const HEADER_BAR = readFileSync(`${process.cwd()}/src/components/viewer/HeaderBar.tsx`, 'utf8')
+const DETECTION_PANEL = readFileSync(
+  `${process.cwd()}/src/components/viewer/DetectionPanel.tsx`,
+  'utf8'
+)
+// The viewer UI is split across the main component and its extracted panels;
+// guardrail assertions run against the combined source so panel extraction
+// does not weaken them.
+const VIEWER_UI = `${CREBAIN_VIEWER}\n${HEADER_BAR}\n${DETECTION_PANEL}`
 
 describe('CI workflow', () => {
   it('uses package validation scripts for frontend and backend checks', () => {
@@ -125,12 +134,12 @@ describe('CI workflow', () => {
     expect(PERFORMANCE_PANEL).toContain('backendDetail')
     expect(PERFORMANCE_PANEL).not.toContain('Metal / Neural Engine')
 
-    expect(CREBAIN_VIEWER).toContain('VERTRAG OFFEN')
-    expect(CREBAIN_VIEWER).toContain('NICHT KONFIG.')
-    expect(CREBAIN_VIEWER).toContain('SIM POS')
-    expect(CREBAIN_VIEWER).not.toContain("const networkStatus = 'VERBUNDEN'")
-    expect(CREBAIN_VIEWER).not.toContain('AES-256')
-    expect(CREBAIN_VIEWER).not.toContain('<span className="text-[#808080]">YOLOv8s</span>')
+    expect(VIEWER_UI).toContain('VERTRAG OFFEN')
+    expect(VIEWER_UI).toContain('NICHT KONFIG.')
+    expect(VIEWER_UI).toContain('SIM POS')
+    expect(VIEWER_UI).not.toContain("const networkStatus = 'VERBUNDEN'")
+    expect(VIEWER_UI).not.toContain('AES-256')
+    expect(VIEWER_UI).not.toContain('<span className="text-[#808080]">YOLOv8s</span>')
 
     expect(README).toContain('MLX is experimental, opt-in')
     expect(README).toContain('requires external model-contract validation before release claims')

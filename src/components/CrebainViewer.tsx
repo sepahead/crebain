@@ -11,7 +11,6 @@ import {
   DEFAULT_CONFIDENCE_THRESHOLD,
   DEFAULT_IOU_THRESHOLD,
   DEFAULT_MAX_DETECTIONS,
-  THREAT_LEVEL_COLORS,
 } from '../detection/types'
 import { useDetectionLoop } from '../hooks/useDetectionLoop'
 import { useDroneController } from '../hooks/useDroneController'
@@ -23,6 +22,8 @@ import DroneSpawnPanel from './DroneSpawnPanel'
 import SaveLoadPanel from './SaveLoadPanel'
 import ObjectTransformControls from './ObjectTransformControls'
 import { createTacticalGrid, createGridLabels } from './viewer/TacticalGrid'
+import DetectionPanel from './viewer/DetectionPanel'
+import HeaderBar from './viewer/HeaderBar'
 import { disposeObject3D, forEachMesh, objectLabel } from '../lib/three/sceneObjects'
 import {
   createProceduralFloor,
@@ -44,13 +45,7 @@ import type {
   RendererWithAsync,
 } from './viewer/types'
 import { sceneLogger as log } from '../lib/logger'
-import {
-  isSplatFormat,
-  isGltfFormat,
-  generateCameraDesignation,
-  formatZuluTime,
-  formatCoordinate,
-} from './viewer/types'
+import { isSplatFormat, isGltfFormat, generateCameraDesignation } from './viewer/types'
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════
@@ -2098,217 +2093,27 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
       )}
 
       {/* KOPFZEILE */}
-      <div
-        className="absolute top-0 left-0 right-0 z-50 pointer-events-none"
-        style={{ fontSize: `calc(8px * var(--ui-scale, 1))` }}
-      >
-        <div className="h-11 bg-[#0c0c0c] border-b border-[#1a1a1a] flex items-center px-4">
-          <div className="flex items-center gap-3 pointer-events-auto">
-            <img src="/crebain-logo.png" alt="CREBAIN" className="w-9 h-9" />
-            <div>
-              <div className="text-[1.25em] text-[#e0e0e0] font-medium tracking-[0.3em] whitespace-nowrap">
-                CREBAIN
-              </div>
-              <div className="text-[0.875em] text-[#606060] tracking-[0.15em] whitespace-nowrap">
-                REAKTIONS- UND AUFKLÄRUNGSSYSTEM
-              </div>
-            </div>
-          </div>
-
-          <div className="w-px h-6 bg-[#1a1a1a] mx-4" />
-
-          <div className="flex items-center gap-2 pointer-events-auto">
-            <span className="text-[0.875em] text-[#606060] tracking-wider mr-1">STUFE</span>
-            {([1, 2, 3, 4] as ThreatLevel[]).map((level) => (
-              <button
-                key={level}
-                onClick={() => setThreatLevel(level)}
-                className={`w-6 h-5 text-[1.125em] font-bold border transition-all ${
-                  threatLevel === level
-                    ? level <= 2
-                      ? 'bg-[#1a1a1a] border-[#404040] text-[#c0c0c0]'
-                      : level === 3
-                        ? 'bg-[#1a1408] border-[#a08040] text-[#a08040]'
-                        : 'bg-[#1a0808] border-[#8b4a4a] text-[#8b4a4a]'
-                    : 'bg-[#0c0c0c] border-[#1a1a1a] text-[#404040] hover:border-[#303030]'
-                }`}
-              >
-                {level}
-              </button>
-            ))}
-          </div>
-
-          <div className="w-px h-6 bg-[#1a1a1a] mx-4" />
-
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-1.5">
-              <div className={`w-1.5 h-1.5 ${backendStatusColor}`} />
-              <span className="text-[0.875em] text-[#707070]">DIAG</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-1.5 h-1.5 bg-[#a08040]" />
-              <span className="text-[0.875em] text-[#707070]">KRYPTO CFG</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-1.5 h-1.5 bg-[#505050]" />
-              <span className="text-[0.875em] text-[#707070]">POS SIM</span>
-            </div>
-          </div>
-
-          <div className="w-px h-6 bg-[#1a1a1a] mx-2" />
-
-          {/* UI Scale Controls */}
-          <div className="flex items-center gap-1 pointer-events-auto">
-            <span className="text-[0.875em] text-[#505050] tracking-wider mr-1">UI</span>
-            <button
-              onClick={decreaseScale}
-              disabled={isAtMin}
-              className={`w-5 h-5 bg-[#101010] border border-[#252525] text-[1.25em] flex items-center justify-center ${
-                isAtMin
-                  ? 'text-[#404040] cursor-not-allowed'
-                  : 'text-[#707070] hover:border-[#404040] hover:text-[#a0a0a0]'
-              }`}
-              title="Decrease UI size"
-            >
-              −
-            </button>
-            <span className="text-[1em] text-[#606060] w-8 text-center">{scalePercent}%</span>
-            <button
-              onClick={increaseScale}
-              disabled={isAtMax}
-              className={`w-5 h-5 bg-[#101010] border border-[#252525] text-[1.25em] flex items-center justify-center ${
-                isAtMax
-                  ? 'text-[#404040] cursor-not-allowed'
-                  : 'text-[#707070] hover:border-[#404040] hover:text-[#a0a0a0]'
-              }`}
-              title="Increase UI size"
-            >
-              +
-            </button>
-          </div>
-
-          <div className="flex-1" />
-
-          <div className="flex items-center gap-6 text-[1.125em]">
-            <div className="text-right">
-              <div className="text-[0.75em] text-[#505050] tracking-wider">ZEIT</div>
-              <div className="text-[#a0a0a0] tracking-wider">{formatZuluTime(currentTime)}</div>
-            </div>
-            <div className="w-px h-5 bg-[#1a1a1a]" />
-            <div className="text-right">
-              <div className="text-[0.75em] text-[#505050] tracking-wider">SIM POS</div>
-              <div className="text-[#a0a0a0]">
-                {formatCoordinate(simulatedOperatorPosition.lat, true)}{' '}
-                {formatCoordinate(simulatedOperatorPosition.lon, false)}
-              </div>
-            </div>
-            <div className="w-px h-5 bg-[#1a1a1a]" />
-            <div className="text-right">
-              <div className="text-[0.75em] text-[#505050] tracking-wider">HÖHE</div>
-              <div className="text-[#a0a0a0]">
-                {(altitude + simulatedOperatorPosition.alt).toFixed(1)}m
-              </div>
-            </div>
-            <div className="w-px h-5 bg-[#1a1a1a]" />
-            <div className="text-right">
-              <div className="text-[0.75em] text-[#505050] tracking-wider">KURS</div>
-              <div className="text-[#a0a0a0]">{bearing.toFixed(0).padStart(3, '0')}°</div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 ml-6">
-            <div className="px-2 py-1 bg-[#101010] border border-[#252525] text-[1em]">
-              <span className="text-[#606060]">ISR</span>{' '}
-              <span className="text-[#b0b0b0]">{cameras.length}</span>
-            </div>
-            <div className="px-2 py-1 bg-[#101010] border border-[#252525] text-[1em]">
-              <span className="text-[#606060]">OBJ</span>{' '}
-              <span className="text-[#b0b0b0]">{loadedAssets.length + (currentAsset ? 1 : 0)}</span>
-            </div>
-            <div
-              className={`px-2 py-1 border text-[1em] ${totalDetections > 0 ? 'bg-[#1a1408] border-[#a08040]' : 'bg-[#101010] border-[#252525]'}`}
-            >
-              <span className="text-[#606060]">DET</span>{' '}
-              <span className={totalDetections > 0 ? 'text-[#a08040]' : 'text-[#b0b0b0]'}>
-                {totalDetections}
-              </span>
-            </div>
-            <div
-              className={`px-2 py-1 border text-[1em] ${fusedTracks.length > 0 ? 'bg-[#0a1a0a] border-[#3a6b4a]' : 'bg-[#101010] border-[#252525]'}`}
-            >
-              <span className="text-[#606060]">TRK</span>{' '}
-              <span className={fusedTracks.length > 0 ? 'text-[#3a6b4a]' : 'text-[#b0b0b0]'}>
-                {fusedTracks.length}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="h-5 bg-[#0a0a0a] border-b border-[#1a1a1a] flex items-center px-4 text-[0.875em] text-[#505050] tracking-wider">
-          <span>
-            RASTER:{' '}
-            <span className={showGrid ? 'text-[#808080]' : 'text-[#404040]'}>
-              {showGrid ? 'EIN' : 'AUS'}
-            </span>
-          </span>
-          <span className="mx-3 text-[#252525]">│</span>
-          <span>
-            SK:{' '}
-            <span className="text-[#808080]">
-              {cameras.filter((c) => c.type === 'static').length}
-            </span>
-          </span>
-          <span className="mx-2">
-            PTZ:{' '}
-            <span className="text-[#808080]">{cameras.filter((c) => c.type === 'ptz').length}</span>
-          </span>
-          <span>
-            PK:{' '}
-            <span className="text-[#808080]">
-              {cameras.filter((c) => c.type === 'patrol').length}
-            </span>
-          </span>
-          <span className="mx-3 text-[#252525]">│</span>
-          <span>
-            AUFZ:{' '}
-            <span
-              className={
-                cameras.filter((c) => c.isRecording).length > 0
-                  ? 'text-[#8b4a4a]'
-                  : 'text-[#404040]'
-              }
-            >
-              {cameras.filter((c) => c.isRecording).length}
-            </span>
-          </span>
-          <span className="mx-3 text-[#252525]">│</span>
-          <span>
-            YOLO:{' '}
-            <span className={detectionEnabled ? 'text-[#3a6b4a]' : 'text-[#404040]'}>
-              {detectionEnabled ? 'AKTIV' : 'AUS'}
-            </span>
-          </span>
-          <span className="mx-2">
-            FUSION:{' '}
-            <span
-              className={
-                cameras.length > 1 && detectionEnabled ? 'text-[#3a6b4a]' : 'text-[#404040]'
-              }
-            >
-              {cameras.length > 1 && detectionEnabled ? 'AN' : 'AUS'}
-            </span>
-          </span>
-          {highestThreat && (
-            <>
-              <span className="mx-3 text-[#252525]">│</span>
-              <span className="text-[#a08040]">
-                BEDROHUNG: {highestThreat.class.toUpperCase()}{' '}
-                {((highestThreat.confidence ?? 0) * 100).toFixed(0)}%
-              </span>
-            </>
-          )}
-        </div>
-      </div>
+      <HeaderBar
+        backendStatusColor={backendStatusColor}
+        threatLevel={threatLevel}
+        onThreatLevelChange={setThreatLevel}
+        scalePercent={scalePercent}
+        isAtMin={isAtMin}
+        isAtMax={isAtMax}
+        onDecreaseScale={decreaseScale}
+        onIncreaseScale={increaseScale}
+        currentTime={currentTime}
+        operatorPosition={simulatedOperatorPosition}
+        altitude={altitude}
+        bearing={bearing}
+        cameras={cameras}
+        objectCount={loadedAssets.length + (currentAsset ? 1 : 0)}
+        totalDetections={totalDetections}
+        fusedTrackCount={fusedTracks.length}
+        showGrid={showGrid}
+        detectionEnabled={detectionEnabled}
+        highestThreat={highestThreat}
+      />
 
       {/* LINKES PANEL - STEUERUNG */}
       <div
@@ -2851,133 +2656,14 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
 
       {/* DETECTION PANEL */}
       {showDetectionPanel && (totalDetections > 0 || fusedTracks.length > 0) && (
-        <div
-          className="absolute top-[68px] right-[220px] w-56 z-40"
-          style={{ fontSize: `calc(8px * var(--ui-scale, 1))` }}
-        >
-          <div className="bg-[#0c0c0c] border border-[#1a1a1a]">
-            <div className="h-7 border-b border-[#1a1a1a] flex items-center justify-between px-3 bg-[#101010]">
-              <span className="text-[0.875em] text-[#909090] tracking-[0.2em]">DETEKTIONEN</span>
-              <button
-                onClick={() => setShowDetectionPanel(false)}
-                className="text-[1em] text-[#404040] hover:text-[#808080]"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="p-2 max-h-[300px] overflow-y-auto">
-              {/* Fused Tracks Section */}
-              {fusedTracks.length > 0 && (
-                <div className="mb-3">
-                  <div className="text-[0.75em] text-[#606060] tracking-wider mb-1.5">
-                    BESTÄTIGTE TRACKS
-                  </div>
-                  <div className="space-y-1">
-                    {fusedTracks.slice(0, 5).map((track) => (
-                      <div
-                        key={track.id}
-                        className={`p-1.5 border ${track.state === 'confirmed' ? 'border-[#3a6b4a] bg-[#0a1a0a]' : 'border-[#252525] bg-[#0e0e0e]'}`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-1.5">
-                            <div
-                              className="w-1.5 h-1.5"
-                              style={{ backgroundColor: THREAT_LEVEL_COLORS[track.threatLevel] }}
-                            />
-                            <span className="text-[1em] text-[#c0c0c0]">{track.id}</span>
-                          </div>
-                          <span
-                            className="text-[0.875em]"
-                            style={{ color: THREAT_LEVEL_COLORS[track.threatLevel] }}
-                          >
-                            {track.class.toUpperCase()}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between mt-1 text-[0.75em] text-[#606060]">
-                          <span>
-                            Konfidenz:{' '}
-                            <span className="text-[#a0a0a0]">
-                              {(track.fusedConfidence * 100).toFixed(0)}%
-                            </span>
-                          </span>
-                          <span>
-                            Kameras:{' '}
-                            <span className="text-[#a0a0a0]">
-                              {track.contributingCameras.length}
-                            </span>
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Camera Detections Section */}
-              {totalDetections > 0 && (
-                <div>
-                  <div className="text-[0.75em] text-[#606060] tracking-wider mb-1.5">
-                    KAMERA DETEKTIONEN
-                  </div>
-                  {Array.from(cameraDetections.entries()).map(([camId, dets]) => {
-                    if (dets.length === 0) return null
-                    const cam = cameras.find((c) => c.id === camId)
-                    return (
-                      <div key={camId} className="mb-2">
-                        <div className="text-[0.875em] text-[#808080] mb-1">
-                          {cam?.name || camId}
-                        </div>
-                        <div className="space-y-0.5">
-                          {dets.slice(0, 3).map((det) => (
-                            <div
-                              key={det.id}
-                              className="flex items-center justify-between px-1.5 py-1 bg-[#0e0e0e] border border-[#1a1a1a]"
-                            >
-                              <div className="flex items-center gap-1.5">
-                                <div
-                                  className="w-1 h-1"
-                                  style={{
-                                    backgroundColor: THREAT_LEVEL_COLORS[det.threatLevel ?? 1],
-                                  }}
-                                />
-                                <span className="text-[0.875em] text-[#909090]">
-                                  {det.class.toUpperCase()}
-                                </span>
-                              </div>
-                              <span
-                                className="text-[0.875em]"
-                                style={{ color: THREAT_LEVEL_COLORS[det.threatLevel ?? 1] }}
-                              >
-                                {(det.confidence * 100).toFixed(0)}%
-                              </span>
-                            </div>
-                          ))}
-                          {dets.length > 3 && (
-                            <div className="text-[0.75em] text-[#505050] text-center">
-                              +{dets.length - 3} weitere
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Fusion Stats Footer */}
-            {fusionStats && (
-              <div className="border-t border-[#1a1a1a] px-3 py-1.5 flex items-center justify-between text-[0.75em] text-[#505050]">
-                <span>FRAME: {fusionStats.frameCount}</span>
-                <span>KONF: {(fusionStats.avgFusedConfidence * 100).toFixed(0)}%</span>
-                <span className={fusionStats.highThreatCount > 0 ? 'text-[#a08040]' : ''}>
-                  BEDR: {fusionStats.highThreatCount}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
+        <DetectionPanel
+          totalDetections={totalDetections}
+          fusedTracks={fusedTracks}
+          cameraDetections={cameraDetections}
+          cameras={cameras}
+          fusionStats={fusionStats}
+          onClose={() => setShowDetectionPanel(false)}
+        />
       )}
 
       {/* KAMERA-FEEDS */}
