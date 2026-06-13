@@ -23,11 +23,12 @@ jobs:
           persist-credentials: false
 
       - name: Run analysis
-        uses: ossf/scorecard-action@v2
+        uses: ossf/scorecard-action@v2.4.3
         with:
           results_file: results.sarif
           results_format: sarif
-          publish_results: true
+          # Upload to the Security tab without requiring OpenSSF API enrollment.
+          publish_results: false
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
