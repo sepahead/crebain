@@ -107,7 +107,7 @@ objc = "0.2"
 # MLX-style inference on Apple Silicon using Candle with Metal backend
 # Updated to 0.9.x series for latest features
 candle-core = { version = "0.9", features = ["metal"] }
-candle-nn = "0.9"
+candle-nn = "0.10"
 safetensors = "0.6"
 half = "2.6"  # FP16 support for Metal GPU
 shellexpand = "3.1"  # Path expansion for model search
