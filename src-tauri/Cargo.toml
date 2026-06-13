@@ -77,6 +77,10 @@ cdr = "0.2"
 # Byteorder for CDR parsing
 byteorder = "1.5"
 
+# Dev: enable Tauri's mock runtime for AppHandle-backed IPC integration tests.
+[dev-dependencies]
+tauri = { version = "2.10", features = ["test"] }
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # BUILD PROFILES - Optimized for ML inference and sensor fusion performance
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -416,7 +416,11 @@ fn get_system_info() -> serde_json::Value {
 ///
 /// Frontend calls this via `invoke('scene_save_file', { path, json })`.
 #[tauri::command]
-async fn scene_save_file(path: String, json: String, app: tauri::AppHandle) -> Result<(), String> {
+async fn scene_save_file<R: tauri::Runtime>(
+    path: String,
+    json: String,
+    app: tauri::AppHandle<R>,
+) -> Result<(), String> {
     if json.is_empty() {
         return Err("Empty scene JSON".to_string());
     }
@@ -509,7 +513,10 @@ async fn scene_save_file(path: String, json: String, app: tauri::AppHandle) -> R
 ///
 /// Frontend calls this via `invoke<string>('scene_load_file', { path })`.
 #[tauri::command]
-async fn scene_load_file(path: String, app: tauri::AppHandle) -> Result<String, String> {
+async fn scene_load_file<R: tauri::Runtime>(
+    path: String,
+    app: tauri::AppHandle<R>,
+) -> Result<String, String> {
     let scenes_dir = app
         .path()
         .app_data_dir()
@@ -1118,5 +1125,46 @@ mod tests {
     #[test]
     fn transport_publish_validation_accepts_valid_message_type() {
         assert!(transport::commands::validate_message_type_for_test("geometry_msgs/Twist").is_ok());
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // AppHandle-backed IPC integration tests (Tauri mock runtime).
+    //
+    // These invoke the real `#[tauri::command]` async functions through a mock
+    // `AppHandle`, exercising the IPC boundary end-to-end rather than only the
+    // validation helpers, and confirm that malformed payloads return structured
+    // errors instead of panicking. The empty/oversized cases short-circuit
+    // before any filesystem access, so they have no side effects.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    fn mock_app() -> tauri::App<tauri::test::MockRuntime> {
+        tauri::test::mock_builder()
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .expect("failed to build mock Tauri app")
+    }
+
+    #[test]
+    fn scene_save_file_rejects_empty_json_via_apphandle() {
+        let app = mock_app();
+        let err = tauri::async_runtime::block_on(scene_save_file(
+            "scene.json".to_string(),
+            String::new(),
+            app.handle().clone(),
+        ))
+        .unwrap_err();
+        assert!(err.contains("Empty scene JSON"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn scene_save_file_rejects_oversized_json_via_apphandle() {
+        let app = mock_app();
+        let oversized = "x".repeat(MAX_SCENE_STATE_BYTES + 1);
+        let err = tauri::async_runtime::block_on(scene_save_file(
+            "scene.json".to_string(),
+            oversized,
+            app.handle().clone(),
+        ))
+        .unwrap_err();
+        assert!(err.contains("too large"), "unexpected error: {err}");
     }
 }

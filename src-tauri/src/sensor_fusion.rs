@@ -1814,6 +1814,59 @@ mod tests {
     }
 
     #[test]
+    fn test_constant_velocity_estimate_tracks_moving_target() {
+        // A target moving at a constant 2 m/s along +X should be tracked so that
+        // the filter's position estimate converges near the true position and the
+        // estimated velocity converges near the true velocity over several frames.
+        let mut fusion = MultiSensorFusion::new(FusionConfig::default());
+
+        let dt_ms: u64 = 100;
+        let speed = 2.0; // m/s
+        let mut last = None;
+        for frame in 0..10u64 {
+            let t_ms = 1000 + frame * dt_ms;
+            let true_x = 5.0 + speed * (frame as f64) * (dt_ms as f64) / 1000.0;
+            let m = vec![SensorMeasurement {
+                sensor_id: "cam1".to_string(),
+                modality: SensorModality::Visual,
+                timestamp_ms: t_ms,
+                position: [true_x, 0.0, 3.0],
+                velocity: Some([speed, 0.0, 0.0]),
+                covariance: [0.5, 0.5, 0.5],
+                confidence: 0.9,
+                class_label: "drone".to_string(),
+                metadata: HashMap::new(),
+            }];
+            let tracks = fusion.process_measurements(m, t_ms);
+            assert_eq!(
+                tracks.len(),
+                1,
+                "frame {frame} should yield exactly one track"
+            );
+            last = Some((tracks[0].clone(), true_x));
+        }
+
+        let (track, true_x) = last.expect("expected a track after the run");
+        assert_eq!(track.state, TrackStateLabel::Confirmed);
+        // Position estimate converges to the moving target (within 1.5 m).
+        assert!(
+            (track.position[0] - true_x).abs() < 1.5,
+            "estimated x {} should track true x {}",
+            track.position[0],
+            true_x
+        );
+        // Velocity estimate converges toward the true +X speed.
+        assert!(
+            track.velocity[0] > 1.0 && track.velocity[0] < 3.0,
+            "estimated vx {} should converge near {}",
+            track.velocity[0],
+            speed
+        );
+        // Lateral axes stay near zero (no spurious motion introduced).
+        assert!(track.position[1].abs() < 1.0);
+    }
+
+    #[test]
     fn test_stale_track_cleanup() {
         let config = FusionConfig {
             max_missed_detections: 3,
