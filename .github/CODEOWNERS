@@ -1,0 +1,8 @@
+# Default owner for everything in the repository.
+* @sepehrmn
+
+# Security-sensitive boundaries warrant explicit review.
+/src-tauri/                 @sepehrmn
+/.github/                   @sepehrmn
+/SECURITY.md                @sepehrmn
+/src-tauri/deny.toml        @sepehrmn

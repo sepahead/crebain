@@ -1,0 +1,72 @@
+name: Bug report
+description: Report a reproducible problem in CREBAIN
+labels: ['bug', 'triage']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a report. For security vulnerabilities, do **not** open
+        a public issue — follow [SECURITY.md](../blob/main/SECURITY.md) instead.
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened, and what did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Minimal, ordered steps that trigger the bug.
+      placeholder: |
+        1. Launch with `bun run tauri:dev`
+        2. ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      description: Release tag or `git rev-parse --short HEAD`.
+    validations:
+      required: true
+  - type: dropdown
+    id: app_mode
+    attributes:
+      label: App mode
+      options:
+        - bun run dev (browser-only)
+        - bun run tauri:dev (native)
+        - packaged build
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: OS and hardware
+      placeholder: 'macOS 15 / Apple M3, or NixOS / RTX 4070'
+    validations:
+      required: true
+  - type: dropdown
+    id: backend
+    attributes:
+      label: Detection backend (if relevant)
+      options:
+        - Not applicable
+        - CoreML
+        - MLX (experimental)
+        - ONNX
+        - CUDA
+        - TensorRT
+  - type: input
+    id: transport
+    attributes:
+      label: ROS / Zenoh setup (if relevant)
+      placeholder: 'rosbridge ws://localhost:9090, Zenoh, both, or none'
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs / screenshots / validation output
+      render: shell
