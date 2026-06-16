@@ -165,6 +165,13 @@ export interface FusionConfig {
  */
 export interface DetectionWorkerMessage {
   type: 'init' | 'detect' | 'dispose' | 'status'
+  /**
+   * Monotonic id correlating a `detect` request with its `detections`/`error`
+   * response. Required for correct results when multiple `detect()` calls are
+   * in flight — responses may arrive out of order, so FIFO matching would swap
+   * results between requests.
+   */
+  requestId?: number
   payload?: {
     detectorType?: DetectorType
     modelPath?: string
@@ -178,6 +185,9 @@ export interface DetectionWorkerMessage {
 
 export interface DetectionWorkerResponse {
   type: 'ready' | 'detections' | 'error' | 'status'
+  /** Echoes the originating `detect` request's id (for `detections` and
+   *  detect-scoped `error` responses); absent for global init/status messages. */
+  requestId?: number
   payload?: {
     detections?: Detection[]
     inferenceTime?: number

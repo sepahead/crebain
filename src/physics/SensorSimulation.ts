@@ -106,8 +106,11 @@ export class IMUSensor {
     const invOrientation = orientation.clone().invert()
     const bodyAngularVelocity = trueAngularVelocity.clone().applyQuaternion(invOrientation)
 
-    // Add gravity to acceleration (IMU measures specific force)
-    const gravity = new THREE.Vector3(0, 9.81, 0)
+    // IMU measures specific force f = a - g, where gravity g points DOWN (-Y).
+    // trueAcceleration already includes the gravity force, so
+    // f = a - (0,-9.81,0) = a + (0,9.81,0): at rest the accelerometer reads
+    // +1g on the up axis, as a real IMU does.
+    const gravity = new THREE.Vector3(0, -9.81, 0)
     const specificForce = trueAcceleration.clone().sub(gravity)
     const bodyAcceleration = specificForce.applyQuaternion(invOrientation)
 

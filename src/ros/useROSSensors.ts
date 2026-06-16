@@ -268,13 +268,20 @@ export function acousticToMeasurement(det: AcousticDetection, sensorId: string):
   const y = r * Math.cos(el) * Math.sin(az)
   const z = r * Math.sin(el)
 
-  // Estimate velocity from Doppler if available
+  // Estimate radial velocity from the Doppler shift, but only when the carrier
+  // frequency is known: v_radial = doppler_hz * c / f_carrier (c = speed of
+  // sound). Without a valid carrier we leave velocity undefined rather than feed
+  // a fabricated value into the fusion filter.
+  const SPEED_OF_SOUND_MS = 343
   let velocity: [number, number, number] | undefined
-  if (det.doppler_hz !== 0) {
-    // Assume 343 m/s speed of sound, doppler_hz = f_shift
-    // v_radial = doppler_hz * c / f_carrier (approximate)
-    const vRadial = det.doppler_hz * 0.1 // Simplified
-    velocity = [vRadial * Math.cos(az), vRadial * Math.sin(az), 0]
+  if (det.doppler_hz !== 0 && det.dominant_frequency_hz > 0) {
+    const vRadial = (det.doppler_hz * SPEED_OF_SOUND_MS) / det.dominant_frequency_hz
+    // Project along the full line-of-sight direction (including elevation).
+    velocity = [
+      vRadial * Math.cos(el) * Math.cos(az),
+      vRadial * Math.cos(el) * Math.sin(az),
+      vRadial * Math.sin(el),
+    ]
   }
 
   return {

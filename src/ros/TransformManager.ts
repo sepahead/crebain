@@ -335,21 +335,25 @@ export class TransformManager {
       if (visited.has(frame)) continue
       visited.add(frame)
 
-      // Try going up (child -> parent)
+      // Going up (we walk child -> parent). The stored `parent->child`
+      // transform already maps child-frame coords -> parent-frame coords, which
+      // is exactly the direction we travel, so it is used as-is (NOT inverted).
       const parent = this.frameTree.get(frame)
       if (parent && !visited.has(parent)) {
         queue.push({
           frame: parent,
-          path: [...path, { parent, child: frame, inverse: true }],
+          path: [...path, { parent, child: frame, inverse: false }],
         })
       }
 
-      // Try going down (parent -> child)
+      // Going down (we walk parent -> child). The stored `parent->child`
+      // transform maps child -> parent, the opposite of our travel direction,
+      // so it must be inverted.
       for (const [child, p] of this.frameTree) {
         if (p === frame && !visited.has(child)) {
           queue.push({
             frame: child,
-            path: [...path, { parent: frame, child, inverse: false }],
+            path: [...path, { parent: frame, child, inverse: true }],
           })
         }
       }
@@ -379,7 +383,11 @@ export class TransformManager {
         transform = this.invertTransform(transform)
       }
 
-      result = this.composeTransforms(result, transform)
+      // The chain is ordered source -> ... -> target. We need
+      // T_target_source = step_n ∘ … ∘ step_1 ∘ step_0 with the source-side step
+      // applied FIRST. composeTransforms(A, B) applies B before A, so the newest
+      // (target-ward) step goes on the LEFT.
+      result = this.composeTransforms(transform, result)
     }
 
     return {

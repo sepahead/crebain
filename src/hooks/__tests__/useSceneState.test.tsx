@@ -75,7 +75,7 @@ function drone(): ManagedDrone {
         velocity: new THREE.Vector3(4, 5, 6),
         angularVelocity: new THREE.Vector3(0.1, 0.2, 0.3),
         armed: true,
-        battery: 87,
+        battery: 0.87, // physics fraction (0-1); serializes to 87%
       },
     } as ManagedDrone['physicsBody'],
     flightController: {} as ManagedDrone['flightController'],

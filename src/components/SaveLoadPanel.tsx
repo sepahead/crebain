@@ -30,7 +30,23 @@ export function SaveLoadPanel({
   const [showLoadMenu, setShowLoadMenu] = useState(false)
   const [lastSaveTime, setLastSaveTime] = useState<number | null>(null)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [autosaveEnabled, setAutosaveEnabled] = useState(() =>
+    sceneStateManager.isAutosaveEnabled()
+  )
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const AUTOSAVE_INTERVAL_S = 30
+
+  const toggleAutosave = useCallback(() => {
+    setAutosaveEnabled((enabled) => {
+      if (enabled) {
+        sceneStateManager.disableAutosave()
+      } else {
+        sceneStateManager.enableAutosave(AUTOSAVE_INTERVAL_S)
+      }
+      return !enabled
+    })
+  }, [])
 
   // Refresh saved states list
   const refreshSavedStates = useCallback(() => {
@@ -278,13 +294,15 @@ export function SaveLoadPanel({
       <div className="px-2 py-1 border-t border-[#1a1a1a] flex items-center justify-between">
         <span className="text-[#606060]">AUTOSAVE:</span>
         <button
-          onClick={() => {
-            // Toggle autosave - for now just show status
-            sceneStateManager.enableAutosave(30)
-          }}
-          className="px-2 py-0.5 bg-[#1a2a1a] border border-[#2a4a2a] text-[#4aff4a] text-[0.875em]"
+          onClick={toggleAutosave}
+          aria-pressed={autosaveEnabled}
+          className={
+            autosaveEnabled
+              ? 'px-2 py-0.5 bg-[#1a2a1a] border border-[#2a4a2a] text-[#4aff4a] text-[0.875em]'
+              : 'px-2 py-0.5 bg-[#1a1a1a] border border-[#2a2a2a] text-[#606060] text-[0.875em]'
+          }
         >
-          ● AKTIV (30s)
+          {autosaveEnabled ? `● AKTIV (${AUTOSAVE_INTERVAL_S}s)` : '○ AUS'}
         </button>
       </div>
     </BasePanel>

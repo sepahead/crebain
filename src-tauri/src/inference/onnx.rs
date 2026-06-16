@@ -68,11 +68,13 @@ impl Detector for OnnxDetector {
             })
             .map_err(InferenceError::InferenceError);
 
-        // Update stats
-        let elapsed_ms = start.elapsed().as_millis() as u64;
-        self.inference_count.fetch_add(1, Ordering::Relaxed);
-        self.total_inference_ms
-            .fetch_add(elapsed_ms, Ordering::Relaxed);
+        // Update stats — only on success so failures do not skew avg latency.
+        if result.is_ok() {
+            let elapsed_ms = start.elapsed().as_millis() as u64;
+            self.inference_count.fetch_add(1, Ordering::Relaxed);
+            self.total_inference_ms
+                .fetch_add(elapsed_ms, Ordering::Relaxed);
+        }
 
         result
     }

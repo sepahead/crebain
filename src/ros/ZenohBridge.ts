@@ -178,12 +178,23 @@ export class ZenohBridge {
   ): () => void {
     const wrappedCallback = callback as ROSMessageCallback<unknown>
     const existing = this.listeners.get(topic)
-    
-    // Store throttle rate for this topic (use provided rate or default to no throttling)
+
+    // The throttle is shared by every callback on this topic and gates the whole
+    // fan-out, so a new subscriber must not starve existing ones. Use the MOST
+    // permissive (smallest) requested rate, never reset `lastEmit` (which would
+    // let the new subscription burst past the gate), and treat "no throttle" as
+    // a request for every message — clearing any inherited throttle.
     if (throttleRate && throttleRate > 0) {
-      this.topicThrottles.set(topic, { rate: throttleRate, lastEmit: 0 })
+      const existingThrottle = this.topicThrottles.get(topic)
+      if (!existingThrottle) {
+        this.topicThrottles.set(topic, { rate: throttleRate, lastEmit: 0 })
+      } else if (throttleRate < existingThrottle.rate) {
+        existingThrottle.rate = throttleRate
+      }
+    } else {
+      this.topicThrottles.delete(topic)
     }
-    
+
     if (existing) {
       // Already subscribed to this topic, just add the callback
       existing.push(wrappedCallback)

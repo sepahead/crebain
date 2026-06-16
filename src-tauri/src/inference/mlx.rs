@@ -406,16 +406,45 @@ fn c2f_block(
     conv_block(&vb.pp("cv2"), &cat, c2, 1, 1)
 }
 
+/// SPPF max-pool that PRESERVES spatial dimensions (stride=1, padding=k/2).
+///
+/// Ultralytics SPPF concatenates `cv1` with three successive max-pools along the
+/// channel axis, which only type-checks if every pool keeps the input H×W.
+/// candle's `max_pool2d_with_stride` has no padding parameter, so using
+/// `stride == kernel` (as the previous code did) both downsamples and then bails
+/// once the map shrinks below the kernel — the forward pass could never run on a
+/// real model. We pad H and W with a large negative value (acting as -inf for the
+/// max) and pool with stride 1, matching `nn.MaxPool2d(k, stride=1, padding=k//2)`.
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn sppf_pool_same(x: &Tensor, k: usize) -> Result<Tensor> {
+    // Padded cells must never win the max; well below any post-SiLU activation.
+    const NEG_INF: f32 = -1e30;
+    let pad = k / 2;
+    let pad_axis = |t: &Tensor, dim: usize| -> Result<Tensor> {
+        if pad == 0 {
+            return Ok(t.clone());
+        }
+        let mut shape = t.dims().to_vec();
+        shape[dim] = pad;
+        let numel: usize = shape.iter().product();
+        let pad_t = Tensor::from_vec(vec![NEG_INF; numel], shape.as_slice(), t.device())
+            .map_err(|e| InferenceError::InferenceError(e.to_string()))?;
+        Tensor::cat(&[&pad_t, t, &pad_t], dim)
+            .map_err(|e| InferenceError::InferenceError(e.to_string()))
+    };
+    let padded = pad_axis(x, 2)?;
+    let padded = pad_axis(&padded, 3)?;
+    padded
+        .max_pool2d_with_stride(k, 1)
+        .map_err(|e| InferenceError::InferenceError(e.to_string()))
+}
+
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 fn sppf_block(vb: &VarBuilder, x: &Tensor, c1: usize, c2: usize, k: usize) -> Result<Tensor> {
     let cv1 = conv_block(&vb.pp("cv1"), x, c1 / 2, 1, 1)?;
-    let pool = |x: &Tensor| {
-        x.max_pool2d_with_stride(k, k)
-            .map_err(|e| InferenceError::InferenceError(e.to_string()))
-    };
-    let y1 = pool(&cv1)?;
-    let y2 = pool(&y1)?;
-    let y3 = pool(&y2)?;
+    let y1 = sppf_pool_same(&cv1, k)?;
+    let y2 = sppf_pool_same(&y1, k)?;
+    let y3 = sppf_pool_same(&y2, k)?;
     let cat = Tensor::cat(&[&cv1, &y1, &y2, &y3], 1)
         .map_err(|e| InferenceError::InferenceError(e.to_string()))?;
     conv_block(&vb.pp("cv2"), &cat, c2, 1, 1)
@@ -804,11 +833,16 @@ fn postprocess_output(
             let r = decode_coord(2 * REG_MAX);
             let b = decode_coord(3 * REG_MAX);
 
-            // Convert to cx, cy, w, h
-            let cx = (gx + 0.5 - l) * stride;
-            let cy = (gy + 0.5 - t) * stride;
-            let w = (l + r) * stride;
-            let h = (t + b) * stride;
+            // Decode the distribution distances (l,t,r,b) directly into box
+            // corners in input-image pixels. The anchor center is (gx+0.5, gy+0.5)
+            // and YOLOv8 places each edge at center∓distance, so these values ARE
+            // the corners (x1,y1,x2,y2) — they are NOT a center that still needs
+            // ±w/2 applied. (The previous code mislabeled the top-left corner as
+            // the center and then subtracted w/2, shifting every box up-left.)
+            let x1_in = (gx + 0.5 - l) * stride;
+            let y1_in = (gy + 0.5 - t) * stride;
+            let x2_in = (gx + 0.5 + r) * stride;
+            let y2_in = (gy + 0.5 + b) * stride;
 
             // Find max class score (sigmoid applied)
             let mut max_score = 0.0f32;
@@ -828,10 +862,10 @@ fn postprocess_output(
                 continue;
             }
 
-            let x1 = ((cx - w / 2.0) * scale_x).max(0.0).min(orig_width);
-            let y1 = ((cy - h / 2.0) * scale_y).max(0.0).min(orig_height);
-            let x2 = ((cx + w / 2.0) * scale_x).max(0.0).min(orig_width);
-            let y2 = ((cy + h / 2.0) * scale_y).max(0.0).min(orig_height);
+            let x1 = (x1_in * scale_x).max(0.0).min(orig_width);
+            let y1 = (y1_in * scale_y).max(0.0).min(orig_height);
+            let x2 = (x2_in * scale_x).max(0.0).min(orig_width);
+            let y2 = (y2_in * scale_y).max(0.0).min(orig_height);
 
             if x2 <= x1 || y2 <= y1 {
                 continue;
@@ -1090,6 +1124,68 @@ mod tests {
         let output = Tensor::zeros(&[1, 144, 0], DType::F32, &device).unwrap();
         let detections = postprocess_output(&output, 640.0, 480.0).unwrap();
         assert!(detections.is_empty());
+    }
+
+    #[test]
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    fn sppf_pool_same_preserves_spatial_dims() {
+        // Regression: SPPF must keep H×W so cv1/y1/y2/y3 concat on the channel
+        // axis. The old stride==kernel pool downsampled and then bailed on the
+        // 2nd/3rd pool, making the forward pass impossible to run.
+        let device = Device::Cpu;
+        let x = Tensor::zeros(&[1, 4, 20, 20], DType::F32, &device).unwrap();
+        let y1 = sppf_pool_same(&x, 5).unwrap();
+        assert_eq!(y1.dims(), &[1, 4, 20, 20]);
+        let y2 = sppf_pool_same(&y1, 5).unwrap();
+        assert_eq!(y2.dims(), &[1, 4, 20, 20]);
+        let y3 = sppf_pool_same(&y2, 5).unwrap();
+        assert_eq!(y3.dims(), &[1, 4, 20, 20]);
+    }
+
+    #[test]
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    fn sppf_pool_same_computes_correct_windowed_max() {
+        // 3×3 ascending map, k=3 same-padding pool. The center sees the full
+        // window (max=8); the top-left corner sees only the original 2×2 block
+        // {0,1,3,4} plus negative padding (max=4).
+        let device = Device::Cpu;
+        let data: Vec<f32> = (0..9).map(|v| v as f32).collect();
+        let x = Tensor::from_vec(data, &[1, 1, 3, 3], &device).unwrap();
+        let y = sppf_pool_same(&x, 3).unwrap();
+        assert_eq!(y.dims(), &[1, 1, 3, 3]);
+        let v = y.flatten_all().unwrap().to_vec1::<f32>().unwrap();
+        assert_eq!(v[4], 8.0); // center
+        assert_eq!(v[0], 4.0); // top-left corner
+    }
+
+    #[test]
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    fn postprocess_decodes_box_corners_without_shift() {
+        // Regression for the DFL center/corner bug. Build a [1,144,8400] output
+        // where one P3 anchor (gx=40, gy=40) has a high class score and uniform
+        // box logits (→ each distance decodes to the mean of 0..15 = 7.5). The
+        // box must be [264,264,384,384]: x1=(40.5-7.5)*8, x2=(40.5+7.5)*8.
+        // The old (cx, cx±w/2) decode produced [204,204,324,324].
+        let device = Device::Cpu;
+        let num_anchors = 80 * 80 + 40 * 40 + 20 * 20; // 8400
+        let mut data = vec![0.0f32; 144 * num_anchors];
+        // Suppress every class score so only the target anchor survives.
+        for c in 0..80 {
+            for i in 0..num_anchors {
+                data[(64 + c) * num_anchors + i] = -10.0;
+            }
+        }
+        let target = 40 * 80 + 40; // P3 grid offset is 0
+        data[64 * num_anchors + target] = 10.0; // class 0, high logit
+
+        let output = Tensor::from_vec(data, &[1, 144, num_anchors], &device).unwrap();
+        let detections = postprocess_output(&output, 640.0, 640.0).unwrap();
+        assert_eq!(detections.len(), 1, "exactly one anchor should pass");
+        let bbox = detections[0].bbox;
+        assert!((bbox[0] - 264.0).abs() < 1.0, "x1 was {}", bbox[0]);
+        assert!((bbox[1] - 264.0).abs() < 1.0, "y1 was {}", bbox[1]);
+        assert!((bbox[2] - 384.0).abs() < 1.0, "x2 was {}", bbox[2]);
+        assert!((bbox[3] - 384.0).abs() < 1.0, "y2 was {}", bbox[3]);
     }
 
     #[test]

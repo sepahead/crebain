@@ -3,7 +3,7 @@
  * Rate-limited motor command publishing for drone control
  */
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { getROSBridge } from '../ros/ROSBridge'
 import type { DronePhysicsWorld } from '../physics/DronePhysics'
 
@@ -36,6 +36,16 @@ export function useRosActuatorLoop(
   const lastErrorRef = useRef<string | null>(null)
   const configRef = useRef(mergedConfig)
   configRef.current = mergedConfig
+
+  // The publish loop runs at up to rateHz and mutates the refs above; mutating a
+  // ref does not re-render, so consumers would see frozen status. Publish a
+  // reactive snapshot of the refs to state at a low fixed cadence instead of
+  // re-rendering every tick.
+  const [status, setStatus] = useState<UseRosActuatorLoopReturn>({
+    isRunning: false,
+    commandsSent: 0,
+    lastError: null,
+  })
 
   useEffect(() => {
     if (!physicsWorld || !mergedConfig.enabled) {
@@ -90,11 +100,26 @@ export function useRosActuatorLoop(
     }
   }, [physicsWorld, mergedConfig.enabled, mergedConfig.rateHz])
 
-  return {
-    isRunning: isRunningRef.current,
-    commandsSent: commandsSentRef.current,
-    lastError: lastErrorRef.current,
-  }
+  // Mirror the high-frequency ref counters into state ~4×/sec so consumers see
+  // live status without re-rendering on every actuator tick.
+  useEffect(() => {
+    const snapshotId = setInterval(() => {
+      setStatus((prev) =>
+        prev.isRunning === isRunningRef.current &&
+        prev.commandsSent === commandsSentRef.current &&
+        prev.lastError === lastErrorRef.current
+          ? prev
+          : {
+              isRunning: isRunningRef.current,
+              commandsSent: commandsSentRef.current,
+              lastError: lastErrorRef.current,
+            }
+      )
+    }, 250)
+    return () => clearInterval(snapshotId)
+  }, [])
+
+  return status
 }
 
 export default useRosActuatorLoop

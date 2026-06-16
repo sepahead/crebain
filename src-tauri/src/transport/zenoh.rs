@@ -206,7 +206,12 @@ fn read_cdr_string(data: &[u8], offset: &mut usize, is_little_endian: bool) -> R
         .to_string();
     *offset = end_offset;
 
-    align_cdr(offset, 4);
+    // No trailing alignment: per OMG CDR/XCDR1 (as emitted by FastCDR/rmw_zenoh),
+    // a string is a 4-aligned u32 length + raw bytes with NO padding after it.
+    // The next member applies its own leading alignment via read_u32/read_f64.
+    // Padding here would skip bytes before a following uint8 (e.g. Image's
+    // `is_bigendian`), silently desyncing decode of every real ROS2 frame whose
+    // string length is not a multiple of 4.
 
     Ok(string)
 }
@@ -1433,10 +1438,12 @@ mod tests {
 
     #[cfg(feature = "zenoh-transport")]
     fn push_cdr_string(data: &mut Vec<u8>, value: &str) {
+        // Spec-correct CDR string: 4-aligned u32 length + bytes + null, with NO
+        // trailing pad (mirrors read_cdr_string). The next pushed field aligns
+        // itself, so this matches a real ROS2/FastCDR serialization.
         push_u32_le(data, value.len() as u32 + 1);
         data.extend_from_slice(value.as_bytes());
         data.push(0);
-        push_aligned(data, 4);
     }
 
     #[cfg(feature = "zenoh-transport")]
@@ -1499,6 +1506,27 @@ mod tests {
         let error = decode_camera_info_cdr(&data).unwrap_err();
 
         assert!(error.to_string().contains("CameraInfo.D length"));
+    }
+
+    #[test]
+    #[cfg(feature = "zenoh-transport")]
+    fn image_cdr_round_trip_reads_unpadded_string_fields() {
+        // Regression: "rgb8" is 4 chars + null = 5 bytes, not a multiple of 4, so
+        // a spurious trailing string pad would skip bytes and desync is_bigendian
+        // and step. A spec-correct (unpadded) buffer must round-trip exactly.
+        let width = 2u32;
+        let height = 1u32;
+        let step = 6u32; // rgb8 => 3 bytes/px * 2 px
+        let payload = (height * step) as usize;
+        let data = image_cdr(width, height, "rgb8", 1, step, payload);
+
+        let frame = decode_image_cdr(&data).unwrap();
+
+        assert_eq!(frame.width, width);
+        assert_eq!(frame.height, height);
+        assert_eq!(frame.encoding, "rgb8");
+        assert_eq!(frame.is_bigendian, 1);
+        assert_eq!(frame.step, step);
     }
 
     #[test]

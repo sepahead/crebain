@@ -95,8 +95,11 @@ describe('useROSSensors helpers', () => {
     expect(measurement.position[0]).toBeCloseTo(0, 6)
     expect(measurement.position[1]).toBeCloseTo(10, 6)
     expect(measurement.position[2]).toBeCloseTo(0, 6)
+    // v_radial = doppler_hz * c / f_carrier = 5 * 343 / 120, projected along the
+    // line of sight (azimuth = π/2, elevation = 0 → all on the +Y axis).
     expect(measurement.velocity?.[0]).toBeCloseTo(0, 6)
-    expect(measurement.velocity?.[1]).toBeCloseTo(0.5, 6)
+    expect(measurement.velocity?.[1]).toBeCloseTo((5 * 343) / 120, 5)
+    expect(measurement.velocity?.[2]).toBeCloseTo(0, 6)
     expect(measurement.metadata.frequency_hz).toBe(120)
   })
 

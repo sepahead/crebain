@@ -26,6 +26,38 @@ const MAX_TOPIC_LEN: usize = 256;
 const MAX_MESSAGE_TYPE_LEN: usize = 128;
 const DEFAULT_ROSBRIDGE_URL: &str = "ws://localhost:9090";
 
+/// Read a ROS2 `builtin_interfaces/Time` header stamp as seconds.
+///
+/// ROS2 names the fields `sec` (int32) and `nanosec` (uint32); ROS1 used
+/// `secs`/`nsecs`. Every topic here is declared as a ROS2 (`/msg/`) type, so a
+/// real rosbridge_server serializes `sec`/`nanosec` — reading only `secs` made
+/// every timestamp fall back to 0 and dropped the sub-second part. We read the
+/// ROS2 names first and fall back to the ROS1 names for compatibility.
+fn ros2_stamp_seconds(msg: &serde_json::Value) -> f64 {
+    let Some(stamp) = msg.get("header").and_then(|h| h.get("stamp")) else {
+        return 0.0;
+    };
+    let sec = stamp
+        .get("sec")
+        .or_else(|| stamp.get("secs"))
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0);
+    let nanosec = stamp
+        .get("nanosec")
+        .or_else(|| stamp.get("nsecs"))
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0);
+    sec + nanosec * 1e-9
+}
+
+/// Build a ROS2 `builtin_interfaces/Time` stamp JSON from fractional seconds,
+/// preserving the sub-second component instead of hardcoding nanoseconds to 0.
+fn ros2_stamp_json(timestamp: f64) -> serde_json::Value {
+    let sec = timestamp.trunc();
+    let nanosec = ((timestamp - sec) * 1e9).round().clamp(0.0, 999_999_999.0) as u32;
+    serde_json::json!({ "sec": sec as i64, "nanosec": nanosec })
+}
+
 pub fn validate_topic_for_test(topic: &str) -> Result<()> {
     validate_topic(topic)
 }
@@ -247,12 +279,7 @@ impl Transport for RosbridgeTransport {
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("")
                                 .to_string(),
-                            timestamp: msg
-                                .get("header")
-                                .and_then(|h| h.get("stamp"))
-                                .and_then(|s| s.get("secs"))
-                                .and_then(|v| v.as_f64())
-                                .unwrap_or(0.0),
+                            timestamp: ros2_stamp_seconds(msg),
                             frame_id: msg
                                 .get("header")
                                 .and_then(|h| h.get("frame_id"))
@@ -309,12 +336,7 @@ impl Transport for RosbridgeTransport {
                             k: [0.0f64; 9],
                             r: [0.0f64; 9],
                             p: [0.0f64; 12],
-                            timestamp: msg
-                                .get("header")
-                                .and_then(|h| h.get("stamp"))
-                                .and_then(|s| s.get("secs"))
-                                .and_then(|v| v.as_f64())
-                                .unwrap_or(0.0),
+                            timestamp: ros2_stamp_seconds(msg),
                             frame_id: msg
                                 .get("header")
                                 .and_then(|h| h.get("frame_id"))
@@ -387,12 +409,7 @@ impl Transport for RosbridgeTransport {
                                     .and_then(|v| v.as_f64())
                                     .unwrap_or(0.0),
                             ],
-                            timestamp: msg
-                                .get("header")
-                                .and_then(|h| h.get("stamp"))
-                                .and_then(|s| s.get("secs"))
-                                .and_then(|v| v.as_f64())
-                                .unwrap_or(0.0),
+                            timestamp: ros2_stamp_seconds(msg),
                         };
                         callback(imu);
                     }
@@ -449,12 +466,7 @@ impl Transport for RosbridgeTransport {
                                         .and_then(|v| v.as_f64())
                                         .unwrap_or(1.0),
                                 ],
-                                timestamp: msg
-                                    .get("header")
-                                    .and_then(|h| h.get("stamp"))
-                                    .and_then(|s| s.get("secs"))
-                                    .and_then(|v| v.as_f64())
-                                    .unwrap_or(0.0),
+                                timestamp: ros2_stamp_seconds(msg),
                                 frame_id: msg
                                     .get("header")
                                     .and_then(|h| h.get("frame_id"))
@@ -634,7 +646,7 @@ impl Transport for RosbridgeTransport {
                 "topic": topic,
                 "msg": {
                     "header": {
-                        "stamp": { "secs": cmd.timestamp as u64, "nsecs": 0u32 },
+                        "stamp": ros2_stamp_json(cmd.timestamp),
                         "frame_id": cmd.frame_id
                     },
                     "twist": {
@@ -661,7 +673,7 @@ impl Transport for RosbridgeTransport {
                 "topic": topic,
                 "msg": {
                     "header": {
-                        "stamp": { "secs": pose.timestamp as u64, "nsecs": 0u32 },
+                        "stamp": ros2_stamp_json(pose.timestamp),
                         "frame_id": pose.frame_id
                     },
                     "pose": {
@@ -715,6 +727,37 @@ mod tests {
     fn validate_topic_accepts_valid() {
         assert!(validate_topic("/drone1/camera").is_ok());
         assert!(validate_topic("/a").is_ok());
+    }
+
+    #[test]
+    fn ros2_stamp_seconds_reads_sec_nanosec() {
+        let msg = serde_json::json!({
+            "header": { "stamp": { "sec": 12, "nanosec": 500_000_000u64 } }
+        });
+        assert!((ros2_stamp_seconds(&msg) - 12.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn ros2_stamp_seconds_falls_back_to_ros1_names() {
+        let msg = serde_json::json!({
+            "header": { "stamp": { "secs": 3, "nsecs": 250_000_000u64 } }
+        });
+        assert!((ros2_stamp_seconds(&msg) - 3.25).abs() < 1e-9);
+    }
+
+    #[test]
+    fn ros2_stamp_seconds_defaults_to_zero_when_missing() {
+        assert_eq!(ros2_stamp_seconds(&serde_json::json!({})), 0.0);
+    }
+
+    #[test]
+    fn ros2_stamp_json_emits_sec_and_nanosec() {
+        let stamp = ros2_stamp_json(12.5);
+        assert_eq!(stamp["sec"], 12);
+        assert_eq!(stamp["nanosec"], 500_000_000u64);
+        // Round-trips back through the reader.
+        let msg = serde_json::json!({ "header": { "stamp": stamp } });
+        assert!((ros2_stamp_seconds(&msg) - 12.5).abs() < 1e-6);
     }
 
     #[test]

@@ -550,6 +550,13 @@ export class SceneStateManager {
   }
 
   /**
+   * Whether autosave is currently running.
+   */
+  isAutosaveEnabled(): boolean {
+    return this.autosaveInterval !== null
+  }
+
+  /**
    * Load autosaved state
    */
   loadAutosave(): SceneState | null {

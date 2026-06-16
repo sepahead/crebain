@@ -201,7 +201,11 @@ export class SensorFusion {
       for (let j = i + 1; j < allDetections.length; j++) {
         const { det: det2, cameraId: cam2 } = allDetections[j]
         if (usedDetections.has(det2.id)) continue
-        if (cam2 === cam1) continue // Same camera
+        if (cam2 === cam1) continue // Same camera as the seed
+        // Skip a camera already represented in this group: two detections from
+        // one camera would contribute two rays sharing an origin, biasing the
+        // least-squares triangulation toward that camera.
+        if (group.cameraIds.includes(cam2)) continue
 
         // Check if detections correlate
         if (this.detectionsCorrelate(det1, cam1, det2, cam2, cameras)) {
@@ -444,6 +448,10 @@ export class SensorFusion {
     // Decay confidence
     track.confidence *= 0.95
     track.fusedConfidence *= 0.95
+
+    // Recompute threat from the decayed confidence so a coasting track does not
+    // keep reporting an overstated (last-detected) threat level until pruned.
+    track.threatLevel = getThreatLevel(track.class, track.confidence)
   }
 
   /**

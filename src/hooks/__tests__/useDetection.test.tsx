@@ -116,7 +116,7 @@ describe('useDetection', () => {
     await act(async () => root.unmount())
   })
 
-  it('resolves queued detection calls in worker response order', async () => {
+  it('resolves concurrent detection calls by request id regardless of response order', async () => {
     const root = await renderHarness()
     await act(async () => {
       await hook.initialize()
@@ -129,40 +129,48 @@ describe('useDetection', () => {
     const first = hook.detect(imageData())
     const second = hook.detect(imageData())
 
-    expect(workers[0].messages.slice(1)).toEqual([
+    const sent = workers[0].messages.slice(1) as Array<{ type: string; requestId: number }>
+    expect(sent).toEqual([
       expect.objectContaining({
         type: 'detect',
+        requestId: expect.any(Number),
         payload: expect.objectContaining({ imageWidth: 1, imageHeight: 1 }),
       }),
       expect.objectContaining({
         type: 'detect',
+        requestId: expect.any(Number),
         payload: expect.objectContaining({ imageWidth: 1, imageHeight: 1 }),
       }),
     ])
+    const firstId = sent[0].requestId
+    const secondId = sent[1].requestId
+    expect(firstId).not.toBe(secondId)
+
+    // Respond to the SECOND request FIRST: results must not be swapped.
+    await act(async () => {
+      workers[0].emit({
+        type: 'detections',
+        requestId: secondId,
+        payload: { detections: [detection('second')], inferenceTime: 7 },
+      })
+      await expect(second).resolves.toEqual([detection('second')])
+    })
+    expect(hook.inferenceTime).toBe(7)
 
     await act(async () => {
       workers[0].emit({
         type: 'detections',
+        requestId: firstId,
         payload: { detections: [detection('first')], inferenceTime: 5 },
       })
       await expect(first).resolves.toEqual([detection('first')])
     })
     expect(hook.inferenceTime).toBe(5)
 
-    await act(async () => {
-      workers[0].emit({
-        type: 'detections',
-        payload: { detections: [detection('second')], inferenceTime: 7 },
-      })
-      await expect(second).resolves.toEqual([detection('second')])
-    })
-    expect(hook.detections).toEqual([detection('second')])
-    expect(hook.inferenceTime).toBe(7)
-
     await act(async () => root.unmount())
   })
 
-  it('rejects the first queued call on worker error and keeps later calls pending', async () => {
+  it('rejects only the call its error id targets and keeps other calls pending', async () => {
     const root = await renderHarness()
     await act(async () => {
       await hook.initialize()
@@ -174,9 +182,12 @@ describe('useDetection', () => {
 
     const first = hook.detect(imageData())
     const second = hook.detect(imageData())
+    const sent = workers[0].messages.slice(1) as Array<{ requestId: number }>
+    const firstId = sent[0].requestId
+    const secondId = sent[1].requestId
 
     await act(async () => {
-      workers[0].emit({ type: 'error', payload: { error: 'worker failed' } })
+      workers[0].emit({ type: 'error', requestId: firstId, payload: { error: 'worker failed' } })
       await expect(first).rejects.toThrow('worker failed')
     })
 
@@ -185,9 +196,43 @@ describe('useDetection', () => {
     await act(async () => {
       workers[0].emit({
         type: 'detections',
+        requestId: secondId,
         payload: { detections: [detection('second')], inferenceTime: 9 },
       })
       await expect(second).resolves.toEqual([detection('second')])
+    })
+
+    await act(async () => root.unmount())
+  })
+
+  it('ignores global (id-less) errors for in-flight detect calls', async () => {
+    const root = await renderHarness()
+    await act(async () => {
+      await hook.initialize()
+      workers[0].emit({
+        type: 'ready',
+        payload: { status: { isReady: true, modelLoaded: true, averageLatency: 0 } },
+      })
+    })
+
+    const pending = hook.detect(imageData())
+    const requestId = (workers[0].messages.slice(1)[0] as { requestId: number }).requestId
+
+    // A global error (e.g. "Already initializing") carries no requestId and must
+    // NOT reject an unrelated in-flight detect() call.
+    await act(async () => {
+      workers[0].emit({ type: 'error', payload: { error: 'Already initializing' } })
+    })
+    expect(hook.error).toBe('Already initializing')
+
+    // The call is still alive and resolves on its own response.
+    await act(async () => {
+      workers[0].emit({
+        type: 'detections',
+        requestId,
+        payload: { detections: [detection('ok')], inferenceTime: 1 },
+      })
+      await expect(pending).resolves.toEqual([detection('ok')])
     })
 
     await act(async () => root.unmount())

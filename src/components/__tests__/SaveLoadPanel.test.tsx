@@ -15,6 +15,9 @@ const mocks = vi.hoisted(() => ({
   loadFromLocalStorage: vi.fn(),
   deleteSavedState: vi.fn(),
   loadFromFile: vi.fn(),
+  isAutosaveEnabled: vi.fn(() => true),
+  enableAutosave: vi.fn(),
+  disableAutosave: vi.fn(),
 }))
 
 vi.mock('../../state/SceneState', () => ({

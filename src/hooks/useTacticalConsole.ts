@@ -54,9 +54,11 @@ export function useTacticalConsole(
 
   useEffect(() => {
     const timeouts = timeoutsRef.current
+    const recent = recentMessagesRef.current
     return () => {
       timeouts.forEach((timeout) => clearTimeout(timeout))
       timeouts.clear()
+      recent.clear()
     }
   }, [])
 
@@ -79,6 +81,14 @@ export function useTacticalConsole(
         return
       }
       recentMessagesRef.current.set(dedupeKey, now)
+
+      // Evict stale dedupe entries so this map cannot grow unbounded over a long
+      // session (each distinct level:text would otherwise persist forever).
+      for (const [key, seen] of recentMessagesRef.current) {
+        if (now - seen >= mergedConfig.dedupeWindowMs) {
+          recentMessagesRef.current.delete(key)
+        }
+      }
 
       const id = `msg-${++messageIdRef.current}-${now}`
       const message: TacticalMessage = {

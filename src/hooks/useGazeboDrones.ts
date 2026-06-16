@@ -224,7 +224,11 @@ export function useGazeboDrones(
         const newDrones = new Map(prevDrones)
         const seenIds = new Set<string>()
 
-        for (let i = 0; i < msg.name.length; i++) {
+        // name/pose/twist are independent parallel arrays from external CDR/ROS
+        // data; bound by the shortest so a truncated or malformed message cannot
+        // index past the end and throw inside the subscription callback.
+        const entryCount = Math.min(msg.name.length, msg.pose.length, msg.twist.length)
+        for (let i = 0; i < entryCount; i++) {
           const name = msg.name[i]
           const pose = msg.pose[i]
           const twist = msg.twist[i]

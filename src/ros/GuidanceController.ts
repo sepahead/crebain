@@ -34,8 +34,6 @@ export interface GuidanceConfig {
   kP: number
   /** Derivative gain for velocity error */
   kD: number
-  /** Ramp rate for velocity changes (m/s per update) */
-  velocityRampRate: number
   /** Distance at which to start decelerating */
   approachDistance: number
   /** Minimum distance to target before stopping */
@@ -70,7 +68,6 @@ const DEFAULT_CONFIG: GuidanceConfig = {
   maxAcceleration: 5, // m/s²
   kP: 1.5, // Position proportional gain
   kD: 0.5, // Velocity derivative gain
-  velocityRampRate: 2.5, // m/s per update at 20Hz = 50 m/s²
   approachDistance: 10, // Start deceleration at 10m
   arrivalThreshold: 0.5, // Stop within 0.5m
 }
@@ -390,7 +387,8 @@ export class GuidanceController {
    * Apply velocity ramping for smooth acceleration/deceleration
    */
   private applyVelocityRamp(current: Vector3, target: Vector3, dt: number): Vector3 {
-    const maxChange = this.config.velocityRampRate * dt
+    // Bound the per-update velocity change by the acceleration limit (m/s² · s).
+    const maxChange = this.config.maxAcceleration * dt
 
     const diff = subtract(target, current)
     const diffMag = magnitude(diff)

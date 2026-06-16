@@ -34,7 +34,7 @@ describe('GuidanceController', () => {
     vi.useFakeTimers()
     vi.setSystemTime(1_000)
     const bridge = createBridge()
-    const controller = createGuidanceController({ rateHz: 10, velocityRampRate: 10, maxVelocity: 5 })
+    const controller = createGuidanceController({ rateHz: 10, maxAcceleration: 10, maxVelocity: 5 })
     const callback = vi.fn()
     controller.onCommand(callback)
 

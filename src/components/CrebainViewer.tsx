@@ -755,7 +755,14 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
       setIsTestingCoreML(false)
       void refreshSystemInfo()
     }
-  }, [addMessage, isBenchmarking, isTestingCoreML, nativeAvailable, onDetectionComplete, refreshSystemInfo])
+  }, [
+    addMessage,
+    isBenchmarking,
+    isTestingCoreML,
+    nativeAvailable,
+    onDetectionComplete,
+    refreshSystemInfo,
+  ])
 
   const cancelCoreMLBenchmark = useCallback(() => {
     if (!isBenchmarking) return
@@ -905,7 +912,14 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
       }
       void refreshSystemInfo()
     }
-  }, [addMessage, isBenchmarking, isTestingCoreML, nativeAvailable, onDetectionComplete, refreshSystemInfo])
+  }, [
+    addMessage,
+    isBenchmarking,
+    isTestingCoreML,
+    nativeAvailable,
+    onDetectionComplete,
+    refreshSystemInfo,
+  ])
 
   const detectionCameras = useMemo(
     () => cameras.map((c) => ({ id: c.id, name: c.name, isActive: c.isActive })),
@@ -2094,8 +2108,11 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
         onToggleExpand={() => setShowSaveLoadPanel((prev) => !prev)}
         onSave={(state) => addMessage('success', `Szene "${state.name}" gespeichert`)}
         onLoad={(state) => {
-          addMessage('info', `Szene "${state.name}" geladen`)
-          // Scene restoration handled by SaveLoadPanel component
+          // The persisted scene (name + metadata + entity lists) is restored into
+          // the scene-state manager, but rebuilding the live 3D scene
+          // (cameras/drones/assets) from it is not yet implemented. Report the
+          // metadata load honestly rather than implying a full visual restore.
+          addMessage('info', `Szene "${state.name}" geladen (Metadaten)`)
         }}
       />
 

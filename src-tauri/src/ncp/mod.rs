@@ -40,13 +40,24 @@ pub fn sensor_frame_from_pose(pose: &PoseData, vel: &VelocityCmd, seq: i64) -> S
     let mut channels = ncp_core::Map::new();
     channels.insert(
         "pose_position".to_string(),
-        ChannelValue::vec3(pose.position[0], pose.position[1], pose.position[2], Some("m")),
+        ChannelValue::vec3(
+            pose.position[0],
+            pose.position[1],
+            pose.position[2],
+            Some("m"),
+        ),
     );
     channels.insert(
         "pose_velocity".to_string(),
         ChannelValue::vec3(vel.linear[0], vel.linear[1], vel.linear[2], Some("m/s")),
     );
-    SensorFrame { seq, t: pose.timestamp, frame_id: pose.frame_id.clone(), channels, ..Default::default() }
+    SensorFrame {
+        seq,
+        t: pose.timestamp,
+        frame_id: pose.frame_id.clone(),
+        channels,
+        ..Default::default()
+    }
 }
 
 /// An NCP `CommandFrame` → a CREBAIN `TwistStampedData` for
@@ -68,7 +79,10 @@ pub fn velocity_from_command(command: &CommandFrame, frame_id: &str) -> TwistSta
             .unwrap_or([0.0, 0.0, 0.0]),
     };
     TwistStampedData {
-        twist: VelocityCmd { linear, angular: [0.0, 0.0, 0.0] },
+        twist: VelocityCmd {
+            linear,
+            angular: [0.0, 0.0, 0.0],
+        },
         timestamp: command.t,
         frame_id: frame_id.to_string(),
     }
@@ -100,7 +114,10 @@ pub struct CommandPlant {
 
 impl CommandPlant {
     pub fn new(frame_id: impl Into<String>) -> Self {
-        Self { buffer: ncp_core::ActionBuffer::new(), frame_id: frame_id.into() }
+        Self {
+            buffer: ncp_core::ActionBuffer::new(),
+            frame_id: frame_id.into(),
+        }
     }
 
     /// Ingest a command received at local time `now_s` (monotonic seconds).
@@ -116,7 +133,10 @@ impl CommandPlant {
             None => [0.0, 0.0, 0.0], // HOLD: fail safe to zero velocity
         };
         TwistStampedData {
-            twist: VelocityCmd { linear, angular: [0.0, 0.0, 0.0] },
+            twist: VelocityCmd {
+                linear,
+                angular: [0.0, 0.0, 0.0],
+            },
             timestamp: now_s,
             frame_id: self.frame_id.clone(),
         }
@@ -192,7 +212,9 @@ impl NcpBridge {
         };
         let opened = self.client.open(&open).await.map_err(|e| e.to_string())?;
         if !opened.ok {
-            return Err(opened.error.unwrap_or_else(|| "open_session rejected".into()));
+            return Err(opened
+                .error
+                .unwrap_or_else(|| "open_session rejected".into()));
         }
         Ok(())
     }
@@ -206,11 +228,18 @@ impl NcpBridge {
         advance_ms: f64,
     ) -> Result<f64, String> {
         let mut values = ncp_core::Map::new();
-        values.insert("drive".to_string(), ChannelValue::scalar(drive_pa, Some("pA")));
+        values.insert(
+            "drive".to_string(),
+            ChannelValue::scalar(drive_pa, Some("pA")),
+        );
         let step = StepRequest {
             session_id: session_id.to_string(),
             advance_ms: Some(advance_ms),
-            stimulus: Some(StimulusFrame { session_id: session_id.to_string(), values, ..Default::default() }),
+            stimulus: Some(StimulusFrame {
+                session_id: session_id.to_string(),
+                values,
+                ..Default::default()
+            }),
             ..Default::default()
         };
         let obs = self.client.step(&step).await.map_err(|e| e.to_string())?;
@@ -219,21 +248,36 @@ impl NcpBridge {
 
     pub async fn close(&self, session_id: &str) -> Result<(), String> {
         self.client
-            .close(&CloseSession { session_id: session_id.to_string(), ..Default::default() })
+            .close(&CloseSession {
+                session_id: session_id.to_string(),
+                ..Default::default()
+            })
             .await
             .map(|_| ())
             .map_err(|e| e.to_string())
     }
 
     /// Publish a `SensorFrame` on the perception plane (Best-Effort + DROP QoS).
-    pub async fn publish_sensor(&self, session_id: &str, frame: &SensorFrame) -> Result<(), String> {
+    pub async fn publish_sensor(
+        &self,
+        session_id: &str,
+        frame: &SensorFrame,
+    ) -> Result<(), String> {
         let bytes = serde_json::to_vec(frame).map_err(|e| e.to_string())?;
-        self.bus.put_sensor(session_id, &bytes).await.map_err(|e| e.to_string())
+        self.bus
+            .put_sensor(session_id, &bytes)
+            .await
+            .map_err(|e| e.to_string())
     }
 
     /// Subscribe to the action plane: `on_command` receives decoded
     /// `TwistStampedData` ready to publish to MAVROS. `frame_id` stamps the twist.
-    pub async fn subscribe_commands<F>(&self, session_id: &str, frame_id: String, on_command: F) -> Result<(), String>
+    pub async fn subscribe_commands<F>(
+        &self,
+        session_id: &str,
+        frame_id: String,
+        on_command: F,
+    ) -> Result<(), String>
     where
         F: Fn(TwistStampedData) + Send + Sync + 'static,
     {
@@ -285,8 +329,12 @@ pub async fn ncp_open_feature_neuron(
     model: Option<String>,
 ) -> Result<(), String> {
     let guard = state.0.lock().await;
-    let bridge = guard.as_ref().ok_or("NCP not connected (call ncp_connect)")?;
-    bridge.open_feature_neuron(&session_id, model.as_deref().unwrap_or("iaf_psc_alpha")).await
+    let bridge = guard
+        .as_ref()
+        .ok_or("NCP not connected (call ncp_connect)")?;
+    bridge
+        .open_feature_neuron(&session_id, model.as_deref().unwrap_or("iaf_psc_alpha"))
+        .await
 }
 
 #[tauri::command]
@@ -297,14 +345,23 @@ pub async fn ncp_step_feature_neuron(
     advance_ms: f64,
 ) -> Result<f64, String> {
     let guard = state.0.lock().await;
-    let bridge = guard.as_ref().ok_or("NCP not connected (call ncp_connect)")?;
-    bridge.step_feature_neuron(&session_id, drive_pa, advance_ms).await
+    let bridge = guard
+        .as_ref()
+        .ok_or("NCP not connected (call ncp_connect)")?;
+    bridge
+        .step_feature_neuron(&session_id, drive_pa, advance_ms)
+        .await
 }
 
 #[tauri::command]
-pub async fn ncp_close(state: tauri::State<'_, NcpHandle>, session_id: String) -> Result<(), String> {
+pub async fn ncp_close(
+    state: tauri::State<'_, NcpHandle>,
+    session_id: String,
+) -> Result<(), String> {
     let guard = state.0.lock().await;
-    let bridge = guard.as_ref().ok_or("NCP not connected (call ncp_connect)")?;
+    let bridge = guard
+        .as_ref()
+        .ok_or("NCP not connected (call ncp_connect)")?;
     bridge.close(&session_id).await
 }
 
@@ -320,7 +377,10 @@ mod tests {
             timestamp: 12.5,
             frame_id: "map".into(),
         };
-        let vel = VelocityCmd { linear: [0.1, 0.2, 0.3], angular: [0.0, 0.0, 0.0] };
+        let vel = VelocityCmd {
+            linear: [0.1, 0.2, 0.3],
+            angular: [0.0, 0.0, 0.0],
+        };
         let f = sensor_frame_from_pose(&pose, &vel, 42);
         assert_eq!(f.seq, 42);
         assert_eq!(f.frame_id, "map");
@@ -331,11 +391,28 @@ mod tests {
     #[test]
     fn hold_and_estop_commands_fail_safe_to_zero() {
         let mut channels = ncp_core::Map::new();
-        channels.insert("velocity_setpoint".into(), ChannelValue::vec3(5.0, 5.0, 5.0, Some("m/s")));
-        let active = CommandFrame { mode: ncp_core::Mode::Active, channels: channels.clone(), ..Default::default() };
-        assert_eq!(velocity_from_command(&active, "base").twist.linear, [5.0, 5.0, 5.0]);
-        let hold = CommandFrame { mode: ncp_core::Mode::Hold, channels, ..Default::default() };
-        assert_eq!(velocity_from_command(&hold, "base").twist.linear, [0.0, 0.0, 0.0]);
+        channels.insert(
+            "velocity_setpoint".into(),
+            ChannelValue::vec3(5.0, 5.0, 5.0, Some("m/s")),
+        );
+        let active = CommandFrame {
+            mode: ncp_core::Mode::Active,
+            channels: channels.clone(),
+            ..Default::default()
+        };
+        assert_eq!(
+            velocity_from_command(&active, "base").twist.linear,
+            [5.0, 5.0, 5.0]
+        );
+        let hold = CommandFrame {
+            mode: ncp_core::Mode::Hold,
+            channels,
+            ..Default::default()
+        };
+        assert_eq!(
+            velocity_from_command(&hold, "base").twist.linear,
+            [0.0, 0.0, 0.0]
+        );
     }
 
     #[test]
@@ -343,9 +420,15 @@ mod tests {
         let mut records = ncp_core::Map::new();
         records.insert(
             "spk".into(),
-            Observation { times: vec![1.0, 2.0, 3.0], ..Default::default() },
+            Observation {
+                times: vec![1.0, 2.0, 3.0],
+                ..Default::default()
+            },
         );
-        let frame = ObservationFrame { records, ..Default::default() };
+        let frame = ObservationFrame {
+            records,
+            ..Default::default()
+        };
         assert_eq!(observation_scalar(&frame, "spk"), Some(3.0));
         assert_eq!(observation_scalar(&frame, "missing"), None);
     }
@@ -359,7 +442,10 @@ mod tests {
             timestamp: 0.0,
             frame_id: "map".into(),
         };
-        let vel = VelocityCmd { linear: [0.0, 0.0, 0.0], angular: [0.0, 0.0, 0.0] };
+        let vel = VelocityCmd {
+            linear: [0.0, 0.0, 0.0],
+            angular: [0.0, 0.0, 0.0],
+        };
         let sf = sensor_frame_from_pose(&pose, &vel, 5);
         assert_eq!(sf.seq, 5);
         assert_eq!(sf.channels["pose_position"].data[0], 2.0);
@@ -369,7 +455,10 @@ mod tests {
         // it fails safe to zero velocity (HOLD) once ttl_ms expires (Engram → UAV).
         let mk = |x: f64| {
             let mut m = ncp_core::Map::new();
-            m.insert("velocity_setpoint".into(), ChannelValue::vec3(x, 0.0, 0.0, Some("m/s")));
+            m.insert(
+                "velocity_setpoint".into(),
+                ChannelValue::vec3(x, 0.0, 0.0, Some("m/s")),
+            );
             m
         };
         let mut plant = CommandPlant::new("base_link");
@@ -385,6 +474,10 @@ mod tests {
         assert_eq!(plant.velocity_at(10.06).twist.linear[0], -0.4); // replay tick 1 (command dropped)
         assert_eq!(plant.velocity_at(10.11).twist.linear[0], -0.3); // replay tick 2
         assert!(plant.is_holding(10.30), "past ttl -> HOLD");
-        assert_eq!(plant.velocity_at(10.30).twist.linear, [0.0, 0.0, 0.0], "fail safe to zero");
+        assert_eq!(
+            plant.velocity_at(10.30).twist.linear,
+            [0.0, 0.0, 0.0],
+            "fail safe to zero"
+        );
     }
 }

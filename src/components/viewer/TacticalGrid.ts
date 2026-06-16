@@ -178,10 +178,12 @@ export function createGridLabels(scene: THREE.Scene, radius: number = 50): THREE
     return sprite
   }
 
-  // Compass directions
+  // Compass directions. pos is [x, z]; the HUD bearing uses atan2(camDir.x,
+  // camDir.z), so +Z is North (0°), +X East (90°), -Z South, -X West. N/S must
+  // sit on +Z/-Z to agree with that readout.
   const directions = [
-    { text: 'N', pos: [0, -radius] },
-    { text: 'S', pos: [0, radius] },
+    { text: 'N', pos: [0, radius] },
+    { text: 'S', pos: [0, -radius] },
     { text: 'E', pos: [radius, 0] },
     { text: 'W', pos: [-radius, 0] },
   ]

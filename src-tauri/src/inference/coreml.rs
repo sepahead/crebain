@@ -136,10 +136,14 @@ impl Detector for CoreMlDetector {
         let result: Result<Vec<Detection>> =
             Err(InferenceError::BackendNotAvailable(Backend::CoreML));
 
-        let elapsed_ms = start.elapsed().as_millis() as u64;
-        self.inference_count.fetch_add(1, Ordering::Relaxed);
-        self.total_inference_ms
-            .fetch_add(elapsed_ms, Ordering::Relaxed);
+        // Only count successful inferences so avg latency / totals are not
+        // skewed by failures (matches the MLX and TensorRT backends).
+        if result.is_ok() {
+            let elapsed_ms = start.elapsed().as_millis() as u64;
+            self.inference_count.fetch_add(1, Ordering::Relaxed);
+            self.total_inference_ms
+                .fetch_add(elapsed_ms, Ordering::Relaxed);
+        }
 
         result
     }

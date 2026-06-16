@@ -609,7 +609,17 @@ export class ROSBridge {
 // SINGLETON INSTANCE
 // ─────────────────────────────────────────────────────────────────────────────
 
-const defaultBridge: ROSBridge | null = null
+// Process-wide default bridge for non-React consumers that cannot receive the
+// bridge via props/context — e.g. the render-loop actuator publisher in
+// CrebainViewer and useRosActuatorLoop. It is registered by useRosBridge when a
+// WebSocket ROS bridge is created and cleared on teardown; until then callers
+// (which all guard on a non-null, connected bridge) correctly no-op.
+let defaultBridge: ROSBridge | null = null
+
+/** Register (or clear, with `null`) the process-wide default ROS bridge. */
+export function setROSBridge(bridge: ROSBridge | null): void {
+  defaultBridge = bridge
+}
 
 export function getROSBridge(): ROSBridge | null {
   return defaultBridge

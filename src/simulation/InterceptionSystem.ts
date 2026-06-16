@@ -16,7 +16,7 @@ import {
   scale,
   subtract,
   dot,
-  cross,
+  clampMagnitude,
   predictPosition,
 } from '../lib/mathUtils'
 
@@ -358,11 +358,17 @@ export class InterceptionSystem {
     const targetDir = normalize(target.velocity)
     const toTarget = subtract(target.position, interceptor.position)
 
-    // Cross product to get perpendicular direction
-    const perpendicular = normalize(cross(targetDir, toTarget))
-    const perpMagSq = magnitudeSquared(perpendicular)
+    // Side direction = the component of the line-of-sight that is PERPENDICULAR
+    // to the target's heading. Using this (rather than the raw line-of-sight)
+    // keeps the lateral component orthogonal to the forward velocity-matching
+    // component, so the combined speed is exactly maxSpeed. If the target moves
+    // almost directly along the line of sight there is no well-defined side, so
+    // fall back to a lead intercept.
+    const losAlongHeading = dot(toTarget, targetDir)
+    const sidePerp = subtract(toTarget, scale(targetDir, losAlongHeading))
+    const sidePerpMagSq = magnitudeSquared(sidePerp)
 
-    if (perpMagSq < 0.000001) {
+    if (sidePerpMagSq < 0.000001) {
       // 0.001²
       return this.calculateLeadIntercept(interceptor, target)
     }
@@ -383,16 +389,23 @@ export class InterceptionSystem {
     }
 
     const lateralSpeed = Math.sqrt(lateralSpeedSq)
-    const sideDir = normalize(toTarget)
+    const sideDir = normalize(sidePerp)
 
-    // Calculate intercept velocity: targetDir * targetSpeed + sideDir * lateralSpeed
-    const interceptorVelocity = {
-      x: targetDir.x * targetSpeed + sideDir.x * lateralSpeed,
-      y: targetDir.y * targetSpeed + sideDir.y * lateralSpeed,
-      z: targetDir.z * targetSpeed + sideDir.z * lateralSpeed,
-    }
+    // Forward (matches the target) + lateral (closes the perpendicular gap). The
+    // two components are orthogonal so |v| == maxSpeed by construction; clamp as
+    // a numerical safety net so PARALLEL never commands above maxSpeed.
+    const interceptorVelocity = clampMagnitude(
+      {
+        x: targetDir.x * targetSpeed + sideDir.x * lateralSpeed,
+        y: targetDir.y * targetSpeed + sideDir.y * lateralSpeed,
+        z: targetDir.z * targetSpeed + sideDir.z * lateralSpeed,
+      },
+      interceptor.config.maxSpeed
+    )
 
-    const lateralDistance = magnitude(toTarget)
+    // Time to close the perpendicular offset at the lateral speed (only the
+    // lateral component shrinks the gap; the slant range would mis-estimate it).
+    const lateralDistance = Math.sqrt(sidePerpMagSq)
     const timeToIntercept = lateralDistance / lateralSpeed
 
     return {

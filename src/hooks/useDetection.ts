@@ -40,13 +40,19 @@ export function useDetection(options: UseDetectionOptions = {}): UseDetectionRet
   const { autoInit = false, config } = options
 
   const workerRef = useRef<Worker | null>(null)
-  // Use a queue to handle multiple concurrent detect() calls
+  // Correlate concurrent detect() calls by request id rather than FIFO order:
+  // worker responses can arrive out of order, so FIFO matching would resolve a
+  // call with another request's detections.
   const pendingCallsRef = useRef<
-    Array<{
-      resolve: (detections: Detection[]) => void
-      reject: (error: Error) => void
-    }>
-  >([])
+    Map<
+      number,
+      {
+        resolve: (detections: Detection[]) => void
+        reject: (error: Error) => void
+      }
+    >
+  >(new Map())
+  const nextRequestIdRef = useRef(0)
   const initTimeoutRef = useRef<number | null>(null)
 
   const [state, setState] = useState<DetectionState>({
@@ -62,7 +68,7 @@ export function useDetection(options: UseDetectionOptions = {}): UseDetectionRet
     pendingCallsRef.current.forEach(({ reject }) => {
       reject(error)
     })
-    pendingCallsRef.current = []
+    pendingCallsRef.current.clear()
   }, [])
 
   /**
@@ -92,10 +98,14 @@ export function useDetection(options: UseDetectionOptions = {}): UseDetectionRet
           detections: payload?.detections ?? [],
           inferenceTime: payload?.inferenceTime ?? 0,
         }))
-        // Resolve the first pending call in the queue
-        const pendingCall = pendingCallsRef.current.shift()
-        if (pendingCall) {
-          pendingCall.resolve(payload?.detections ?? [])
+        // Resolve the specific call that issued this request id.
+        const { requestId } = event.data
+        if (requestId !== undefined) {
+          const pendingCall = pendingCallsRef.current.get(requestId)
+          if (pendingCall) {
+            pendingCallsRef.current.delete(requestId)
+            pendingCall.resolve(payload?.detections ?? [])
+          }
         }
         break
       }
@@ -106,10 +116,15 @@ export function useDetection(options: UseDetectionOptions = {}): UseDetectionRet
           error: payload?.error ?? 'Unknown error',
           isLoading: false,
         }))
-        // Reject the first pending call in the queue
-        const failedCall = pendingCallsRef.current.shift()
-        if (failedCall) {
-          failedCall.reject(new Error(payload?.error ?? 'Unknown error'))
+        // Reject only the call this error belongs to. Errors without a request
+        // id are global (init/status) and must not reject an in-flight detect().
+        const { requestId } = event.data
+        if (requestId !== undefined) {
+          const failedCall = pendingCallsRef.current.get(requestId)
+          if (failedCall) {
+            pendingCallsRef.current.delete(requestId)
+            failedCall.reject(new Error(payload?.error ?? 'Unknown error'))
+          }
         }
         break
       }
@@ -207,11 +222,12 @@ export function useDetection(options: UseDetectionOptions = {}): UseDetectionRet
       }
 
       return new Promise((resolve, reject) => {
-        // Add to queue instead of overwriting
-        pendingCallsRef.current.push({ resolve, reject })
+        const requestId = nextRequestIdRef.current++
+        pendingCallsRef.current.set(requestId, { resolve, reject })
 
         const message: DetectionWorkerMessage = {
           type: 'detect',
+          requestId,
           payload: {
             imageData,
             imageWidth: imageData.width,

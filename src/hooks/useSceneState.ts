@@ -111,7 +111,9 @@ export function serializeDrone(drone: ManagedDrone): DroneState {
     velocity: vector3ToState(physicsBody.state.velocity),
     angularVelocity: vector3ToState(physicsBody.state.angularVelocity),
     armed: physicsBody.state.armed,
-    battery: physicsBody.state.battery,
+    // DronePhysics tracks battery as a 0-1 fraction; the persisted scene format
+    // (and isDroneState's 0-100 validation) use a percentage.
+    battery: physicsBody.state.battery * 100,
     flightMode: 'manual',
   }
 }

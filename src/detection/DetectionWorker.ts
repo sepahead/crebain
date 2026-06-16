@@ -53,13 +53,16 @@ function normalizeWorkerMessage(value: unknown): DetectionWorkerMessage | null {
   if (!isRecord(value)) return null
   if (!isWorkerMessageType(value.type)) return null
 
+  const requestId = typeof value.requestId === 'number' ? value.requestId : undefined
+
   if (!isRecord(value.payload)) {
-    return { type: value.type }
+    return { type: value.type, requestId }
   }
 
   if (value.type === 'init') {
     return {
       type: value.type,
+      requestId,
       payload: {
         detectorType: isDetectorType(value.payload.detectorType)
           ? value.payload.detectorType
@@ -72,6 +75,7 @@ function normalizeWorkerMessage(value: unknown): DetectionWorkerMessage | null {
   if (value.type === 'detect') {
     return {
       type: value.type,
+      requestId,
       payload: {
         imageData: isImageData(value.payload.imageData) ? value.payload.imageData : undefined,
         imageWidth:
@@ -82,7 +86,7 @@ function normalizeWorkerMessage(value: unknown): DetectionWorkerMessage | null {
     }
   }
 
-  return { type: value.type }
+  return { type: value.type, requestId }
 }
 
 /**
@@ -106,7 +110,12 @@ self.onmessage = async (event: MessageEvent<unknown>) => {
       break
 
     case 'detect':
-      await handleDetect(payload?.imageData, payload?.imageWidth, payload?.imageHeight)
+      await handleDetect(
+        message.requestId,
+        payload?.imageData,
+        payload?.imageWidth,
+        payload?.imageHeight
+      )
       break
 
     case 'dispose':
@@ -215,6 +224,7 @@ function createDetector(
  * Run detection on image data
  */
 async function handleDetect(
+  requestId: number | undefined,
   imageData?: ImageData,
   _width?: number,
   _height?: number
@@ -222,6 +232,7 @@ async function handleDetect(
   if (!detector?.isReady()) {
     sendResponse({
       type: 'error',
+      requestId,
       payload: { error: 'Detector not ready' },
     })
     return
@@ -230,6 +241,7 @@ async function handleDetect(
   if (!imageData) {
     sendResponse({
       type: 'error',
+      requestId,
       payload: { error: 'No image data provided' },
     })
     return
@@ -243,6 +255,7 @@ async function handleDetect(
 
     sendResponse({
       type: 'detections',
+      requestId,
       payload: {
         detections,
         inferenceTime,
@@ -252,6 +265,7 @@ async function handleDetect(
     const message = error instanceof Error ? error.message : String(error)
     sendResponse({
       type: 'error',
+      requestId,
       payload: { error: `Detection failed: ${message}` },
     })
   }
