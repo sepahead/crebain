@@ -86,6 +86,58 @@ pub fn observation_scalar(frame: &ObservationFrame, port: &str) -> Option<f64> {
     })
 }
 
+/// Plant-side action receiver with **packetized-predictive-control** replay and
+/// `ttl_ms` enforcement (via `ncp_core::ActionBuffer`). Feed it `CommandFrame`s as
+/// they arrive; the actuator loop calls [`CommandPlant::velocity_at`] each tick and
+/// publishes the result to MAVROS. A single dropped command is a non-event (the
+/// horizon is replayed); once the command expires or the horizon drains it **fails
+/// safe to zero velocity (HOLD)** — turning NCP's previously-unenforced `ttl_ms`
+/// into a real deadline backstop.
+pub struct CommandPlant {
+    buffer: ncp_core::ActionBuffer,
+    frame_id: String,
+}
+
+impl CommandPlant {
+    pub fn new(frame_id: impl Into<String>) -> Self {
+        Self { buffer: ncp_core::ActionBuffer::new(), frame_id: frame_id.into() }
+    }
+
+    /// Ingest a command received at local time `now_s` (monotonic seconds).
+    pub fn on_command(&mut self, now_s: f64, command: CommandFrame) {
+        self.buffer.on_command(now_s, command);
+    }
+
+    /// The `TwistStamped` to publish at `now_s` — the active (possibly replayed)
+    /// setpoint, or **zero velocity** when the buffer says fail safe (HOLD).
+    pub fn velocity_at(&self, now_s: f64) -> TwistStampedData {
+        let linear = match self.buffer.active(now_s) {
+            Some(ch) => channels_linear(&ch),
+            None => [0.0, 0.0, 0.0], // HOLD: fail safe to zero velocity
+        };
+        TwistStampedData {
+            twist: VelocityCmd { linear, angular: [0.0, 0.0, 0.0] },
+            timestamp: now_s,
+            frame_id: self.frame_id.clone(),
+        }
+    }
+
+    /// True if the plant is failing safe (no usable command) at `now_s`.
+    pub fn is_holding(&self, now_s: f64) -> bool {
+        self.buffer.should_hold(now_s)
+    }
+}
+
+fn channels_linear(channels: &ncp_core::Map<ChannelValue>) -> [f64; 3] {
+    let mut v = [0.0; 3];
+    if let Some(cv) = channels.get("velocity_setpoint") {
+        for (i, slot) in v.iter_mut().enumerate() {
+            *slot = cv.data.get(i).copied().unwrap_or(0.0);
+        }
+    }
+    v
+}
+
 // ───────────────────────── NCP bridge (async client over Zenoh) ─────────────────────────
 
 /// CREBAIN's NCP bridge: a Zenoh-backed NCP client (perception/sim service via
@@ -296,5 +348,43 @@ mod tests {
         let frame = ObservationFrame { records, ..Default::default() };
         assert_eq!(observation_scalar(&frame, "spk"), Some(3.0));
         assert_eq!(observation_scalar(&frame, "missing"), None);
+    }
+
+    #[test]
+    fn action_and_perception_with_crebain() {
+        // PERCEPTION: crebain pose+velocity -> NCP SensorFrame (sensors → Engram).
+        let pose = PoseData {
+            position: [2.0, 0.0, 0.0],
+            orientation: [0.0, 0.0, 0.0, 1.0],
+            timestamp: 0.0,
+            frame_id: "map".into(),
+        };
+        let vel = VelocityCmd { linear: [0.0, 0.0, 0.0], angular: [0.0, 0.0, 0.0] };
+        let sf = sensor_frame_from_pose(&pose, &vel, 5);
+        assert_eq!(sf.seq, 5);
+        assert_eq!(sf.channels["pose_position"].data[0], 2.0);
+
+        // ACTION: a predictive command (tick0 + 2-step horizon, 50 ms, ttl 200 ms)
+        // drives crebain's plant; the horizon is replayed through "dropouts", then
+        // it fails safe to zero velocity (HOLD) once ttl_ms expires (Engram → UAV).
+        let mk = |x: f64| {
+            let mut m = ncp_core::Map::new();
+            m.insert("velocity_setpoint".into(), ChannelValue::vec3(x, 0.0, 0.0, Some("m/s")));
+            m
+        };
+        let mut plant = CommandPlant::new("base_link");
+        let cmd = CommandFrame {
+            ttl_ms: 200.0,
+            channels: mk(-0.5),
+            horizon: vec![mk(-0.4), mk(-0.3)],
+            horizon_dt_ms: Some(50.0),
+            ..Default::default()
+        };
+        plant.on_command(10.0, cmd);
+        assert_eq!(plant.velocity_at(10.00).twist.linear[0], -0.5); // tick 0
+        assert_eq!(plant.velocity_at(10.06).twist.linear[0], -0.4); // replay tick 1 (command dropped)
+        assert_eq!(plant.velocity_at(10.11).twist.linear[0], -0.3); // replay tick 2
+        assert!(plant.is_holding(10.30), "past ttl -> HOLD");
+        assert_eq!(plant.velocity_at(10.30).twist.linear, [0.0, 0.0, 0.0], "fail safe to zero");
     }
 }
