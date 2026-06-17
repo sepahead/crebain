@@ -257,7 +257,9 @@ impl NcpBridge {
             .map_err(|e| e.to_string())
     }
 
-    /// Publish a `SensorFrame` on the perception plane (Best-Effort + DROP QoS).
+    /// Publish a `SensorFrame` on the perception plane. The SDK configures this
+    /// plane as `CongestionControl::Drop` + `Priority::DataHigh` + `express(false)`;
+    /// reliability is left at Zenoh's default (the SDK does not set Best-Effort).
     pub async fn publish_sensor(
         &self,
         session_id: &str,

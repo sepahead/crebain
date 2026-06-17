@@ -1,17 +1,25 @@
-# `src/neuro` — Engram neuro-cybernetic (NCP) client
+# `src/neuro` — Engram neuro-cybernetic (NCP) integration
 
 Lets CREBAIN ask **Engram** (Paper2Brain) for a neural simulation and read back
 membrane potential / spikes / population rate — for **perception, action, both,
-or neither** (the rest stays classic ML in CREBAIN). Self-contained and
-**non-invasive**: this directory adds no dependencies and touches no existing
-CREBAIN code. Protocol spec lives in the published NCP repo
-(`NEURO_CYBERNETIC_PROTOCOL.md` in https://github.com/sepehrmn/NCP); the
-matching JSON Schemas live in the Paper2Brain repo (`backend/neurocontrol/`).
+or neither** (the rest stays classic ML in CREBAIN).
+
+## Single source of truth — no replication here
+
+The NCP wire (message types, enums, `NeuroSimClient`, the WebSocket transport) is
+**owned by the canonical repo** [`sepehrmn/NCP`](https://github.com/sepehrmn/NCP)
+and consumed here as the **`@sepehrmn/ncp`** package — a git dependency pinned by
+tag in `package.json`, symmetric with how the Rust crates (`ncp-core` /
+`ncp-zenoh`) are pinned in `src-tauri/Cargo.toml`. CREBAIN re-declares none of it.
+**If the protocol has to change, it changes there via a pull request** and we bump
+the pin. `index.ts` just re-exports the package as CREBAIN's local integration
+point; this is also where any CREBAIN-specific TS glue would go.
 
 ## Use
 
 ```ts
 import { NeuroSimClient, WebSocketNeuroSim } from './neuro'
+import type { ObservationFrameReply } from './neuro'
 
 const transport = new WebSocketNeuroSim('ws://127.0.0.1:28471/api/neurocontrol/ws')
 const engram = new NeuroSimClient(transport.send)
@@ -23,32 +31,35 @@ await engram.open(
   [{ port: 'spk', target: 'feat', observable: 'spikes' }],
   [{ port: 'drive', target: 'feat', kind: 'current_pA' }],
 )
-const obs = await engram.step('uav3-percept', { drive: { data: [500.0], unit: 'pA' } }, 50.0)
+const obs: ObservationFrameReply = await engram.step(
+  'uav3-percept',
+  { drive: { data: [500.0], unit: 'pA' } },
+  50.0,
+)
 const spikeCount = obs.records.spk.times.length // feed into CREBAIN's logic
 await engram.close('uav3-percept')
 ```
 
-## Wiring (your choice; both are non-invasive)
+## Transports (your choice; both non-invasive)
 
-- **WebSocket** (`ws.ts`) — point at Engram's `/api/neurocontrol/ws`. Simplest;
-  works from the Tauri webview.
-- **Zenoh** — for a fully **decoupled** bus, implement `Send` over CREBAIN's
-  existing `ZenohBridge` (query the `engram/ncp/rpc` key; subscribe to
-  `engram/ncp/session/{id}/observation`). Engram recommends Zenoh as the default
-  decoupled transport precisely to avoid binding CREBAIN to a server address.
-- **Native Rust + Zenoh** (recommended for performance) — a Rust NCP client now
-  lives at `src-tauri/src/ncp/` (behind the `ncp` Cargo feature), built on the
-  canonical NCP SDK. It speaks the queryable RPC + the perception/action pub/sub
-  planes with proper QoS, and maps pose/velocity ↔ NCP frames in Rust. This TS
-  client remains the zero-dependency path (browser/Tauri-webview); the Rust client
-  is the high-performance path. See `src-tauri/src/ncp/README.md`.
+- **WebSocket** (`WebSocketNeuroSim` from `@sepehrmn/ncp`) — point at Engram's
+  `/api/neurocontrol/ws`. Simplest; works from the Tauri webview.
+- **Zenoh** — for a fully **decoupled** bus, implement the package's `Send` over
+  CREBAIN's `ZenohBridge` (query `engram/ncp/rpc`; subscribe to
+  `engram/ncp/session/{id}/observation`).
+- **Native Rust + Zenoh** (recommended for performance) — the Rust NCP client at
+  `src-tauri/src/ncp/` (behind the `ncp` Cargo feature), built on the canonical
+  `ncp-core` + `ncp-zenoh` crates. Maps pose/velocity ↔ NCP frames in Rust. This TS
+  path is the zero-extra-dependency browser/Tauri-webview path; the Rust client is
+  the high-performance path. See `src-tauri/src/ncp/README.md`.
 
 ## Action (Engram as the brain)
 
 For closed-loop control, Engram emits NCP `command_frame`s and **CREBAIN maps them
 to its actuators** (e.g. publish a decoded `velocity_setpoint` to
 `/mavros/<ns>/setpoint_velocity/cmd_vel` via the existing ROSBridge). Engram holds
-no CREBAIN-specific topic knowledge — the mapping lives here, in CREBAIN.
+no CREBAIN-specific topic knowledge — that mapping lives in CREBAIN (in the Rust
+client today).
 
 ## Boundary
 
