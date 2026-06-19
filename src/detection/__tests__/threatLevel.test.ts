@@ -29,6 +29,7 @@ describe('threat-level canonical table (Rust↔TS parity)', () => {
     expect(threat('airplane', 0.99)).toBe(2)
     expect(threat('helicopter', 0.99)).toBe(2)
     expect(threat('bird', 0.9)).toBe(1)
+    expect(threat('blackbird', 0.9)).toBe(1) // 'bird' substring
   })
 
   it('graduates unknown and buckets compound labels as unknown', () => {

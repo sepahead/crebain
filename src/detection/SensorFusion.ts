@@ -33,6 +33,20 @@ const DEFAULT_FUSION_CONFIG: FusionConfig = {
 // Treat this as "scene units" (meters in our default sim scale).
 const DEFAULT_ASSUMED_TARGET_RANGE_M = 20
 
+// Cross-camera correspondence gate (scene units / meters). Two detections from
+// different cameras are only merged if their back-projected rays pass within this
+// closest-approach distance — class + confidence + timestamp alone produce phantom
+// triangulations from two different same-class targets.
+const DEFAULT_RAY_GATE_DISTANCE_M = 3.0
+// Cheirality margin (m): a correspondence whose closest-approach point is clearly
+// in FRONT of one camera but BEHIND the other (opposite-sign ray parameters beyond
+// this margin) is geometrically inconsistent and rejected. Same-sign approaches are
+// accepted — both in front for forward-facing cameras, or both behind for the line-
+// intersection convention of uncalibrated FOV-derived rays.
+const RAY_CHEIRALITY_MARGIN_M = 0.5
+// Range (m) at which the spatial term of the track-match score decays to zero.
+const SPATIAL_MATCH_SCALE_M = 15
+
 type Ray = { origin: THREE.Vector3; direction: THREE.Vector3 }
 
 function solve3x3(A: number[][], b: number[]): THREE.Vector3 | null {
@@ -104,6 +118,39 @@ function rayFromDetection(camera: CameraParams, detection: Detection): Ray {
 }
 
 /**
+ * Closest approach between two (skew) rays. Returns the minimum distance between
+ * the lines and the ray parameters `t1, t2` of the closest points (distance along
+ * each unit direction from its origin). For two cross-camera rays of a true
+ * correspondence the distance is near zero and `t1, t2 > 0` (target in front of
+ * both cameras); for two different targets the rays miss and the distance is large.
+ */
+function rayClosestApproach(r1: Ray, r2: Ray): { distance: number; t1: number; t2: number } {
+  const d1 = r1.direction
+  const d2 = r2.direction
+  const w0 = r1.origin.clone().sub(r2.origin) // o1 - o2
+  const a = d1.dot(d1)
+  const b = d1.dot(d2)
+  const c = d2.dot(d2)
+  const d = d1.dot(w0)
+  const e = d2.dot(w0)
+  const denom = a * c - b * b
+  const EPS = 1e-8
+  let t1: number
+  let t2: number
+  if (denom < EPS) {
+    // Near-parallel: pin t1, project onto the other ray (point-to-line distance).
+    t1 = 0
+    t2 = b > c ? d / b : e / c
+  } else {
+    t1 = (b * e - c * d) / denom
+    t2 = (a * e - b * d) / denom
+  }
+  const p1 = r1.origin.clone().add(d1.clone().multiplyScalar(t1))
+  const p2 = r2.origin.clone().add(d2.clone().multiplyScalar(t2))
+  return { distance: p1.distanceTo(p2), t1, t2 }
+}
+
+/**
  * Sensor Fusion Engine
  *
  * Correlates detections from multiple cameras, manages persistent tracks,
@@ -135,7 +182,7 @@ export class SensorFusion {
     const matchedTrackIds = new Set<string>()
 
     for (const group of correlatedGroups) {
-      const matchedTrack = this.matchToTrack(group)
+      const matchedTrack = this.matchToTrack(group, cameras)
 
       if (matchedTrack) {
         // Update existing track
@@ -227,10 +274,10 @@ export class SensorFusion {
    */
   private detectionsCorrelate(
     det1: Detection,
-    _cam1Id: string,
+    cam1Id: string,
     det2: Detection,
-    _cam2Id: string,
-    _cameras: Map<string, CameraParams>
+    cam2Id: string,
+    cameras: Map<string, CameraParams>
   ): boolean {
     // Same class requirement
     if (det1.class !== det2.class) return false
@@ -242,8 +289,28 @@ export class SensorFusion {
     // Temporal proximity (within 500ms)
     if (Math.abs(det1.timestamp - det2.timestamp) > 500) return false
 
-    // Geometric validation using camera positions can be added here
-    // Current implementation uses temporal and class-based heuristics
+    // Geometric gate: the two back-projected rays must nearly intersect (closest
+    // approach within DEFAULT_RAY_GATE_DISTANCE_M) and meet in front of both cameras
+    // (cheirality). Without this, two different same-class targets seen by two
+    // cameras correlate into one phantom triangulation. Only applied when the
+    // geometry is available; otherwise fall back to the class/temporal heuristic.
+    const cam1 = cameras.get(cam1Id)
+    const cam2 = cameras.get(cam2Id)
+    if (!cam1 || !cam2) return true
+    const hasGeometry = Boolean(
+      det1.frameWidth && det1.frameHeight && det2.frameWidth && det2.frameHeight
+    )
+    if (!hasGeometry) return true
+
+    const ray1 = rayFromDetection(cam1, det1)
+    const ray2 = rayFromDetection(cam2, det2)
+    const { distance, t1, t2 } = rayClosestApproach(ray1, ray2)
+    if (distance > DEFAULT_RAY_GATE_DISTANCE_M) return false
+    const front1 = t1 > RAY_CHEIRALITY_MARGIN_M
+    const front2 = t2 > RAY_CHEIRALITY_MARGIN_M
+    const behind1 = t1 < -RAY_CHEIRALITY_MARGIN_M
+    const behind2 = t2 < -RAY_CHEIRALITY_MARGIN_M
+    if ((front1 && behind2) || (front2 && behind1)) return false
 
     return true
   }
@@ -251,7 +318,11 @@ export class SensorFusion {
   /**
    * Match a correlated group to an existing track
    */
-  private matchToTrack(group: CorrelatedGroup): FusedTrack | null {
+  private matchToTrack(
+    group: CorrelatedGroup,
+    cameras: Map<string, CameraParams>
+  ): FusedTrack | null {
+    const groupPos = this.computeGroupPosition(group, cameras)
     let bestMatch: FusedTrack | null = null
     let bestScore = 0
 
@@ -261,8 +332,8 @@ export class SensorFusion {
       // Check class match
       if (track.class !== group.primaryClass) continue
 
-      // Calculate match score based on detection similarity
-      const score = this.calculateMatchScore(track, group)
+      // Match score: class + camera overlap + confidence + 3D proximity
+      const score = this.calculateMatchScore(track, group, groupPos)
 
       if (score > this.config.correlationThreshold && score > bestScore) {
         bestMatch = track
@@ -276,19 +347,37 @@ export class SensorFusion {
   /**
    * Calculate match score between track and detection group
    */
-  private calculateMatchScore(track: FusedTrack, group: CorrelatedGroup): number {
-    // Base score from class match (already checked)
+  private calculateMatchScore(
+    track: FusedTrack,
+    group: CorrelatedGroup,
+    groupPos: THREE.Vector3 | null
+  ): number {
+    // Base score from class match (already checked). Kept at 0.5 so a same-class
+    // continuation with similar confidence clears the default correlationThreshold
+    // (0.5) even when far/geometry-less — the 3D-proximity term is an additive
+    // *preference* among candidates, never a penalty that breaks continuation.
     let score = 0.5
 
     // Boost for overlapping camera sources
     const sharedCameras = track.contributingCameras.filter((c) => group.cameraIds.includes(c))
     score +=
       (sharedCameras.length / Math.max(track.contributingCameras.length, group.cameraIds.length)) *
-      0.3
+      0.1
 
     // Boost for similar confidence
     const confDiff = Math.abs(track.confidence - group.maxConfidence)
     score += (1 - confDiff) * 0.2
+
+    // Boost for 3D proximity: prefer the track nearest the group's triangulated
+    // position, decaying to 0 at SPATIAL_MATCH_SCALE_M. When geometry is unavailable
+    // (single camera / no frame dims) fall back to a neutral mid-weight. This
+    // re-ranks candidate tracks by position; it does not gate matching by itself.
+    if (groupPos) {
+      const dist = groupPos.distanceTo(track.triangulatedPosition)
+      score += Math.max(0, 1 - dist / SPATIAL_MATCH_SCALE_M) * 0.2
+    } else {
+      score += 0.1
+    }
 
     return Math.min(1, score)
   }
@@ -482,6 +571,29 @@ export class SensorFusion {
         this.tracks.delete(trackId)
       }
     }
+  }
+
+  /**
+   * Estimate a group's 3D position for track matching: triangulate when ≥2 cameras
+   * are available, otherwise project the single ray to the assumed range. Returns
+   * `null` when no camera geometry is available.
+   */
+  private computeGroupPosition(
+    group: CorrelatedGroup,
+    cameras: Map<string, CameraParams>
+  ): THREE.Vector3 | null {
+    if (group.cameraIds.length >= 2) {
+      return this.triangulatePosition(group, cameras)?.position ?? null
+    }
+    if (group.cameraIds.length === 1) {
+      const cam = cameras.get(group.cameraIds[0])
+      if (!cam) return null
+      const ray = rayFromDetection(cam, group.detections[0])
+      return ray.origin
+        .clone()
+        .add(ray.direction.clone().multiplyScalar(DEFAULT_ASSUMED_TARGET_RANGE_M))
+    }
+    return null
   }
 
   /**

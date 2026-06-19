@@ -35,6 +35,20 @@ const NOMINAL_ASSOCIATION_SIGMA_M: f64 = 1.0;
 /// constant-velocity predict cover one frame of real target motion inside the
 /// χ²(3) association gate without loosening the gate itself.
 const INITIAL_VELOCITY_VARIANCE_M2_S2: f64 = 400.0;
+/// χ²(3) 0.99 quantile used as the pairwise gate when clustering co-located,
+/// same-class returns from different sensors into one "super-measurement" (so a
+/// target seen by N sensors in one frame still updates a single track).
+const MEAS_CLUSTER_GATE: f64 = 11.345;
+/// Cluster↔track assignment costs are integer-quantized (d² × this, rounded) so
+/// the Kuhn–Munkres solver is exact and free of float-equality hazards.
+const ASSIGNMENT_QUANTIZE_SCALE: f64 = 1000.0;
+/// Out-of-gate sentinel for the assignment cost matrix. A *finite* value far above
+/// the maximum real quantized cost (association_threshold × scale ≈ 11 345): large
+/// enough that the solver never trades a real assignment for an out-of-gate one, yet
+/// small enough that the Kuhn–Munkres dual potentials `u[i] + v[j]` cannot overflow
+/// `i64` when many tracks are simultaneously out-of-gate (all-INF rows accumulate
+/// ~INF per row; bounded above by max-tracks × INF ≈ 1e12 ≪ i64::MAX).
+const ASSIGNMENT_INF: i64 = 1_000_000_000;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SENSOR TYPES
@@ -128,7 +142,8 @@ fn measurement_position_polar(measurement: &SensorMeasurement) -> Option<Vector3
 }
 
 /// Measurement-noise covariance `R` expressed in the **Cartesian** position
-/// frame, for the (Cartesian) association gate.
+/// frame, used by the (Cartesian) association gate and to seed the position block
+/// of a track's birth covariance in `create_track`.
 ///
 /// Cartesian modalities (lidar / visual / thermal / acoustic) use their diagonal
 /// `covariance` directly. Radar reports polar noise `[m², rad², rad²]`, so adding
@@ -138,7 +153,7 @@ fn measurement_position_polar(measurement: &SensorMeasurement) -> Option<Vector3
 /// Cartesian via the polar→Cartesian Jacobian: with `J = ∂(range,az,el)/∂(x,y,z)`
 /// (the position block of the EKF measurement Jacobian) and `δpolar = J · δcart`,
 /// `R_cart = J⁻¹ R_polar J⁻ᵀ`, linearized at the measurement position.
-fn association_r_cartesian(meas: &SensorMeasurement, meas_pos: &Vector3<f64>) -> Matrix3<f64> {
+fn measurement_r_cartesian(meas: &SensorMeasurement, meas_pos: &Vector3<f64>) -> Matrix3<f64> {
     let r_diag = Matrix3::from_diagonal(&Vector3::new(
         meas.covariance[0],
         meas.covariance[1],
@@ -765,6 +780,7 @@ impl UnscentedKalmanFilter {
         state: &mut Vector6<f64>,
         cov: &mut Matrix6<f64>,
         measurement: &Vector3<f64>,
+        r_override: Option<&DMatrix<f64>>,
     ) {
         let state_dyn = DVector::from_column_slice(state.as_slice());
         let cov_dyn = DMatrix::from_fn(6, 6, |i, j| cov[(i, j)]);
@@ -785,8 +801,8 @@ impl UnscentedKalmanFilter {
             meas_mean += ms * *w;
         }
 
-        // Measurement covariance
-        let mut s = self.r.clone();
+        // Measurement covariance (per-measurement R when provided, else self.r)
+        let mut s = r_override.cloned().unwrap_or_else(|| self.r.clone());
         for (ms, w) in meas_sigma.iter().zip(wc.iter()) {
             let diff = ms - &meas_mean;
             s += &diff * diff.transpose() * *w;
@@ -933,18 +949,38 @@ impl ParticleFilter {
     }
 
     /// Update step - weight particles based on measurement likelihood
-    pub fn update(&mut self, measurement: &Vector3<f64>) {
-        let sigma = self.measurement_noise;
-        let sigma2 = sigma * sigma;
+    /// Weight particles by a diagonal-Gaussian likelihood. `r_override` carries the
+    /// per-axis measurement *variances* `[vx, vy, vz]`; when `None`, the isotropic
+    /// `measurement_noise²` is used (equivalent to the previous behavior).
+    pub fn update(&mut self, measurement: &Vector3<f64>, r_override: Option<&Vector3<f64>>) {
+        let mn = self.measurement_noise;
+        let var = r_override
+            .copied()
+            .unwrap_or_else(|| Vector3::new(mn * mn, mn * mn, mn * mn));
+        // Guard each per-axis variance to a finite positive value.
+        let vx = if var[0].is_finite() && var[0] > 1e-9 {
+            var[0]
+        } else {
+            1.0
+        };
+        let vy = if var[1].is_finite() && var[1] > 1e-9 {
+            var[1]
+        } else {
+            1.0
+        };
+        let vz = if var[2].is_finite() && var[2] > 1e-9 {
+            var[2]
+        } else {
+            1.0
+        };
 
-        // Calculate weights based on Gaussian likelihood
         for particle in &mut self.particles {
             let dx = particle.state[0] - measurement[0];
             let dy = particle.state[1] - measurement[1];
             let dz = particle.state[2] - measurement[2];
 
-            let dist_sq = dx * dx + dy * dy + dz * dz;
-            let likelihood = (-dist_sq / (2.0 * sigma2)).exp();
+            let dist_sq = dx * dx / vx + dy * dy / vy + dz * dz / vz;
+            let likelihood = (-0.5 * dist_sq).exp();
             particle.weight *= likelihood;
         }
 
@@ -1124,8 +1160,10 @@ impl IMMFilter {
     }
 
     /// Update step
-    pub fn update(&mut self, measurement: &Vector3<f64>) {
+    pub fn update(&mut self, measurement: &Vector3<f64>, r: Option<&Matrix3<f64>>) {
         let h = KalmanFilter::measurement_matrix();
+        // Per-measurement R when provided, else the shared CV-model R.
+        let rr = r.unwrap_or(&self.kf_cv.r);
 
         // Calculate likelihoods for each model
         let mut likelihoods = [0.0; 2];
@@ -1137,7 +1175,7 @@ impl IMMFilter {
         {
             let predicted = h * state;
             let innovation = measurement - predicted;
-            let s = h * cov * h.transpose() + self.kf_cv.r;
+            let s = h * cov * h.transpose() + *rr;
 
             if let Some(s_inv) = s.try_inverse() {
                 let mahalanobis = (innovation.transpose() * s_inv * innovation)[0];
@@ -1184,13 +1222,13 @@ impl IMMFilter {
             &mut self.states[0],
             &mut self.covariances[0],
             measurement,
-            None,
+            Some(rr),
         );
         self.kf_ca.update_raw(
             &mut self.states[1],
             &mut self.covariances[1],
             measurement,
-            None,
+            Some(rr),
         );
     }
 
@@ -1496,6 +1534,110 @@ impl MultiSensorFusion {
         }
     }
 
+    /// Squared Mahalanobis distance d² = diffᵀ S⁻¹ diff between a measurement and a
+    /// track, gated against the χ²(3) `association_threshold`. Returns `Some(d²)` when
+    /// in-gate, `None` otherwise. `r_cart` is the measurement noise already expressed
+    /// in the Cartesian frame (see [`measurement_r_cartesian`]). This is the single
+    /// gate seam shared by clustering, the assignment cost matrix, and the χ² gate.
+    fn gated_sq_mahalanobis(
+        &self,
+        track: &TrackState,
+        meas_pos: &Vector3<f64>,
+        r_cart: &Matrix3<f64>,
+    ) -> Option<f64> {
+        let track_pos = Vector3::new(track.state[0], track.state[1], track.state[2]);
+        let diff = meas_pos - track_pos;
+        let pos_cov = Matrix3::new(
+            track.covariance[(0, 0)],
+            track.covariance[(0, 1)],
+            track.covariance[(0, 2)],
+            track.covariance[(1, 0)],
+            track.covariance[(1, 1)],
+            track.covariance[(1, 2)],
+            track.covariance[(2, 0)],
+            track.covariance[(2, 1)],
+            track.covariance[(2, 2)],
+        );
+        let s = pos_cov + r_cart;
+        let d2 = match s.try_inverse() {
+            Some(inv) => (diff.transpose() * inv * diff)[0],
+            None => {
+                diff.norm_squared() / (NOMINAL_ASSOCIATION_SIGMA_M * NOMINAL_ASSOCIATION_SIGMA_M)
+            }
+        };
+        (d2 < self.config.association_threshold).then_some(d2)
+    }
+
+    /// Cluster co-located, same-class measurements into "super-measurements" via
+    /// union-find, so that N sensors observing one target in a frame produce ONE
+    /// cluster (and thus all update one track). The pairwise gate is the squared
+    /// Mahalanobis distance vs `MEAS_CLUSTER_GATE`. Pairwise clustering uses the raw
+    /// diagonal covariance (an acceptable approximation that avoids a second Jacobian;
+    /// the assignment cost matrix still uses the full Cartesian R). Output is
+    /// deterministic: member indices ascending, clusters ordered by smallest member.
+    fn cluster_measurements(
+        &self,
+        measurements: &[SensorMeasurement],
+        meas_pos: &[Vector3<f64>],
+    ) -> Vec<Vec<usize>> {
+        let n = measurements.len();
+        let mut parent: Vec<usize> = (0..n).collect();
+        fn find(p: &mut [usize], mut x: usize) -> usize {
+            while p[x] != x {
+                p[x] = p[p[x]];
+                x = p[x];
+            }
+            x
+        }
+        for i in 0..n {
+            for j in (i + 1)..n {
+                if measurements[i].class_label != measurements[j].class_label {
+                    continue;
+                }
+                let diff = meas_pos[i] - meas_pos[j];
+                let si = Matrix3::from_diagonal(&Vector3::new(
+                    measurements[i].covariance[0],
+                    measurements[i].covariance[1],
+                    measurements[i].covariance[2],
+                ));
+                let sj = Matrix3::from_diagonal(&Vector3::new(
+                    measurements[j].covariance[0],
+                    measurements[j].covariance[1],
+                    measurements[j].covariance[2],
+                ));
+                let s = si + sj;
+                let d2 = match s.try_inverse() {
+                    Some(inv) => (diff.transpose() * inv * diff)[0],
+                    None => {
+                        diff.norm_squared()
+                            / (NOMINAL_ASSOCIATION_SIGMA_M * NOMINAL_ASSOCIATION_SIGMA_M)
+                    }
+                };
+                if d2 <= MEAS_CLUSTER_GATE {
+                    let (ri, rj) = (find(&mut parent, i), find(&mut parent, j));
+                    if ri != rj {
+                        parent[ri] = rj;
+                    }
+                }
+            }
+        }
+        let mut groups: std::collections::BTreeMap<usize, Vec<usize>> =
+            std::collections::BTreeMap::new();
+        for idx in 0..n {
+            let root = find(&mut parent, idx);
+            groups.entry(root).or_default().push(idx);
+        }
+        let mut clusters: Vec<Vec<usize>> = groups.into_values().collect();
+        clusters.sort_by_key(|c| c[0]);
+        clusters
+    }
+
+    /// Global nearest-neighbour association. Replaces the old order-dependent greedy
+    /// per-measurement loop with: (1) cluster co-located same-class returns, (2) solve
+    /// a one-to-one cluster↔track assignment minimizing total gated d² (Kuhn–Munkres),
+    /// (3) emit each assigned cluster's member indices to its track. Unassigned
+    /// clusters become new tracks; unassigned tracks coast. The
+    /// `(HashMap<track, Vec<idx>>, Vec<idx>)` contract is unchanged.
     fn associate_measurements(
         &self,
         measurements: &[SensorMeasurement],
@@ -1503,70 +1645,92 @@ impl MultiSensorFusion {
         let mut associations: HashMap<String, Vec<usize>> = HashMap::new();
         let mut unassociated: Vec<usize> = Vec::new();
 
-        for (meas_idx, meas) in measurements.iter().enumerate() {
-            let meas_pos = measurement_position_cartesian(meas);
-            // Measurement noise in the Cartesian gate frame (radar's polar R is
-            // Jacobian-transformed — see association_r_cartesian).
-            let r = association_r_cartesian(meas, &meas_pos);
+        let meas_pos: Vec<Vector3<f64>> = measurements
+            .iter()
+            .map(measurement_position_cartesian)
+            .collect();
+        let r_carts: Vec<Matrix3<f64>> = measurements
+            .iter()
+            .zip(&meas_pos)
+            .map(|(m, p)| measurement_r_cartesian(m, p))
+            .collect();
 
-            let mut best_track: Option<&str> = None;
-            let mut best_distance = f64::MAX;
+        let clusters = self.cluster_measurements(measurements, &meas_pos);
+        if clusters.is_empty() {
+            return (associations, unassociated);
+        }
 
-            for (track_id, track) in &self.tracks {
-                if track.state_label == TrackStateLabel::Lost {
-                    continue;
-                }
+        // An unassigned cluster seeds ONE new track from its lowest-noise member (the
+        // rest re-associate next frame), so a brand-new target seen by several sensors
+        // at once does not spawn a duplicate track per sensor. Caveat: if an EXISTING
+        // target's cluster is gated out of all tracks (e.g. the track drifted), the
+        // non-representative members are dropped for that frame rather than seeding —
+        // an accepted v1 trade-off (no over-spawning) revisited with adaptive gating.
+        let cluster_representative = |cl: &[usize]| -> usize {
+            *cl.iter()
+                .min_by(|&&a, &&b| {
+                    let ta: f64 = measurements[a].covariance.iter().sum();
+                    let tb: f64 = measurements[b].covariance.iter().sum();
+                    ta.partial_cmp(&tb)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                        .then(a.cmp(&b))
+                })
+                .expect("clusters are non-empty")
+        };
 
-                // Calculate Mahalanobis distance
-                let track_pos = Vector3::new(track.state[0], track.state[1], track.state[2]);
-                let diff = meas_pos - track_pos;
+        // Deterministic row order (sorted, live track ids).
+        let mut track_ids: Vec<String> = self
+            .tracks
+            .iter()
+            .filter(|(_, t)| t.state_label != TrackStateLabel::Lost)
+            .map(|(id, _)| id.clone())
+            .collect();
+        track_ids.sort();
 
-                let pos_cov = Matrix3::new(
-                    track.covariance[(0, 0)],
-                    track.covariance[(0, 1)],
-                    track.covariance[(0, 2)],
-                    track.covariance[(1, 0)],
-                    track.covariance[(1, 1)],
-                    track.covariance[(1, 2)],
-                    track.covariance[(2, 0)],
-                    track.covariance[(2, 1)],
-                    track.covariance[(2, 2)],
-                );
+        if track_ids.is_empty() {
+            for cl in &clusters {
+                unassociated.push(cluster_representative(cl));
+            }
+            return (associations, unassociated);
+        }
 
-                // Gate on the innovation covariance S = H P Hᵀ + R (here H is the
-                // identity on the position block, so H P Hᵀ = pos_cov). Folding in
-                // the measurement noise R is what makes this a proper Mahalanobis
-                // gate: without it the gate is too tight once P shrinks below R for
-                // confident tracks, pushing ~1σ-valid measurements out and spawning
-                // spurious duplicate tracks. `r` is already in the Cartesian frame.
-                let innovation_cov = pos_cov + r;
+        // Cost[r][c] = min gated d² over cluster c's in-gate members for track r,
+        // quantized; ASSIGNMENT_INF if no member is in-gate.
+        let cost: Vec<Vec<i64>> = track_ids
+            .iter()
+            .map(|tid| {
+                let track = &self.tracks[tid];
+                clusters
+                    .iter()
+                    .map(|cl| {
+                        cl.iter()
+                            .filter_map(|&m| {
+                                self.gated_sq_mahalanobis(track, &meas_pos[m], &r_carts[m])
+                            })
+                            .map(|d2| (d2 * ASSIGNMENT_QUANTIZE_SCALE).round() as i64)
+                            .min()
+                            .unwrap_or(ASSIGNMENT_INF)
+                    })
+                    .collect()
+            })
+            .collect();
 
-                // Squared Mahalanobis distance d² = diffᵀ S⁻¹ diff, which is
-                // χ²-distributed with 3 DoF (the measurement dimension). The gate
-                // `association_threshold` is the χ²(3) quantile (default 11.345 ≈ 99%
-                // gate probability). When S is singular, approximate with a squared
-                // Euclidean distance normalized by a nominal per-axis variance so the
-                // gate keeps the same (unitless) scale as the Mahalanobis branch.
-                let d2 = if let Some(inv) = innovation_cov.try_inverse() {
-                    (diff.transpose() * inv * diff)[0]
-                } else {
-                    diff.norm_squared()
-                        / (NOMINAL_ASSOCIATION_SIGMA_M * NOMINAL_ASSOCIATION_SIGMA_M)
-                };
-
-                if d2 < best_distance && d2 < self.config.association_threshold {
-                    best_distance = d2;
-                    best_track = Some(track_id);
+        let assignment = solve_assignment(&cost, ASSIGNMENT_INF);
+        let mut cluster_used = vec![false; clusters.len()];
+        for (r, opt_c) in assignment.iter().enumerate() {
+            if let Some(c) = *opt_c {
+                if cost[r][c] < ASSIGNMENT_INF {
+                    associations
+                        .entry(track_ids[r].clone())
+                        .or_default()
+                        .extend(clusters[c].iter().copied());
+                    cluster_used[c] = true;
                 }
             }
-
-            if let Some(track_id) = best_track {
-                associations
-                    .entry(track_id.to_string())
-                    .or_default()
-                    .push(meas_idx);
-            } else {
-                unassociated.push(meas_idx);
+        }
+        for (c, cl) in clusters.iter().enumerate() {
+            if !cluster_used[c] {
+                unassociated.push(cluster_representative(cl));
             }
         }
 
@@ -1585,37 +1749,43 @@ impl MultiSensorFusion {
             None => return,
         };
 
-        // Fuse multiple measurements if available
-        let mut fused_position = Vector3::zeros();
-        let mut total_weight: f64 = 0.0;
-        let mut sensor_sources = Vec::new();
+        // Sequential per-sensor information-form fusion. Apply each associated
+        // measurement ONE AT A TIME through the active filter, each with its OWN
+        // measurement noise R — not a single confidence-weighted average. Detector
+        // confidence is no longer a fusion weight (confidence ≠ precision): a
+        // centimetre-accurate lidar and a coarse acoustic return are now combined by
+        // their covariances, not by which detector was more confident. For the
+        // linear-Gaussian case, sequentially applying conditionally-independent
+        // measurements equals the batch information-form fuse and is order-independent;
+        // we still order lowest-noise-first for deterministic, well-linearized results.
+        let mut sensor_sources: Vec<SensorModality> = Vec::new();
         let mut max_confidence: f64 = 0.0;
-
         for &idx in meas_indices {
             let meas = &measurements[idx];
-            let weight = meas.confidence;
-            fused_position += measurement_position_cartesian(meas) * weight;
-            total_weight += weight;
-
             if !sensor_sources.contains(&meas.modality) {
                 sensor_sources.push(meas.modality);
             }
             max_confidence = max_confidence.max(meas.confidence);
         }
 
-        if total_weight > 0.0 {
-            fused_position /= total_weight;
-        }
+        let mut ordered = meas_indices.to_vec();
+        ordered.sort_by(|&a, &b| {
+            let ta: f64 = measurements[a].covariance.iter().sum();
+            let tb: f64 = measurements[b].covariance.iter().sum();
+            ta.partial_cmp(&tb).unwrap_or(std::cmp::Ordering::Equal)
+        });
 
-        // Update with fused measurement
-        match self.config.algorithm {
-            FilterAlgorithm::Kalman => {
-                self.kf.update(track, &fused_position, None);
-            }
-            FilterAlgorithm::ExtendedKalman => {
-                if meas_indices.len() == 1 {
-                    let meas = &measurements[meas_indices[0]];
+        for &idx in &ordered {
+            let meas = &measurements[idx];
+            let pos = measurement_position_cartesian(meas);
+            match self.config.algorithm {
+                FilterAlgorithm::Kalman => {
+                    let r = measurement_r_cartesian(meas, &pos);
+                    self.kf.update(track, &pos, Some(&r));
+                }
+                FilterAlgorithm::ExtendedKalman => {
                     if let Some(polar) = measurement_position_polar(meas) {
+                        // Radar polar update consumes the raw polar R directly.
                         let r = Matrix3::from_diagonal(&Vector3::new(
                             meas.covariance[0],
                             meas.covariance[1],
@@ -1623,19 +1793,43 @@ impl MultiSensorFusion {
                         ));
                         self.ekf.update_polar(track, &polar, &r);
                     } else {
-                        self.kf.update(track, &fused_position, None);
+                        let r = measurement_r_cartesian(meas, &pos);
+                        self.kf.update(track, &pos, Some(&r));
                     }
-                } else {
-                    self.kf.update(track, &fused_position, None);
+                }
+                FilterAlgorithm::UnscentedKalman => {
+                    let rc = measurement_r_cartesian(meas, &pos);
+                    let r_dyn = DMatrix::from_fn(3, 3, |i, j| rc[(i, j)]);
+                    self.ukf
+                        .update(&mut track.state, &mut track.covariance, &pos, Some(&r_dyn));
+                }
+                FilterAlgorithm::Particle => {
+                    if let Some(pf) = self.particle_filters.get_mut(track_id) {
+                        let rc = measurement_r_cartesian(meas, &pos);
+                        let var = Vector3::new(rc[(0, 0)], rc[(1, 1)], rc[(2, 2)]);
+                        pf.update(&pos, Some(&var));
+                    }
+                }
+                FilterAlgorithm::IMM => {
+                    // NOTE: each call re-runs the IMM mode-probability update, so
+                    // fusing many co-located returns in one frame can over-concentrate
+                    // the model probabilities (the per-model KF states stay correct).
+                    // Acceptable for the common 1-2 returns/track; a per-frame single
+                    // mode update is future work.
+                    if let Some(imm) = self.imm_filters.get_mut(track_id) {
+                        let rc = measurement_r_cartesian(meas, &pos);
+                        imm.update(&pos, Some(&rc));
+                    }
                 }
             }
-            FilterAlgorithm::UnscentedKalman => {
-                self.ukf
-                    .update(&mut track.state, &mut track.covariance, &fused_position);
-            }
+        }
+
+        // PF/IMM hold the canonical filter state internally; sync the track estimate
+        // ONCE after all measurements are applied (resample/get_estimate are per-frame
+        // operations, not per-measurement).
+        match self.config.algorithm {
             FilterAlgorithm::Particle => {
                 if let Some(pf) = self.particle_filters.get_mut(track_id) {
-                    pf.update(&fused_position);
                     pf.resample();
                     let (mean, cov) = pf.get_estimate();
                     track.state = mean;
@@ -1644,12 +1838,12 @@ impl MultiSensorFusion {
             }
             FilterAlgorithm::IMM => {
                 if let Some(imm) = self.imm_filters.get_mut(track_id) {
-                    imm.update(&fused_position);
                     let (mean, cov) = imm.get_estimate();
                     track.state = mean;
                     track.covariance = cov;
                 }
             }
+            _ => {}
         }
 
         // Update track metadata
@@ -1658,7 +1852,11 @@ impl MultiSensorFusion {
         track.age += 1;
         track.missed_detections = 0;
 
-        // Multi-sensor confidence boost
+        // Multi-sensor confidence boost. Confidence is derived AFTER fusion (not used
+        // as a fusion weight): the strongest detector confidence plus a per-extra-
+        // modality corroboration bump.
+        // TODO: future work — derive track confidence from the posterior covariance
+        // trace (track quality) rather than detector confidence.
         let sensor_boost = (track.sensor_sources.len() as f64 - 1.0) * 0.1;
         track.confidence = (max_confidence + sensor_boost).min(1.0);
 
@@ -1686,16 +1884,21 @@ impl MultiSensorFusion {
             measurement.velocity.map(|v| v[2]).unwrap_or(0.0),
         );
 
-        let initial_cov = Matrix6::from_diagonal(&Vector6::new(
-            measurement.covariance[0],
-            measurement.covariance[1],
-            measurement.covariance[2],
-            // Wide velocity prior: a single-point track birth carries no velocity
-            // information (Bar-Shalom single-point initiation).
-            INITIAL_VELOCITY_VARIANCE_M2_S2,
-            INITIAL_VELOCITY_VARIANCE_M2_S2,
-            INITIAL_VELOCITY_VARIANCE_M2_S2,
-        ));
+        // Single-point initiation. The position block uses the measurement noise
+        // expressed in the Cartesian state frame, so a radar birth gets the same
+        // polar→Cartesian Jacobian treatment as the association gate rather than raw
+        // polar variances installed as metres². The velocity block uses a wide prior
+        // because a single position-only measurement carries no velocity information.
+        let pos_cov = measurement_r_cartesian(measurement, &initial_position);
+        let mut initial_cov = Matrix6::zeros();
+        for r in 0..3 {
+            for c in 0..3 {
+                initial_cov[(r, c)] = pos_cov[(r, c)];
+            }
+        }
+        initial_cov[(3, 3)] = INITIAL_VELOCITY_VARIANCE_M2_S2;
+        initial_cov[(4, 4)] = INITIAL_VELOCITY_VARIANCE_M2_S2;
+        initial_cov[(5, 5)] = INITIAL_VELOCITY_VARIANCE_M2_S2;
 
         let track = TrackState {
             id: track_id.clone(),
@@ -1871,6 +2074,107 @@ pub struct FusionStats {
     pub multi_sensor_tracks: usize,
     pub algorithm: FilterAlgorithm,
     pub frame_count: u64,
+}
+
+/// Minimum-cost one-to-one assignment (Kuhn–Munkres / Hungarian, O(n³)) over an
+/// integer cost matrix `cost[row][col]`. Returns, for each row, `Some(col)` of its
+/// assigned column or `None` if the row's assigned cell is the `inf` sentinel
+/// (out-of-gate) — that row stays unmatched. Dependency-free (no external crate).
+///
+/// Uses the rectangular potentials/augmenting-path form which requires rows ≤ cols;
+/// when there are more rows than columns the matrix is transposed and the result
+/// mapped back, so callers may pass any rectangular matrix.
+fn solve_assignment(cost: &[Vec<i64>], inf: i64) -> Vec<Option<usize>> {
+    let rows = cost.len();
+    let cols = if rows == 0 { 0 } else { cost[0].len() };
+    if rows == 0 || cols == 0 {
+        return vec![None; rows];
+    }
+    let transposed = rows > cols;
+    let (r, c) = if transposed {
+        (cols, rows)
+    } else {
+        (rows, cols)
+    };
+
+    // 1-based working matrix a[1..=r][1..=c], with r <= c.
+    let mut a = vec![vec![0i64; c + 1]; r + 1];
+    for (i, row) in a.iter_mut().enumerate().skip(1) {
+        for (j, cell) in row.iter_mut().enumerate().skip(1) {
+            *cell = if transposed {
+                cost[j - 1][i - 1]
+            } else {
+                cost[i - 1][j - 1]
+            };
+        }
+    }
+
+    let mut u = vec![0i64; r + 1];
+    let mut v = vec![0i64; c + 1];
+    let mut p = vec![0usize; c + 1]; // p[col] = row matched to col (0 = none)
+    let mut way = vec![0usize; c + 1];
+    for i in 1..=r {
+        p[0] = i;
+        let mut j0 = 0usize;
+        let mut minv = vec![i64::MAX; c + 1];
+        let mut used = vec![false; c + 1];
+        loop {
+            used[j0] = true;
+            let i0 = p[j0];
+            let mut delta = i64::MAX;
+            let mut j1 = 0usize;
+            for j in 1..=c {
+                if !used[j] {
+                    let cur = a[i0][j] - u[i0] - v[j];
+                    if cur < minv[j] {
+                        minv[j] = cur;
+                        way[j] = j0;
+                    }
+                    if minv[j] < delta {
+                        delta = minv[j];
+                        j1 = j;
+                    }
+                }
+            }
+            for j in 0..=c {
+                if used[j] {
+                    u[p[j]] += delta;
+                    v[j] -= delta;
+                } else {
+                    minv[j] -= delta;
+                }
+            }
+            j0 = j1;
+            if p[j0] == 0 {
+                break;
+            }
+        }
+        loop {
+            let j1 = way[j0];
+            p[j0] = p[j1];
+            j0 = j1;
+            if j0 == 0 {
+                break;
+            }
+        }
+    }
+
+    // Map p[col] = row back to result[row] = col, dropping inf (out-of-gate) cells.
+    let mut result = vec![None; rows];
+    for (col, &row) in p.iter().enumerate().take(c + 1).skip(1) {
+        if row == 0 {
+            continue;
+        }
+        let (orig_r, orig_c) = if transposed {
+            (col - 1, row - 1)
+        } else {
+            (row - 1, col - 1)
+        };
+        if orig_r < rows && orig_c < cols && cost[orig_r][orig_c] < inf {
+            result[orig_r] = Some(orig_c);
+        }
+    }
+    result
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -2366,6 +2670,19 @@ mod tests {
                 "velocity-block diag[{i}] must be the wide single-point prior"
             );
         }
+        // Position block: the radar birth covariance is the polar R mapped into the
+        // Cartesian frame (boresight here, so diagonal). Range var 0.1 m² is kept;
+        // each angular var 0.01 rad² becomes (range·σ)² = 10²·0.01 = 1.0 m² — NOT the
+        // raw 0.01 used verbatim as metres² before this fix.
+        assert!((track.covariance[(0, 0)] - 0.1).abs() < 1e-9, "range var");
+        assert!(
+            (track.covariance[(1, 1)] - 1.0).abs() < 1e-9,
+            "cross-range y var"
+        );
+        assert!(
+            (track.covariance[(2, 2)] - 1.0).abs() < 1e-9,
+            "cross-range z var"
+        );
     }
 
     #[test]
@@ -2413,7 +2730,7 @@ mod tests {
             metadata: HashMap::new(),
         };
         let radar_pos = measurement_position_cartesian(&radar); // (100, 0, 0)
-        let r_cart = association_r_cartesian(&radar, &radar_pos);
+        let r_cart = measurement_r_cartesian(&radar, &radar_pos);
         // Range (x) variance is unchanged at boresight.
         assert!(
             (r_cart[(0, 0)] - 0.5).abs() < 1e-9,
@@ -2448,10 +2765,114 @@ mod tests {
             metadata: HashMap::new(),
         };
         let lidar_pos = measurement_position_cartesian(&lidar);
-        let r_lidar = association_r_cartesian(&lidar, &lidar_pos);
+        let r_lidar = measurement_r_cartesian(&lidar, &lidar_pos);
         assert!((r_lidar[(0, 0)] - 0.1).abs() < 1e-12);
         assert!((r_lidar[(1, 1)] - 0.2).abs() < 1e-12);
         assert!((r_lidar[(2, 2)] - 0.3).abs() < 1e-12);
+    }
+
+    #[test]
+    fn radar_r_cartesian_off_boresight_is_symmetric_pd_and_grows_cross_range() {
+        // Off-boresight, the polar→Cartesian position Jacobian has cross terms, so
+        // R_cart = J⁻¹ R J⁻ᵀ is a full (non-diagonal) congruence transform. It must
+        // stay symmetric and positive-definite, and the angular variances must blow up
+        // toward range²·σ² in cross-range — exercising the real off-diagonal wiring
+        // the boresight test cannot.
+        let radar = SensorMeasurement {
+            sensor_id: "radar1".to_string(),
+            modality: SensorModality::Radar,
+            timestamp_ms: 0,
+            position: [50.0, 0.6, 0.3], // polar [range m, az rad, el rad]
+            velocity: None,
+            covariance: [0.5, 0.01, 0.0025], // [m², (0.1 rad)², (0.05 rad)²]
+            confidence: 0.9,
+            class_label: "drone".to_string(),
+            metadata: HashMap::new(),
+        };
+        let pos = measurement_position_cartesian(&radar);
+        let r = measurement_r_cartesian(&radar, &pos);
+
+        for i in 0..3 {
+            for j in 0..3 {
+                assert!(
+                    (r[(i, j)] - r[(j, i)]).abs() < 1e-9,
+                    "asymmetry at ({i},{j})"
+                );
+            }
+        }
+        // Positive-definite (Cholesky succeeds) ⇒ a valid covariance.
+        assert!(r.cholesky().is_some(), "R_cart must be PD: {r}");
+        // Raw polar trace was 0.5125 m²; the converted trace is dominated by
+        // range²·σ_angle² and is far larger, proving the angular→cross-range blow-up.
+        assert!(
+            r.trace() > 5.0,
+            "cross-range did not grow: trace={}",
+            r.trace()
+        );
+    }
+
+    #[test]
+    fn sequential_fusion_weights_by_covariance_not_confidence() {
+        // Two measurements on one target in one frame: a PRECISE low-confidence return
+        // and a COARSE high-confidence return offset in y. Information-form sequential
+        // fusion must land near the precise one. The old confidence-weighted average
+        // ((0.5·0 + 0.95·4)/1.45 ≈ 2.6) would be dragged toward the coarse return.
+        let config = FusionConfig {
+            algorithm: FilterAlgorithm::Kalman,
+            ..FusionConfig::default()
+        };
+        let mut fusion = MultiSensorFusion::new(config);
+        // Birth a track near the precise location.
+        fusion.process_measurements(
+            vec![SensorMeasurement {
+                sensor_id: "lidar1".to_string(),
+                modality: SensorModality::Lidar,
+                timestamp_ms: 1000,
+                position: [10.0, 0.0, 0.0],
+                velocity: None,
+                covariance: [0.05, 0.05, 0.05],
+                confidence: 0.6,
+                class_label: "drone".to_string(),
+                metadata: HashMap::new(),
+            }],
+            1000,
+        );
+        let precise = SensorMeasurement {
+            sensor_id: "lidar1".to_string(),
+            modality: SensorModality::Lidar,
+            timestamp_ms: 1100,
+            position: [10.0, 0.0, 0.0],
+            velocity: None,
+            covariance: [0.01, 0.01, 0.01], // tiny R (precise)
+            confidence: 0.5,                // ...but LOW detector confidence
+            class_label: "drone".to_string(),
+            metadata: HashMap::new(),
+        };
+        let coarse = SensorMeasurement {
+            sensor_id: "acoustic1".to_string(),
+            modality: SensorModality::Acoustic,
+            timestamp_ms: 1100,
+            position: [10.0, 4.0, 0.0],
+            velocity: None,
+            covariance: [100.0, 100.0, 100.0], // huge R (coarse)
+            confidence: 0.95,                  // ...but HIGH detector confidence
+            class_label: "drone".to_string(),
+            metadata: HashMap::new(),
+        };
+        // Pass coarse first to prove the result is order-independent (update_track
+        // orders by covariance, not input order, and certainly not by confidence).
+        let tracks = fusion.process_measurements(vec![coarse, precise], 1100);
+        assert_eq!(tracks.len(), 1, "both returns fuse into one track");
+        assert!(
+            tracks[0].position[1].abs() < 0.5,
+            "fused y should track the precise return (≈0), got {}",
+            tracks[0].position[1]
+        );
+        assert!(
+            (tracks[0].position[0] - 10.0).abs() < 0.5,
+            "x={}",
+            tracks[0].position[0]
+        );
     }
 
     #[test]
@@ -2475,8 +2896,9 @@ mod tests {
         assert_eq!(calculate_threat_level("helicopter", 0.99), 2);
         // bird (flat 1)
         assert_eq!(calculate_threat_level("bird", 0.9), 1);
-        // unknown (graduated). Compound labels bucket as unknown, matching
-        // mapToDetectionClass's exact match (e.g. "fpv-drone" → unknown).
+        assert_eq!(calculate_threat_level("blackbird", 0.9), 1); // 'bird' substring
+                                                                 // unknown (graduated). Compound labels bucket as unknown, matching
+                                                                 // mapToDetectionClass's exact match (e.g. "fpv-drone" → unknown).
         assert_eq!(calculate_threat_level("balloon", 0.8), 3);
         assert_eq!(calculate_threat_level("balloon", 0.7), 2); // boundary
         assert_eq!(calculate_threat_level("fpv-drone", 0.9), 3);
@@ -2558,5 +2980,187 @@ mod tests {
 
         let tracks = fusion.process_measurements(measurements, 1000);
         assert!(tracks.len() <= MAX_FUSION_TRACKS);
+    }
+
+    #[test]
+    fn solve_assignment_finds_global_optimum() {
+        // Min-cost 1:1 assignment of this matrix is row0→1, row1→0, row2→2
+        // (total 1+2+2=5), the unique optimum — a global, not greedy, result.
+        let cost = vec![vec![4, 1, 3], vec![2, 0, 5], vec![3, 2, 2]];
+        assert_eq!(
+            solve_assignment(&cost, ASSIGNMENT_INF),
+            vec![Some(1), Some(0), Some(2)]
+        );
+    }
+
+    #[test]
+    fn solve_assignment_more_rows_than_cols_leaves_one_unmatched() {
+        // 3 rows, 2 cols → exactly one row unmatched; exercises the transpose branch.
+        let cost = vec![vec![1, 5], vec![5, 1], vec![3, 3]];
+        assert_eq!(
+            solve_assignment(&cost, ASSIGNMENT_INF),
+            vec![Some(0), Some(1), None]
+        );
+    }
+
+    #[test]
+    fn solve_assignment_inf_cell_yields_none() {
+        // A row whose only reachable cell is the INF sentinel must stay unmatched.
+        let cost = vec![vec![5, 8], vec![ASSIGNMENT_INF, ASSIGNMENT_INF]];
+        let r = solve_assignment(&cost, ASSIGNMENT_INF);
+        assert_eq!(r[0], Some(0));
+        assert_eq!(r[1], None);
+    }
+
+    #[test]
+    fn solve_assignment_many_all_inf_rows_no_overflow() {
+        // Many simultaneously out-of-gate tracks (all-INF rows) accumulate INF-scale
+        // dual potentials. With the finite ASSIGNMENT_INF sentinel this must neither
+        // overflow nor force-match: the two finite rows take the two columns and every
+        // all-INF row resolves to None.
+        let inf = ASSIGNMENT_INF;
+        let cost = vec![
+            vec![10, 20],
+            vec![30, 5],
+            vec![inf, inf],
+            vec![inf, inf],
+            vec![inf, inf],
+            vec![inf, inf],
+        ];
+        let r = solve_assignment(&cost, inf);
+        // Rows 0 and 1 are matched to the two distinct columns; the four all-INF rows
+        // coast (None).
+        assert!(r[0].is_some() && r[1].is_some());
+        assert_ne!(r[0], r[1]);
+        for row in r.iter().skip(2) {
+            assert_eq!(*row, None);
+        }
+    }
+
+    #[test]
+    fn gnn_assigns_each_separated_target_its_own_measurement() {
+        // Two well-separated tracks; a frame with one return near each. Global
+        // assignment updates BOTH (count stays 2) — no stealing, no duplicates.
+        let mk = |id: &str, x: f64, ts: u64| SensorMeasurement {
+            sensor_id: id.to_string(),
+            modality: SensorModality::Lidar,
+            timestamp_ms: ts,
+            position: [x, 0.0, 0.0],
+            velocity: None,
+            covariance: [1.0, 1.0, 1.0],
+            confidence: 0.9,
+            class_label: "drone".to_string(),
+            metadata: HashMap::new(),
+        };
+        let mut fusion = MultiSensorFusion::new(FusionConfig::default());
+        let born = fusion.process_measurements(vec![mk("a", 0.0, 1000), mk("b", 10.0, 1000)], 1000);
+        assert_eq!(born.len(), 2, "two separated births");
+        let tracks =
+            fusion.process_measurements(vec![mk("a", 0.3, 1100), mk("b", 9.7, 1100)], 1100);
+        assert_eq!(
+            tracks.len(),
+            2,
+            "each return associates to its track; no duplicates"
+        );
+        let mut xs: Vec<f64> = tracks.iter().map(|t| t.position[0]).collect();
+        xs.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        assert!(
+            xs[0] < 5.0 && xs[1] > 5.0,
+            "tracks stayed separated: {xs:?}"
+        );
+    }
+
+    #[test]
+    fn multi_sensor_cluster_still_fuses_into_one_track() {
+        // A co-located visual+thermal pair must cluster and update a SINGLE existing
+        // track with both modalities (GNN must not break N-sensors→1-target fusion).
+        let mut fusion = MultiSensorFusion::new(FusionConfig::default());
+        let visual = SensorMeasurement {
+            sensor_id: "cam1".to_string(),
+            modality: SensorModality::Visual,
+            timestamp_ms: 1000,
+            position: [10.0, 0.0, 5.0],
+            velocity: None,
+            covariance: [1.0, 1.0, 1.0],
+            confidence: 0.8,
+            class_label: "drone".to_string(),
+            metadata: HashMap::new(),
+        };
+        // Birth a single track first.
+        fusion.process_measurements(vec![visual.clone()], 1000);
+        let thermal = SensorMeasurement {
+            sensor_id: "ir1".to_string(),
+            modality: SensorModality::Thermal,
+            position: [10.4, 0.4, 5.0],
+            covariance: [2.0, 2.0, 2.0],
+            confidence: 0.7,
+            timestamp_ms: 1100,
+            ..visual.clone()
+        };
+        let visual2 = SensorMeasurement {
+            timestamp_ms: 1100,
+            ..visual.clone()
+        };
+        let tracks = fusion.process_measurements(vec![visual2, thermal], 1100);
+        assert_eq!(tracks.len(), 1, "co-located returns fuse into one track");
+        assert_eq!(
+            tracks[0].sensor_sources.len(),
+            2,
+            "both modalities contributed"
+        );
+    }
+
+    #[test]
+    fn new_co_located_multi_sensor_target_births_single_track() {
+        // Two co-located, same-class returns with NO existing track must seed ONE new
+        // track (the cluster representative), not one per sensor.
+        let mut fusion = MultiSensorFusion::new(FusionConfig::default());
+        let a = SensorMeasurement {
+            sensor_id: "cam1".to_string(),
+            modality: SensorModality::Visual,
+            timestamp_ms: 1000,
+            position: [3.0, 0.0, 2.0],
+            velocity: None,
+            covariance: [1.0, 1.0, 1.0],
+            confidence: 0.8,
+            class_label: "drone".to_string(),
+            metadata: HashMap::new(),
+        };
+        let b = SensorMeasurement {
+            sensor_id: "ir1".to_string(),
+            modality: SensorModality::Thermal,
+            position: [3.2, 0.2, 2.0],
+            ..a.clone()
+        };
+        let tracks = fusion.process_measurements(vec![a, b], 1000);
+        assert_eq!(
+            tracks.len(),
+            1,
+            "co-located new target births one track, not two"
+        );
+    }
+
+    #[test]
+    fn cluster_separates_different_classes() {
+        // Co-located returns of different class must NOT cluster → two tracks.
+        let mut fusion = MultiSensorFusion::new(FusionConfig::default());
+        let drone = SensorMeasurement {
+            sensor_id: "cam1".to_string(),
+            modality: SensorModality::Visual,
+            timestamp_ms: 1000,
+            position: [5.0, 0.0, 3.0],
+            velocity: None,
+            covariance: [1.0, 1.0, 1.0],
+            confidence: 0.8,
+            class_label: "drone".to_string(),
+            metadata: HashMap::new(),
+        };
+        let bird = SensorMeasurement {
+            sensor_id: "cam2".to_string(),
+            class_label: "bird".to_string(),
+            ..drone.clone()
+        };
+        let tracks = fusion.process_measurements(vec![drone, bird], 1000);
+        assert_eq!(tracks.len(), 2, "different classes do not cluster");
     }
 }
