@@ -247,7 +247,7 @@
 
     "@rollup/rollup-win32-x64-msvc": ["@rollup/rollup-win32-x64-msvc@4.54.0", "", { "os": "win32", "cpu": "x64" }, "sha512-hYT5d3YNdSh3mbCU1gwQyPgQd3T2ne0A3KG8KSBdav5TiBg6eInVmV+TeR5uHufiIgSFg0XsOWGW5/RhNcSvPg=="],
 
-    "@sepehrmn/ncp": ["@sepehrmn/ncp@github:sepehrmn/NCP#1c15aec", {}, "sepehrmn-NCP-1c15aec", "sha512-nfxBXnD2RUyKmwnTFVYKDZIaeO5XQoaTmppiB7CMhV6mDGAKenNf1KpDgtY7qTbz9xmH2tDts4SC5/pUss1+jw=="],
+    "@sepehrmn/ncp": ["@sepehrmn/ncp@github:sepehrmn/NCP#36f2b08", {}, "sepehrmn-NCP-36f2b08", "sha512-lQ7ObaD6UnHpZfZW7RpGiYZRJsu8I/JSrsE6eOyBjAozqOBkg6ohwzUptYakM1AMgF1o/Tkdqwm9kTEKJKMjBQ=="],
 
     "@sparkjsdev/spark": ["@sparkjsdev/spark@0.1.10", "", { "dependencies": { "fflate": "^0.8.2" } }, "sha512-CiijdZQuj7KPDUqIZPiEqyUkJCYo1JqR05vq/V+ElxMwqR7L70ZuZDyIKcasjZHSiPB8pGRMH8HZGqUKO9aRPQ=="],
 

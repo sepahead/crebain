@@ -3482,7 +3482,7 @@ dependencies = [
 [[package]]
 name = "ncp-core"
 version = "0.2.5"
-source = "git+https://github.com/sepehrmn/NCP?tag=v0.2.5#436f472d61293ab14e060daccff5beaaeabd68d3"
+source = "git+https://github.com/sepehrmn/NCP?tag=v0.2.5#551f33204371976d5cc54b6ff94c325eec465cee"
 dependencies = [
  "serde",
  "serde_json",
@@ -3491,7 +3491,7 @@ dependencies = [
 [[package]]
 name = "ncp-zenoh"
 version = "0.2.5"
-source = "git+https://github.com/sepehrmn/NCP?tag=v0.2.5#436f472d61293ab14e060daccff5beaaeabd68d3"
+source = "git+https://github.com/sepehrmn/NCP?tag=v0.2.5#551f33204371976d5cc54b6ff94c325eec465cee"
 dependencies = [
  "ncp-core",
  "serde",
@@ -3746,7 +3746,7 @@ version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "680998035259dcfcafe653688bf2aa6d3e2dc05e98be6ab46afb089dc84f1df8"
 dependencies = [
- "proc-macro-crate 1.3.1",
+ "proc-macro-crate 2.0.2",
  "proc-macro2",
  "quote",
  "syn 2.0.117",
@@ -6154,7 +6154,7 @@ version = "72.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a768b1e51e4dbfa4fa52ae5c01241c0a41e2938fdffbb84add0c8238092f9091"
 dependencies = [
- "proc-macro-crate 1.3.1",
+ "proc-macro-crate 2.0.2",
  "proc-macro2",
  "quote",
  "rand 0.8.5",
