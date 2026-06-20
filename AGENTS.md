@@ -89,6 +89,8 @@ import { describe, expect, it } from 'vitest'
 
 Before committing, prefer `bun run validate:all` unless the change is documentation-only and clearly cannot affect code.
 
+Do not add Claude, AI assistants, or agents as commit/PR co-authors — no `Co-Authored-By:` trailer and no "Generated with Claude Code" / 🤖 line in commit messages or pull-request descriptions.
+
 ## Documentation Consistency
 
 Tracked Markdown files should agree on validation commands, backend status, roadmap items, model assumptions, and security boundaries. Keep these files synchronized when behavior changes:
