@@ -19,6 +19,22 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  version-coherence:
+    name: Version coherence
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      # Read-only guard: the crate version (src-tauri/Cargo.toml), the
+      # package.json version, and the CITATION.cff version must all agree.
+      # Catches a release that bumps one metadata file but forgets another.
+      # On a tag push it also asserts the tag peels to its commit and that the
+      # tag's version matches the in-tree version.
+      - name: Internal version coherence (HEAD)
+        run: scripts/check-version-coherence.sh
+      - name: Version coherence (tag)
+        if: startsWith(github.ref, 'refs/tags/')
+        run: scripts/check-version-coherence.sh "${GITHUB_REF_NAME}"
+
   frontend:
     name: Frontend (TypeScript)
     runs-on: ubuntu-latest

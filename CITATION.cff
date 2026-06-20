@@ -7,6 +7,7 @@ type: software
 authors:
   - family-names: Mahmoudian
     given-names: Sepehr
+    email: sepmhn@gmail.com
 repository-code: 'https://github.com/sepahead/crebain'
 url: 'https://github.com/sepahead/crebain'
 abstract: >-
@@ -21,5 +22,7 @@ keywords:
   - ros2
   - gaussian-splatting
   - computer-vision
-license: MIT
+license:
+  - MIT
+  - Apache-2.0
 version: 0.4.0

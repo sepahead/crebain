@@ -41,8 +41,9 @@ an individual is officially representing the community in public spaces.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported to the project maintainers. Complaints will be reviewed and investigated
-promptly, fairly, and with appropriate respect for privacy.
+reported to the project maintainer at **sepmhn@gmail.com**. Complaints will be
+reviewed and investigated promptly, fairly, and with appropriate respect for
+privacy.
 
 ## Attribution
 
