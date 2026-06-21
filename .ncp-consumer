@@ -1,0 +1,8 @@
+# .ncp-consumer — declares how this repo pins NCP, for NCP's generic, consumer-
+# agnostic pin tooling (check-consumer-pins.sh / repin-ncp.sh). NCP holds no
+# knowledge of this repo; it discovers us by globbing for this file. Format:
+# one "<type> <relative-path>" per line; see NCP/INTEGRATING.md.
+cargo_tag   src-tauri/Cargo.toml
+cargo_lock  src-tauri/Cargo.lock
+npm_tag     package.json
+npm_lock    bun.lock
