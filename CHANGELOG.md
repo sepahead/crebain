@@ -46,11 +46,11 @@ Open-source readiness and quality hardening.
   a transport smoke construction, and a mocked-socket frame round-trip; plus a thin
   transport-agnostic reply `ncp_version` guard (`guardReplyVersion`) — the canonical
   client stamps the version on requests but does not validate it on replies, so the
-  guard refuses a reply whose `ncp_version` is absent or differs from "0.2". No wire
-  change (NCP stays pinned at v0.2.8).
+  guard refuses a reply whose `ncp_version` is absent or differs from "0.4". NCP is
+  pinned at v0.4.0 (wire 0.4).
 - NCP native bridge: a targeted unit test (behind `#[cfg(all(test, feature = "ncp"))]`)
   guarding the NCP wire-version handshake the `ncp` consumer relies on — the pinned
-  `NCP_VERSION` (v0.2.8 = "0.2") is self-compatible and a skewed/malformed reply
+  `NCP_VERSION` (v0.4.0 = "0.4") is self-compatible and a skewed/malformed reply
   version is rejected (not coerced) on session open, consistent with the SDK's
   `ZenohNcpClient::open` enforcement.
 - `docs/SENSOR_FUSION.md`: a full sensor-fusion design reference (estimation math,
