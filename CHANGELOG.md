@@ -13,6 +13,10 @@ Open-source readiness and quality hardening.
 
 ### Changed
 
+- Re-pinned NCP to `v0.4.0` (wire `0.3` -> `0.4`, the decoupling+robustness release: consumer-neutral proto package, advisory contract handshake, additive-is-non-breaking). The reply-`ncp_version` guard now speaks `0.4`; `cargo check --features ncp`, clippy, and the neuro TS tests pass (engram->crebain flow verified).
+
+### Changed
+
 - Re-pinned NCP to `v0.3.0` (wire `0.2` → `0.3`): the symmetric contract-hash
   handshake. Bumped `ncp-core`/`ncp-zenoh` (Cargo.toml + Cargo.lock) and
   `@sepehrmn/ncp` (package.json + bun.lock), and the reply-`ncp_version` guard now

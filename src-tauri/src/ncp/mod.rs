@@ -454,7 +454,7 @@ mod tests {
         // The native bridge opens sessions through `ZenohNcpClient::open`, which runs
         // the NCP version handshake (`check_version(opened.ncp_version, strict=true)`)
         // and rejects — never coerces — an incompatible `SessionOpened`. This guards
-        // that contract against the pinned wire (`NCP_VERSION`, v0.3.0 = "0.3"):
+        // that contract against the pinned wire (`NCP_VERSION`, v0.4.0 = "0.3"):
         //   * the version CREBAIN builds against is accepted, and
         //   * a skewed or malformed `ncp_version` in a reply is rejected (Err under
         //     strict), so `open_feature_neuron` surfaces a clean error instead of

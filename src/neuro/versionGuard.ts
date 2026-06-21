@@ -10,8 +10,8 @@
  * This is the one place the `src/neuro` README reserves for CREBAIN-specific glue:
  * a thin, transport-agnostic wrapper that decorates any `Send` so that every
  * non-error reply must carry an `ncp_version` equal to the version this build
- * speaks (`NCP_VERSION`, "0.3"). It changes no wire bytes — NCP stays pinned at
- * v0.3.0 — it only refuses to trust a reply that claims a different protocol.
+ * speaks (`NCP_VERSION`, "0.4"). It changes no wire bytes — NCP stays pinned at
+ * v0.4.0 — it only refuses to trust a reply that claims a different protocol.
  *
  * Error frames (`{ kind: 'error', … }`) and primitive replies are passed through
  * untouched so the package's own `unwrap`/error handling keeps working; only a
