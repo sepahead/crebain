@@ -47,7 +47,7 @@ validate the version a peer returns on a *reply* (its `unwrap` only rejects
 `error` frames). `index.ts` therefore re-exports a thin, transport-agnostic guard —
 the only thing CREBAIN adds over the package — that refuses a reply whose
 `ncp_version` is absent or differs from the version this build speaks (`NCP_VERSION`,
-"0.2"). It changes no wire bytes (NCP stays pinned at v0.2.8); it just stops a peer
+"0.5"). It changes no wire bytes (NCP stays pinned at v0.5.0); it just stops a peer
 that has drifted off the protocol from masquerading as a success:
 
 ```ts

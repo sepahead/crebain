@@ -6,7 +6,7 @@
       "name": "crebain",
       "dependencies": {
         "@dimforge/rapier3d-compat": "^0.19.3",
-        "@sepehrmn/ncp": "github:sepahead/NCP#v0.4.0",
+        "@sepehrmn/ncp": "github:sepahead/NCP#v0.5.0",
         "@sparkjsdev/spark": "^0.1.10",
         "@xenova/transformers": "^2.17.2",
         "comlink": "^4.4.2",
@@ -247,7 +247,7 @@
 
     "@rollup/rollup-win32-x64-msvc": ["@rollup/rollup-win32-x64-msvc@4.54.0", "", { "os": "win32", "cpu": "x64" }, "sha512-hYT5d3YNdSh3mbCU1gwQyPgQd3T2ne0A3KG8KSBdav5TiBg6eInVmV+TeR5uHufiIgSFg0XsOWGW5/RhNcSvPg=="],
 
-    "@sepehrmn/ncp": ["@sepehrmn/ncp@github:sepahead/NCP#d2ee854", {}, "sepahead-NCP-d2ee854", "sha512-33qTnG4N7NJ0y3fxefBcMSHxyTCuICURr9HE3y3h/5kasSiFZNmHvIQ6Uji2ATCz/u/rm3N4sGECxrjbK28JUw=="],
+    "@sepehrmn/ncp": ["@sepehrmn/ncp@github:sepahead/NCP#607b0f9", {}, "sepahead-NCP-607b0f9", "sha512-iHT6ixNsfcYEFxsrGAiHtNcToVZ8vh2bLBzeeZB6N1Y5f/7fJvNoKb4jUEsgbZ9gGukX6lKkyJ7wpicq27ArZw=="],
 
     "@sparkjsdev/spark": ["@sparkjsdev/spark@0.1.10", "", { "dependencies": { "fflate": "^0.8.2" } }, "sha512-CiijdZQuj7KPDUqIZPiEqyUkJCYo1JqR05vq/V+ElxMwqR7L70ZuZDyIKcasjZHSiPB8pGRMH8HZGqUKO9aRPQ=="],
 
