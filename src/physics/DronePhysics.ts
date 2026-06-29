@@ -183,6 +183,13 @@ export class DronePhysicsBody {
     const totalThrust = new THREE.Vector3()
     const totalTorque = new THREE.Vector3()
 
+    // Scratch vectors reused across rotors to avoid per-rotor allocations in the
+    // 120Hz update loop.
+    const thrustDir = new THREE.Vector3()
+    const leverArm = new THREE.Vector3()
+    const rotorTorque = new THREE.Vector3()
+    const thrustScaled = new THREE.Vector3()
+
     state.rotors.forEach((rotor, i) => {
       const targetRPM = commands[i] * maxRPM
       rotor.rpm += (targetRPM - rotor.rpm) * motorResponseRate * dt
@@ -194,16 +201,14 @@ export class DronePhysicsBody {
       rotor.thrust = Math.min(rotor.thrust, params.maxThrust)
       rotor.torque = Math.min(rotor.torque, params.maxTorque)
 
-      const thrustDir = new THREE.Vector3(0, 1, 0).applyQuaternion(state.orientation)
-      totalThrust.add(thrustDir.multiplyScalar(rotor.thrust))
+      thrustDir.set(0, 1, 0).applyQuaternion(state.orientation)
+      thrustScaled.copy(thrustDir).multiplyScalar(rotor.thrust)
+      totalThrust.add(thrustScaled)
 
       totalTorque.y += rotor.torque * rotor.direction
 
-      const leverArm = rotor.position.clone().applyQuaternion(state.orientation)
-      const rotorTorque = new THREE.Vector3().crossVectors(
-        leverArm,
-        thrustDir.clone().multiplyScalar(rotor.thrust)
-      )
+      leverArm.copy(rotor.position).applyQuaternion(state.orientation)
+      rotorTorque.crossVectors(leverArm, thrustScaled.multiplyScalar(rotor.thrust))
       totalTorque.add(rotorTorque)
     })
 
@@ -264,6 +269,32 @@ export class DronePhysicsBody {
   }
 }
 
+/**
+ * Module-level shared Rapier loader. Rapier's WASM `init()` is a global,
+ * one-time operation; invoking it concurrently (e.g. React StrictMode
+ * double-invoking the physics init effect, which constructs two
+ * DronePhysicsWorld instances whose init() both race the global wasm init)
+ * corrupts the WASM runtime ("recursive use of an object" / "memory access
+ * out of bounds"). Caching the import+init promise guarantees the global
+ * init runs exactly once regardless of how many worlds are created.
+ */
+let rapierModulePromise: Promise<RapierModule> | null = null
+async function loadRapier(): Promise<RapierModule> {
+  if (!rapierModulePromise) {
+    rapierModulePromise = import('@dimforge/rapier3d-compat')
+      .then(async (mod) => {
+        await mod.init()
+        return mod
+      })
+      .catch((err) => {
+        // Allow a retry on a subsequent call if the load/init failed.
+        rapierModulePromise = null
+        throw err
+      })
+  }
+  return rapierModulePromise
+}
+
 export class DronePhysicsWorld {
   private RAPIER: RapierModule | null = null
   private world: World | null = null
@@ -275,8 +306,7 @@ export class DronePhysicsWorld {
 
   async init(): Promise<void> {
     try {
-      this.RAPIER = await import('@dimforge/rapier3d-compat')
-      await this.RAPIER.init()
+      this.RAPIER = await loadRapier()
 
       this.world = new this.RAPIER.World({ x: 0.0, y: -9.81, z: 0.0 })
 
@@ -401,14 +431,20 @@ export class DronePhysicsWorld {
     const totalThrust = new THREE.Vector3()
     const totalTorque = new THREE.Vector3()
 
-    state.rotors.forEach((rotor, i) => {
-      const commands = [
-        drone.targetCommands.front_left,
-        drone.targetCommands.front_right,
-        drone.targetCommands.rear_left,
-        drone.targetCommands.rear_right,
-      ]
+    // Scratch vectors + hoisted command array reused across rotors to avoid
+    // per-rotor allocations in the 120Hz step loop.
+    const thrustDir = new THREE.Vector3()
+    const leverArm = new THREE.Vector3()
+    const rotorTorque = new THREE.Vector3()
+    const thrustScaled = new THREE.Vector3()
+    const commands = [
+      drone.targetCommands.front_left,
+      drone.targetCommands.front_right,
+      drone.targetCommands.rear_left,
+      drone.targetCommands.rear_right,
+    ]
 
+    state.rotors.forEach((rotor, i) => {
       const targetRPM = commands[i] * maxRPM
       rotor.rpm += (targetRPM - rotor.rpm) * 10 * dt
       rotor.rpm = Math.max(0, Math.min(maxRPM, rotor.rpm))
@@ -416,17 +452,15 @@ export class DronePhysicsWorld {
       rotor.thrust = calculateThrust(rotor.rpm, params.thrustCoefficient)
       rotor.thrust = Math.min(rotor.thrust, params.maxThrust)
 
-      const thrustDir = new THREE.Vector3(0, 1, 0).applyQuaternion(state.orientation)
-      totalThrust.add(thrustDir.multiplyScalar(rotor.thrust))
+      thrustDir.set(0, 1, 0).applyQuaternion(state.orientation)
+      thrustScaled.copy(thrustDir).multiplyScalar(rotor.thrust)
+      totalThrust.add(thrustScaled)
 
       rotor.torque = calculateTorque(rotor.rpm, params.torqueCoefficient)
       totalTorque.y += rotor.torque * rotor.direction
 
-      const leverArm = rotor.position.clone().applyQuaternion(state.orientation)
-      const rotorTorque = new THREE.Vector3().crossVectors(
-        leverArm,
-        thrustDir.clone().multiplyScalar(rotor.thrust)
-      )
+      leverArm.copy(rotor.position).applyQuaternion(state.orientation)
+      rotorTorque.crossVectors(leverArm, thrustScaled.multiplyScalar(rotor.thrust))
       totalTorque.add(rotorTorque)
     })
 
@@ -438,7 +472,12 @@ export class DronePhysicsWorld {
     for (const id of this.drones.keys()) {
       this.removeDrone(id)
     }
+    // Free the Rapier World's WASM allocation. Dropping the JS reference alone
+    // leaks the underlying linear-memory backing store. World.free() also frees
+    // all attached bodies/colliders, so no per-object free is needed.
+    this.world?.free()
     this.world = null
+    this.RAPIER = null
     this.isInitialized = false
   }
 }

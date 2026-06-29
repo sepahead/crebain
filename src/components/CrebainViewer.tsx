@@ -220,6 +220,8 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
   const feedCanvasRefs = useRef<Map<string, HTMLCanvasElement>>(new Map())
   // Reusable buffers for camera feed rendering (avoids allocation per frame)
   const feedBuffersRef = useRef<Map<string, Uint8Array>>(new Map())
+  // Reusable ImageData per camera (avoids ~1MB createImageData alloc each feed tick)
+  const feedImageDataRef = useRef<Map<string, ImageData>>(new Map())
 
   const moveState = useRef({
     forward: false,
@@ -600,6 +602,7 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
         const cam = prev.find((c) => c.id === cameraId)
         if (cam && sceneRef.current) {
           sceneRef.current.remove(cam.helper)
+          cam.helper.dispose()
           sceneRef.current.remove(cam.mesh)
           cam.renderTarget.dispose()
           disposeObject3D(cam.mesh)
@@ -608,6 +611,19 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
         return prev.filter((c) => c.id !== cameraId)
       })
       if (selectedCamera === cameraId) setSelectedCamera(null)
+      // Free the per-camera feed canvas ref and pixel-readback buffer (~0.9 MB
+      // each at 640x360) so removed cameras don't leak. The canvas ref callback
+      // ignores the null unmount call, so these are never cleared otherwise.
+      feedCanvasRefs.current.delete(cameraId)
+      feedBuffersRef.current.delete(cameraId)
+      // Purge retained detections for the removed camera (the Map grows otherwise).
+      setCameraDetections((prev) => {
+        if (!prev.has(cameraId)) return prev
+        const next = new Map(prev)
+        next.delete(cameraId)
+        cameraDetectionsRef.current = next
+        return next
+      })
     },
     [selectedCamera, addMessage]
   )
@@ -1163,6 +1179,7 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
 
         loadTimeout = setTimeout(() => {
           if (!loadCompleted) {
+            clearInterval(progressInterval)
             setIsLoading(false)
             setLoadingName(null)
             setLoadingProgress(0)
@@ -1782,12 +1799,35 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
         floorMeshRef.current.geometry.dispose()
         floorMeshRef.current = null
       }
+      // Dispose tactical grid (ShaderMaterial + 2000x2000 PlaneGeometry)
+      if (gridRef.current) {
+        scene.remove(gridRef.current)
+        disposeMeshMaterials(gridRef.current)
+        gridRef.current.geometry.dispose()
+        gridRef.current = null
+      }
+      // Dispose grid label sprites (each owns a SpriteMaterial + CanvasTexture map)
+      if (gridLabelsRef.current) {
+        gridLabelsRef.current.traverse((obj) => {
+          const sprite = obj as THREE.Sprite
+          if (sprite.isSprite) {
+            sprite.material.map?.dispose()
+            sprite.material.dispose()
+          }
+        })
+        scene.remove(gridLabelsRef.current)
+        gridLabelsRef.current = null
+      }
       // Dispose ghost drone preview mesh
       scene.remove(ghostDroneRef)
       ghostDroneGeometry.dispose()
       ghostDroneMaterial.dispose()
       controls.dispose()
       renderer.dispose()
+      // Release the WebGL context so the GPU frees all uploaded buffers/textures
+      // (grid, splat, camera render targets, loaded GLBs) that the mount-time
+      // closure cannot reach. Critical under StrictMode double-invoke.
+      renderer.forceContextLoss()
       container.removeChild(renderer.domElement)
     }
     // MOVE_CONFIG and addMessage are stable (useMemo/useCallback with []), so the
@@ -1952,7 +1992,11 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
           }
 
           renderer.readRenderTargetPixels(cam.renderTarget, 0, 0, width, height, buffer)
-          const imageData = ctx.createImageData(width, height)
+          let imageData = feedImageDataRef.current.get(cam.id)
+          if (!imageData || imageData.width !== width || imageData.height !== height) {
+            imageData = ctx.createImageData(width, height)
+            feedImageDataRef.current.set(cam.id, imageData)
+          }
 
           const data = imageData.data
           for (let y = 0; y < height; y++) {
@@ -2749,6 +2793,7 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
                 <canvas
                   ref={(el) => {
                     if (el) feedCanvasRefs.current.set(cam.id, el)
+                    else feedCanvasRefs.current.delete(cam.id)
                   }}
                   width={140}
                   height={79}

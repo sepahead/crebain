@@ -14,6 +14,9 @@ import { forEachMesh } from '../lib/three/sceneObjects'
 
 const log = logger.scope('DroneController')
 
+// Reused scratch to avoid allocating a THREE.Euler every navigation frame.
+const scratchEuler = new THREE.Euler()
+
 export type RouteMode = 'none' | 'once' | 'patrol'
 
 export interface Waypoint {
@@ -139,6 +142,12 @@ export function useDroneController(options: UseDroneControllerOptions) {
     dronesRef.current.forEach((drone) => {
       if (drone.mesh && sceneRef.current) {
         sceneRef.current.remove(drone.mesh)
+        forEachMesh(drone.mesh, (mesh) => {
+          mesh.geometry.dispose()
+          const material = mesh.material
+          if (Array.isArray(material)) material.forEach((m) => m.dispose())
+          else material.dispose()
+        })
       }
       physicsWorldRef.current?.removeDrone(drone.id)
     })
@@ -353,6 +362,12 @@ export function useDroneController(options: UseDroneControllerOptions) {
 
       if (drone.mesh && sceneRef.current) {
         sceneRef.current.remove(drone.mesh)
+        forEachMesh(drone.mesh, (mesh) => {
+          mesh.geometry.dispose()
+          const material = mesh.material
+          if (Array.isArray(material)) material.forEach((m) => m.dispose())
+          else material.dispose()
+        })
       }
 
       physicsWorldRef.current?.removeDrone(id)
@@ -534,11 +549,10 @@ export function useDroneController(options: UseDroneControllerOptions) {
               }
             } else {
               const targetHeading = Math.atan2(dx, dz)
-              const euler = new THREE.Euler().setFromQuaternion(
+              const currentHeading = scratchEuler.setFromQuaternion(
                 drone.physicsBody.state.orientation,
                 'YXZ'
-              )
-              const currentHeading = euler.y
+              ).y
 
               let headingError = targetHeading - currentHeading
               while (headingError > Math.PI) headingError -= 2 * Math.PI

@@ -89,6 +89,11 @@ export function useKeyboardControls(options: UseKeyboardControlsOptions = {}) {
     (e: KeyboardEvent) => {
       if (!enabled) return
 
+      // Ignore OS key auto-repeat: the key is already marked active by the first
+      // keydown, so repeats only churn keyState identity (re-rendering consumers
+      // and re-subscribing the physics rAF loop in useDroneController).
+      if (e.repeat) return
+
       // Ignore if typing in an input
       if (isTextInputTarget(e.target)) {
         return
