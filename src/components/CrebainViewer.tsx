@@ -225,6 +225,12 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
   // Round-robin cursor: feed render + pixel readback process ONE camera per tick
   // so per-frame GPU cost stays bounded regardless of how many cameras are placed.
   const feedRoundRobinRef = useRef(0)
+  // Frame-budget governor for feeds: EMA (ms) of the heavy feed work (scene render
+  // to target + synchronous pixel readback), and a tick counter. When the measured
+  // cost exceeds the per-tick budget, the heavy path runs only every Nth tick
+  // (N grows with cost) so feeds yield to the main render loop under load.
+  const feedCostEmaRef = useRef(0)
+  const feedHeavyTickRef = useRef(0)
 
   const moveState = useRef({
     forward: false,
@@ -274,6 +280,11 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
 
   // Camera feed update interval (~12 FPS)
   const CAMERA_FEED_INTERVAL_MS = 83
+  // Frame-budget governor: target max cost (ms) of one heavy feed tick, and the
+  // hardest the feed may be throttled (every Nth tick). At MAX_FEED_STRIDE=6 and
+  // an 83 ms interval, a worst-case feed still refreshes ~every 0.5 s.
+  const FEED_FRAME_BUDGET_MS = 6
+  const MAX_FEED_STRIDE = 6
   // Default patrol camera speed
   const DEFAULT_PATROL_SPEED = 0.015
   // Patrol waypoint arrival threshold in meters
@@ -2026,6 +2037,19 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
         // readback; doing every camera each tick multiplies that by the camera
         // count and stalls the main loop (worst with heavy splats). One per tick
         // bounds it; each camera refreshes every activeCameras.length ticks.
+        //
+        // Frame-budget governor: when that heavy work has been measured to cost
+        // more than FEED_FRAME_BUDGET_MS, run it only every `stride` ticks
+        // (stride grows with cost, capped at MAX_FEED_STRIDE), so feeds back off
+        // and yield the main thread/GPU to the render loop under load. The cheap
+        // patrol updates above still run every tick, so camera motion stays smooth.
+        const stride = Math.min(
+          MAX_FEED_STRIDE,
+          Math.max(1, Math.round(feedCostEmaRef.current / FEED_FRAME_BUDGET_MS))
+        )
+        if (feedHeavyTickRef.current++ % stride !== 0) return
+
+        const heavyStart = performance.now()
         const rrIdx = feedRoundRobinRef.current % activeCameras.length
         feedRoundRobinRef.current = rrIdx + 1
         const rrCam = activeCameras[rrIdx]
@@ -2033,7 +2057,11 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
         renderer.render(scene, rrCam.camera)
         renderer.setRenderTarget(currentRT)
 
-        if (!showCameraFeeds) return
+        if (!showCameraFeeds) {
+          // Still account for the render-to-target cost so the governor adapts.
+          feedCostEmaRef.current = feedCostEmaRef.current * 0.8 + (performance.now() - heavyStart) * 0.2
+          return
+        }
 
         for (const cam of [rrCam]) {
           const canvas = feedCanvasRefs.current.get(cam.id)
@@ -2077,6 +2105,9 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
             })
           }
         }
+
+        // Record the cost of this heavy tick so the governor can adapt the stride.
+        feedCostEmaRef.current = feedCostEmaRef.current * 0.8 + (performance.now() - heavyStart) * 0.2
       } catch (e) {
         log.error('Error updating camera feeds', { error: e })
       } finally {
