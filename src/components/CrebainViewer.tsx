@@ -222,6 +222,9 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
   const feedBuffersRef = useRef<Map<string, Uint8Array>>(new Map())
   // Reusable ImageData per camera (avoids ~1MB createImageData alloc each feed tick)
   const feedImageDataRef = useRef<Map<string, ImageData>>(new Map())
+  // Round-robin cursor: feed render + pixel readback process ONE camera per tick
+  // so per-frame GPU cost stays bounded regardless of how many cameras are placed.
+  const feedRoundRobinRef = useRef(0)
 
   const moveState = useRef({
     forward: false,
@@ -1216,6 +1219,32 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
             clearInterval(progressInterval)
             setLoadingProgress(100)
 
+            // Splats are captured in arbitrary world coords, so at the origin they
+            // often land off-center or underground and out of frame. Recenter on
+            // the origin, sit the scene on the ground plane, and frame the camera
+            // so it starts well-posed (no manual reset/focus needed).
+            try {
+              newSplat.updateMatrixWorld(true)
+              const lb = newSplat.getBoundingBox(true)
+              if (lb && Number.isFinite(lb.min.x) && !lb.isEmpty()) {
+                const wb = lb.clone().applyMatrix4(newSplat.matrixWorld)
+                const center = wb.getCenter(new THREE.Vector3())
+                const size = wb.getSize(new THREE.Vector3())
+                newSplat.position.x -= center.x
+                newSplat.position.z -= center.z
+                newSplat.position.y -= wb.min.y // rest on the grid
+                const dist = Math.max(size.x, size.y, size.z, 1) * 1.4
+                if (cameraRef.current && controlsRef.current) {
+                  cameraRef.current.position.set(dist, size.y * 0.5 + dist * 0.5, dist)
+                  controlsRef.current.target.set(0, size.y * 0.5, 0)
+                  velocity.current.set(0, 0, 0)
+                  controlsRef.current.update()
+                }
+              }
+            } catch {
+              /* framing is best-effort; never block the load */
+            }
+
             setTimeout(() => {
               setIsLoading(false)
               setLoadingName(null)
@@ -1966,15 +1995,23 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
             }
           }
 
-          renderer.setRenderTarget(cam.renderTarget)
-          renderer.render(scene, cam.camera)
         }
 
+        // Round-robin: render + read back ONE camera per tick. A feed update is a
+        // full scene render to the camera's target plus a synchronous pixel
+        // readback; doing every camera each tick multiplies that by the camera
+        // count and stalls the main loop (worst with heavy splats). One per tick
+        // bounds it; each camera refreshes every activeCameras.length ticks.
+        const rrIdx = feedRoundRobinRef.current % activeCameras.length
+        feedRoundRobinRef.current = rrIdx + 1
+        const rrCam = activeCameras[rrIdx]
+        renderer.setRenderTarget(rrCam.renderTarget)
+        renderer.render(scene, rrCam.camera)
         renderer.setRenderTarget(currentRT)
 
         if (!showCameraFeeds) return
 
-        for (const cam of activeCameras) {
+        for (const cam of [rrCam]) {
           const canvas = feedCanvasRefs.current.get(cam.id)
           if (!canvas) continue
 
