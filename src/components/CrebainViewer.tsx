@@ -242,6 +242,12 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
   })
   const velocity = useRef(new THREE.Vector3())
   const lastFrameTime = useRef(performance.now())
+  // Splat performance mode (key 'p'): cap splats loaded to bound GPU render cost on
+  // multi-million-splat scenes (render scales with count). 0 = unlimited (full quality).
+  const perfMaxSplatsRef = useRef(0)
+  // Last splat source/name so toggling performance mode can reload it in place.
+  const lastSplatSourceRef = useRef<File | string | ArrayBuffer | null>(null)
+  const lastSplatNameRef = useRef<string | undefined>(undefined)
   const scratchVectors = useRef({
     forward: new THREE.Vector3(),
     right: new THREE.Vector3(),
@@ -1102,6 +1108,8 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
   const loadSplat = useCallback(
     async (source: File | string | ArrayBuffer, name?: string) => {
       if (!sceneRef.current) return
+      lastSplatSourceRef.current = source
+      lastSplatNameRef.current = name
       const displayName = name || (source instanceof File ? source.name : 'OBJEKT')
       setIsLoading(true)
       setLoadingName(displayName)
@@ -1213,6 +1221,7 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
         const newSplat = new SplatMesh({
           fileBytes,
           fileName: splatFileName,
+          ...(perfMaxSplatsRef.current > 0 ? { maxSplats: perfMaxSplatsRef.current } : {}),
           onLoad: () => {
             loadCompleted = true
             clearTimeout(loadTimeout)
@@ -1928,6 +1937,21 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
           e.preventDefault()
           cycleCamera()
           break
+        case 'p': {
+          // Toggle splat performance mode: cap/uncap splats, then reload in place.
+          const enabling = perfMaxSplatsRef.current === 0
+          perfMaxSplatsRef.current = enabling ? 1_500_000 : 0
+          addMessage(
+            'tactical',
+            enabling
+              ? 'LEISTUNGSMODUS: AN (max 1.5M Splats)'
+              : 'LEISTUNGSMODUS: AUS (volle Qualität)'
+          )
+          if (lastSplatSourceRef.current) {
+            void loadSplat(lastSplatSourceRef.current, lastSplatNameRef.current)
+          }
+          break
+        }
         case 'o':
           if (e.ctrlKey || e.metaKey) {
             e.preventDefault()
@@ -1938,7 +1962,7 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [resetCamera, focusOnContent, cycleCamera, addMessage, clearSelection])
+  }, [resetCamera, focusOnContent, cycleCamera, addMessage, clearSelection, loadSplat])
 
   useEffect(() => {
     if (!cameraPlacementMode && !dronePlacementMode) return
