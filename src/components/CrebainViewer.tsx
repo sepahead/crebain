@@ -1179,8 +1179,20 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
 
         setLoadingStage('rendering')
 
+        // Spark needs a filename (or explicit fileType) to identify the splat
+        // format when loading from raw bytes — headerless formats like the
+        // antimatter15 `.splat` have no magic bytes to sniff, so without this
+        // it throws "Unknown splat file type: undefined".
+        const splatFileName =
+          source instanceof File
+            ? source.name
+            : typeof source === 'string'
+              ? source.split('?')[0].split('/').pop() || displayName
+              : displayName
+
         const newSplat = new SplatMesh({
           fileBytes,
+          fileName: splatFileName,
           onLoad: () => {
             loadCompleted = true
             clearTimeout(loadTimeout)
@@ -1385,20 +1397,30 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
     const box = new THREE.Box3()
     let hasContent = false
     if (splatMeshRef.current) {
-      box.expandByObject(splatMeshRef.current)
-      hasContent = true
+      // Spark keeps splat positions in GPU textures, not a THREE positions
+      // attribute, so box.expandByObject() yields an empty (±Inf) box and the
+      // framing math becomes NaN. Use Spark's own bounds API and transform the
+      // local-space box into world space.
+      const splat = splatMeshRef.current
+      const splatBox = splat.getBoundingBox(true)
+      if (splatBox && Number.isFinite(splatBox.min.x) && !splatBox.isEmpty()) {
+        splat.updateWorldMatrix(true, false)
+        splatBox.applyMatrix4(splat.matrixWorld)
+        box.union(splatBox)
+        hasContent = true
+      }
     }
     loadedAssets.forEach((asset) => {
       box.expandByObject(asset.object)
       hasContent = true
     })
-    if (!hasContent) {
+    if (!hasContent || box.isEmpty()) {
       addMessage('warning', 'KEIN ZIEL')
       return
     }
     const center = box.getCenter(new THREE.Vector3())
     const size = box.getSize(new THREE.Vector3())
-    const distance = Math.max(size.x, size.y, size.z) * 1.5
+    const distance = Math.max(size.x, size.y, size.z, 1) * 1.5
     cameraRef.current.position.set(
       center.x + distance,
       center.y + distance * 0.5,

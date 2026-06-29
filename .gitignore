@@ -65,6 +65,14 @@ src-tauri/target/
 target/
 src-tauri/gen/
 
+# Gaussian splat test assets (large; download locally, see public/splats/README.md)
+public/splats/*
+!public/splats/README.md
+*.splat
+*.ksplat
+*.spz
+public/**/*.ply
+
 # Native binaries & ML models (build/download locally)
 src-tauri/binaries/
 src-tauri/resources/*.mlmodel
