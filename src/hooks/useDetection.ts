@@ -33,6 +33,22 @@ interface UseDetectionReturn extends DetectionState {
   dispose: () => void
 }
 
+/** Field-wise compare of the few DetectorConfig fields (all flat scalars). */
+function detectorConfigChanged(
+  a: Partial<DetectorConfig> | undefined,
+  b: Partial<DetectorConfig> | undefined
+): boolean {
+  if (a === b) return false
+  if (!a || !b) return true
+  return (
+    a.modelPath !== b.modelPath ||
+    a.confidenceThreshold !== b.confidenceThreshold ||
+    a.iouThreshold !== b.iouThreshold ||
+    a.maxDetections !== b.maxDetections ||
+    a.useWebGPU !== b.useWebGPU
+  )
+}
+
 /**
  * Hook for using detection worker
  */
@@ -40,6 +56,14 @@ export function useDetection(options: UseDetectionOptions = {}): UseDetectionRet
   const { autoInit = false, config } = options
 
   const workerRef = useRef<Worker | null>(null)
+  // Hold config in a ref, updated only when its content changes: callers often
+  // pass inline object literals, and depending on object identity would make
+  // `initialize` unstable — the auto-init effect would then terminate and
+  // respawn the worker on every render.
+  const configRef = useRef(config)
+  if (detectorConfigChanged(configRef.current, config)) {
+    configRef.current = config
+  }
   // Correlate concurrent detect() calls by request id rather than FIFO order:
   // worker responses can arrive out of order, so FIFO matching would resolve a
   // call with another request's detections.
@@ -198,7 +222,7 @@ export function useDetection(options: UseDetectionOptions = {}): UseDetectionRet
       // Send init message
       const message: DetectionWorkerMessage = {
         type: 'init',
-        payload: { config },
+        payload: { config: configRef.current },
       }
       worker.postMessage(message)
     } catch (error) {
@@ -210,7 +234,7 @@ export function useDetection(options: UseDetectionOptions = {}): UseDetectionRet
       }))
     }
     return Promise.resolve()
-  }, [config, handleWorkerMessage, rejectPendingCalls])
+  }, [handleWorkerMessage, rejectPendingCalls])
 
   /**
    * Run detection on image data

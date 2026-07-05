@@ -22,6 +22,11 @@ const MAX_FUSION_STRING_LEN: usize = 256;
 const MAX_FUSION_METADATA_ENTRIES: usize = 64;
 const MAX_FUSION_NOISE: f64 = 10_000.0;
 const MAX_ASSOCIATION_THRESHOLD: f64 = 100_000.0;
+/// Radar azimuth validation bound (rad): accepts both atan2-style [-π, π] and
+/// unwrapped [0, 2π) producers, i.e. anything within ±2π.
+const MAX_RADAR_AZIMUTH_RAD: f64 = 2.0 * PI;
+/// Radar elevation validation bound (rad): asin-style [-π/2, π/2].
+const MAX_RADAR_ELEVATION_RAD: f64 = PI / 2.0;
 const MAX_MISSED_DETECTIONS: u32 = 1_000;
 const MAX_CONFIRMATION_HITS: u32 = 1_000;
 /// Sliding-window M-of-N confirmation: the window width N is stored as a u32
@@ -47,13 +52,18 @@ const MEAS_CLUSTER_GATE: f64 = 11.345;
 /// Cluster↔track assignment costs are integer-quantized (d² × this, rounded) so
 /// the Kuhn–Munkres solver is exact and free of float-equality hazards.
 const ASSIGNMENT_QUANTIZE_SCALE: f64 = 1000.0;
-/// Out-of-gate sentinel for the assignment cost matrix. A *finite* value far above
-/// the maximum real quantized cost (association_threshold × scale ≈ 11 345): large
-/// enough that the solver never trades a real assignment for an out-of-gate one, yet
-/// small enough that the Kuhn–Munkres dual potentials `u[i] + v[j]` cannot overflow
-/// `i64` when many tracks are simultaneously out-of-gate (all-INF rows accumulate
-/// ~INF per row; bounded above by max-tracks × INF ≈ 1e12 ≪ i64::MAX).
-const ASSIGNMENT_INF: i64 = 1_000_000_000;
+/// Out-of-gate sentinel for the assignment cost matrix. A *finite* value with
+/// guaranteed headroom over any achievable total assignment cost: the largest
+/// quantized in-gate cell is MAX_ASSOCIATION_THRESHOLD × ASSIGNMENT_QUANTIZE_SCALE
+/// (1e8, NOT the default χ²(3) threshold), so the sentinel is that ceiling × the
+/// maximum matrix dimension (MAX_FUSION_TRACKS) × a 4× safety margin ≈ 4.1e11 —
+/// the solver can never trade a full set of real assignments for one out-of-gate
+/// cell. It stays small enough that the Kuhn–Munkres dual potentials `u[i] + v[j]`
+/// cannot overflow `i64` when many tracks are simultaneously out-of-gate (all-INF
+/// rows accumulate ~INF per row; bounded above by max-tracks × INF ≈ 4e14 ≪
+/// i64::MAX).
+const ASSIGNMENT_INF: i64 =
+    (MAX_ASSOCIATION_THRESHOLD * ASSIGNMENT_QUANTIZE_SCALE) as i64 * (MAX_FUSION_TRACKS as i64) * 4;
 /// Fixed turn-rate magnitude (rad/s) for the IMM's single Coordinated-Turn mode.
 /// 0.3 rad/s (~17 deg/s) is a moderate maneuver: a standard-rate turn for aircraft
 /// is ~3 deg/s, while agile drones/aircraft maneuver well above that. At a typical
@@ -254,6 +264,12 @@ pub struct TrackState {
     pub missed_detections: u32,
     /// Bitmask of the last N association opportunities (bit0 = most recent frame; 1=hit, 0=miss). Drives sliding-window M-of-N confirmation/deletion.
     pub hit_history: u32,
+    /// Total association opportunities since birth: incremented once per frame
+    /// alongside the `hit_history` shift (Step 4.5), saturating. Sets the
+    /// sliding window's fill so misses are only counted over observed slots.
+    /// (`age` counts hits only and `missed_detections` resets on every hit, so
+    /// neither can reconstruct this for intermittent hit patterns.)
+    pub opportunities: u32,
     /// Track state
     pub state_label: TrackStateLabel,
 }
@@ -666,8 +682,10 @@ impl ExtendedKalmanFilter {
         let y = state[1];
         let z = state[2];
 
-        let r2 = x * x + y * y + z * z;
-        let r = r2.sqrt().max(1e-6);
+        // Clamp r2 as well as r_xy2: the elevation row divides by r2, so an
+        // unclamped r2 at the origin would yield NaN/inf entries.
+        let r2 = (x * x + y * y + z * z).max(1e-12);
+        let r = r2.sqrt();
         let r_xy2 = (x * x + y * y).max(1e-12);
         let r_xy = r_xy2.sqrt();
 
@@ -1250,6 +1268,11 @@ impl IMMFilter {
 
         for j in 0..2 {
             if c[j] < 1e-10 {
+                // Degenerate mixing weight: no probability flows into mode j
+                // this step, so keep its prior state/covariance instead of
+                // overwriting the mode with the zeroed accumulator.
+                mixed_states[j] = self.states[j];
+                mixed_covs[j] = self.covariances[j];
                 continue;
             }
 
@@ -1567,6 +1590,38 @@ pub fn validate_sensor_measurements(measurements: &[SensorMeasurement]) -> Resul
             &format!("measurements[{}].covariance", index),
             &measurement.covariance,
         )?;
+        // Zero/negative variances are not physical and break the PSD guarantee
+        // of the Joseph-form update (R must be positive-definite).
+        for (axis, &variance) in measurement.covariance.iter().enumerate() {
+            if variance <= 0.0 {
+                return Err(format!(
+                    "measurements[{}].covariance[{}] must be > 0, got {}",
+                    index, axis, variance
+                ));
+            }
+        }
+        if measurement.modality == SensorModality::Radar {
+            // Radar position is polar [range m, azimuth rad, elevation rad];
+            // enforce the polar domain the EKF update linearizes around.
+            validate_finite_range(
+                &format!("measurements[{}].position[0] (radar range)", index),
+                measurement.position[0],
+                0.0,
+                f64::MAX,
+            )?;
+            validate_finite_range(
+                &format!("measurements[{}].position[1] (radar azimuth)", index),
+                measurement.position[1],
+                -MAX_RADAR_AZIMUTH_RAD,
+                MAX_RADAR_AZIMUTH_RAD,
+            )?;
+            validate_finite_range(
+                &format!("measurements[{}].position[2] (radar elevation)", index),
+                measurement.position[2],
+                -MAX_RADAR_ELEVATION_RAD,
+                MAX_RADAR_ELEVATION_RAD,
+            )?;
+        }
         if let Some(velocity) = &measurement.velocity {
             validate_finite_array(&format!("measurements[{}].velocity", index), velocity)?;
         }
@@ -1636,15 +1691,19 @@ impl MultiSensorFusion {
     ) -> Vec<TrackOutput> {
         self.frame_count = self.frame_count.saturating_add(1);
 
-        // Step 1: Predict all tracks forward
-        // Compute dt from actual timestamps; fall back to 0.1s (10 Hz) on first frame
+        // Step 1: Predict all tracks forward.
+        // dt comes from real timestamps. Non-increasing timestamps (first frame,
+        // duplicates, out-of-order replays) yield dt = 0: no phantom predict / Q
+        // inflation, and the predict clock only ever advances monotonically.
         let dt = if self.last_predict_ms > 0 && timestamp_ms > self.last_predict_ms {
             ((timestamp_ms - self.last_predict_ms) as f64 / 1000.0).min(1.0)
         } else {
-            0.1
+            0.0
         };
-        self.last_predict_ms = timestamp_ms;
-        self.predict_all(dt);
+        self.last_predict_ms = self.last_predict_ms.max(timestamp_ms);
+        if dt > 0.0 {
+            self.predict_all(dt);
+        }
 
         // Step 2: Associate measurements to tracks
         let (associations, unassociated) = self.associate_measurements(&measurements);
@@ -1763,14 +1822,17 @@ impl MultiSensorFusion {
     /// Cluster co-located, same-class measurements into "super-measurements" via
     /// union-find, so that N sensors observing one target in a frame produce ONE
     /// cluster (and thus all update one track). The pairwise gate is the squared
-    /// Mahalanobis distance vs `MEAS_CLUSTER_GATE`. Pairwise clustering uses the raw
-    /// diagonal covariance (an acceptable approximation that avoids a second Jacobian;
-    /// the assignment cost matrix still uses the full Cartesian R). Output is
-    /// deterministic: member indices ascending, clusters ordered by smallest member.
+    /// Mahalanobis distance vs `MEAS_CLUSTER_GATE`, built from the caller-supplied
+    /// Jacobian-converted **Cartesian** covariances (`r_carts`, see
+    /// [`measurement_r_cartesian`]) — the distances are Cartesian metres, so radar's
+    /// raw polar `[m², rad², rad²]` noise would mix units and make radar returns
+    /// effectively never merge. Output is deterministic: member indices ascending,
+    /// clusters ordered by smallest member.
     fn cluster_measurements(
         &self,
         measurements: &[SensorMeasurement],
         meas_pos: &[Vector3<f64>],
+        r_carts: &[Matrix3<f64>],
     ) -> Vec<Vec<usize>> {
         let n = measurements.len();
         let mut parent: Vec<usize> = (0..n).collect();
@@ -1787,17 +1849,7 @@ impl MultiSensorFusion {
                     continue;
                 }
                 let diff = meas_pos[i] - meas_pos[j];
-                let si = Matrix3::from_diagonal(&Vector3::new(
-                    measurements[i].covariance[0],
-                    measurements[i].covariance[1],
-                    measurements[i].covariance[2],
-                ));
-                let sj = Matrix3::from_diagonal(&Vector3::new(
-                    measurements[j].covariance[0],
-                    measurements[j].covariance[1],
-                    measurements[j].covariance[2],
-                ));
-                let s = si + sj;
+                let s = r_carts[i] + r_carts[j];
                 let d2 = match s.try_inverse() {
                     Some(inv) => (diff.transpose() * inv * diff)[0],
                     None => {
@@ -1827,7 +1879,9 @@ impl MultiSensorFusion {
     /// Global nearest-neighbour association. Replaces the old order-dependent greedy
     /// per-measurement loop with: (1) cluster co-located same-class returns, (2) solve
     /// a one-to-one cluster↔track assignment minimizing total gated d² (Kuhn–Munkres),
-    /// (3) emit each assigned cluster's member indices to its track. Unassigned
+    /// class-gated so a cluster only competes for tracks of a compatible tactical
+    /// class, (3) emit each assigned cluster's in-gate member indices to its track.
+    /// Unassigned
     /// clusters become new tracks; unassigned tracks coast. The
     /// `(HashMap<track, Vec<idx>>, Vec<idx>)` contract is unchanged.
     fn associate_measurements(
@@ -1847,10 +1901,18 @@ impl MultiSensorFusion {
             .map(|(m, p)| measurement_r_cartesian(m, p))
             .collect();
 
-        let clusters = self.cluster_measurements(measurements, &meas_pos);
+        let clusters = self.cluster_measurements(measurements, &meas_pos, &r_carts);
         if clusters.is_empty() {
             return (associations, unassociated);
         }
+
+        // Canonical tactical class per cluster (every member shares one raw label
+        // by construction of the clustering class gate), used to class-gate the
+        // cluster↔track assignment below.
+        let cluster_kinds: Vec<DetectionClassKind> = clusters
+            .iter()
+            .map(|cl| map_to_detection_class(&measurements[cl[0]].class_label))
+            .collect();
 
         // An unassigned cluster seeds ONE new track from its lowest-noise member (the
         // rest re-associate next frame), so a brand-new target seen by several sensors
@@ -1887,14 +1949,21 @@ impl MultiSensorFusion {
         }
 
         // Cost[r][c] = min gated d² over cluster c's in-gate members for track r,
-        // quantized; ASSIGNMENT_INF if no member is in-gate.
+        // quantized; ASSIGNMENT_INF if the cluster's tactical class is incompatible
+        // with the track's (mirroring the clustering class gate, so e.g. a 'bird'
+        // cluster can never be assigned to a 'drone' track) or no member is in-gate.
         let cost: Vec<Vec<i64>> = track_ids
             .iter()
             .map(|tid| {
                 let track = &self.tracks[tid];
+                let track_kind = map_to_detection_class(&track.class_label);
                 clusters
                     .iter()
-                    .map(|cl| {
+                    .zip(&cluster_kinds)
+                    .map(|(cl, &cluster_kind)| {
+                        if cluster_kind != track_kind {
+                            return ASSIGNMENT_INF;
+                        }
                         cl.iter()
                             .filter_map(|&m| {
                                 self.gated_sq_mahalanobis(track, &meas_pos[m], &r_carts[m])
@@ -1912,10 +1981,28 @@ impl MultiSensorFusion {
         for (r, opt_c) in assignment.iter().enumerate() {
             if let Some(c) = *opt_c {
                 if cost[r][c] < ASSIGNMENT_INF {
+                    // Hand the track only the cluster members that individually
+                    // pass ITS gate — a member can sit inside the pairwise cluster
+                    // gate yet be far outside this track's gate, and fusing it
+                    // would drag the estimate. A finite cost guarantees at least
+                    // one in-gate member; the representative fallback is belt and
+                    // braces.
+                    let track = &self.tracks[&track_ids[r]];
+                    let mut members: Vec<usize> = clusters[c]
+                        .iter()
+                        .copied()
+                        .filter(|&m| {
+                            self.gated_sq_mahalanobis(track, &meas_pos[m], &r_carts[m])
+                                .is_some()
+                        })
+                        .collect();
+                    if members.is_empty() {
+                        members.push(cluster_representative(&clusters[c]));
+                    }
                     associations
                         .entry(track_ids[r].clone())
                         .or_default()
-                        .extend(clusters[c].iter().copied());
+                        .extend(members);
                     cluster_used[c] = true;
                 }
             }
@@ -1952,10 +2039,14 @@ impl MultiSensorFusion {
         // we still order lowest-noise-first for deterministic, well-linearized results.
         let mut sensor_sources: Vec<SensorModality> = Vec::new();
         let mut max_confidence: f64 = 0.0;
+        let mut best_label: Option<&str> = None;
         for &idx in meas_indices {
             let meas = &measurements[idx];
             if !sensor_sources.contains(&meas.modality) {
                 sensor_sources.push(meas.modality);
+            }
+            if best_label.is_none() || meas.confidence > max_confidence {
+                best_label = Some(&meas.class_label);
             }
             max_confidence = max_confidence.max(meas.confidence);
         }
@@ -2044,6 +2135,16 @@ impl MultiSensorFusion {
         track.age += 1;
         track.missed_detections = 0;
 
+        // Refresh the class label from the highest-confidence associated
+        // measurement. The assignment class gate guarantees canonical-class
+        // compatibility, so this only refines the raw label within the same
+        // tactical class (e.g. "quadcopter" → "drone"), never flips it.
+        if let Some(label) = best_label {
+            if track.class_label != label {
+                track.class_label = label.to_string();
+            }
+        }
+
         // Multi-sensor confidence boost. Confidence is derived AFTER fusion (not used
         // as a fusion weight): the strongest detector confidence plus a per-extra-
         // modality corroboration bump.
@@ -2101,10 +2202,12 @@ impl MultiSensorFusion {
             last_update_ms: timestamp_ms,
             age: 1,
             missed_detections: 0,
-            // Step 4.5 (update_hit_history) is the SOLE writer of the window; it
-            // runs this same frame and sets bit0 for the birth hit, so we start at
-            // 0 to avoid double-counting the birth frame.
+            // Step 4.5 (update_hit_history) is the SOLE writer of the window and
+            // the opportunity counter; it runs this same frame and sets bit0 for
+            // the birth hit, so both start at 0 to avoid double-counting the
+            // birth frame.
             hit_history: 0,
+            opportunities: 0,
             state_label: TrackStateLabel::Tentative,
         };
 
@@ -2141,9 +2244,10 @@ impl MultiSensorFusion {
 
     /// Step 4.5: advance every live track's sliding M-of-N hit window by one
     /// frame. Shift each bitmask left, mask to the N low bits, and OR in the
-    /// per-frame hit. A track counts as hit iff it was associated or born this
-    /// frame (`hit_this_frame`), which is robust even when consecutive frames
-    /// reuse a timestamp.
+    /// per-frame hit; the per-track opportunity counter advances in lockstep so
+    /// the window fill is exact. A track counts as hit iff it was associated or
+    /// born this frame (`hit_this_frame`), which is robust even when
+    /// consecutive frames reuse a timestamp.
     fn update_hit_history(&mut self, hit_this_frame: &std::collections::HashSet<String>) {
         let n_mask: u32 = self.window_mask(); // N low bits
         for track in self.tracks.values_mut() {
@@ -2152,6 +2256,7 @@ impl MultiSensorFusion {
             }
             let hit = hit_this_frame.contains(&track.id);
             track.hit_history = ((track.hit_history << 1) | (hit as u32)) & n_mask;
+            track.opportunities = track.opportunities.saturating_add(1);
         }
     }
 
@@ -2206,12 +2311,13 @@ impl MultiSensorFusion {
 
             // Young-track edge case: count misses only over the FILLED slots, never
             // the not-yet-observed high bits — otherwise a brand-new track (whose
-            // high bits are still 0) would be deleted on frame 1. Total association
-            // opportunities so far = age + missed_detections; the window holds at
-            // most N of them. saturating_sub guards the degenerate case where two
-            // frames share one timestamp (hits can momentarily exceed window_fill).
-            let opportunities = track.age + track.missed_detections;
-            let window_fill = opportunities.min(n);
+            // high bits are still 0) would be deleted on frame 1. The fill is the
+            // track's true per-frame opportunity counter (advanced in lockstep with
+            // the window shift in update_hit_history), capped at N. Deriving it
+            // from `age + missed_detections` would undercount for intermittent hit
+            // patterns (age counts hits only; missed_detections resets on every
+            // hit), letting clutter that blips every few frames coast forever.
+            let window_fill = track.opportunities.min(n);
             let misses_in_window = window_fill.saturating_sub(hits);
 
             let cov_volume = Self::position_cov_volume(track);
@@ -2472,6 +2578,7 @@ mod tests {
             age: 1,
             missed_detections: 0,
             hit_history: 0b111,
+            opportunities: 3,
             state_label: TrackStateLabel::Confirmed,
         };
 
@@ -3029,6 +3136,7 @@ mod tests {
             age: 1,
             missed_detections: 0,
             hit_history: 0b111,
+            opportunities: 3,
             state_label: TrackStateLabel::Confirmed,
         };
 
@@ -3784,6 +3892,270 @@ mod tests {
 
         let tracks = fusion.process_measurements(empty, 1400); // miss 4
         assert!(tracks.is_empty(), "4 window-misses (>=4) must be deleted");
+    }
+
+    #[test]
+    fn clutter_blipping_every_third_frame_is_deleted() {
+        // Regression (window-fill undercount): with max_missed=4, N=5, a track on
+        // an H,M,M,H,M,M,... pattern accumulates 4 misses in the 5-slot window by
+        // frame 6 and MUST be deleted. The old `age + missed_detections` fill
+        // (age counts hits only; missed resets on every hit) never reached the
+        // true fill, so clutter blipping every 3rd frame survived forever.
+        let config = FusionConfig {
+            max_missed_detections: 4,
+            ..Default::default()
+        };
+        let mut fusion = MultiSensorFusion::new(config);
+        let pos = [10.0, 0.0, 5.0];
+        let empty: Vec<SensorMeasurement> = Vec::new();
+
+        fusion.process_measurements(m_of_n_meas(1000, pos), 1000); // hit
+        fusion.process_measurements(empty.clone(), 1100); // miss
+        fusion.process_measurements(empty.clone(), 1200); // miss
+        fusion.process_measurements(m_of_n_meas(1300, pos), 1300); // hit
+        let survivors = fusion.process_measurements(empty.clone(), 1400); // miss
+        assert_eq!(survivors.len(), 1, "only 3 misses in the window so far");
+        let tracks = fusion.process_measurements(empty, 1500); // miss -> 4 in window
+        assert!(
+            tracks.is_empty(),
+            "H,M,M,H,M,M reaches 4 misses in the 5-slot window and must delete"
+        );
+    }
+
+    #[test]
+    fn out_of_order_timestamp_does_not_phantom_predict_or_rewind_clock() {
+        let mut fusion = MultiSensorFusion::new(FusionConfig::default());
+        fusion.process_measurements(
+            vec![SensorMeasurement {
+                sensor_id: "cam1".to_string(),
+                modality: SensorModality::Visual,
+                timestamp_ms: 2000,
+                position: [10.0, 0.0, 5.0],
+                velocity: Some([10.0, 0.0, 0.0]),
+                covariance: [1.0, 1.0, 1.0],
+                confidence: 0.9,
+                class_label: "drone".to_string(),
+                metadata: HashMap::new(),
+            }],
+            2000,
+        );
+        let before = fusion.tracks.values().next().expect("track born").state;
+
+        // Older and duplicate timestamps must not predict (the old dt = 0.1
+        // fallback moved x by 1 m per frame at vx = 10) nor rewind the clock.
+        fusion.process_measurements(Vec::new(), 1500);
+        assert_eq!(fusion.last_predict_ms, 2000, "clock must not rewind");
+        let after = fusion.tracks.values().next().expect("track alive").state;
+        assert_eq!(before, after, "no phantom predict on out-of-order frame");
+
+        fusion.process_measurements(Vec::new(), 2000);
+        let after = fusion.tracks.values().next().expect("track alive").state;
+        assert_eq!(before, after, "no phantom predict on duplicate timestamp");
+    }
+
+    /// Base valid visual measurement for validation tests.
+    fn valid_meas() -> SensorMeasurement {
+        SensorMeasurement {
+            sensor_id: "cam1".to_string(),
+            modality: SensorModality::Visual,
+            timestamp_ms: 1000,
+            position: [10.0, 0.0, 5.0],
+            velocity: None,
+            covariance: [1.0, 1.0, 1.0],
+            confidence: 0.9,
+            class_label: "drone".to_string(),
+            metadata: HashMap::new(),
+        }
+    }
+
+    #[test]
+    fn validation_rejects_non_positive_covariance() {
+        let mut zero = valid_meas();
+        zero.covariance = [0.0, 1.0, 1.0];
+        let err = validate_sensor_measurements(&[zero]).expect_err("zero variance must fail");
+        assert!(err.contains("covariance"), "got: {err}");
+
+        let mut negative = valid_meas();
+        negative.covariance = [1.0, -0.5, 1.0];
+        let err =
+            validate_sensor_measurements(&[negative]).expect_err("negative variance must fail");
+        assert!(err.contains("covariance"), "got: {err}");
+    }
+
+    #[test]
+    fn validation_rejects_radar_polar_domain_violations() {
+        let radar = |position: [f64; 3]| SensorMeasurement {
+            sensor_id: "radar1".to_string(),
+            modality: SensorModality::Radar,
+            position,
+            covariance: [0.5, 0.01, 0.01],
+            ..valid_meas()
+        };
+        assert!(validate_sensor_measurements(&[radar([100.0, 0.5, 0.2])]).is_ok());
+        // Negative range.
+        assert!(validate_sensor_measurements(&[radar([-1.0, 0.0, 0.0])]).is_err());
+        // Azimuth beyond ±2π.
+        assert!(validate_sensor_measurements(&[radar([100.0, 7.0, 0.0])]).is_err());
+        // Elevation beyond ±π/2.
+        assert!(validate_sensor_measurements(&[radar([100.0, 0.0, 2.0])]).is_err());
+        // The polar domain checks must not apply to Cartesian modalities.
+        let mut cartesian = valid_meas();
+        cartesian.position = [-50.0, 7.0, 2.0];
+        assert!(validate_sensor_measurements(&[cartesian]).is_ok());
+    }
+
+    #[test]
+    fn radar_returns_cluster_with_cartesian_converted_covariance() {
+        // Two same-class radar returns ~2 m apart in cross-range at 100 m with
+        // σ_az = 0.01 rad: with the Jacobian-converted Cartesian covariance the
+        // pairwise gate sees d² ≈ 2 (merge → one birth); the raw polar
+        // [m², rad², rad²] covariance against Cartesian metres saw d² ≈ 2e4, so
+        // radar returns never merged.
+        let mut fusion = MultiSensorFusion::new(FusionConfig::default());
+        let radar = |azimuth: f64| SensorMeasurement {
+            sensor_id: format!("radar-{azimuth}"),
+            modality: SensorModality::Radar,
+            timestamp_ms: 1000,
+            position: [100.0, azimuth, 0.0],
+            velocity: None,
+            covariance: [0.5, 1e-4, 1e-4],
+            confidence: 0.9,
+            class_label: "drone".to_string(),
+            metadata: HashMap::new(),
+        };
+        let tracks = fusion.process_measurements(vec![radar(0.0), radar(0.02)], 1000);
+        assert_eq!(
+            tracks.len(),
+            1,
+            "co-located radar returns must cluster into one birth"
+        );
+    }
+
+    #[test]
+    fn class_gate_blocks_cross_class_assignment() {
+        // A co-located 'bird' return must not update a 'drone' track: the spatial
+        // cost is near zero, so only the class gate keeps them apart.
+        let mut fusion = MultiSensorFusion::new(FusionConfig::default());
+        let drone = SensorMeasurement {
+            sensor_id: "cam1".to_string(),
+            modality: SensorModality::Visual,
+            timestamp_ms: 1000,
+            position: [5.0, 0.0, 3.0],
+            velocity: None,
+            covariance: [1.0, 1.0, 1.0],
+            confidence: 0.9,
+            class_label: "drone".to_string(),
+            metadata: HashMap::new(),
+        };
+        fusion.process_measurements(vec![drone.clone()], 1000);
+
+        let bird = SensorMeasurement {
+            class_label: "bird".to_string(),
+            timestamp_ms: 1100,
+            ..drone
+        };
+        let tracks = fusion.process_measurements(vec![bird], 1100);
+        assert_eq!(tracks.len(), 2, "the bird return must spawn its own track");
+        let mut labels: Vec<&str> = tracks.iter().map(|t| t.class_label.as_str()).collect();
+        labels.sort_unstable();
+        assert_eq!(labels, ["bird", "drone"], "drone track keeps its label");
+    }
+
+    #[test]
+    fn track_class_label_refreshes_from_associated_measurement() {
+        // Same canonical class ('quadcopter' and 'drone' both map to Drone): the
+        // return associates and the raw label refreshes to the newest evidence.
+        let mut fusion = MultiSensorFusion::new(FusionConfig::default());
+        let quad = SensorMeasurement {
+            sensor_id: "cam1".to_string(),
+            modality: SensorModality::Visual,
+            timestamp_ms: 1000,
+            position: [5.0, 0.0, 3.0],
+            velocity: None,
+            covariance: [1.0, 1.0, 1.0],
+            confidence: 0.9,
+            class_label: "quadcopter".to_string(),
+            metadata: HashMap::new(),
+        };
+        fusion.process_measurements(vec![quad.clone()], 1000);
+
+        let drone = SensorMeasurement {
+            class_label: "drone".to_string(),
+            timestamp_ms: 1100,
+            ..quad
+        };
+        let tracks = fusion.process_measurements(vec![drone], 1100);
+        assert_eq!(tracks.len(), 1, "same canonical class must associate");
+        assert_eq!(tracks[0].class_label, "drone");
+    }
+
+    #[test]
+    fn assigned_cluster_contributes_only_in_gate_members() {
+        // A cluster can contain a member that pairs with another member inside
+        // the pairwise cluster gate yet individually fails the assigned track's
+        // gate; that member must NOT be handed to the track's update.
+        let mut fusion = MultiSensorFusion::new(FusionConfig::default());
+        let track = TrackState {
+            id: "TRK-00001".to_string(),
+            state: Vector6::zeros(),
+            covariance: Matrix6::identity() * 0.01,
+            class_label: "drone".to_string(),
+            confidence: 0.9,
+            sensor_sources: vec![SensorModality::Lidar],
+            last_update_ms: 1000,
+            age: 3,
+            missed_detections: 0,
+            hit_history: 0b111,
+            opportunities: 3,
+            state_label: TrackStateLabel::Confirmed,
+        };
+        fusion.tracks.insert(track.id.clone(), track);
+
+        let near = SensorMeasurement {
+            sensor_id: "lidar1".to_string(),
+            modality: SensorModality::Lidar,
+            timestamp_ms: 1100,
+            position: [0.2, 0.0, 0.0],
+            velocity: None,
+            covariance: [1.0, 1.0, 1.0],
+            confidence: 0.9,
+            class_label: "drone".to_string(),
+            metadata: HashMap::new(),
+        };
+        let far = SensorMeasurement {
+            sensor_id: "lidar2".to_string(),
+            position: [3.0, 0.0, 0.0],
+            covariance: [0.5, 0.5, 0.5],
+            ..near.clone()
+        };
+        // near↔far cluster gate: d² = 2.8²/1.5 ≈ 5.2 < 11.345 → one cluster.
+        // far vs track: d² = 3²/0.51 ≈ 17.6 > 11.345 → individually out of gate.
+        let (associations, unassociated) = fusion.associate_measurements(&[near, far]);
+        assert_eq!(
+            associations["TRK-00001"],
+            vec![0],
+            "only the in-gate member is handed to the track"
+        );
+        assert!(unassociated.is_empty(), "the cluster itself was assigned");
+    }
+
+    #[test]
+    fn assignment_inf_headroom_covers_max_threshold_and_matrix_dim() {
+        // The sentinel must exceed the worst-case TOTAL real assignment cost:
+        // the largest quantized in-gate cell times the maximum matrix dimension.
+        let max_cell = (MAX_ASSOCIATION_THRESHOLD * ASSIGNMENT_QUANTIZE_SCALE) as i64;
+        assert!(ASSIGNMENT_INF / max_cell >= MAX_FUSION_TRACKS as i64);
+        // ...while staying far from i64 overflow when every row is out-of-gate.
+        assert!(ASSIGNMENT_INF
+            .checked_mul(MAX_FUSION_TRACKS as i64)
+            .is_some_and(|total| total < i64::MAX / 8));
+    }
+
+    #[test]
+    fn measurement_jacobian_is_finite_at_origin() {
+        // The elevation row divides by r2; unclamped it was NaN/inf at the origin.
+        let h = ExtendedKalmanFilter::measurement_jacobian(&Vector6::zeros());
+        assert!(h.iter().all(|v| v.is_finite()), "Jacobian at origin: {h}");
     }
 
     #[test]

@@ -31,7 +31,11 @@ export type { TFMessage }
 
 export interface CachedTransform {
   transform: TransformStamped
-  timestamp: number // ms since epoch
+  /** The transform's own header.stamp in ms — index for time-based lookups
+   *  (works for sim time, where wall clock and ROS time diverge) */
+  stampMs: number
+  /** Wall-clock arrival time in ms — used only for cache expiry */
+  receivedAtMs: number
   isStatic: boolean
 }
 
@@ -165,7 +169,7 @@ export class TransformManager {
   // ───────────────────────────────────────────────────────────────────────────
 
   private handleTFMessage(msg: TFMessage, isStatic: boolean): void {
-    const now = Date.now()
+    const receivedAtMs = Date.now()
 
     for (const tf of msg.transforms) {
       const key = this.makeKey(tf.header.frame_id, tf.child_frame_id)
@@ -175,7 +179,8 @@ export class TransformManager {
 
       const cached: CachedTransform = {
         transform: tf,
-        timestamp: now,
+        stampMs: timeToDate(tf.header.stamp).getTime(),
+        receivedAtMs,
         isStatic,
       }
 
@@ -296,13 +301,14 @@ export class TransformManager {
       return cache[cache.length - 1]
     }
 
-    // Find closest transform to requested time
+    // Find the transform whose own header stamp is closest to the requested
+    // time — comparing against ROS time keeps sim-time lookups meaningful.
     const targetMs = timeToDate(time).getTime()
     let closest = cache[0]
-    let minDiff = Math.abs(closest.timestamp - targetMs)
+    let minDiff = Math.abs(closest.stampMs - targetMs)
 
     for (let i = 1; i < cache.length; i++) {
-      const diff = Math.abs(cache[i].timestamp - targetMs)
+      const diff = Math.abs(cache[i].stampMs - targetMs)
       if (diff < minDiff) {
         minDiff = diff
         closest = cache[i]
@@ -481,8 +487,9 @@ export class TransformManager {
     const expiry = now - this.config.cacheDurationMs
 
     for (const [key, cache] of this.transformCache) {
-      // Remove expired transforms
-      const filtered = cache.filter(tf => tf.timestamp > expiry)
+      // Expire by wall-clock arrival time, never by header stamp, so sim-time
+      // transforms (whose stamps lag wall time) are not evicted prematurely.
+      const filtered = cache.filter(tf => tf.receivedAtMs > expiry)
 
       if (filtered.length === 0) {
         this.transformCache.delete(key)

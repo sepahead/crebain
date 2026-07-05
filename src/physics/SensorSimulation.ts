@@ -11,7 +11,9 @@ import * as THREE from 'three'
 
 /** Box-Muller transform for Gaussian random numbers */
 function gaussianRandom(mean: number = 0, stdDev: number = 1): number {
-  const u1 = Math.random()
+  // Math.random() is in [0, 1); map to (0, 1] so Math.log(u1) can never be
+  // -Infinity (which would inject Infinity into readings and bias walks).
+  const u1 = 1 - Math.random()
   const u2 = Math.random()
   const z0 = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2)
   return z0 * stdDev + mean
@@ -24,6 +26,30 @@ function gaussianVector3(stdDev: THREE.Vector3): THREE.Vector3 {
     gaussianRandom(0, stdDev.y),
     gaussianRandom(0, stdDev.z)
   )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LATENCY UTILITIES
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Select the newest buffered reading that is at least latencyMs old.
+ *
+ * Selecting by timestamp (instead of by buffer index) keeps the simulated
+ * latency honest regardless of the rate at which the caller fills the buffer.
+ * Returns null when no reading is old enough yet.
+ */
+function selectDelayedReading<T extends { timestamp: number }>(
+  buffer: T[],
+  latencyMs: number
+): T | null {
+  const cutoff = performance.now() - latencyMs
+  for (let i = buffer.length - 1; i >= 0; i--) {
+    if (buffer[i].timestamp <= cutoff) {
+      return buffer[i]
+    }
+  }
+  return null
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -59,11 +85,16 @@ export interface IMUReading {
   temperature: number // Celsius (affects bias)
 }
 
+/** Max buffered IMU readings for the latency model (50ms at 200Hz). */
+const IMU_READING_BUFFER_SIZE = 10
+
 export class IMUSensor {
   private config: IMUConfig
   private currentGyroBias: THREE.Vector3
   private currentAccelBias: THREE.Vector3
   private readingBuffer: IMUReading[] = []
+  private lastReading: IMUReading | null = null
+  private timeSinceLastReading: number = 0
 
   constructor(config: IMUConfig = DEFAULT_IMU_CONFIG) {
     this.config = config
@@ -72,7 +103,12 @@ export class IMUSensor {
   }
 
   /**
-   * Generate IMU reading from true state
+   * Generate IMU reading from true state.
+   *
+   * New readings are produced at the configured updateRate regardless of how
+   * often the caller invokes this (dt accumulation); between sensor ticks the
+   * most recent reading is returned unchanged, matching a real sensor that
+   * holds its output until the next sample.
    */
   update(
     trueAngularVelocity: THREE.Vector3,
@@ -80,24 +116,32 @@ export class IMUSensor {
     orientation: THREE.Quaternion,
     dt: number
   ): IMUReading {
+    this.timeSinceLastReading += dt
+    if (this.lastReading && this.timeSinceLastReading < 1 / this.config.updateRate) {
+      return this.lastReading
+    }
+    const elapsed = this.timeSinceLastReading
+    this.timeSinceLastReading = 0
+
     const now = performance.now()
 
-    // Update bias random walk
+    // Update bias random walk over the time actually elapsed since the last
+    // generated reading
     this.currentGyroBias.add(
       gaussianVector3(
         new THREE.Vector3(
-          this.config.gyroBiasInstability * dt,
-          this.config.gyroBiasInstability * dt,
-          this.config.gyroBiasInstability * dt
+          this.config.gyroBiasInstability * elapsed,
+          this.config.gyroBiasInstability * elapsed,
+          this.config.gyroBiasInstability * elapsed
         )
       )
     )
     this.currentAccelBias.add(
       gaussianVector3(
         new THREE.Vector3(
-          this.config.accelBiasInstability * dt,
-          this.config.accelBiasInstability * dt,
-          this.config.accelBiasInstability * dt
+          this.config.accelBiasInstability * elapsed,
+          this.config.accelBiasInstability * elapsed,
+          this.config.accelBiasInstability * elapsed
         )
       )
     )
@@ -132,20 +176,22 @@ export class IMUSensor {
 
     // Simulate latency buffer
     this.readingBuffer.push(reading)
-    if (this.readingBuffer.length > 10) {
+    if (this.readingBuffer.length > IMU_READING_BUFFER_SIZE) {
       this.readingBuffer.shift()
     }
 
+    this.lastReading = reading
     return reading
   }
 
-  /** Get delayed reading (simulates processing latency) */
+  /**
+   * Get delayed reading (simulates processing latency).
+   *
+   * Selects by timestamp: the newest reading at least latencyMs old. Returns
+   * null until the sensor has been running long enough to have one.
+   */
   getDelayedReading(): IMUReading | null {
-    const delayedIndex = Math.max(
-      0,
-      this.readingBuffer.length - Math.ceil(this.config.latencyMs / 5)
-    )
-    return this.readingBuffer[delayedIndex] || null
+    return selectDelayedReading(this.readingBuffer, this.config.latencyMs)
   }
 }
 
@@ -183,30 +229,48 @@ export interface GPSReading {
   valid: boolean
 }
 
+/** Max buffered GPS readings for the latency model (4s at 5Hz). */
+const GPS_READING_BUFFER_SIZE = 20
+
 export class GPSSensor {
   private config: GPSConfig
   private readingBuffer: GPSReading[] = []
   private signalLost: boolean = false
   private signalLostUntil: number = 0
+  private lastReading: GPSReading | null = null
+  private timeSinceLastReading: number = 0
 
   constructor(config: GPSConfig = DEFAULT_GPS_CONFIG) {
     this.config = config
   }
 
   /**
-   * Generate GPS reading from true state
+   * Generate GPS reading from true state.
+   *
+   * New readings are produced at the configured updateRate regardless of how
+   * often the caller invokes this (dt accumulation); between sensor ticks the
+   * most recent reading is returned unchanged, matching a real receiver that
+   * holds its output until the next fix.
    */
   update(truePosition: THREE.Vector3, trueVelocity: THREE.Vector3, dt: number): GPSReading {
+    this.timeSinceLastReading += dt
+    if (this.lastReading && this.timeSinceLastReading < 1 / this.config.updateRate) {
+      return this.lastReading
+    }
+    const elapsed = this.timeSinceLastReading
+    this.timeSinceLastReading = 0
+
     const now = performance.now()
 
-    // Check for signal dropout
-    if (Math.random() < this.config.dropoutProbability * dt) {
+    // Check for signal dropout over the time actually elapsed since the last
+    // generated reading
+    if (Math.random() < this.config.dropoutProbability * elapsed) {
       this.signalLost = true
       this.signalLostUntil = now + 1000 + Math.random() * 4000 // 1-5 second dropout
     }
 
     if (this.signalLost && now < this.signalLostUntil) {
-      return {
+      const invalidReading: GPSReading = {
         timestamp: now,
         position: new THREE.Vector3(),
         velocity: new THREE.Vector3(),
@@ -217,6 +281,8 @@ export class GPSSensor {
         fixType: 'none',
         valid: false,
       }
+      this.lastReading = invalidReading
+      return invalidReading
     }
     this.signalLost = false
 
@@ -263,18 +329,22 @@ export class GPSSensor {
 
     // Simulate latency
     this.readingBuffer.push(reading)
-    if (this.readingBuffer.length > 20) {
+    if (this.readingBuffer.length > GPS_READING_BUFFER_SIZE) {
       this.readingBuffer.shift()
     }
 
+    this.lastReading = reading
     return reading
   }
 
-  /** Get delayed reading */
+  /**
+   * Get delayed reading (simulates receiver/processing latency).
+   *
+   * Selects by timestamp: the newest reading at least latencyMs old. Returns
+   * null until the sensor has been running long enough to have one.
+   */
   getDelayedReading(): GPSReading | null {
-    const delayFrames = Math.ceil(this.config.latencyMs / (1000 / this.config.updateRate))
-    const delayedIndex = Math.max(0, this.readingBuffer.length - delayFrames - 1)
-    return this.readingBuffer[delayedIndex] || null
+    return selectDelayedReading(this.readingBuffer, this.config.latencyMs)
   }
 }
 

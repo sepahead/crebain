@@ -191,6 +191,10 @@ export function useGazeboDrones(
 
   // Internal state uses CircularBuffer for O(1) history updates
   const [dronesInternal, setDronesInternal] = useState<Map<string, DroneStateInternal>>(new Map())
+  // Mirror of `dronesInternal` so message handling can compute the next Map
+  // outside the setState updater. Updaters must be pure: StrictMode
+  // double-invokes them, which would duplicate positionHistory samples.
+  const dronesInternalRef = useRef<Map<string, DroneStateInternal>>(new Map())
   const unsubscribesRef = useRef<Array<() => void>>([])
 
   // Stable config refs to avoid effect re-runs
@@ -220,61 +224,67 @@ export function useGazeboDrones(
 
       const timestamp = Date.now()
 
-      setDronesInternal((prevDrones) => {
-        const newDrones = new Map(prevDrones)
-        const seenIds = new Set<string>()
+      // Compute the next Map here (NOT inside the setState updater) so all
+      // work — especially the CircularBuffer push — runs exactly once per
+      // message; StrictMode double-invokes updaters. Updated drone entries are
+      // shallow clones so previous state objects are never mutated.
+      const prevDrones = dronesInternalRef.current
+      const newDrones = new Map(prevDrones)
+      const seenIds = new Set<string>()
 
-        // name/pose/twist are independent parallel arrays from external CDR/ROS
-        // data; bound by the shortest so a truncated or malformed message cannot
-        // index past the end and throw inside the subscription callback.
-        const entryCount = Math.min(msg.name.length, msg.pose.length, msg.twist.length)
-        for (let i = 0; i < entryCount; i++) {
-          const name = msg.name[i]
-          const pose = msg.pose[i]
-          const twist = msg.twist[i]
+      // name/pose/twist are independent parallel arrays from external CDR/ROS
+      // data; bound by the shortest so a truncated or malformed message cannot
+      // index past the end and throw inside the subscription callback.
+      const entryCount = Math.min(msg.name.length, msg.pose.length, msg.twist.length)
+      for (let i = 0; i < entryCount; i++) {
+        const name = msg.name[i]
+        const pose = msg.pose[i]
+        const twist = msg.twist[i]
 
-          // Check if this is a drone based on name patterns
-          if (!matchesPattern(name, cfg.droneNamePatterns)) continue
+        // Check if this is a drone based on name patterns
+        if (!matchesPattern(name, cfg.droneNamePatterns)) continue
 
-          const id = name
-          seenIds.add(id)
-          const type = classifyDrone(name, cfg.friendlyPatterns, cfg.hostilePatterns)
+        const id = name
+        seenIds.add(id)
+        const type = classifyDrone(name, cfg.friendlyPatterns, cfg.hostilePatterns)
 
-          let drone = newDrones.get(id)
-          if (!drone) {
-            drone = createDefaultDroneStateInternal(id, name, type, cfg.maxHistoryLength)
-          }
+        const existing = newDrones.get(id)
+        // Clone the entry (the CircularBuffer instance is carried over) so the
+        // previous drone object keeps reference equality with the prior state.
+        const drone = existing
+          ? { ...existing }
+          : createDefaultDroneStateInternal(id, name, type, cfg.maxHistoryLength)
 
-          // Calculate derived values
-          const euler = quatToEuler(pose.orientation)
-          const speed = magnitude(twist.linear)
-          const status = determineStatus(pose, twist, speed)
+        // Calculate derived values
+        const euler = quatToEuler(pose.orientation)
+        const speed = magnitude(twist.linear)
+        const status = determineStatus(pose, twist, speed)
 
-          // O(1) position history update via circular buffer
-          drone.positionHistory.push(pose.position)
+        // O(1) position history update via circular buffer — exactly once per
+        // message because this runs outside the setState updater.
+        drone.positionHistory.push(pose.position)
 
-          // Update drone state (mutate the existing object for performance)
-          drone.pose = pose
-          drone.velocity = twist
-          drone.speed = speed
-          drone.heading = euler.yaw
-          drone.altitude = pose.position.z
-          drone.status = status
-          drone.lastUpdate = timestamp
+        drone.pose = pose
+        drone.velocity = twist
+        drone.speed = speed
+        drone.heading = euler.yaw
+        drone.altitude = pose.position.z
+        drone.status = status
+        drone.lastUpdate = timestamp
 
-          newDrones.set(id, drone)
+        newDrones.set(id, drone)
+      }
+
+      // Cleanup stale drones that haven't been seen for STALE_DRONE_MS
+      // Prevents unbounded Map growth in long-running sessions with dynamic spawning
+      for (const [id, drone] of newDrones) {
+        if (!seenIds.has(id) && timestamp - drone.lastUpdate > STALE_DRONE_MS) {
+          newDrones.delete(id)
         }
+      }
 
-        // Cleanup stale drones that haven't been seen for STALE_DRONE_MS
-        // Prevents unbounded Map growth in long-running sessions with dynamic spawning
-        for (const [id, drone] of newDrones) {
-          if (!seenIds.has(id) && timestamp - drone.lastUpdate > STALE_DRONE_MS) {
-            newDrones.delete(id)
-          }
-        }
-
-        return newDrones
-      })
+      dronesInternalRef.current = newDrones
+      setDronesInternal(newDrones)
     }
 
     const unsubscribe = bridge.subscribeToModelStates(

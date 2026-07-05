@@ -137,6 +137,18 @@ describe('diagnostics', () => {
     })
   })
 
+  it('uses nearest-rank percentiles', () => {
+    const samples = Array.from({ length: 100 }, (_, index) => index + 1) // 1..100
+    const stats = calculateLatencyStats(samples)
+
+    // Nearest-rank: index ceil(n*p) - 1. The previous floor(n*p) indexing sat
+    // one rank high (e.g. p99 of 100 samples returned the max).
+    expect(stats.p50).toBe(50)
+    expect(stats.p95).toBe(95)
+    expect(stats.p99).toBe(99)
+    expect(stats.max).toBe(100)
+  })
+
   it('rejects empty latency samples', () => {
     expect(() => calculateLatencyStats([])).toThrow('empty sample')
   })

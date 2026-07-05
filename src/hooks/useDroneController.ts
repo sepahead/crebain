@@ -10,12 +10,15 @@ import { DronePhysicsWorld, type DronePhysicsBody, FlightController } from '../p
 import { DRONE_TYPES, toQuadcopterParams, type DroneTypeDefinition } from '../physics/DroneTypes'
 import { useKeyboardControls, type DroneControlInput } from './useKeyboardControls'
 import { logger } from '../lib/logger'
-import { forEachMesh } from '../lib/three/sceneObjects'
+import { disposeObject3D, forEachMesh } from '../lib/three/sceneObjects'
 
 const log = logger.scope('DroneController')
 
-// Reused scratch to avoid allocating a THREE.Euler every navigation frame.
+// Reused scratches to avoid allocating a THREE.Euler / Vector3 / Quaternion
+// every frame in the physics rAF loop.
 const scratchEuler = new THREE.Euler()
+const scratchVelocity = new THREE.Vector3()
+const scratchQuaternion = new THREE.Quaternion()
 
 export type RouteMode = 'none' | 'once' | 'patrol'
 
@@ -40,6 +43,9 @@ export interface ManagedDrone {
   physicsBody: DronePhysicsBody
   flightController: FlightController
   mesh: THREE.Object3D | null
+  /** Rotor meshes cached at spawn (index order matches physics rotors) so the
+   *  rAF loop can spin them without per-frame getObjectByName lookups. */
+  rotorMeshes: THREE.Object3D[]
   route: DroneRoute
 }
 
@@ -100,6 +106,17 @@ function createPlaceholderDrone(droneType: DroneTypeDefinition): THREE.Object3D 
   }
 
   return group
+}
+
+/** Collect `rotor_<i>` meshes in index order for caching on a managed drone. */
+function collectRotorMeshes(root: THREE.Object3D): THREE.Object3D[] {
+  const rotors: THREE.Object3D[] = []
+  for (let i = 0; ; i++) {
+    const rotor = root.getObjectByName(`rotor_${i}`)
+    if (!rotor) break
+    rotors.push(rotor)
+  }
+  return rotors
 }
 
 export function useDroneController(options: UseDroneControllerOptions) {
@@ -182,6 +199,9 @@ export function useDroneController(options: UseDroneControllerOptions) {
   })
   useEffect(() => {
     let mounted = true
+    // Stable Map identity snapshotted for the cleanup (the ref is never
+    // reassigned, only mutated).
+    const drones = dronesRef.current
 
     const initPhysics = async () => {
       const world = new DronePhysicsWorld()
@@ -198,6 +218,16 @@ export function useDroneController(options: UseDroneControllerOptions) {
 
     return () => {
       mounted = false
+      // Remove and dispose spawned drone meshes (same loop as resetSimulation)
+      // before destroying the world — scene removal alone leaks GPU resources.
+      drones.forEach((drone) => {
+        if (drone.mesh && sceneRef.current) {
+          sceneRef.current.remove(drone.mesh)
+          disposeObject3D(drone.mesh)
+        }
+        physicsWorldRef.current?.removeDrone(drone.id)
+      })
+      drones.clear()
       physicsWorldRef.current?.destroy()
       physicsWorldRef.current = null
       setPhysicsReady(false)
@@ -340,6 +370,7 @@ export function useDroneController(options: UseDroneControllerOptions) {
         physicsBody,
         flightController,
         mesh,
+        rotorMeshes: mesh ? collectRotorMeshes(mesh) : [],
         route,
       }
 
@@ -483,6 +514,14 @@ export function useDroneController(options: UseDroneControllerOptions) {
     [updateDronesList]
   )
 
+  // Route control input through a ref: getControlInput's identity changes with
+  // every keydown/keyup, and keeping it in the rAF effect deps would restart
+  // the physics loop on each key event.
+  const getControlInputRef = useRef(getControlInput)
+  useEffect(() => {
+    getControlInputRef.current = getControlInput
+  }, [getControlInput])
+
   useEffect(() => {
     if (!enabled || !physicsReady || !physicsWorldRef.current) return
 
@@ -524,10 +563,11 @@ export function useDroneController(options: UseDroneControllerOptions) {
             const distXZ = Math.sqrt(dx * dx + dz * dz)
 
             if (distXZ < drone.route.arrivalThreshold) {
-              const velocity = drone.physicsBody.state.velocity.clone()
-              const orientation = drone.physicsBody.state.orientation.clone()
-              const inverseRot = orientation.invert()
-              const localVel = velocity.applyQuaternion(inverseRot)
+              const localVel = scratchVelocity
+                .copy(drone.physicsBody.state.velocity)
+                .applyQuaternion(
+                  scratchQuaternion.copy(drone.physicsBody.state.orientation).invert()
+                )
 
               const brakeGain = 0.4
               targetPitch = Math.max(-0.4, Math.min(0.4, -localVel.z * brakeGain))
@@ -577,7 +617,7 @@ export function useDroneController(options: UseDroneControllerOptions) {
             }
           }
         } else if (isSelected) {
-          const input: DroneControlInput = getControlInput()
+          const input: DroneControlInput = getControlInputRef.current()
           const droneType = DRONE_TYPES[drone.type]
 
           if (
@@ -585,10 +625,9 @@ export function useDroneController(options: UseDroneControllerOptions) {
             Math.abs(input.roll) < 0.05 &&
             Math.abs(input.pitch) < 0.05
           ) {
-            const velocity = drone.physicsBody.state.velocity.clone()
-            const orientation = drone.physicsBody.state.orientation.clone()
-            const inverseRot = orientation.invert()
-            const localVel = velocity.applyQuaternion(inverseRot)
+            const localVel = scratchVelocity
+              .copy(drone.physicsBody.state.velocity)
+              .applyQuaternion(scratchQuaternion.copy(drone.physicsBody.state.orientation).invert())
 
             const brakeGain = 0.35
             targetPitch = -localVel.z * brakeGain
@@ -620,14 +659,12 @@ export function useDroneController(options: UseDroneControllerOptions) {
       physicsWorldRef.current?.update()
 
       dronesRef.current.forEach((drone) => {
-        if (drone.mesh) {
-          drone.physicsBody.state.rotors.forEach((rotor, i) => {
-            const rotorMesh = drone.mesh?.getObjectByName(`rotor_${i}`)
-            if (rotorMesh) {
-              rotorMesh.rotation.y += (rotor.rpm / 60) * dt * Math.PI * 2 * 0.1
-            }
-          })
-        }
+        drone.physicsBody.state.rotors.forEach((rotor, i) => {
+          const rotorMesh = drone.rotorMeshes[i]
+          if (rotorMesh) {
+            rotorMesh.rotation.y += (rotor.rpm / 60) * dt * Math.PI * 2 * 0.1
+          }
+        })
       })
 
       animationFrameRef.current = requestAnimationFrame(update)
@@ -638,7 +675,7 @@ export function useDroneController(options: UseDroneControllerOptions) {
     return () => {
       cancelAnimationFrame(animationFrameRef.current)
     }
-  }, [enabled, physicsReady, isPaused, selectedDroneId, getControlInput])
+  }, [enabled, physicsReady, isPaused, selectedDroneId])
 
   const getActiveDronesInfo = useCallback(() => {
     return Array.from(dronesRef.current.values()).map((drone) => ({
@@ -655,8 +692,10 @@ export function useDroneController(options: UseDroneControllerOptions) {
   // ── DEV-ONLY: NCP → drone test bridge ──────────────────────────────────────
   // Additive, dev-gated injection point that lets an external NCP peer drive a
   // managed CREBAIN drone from wire-v0.5 CommandFrames (velocity_setpoint in
-  // m/s). It enforces the protocol's `mode` safety gate (only `active`
-  // actuates; init/hold/estop de-energize), mirroring ncp-core's plant rules.
+  // m/s). It enforces a `mode` safety gate that is deliberately STRICTER than
+  // ncp-core's plant rules: ncp-core blanks actuation only on Hold|Estop (Init
+  // still actuates), while this bridge actuates only on `active` — anything
+  // else (init/hold/estop/unknown) de-energizes.
   // This deliberately does NOT touch the owned NCP bridges (src/neuro,
   // src-tauri/src/ncp); it exists to verify that NCP action-plane input visibly
   // moves a real drone. Exposed on window only under Vite dev.
@@ -671,7 +710,16 @@ export function useDroneController(options: UseDroneControllerOptions) {
       ttl_ms?: number
       channels?: Record<string, NcpChannel>
     }
+    // Safety limits for NCP-driven actuation.
+    const DEFAULT_TTL_MS = 200 // freshness window when the frame omits ttl_ms
+    const MAX_NCP_VELOCITY_MS = 10 // per-axis velocity clamp (m/s)
+    const MAX_NCP_DT_S = 0.5 // integration step clamp (s)
+    // First-seen receipt time per frame object, used to enforce ttl_ms: a
+    // frame replayed after its ttl has elapsed must hold instead of actuate.
+    const frameReceiptMs = new WeakMap<NcpCommandFrame, number>()
     const clampUp = (y: number) => Math.max(0.1, y)
+    const clampVelocity = (v: number) =>
+      Number.isFinite(v) ? Math.max(-MAX_NCP_VELOCITY_MS, Math.min(MAX_NCP_VELOCITY_MS, v)) : 0
     // Physics-free "kinematic" drones (id -> mesh) so an NCP peer can drive a
     // visible drone even where the Rapier WASM runtime is unavailable.
     const kin = new Map<string, THREE.Object3D>()
@@ -724,19 +772,39 @@ export function useDroneController(options: UseDroneControllerOptions) {
       setPose(id: string, x: number, y: number, z: number) {
         return moveTo(id, x, y, z)
       },
-      // Apply one NCP CommandFrame: gate on `mode`, then integrate
-      // velocity_setpoint (m/s) over dt seconds into the drone pose.
+      // Apply one NCP CommandFrame: gate on `mode` and ttl_ms freshness, clamp
+      // the setpoint, then integrate velocity_setpoint (m/s) over dt seconds.
       applyCommand(id: string, frame: NcpCommandFrame, dt = 0.05) {
         const p = posOf(id)
         if (!p) return null
         const mode = frame?.mode ?? 'hold'
         let v: [number, number, number] = [0, 0, 0]
-        if (mode === 'active') {
-          const ch = frame?.channels?.velocity_setpoint?.data
-          if (Array.isArray(ch) && ch.length >= 3) v = [ch[0], ch[1], ch[2]]
+        let stale = false
+        if (mode === 'active' && frame) {
+          const now = performance.now()
+          let receivedAt = frameReceiptMs.get(frame)
+          if (receivedAt === undefined) {
+            receivedAt = now
+            frameReceiptMs.set(frame, receivedAt)
+          }
+          const ttl =
+            typeof frame.ttl_ms === 'number' && frame.ttl_ms > 0 ? frame.ttl_ms : DEFAULT_TTL_MS
+          stale = now - receivedAt > ttl
+          if (!stale) {
+            const ch = frame.channels?.velocity_setpoint?.data
+            if (Array.isArray(ch) && ch.length >= 3) {
+              v = [clampVelocity(ch[0]), clampVelocity(ch[1]), clampVelocity(ch[2])]
+            }
+          }
         }
-        moveTo(id, p.x + v[0] * dt, p.y + v[1] * dt, p.z + v[2] * dt)
-        return { pose: posOf(id), mode, applied: v }
+        const step = Number.isFinite(dt) ? Math.max(0, Math.min(MAX_NCP_DT_S, dt)) : 0
+        // Axis convention: the wire [x, y, z] is applied directly to three.js
+        // world coordinates (Y-up; v[1] is the altitude rate). The Rust `ncp`
+        // feature path instead forwards the same vector as a MAVROS ENU
+        // cmd_vel (Z-up) — peers must match the convention of the path they
+        // target.
+        moveTo(id, p.x + v[0] * step, p.y + v[1] * step, p.z + v[2] * step)
+        return { pose: posOf(id), mode, applied: v, stale }
       },
     }
     const w = window as unknown as { __ncpDrone?: typeof bridge }

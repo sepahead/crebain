@@ -466,6 +466,17 @@ export function useCrebainScene(
         gridRef.current.geometry.dispose()
       }
 
+      // Dispose grid label sprites (CanvasTexture + material per label)
+      if (gridLabelsRef.current) {
+        gridLabelsRef.current.traverse((child) => {
+          if (child instanceof THREE.Sprite) {
+            child.material.map?.dispose()
+            child.material.dispose()
+          }
+        })
+        gridLabelsRef.current = null
+      }
+
       controls.dispose()
       renderer.dispose()
       container.removeChild(renderer.domElement)

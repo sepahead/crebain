@@ -1,6 +1,6 @@
 # CREBAIN ROS Integration
 
-Reference files for ROS/Gazebo integration. These files document message formats and launch configurations intended for CREBAIN-compatible ROS packages; they are not a complete standalone ROS package.
+Reference files for ROS/Gazebo integration. These files document message formats and launch configurations intended for CREBAIN-compatible ROS packages; they are not a complete standalone ROS package. These are ROS1-style (catkin) reference definitions consumed over rosbridge, so the type names must match the server-side package (`crebain_msgs`).
 
 ## Structure
 
@@ -13,6 +13,8 @@ ros/
 │   ├── AcousticDetectionArray.msg
 │   ├── RadarDetection.msg
 │   ├── RadarDetectionArray.msg
+│   ├── LidarDetection.msg
+│   ├── LidarDetectionArray.msg
 │   ├── DroneTarget.msg
 │   ├── InterceptionCommand.msg
 │   └── InterceptionStatus.msg
@@ -51,6 +53,7 @@ To use these definitions with a full ROS package:
 | `/crebain/thermal/detections` | ThermalDetectionArray | Thermal camera detections |
 | `/crebain/acoustic/detections` | AcousticDetectionArray | Microphone array detections |
 | `/crebain/radar/detections` | RadarDetectionArray | Radar returns |
+| `/crebain/lidar/detections` | LidarDetectionArray | Clustered LIDAR detections |
 | `/crebain/targets` | DroneTarget[] | Tracked targets |
 
 CREBAIN also contains WebSocket-based rosbridge integration and Zenoh-oriented transport adapters. Treat latency and throughput as deployment-specific; measure them in the target ROS/Gazebo topology instead of relying on generic transport assumptions.
@@ -67,7 +70,7 @@ CREBAIN also contains WebSocket-based rosbridge integration and Zenoh-oriented t
 
 ```bash
 # Terminal 1: Launch simulation / rosbridge
-roslaunch crebain_gazebo simulation.launch
+roslaunch crebain_msgs simulation.launch
 
 # Terminal 2: Start CREBAIN
 bun run dev

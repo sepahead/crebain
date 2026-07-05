@@ -26,7 +26,7 @@ setpoints on the **action plane**. Two peers, one wire:
 | Peer | Path | Role |
 |---|---|---|
 | **Rust** | `src-tauri/src/ncp/mod.rs` | Native Zenoh client: `NcpBridge`, `CommandPlant`, `sensor_frame_from_pose`, `velocity_from_command`, `observation_scalar`. Behind the off-by-default `ncp` Cargo feature. |
-| **TypeScript** | `src/neuro/` (`ncp.ts`, `ws.ts`, `index.ts`) | Transport-agnostic NCP client (`NeuroSimClient`) + a WebSocket transport. Self-contained; imported by nothing in the app today. |
+| **TypeScript** | `src/neuro/` (`index.ts`, `versionGuard.ts`) | Thin glue over the pinned `@sepehrmn/ncp` npm package (which provides `NeuroSimClient` and the WebSocket transport) plus a fail-closed reply-version guard. Self-contained; imported by nothing in the app today. |
 
 It is **not** on crebain's critical path. The default build, the frontend tests
 (206), the Rust tests (150), and the running app all work with no NCP / Engram /
@@ -66,15 +66,17 @@ Already correct — **do not regress**:
   real deadline backstop. Covered by tests in `src-tauri/src/ncp/mod.rs`.
 - **V↔command echo.** `sensor_frame_from_pose` stamps a `seq`; `CommandFrame`s echo
   it, so an action is paired with the sensor frame that produced it.
-- **NCP WS-client liveness.** `src/neuro/ws.ts` settles every pending request on
-  socket close/error and guards `JSON.parse` (fixed — no hung promises).
+- **NCP WS-client liveness.** The WS client (now shipped inside the `@sepehrmn/ncp`
+  package) settles every pending request on socket close/error and guards
+  `JSON.parse` (fixed — no hung promises).
 
 ## 4. Workstreams (the gaps, in priority order)
 
 ### Gap 1 — the bridge breaks crebain's standalone build (DONE; was the live regression)
 
 > **DONE:** the cut-over below has shipped. `src-tauri/Cargo.toml` now declares the
-> NCP SDK as optional **git + tag** deps (`tag = "v0.5.0"`, fix (a) below); the
+> NCP SDK as optional **git + tag** deps (the current tag is pinned in
+> `src-tauri/Cargo.toml` — `v0.5.3` at the time of writing; fix (a) below); the
 > sibling path deps are gone and a fresh clone builds with no `Engram`/NCP
 > tree on disk. The historical analysis is kept for context.
 
@@ -170,8 +172,8 @@ cargo test  --features ncp --lib ncp --manifest-path src-tauri/Cargo.toml
 ## 7. References
 
 - `src-tauri/src/ncp/mod.rs`, `src-tauri/src/ncp/README.md` — the Rust bridge.
-- `src/neuro/{ncp.ts,ws.ts,index.ts}`, `src/neuro/README.md` — the TS bridge.
-- `src-tauri/Cargo.toml` (`[features] ncp`, the optional path deps) — Gap 1.
+- `src/neuro/{index.ts,versionGuard.ts}`, `src/neuro/README.md` — the TS glue over `@sepehrmn/ncp`.
+- `src-tauri/Cargo.toml` (`[features] ncp`, the optional pinned git deps) — Gap 1.
 - `.github/workflows/ci.yml` — the Rust jobs that must stay green.
 - Companion: `engram/ncp_EXTRACTION_AND_EVOLUTION_HANDOFF.md` — the
   rename, the MCP/ACP-lesson hardening, the single-commander model, and the

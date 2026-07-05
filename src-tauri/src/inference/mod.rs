@@ -213,16 +213,22 @@ pub fn create_detector() -> Result<Box<dyn Detector>> {
     {
         // Fall back to CoreML
         if coreml::is_available() {
-            if let Ok(detector) = coreml::CoreMlDetector::new() {
-                log::info!("[Inference] Using CoreML backend");
-                return Ok(Box::new(detector));
+            match coreml::CoreMlDetector::new() {
+                Ok(detector) => {
+                    log::info!("[Inference] Using CoreML backend");
+                    return Ok(Box::new(detector));
+                }
+                Err(e) => log::warn!("[Inference] CoreML backend failed, falling back: {}", e),
             }
         }
 
         if experimental_mlx_enabled() && mlx::is_available() {
-            if let Ok(detector) = mlx::MlxDetector::new() {
-                log::info!("[Inference] Using experimental MLX backend (Apple Silicon)");
-                return Ok(Box::new(detector));
+            match mlx::MlxDetector::new() {
+                Ok(detector) => {
+                    log::info!("[Inference] Using experimental MLX backend (Apple Silicon)");
+                    return Ok(Box::new(detector));
+                }
+                Err(e) => log::warn!("[Inference] MLX backend failed, falling back: {}", e),
             }
         }
     }
@@ -231,17 +237,23 @@ pub fn create_detector() -> Result<Box<dyn Detector>> {
     {
         // Try TensorRT first
         if tensorrt::is_available() {
-            if let Ok(detector) = tensorrt::TensorRtDetector::new() {
-                log::info!("[Inference] Using TensorRT backend");
-                return Ok(Box::new(detector));
+            match tensorrt::TensorRtDetector::new() {
+                Ok(detector) => {
+                    log::info!("[Inference] Using TensorRT backend");
+                    return Ok(Box::new(detector));
+                }
+                Err(e) => log::warn!("[Inference] TensorRT backend failed, falling back: {}", e),
             }
         }
 
         // Fall back to CUDA
         if cuda::is_available() {
-            if let Ok(detector) = cuda::CudaDetector::new() {
-                log::info!("[Inference] Using CUDA backend");
-                return Ok(Box::new(detector));
+            match cuda::CudaDetector::new() {
+                Ok(detector) => {
+                    log::info!("[Inference] Using CUDA backend");
+                    return Ok(Box::new(detector));
+                }
+                Err(e) => log::warn!("[Inference] CUDA backend failed, falling back: {}", e),
             }
         }
     }
@@ -253,6 +265,10 @@ pub fn create_detector() -> Result<Box<dyn Detector>> {
 }
 
 /// Create a detector with a specific backend
+///
+/// The MLX backend is experimental and additionally requires
+/// `CREBAIN_ENABLE_EXPERIMENTAL_MLX=1`, even when requested explicitly via
+/// `CREBAIN_BACKEND=mlx`.
 pub fn create_detector_with_backend(backend: Backend) -> Result<Box<dyn Detector>> {
     match backend {
         #[cfg(target_os = "macos")]
@@ -262,6 +278,15 @@ pub fn create_detector_with_backend(backend: Backend) -> Result<Box<dyn Detector
         }
         #[cfg(target_os = "macos")]
         Backend::MLX => {
+            // Enforce the experimental gate for explicit requests too, so
+            // CREBAIN_BACKEND=mlx cannot bypass the opt-in documented above.
+            if !experimental_mlx_enabled() {
+                return Err(InferenceError::BackendError(
+                    "MLX backend is experimental and disabled; set \
+                     CREBAIN_ENABLE_EXPERIMENTAL_MLX=1 to enable it"
+                        .to_string(),
+                ));
+            }
             let detector = mlx::MlxDetector::new()?;
             Ok(Box::new(detector))
         }

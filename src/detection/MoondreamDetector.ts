@@ -4,6 +4,12 @@
  *
  * Moondream2 Vision-Language Model implementation using @xenova/transformers
  * Uses natural language prompting for zero-shot object detection
+ *
+ * EXPERIMENTAL / NON-FUNCTIONAL: the pinned @xenova/transformers@2.17.2 does
+ * not support the moondream2 architecture, and its ImageToTextPipeline ignores
+ * the prompt entirely (only pixel_values are fed to generate()), so prompted
+ * detection cannot work. initialize() fails fast with a clear error; see
+ * MoondreamDetector's class doc for details.
  */
 
 import type { ObjectDetector, Detection, DetectionClass, DetectorConfig } from './types'
@@ -71,6 +77,17 @@ interface ParsedDetection {
 /**
  * Moondream Detector using @xenova/transformers
  * Uses vision-language model for zero-shot detection via prompting
+ *
+ * EXPERIMENTAL — NOT FUNCTIONAL with the currently pinned dependencies:
+ * - @xenova/transformers@2.17.2 has no moondream architecture, so the
+ *   'Xenova/moondream2' model cannot be loaded by its `pipeline()` at all.
+ * - Even for models it can load, v2's ImageToTextPipeline discards the
+ *   `prompt` option (generate() receives only pixel_values), so the prompted
+ *   zero-shot detection this class is built around is impossible.
+ * Migrating to transformers v3 (which added moondream support) is the real
+ * fix; until then initialize() rejects with an explicit error and the worker
+ * reports the failure instead of silently returning garbage. The parsing/
+ * bbox-estimation code below is retained for that future migration.
  */
 export class MoondreamDetector implements ObjectDetector {
   name = 'Moondream2'
@@ -96,28 +113,24 @@ export class MoondreamDetector implements ObjectDetector {
   }
 
   /**
-   * Initialize the Transformers.js pipeline
+   * Fail fast: this detector cannot work with the pinned library.
+   *
+   * @xenova/transformers@2.17.2 does not implement the moondream2
+   * architecture, and its ImageToTextPipeline ignores the detection prompt
+   * (generate() is only given pixel_values), so loading a pipeline here would
+   * produce a detector that can never detect anything. Rejecting up front
+   * keeps the failure honest: the worker surfaces "Initialization failed"
+   * and the detector stays not-ready, so detect() is never reached.
    */
-  async initialize(): Promise<void> {
-    if (this.pipeline) {
-      return
-    }
-
-    try {
-      // Dynamic import to avoid bundling issues
-      const transformers = await import('@xenova/transformers')
-      const { pipeline } = transformers
-
-      // Create image-to-text pipeline with Moondream model
-      this.pipeline = await pipeline('image-to-text', this.config.modelPath, {
-        quantized: true, // Use quantized model for browser efficiency
-      })
-
-      this.ready = true
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      throw new Error(`[MoondreamDetector] Failed to load model: ${message}`, { cause: error })
-    }
+  initialize(): Promise<void> {
+    return Promise.reject(
+      new Error(
+        '[MoondreamDetector] Not functional: the pinned @xenova/transformers@2.17.2 does not ' +
+          'support the moondream2 architecture, and its image-to-text pipeline ignores prompts, ' +
+          'so prompted zero-shot detection cannot work. Select the yolo, rf-detr, or coreml ' +
+          'detector instead (moondream requires a transformers.js v3 migration).'
+      )
+    )
   }
 
   /**
@@ -132,7 +145,7 @@ export class MoondreamDetector implements ObjectDetector {
 
     try {
       // Convert ImageData to base64 data URL for transformers.js
-      const imageUrl = this.imageDataToDataURL(imageData)
+      const imageUrl = await this.imageDataToDataURL(imageData)
 
       // Run inference with detection prompt
       const pipelineFunc = this.pipeline as TransformersPipeline
@@ -175,10 +188,10 @@ export class MoondreamDetector implements ObjectDetector {
   }
 
   /**
-   * Convert ImageData to base64 data URL
-   * Works in both main thread and Web Worker contexts
+   * Convert ImageData to a base64 data URL via OffscreenCanvas encoding.
+   * Works in both main thread and Web Worker contexts.
    */
-  private imageDataToDataURL(imageData: ImageData): string {
+  private async imageDataToDataURL(imageData: ImageData): Promise<string> {
     const canvas = new OffscreenCanvas(imageData.width, imageData.height)
     const ctx = canvas.getContext('2d')
     if (!ctx) {
@@ -186,90 +199,13 @@ export class MoondreamDetector implements ObjectDetector {
     }
     ctx.putImageData(imageData, 0, 0)
 
-    // For OffscreenCanvas, we need to manually encode to base64
-    // Extract raw pixel data and encode as data URL
-    const { width, height, data } = imageData
-
-    // Create a simple BMP-like encoding for the image
-    // This is a simplified approach that works in Web Workers
-    let dataUrl = 'data:image/bmp;base64,'
-
-    // BMP header (54 bytes)
-    const fileSize = 54 + width * height * 3
-    const header = new Uint8Array(54)
-
-    // BM signature
-    header[0] = 0x42
-    header[1] = 0x4d
-    // File size
-    header[2] = fileSize & 0xff
-    header[3] = (fileSize >> 8) & 0xff
-    header[4] = (fileSize >> 16) & 0xff
-    header[5] = (fileSize >> 24) & 0xff
-    // Reserved
-    header[6] = header[7] = header[8] = header[9] = 0
-    // Data offset
-    header[10] = 54
-    header[11] = header[12] = header[13] = 0
-    // DIB header size
-    header[14] = 40
-    header[15] = header[16] = header[17] = 0
-    // Width
-    header[18] = width & 0xff
-    header[19] = (width >> 8) & 0xff
-    header[20] = (width >> 16) & 0xff
-    header[21] = (width >> 24) & 0xff
-    // Height (negative for top-down)
-    const negHeight = -height
-    header[22] = negHeight & 0xff
-    header[23] = (negHeight >> 8) & 0xff
-    header[24] = (negHeight >> 16) & 0xff
-    header[25] = (negHeight >> 24) & 0xff
-    // Planes
-    header[26] = 1
-    header[27] = 0
-    // Bits per pixel
-    header[28] = 24
-    header[29] = 0
-    // Compression (none)
-    header[30] = header[31] = header[32] = header[33] = 0
-    // Image size (can be 0 for uncompressed)
-    header[34] = header[35] = header[36] = header[37] = 0
-    // Resolution (pixels per meter, not important)
-    header[38] = header[39] = header[40] = header[41] = 0
-    header[42] = header[43] = header[44] = header[45] = 0
-    // Colors used
-    header[46] = header[47] = header[48] = header[49] = 0
-    // Important colors
-    header[50] = header[51] = header[52] = header[53] = 0
-
-    // Pixel data (BGR format, padded to 4-byte boundary)
-    const rowSize = Math.ceil((width * 3) / 4) * 4
-    const pixelData = new Uint8Array(height * rowSize)
-
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const srcIdx = (y * width + x) * 4
-        const dstIdx = y * rowSize + x * 3
-        pixelData[dstIdx] = data[srcIdx + 2] // B
-        pixelData[dstIdx + 1] = data[srcIdx + 1] // G
-        pixelData[dstIdx + 2] = data[srcIdx] // R
-      }
-    }
-
-    // Combine header and pixel data
-    const combined = new Uint8Array(header.length + pixelData.length)
-    combined.set(header)
-    combined.set(pixelData, header.length)
-
-    // Convert to base64
-    let binary = ''
-    for (let i = 0; i < combined.length; i++) {
-      binary += String.fromCharCode(combined[i])
-    }
-    dataUrl += btoa(binary)
-
-    return dataUrl
+    const blob = await canvas.convertToBlob({ type: 'image/png' })
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result as string)
+      reader.onerror = () => reject(new Error('[MoondreamDetector] Failed to encode frame'))
+      reader.readAsDataURL(blob)
+    })
   }
 
   /**
@@ -529,10 +465,11 @@ export class MoondreamDetector implements ObjectDetector {
   /**
    * Dispose of the pipeline and free resources
    */
-  dispose(): void {
+  dispose(): Promise<void> {
     this.pipeline = null
     this.ready = false
     this.latencyHistory = []
+    return Promise.resolve()
   }
 }
 

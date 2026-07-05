@@ -36,7 +36,7 @@
   <node pkg="tf2_ros" type="buffer_server" name="tf2_buffer_server"/>
 
   <!-- Include drone spawning -->
-  <include file="$(find crebain_gazebo)/launch/multi_drone.launch">
+  <include file="$(find crebain_msgs)/launch/multi_drone.launch">
     <arg name="num_interceptors" value="$(arg num_interceptors)"/>
     <arg name="num_targets" value="$(arg num_targets)"/>
   </include>

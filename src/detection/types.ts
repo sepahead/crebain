@@ -119,7 +119,11 @@ export interface ObjectDetector {
   // Lifecycle
   initialize(): Promise<void>
   detect(imageData: ImageData): Promise<Detection[]>
-  dispose(): void
+  /**
+   * Release model resources. Async because ONNX Runtime Web sessions hold
+   * WASM/GPU memory that is only freed by awaiting `session.release()`.
+   */
+  dispose(): Promise<void>
 
   // Status
   isReady(): boolean
@@ -185,8 +189,10 @@ export interface DetectionWorkerMessage {
 
 export interface DetectionWorkerResponse {
   type: 'ready' | 'detections' | 'error' | 'status'
-  /** Echoes the originating `detect` request's id (for `detections` and
-   *  detect-scoped `error` responses); absent for global init/status messages. */
+  /** Echoes the originating request's id whenever the request carried one —
+   *  `detect` correlation as described above, but also `init`/`dispose`/`status`
+   *  and malformed-message errors. Absent only when the triggering request had
+   *  no id (or for unsolicited worker messages). */
   requestId?: number
   payload?: {
     detections?: Detection[]

@@ -26,6 +26,7 @@ import {
   recordLatency,
   scaleNormalizedBox,
   type BoundingBox,
+  type LetterboxGeometry,
 } from './detectorMath'
 import { normalizeImageNetRgb, RGB_CHANNELS, rgbaToNchwRgbFloat32 } from './detectorPreprocess'
 import { validateRank3Tensor } from './tensorValidation'
@@ -69,23 +70,22 @@ export class RFDETRDetector implements ObjectDetector {
   }
 
   /**
-   * Initialize the ONNX session with WebGPU/WebGL/WASM fallback
+   * Initialize the ONNX session with WebGPU/WASM fallback
    */
   async initialize(): Promise<void> {
     if (this.session) {
       return
     }
 
-    // Configure execution providers with fallback chain
+    // Configure execution providers with fallback chain.
+    // Note: the 'webgl' execution provider no longer exists in onnxruntime-web
+    // 1.24 (cpu/wasm/webgpu/webnn only), so WASM is the sole CPU fallback.
     const executionProviders: ort.InferenceSession.ExecutionProviderConfig[] = []
 
     if (this.config.useWebGPU) {
       // WebGPU for Metal acceleration on Mac
       executionProviders.push('webgpu')
     }
-
-    // WebGL fallback
-    executionProviders.push('webgl')
 
     // WASM fallback with SIMD
     executionProviders.push({
@@ -118,8 +118,17 @@ export class RFDETRDetector implements ObjectDetector {
     const startTime = performance.now()
 
     try {
+      // Compute the letterbox geometry once per frame (pixel-aligned, matching
+      // the preprocessing draw) and reuse it in postprocessing so boxes are
+      // projected back with the exact geometry the image was drawn with.
+      const geometry = computeLetterboxGeometry(
+        { width: imageData.width, height: imageData.height },
+        this.inputSize,
+        true
+      )
+
       // Preprocess image
-      const inputTensor = this.preprocessImage(imageData)
+      const inputTensor = this.preprocessImage(imageData, geometry)
 
       // Get input name from model (RF-DETR may use different naming)
       const inputName = this.session.inputNames[0] || 'image'
@@ -141,7 +150,8 @@ export class RFDETRDetector implements ObjectDetector {
         outputData,
         output.dims,
         imageData.width,
-        imageData.height
+        imageData.height,
+        geometry
       )
 
       // Record latency
@@ -158,7 +168,7 @@ export class RFDETRDetector implements ObjectDetector {
    * Preprocess image to tensor format expected by RF-DETR
    * Input: NCHW format with normalized RGB values
    */
-  private preprocessImage(imageData: ImageData): ort.Tensor {
+  private preprocessImage(imageData: ImageData, geometry: LetterboxGeometry): ort.Tensor {
     const { width, height, data } = imageData
     const targetWidth = this.inputSize.width
     const targetHeight = this.inputSize.height
@@ -179,13 +189,6 @@ export class RFDETRDetector implements ObjectDetector {
     const tempImageData = tempCtx.createImageData(width, height)
     tempImageData.data.set(data)
     tempCtx.putImageData(tempImageData, 0, 0)
-
-    // Resize to target size with letterboxing (preserve aspect ratio)
-    const geometry = computeLetterboxGeometry(
-      { width, height },
-      { width: targetWidth, height: targetHeight },
-      true
-    )
 
     // Fill with gray (letterbox padding)
     ctx.fillStyle = '#808080'
@@ -224,19 +227,14 @@ export class RFDETRDetector implements ObjectDetector {
     output: Float32Array,
     dims: readonly number[],
     origWidth: number,
-    origHeight: number
+    origHeight: number,
+    geometry: LetterboxGeometry
   ): Detection[] {
     if (dims[0] !== 1 || dims[1] <= 0 || dims[2] < 5) {
       throw new Error(`[RFDETRDetector] Invalid RF-DETR output shape: [${dims.join(', ')}]`)
     }
 
     const detections: Detection[] = []
-
-    // Calculate scale factors for coordinate conversion
-    const geometry = computeLetterboxGeometry(
-      { width: origWidth, height: origHeight },
-      this.inputSize
-    )
 
     // Determine output format based on dimensions
     // Format A: [1, N, 6] - class_id, score, x1, y1, x2, y2
@@ -336,11 +334,19 @@ export class RFDETRDetector implements ObjectDetector {
   /**
    * Dispose of the session and free resources
    */
-  dispose(): void {
-    if (this.session) {
-      this.session = null
-      this.ready = false
-      this.latencyHistory = []
+  async dispose(): Promise<void> {
+    const session = this.session
+    this.session = null
+    this.ready = false
+    this.latencyHistory = []
+    if (session) {
+      // ONNX Runtime Web sessions hold WASM/GPU memory that is NOT garbage
+      // collected — it must be released explicitly.
+      try {
+        await session.release()
+      } catch {
+        // Best effort: releasing an already-released session must not throw.
+      }
     }
   }
 }

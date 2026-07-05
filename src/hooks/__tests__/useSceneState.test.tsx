@@ -78,6 +78,7 @@ function drone(): ManagedDrone {
         battery: 0.87, // physics fraction (0-1); serializes to 87%
       },
     } as ManagedDrone['physicsBody'],
+    rotorMeshes: [],
     flightController: {} as ManagedDrone['flightController'],
     mesh: null,
     route: {

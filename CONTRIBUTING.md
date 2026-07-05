@@ -11,7 +11,7 @@ Please be respectful and constructive in all interactions. CREBAIN follows the s
 ### Prerequisites
 
 - **Bun** 1.0+ for project scripts; **Node.js** 20+ if running Node-based tooling directly
-- **Rust** 1.81+ with `cargo`
+- **Rust** 1.88+ with `cargo` (MSRV per `src-tauri/Cargo.toml`; `rust-toolchain.toml` pins 1.91.1 for dev/CI)
 - **macOS**: Xcode Command Line Tools
 - **Linux**: CUDA Toolkit and NVIDIA runtime libraries when testing CUDA/TensorRT paths
 

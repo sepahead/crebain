@@ -113,8 +113,8 @@ export function calculateLatencyStats(times: number[]): LatencyStats {
 
   const mean = times.reduce((a, b) => a + b, 0) / times.length
   const sorted = [...times].sort((a, b) => a - b)
-  const percentile = (value: number) =>
-    sorted[Math.min(sorted.length - 1, Math.floor(times.length * value))]
+  // Nearest-rank percentile: rank ceil(n·p) (1-based), i.e. index ceil(n·p)-1.
+  const percentile = (value: number) => sorted[Math.max(0, Math.ceil(sorted.length * value) - 1)]
 
   return {
     mean,

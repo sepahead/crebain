@@ -121,22 +121,42 @@ pub fn validate_path_strict(path: &str, allowed_root: Option<&Path>) -> PathResu
             canonical_root.join(&path_buf)
         };
 
-        // Try to canonicalize the target path.
-        // If it doesn't exist, construct what it would be under the allowed root.
+        // Try to canonicalize the target path. If it does not exist yet,
+        // canonicalize the deepest EXISTING ancestor and re-join the remaining
+        // components: a purely textual check on a non-existent prefix would let
+        // a symlink in the existing part (e.g. root/link -> /outside, with
+        // root/link/newdir/file not existing) validate as inside the root.
         let canonical_path = if candidate_path.exists() {
             candidate_path
                 .canonicalize()
                 .map_err(|e| PathError::CanonicalizationFailed(format!("target path: {}", e)))?
-        } else if let Some(parent) = candidate_path.parent().filter(|p| p.exists()) {
-            let canonical_parent = parent
-                .canonicalize()
-                .map_err(|e| PathError::CanonicalizationFailed(format!("target parent: {}", e)))?;
-            match candidate_path.file_name() {
-                Some(file_name) => canonical_parent.join(file_name),
-                None => canonical_parent,
-            }
         } else {
-            candidate_path
+            let mut ancestor = candidate_path.as_path();
+            // Not-yet-existing trailing components, deepest first. Existence is
+            // probed via symlink_metadata (not exists(), which follows links) so
+            // a dangling symlink counts as the deepest existing ancestor and
+            // fails canonicalization below (fail closed) instead of being
+            // skipped and re-joined textually.
+            let mut pending: Vec<std::ffi::OsString> = Vec::new();
+            while ancestor.symlink_metadata().is_err() {
+                match (ancestor.parent(), ancestor.file_name()) {
+                    (Some(parent), Some(name)) => {
+                        pending.push(name.to_os_string());
+                        ancestor = parent;
+                    }
+                    // No existing ancestor at all (candidate_path is absolute,
+                    // so on Unix the walk always terminates at "/"): fail closed
+                    // via the canonicalize error below.
+                    _ => break,
+                }
+            }
+            let canonical_ancestor = ancestor.canonicalize().map_err(|e| {
+                PathError::CanonicalizationFailed(format!("target ancestor: {}", e))
+            })?;
+            pending
+                .into_iter()
+                .rev()
+                .fold(canonical_ancestor, |acc, name| acc.join(name))
         };
 
         // Check if the path is under the allowed root
@@ -309,6 +329,34 @@ mod tests {
 
         let _ = std::fs::remove_file(outside);
         let _ = std::fs::remove_dir(root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_allowed_root_rejects_symlink_escape_through_nonexistent_suffix() {
+        // root/link -> outside; neither link/newdir nor link/newdir/file.txt
+        // exists, so the old textual containment check passed. The deepest
+        // existing ancestor (root/link) canonicalizes outside the root and must
+        // be rejected.
+        let root =
+            std::env::temp_dir().join(format!("crebain-symlink-root-{}", std::process::id()));
+        let outside =
+            std::env::temp_dir().join(format!("crebain-symlink-outside-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::create_dir_all(&outside).unwrap();
+        let link = root.join("link");
+        let _ = std::fs::remove_file(&link);
+        std::os::unix::fs::symlink(&outside, &link).unwrap();
+
+        let result = validate_path("link/newdir/file.txt", Some(&root));
+        assert!(
+            result.is_err(),
+            "symlinked prefix escaping the root must be rejected, got {result:?}"
+        );
+
+        let _ = std::fs::remove_file(&link);
+        let _ = std::fs::remove_dir(&outside);
+        let _ = std::fs::remove_dir(&root);
     }
 
     #[test]

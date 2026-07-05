@@ -118,7 +118,7 @@ describe('GuidanceController', () => {
     await vi.advanceTimersByTimeAsync(50)
 
     expect(controller.isActive()).toBe(true)
-    expect(bridge.advertise).toHaveBeenCalledTimes(2)
+    expect(bridge.advertise).toHaveBeenCalledTimes(1)
     expect(bridge.publishSetpointVelocity).toHaveBeenCalledTimes(1)
 
     controller.stop()

@@ -230,6 +230,7 @@ export function useSurveillanceCameras(
           scene.remove(cam.helper)
           scene.remove(cam.mesh)
           cam.renderTarget.dispose()
+          cam.helper.dispose()
           disposeObject3D(cam.mesh)
           onMessage?.('system', `${cam.name} DEAKTIVIERT`)
         }
@@ -343,6 +344,8 @@ export function useSurveillanceCameras(
           sceneRef.current.remove(cam.mesh)
         }
         cam.renderTarget.dispose()
+        cam.helper.dispose()
+        disposeObject3D(cam.mesh)
       })
     }
   }, [])

@@ -1,18 +1,28 @@
 //! Zenoh Transport Implementation
-//! Zenoh communication with ROS2/Gazebo
+//! Zenoh communication with CREBAIN's own peers
 //!
 //! Zenoh provides:
 //! - Pub/sub/query data model
 //! - Shared-memory-capable transport where supported by deployment topology
 //! - Automatic discovery
-//! - Works with ROS2 via rmw_zenoh_cpp
+//!
+//! # Key expression scheme (known limitation)
+//!
+//! This bridge maps a ROS topic to a *plain-topic* key expression: the topic
+//! minus its leading `/` (e.g. `/camera/image_raw` -> `camera/image_raw`).
+//! That is compatible with CREBAIN's own zenoh peers, which use the same
+//! scheme, but it is NOT the `rmw_zenoh_cpp` scheme, which keys topics as
+//! `<domain_id>/<topic>/<type_name>/<type_hash>` and announces them via
+//! liveliness tokens. Direct interop with an rmw_zenoh_cpp ROS graph
+//! therefore requires a re-keying bridge between the two key spaces; it does
+//! not work by pointing this transport at an rmw_zenoh_cpp router.
 //!
 //! # Architecture
 //!
 //! ```text
 //! ┌─────────────────┐     Zenoh Protocol      ┌─────────────────┐
-//! │  Gazebo/ROS2    │◄──────────────────────►│   Tauri App     │
-//! │  RMW=zenoh      │   shared memory/UDP    │   zenoh-rs      │
+//! │  CREBAIN peers  │◄──────────────────────►│   Tauri App     │
+//! │  (plain keys)   │    pub/sub (CDR)       │   zenoh-rs      │
 //! └─────────────────┘                         └─────────────────┘
 //! ```
 
@@ -45,14 +55,21 @@ use {std::collections::HashMap, std::sync::Mutex, zenoh::Session};
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 /// CDR encapsulation header (4 bytes) per RTPS/DDS spec:
-/// Byte 0: Encoding (0x00 = big-endian, 0x01 = little-endian)
-/// Byte 1: Options / protocol version
-/// Bytes 2-3: Reserved
+/// Bytes 0-1: representation identifier ([0x00, 0x00] = CDR_BE,
+///            [0x00, 0x01] = CDR_LE — the endianness flag is byte 1)
+/// Bytes 2-3: representation options
 #[cfg(feature = "zenoh-transport")]
 const CDR_HEADER_SIZE: usize = 4;
 
 #[cfg(feature = "zenoh-transport")]
+const CDR_BIG_ENDIAN: u8 = 0x00;
+
+#[cfg(feature = "zenoh-transport")]
 const CDR_LITTLE_ENDIAN: u8 = 0x01;
+
+/// The encapsulation emitted by the encoders: CDR_LE with zeroed options.
+#[cfg(feature = "zenoh-transport")]
+const CDR_LE_ENCAPSULATION: [u8; 4] = [0x00, CDR_LITTLE_ENDIAN, 0x00, 0x00];
 
 #[cfg(feature = "zenoh-transport")]
 const MAX_CDR_STRING_LEN: usize = 1024 * 1024; // 1MB max string length
@@ -70,6 +87,35 @@ const MAX_CDR_IMAGE_DIMENSION: u32 = 8192;
 // CDR READING HELPERS - Bounds-checked primitive reads
 // Only compiled when zenoh-transport feature is enabled
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+#[cfg(feature = "zenoh-transport")]
+/// Parse the 4-byte CDR encapsulation header and return whether the payload
+/// is little-endian. Per the RTPS/DDS spec the representation identifier is
+/// bytes {0, 1}: byte 0 must be 0x00 and byte 1 carries the endianness flag
+/// (0x00 = CDR_BE, 0x01 = CDR_LE).
+fn parse_cdr_encapsulation(data: &[u8]) -> Result<bool> {
+    if data.len() < CDR_HEADER_SIZE {
+        return Err(TransportError::DecodingError(
+            "CDR encapsulation header too short".to_string(),
+        ));
+    }
+    if data[0] != 0x00 || (data[1] != CDR_BIG_ENDIAN && data[1] != CDR_LITTLE_ENDIAN) {
+        return Err(TransportError::DecodingError(format!(
+            "Unsupported CDR representation identifier [0x{:02X}, 0x{:02X}]",
+            data[0], data[1]
+        )));
+    }
+    Ok(data[1] == CDR_LITTLE_ENDIAN)
+}
+
+#[cfg(feature = "zenoh-transport")]
+/// Clamp a decoded sequence length for pre-allocation: never reserve more
+/// elements than the remaining bytes could possibly hold, so a tiny packet
+/// with an inflated length prefix cannot force a large allocation.
+#[inline]
+fn clamped_capacity(len: usize, data_len: usize, offset: usize, min_element_size: usize) -> usize {
+    len.min(data_len.saturating_sub(offset) / min_element_size.max(1))
+}
 
 #[cfg(feature = "zenoh-transport")]
 #[inline]
@@ -327,7 +373,7 @@ fn decode_image_cdr(data: &[u8]) -> Result<CameraFrame> {
         ));
     }
 
-    let is_little_endian = data[0] == CDR_LITTLE_ENDIAN;
+    let is_little_endian = parse_cdr_encapsulation(data)?;
     let mut offset = CDR_HEADER_SIZE;
 
     // Decode header
@@ -418,7 +464,7 @@ fn decode_compressed_image_cdr(data: &[u8]) -> Result<CameraFrame> {
         ));
     }
 
-    let is_little_endian = data[0] == CDR_LITTLE_ENDIAN;
+    let is_little_endian = parse_cdr_encapsulation(data)?;
     let mut offset = CDR_HEADER_SIZE;
 
     // Decode header
@@ -483,7 +529,7 @@ fn decode_camera_info_cdr(data: &[u8]) -> Result<CameraInfoData> {
         ));
     }
 
-    let is_little_endian = data[0] == CDR_LITTLE_ENDIAN;
+    let is_little_endian = parse_cdr_encapsulation(data)?;
     let mut offset = CDR_HEADER_SIZE;
 
     let (timestamp, frame_id) = decode_ros2_header(data, &mut offset, is_little_endian)?;
@@ -492,9 +538,9 @@ fn decode_camera_info_cdr(data: &[u8]) -> Result<CameraInfoData> {
     let width = read_u32(data, &mut offset, is_little_endian)?;
     let distortion_model = read_cdr_string(data, &mut offset, is_little_endian)?;
 
-    // D sequence
+    // D sequence (f64 elements: 8 bytes each)
     let d_len = read_bounded_sequence_len(data, &mut offset, is_little_endian, "CameraInfo.D")?;
-    let mut d = Vec::with_capacity(d_len);
+    let mut d = Vec::with_capacity(clamped_capacity(d_len, data.len(), offset, 8));
     for _ in 0..d_len {
         d.push(read_f64(data, &mut offset, is_little_endian)?);
     }
@@ -540,7 +586,7 @@ fn decode_imu_cdr(data: &[u8]) -> Result<ImuData> {
     }
 
     // Read CDR header for endianness
-    let is_little_endian = data[0] == CDR_LITTLE_ENDIAN;
+    let is_little_endian = parse_cdr_encapsulation(data)?;
     let mut offset = CDR_HEADER_SIZE;
 
     // Decode header
@@ -602,7 +648,7 @@ fn decode_pose_cdr(data: &[u8]) -> Result<PoseData> {
     }
 
     // Read CDR header for endianness
-    let is_little_endian = data[0] == CDR_LITTLE_ENDIAN;
+    let is_little_endian = parse_cdr_encapsulation(data)?;
     let mut offset = CDR_HEADER_SIZE;
 
     // Decode header
@@ -689,29 +735,29 @@ fn decode_model_states_cdr(data: &[u8]) -> Result<ModelStates> {
     }
 
     // Read CDR header for endianness
-    let is_little_endian = data[0] == CDR_LITTLE_ENDIAN;
+    let is_little_endian = parse_cdr_encapsulation(data)?;
     let mut offset = CDR_HEADER_SIZE;
 
-    // name[]
+    // name[] (each string is at least a 4-byte length prefix)
     let name_len =
         read_bounded_sequence_len(data, &mut offset, is_little_endian, "ModelStates.name")?;
-    let mut name = Vec::with_capacity(name_len);
+    let mut name = Vec::with_capacity(clamped_capacity(name_len, data.len(), offset, 4));
     for _ in 0..name_len {
         name.push(read_cdr_string(data, &mut offset, is_little_endian)?);
     }
 
-    // pose[]
+    // pose[] (7 * f64 = 56 bytes each)
     let pose_len =
         read_bounded_sequence_len(data, &mut offset, is_little_endian, "ModelStates.pose")?;
-    let mut pose = Vec::with_capacity(pose_len);
+    let mut pose = Vec::with_capacity(clamped_capacity(pose_len, data.len(), offset, 56));
     for _ in 0..pose_len {
         pose.push(read_pose_from_stream(data, &mut offset, is_little_endian)?);
     }
 
-    // twist[]
+    // twist[] (6 * f64 = 48 bytes each)
     let twist_len =
         read_bounded_sequence_len(data, &mut offset, is_little_endian, "ModelStates.twist")?;
-    let mut twist = Vec::with_capacity(twist_len);
+    let mut twist = Vec::with_capacity(clamped_capacity(twist_len, data.len(), offset, 48));
     for _ in 0..twist_len {
         twist.push(read_twist_from_stream(data, &mut offset, is_little_endian)?);
     }
@@ -724,8 +770,8 @@ fn decode_model_states_cdr(data: &[u8]) -> Result<ModelStates> {
 fn encode_twist_cdr(cmd: &VelocityCmd) -> Vec<u8> {
     let mut data = Vec::with_capacity(CDR_HEADER_SIZE + 48);
 
-    // CDR header (little-endian): byte 0 = encoding (0x01 = LE), bytes 1-3 = options
-    data.extend_from_slice(&[0x01, 0x00, 0x00, 0x00]);
+    // CDR_LE encapsulation: representation identifier [0x00, 0x01] + options
+    data.extend_from_slice(&CDR_LE_ENCAPSULATION);
 
     // Linear velocity (x, y, z)
     for v in &cmd.linear {
@@ -746,8 +792,8 @@ fn encode_twist_stamped_cdr(cmd: &TwistStampedData) -> Vec<u8> {
     // Header + string + padding + 6*f64. Conservatively reserve ~128 bytes.
     let mut data = Vec::with_capacity(CDR_HEADER_SIZE + 128);
 
-    // CDR encapsulation header (little-endian): byte 0 = encoding (0x01 = LE)
-    data.extend_from_slice(&[0x01, 0x00, 0x00, 0x00]);
+    // CDR_LE encapsulation: representation identifier [0x00, 0x01] + options
+    data.extend_from_slice(&CDR_LE_ENCAPSULATION);
 
     // Header timestamp
     let sec = cmd.timestamp as i32;
@@ -786,8 +832,8 @@ fn encode_twist_stamped_cdr(cmd: &TwistStampedData) -> Vec<u8> {
 fn encode_pose_cdr(pose: &PoseData) -> Vec<u8> {
     let mut data = Vec::with_capacity(CDR_HEADER_SIZE + 100);
 
-    // CDR header (little-endian): byte 0 = encoding (0x01 = LE)
-    data.extend_from_slice(&[0x01, 0x00, 0x00, 0x00]);
+    // CDR_LE encapsulation: representation identifier [0x00, 0x01] + options
+    data.extend_from_slice(&CDR_LE_ENCAPSULATION);
 
     // Header timestamp
     let sec = pose.timestamp as i32;
@@ -828,6 +874,17 @@ fn encode_pose_cdr(pose: &PoseData) -> Vec<u8> {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // ZENOH BRIDGE (Feature-gated)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/// Lock a mutex, recovering the guard if the mutex was poisoned by a panic in
+/// another thread. The subscriber map only holds subscriber handles, so a
+/// prior panic does not leave it logically inconsistent; recovering keeps the
+/// map usable instead of silently dropping fresh subscribers on the floor.
+#[cfg(feature = "zenoh-transport")]
+fn lock_recover<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    mutex
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
 
 #[cfg(feature = "zenoh-transport")]
 pub struct ZenohBridge {
@@ -880,10 +937,26 @@ impl ZenohBridge {
         })
     }
 
-    /// Convert ROS topic to Zenoh key expression
-    /// ROS2 topics like "/camera/image_raw" become "camera/image_raw"
+    /// Convert a ROS topic to this bridge's plain-topic Zenoh key expression:
+    /// "/camera/image_raw" becomes "camera/image_raw".
+    ///
+    /// NOTE: this is NOT the rmw_zenoh_cpp keying scheme
+    /// (`<domain>/<topic>/<type>/<hash>`); see the module docs for the
+    /// resulting interop limitation.
     fn ros_to_zenoh_key(topic: &str) -> String {
         topic.trim_start_matches('/').to_string()
+    }
+
+    fn ensure_connected(connected: &AtomicBool, action: &str, key: &str) -> Result<()> {
+        if connected.load(Ordering::SeqCst) {
+            return Ok(());
+        }
+        let message = format!("Transport disconnected; cannot {} {}", action, key);
+        if action == "publish to" {
+            Err(TransportError::PublishFailed(message))
+        } else {
+            Err(TransportError::SubscriptionFailed(message))
+        }
     }
 }
 
@@ -898,16 +971,21 @@ impl Transport for ZenohBridge {
         })
     }
 
-    fn disconnect(&mut self) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
+    fn disconnect(&self) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
         Box::pin(async move {
             log::info!("[Zenoh] Disconnecting...");
 
-            // Clear subscribers
-            if let Ok(mut subs) = self.subscribers.lock() {
-                subs.clear();
-            }
+            // Clear subscribers (dropping them undeclares the zenoh subscriptions).
+            lock_recover(&self.subscribers).clear();
 
             self.connected.store(false, Ordering::SeqCst);
+
+            // Close the session so its network resources are released now
+            // rather than at the last Arc drop.
+            if let Err(e) = self.session.close().await {
+                log::warn!("[Zenoh] Session close error: {}", e);
+            }
+
             log::info!("[Zenoh] Disconnected");
             Ok(())
         })
@@ -929,9 +1007,10 @@ impl Transport for ZenohBridge {
         let latency_sum = self.latency_sum_ns.clone();
         let latency_count = self.latency_count.clone();
         let subscribers = self.subscribers.clone();
-        let is_compressed = topic.contains("compressed");
+        let is_compressed = topic.ends_with("/compressed");
 
         Box::pin(async move {
+            Self::ensure_connected(&self.connected, "subscribe to", &key)?;
             log::info!("[Zenoh] Subscribing to camera: {}", key);
 
             let callback: Arc<dyn Fn(CameraFrame) + Send + Sync> = Arc::from(callback);
@@ -1000,6 +1079,7 @@ impl Transport for ZenohBridge {
         let subscribers = self.subscribers.clone();
 
         Box::pin(async move {
+            Self::ensure_connected(&self.connected, "subscribe to", &key)?;
             log::info!("[Zenoh] Subscribing to camera info: {}", key);
 
             let callback: Arc<dyn Fn(CameraInfoData) + Send + Sync> = Arc::from(callback);
@@ -1039,6 +1119,7 @@ impl Transport for ZenohBridge {
         let subscribers = self.subscribers.clone();
 
         Box::pin(async move {
+            Self::ensure_connected(&self.connected, "subscribe to", &key)?;
             log::info!("[Zenoh] Subscribing to IMU: {}", key);
 
             let callback: Arc<dyn Fn(ImuData) + Send + Sync> = Arc::from(callback);
@@ -1078,6 +1159,7 @@ impl Transport for ZenohBridge {
         let subscribers = self.subscribers.clone();
 
         Box::pin(async move {
+            Self::ensure_connected(&self.connected, "subscribe to", &key)?;
             log::info!("[Zenoh] Subscribing to pose: {}", key);
 
             let callback: Arc<dyn Fn(PoseData) + Send + Sync> = Arc::from(callback);
@@ -1117,6 +1199,7 @@ impl Transport for ZenohBridge {
         let subscribers = self.subscribers.clone();
 
         Box::pin(async move {
+            Self::ensure_connected(&self.connected, "subscribe to", &key)?;
             log::info!("[Zenoh] Subscribing to model states: {}", key);
 
             let callback: Arc<dyn Fn(ModelStates) + Send + Sync> = Arc::from(callback);
@@ -1171,6 +1254,7 @@ impl Transport for ZenohBridge {
         let bytes_sent = self.bytes_sent.clone();
 
         Box::pin(async move {
+            Self::ensure_connected(&self.connected, "publish to", &key)?;
             let data = encode_twist_cdr(&cmd);
             let data_len = data.len();
 
@@ -1197,6 +1281,7 @@ impl Transport for ZenohBridge {
         let bytes_sent = self.bytes_sent.clone();
 
         Box::pin(async move {
+            Self::ensure_connected(&self.connected, "publish to", &key)?;
             let data = encode_twist_stamped_cdr(&cmd);
             let data_len = data.len();
 
@@ -1223,6 +1308,7 @@ impl Transport for ZenohBridge {
         let bytes_sent = self.bytes_sent.clone();
 
         Box::pin(async move {
+            Self::ensure_connected(&self.connected, "publish to", &key)?;
             let data = encode_pose_cdr(&pose);
             let data_len = data.len();
 
@@ -1455,7 +1541,7 @@ mod tests {
         step: u32,
         payload_len: usize,
     ) -> Vec<u8> {
-        let mut data = vec![CDR_LITTLE_ENDIAN, 0x00, 0x00, 0x00];
+        let mut data = CDR_LE_ENCAPSULATION.to_vec();
         push_i32_le(&mut data, 0);
         push_u32_le(&mut data, 0);
         push_cdr_string(&mut data, "camera");
@@ -1484,7 +1570,7 @@ mod tests {
         assert_eq!(data.len(), 52);
 
         // Check CDR header (little-endian: byte 0 = 0x01)
-        assert_eq!(&data[0..4], &[0x01, 0x00, 0x00, 0x00]);
+        assert_eq!(&data[0..4], &CDR_LE_ENCAPSULATION);
 
         // Check first linear value
         let val = f64::from_le_bytes(data[4..12].try_into().unwrap());
@@ -1494,7 +1580,7 @@ mod tests {
     #[test]
     #[cfg(feature = "zenoh-transport")]
     fn camera_info_rejects_oversized_distortion_sequence() {
-        let mut data = vec![CDR_LITTLE_ENDIAN, 0x00, 0x00, 0x00];
+        let mut data = CDR_LE_ENCAPSULATION.to_vec();
         push_i32_le(&mut data, 0);
         push_u32_le(&mut data, 0);
         push_cdr_string(&mut data, "camera");
@@ -1562,7 +1648,7 @@ mod tests {
     #[test]
     #[cfg(feature = "zenoh-transport")]
     fn model_states_rejects_oversized_name_sequence() {
-        let mut data = vec![CDR_LITTLE_ENDIAN, 0x00, 0x00, 0x00];
+        let mut data = CDR_LE_ENCAPSULATION.to_vec();
         push_u32_le(&mut data, MAX_CDR_SEQUENCE_LEN as u32 + 1);
 
         let error = decode_model_states_cdr(&data).unwrap_err();

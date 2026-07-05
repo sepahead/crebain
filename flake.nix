@@ -21,18 +21,13 @@
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    zig-overlay = {
-      url = "github:mitchellh/zig-overlay";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 
-  outputs = { self, nixpkgs, flake-utils, rust-overlay, zig-overlay }:
+  outputs = { self, nixpkgs, flake-utils, rust-overlay }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         overlays = [
           rust-overlay.overlays.default
-          zig-overlay.overlays.default
         ];
         isLinuxSystem = builtins.match ".*-linux" system != null;
         pkgs = import nixpkgs {
@@ -86,8 +81,6 @@
           cargo-watch
           cargo-edit
 
-          # Zig for native detector (cross-platform)
-          zig-overlay.packages.${system}.master
 
           # Node.js / Bun for frontend
           nodejs_20
@@ -173,7 +166,7 @@
 
 	        # Nixpkgs may split `onnxruntime` into multiple outputs (typically `out`
 	        # for runtime libraries and `dev` for headers and unversioned linker
-	        # symlinks). The Zig detector and `ort`'s dynamic loader both benefit
+	        # symlinks). `ort`'s dynamic loader benefits
 	        # from a single path that exposes `include/` and `lib/libonnxruntime.so`.
 	        onnxruntimeMerged = pkgs.symlinkJoin {
 	          name = "onnxruntime-merged";
@@ -259,7 +252,6 @@
             ''}
             echo "╠══════════════════════════════════════════════════════════════════╣"
             echo "║  Rust:   $(rustc --version | cut -d' ' -f2)                                                ║"
-            echo "║  Zig:    $(zig version 2>/dev/null || echo "not found")                                                ║"
             echo "║  Bun:    $(bun --version 2>/dev/null || echo "not found")                                                 ║"
             echo "╠══════════════════════════════════════════════════════════════════╣"
             echo "║  Commands:                                                       ║"
@@ -277,10 +269,8 @@
             '' else ''
             ${if hasCuda then ''
             export CREBAIN_BACKEND=tensorrt
-            export CREBAIN_CUDA=1
             '' else ''
             export CREBAIN_BACKEND=onnx
-            export CREBAIN_CPU_ONLY=1
             ''}
             export CREBAIN_ZENOH=1
             export RMW_IMPLEMENTATION=rmw_zenoh_cpp
@@ -312,7 +302,6 @@
             echo "CREBAIN Development Environment (CUDA Forced)"
             echo "=============================================="
             export CREBAIN_BACKEND=tensorrt
-            export CREBAIN_CUDA=1
             export CREBAIN_ZENOH=1
 
             # Ensure NVIDIA driver libraries are visible when available (NixOS).
@@ -338,7 +327,6 @@
             echo "CREBAIN Development Environment (CPU Only)"
             echo "=========================================="
             export CREBAIN_BACKEND=onnx
-            export CREBAIN_CPU_ONLY=1
             export CREBAIN_ZENOH=1
           '';
         };
@@ -346,7 +334,7 @@
         # Main package build
         packages.default = pkgs.rustPlatform.buildRustPackage {
           pname = "crebain";
-          version = "0.1.0";
+          version = "0.4.0";
           
           src = ./.;
           cargoLock.lockFile = ./src-tauri/Cargo.lock;
@@ -363,15 +351,6 @@
           );
           ORT_SKIP_DOWNLOAD = "1";
           
-          # Build the Zig detector first
-	          preBuild = ''
-	            echo "Building Zig detector..."
-	            cd src-tauri/native/zig-detector
-	            ${zig-overlay.packages.${system}.master}/bin/zig build -Doptimize=ReleaseFast ${
-	              if hasCuda then "-Dcuda=true -Dcuda-path=${pkgs.cudaPackages.cudatoolkit} -Donnx=true -Donnx-path=${onnxruntimeMerged}" else ""
-	            }
-	            cd ../../..
-	          '';
           
           # Build Tauri app
           buildPhase = ''
@@ -381,7 +360,7 @@
           
           installPhase = ''
             mkdir -p $out/bin
-            cp target/release/app $out/bin/crebain
+            cp target/release/crebain $out/bin/crebain
             
 	            ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
 	            # `ort` loads ONNX Runtime dynamically. Make the dylib path explicit so
@@ -395,17 +374,14 @@
             
             # Copy resources
             mkdir -p $out/share/crebain/models
-            cp -r src-tauri/resources/* $out/share/crebain/models/ 2>/dev/null || true
+            cp -r resources/* $out/share/crebain/models/ 2>/dev/null || true
             
-            # Copy Zig detector library
-            mkdir -p $out/lib
-            cp src-tauri/native/zig-detector/zig-out/lib/libcrebain_detector.* $out/lib/ 2>/dev/null || true
           '';
           
 	          meta = with pkgs.lib; {
 	            description = "CREBAIN - Adaptive Response & Awareness System (ARAS)";
-	            homepage = "https://github.com/crebain/crebain";
-	            license = licenses.mit;
+	            homepage = "https://github.com/sepahead/crebain";
+	            license = [ licenses.mit licenses.asl20 ];
 	            platforms = platforms.linux ++ platforms.darwin;
 	          };
 	        };
@@ -429,33 +405,6 @@
           };
         };
 
-        # Zig detector library only
-	        packages.zig-detector = pkgs.stdenv.mkDerivation {
-          pname = "crebain-zig-detector";
-          version = "0.1.0";
-          
-          src = ./src-tauri/native/zig-detector;
-          
-          nativeBuildInputs = [ zig-overlay.packages.${system}.master ];
-          
-	          buildInputs = if hasCuda then [
-	            pkgs.cudaPackages.cudatoolkit
-	            pkgs.cudaPackages.cudnn
-	            onnxruntimeMerged
-	          ] else [];
-          
-	          buildPhase = ''
-	            zig build -Doptimize=ReleaseFast ${
-	              if hasCuda then "-Dcuda=true -Donnx=true -Donnx-path=${onnxruntimeMerged}" else ""
-	            }
-	          '';
-          
-          installPhase = ''
-            mkdir -p $out/lib $out/include
-            cp zig-out/lib/* $out/lib/
-            cp src/crebain_detector.h $out/include/
-          '';
-        };
       }
     );
 }

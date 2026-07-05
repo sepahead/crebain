@@ -9,6 +9,7 @@
 import type { ROSBridge } from './ROSBridge'
 import type { ZenohBridge } from './ZenohBridge'
 import type { Image, CompressedImage, CameraInfo, Header } from './types'
+import { namespacedRosTopic } from './utils'
 import { rosLogger as log } from '../lib/logger'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -56,6 +57,16 @@ export interface CameraStreamStats {
 
 export type FrameCallback = (frame: DecodedFrame) => void
 export type CameraInfoCallback = (info: CameraInfo) => void
+
+/**
+ * Release the GPU-backed bitmap owned by a decoded frame.
+ * Idempotent; ImageData-backed frames are a no-op.
+ */
+export function closeFrameImage(frame: DecodedFrame): void {
+  if (typeof ImageBitmap !== 'undefined' && frame.image instanceof ImageBitmap) {
+    frame.image.close()
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
@@ -109,11 +120,12 @@ export class ROSCameraStream {
     }
 
     this.bridge = bridge
-    const prefix = namespace ? `${namespace}/` : ''
 
     // Subscribe to compressed image (preferred)
     if (this.config.compressedTopic) {
-      const topic = `${prefix}${this.config.compressedTopic}`
+      // namespacedRosTopic yields absolute topic names even for empty or
+      // non-`/` namespaces (raw prefixing would produce invalid relative ones)
+      const topic = namespacedRosTopic(namespace, this.config.compressedTopic)
       const unsub = bridge.subscribe<CompressedImage>(
         topic,
         'sensor_msgs/CompressedImage',
@@ -126,7 +138,7 @@ export class ROSCameraStream {
 
     // Subscribe to raw image (fallback)
     if (this.config.rawTopic && !this.config.compressedTopic) {
-      const topic = `${prefix}${this.config.rawTopic}`
+      const topic = namespacedRosTopic(namespace, this.config.rawTopic)
       const unsub = bridge.subscribe<Image>(
         topic,
         'sensor_msgs/Image',
@@ -139,7 +151,7 @@ export class ROSCameraStream {
 
     // Subscribe to camera info (intrinsics/calibration)
     if (this.config.infoTopic) {
-      const topic = `${prefix}${this.config.infoTopic}`
+      const topic = namespacedRosTopic(namespace, this.config.infoTopic)
       const unsub = bridge.subscribe<CameraInfo>(
         topic,
         'sensor_msgs/CameraInfo',
@@ -438,6 +450,12 @@ export class ROSCameraStream {
   }
 
   private notifyFrameCallbacks(frame: DecodedFrame): void {
+    if (this.frameCallbacks.size === 0) {
+      // No consumer takes ownership — release the GPU-backed bitmap now
+      // instead of leaking one per decoded frame.
+      closeFrameImage(frame)
+      return
+    }
     for (const callback of this.frameCallbacks) {
       try {
         callback(frame)

@@ -1,20 +1,43 @@
 use super::{
     create_bridge, CameraFrame, CameraInfoData, ImuData, ModelStates, PoseData, Transport,
-    TransportStats, TwistStampedData, VelocityCmd,
+    TransportError, TransportStats, TwistStampedData, VelocityCmd,
 };
-use std::sync::LazyLock;
+use std::future::Future;
+use std::sync::{Arc, LazyLock};
+use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::Mutex;
 
-// Global transport instance
-static TRANSPORT_ENGINE: LazyLock<Mutex<Option<Box<dyn Transport>>>> =
+// Global transport instance. The mutex is only held briefly to swap or clone
+// the Arc, never across a transport operation, so a stalled operation cannot
+// wedge every other command (including transport_disconnect).
+static TRANSPORT_ENGINE: LazyLock<Mutex<Option<Arc<dyn Transport>>>> =
     LazyLock::new(|| Mutex::new(None));
 
 const MAX_TOPIC_LEN: usize = 512;
 const MAX_FRAME_ID_LEN: usize = 256;
 const MAX_GAZEBO_MODEL_NAME_LEN: usize = 128;
 const MAX_GAZEBO_MODEL_XML_BYTES: usize = 2 * 1024 * 1024;
-const TRANSPORT_EVENT_PREFIX: &str = "crebain.transport.";
+const TRANSPORT_EVENT_PREFIX: &str = "crebain:transport:";
+const TRANSPORT_OP_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// Clone the active bridge out of a briefly-held lock.
+async fn current_bridge() -> Result<Arc<dyn Transport>, String> {
+    TRANSPORT_ENGINE
+        .lock()
+        .await
+        .clone()
+        .ok_or_else(|| "Transport not connected".to_string())
+}
+
+/// Run a transport operation with a timeout so a stalled transport cannot
+/// block the command surface forever.
+async fn with_timeout<T>(op: impl Future<Output = super::Result<T>>) -> Result<T, String> {
+    match tokio::time::timeout(TRANSPORT_OP_TIMEOUT, op).await {
+        Ok(result) => result.map_err(|e| e.to_string()),
+        Err(_) => Err(TransportError::Timeout.to_string()),
+    }
+}
 
 fn validate_topic(topic: &str) -> Result<(), String> {
     if topic.trim().is_empty() {
@@ -29,6 +52,15 @@ fn validate_topic(topic: &str) -> Result<(), String> {
             topic.len(),
             MAX_TOPIC_LEN
         ));
+    }
+    // ROS-graph character whitelist. This also keeps zenoh key-expression
+    // metacharacters (`*`, `?`, `#`, `$`, ...) out of topics that are passed
+    // verbatim as key expressions, consistent with rosbridge-side validation.
+    if !topic
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '/' | '.'))
+    {
+        return Err("Transport topic contains unsupported characters".to_string());
     }
     Ok(())
 }
@@ -144,14 +176,23 @@ fn validate_bounded_graph_name(name: &str, value: &str, max_len: usize) -> Resul
     Ok(())
 }
 
+/// Map a ROS topic to a Tauri event name.
+///
+/// Tauri 2.x (`EventName::new`) rejects event names containing anything
+/// outside alphanumerics, `-`, `/`, `:` and `_`, so an emit with an illegal
+/// name fails and the frontend never receives the payload. ASCII
+/// alphanumerics, `-` and `/` pass through; every other byte is escaped as
+/// `_` + two uppercase hex digits (`_` itself becomes `_5F`, keeping the
+/// mapping bijective). Must stay byte-identical with `getTransportEventName`
+/// in `src/lib/transportEvents.ts`.
 fn transport_event_name(topic: &str) -> String {
     let mut event_name = String::from(TRANSPORT_EVENT_PREFIX);
     for byte in topic.as_bytes() {
         let c = *byte as char;
-        if c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-') {
+        if c.is_ascii_alphanumeric() || matches!(c, '-' | '/') {
             event_name.push(c);
         } else {
-            event_name.push_str(&format!("%{:02X}", byte));
+            event_name.push_str(&format!("_{:02X}", byte));
         }
     }
     event_name
@@ -163,19 +204,18 @@ pub async fn transport_connect() -> Result<(), String> {
     log::info!("Connecting to transport layer...");
 
     // Create bridge (will pick Zenoh if enabled/configured)
-    let mut bridge = create_bridge().await.map_err(|e| e.to_string())?;
+    let mut bridge = with_timeout(create_bridge()).await?;
 
     // Connect
-    bridge.connect().await.map_err(|e| e.to_string())?;
+    with_timeout(bridge.connect()).await?;
 
-    // Disconnect any existing transport before replacing it
-    let mut guard = TRANSPORT_ENGINE.lock().await;
-    if let Some(old_bridge) = guard.as_mut() {
-        if let Err(e) = old_bridge.disconnect().await {
+    // Swap in the new transport, then disconnect the old one outside the lock
+    let old_bridge = TRANSPORT_ENGINE.lock().await.replace(Arc::from(bridge));
+    if let Some(old_bridge) = old_bridge {
+        if let Err(e) = with_timeout(old_bridge.disconnect()).await {
             log::warn!("Failed to disconnect old transport: {}", e);
         }
     }
-    *guard = Some(bridge);
 
     log::info!("Transport connected successfully");
     Ok(())
@@ -186,13 +226,12 @@ pub async fn transport_connect() -> Result<(), String> {
 pub async fn transport_disconnect() -> Result<(), String> {
     log::info!("Disconnecting transport...");
 
-    let mut guard = TRANSPORT_ENGINE.lock().await;
-
-    if let Some(bridge) = guard.as_mut() {
-        bridge.disconnect().await.map_err(|e| e.to_string())?;
+    // Take the bridge out first so the engine is cleared (and new connects
+    // are possible) even if the disconnect itself stalls.
+    let bridge = TRANSPORT_ENGINE.lock().await.take();
+    if let Some(bridge) = bridge {
+        with_timeout(bridge.disconnect()).await?;
     }
-
-    *guard = None;
     Ok(())
 }
 
@@ -201,8 +240,7 @@ pub async fn transport_disconnect() -> Result<(), String> {
 #[tauri::command]
 pub async fn transport_subscribe_camera(app: AppHandle, topic: String) -> Result<(), String> {
     validate_topic(&topic)?;
-    let guard = TRANSPORT_ENGINE.lock().await;
-    let bridge = guard.as_ref().ok_or("Transport not connected")?;
+    let bridge = current_bridge().await?;
 
     let event_name = transport_event_name(&topic);
     log::debug!(
@@ -221,12 +259,7 @@ pub async fn transport_subscribe_camera(app: AppHandle, topic: String) -> Result
         }
     });
 
-    bridge
-        .subscribe_camera(&topic, callback)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    Ok(())
+    with_timeout(bridge.subscribe_camera(&topic, callback)).await
 }
 
 /// Subscribe to a CameraInfo topic
@@ -234,8 +267,7 @@ pub async fn transport_subscribe_camera(app: AppHandle, topic: String) -> Result
 #[tauri::command]
 pub async fn transport_subscribe_camera_info(app: AppHandle, topic: String) -> Result<(), String> {
     validate_topic(&topic)?;
-    let guard = TRANSPORT_ENGINE.lock().await;
-    let bridge = guard.as_ref().ok_or("Transport not connected")?;
+    let bridge = current_bridge().await?;
 
     let event_name = transport_event_name(&topic);
     log::debug!(
@@ -250,20 +282,14 @@ pub async fn transport_subscribe_camera_info(app: AppHandle, topic: String) -> R
         }
     });
 
-    bridge
-        .subscribe_camera_info(&topic, callback)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    Ok(())
+    with_timeout(bridge.subscribe_camera_info(&topic, callback)).await
 }
 
 /// Subscribe to an IMU topic
 #[tauri::command]
 pub async fn transport_subscribe_imu(app: AppHandle, topic: String) -> Result<(), String> {
     validate_topic(&topic)?;
-    let guard = TRANSPORT_ENGINE.lock().await;
-    let bridge = guard.as_ref().ok_or("Transport not connected")?;
+    let bridge = current_bridge().await?;
 
     let event_name = transport_event_name(&topic);
     log::debug!(
@@ -278,20 +304,14 @@ pub async fn transport_subscribe_imu(app: AppHandle, topic: String) -> Result<()
         }
     });
 
-    bridge
-        .subscribe_imu(&topic, callback)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    Ok(())
+    with_timeout(bridge.subscribe_imu(&topic, callback)).await
 }
 
 /// Subscribe to a Pose topic
 #[tauri::command]
 pub async fn transport_subscribe_pose(app: AppHandle, topic: String) -> Result<(), String> {
     validate_topic(&topic)?;
-    let guard = TRANSPORT_ENGINE.lock().await;
-    let bridge = guard.as_ref().ok_or("Transport not connected")?;
+    let bridge = current_bridge().await?;
 
     let event_name = transport_event_name(&topic);
     log::debug!(
@@ -306,20 +326,14 @@ pub async fn transport_subscribe_pose(app: AppHandle, topic: String) -> Result<(
         }
     });
 
-    bridge
-        .subscribe_pose(&topic, callback)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    Ok(())
+    with_timeout(bridge.subscribe_pose(&topic, callback)).await
 }
 
 /// Subscribe to Model States
 #[tauri::command]
 pub async fn transport_subscribe_model_states(app: AppHandle, topic: String) -> Result<(), String> {
     validate_topic(&topic)?;
-    let guard = TRANSPORT_ENGINE.lock().await;
-    let bridge = guard.as_ref().ok_or("Transport not connected")?;
+    let bridge = current_bridge().await?;
 
     let event_name = transport_event_name(&topic);
     log::debug!(
@@ -334,27 +348,22 @@ pub async fn transport_subscribe_model_states(app: AppHandle, topic: String) -> 
         }
     });
 
-    bridge
-        .subscribe_model_states(&topic, callback)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    Ok(())
+    with_timeout(bridge.subscribe_model_states(&topic, callback)).await
 }
 
 /// Unsubscribe from a topic
 #[tauri::command]
 pub async fn transport_unsubscribe(topic: String) -> Result<(), String> {
     validate_topic(&topic)?;
-    let guard = TRANSPORT_ENGINE.lock().await;
-    let Some(bridge) = guard.as_ref() else {
+    let bridge = TRANSPORT_ENGINE.lock().await.clone();
+    let Some(bridge) = bridge else {
         log::debug!(
             "Ignoring unsubscribe for '{}' because transport is disconnected",
             topic
         );
         return Ok(());
     };
-    bridge.unsubscribe(&topic).await.map_err(|e| e.to_string())
+    with_timeout(bridge.unsubscribe(&topic)).await
 }
 
 /// Publish velocity command
@@ -362,15 +371,9 @@ pub async fn transport_unsubscribe(topic: String) -> Result<(), String> {
 pub async fn transport_publish_velocity(topic: String, cmd: VelocityCmd) -> Result<(), String> {
     validate_topic(&topic)?;
     validate_velocity_cmd("cmd", &cmd)?;
-    let guard = TRANSPORT_ENGINE.lock().await;
-    let bridge = guard.as_ref().ok_or("Transport not connected")?;
+    let bridge = current_bridge().await?;
 
-    bridge
-        .publish_velocity(&topic, cmd)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    Ok(())
+    with_timeout(bridge.publish_velocity(&topic, cmd)).await
 }
 
 /// Publish stamped velocity command (geometry_msgs/TwistStamped)
@@ -381,15 +384,9 @@ pub async fn transport_publish_twist_stamped(
 ) -> Result<(), String> {
     validate_topic(&topic)?;
     validate_twist_stamped(&cmd)?;
-    let guard = TRANSPORT_ENGINE.lock().await;
-    let bridge = guard.as_ref().ok_or("Transport not connected")?;
+    let bridge = current_bridge().await?;
 
-    bridge
-        .publish_twist_stamped(&topic, cmd)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    Ok(())
+    with_timeout(bridge.publish_twist_stamped(&topic, cmd)).await
 }
 
 /// Publish pose setpoint
@@ -397,22 +394,15 @@ pub async fn transport_publish_twist_stamped(
 pub async fn transport_publish_pose(topic: String, pose: PoseData) -> Result<(), String> {
     validate_topic(&topic)?;
     validate_pose_data(&pose)?;
-    let guard = TRANSPORT_ENGINE.lock().await;
-    let bridge = guard.as_ref().ok_or("Transport not connected")?;
+    let bridge = current_bridge().await?;
 
-    bridge
-        .publish_pose(&topic, pose)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    Ok(())
+    with_timeout(bridge.publish_pose(&topic, pose)).await
 }
 
 #[tauri::command]
 pub async fn transport_spawn_gazebo_model(request: GazeboSpawnModelRequest) -> Result<(), String> {
     validate_gazebo_spawn_request(&request)?;
-    let guard = TRANSPORT_ENGINE.lock().await;
-    let bridge = guard.as_ref().ok_or("Transport not connected")?;
+    let bridge = current_bridge().await?;
     let pose = request.initial_pose;
     let args = serde_json::json!({
         "name": request.name,
@@ -433,17 +423,13 @@ pub async fn transport_spawn_gazebo_model(request: GazeboSpawnModelRequest) -> R
         },
         "reference_frame": request.reference_frame.unwrap_or_else(|| pose.frame_id.clone())
     });
-    bridge
-        .call_service("/gazebo/spawn_entity", "gazebo_msgs/SpawnEntity", args)
-        .await
-        .map_err(|e| e.to_string())
+    with_timeout(bridge.call_service("/gazebo/spawn_entity", "gazebo_msgs/SpawnEntity", args)).await
 }
 
 /// Get transport statistics
 #[tauri::command]
 pub async fn transport_get_stats() -> Result<TransportStats, String> {
-    let guard = TRANSPORT_ENGINE.lock().await;
-    let bridge = guard.as_ref().ok_or("Transport not connected")?;
+    let bridge = current_bridge().await?;
 
     Ok(bridge.stats())
 }
@@ -509,6 +495,19 @@ mod tests {
             .contains("null bytes"));
         let oversized = format!("/{}", "a".repeat(MAX_TOPIC_LEN));
         assert!(validate_topic(&oversized).unwrap_err().contains("too long"));
+    }
+
+    #[test]
+    fn validate_topic_rejects_wildcards_and_metacharacters() {
+        for topic in ["/**", "/camera/*", "/cam?era", "/cam#era", "/cam$era"] {
+            assert!(
+                validate_topic(topic)
+                    .unwrap_err()
+                    .contains("unsupported characters"),
+                "expected rejection for {}",
+                topic
+            );
+        }
     }
 
     #[test]
@@ -640,20 +639,31 @@ mod tests {
     #[test]
     fn transport_event_name_preserves_safe_ascii() {
         assert_eq!(
-            transport_event_name("camera.image-raw_1"),
-            "crebain.transport.camera.image-raw_1"
+            transport_event_name("camera/image-raw1"),
+            "crebain:transport:camera/image-raw1"
         );
     }
 
     #[test]
-    fn transport_event_name_encodes_ros_separators_spaces_and_utf8() {
+    fn transport_event_name_escapes_underscores_and_utf8() {
         assert_eq!(
-            transport_event_name("/camera/image raw"),
-            "crebain.transport.%2Fcamera%2Fimage%20raw"
+            transport_event_name("/camera/image_raw"),
+            "crebain:transport:/camera/image_5Fraw"
         );
         assert_eq!(
             transport_event_name("/über/image"),
-            "crebain.transport.%2F%C3%BCber%2Fimage"
+            "crebain:transport:/_C3_BCber/image"
         );
+    }
+
+    #[test]
+    fn transport_event_name_emits_only_tauri_legal_characters() {
+        // Tauri 2.x EventName::new accepts only [a-zA-Z0-9-/:_]; anything else
+        // makes every emit fail and no transport data reaches the frontend.
+        let name = transport_event_name("/cam era/image_raw%~");
+        assert_eq!(name, "crebain:transport:/cam_20era/image_5Fraw_25_7E");
+        assert!(name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '/' | ':' | '_')));
     }
 }

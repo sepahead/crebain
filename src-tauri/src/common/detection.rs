@@ -1,7 +1,16 @@
-//! Shared detection types used across all detector backends.
+//! Shared detection types for internal detector utilities (e.g. `common::nms`).
 //!
-//! This module provides a unified `Detection` type that all detectors
-//! should use, ensuring consistency across CoreML, ONNX, TensorRT, etc.
+//! # WARNING: not the IPC wire types
+//!
+//! `Detection` and `DetectionResult` here serialize with snake_case field
+//! names and lack the `id`, `timestamp`, and `success` fields that the
+//! TypeScript contract expects (see `normalizeNativeDetectionResult` in
+//! `src/detection/nativeDetectionResult.ts`). Do NOT serialize these types
+//! across the Tauri IPC boundary. The real IPC wire types are:
+//! - `crate::coreml::{Detection, DetectionResult}`
+//! - `crate::onnx_detector::{Detection, OnnxDetectionResult}`
+//!
+//! both of which serialize camelCase and carry the full contract.
 
 use serde::{Deserialize, Serialize};
 

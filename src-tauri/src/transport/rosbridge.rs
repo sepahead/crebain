@@ -25,6 +25,11 @@ use tokio_tungstenite::tungstenite::Message;
 const MAX_TOPIC_LEN: usize = 256;
 const MAX_MESSAGE_TYPE_LEN: usize = 128;
 const DEFAULT_ROSBRIDGE_URL: &str = "ws://localhost:9090";
+/// Maximum queued outgoing messages before publishes fail fast instead of
+/// buffering without bound against a slow/stalled server.
+const WRITE_QUEUE_CAPACITY: usize = 256;
+/// How long disconnect() waits for the write task to flush a Close frame.
+const SHUTDOWN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
 
 /// Read a ROS2 `builtin_interfaces/Time` header stamp as seconds.
 ///
@@ -103,7 +108,9 @@ fn validate_message_type(msg_type: &str) -> Result<()> {
     Ok(())
 }
 
-type SubscriptionCallback = Box<dyn Fn(serde_json::Value) + Send + Sync>;
+/// Shared so the read task can clone a callback out of the subscriptions map
+/// and invoke it without holding the map's lock across the call.
+type SubscriptionCallback = Arc<dyn Fn(serde_json::Value) + Send + Sync>;
 
 /// Lock a mutex, recovering the guard if the mutex was poisoned by a panic in
 /// another thread. The subscription map only holds callback handles, so a prior
@@ -116,7 +123,9 @@ fn lock_recover<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 }
 
 struct RosbridgeInner {
-    write_tx: mpsc::UnboundedSender<String>,
+    /// Only sender for the write task's queue; taken (dropped) on shutdown so
+    /// the write task's `recv()` returns `None` and the task exits.
+    write_tx: Mutex<Option<mpsc::Sender<String>>>,
     connected: AtomicBool,
     messages_received: AtomicU64,
     messages_sent: AtomicU64,
@@ -128,6 +137,8 @@ struct RosbridgeInner {
 
 pub struct RosbridgeTransport {
     inner: Arc<RosbridgeInner>,
+    write_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
+    read_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
 }
 
 impl RosbridgeTransport {
@@ -139,10 +150,10 @@ impl RosbridgeTransport {
         })?;
 
         let (mut write, mut read) = ws_stream.split();
-        let (write_tx, mut write_rx) = mpsc::unbounded_channel::<String>();
+        let (write_tx, mut write_rx) = mpsc::channel::<String>(WRITE_QUEUE_CAPACITY);
 
         let inner = Arc::new(RosbridgeInner {
-            write_tx,
+            write_tx: Mutex::new(Some(write_tx)),
             connected: AtomicBool::new(true),
             messages_received: AtomicU64::new(0),
             messages_sent: AtomicU64::new(0),
@@ -152,41 +163,57 @@ impl RosbridgeTransport {
             subscriptions: Mutex::new(HashMap::new()),
         });
 
-        let inner_clone = Arc::clone(&inner);
+        // Weak: the write task must not keep `inner` (which owns the only
+        // `write_tx`) alive, or `recv()` below would never return `None` and
+        // the task, socket, and inner state would leak per connection.
+        let inner_weak = Arc::downgrade(&inner);
 
         // Write task
-        tokio::spawn(async move {
+        let write_task = tokio::spawn(async move {
             while let Some(msg) = write_rx.recv().await {
                 let len = msg.len() as u64;
                 if let Err(e) = write.send(Message::Text(msg.into())).await {
                     log::error!("[Rosbridge] Write error: {}", e);
                     break;
                 }
-                inner_clone.bytes_sent.fetch_add(len, Ordering::Relaxed);
-                inner_clone.messages_sent.fetch_add(1, Ordering::Relaxed);
+                let Some(inner) = inner_weak.upgrade() else {
+                    break;
+                };
+                inner.bytes_sent.fetch_add(len, Ordering::Relaxed);
+                inner.messages_sent.fetch_add(1, Ordering::Relaxed);
             }
-            inner_clone.connected.store(false, Ordering::Relaxed);
+            // Graceful teardown: tell the server we are done, then close the
+            // socket instead of leaving it half-open.
+            if let Err(e) = write.send(Message::Close(None)).await {
+                log::debug!("[Rosbridge] Close frame send failed: {}", e);
+            }
+            let _ = write.close().await;
+            if let Some(inner) = inner_weak.upgrade() {
+                inner.connected.store(false, Ordering::Relaxed);
+            }
         });
 
-        let inner_clone2 = Arc::clone(&inner);
+        let inner_clone = Arc::clone(&inner);
 
         // Read task
-        tokio::spawn(async move {
+        let read_task = tokio::spawn(async move {
             while let Some(msg) = read.next().await {
                 match msg {
                     Ok(Message::Text(text)) => {
                         let len = text.len() as u64;
-                        inner_clone2
-                            .bytes_received
-                            .fetch_add(len, Ordering::Relaxed);
-                        inner_clone2
+                        inner_clone.bytes_received.fetch_add(len, Ordering::Relaxed);
+                        inner_clone
                             .messages_received
                             .fetch_add(1, Ordering::Relaxed);
 
                         if let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) {
                             if let Some(topic) = value.get("topic").and_then(|v| v.as_str()) {
-                                let subs = lock_recover(&inner_clone2.subscriptions);
-                                if let Some(callback) = subs.get(topic) {
+                                // Clone the callback out so the subscriptions
+                                // lock is not held while the (potentially
+                                // slow) callback runs.
+                                let callback =
+                                    lock_recover(&inner_clone.subscriptions).get(topic).cloned();
+                                if let Some(callback) = callback {
                                     callback(value);
                                 }
                             }
@@ -203,10 +230,14 @@ impl RosbridgeTransport {
                     _ => {}
                 }
             }
-            inner_clone2.connected.store(false, Ordering::Relaxed);
+            inner_clone.connected.store(false, Ordering::Relaxed);
         });
 
-        Ok(Self { inner })
+        Ok(Self {
+            inner,
+            write_task: Mutex::new(Some(write_task)),
+            read_task: Mutex::new(Some(read_task)),
+        })
     }
 
     fn send_json(&self, msg: serde_json::Value) -> Result<()> {
@@ -215,11 +246,43 @@ impl RosbridgeTransport {
         }
         let text = serde_json::to_string(&msg)
             .map_err(|e| TransportError::PublishFailed(format!("JSON encode: {}", e)))?;
-        self.inner
-            .write_tx
-            .send(text)
-            .map_err(|e| TransportError::PublishFailed(format!("Send error: {}", e)))?;
+        let guard = lock_recover(&self.inner.write_tx);
+        let Some(write_tx) = guard.as_ref() else {
+            return Err(TransportError::PublishFailed("Not connected".to_string()));
+        };
+        write_tx.try_send(text).map_err(|e| match e {
+            mpsc::error::TrySendError::Full(_) => TransportError::PublishFailed(format!(
+                "Write queue full ({} messages)",
+                WRITE_QUEUE_CAPACITY
+            )),
+            mpsc::error::TrySendError::Closed(_) => {
+                TransportError::PublishFailed("Not connected".to_string())
+            }
+        })?;
         Ok(())
+    }
+
+    /// Stop callback delivery and close the write channel. Dropping the only
+    /// sender makes the write task send a WebSocket Close frame, close the
+    /// socket, and exit.
+    fn begin_shutdown(&self) {
+        self.inner.connected.store(false, Ordering::Relaxed);
+        lock_recover(&self.inner.subscriptions).clear();
+        lock_recover(&self.inner.write_tx).take();
+    }
+}
+
+impl Drop for RosbridgeTransport {
+    fn drop(&mut self) {
+        self.begin_shutdown();
+        // Drop cannot await the graceful close; abort both tasks so the
+        // socket halves and inner state are released.
+        if let Some(task) = lock_recover(&self.write_task).take() {
+            task.abort();
+        }
+        if let Some(task) = lock_recover(&self.read_task).take() {
+            task.abort();
+        }
     }
 }
 
@@ -235,9 +298,25 @@ impl Transport for RosbridgeTransport {
         })
     }
 
-    fn disconnect(&mut self) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
+    fn disconnect(&self) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
         Box::pin(async move {
-            self.inner.connected.store(false, Ordering::Relaxed);
+            self.begin_shutdown();
+            // Let the write task flush a Close frame and close the socket;
+            // abort it if an in-flight send is stalled by the peer.
+            let write_task = lock_recover(&self.write_task).take();
+            if let Some(mut task) = write_task {
+                if tokio::time::timeout(SHUTDOWN_TIMEOUT, &mut task)
+                    .await
+                    .is_err()
+                {
+                    task.abort();
+                }
+            }
+            // The read task exits when the socket closes; abort it as a
+            // fallback so a silent peer cannot keep it alive forever.
+            if let Some(task) = lock_recover(&self.read_task).take() {
+                task.abort();
+            }
             Ok(())
         })
     }
@@ -264,7 +343,7 @@ impl Transport for RosbridgeTransport {
             let mut subs = lock_recover(&self.inner.subscriptions);
             subs.insert(
                 topic,
-                Box::new(move |value: serde_json::Value| {
+                Arc::new(move |value: serde_json::Value| {
                     if let Some(msg) = value.get("msg") {
                         let frame = CameraFrame {
                             data: msg
@@ -318,7 +397,7 @@ impl Transport for RosbridgeTransport {
             let mut subs = lock_recover(&self.inner.subscriptions);
             subs.insert(
                 topic,
-                Box::new(move |value: serde_json::Value| {
+                Arc::new(move |value: serde_json::Value| {
                     if let Some(msg) = value.get("msg") {
                         let info = CameraInfoData {
                             height: msg.get("height").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
@@ -370,7 +449,7 @@ impl Transport for RosbridgeTransport {
             let mut subs = lock_recover(&self.inner.subscriptions);
             subs.insert(
                 topic,
-                Box::new(move |value: serde_json::Value| {
+                Arc::new(move |value: serde_json::Value| {
                     if let Some(msg) = value.get("msg") {
                         let imu = ImuData {
                             orientation: [
@@ -437,7 +516,7 @@ impl Transport for RosbridgeTransport {
             let mut subs = lock_recover(&self.inner.subscriptions);
             subs.insert(
                 topic,
-                Box::new(move |value: serde_json::Value| {
+                Arc::new(move |value: serde_json::Value| {
                     if let Some(msg) = value.get("msg") {
                         if let Some(pose) = msg.get("pose") {
                             let pose_data = PoseData {
@@ -501,7 +580,7 @@ impl Transport for RosbridgeTransport {
             let mut subs = lock_recover(&self.inner.subscriptions);
             subs.insert(
                 topic,
-                Box::new(move |value: serde_json::Value| {
+                Arc::new(move |value: serde_json::Value| {
                     if let Some(msg) = value.get("msg") {
                         let names: Vec<String> = msg
                             .get("name")

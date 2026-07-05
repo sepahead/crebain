@@ -133,20 +133,17 @@ pub struct NativeCoreMLDetector {
 static DETECTOR: OnceLock<NativeCoreMLDetector> = OnceLock::new();
 
 #[cfg(target_os = "macos")]
-static INIT_ERROR: OnceLock<String> = OnceLock::new();
-
-#[cfg(target_os = "macos")]
 impl NativeCoreMLDetector {
-    /// Initialize the global detector with model path
+    /// Initialize the global detector with model path.
+    ///
+    /// Failures are NOT cached: callers probe multiple candidate model paths
+    /// in fallback loops (see `inference::coreml::CoreMlDetector::new` and
+    /// `lib.rs`), so a failure for one path must not poison retries with the
+    /// next path. Each call may retry until `DETECTOR` is set.
     pub fn init_global(model_path: &str) -> Result<(), String> {
         // Check if already initialized
         if DETECTOR.get().is_some() {
             return Ok(());
-        }
-
-        // Check if previous init failed
-        if let Some(err) = INIT_ERROR.get() {
-            return Err(err.clone());
         }
 
         // Try to initialize
@@ -155,10 +152,7 @@ impl NativeCoreMLDetector {
                 let _ = DETECTOR.set(detector);
                 Ok(())
             }
-            Err(e) => {
-                let _ = INIT_ERROR.set(e.clone());
-                Err(e)
-            }
+            Err(e) => Err(e),
         }
     }
 
@@ -172,86 +166,100 @@ impl NativeCoreMLDetector {
     /// # Safety
     ///
     /// This function uses Objective-C runtime FFI. Safety is ensured by:
-    /// - All Objective-C objects are properly retained/released
+    /// - Owned (+1) objects are explicitly released; autoreleased objects are
+    ///   drained by a per-call autorelease pool
     /// - Error pointers are checked before dereferencing
     /// - Null checks on all returned objects
     /// - The VNCoreMLModel is retained and wrapped in ThreadSafeVNModel for safe concurrent access
     fn new(model_path: &str) -> Result<Self, String> {
-        // SAFETY: This entire block uses Objective-C FFI via the objc crate.
-        // Each msg_send! call is safe because:
-        // 1. We check return values for null before use
-        // 2. We handle NSError objects properly
-        // 3. We retain objects we need to keep and release in Drop
-        // 4. All pointer lifetimes are contained within this function except
-        //    vn_model which is retained and stored in ThreadSafeVNModel
-        unsafe {
-            // Create NSURL for model path
-            let path_str = CString::new(model_path).map_err(|e| e.to_string())?;
-            let ns_string: *mut Object =
-                msg_send![class!(NSString), stringWithUTF8String: path_str.as_ptr()];
-            let url: *mut Object = msg_send![class!(NSURL), fileURLWithPath: ns_string];
+        // Run inside an autorelease pool: initialization may happen on a
+        // long-lived non-main thread with no ambient pool, and several calls
+        // below return autoreleased objects (NSString, NSURL, MLModel, NSError
+        // localizedDescription strings) that would otherwise leak.
+        objc::rc::autoreleasepool(|| {
+            // SAFETY: This entire block uses Objective-C FFI via the objc crate.
+            // Each msg_send! call is safe because:
+            // 1. We check return values for null before use
+            // 2. We handle NSError objects properly
+            // 3. We explicitly release the +1 MLModelConfiguration from `new`;
+            //    autoreleased objects are drained by the enclosing autorelease pool
+            // 4. All pointer lifetimes are contained within this function except
+            //    vn_model which is retained and stored in ThreadSafeVNModel
+            //    (released in ThreadSafeVNModel::drop)
+            unsafe {
+                // Create NSURL for model path
+                let path_str = CString::new(model_path).map_err(|e| e.to_string())?;
+                let ns_string: *mut Object =
+                    msg_send![class!(NSString), stringWithUTF8String: path_str.as_ptr()];
+                let url: *mut Object = msg_send![class!(NSURL), fileURLWithPath: ns_string];
 
-            if url.is_null() {
-                return Err(format!("Failed to create URL for path: {}", model_path));
-            }
+                if url.is_null() {
+                    return Err(format!("Failed to create URL for path: {}", model_path));
+                }
 
-            // Load MLModel with the preferred local inference configuration.
-            let config: *mut Object = msg_send![class!(MLModelConfiguration), new];
+                // Load MLModel with the preferred local inference configuration.
+                let config: *mut Object = msg_send![class!(MLModelConfiguration), new];
 
-            // Set compute units to cpuAndNeuralEngine for the native CoreML path.
-            // MLComputeUnits: .all = 0, .cpuOnly = 1, .cpuAndGPU = 2, .cpuAndNeuralEngine = 3
-            let _: () = msg_send![config, setComputeUnits: 3_i64]; // cpuAndNeuralEngine
+                // Set compute units to cpuAndNeuralEngine for the native CoreML path.
+                // MLComputeUnits: .all = 0, .cpuOnly = 1, .cpuAndGPU = 2, .cpuAndNeuralEngine = 3
+                let _: () = msg_send![config, setComputeUnits: 3_i64]; // cpuAndNeuralEngine
 
-            // Allow low precision accumulation for GPU fallback operations.
-            let _: () = msg_send![config, setAllowLowPrecisionAccumulationOnGPU: true];
+                // Allow low precision accumulation for GPU fallback operations.
+                let _: () = msg_send![config, setAllowLowPrecisionAccumulationOnGPU: true];
 
-            // Load compiled model
-            let mut error: *mut Object = std::ptr::null_mut();
-            let model: *mut Object = msg_send![class!(MLModel), modelWithContentsOfURL: url configuration: config error: &mut error];
+                // Load compiled model
+                let mut error: *mut Object = std::ptr::null_mut();
+                let model: *mut Object = msg_send![class!(MLModel), modelWithContentsOfURL: url configuration: config error: &mut error];
 
-            if model.is_null() || !error.is_null() {
-                let error_desc: *mut Object = msg_send![error, localizedDescription];
-                let error_cstr: *const i8 = msg_send![error_desc, UTF8String];
-                let error_str = if error_cstr.is_null() {
-                    "Unknown error".to_string()
-                } else {
-                    std::ffi::CStr::from_ptr(error_cstr)
-                        .to_string_lossy()
-                        .to_string()
+                // Balance the +1 MLModelConfiguration from `new`. Do this before
+                // the error checks so failure paths do not leak it (the model holds
+                // its own reference to any configuration state it needs).
+                let _: () = msg_send![config, release];
+
+                if model.is_null() || !error.is_null() {
+                    let error_desc: *mut Object = msg_send![error, localizedDescription];
+                    let error_cstr: *const i8 = msg_send![error_desc, UTF8String];
+                    let error_str = if error_cstr.is_null() {
+                        "Unknown error".to_string()
+                    } else {
+                        std::ffi::CStr::from_ptr(error_cstr)
+                            .to_string_lossy()
+                            .to_string()
+                    };
+                    return Err(format!("Failed to load CoreML model: {}", error_str));
+                }
+
+                // Create VNCoreMLModel for Vision framework
+                let mut vn_error: *mut Object = std::ptr::null_mut();
+                let vn_model: *mut Object =
+                    msg_send![class!(VNCoreMLModel), modelForMLModel: model error: &mut vn_error];
+
+                if vn_model.is_null() || !vn_error.is_null() {
+                    return Err("Failed to create VNCoreMLModel".to_string());
+                }
+
+                // Retain the model so it's not deallocated
+                // NOTE: The ThreadSafeVNModel Drop impl will release this
+                let _: () = msg_send![vn_model, retain];
+
+                log::info!("Warming up CoreML model...");
+                // SAFETY: vn_model is a valid, retained VNCoreMLModel instance
+                // that will be used only for read-only inference operations.
+                let detector = Self {
+                    vn_model: ThreadSafeVNModel::new(vn_model),
+                    detection_counter: std::sync::atomic::AtomicU64::new(0),
                 };
-                return Err(format!("Failed to load CoreML model: {}", error_str));
+
+                // Create a small dummy image for warmup
+                let warmup_data = vec![128u8; 64 * 64 * 4]; // Small RGBA image
+                let _ = detector.detect_raw(&warmup_data, 64, 64, 0.5, 100);
+                let _ = detector.detect_raw(&warmup_data, 64, 64, 0.5, 100);
+                let _ = detector.detect_raw(&warmup_data, 64, 64, 0.5, 100);
+                log::info!("CoreML warmup complete");
+
+                Ok(detector)
             }
-
-            // Create VNCoreMLModel for Vision framework
-            let mut vn_error: *mut Object = std::ptr::null_mut();
-            let vn_model: *mut Object =
-                msg_send![class!(VNCoreMLModel), modelForMLModel: model error: &mut vn_error];
-
-            if vn_model.is_null() || !vn_error.is_null() {
-                return Err("Failed to create VNCoreMLModel".to_string());
-            }
-
-            // Retain the model so it's not deallocated
-            // NOTE: The ThreadSafeVNModel Drop impl will release this
-            let _: () = msg_send![vn_model, retain];
-
-            log::info!("Warming up CoreML model...");
-            // SAFETY: vn_model is a valid, retained VNCoreMLModel instance
-            // that will be used only for read-only inference operations.
-            let detector = Self {
-                vn_model: ThreadSafeVNModel::new(vn_model),
-                detection_counter: std::sync::atomic::AtomicU64::new(0),
-            };
-
-            // Create a small dummy image for warmup
-            let warmup_data = vec![128u8; 64 * 64 * 4]; // Small RGBA image
-            let _ = detector.detect_raw(&warmup_data, 64, 64, 0.5, 100);
-            let _ = detector.detect_raw(&warmup_data, 64, 64, 0.5, 100);
-            let _ = detector.detect_raw(&warmup_data, 64, 64, 0.5, 100);
-            log::info!("CoreML warmup complete");
-
-            Ok(detector)
-        }
+        })
     }
 
     /// Run detection on raw RGBA pixel data.
@@ -259,11 +267,13 @@ impl NativeCoreMLDetector {
     /// # Safety
     ///
     /// This function uses Core Graphics and Vision FFI. Safety is ensured by:
-    /// - All CG/Vision objects are properly created and released
+    /// - All owned CG/Vision objects are properly created and released;
+    ///   autoreleased objects are drained by a per-call autorelease pool
     /// - The rgba_data slice is valid for the duration of the function call
     /// - CGImage is created with a data provider that references rgba_data
-    /// - All intermediate objects are released before returning
-    /// - Bounds on iteration are checked (max_detections, result_count)
+    /// - Objects are null-checked before use to avoid Objective-C exceptions
+    /// - Iteration is bounded by result_count; results are truncated to
+    ///   max_detections after filtering and sorting
     pub fn detect_raw(
         &self,
         rgba_data: &[u8],
@@ -272,251 +282,276 @@ impl NativeCoreMLDetector {
         confidence_threshold: f64,
         max_detections: usize,
     ) -> Result<DetectionResult, String> {
-        // SAFETY: This block uses Core Graphics and Vision FFI.
-        // Key safety invariants:
-        // 1. rgba_data is borrowed and valid for the entire function
-        // 2. CGDataProvider does not take ownership (no release callback)
-        // 3. All CG objects (color space, provider, image) are released
-        // 4. All Vision objects (request, handler) are released
-        // 5. We check for null returns from all CF/NS creation functions
-        // 6. Iteration bounds are respected (min of result_count and max_detections)
-        unsafe {
-            // Create CGImage from raw RGBA data
-            let preprocess_start = Instant::now();
+        // Run inside an autorelease pool: detect_raw is called from long-lived
+        // worker threads with no ambient pool, and the calls below create
+        // autoreleased objects (the NSArray from arrayWithObject:, NSError
+        // localizedDescription strings, observation labels) that must be
+        // drained per call instead of accumulating for the thread's lifetime.
+        objc::rc::autoreleasepool(|| {
+            // SAFETY: This block uses Core Graphics and Vision FFI.
+            // Key safety invariants:
+            // 1. rgba_data is borrowed and valid for the entire function
+            // 2. CGDataProvider does not take ownership (no release callback)
+            // 3. All CG objects (color space, provider, image) are released
+            // 4. Owned (+1) Vision objects (request, handler) are released;
+            //    autoreleased objects are drained by the enclosing autorelease pool
+            // 5. We check for null returns from all CF/NS creation functions before
+            //    use (a nil request would make arrayWithObject: throw across FFI)
+            // 6. Iteration is bounded by result_count
+            unsafe {
+                // Create CGImage from raw RGBA data
+                let preprocess_start = Instant::now();
 
-            // Use CGImageCreate via FFI - it's a C function, not exposed nicely in core-graphics crate
-            // We'll use the raw Core Graphics C API
-            extern "C" {
-                fn CGColorSpaceCreateDeviceRGB() -> *mut std::ffi::c_void;
-                fn CGDataProviderCreateWithData(
-                    info: *mut std::ffi::c_void,
-                    data: *const u8,
-                    size: usize,
-                    release_callback: *const std::ffi::c_void,
-                ) -> *mut std::ffi::c_void;
-                fn CGImageCreate(
-                    width: usize,
-                    height: usize,
-                    bits_per_component: usize,
-                    bits_per_pixel: usize,
-                    bytes_per_row: usize,
-                    color_space: *mut std::ffi::c_void,
-                    bitmap_info: u32,
-                    provider: *mut std::ffi::c_void,
-                    decode: *const f64,
-                    should_interpolate: bool,
-                    intent: i32,
-                ) -> *mut std::ffi::c_void;
-                fn CGColorSpaceRelease(color_space: *mut std::ffi::c_void);
-                fn CGDataProviderRelease(provider: *mut std::ffi::c_void);
-                fn CGImageRelease(image: *mut std::ffi::c_void);
-            }
+                // Use CGImageCreate via FFI - it's a C function, not exposed nicely in core-graphics crate
+                // We'll use the raw Core Graphics C API
+                extern "C" {
+                    fn CGColorSpaceCreateDeviceRGB() -> *mut std::ffi::c_void;
+                    fn CGDataProviderCreateWithData(
+                        info: *mut std::ffi::c_void,
+                        data: *const u8,
+                        size: usize,
+                        release_callback: *const std::ffi::c_void,
+                    ) -> *mut std::ffi::c_void;
+                    fn CGImageCreate(
+                        width: usize,
+                        height: usize,
+                        bits_per_component: usize,
+                        bits_per_pixel: usize,
+                        bytes_per_row: usize,
+                        color_space: *mut std::ffi::c_void,
+                        bitmap_info: u32,
+                        provider: *mut std::ffi::c_void,
+                        decode: *const f64,
+                        should_interpolate: bool,
+                        intent: i32,
+                    ) -> *mut std::ffi::c_void;
+                    fn CGColorSpaceRelease(color_space: *mut std::ffi::c_void);
+                    fn CGDataProviderRelease(provider: *mut std::ffi::c_void);
+                    fn CGImageRelease(image: *mut std::ffi::c_void);
+                }
 
-            let color_space = CGColorSpaceCreateDeviceRGB();
-            if color_space.is_null() {
-                return Err("Failed to create color space".to_string());
-            }
+                let color_space = CGColorSpaceCreateDeviceRGB();
+                if color_space.is_null() {
+                    return Err("Failed to create color space".to_string());
+                }
 
-            let data_provider = CGDataProviderCreateWithData(
-                std::ptr::null_mut(),
-                rgba_data.as_ptr(),
-                rgba_data.len(),
-                std::ptr::null(),
-            );
-            if data_provider.is_null() {
+                let data_provider = CGDataProviderCreateWithData(
+                    std::ptr::null_mut(),
+                    rgba_data.as_ptr(),
+                    rgba_data.len(),
+                    std::ptr::null(),
+                );
+                if data_provider.is_null() {
+                    CGColorSpaceRelease(color_space);
+                    return Err("Failed to create data provider".to_string());
+                }
+
+                let bits_per_component: usize = 8;
+                let bits_per_pixel: usize = 32;
+                let bytes_per_row: usize = (width as usize) * 4;
+                // Camera frames are opaque RGBA (straight, not premultiplied), so
+                // declare the trailing alpha byte as ignored padding.
+                let bitmap_info: u32 = 5; // kCGImageAlphaNoneSkipLast (default byte order)
+
+                let cg_image = CGImageCreate(
+                    width as usize,
+                    height as usize,
+                    bits_per_component,
+                    bits_per_pixel,
+                    bytes_per_row,
+                    color_space,
+                    bitmap_info,
+                    data_provider,
+                    std::ptr::null(),
+                    false,
+                    0, // kCGRenderingIntentDefault
+                );
+
+                // Release intermediate objects
                 CGColorSpaceRelease(color_space);
-                return Err("Failed to create data provider".to_string());
-            }
+                CGDataProviderRelease(data_provider);
 
-            let bits_per_component: usize = 8;
-            let bits_per_pixel: usize = 32;
-            let bytes_per_row: usize = (width as usize) * 4;
-            // kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big
-            let bitmap_info: u32 = 1; // kCGImageAlphaLast
+                if cg_image.is_null() {
+                    return Err("Failed to create CGImage from raw data".to_string());
+                }
 
-            let cg_image = CGImageCreate(
-                width as usize,
-                height as usize,
-                bits_per_component,
-                bits_per_pixel,
-                bytes_per_row,
-                color_space,
-                bitmap_info,
-                data_provider,
-                std::ptr::null(),
-                false,
-                0, // kCGRenderingIntentDefault
-            );
+                let preprocess_time = preprocess_start.elapsed();
 
-            // Release intermediate objects
-            CGColorSpaceRelease(color_space);
-            CGDataProviderRelease(data_provider);
+                // Create Vision request
+                let inference_start = Instant::now();
 
-            if cg_image.is_null() {
-                return Err("Failed to create CGImage from raw data".to_string());
-            }
+                let request: *mut Object = msg_send![class!(VNCoreMLRequest), alloc];
+                let request: *mut Object =
+                    msg_send![request, initWithModel: self.vn_model.as_ptr()];
 
-            let preprocess_time = preprocess_start.elapsed();
+                // A nil request passed to arrayWithObject: raises an Objective-C
+                // exception, and unwinding across the FFI boundary is UB.
+                if request.is_null() {
+                    CGImageRelease(cg_image);
+                    return Err("Failed to create VNCoreMLRequest".to_string());
+                }
 
-            // Create Vision request
-            let inference_start = Instant::now();
+                // Set request options for best performance
+                let _: () = msg_send![request, setImageCropAndScaleOption: 2_i64]; // scaleFill = 2
+                let _: () = msg_send![request, setPreferBackgroundProcessing: false];
+                let _: () = msg_send![request, setUsesCPUOnly: false];
 
-            let request: *mut Object = msg_send![class!(VNCoreMLRequest), alloc];
-            let request: *mut Object = msg_send![request, initWithModel: self.vn_model.as_ptr()];
+                // Create request handler with CGImage. The options parameter is
+                // declared nonnull, so pass an empty (autoreleased) NSDictionary
+                // rather than a null pointer.
+                let options: *mut Object = msg_send![class!(NSDictionary), dictionary];
+                let handler: *mut Object = msg_send![class!(VNImageRequestHandler), alloc];
+                let handler: *mut Object = msg_send![
+                    handler,
+                    initWithCGImage: cg_image
+                    options: options
+                ];
 
-            // Set request options for best performance
-            let _: () = msg_send![request, setImageCropAndScaleOption: 2_i64]; // scaleFill = 2
-            let _: () = msg_send![request, setPreferBackgroundProcessing: false];
-            let _: () = msg_send![request, setUsesCPUOnly: false];
+                if handler.is_null() {
+                    // Release the request and CGImage to prevent memory leaks
+                    let _: () = msg_send![request, release];
+                    CGImageRelease(cg_image);
+                    return Err("Failed to create VNImageRequestHandler".to_string());
+                }
 
-            // Create request handler with CGImage
-            let handler: *mut Object = msg_send![class!(VNImageRequestHandler), alloc];
-            let handler: *mut Object = msg_send![
-                handler,
-                initWithCGImage: cg_image
-                options: std::ptr::null::<Object>()
-            ];
+                let requests: *mut Object = msg_send![class!(NSArray), arrayWithObject: request];
 
-            if handler.is_null() {
-                // Release the request and CGImage to prevent memory leaks
-                let _: () = msg_send![request, release];
-                CGImageRelease(cg_image);
-                return Err("Failed to create VNImageRequestHandler".to_string());
-            }
+                let mut error: *mut Object = std::ptr::null_mut();
+                let success: bool = msg_send![handler, performRequests: requests error: &mut error];
 
-            let requests: *mut Object = msg_send![class!(NSArray), arrayWithObject: request];
+                let inference_time = inference_start.elapsed();
 
-            let mut error: *mut Object = std::ptr::null_mut();
-            let success: bool = msg_send![handler, performRequests: requests error: &mut error];
-
-            let inference_time = inference_start.elapsed();
-
-            if !success {
-                let error_msg = if !error.is_null() {
-                    let error_desc: *mut Object = msg_send![error, localizedDescription];
-                    let error_cstr: *const i8 = msg_send![error_desc, UTF8String];
-                    if error_cstr.is_null() {
-                        "Unknown Vision error".to_string()
+                if !success {
+                    let error_msg = if !error.is_null() {
+                        let error_desc: *mut Object = msg_send![error, localizedDescription];
+                        let error_cstr: *const i8 = msg_send![error_desc, UTF8String];
+                        if error_cstr.is_null() {
+                            "Unknown Vision error".to_string()
+                        } else {
+                            std::ffi::CStr::from_ptr(error_cstr)
+                                .to_string_lossy()
+                                .to_string()
+                        }
                     } else {
-                        std::ffi::CStr::from_ptr(error_cstr)
-                            .to_string_lossy()
-                            .to_string()
-                    }
+                        "Vision request failed".to_string()
+                    };
+
+                    // Release objects (including CGImage to prevent leak)
+                    let _: () = msg_send![request, release];
+                    let _: () = msg_send![handler, release];
+                    CGImageRelease(cg_image);
+
+                    return Err(error_msg);
+                }
+
+                // Process results
+                let postprocess_start = Instant::now();
+
+                let results: *mut Object = msg_send![request, results];
+                let result_count: usize = if results.is_null() {
+                    0
                 } else {
-                    "Vision request failed".to_string()
+                    msg_send![results, count]
                 };
 
-                // Release objects (including CGImage to prevent leak)
+                let mut detections = Vec::with_capacity(result_count.min(max_detections));
+                let image_width = width as f64;
+                let image_height = height as f64;
+
+                // Walk ALL observations; truncation to max_detections happens only
+                // after confidence filtering + sorting so we keep the best results
+                // rather than the first N observations Vision happened to return.
+                for i in 0..result_count {
+                    let observation: *mut Object = msg_send![results, objectAtIndex: i];
+
+                    // Get confidence
+                    let confidence: f32 = msg_send![observation, confidence];
+                    if (confidence as f64) < confidence_threshold {
+                        continue;
+                    }
+
+                    // Get bounding box (Vision coords: origin bottom-left, normalized)
+                    let bbox_struct: CGRect = msg_send![observation, boundingBox];
+
+                    // Convert to pixel coordinates (origin top-left)
+                    let x1 = bbox_struct.origin.x * image_width;
+                    let y1 = (1.0 - bbox_struct.origin.y - bbox_struct.size.height) * image_height;
+                    let x2 = (bbox_struct.origin.x + bbox_struct.size.width) * image_width;
+                    let y2 = (1.0 - bbox_struct.origin.y) * image_height;
+
+                    // Get class label
+                    let labels: *mut Object = msg_send![observation, labels];
+                    let label_count: usize = if labels.is_null() {
+                        0
+                    } else {
+                        msg_send![labels, count]
+                    };
+
+                    let (class_label, class_index) = if label_count > 0 {
+                        let top_label: *mut Object = msg_send![labels, objectAtIndex: 0_usize];
+                        let identifier: *mut Object = msg_send![top_label, identifier];
+                        let id_cstr: *const i8 = msg_send![identifier, UTF8String];
+
+                        let label = if id_cstr.is_null() {
+                            "unknown".to_string()
+                        } else {
+                            std::ffi::CStr::from_ptr(id_cstr)
+                                .to_string_lossy()
+                                .to_string()
+                        };
+
+                        let idx = crate::common::coco::COCO_CLASSES
+                            .iter()
+                            .position(|&c| c == label.as_str())
+                            .map(|i| i as i32)
+                            .unwrap_or(-1);
+                        (label, idx)
+                    } else {
+                        ("unknown".to_string(), -1)
+                    };
+
+                    let det_id = self
+                        .detection_counter
+                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
+                    detections.push(Detection {
+                        id: format!("DET-{:08X}", det_id),
+                        class_label,
+                        class_index,
+                        confidence: confidence as f64,
+                        bbox: BoundingBox { x1, y1, x2, y2 },
+                        timestamp: std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_millis() as i64,
+                    });
+                }
+
+                // Release objects
                 let _: () = msg_send![request, release];
                 let _: () = msg_send![handler, release];
                 CGImageRelease(cg_image);
 
-                return Err(error_msg);
-            }
-
-            // Process results
-            let postprocess_start = Instant::now();
-
-            let results: *mut Object = msg_send![request, results];
-            let result_count: usize = if results.is_null() {
-                0
-            } else {
-                msg_send![results, count]
-            };
-
-            let mut detections = Vec::with_capacity(result_count.min(max_detections));
-            let image_width = width as f64;
-            let image_height = height as f64;
-
-            for i in 0..result_count.min(max_detections) {
-                let observation: *mut Object = msg_send![results, objectAtIndex: i];
-
-                // Get confidence
-                let confidence: f32 = msg_send![observation, confidence];
-                if (confidence as f64) < confidence_threshold {
-                    continue;
-                }
-
-                // Get bounding box (Vision coords: origin bottom-left, normalized)
-                let bbox_struct: CGRect = msg_send![observation, boundingBox];
-
-                // Convert to pixel coordinates (origin top-left)
-                let x1 = bbox_struct.origin.x * image_width;
-                let y1 = (1.0 - bbox_struct.origin.y - bbox_struct.size.height) * image_height;
-                let x2 = (bbox_struct.origin.x + bbox_struct.size.width) * image_width;
-                let y2 = (1.0 - bbox_struct.origin.y) * image_height;
-
-                // Get class label
-                let labels: *mut Object = msg_send![observation, labels];
-                let label_count: usize = if labels.is_null() {
-                    0
-                } else {
-                    msg_send![labels, count]
-                };
-
-                let (class_label, class_index) = if label_count > 0 {
-                    let top_label: *mut Object = msg_send![labels, objectAtIndex: 0_usize];
-                    let identifier: *mut Object = msg_send![top_label, identifier];
-                    let id_cstr: *const i8 = msg_send![identifier, UTF8String];
-
-                    let label = if id_cstr.is_null() {
-                        "unknown".to_string()
-                    } else {
-                        std::ffi::CStr::from_ptr(id_cstr)
-                            .to_string_lossy()
-                            .to_string()
-                    };
-
-                    let idx = crate::common::coco::COCO_CLASSES
-                        .iter()
-                        .position(|&c| c == label.as_str())
-                        .map(|i| i as i32)
-                        .unwrap_or(-1);
-                    (label, idx)
-                } else {
-                    ("unknown".to_string(), -1)
-                };
-
-                let det_id = self
-                    .detection_counter
-                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-
-                detections.push(Detection {
-                    id: format!("DET-{:08X}", det_id),
-                    class_label,
-                    class_index,
-                    confidence: confidence as f64,
-                    bbox: BoundingBox { x1, y1, x2, y2 },
-                    timestamp: std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_millis() as i64,
+                // Sort by confidence, then keep the top max_detections
+                detections.sort_by(|a, b| {
+                    b.confidence
+                        .partial_cmp(&a.confidence)
+                        .unwrap_or(std::cmp::Ordering::Equal)
                 });
+                detections.truncate(max_detections);
+
+                let postprocess_time = postprocess_start.elapsed();
+
+                Ok(DetectionResult {
+                    success: true,
+                    detections,
+                    inference_time_ms: inference_time.as_secs_f64() * 1000.0,
+                    preprocess_time_ms: Some(preprocess_time.as_secs_f64() * 1000.0),
+                    postprocess_time_ms: Some(postprocess_time.as_secs_f64() * 1000.0),
+                    error: None,
+                })
             }
-
-            // Release objects
-            let _: () = msg_send![request, release];
-            let _: () = msg_send![handler, release];
-            CGImageRelease(cg_image);
-
-            // Sort by confidence
-            detections.sort_by(|a, b| {
-                b.confidence
-                    .partial_cmp(&a.confidence)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            });
-
-            let postprocess_time = postprocess_start.elapsed();
-
-            Ok(DetectionResult {
-                success: true,
-                detections,
-                inference_time_ms: inference_time.as_secs_f64() * 1000.0,
-                preprocess_time_ms: Some(preprocess_time.as_secs_f64() * 1000.0),
-                postprocess_time_ms: Some(postprocess_time.as_secs_f64() * 1000.0),
-                error: None,
-            })
-        }
+        })
     }
 }
 

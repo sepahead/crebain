@@ -1,17 +1,24 @@
 //! CREBAIN Transport Layer
 //! Adaptive Response & Awareness System (ARAS)
 //!
-//! Zenoh-oriented communication with ROS2/Gazebo
+//! Zenoh-oriented communication with CREBAIN's own peers, with a rosbridge
+//! WebSocket fallback for ROS2/Gazebo.
 //!
 //! # Architecture
 //!
 //! ```text
 //! ┌─────────────────┐                     ┌─────────────────┐
-//! │  Gazebo/ROS2    │     Zenoh           │   Tauri App     │
-//! │  (headless)     │◄──────────────────►│                 │
-//! │  RMW=zenoh      │   pub/sub data     │   zenoh-rs      │
+//! │  CREBAIN peers  │     Zenoh           │   Tauri App     │
+//! │  (plain-topic   │◄──────────────────►│                 │
+//! │   key exprs)    │   pub/sub data     │   zenoh-rs      │
 //! └─────────────────┘                     └─────────────────┘
 //! ```
+//!
+//! NOTE: the Zenoh transport uses a plain-topic key scheme (topic minus the
+//! leading `/`), not the `rmw_zenoh_cpp` keying scheme. Talking directly to
+//! an rmw_zenoh_cpp ROS graph requires a re-keying bridge; see the
+//! `zenoh` module docs for details. For ROS2/Gazebo, use the rosbridge
+//! fallback (`CREBAIN_ZENOH=0`).
 //!
 //! # Usage
 //!
@@ -161,8 +168,12 @@ pub trait Transport: Send + Sync {
     /// Connect to the transport
     fn connect(&mut self) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>>;
 
-    /// Disconnect from the transport
-    fn disconnect(&mut self) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>>;
+    /// Disconnect from the transport.
+    ///
+    /// Takes `&self` so a shared handle (`Arc<dyn Transport>`) can disconnect
+    /// without holding a global lock across the await; implementations use
+    /// interior mutability.
+    fn disconnect(&self) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>>;
 
     /// Check if connected
     fn is_connected(&self) -> bool;

@@ -92,7 +92,7 @@ describe('useCoreMLDetection', () => {
     })
 
     expect(invokeMock).toHaveBeenCalledWith('detect_native_raw', {
-      rgbaData: [255, 0, 0, 255, 0, 255, 0, 255],
+      rgbaData: new Uint8Array([255, 0, 0, 255, 0, 255, 0, 255]),
       width: 2,
       height: 1,
       confidenceThreshold: 0.25,
@@ -158,7 +158,7 @@ describe('useCoreMLDetection', () => {
     })
 
     expect(invokeMock).toHaveBeenCalledWith('detect_native_raw', {
-      rgbaData: [255, 0, 0, 255, 0, 255, 0, 255],
+      rgbaData: new Uint8Array([255, 0, 0, 255, 0, 255, 0, 255]),
       width: 2,
       height: 1,
       confidenceThreshold: 0.25,

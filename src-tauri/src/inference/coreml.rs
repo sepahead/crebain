@@ -116,16 +116,28 @@ impl Detector for CoreMlDetector {
                 .map(|res| {
                     res.detections
                         .into_iter()
-                        .map(|d| Detection {
-                            bbox: [
-                                d.bbox.x1 as f32,
-                                d.bbox.y1 as f32,
-                                d.bbox.x2 as f32,
-                                d.bbox.y2 as f32,
-                            ],
-                            confidence: d.confidence as f32,
-                            class_id: d.class_index.max(0) as u32,
-                            class_label: d.class_label,
+                        .filter_map(|d| {
+                            // A negative class_index means the model label did
+                            // not map to a known COCO class. Skip it instead of
+                            // remapping it to class 0 ("person").
+                            if d.class_index < 0 {
+                                log::debug!(
+                                    "[CoreML] Skipping detection with unmapped class label '{}'",
+                                    d.class_label
+                                );
+                                return None;
+                            }
+                            Some(Detection {
+                                bbox: [
+                                    d.bbox.x1 as f32,
+                                    d.bbox.y1 as f32,
+                                    d.bbox.x2 as f32,
+                                    d.bbox.y2 as f32,
+                                ],
+                                confidence: d.confidence as f32,
+                                class_id: d.class_index as u32,
+                                class_label: d.class_label,
+                            })
                         })
                         .collect()
                 })

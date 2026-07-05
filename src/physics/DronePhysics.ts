@@ -11,6 +11,9 @@
 
 import * as THREE from 'three'
 import type * as RapierNamespace from '@dimforge/rapier3d-compat'
+import { logger } from '../lib/logger'
+
+const log = logger.scope('Physics')
 
 type RapierModule = typeof RapierNamespace
 type World = InstanceType<RapierModule['World']>
@@ -160,15 +163,6 @@ export class DronePhysicsBody {
   }
 
   updatePhysics(dt: number, gravity: THREE.Vector3 = new THREE.Vector3(0, -9.81, 0)) {
-    if (!this.state.armed) {
-      this.state.rotors.forEach((r) => {
-        r.rpm = 0
-        r.thrust = 0
-        r.torque = 0
-      })
-      return
-    }
-
     const { params, state } = this
 
     const maxRPM = 15000
@@ -190,27 +184,40 @@ export class DronePhysicsBody {
     const rotorTorque = new THREE.Vector3()
     const thrustScaled = new THREE.Vector3()
 
-    state.rotors.forEach((rotor, i) => {
-      const targetRPM = commands[i] * maxRPM
-      rotor.rpm += (targetRPM - rotor.rpm) * motorResponseRate * dt
-      rotor.rpm = Math.max(0, Math.min(maxRPM, rotor.rpm))
+    if (!state.armed) {
+      // Disarmed: rotors produce no thrust or torque, but gravity/drag
+      // integration below must still run so the drone falls instead of hanging
+      // mid-air (keeps the local path consistent with the Rapier path, where
+      // gravity always applies).
+      state.rotors.forEach((r) => {
+        r.rpm = 0
+        r.thrust = 0
+        r.torque = 0
+      })
+    } else {
+      state.rotors.forEach((rotor, i) => {
+        const targetRPM = commands[i] * maxRPM
+        rotor.rpm += (targetRPM - rotor.rpm) * motorResponseRate * dt
+        rotor.rpm = Math.max(0, Math.min(maxRPM, rotor.rpm))
 
-      rotor.thrust = calculateThrust(rotor.rpm, params.thrustCoefficient)
-      rotor.torque = calculateTorque(rotor.rpm, params.torqueCoefficient)
+        rotor.thrust = calculateThrust(rotor.rpm, params.thrustCoefficient)
+        rotor.torque = calculateTorque(rotor.rpm, params.torqueCoefficient)
 
-      rotor.thrust = Math.min(rotor.thrust, params.maxThrust)
-      rotor.torque = Math.min(rotor.torque, params.maxTorque)
+        rotor.thrust = Math.min(rotor.thrust, params.maxThrust)
+        rotor.torque = Math.min(rotor.torque, params.maxTorque)
 
-      thrustDir.set(0, 1, 0).applyQuaternion(state.orientation)
-      thrustScaled.copy(thrustDir).multiplyScalar(rotor.thrust)
-      totalThrust.add(thrustScaled)
+        thrustDir.set(0, 1, 0).applyQuaternion(state.orientation)
+        thrustScaled.copy(thrustDir).multiplyScalar(rotor.thrust)
+        totalThrust.add(thrustScaled)
 
-      totalTorque.y += rotor.torque * rotor.direction
+        totalTorque.y += rotor.torque * rotor.direction
 
-      leverArm.copy(rotor.position).applyQuaternion(state.orientation)
-      rotorTorque.crossVectors(leverArm, thrustScaled.multiplyScalar(rotor.thrust))
-      totalTorque.add(rotorTorque)
-    })
+        // thrustScaled already includes rotor.thrust; do not scale again.
+        leverArm.copy(rotor.position).applyQuaternion(state.orientation)
+        rotorTorque.crossVectors(leverArm, thrustScaled)
+        totalTorque.add(rotorTorque)
+      })
+    }
 
     const drag = calculateDrag(state.velocity, params.dragCoefficient, params.crossSectionArea)
 
@@ -303,6 +310,7 @@ export class DronePhysicsWorld {
   private physicsHz: number = 120 // Physics update rate
   private accumulator: number = 0
   private isInitialized: boolean = false
+  private usingFallback: boolean = false
 
   async init(): Promise<void> {
     try {
@@ -320,14 +328,26 @@ export class DronePhysicsWorld {
       this.world.createCollider(groundCollider, groundBody)
 
       this.isInitialized = true
+      this.usingFallback = false
       this.lastUpdate = performance.now()
-    } catch {
+    } catch (error) {
+      // Rapier failed to load/init (e.g. WASM unavailable). Fall back to the
+      // local integrator path (DronePhysicsBody.updatePhysics) and say so
+      // loudly instead of silently swallowing the failure.
+      log.error('Rapier physics init failed; falling back to local integrator', { error })
+      this.usingFallback = true
       this.isInitialized = true
+      this.lastUpdate = performance.now()
     }
   }
 
   isReady(): boolean {
     return this.isInitialized
+  }
+
+  /** True when Rapier failed to initialize and the local integrator is used. */
+  isUsingFallback(): boolean {
+    return this.usingFallback
   }
 
   createDrone(
@@ -423,7 +443,24 @@ export class DronePhysicsWorld {
   }
 
   private applyDroneForces(drone: DronePhysicsBody, dt: number) {
-    if (!this.RAPIER || !drone.rigidBody || !drone.state.armed) return
+    if (!this.RAPIER || !drone.rigidBody) return
+
+    // Rapier user forces/torques are persistent: without a reset every
+    // addForce/addTorque call would accumulate across 120Hz steps unboundedly.
+    // Clear the previous step's contribution so exactly one step's worth of
+    // force is active at a time.
+    drone.rigidBody.resetForces(true)
+    drone.rigidBody.resetTorques(true)
+
+    if (!drone.state.armed) {
+      // Disarmed: no rotor forces; gravity in the Rapier world takes over.
+      drone.state.rotors.forEach((r) => {
+        r.rpm = 0
+        r.thrust = 0
+        r.torque = 0
+      })
+      return
+    }
 
     const { params, state } = drone
     const maxRPM = 15000
@@ -459,8 +496,9 @@ export class DronePhysicsWorld {
       rotor.torque = calculateTorque(rotor.rpm, params.torqueCoefficient)
       totalTorque.y += rotor.torque * rotor.direction
 
+      // thrustScaled already includes rotor.thrust; do not scale again.
       leverArm.copy(rotor.position).applyQuaternion(state.orientation)
-      rotorTorque.crossVectors(leverArm, thrustScaled.multiplyScalar(rotor.thrust))
+      rotorTorque.crossVectors(leverArm, thrustScaled)
       totalTorque.add(rotorTorque)
     })
 
@@ -504,6 +542,13 @@ export const DEFAULT_FLIGHT_CONTROLLER_CONFIG: FlightControllerConfig = {
   maxAngle: Math.PI / 6,
 }
 
+/** Anti-windup clamp applied to every PID integral term. */
+const PID_INTEGRAL_LIMIT = 10
+
+function clampIntegral(value: number): number {
+  return Math.max(-PID_INTEGRAL_LIMIT, Math.min(PID_INTEGRAL_LIMIT, value))
+}
+
 export class FlightController {
   private config: FlightControllerConfig
   private rollIntegral: number = 0
@@ -529,6 +574,13 @@ export class FlightController {
   ): MotorCommands {
     const { state } = drone
 
+    if (!state.armed) {
+      // Disarmed: clear all PID state so stale integrals/derivatives cannot
+      // wind up on the ground or kick on the next arm.
+      this.reset()
+      return { front_left: 0, front_right: 0, rear_left: 0, rear_right: 0 }
+    }
+
     const euler = new THREE.Euler().setFromQuaternion(state.orientation, 'YXZ')
     const currentRoll = euler.z
     const currentPitch = euler.x
@@ -537,7 +589,7 @@ export class FlightController {
     targetPitch = Math.max(-this.config.maxAngle, Math.min(this.config.maxAngle, targetPitch))
 
     const rollError = targetRoll - currentRoll
-    this.rollIntegral += rollError * dt
+    this.rollIntegral = clampIntegral(this.rollIntegral + rollError * dt)
     const rollDerivative = (rollError - this.lastRollError) / dt
     const rollOutput =
       this.config.rollPID.kp * rollError +
@@ -546,7 +598,7 @@ export class FlightController {
     this.lastRollError = rollError
 
     const pitchError = targetPitch - currentPitch
-    this.pitchIntegral += pitchError * dt
+    this.pitchIntegral = clampIntegral(this.pitchIntegral + pitchError * dt)
     const pitchDerivative = (pitchError - this.lastPitchError) / dt
     const pitchOutput =
       this.config.pitchPID.kp * pitchError +
@@ -555,7 +607,7 @@ export class FlightController {
     this.lastPitchError = pitchError
 
     const yawRateError = targetYawRate - state.angularVelocity.y
-    this.yawIntegral += yawRateError * dt
+    this.yawIntegral = clampIntegral(this.yawIntegral + yawRateError * dt)
     const yawDerivative = (yawRateError - this.lastYawError) / dt
     const yawOutput =
       this.config.yawPID.kp * yawRateError +
@@ -564,8 +616,7 @@ export class FlightController {
     this.lastYawError = yawRateError
 
     const altitudeError = targetAltitude - state.position.y
-    this.altitudeIntegral += altitudeError * dt
-    this.altitudeIntegral = Math.max(-10, Math.min(10, this.altitudeIntegral))
+    this.altitudeIntegral = clampIntegral(this.altitudeIntegral + altitudeError * dt)
     const altitudeDerivative = (altitudeError - this.lastAltitudeError) / dt
     const altitudeOutput =
       this.config.altitudePID.kp * altitudeError +

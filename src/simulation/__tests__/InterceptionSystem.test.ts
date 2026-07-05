@@ -102,6 +102,60 @@ describe('InterceptionSystem', () => {
     expect(system.getGuidanceCommand('interceptor-1')).toBeNull()
   })
 
+  it('closes the along-track gap for PARALLEL intercepts', () => {
+    const system = new InterceptionSystem()
+    system.registerInterceptor(
+      'interceptor-1',
+      { x: 0, y: 0, z: 0 },
+      { x: 0, y: 0, z: 0 },
+      { maxSpeed: 20 }
+    )
+    // Target offset both along its heading (x) and perpendicular to it (z).
+    system.updateTarget('target-1', { x: 30, y: 0, z: 40 }, { x: 5, y: 0, z: 0 })
+
+    const result = system.calculateIntercept('interceptor-1', 'target-1', 'PARALLEL')
+
+    expect(result.isPossible).toBe(true)
+    expect(Number.isFinite(result.timeToIntercept)).toBe(true)
+    const speed = Math.hypot(
+      result.interceptorVelocity.x,
+      result.interceptorVelocity.y,
+      result.interceptorVelocity.z
+    )
+    expect(speed).toBeCloseTo(20, 6)
+
+    // Flying the commanded velocity for timeToIntercept must land on the
+    // intercept point, which is where the target will be at that time; a
+    // purely perpendicular command would never close the along-track gap.
+    const t = result.timeToIntercept
+    expect(result.interceptorVelocity.x * t).toBeCloseTo(result.interceptPoint.x, 6)
+    expect(result.interceptorVelocity.y * t).toBeCloseTo(result.interceptPoint.y, 6)
+    expect(result.interceptorVelocity.z * t).toBeCloseTo(result.interceptPoint.z, 6)
+    expect(result.interceptPoint.x).toBeCloseTo(30 + 5 * t, 6)
+    expect(result.interceptPoint.y).toBeCloseTo(0, 6)
+    expect(result.interceptPoint.z).toBeCloseTo(40, 6)
+  })
+
+  it('returns immediate-intercept guidance when the interceptor is on the target (LEAD)', () => {
+    const system = new InterceptionSystem()
+    system.registerInterceptor(
+      'interceptor-1',
+      { x: 5, y: 5, z: 5 },
+      { x: 0, y: 0, z: 0 },
+      { maxSpeed: 20 }
+    )
+    system.updateTarget('target-1', { x: 5, y: 5, z: 5 }, { x: 0, y: 0, z: 0 })
+
+    const result = system.calculateIntercept('interceptor-1', 'target-1', 'LEAD')
+
+    expect(result.isPossible).toBe(true)
+    expect(result.timeToIntercept).toBe(0)
+    expect(result.interceptorVelocity).toEqual({ x: 0, y: 0, z: 0 })
+    expect(Number.isFinite(result.interceptPoint.x)).toBe(true)
+    expect(Number.isFinite(result.interceptPoint.y)).toBe(true)
+    expect(Number.isFinite(result.interceptPoint.z)).toBe(true)
+  })
+
   it('reports impossible intercepts for missing participants and unavailable targets', () => {
     const system = createSystem()
 

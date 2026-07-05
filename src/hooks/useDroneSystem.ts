@@ -13,7 +13,7 @@ import DronePhysicsWorld, {
 } from '../physics/DronePhysics'
 import { DRONE_TYPES, toQuadcopterParams } from '../physics/DroneTypes'
 import SensorSuite from '../physics/SensorSimulation'
-import { forEachMesh } from '../lib/three/sceneObjects'
+import { disposeObject3D, forEachMesh } from '../lib/three/sceneObjects'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -155,9 +155,22 @@ export function useDroneSystem(scene: THREE.Scene | null): UseDroneSystemReturn 
 
   // Initialize physics world
   useEffect(() => {
+    let mounted = true
+    // Stable container identities snapshotted for the cleanup (the refs are
+    // never reassigned, only mutated).
+    const droneInstances = droneInstancesRef.current
+    const controls = controlsRef.current
+    const droneScene = droneSceneRef.current
+
     const initPhysics = async () => {
       const world = new DronePhysicsWorld()
       await world.init()
+      if (!mounted) {
+        // Unmounted (or scene changed) while the WASM world was initializing:
+        // destroy the orphaned world instead of leaking it.
+        world.destroy()
+        return
+      }
       physicsWorldRef.current = world
 
       // Add drone scene to main scene
@@ -172,10 +185,25 @@ export function useDroneSystem(scene: THREE.Scene | null): UseDroneSystemReturn 
     void initPhysics()
 
     return () => {
-      if (physicsWorldRef.current) {
-        physicsWorldRef.current.destroy()
-      }
+      mounted = false
       cancelAnimationFrame(animationFrameRef.current)
+
+      // Remove and dispose spawned drone meshes before tearing down the world
+      // (three.js does not release GPU resources on scene removal).
+      droneInstances.forEach((instance) => {
+        if (instance.mesh) {
+          droneScene.remove(instance.mesh)
+          disposeObject3D(instance.mesh)
+        }
+        physicsWorldRef.current?.removeDrone(instance.id)
+      })
+      droneInstances.clear()
+      controls.clear()
+      scene?.remove(droneScene)
+
+      physicsWorldRef.current?.destroy()
+      physicsWorldRef.current = null
+      setIsReady(false)
     }
   }, [scene])
 
@@ -183,11 +211,18 @@ export function useDroneSystem(scene: THREE.Scene | null): UseDroneSystemReturn 
   useEffect(() => {
     if (!isReady) return
 
+    let lastTime = performance.now()
+
     const updateLoop = () => {
       const world = physicsWorldRef.current
       if (!world) return
 
-      const dt = 1 / 60 // Fixed timestep for flight controller
+      // Real clamped elapsed time: flight-controller gains must not depend on
+      // the monitor refresh rate (the physics world itself steps at a fixed
+      // 120 Hz internally). Clamp matches DronePhysicsWorld.update().
+      const now = performance.now()
+      const dt = Math.min((now - lastTime) / 1000, 0.1)
+      lastTime = now
 
       // Update each drone
       droneInstancesRef.current.forEach((instance) => {
@@ -271,10 +306,6 @@ export function useDroneSystem(scene: THREE.Scene | null): UseDroneSystemReturn 
       // Step physics
       world.update()
 
-      // Update drone list for React state
-      setDroneList([...world.getAllDrones()])
-      setInstanceList([...droneInstancesRef.current.values()])
-
       animationFrameRef.current = requestAnimationFrame(updateLoop)
     }
 
@@ -283,6 +314,28 @@ export function useDroneSystem(scene: THREE.Scene | null): UseDroneSystemReturn 
     return () => {
       cancelAnimationFrame(animationFrameRef.current)
     }
+  }, [isReady])
+
+  // Mirror the physics-loop drone lists into React state at a low fixed
+  // cadence instead of per-rAF: fresh array identities every frame re-render
+  // consumers at display refresh rate (pattern: useRosActuatorLoop). Bodies
+  // are mutated in place, so identity only needs to change on membership.
+  useEffect(() => {
+    if (!isReady) return
+
+    const sameMembers = <T>(a: T[], b: T[]) =>
+      a.length === b.length && a.every((item, i) => item === b[i])
+
+    const snapshotId = setInterval(() => {
+      const world = physicsWorldRef.current
+      if (!world) return
+      const nextDrones = world.getAllDrones()
+      const nextInstances = [...droneInstancesRef.current.values()]
+      setDroneList((prev) => (sameMembers(prev, nextDrones) ? prev : nextDrones))
+      setInstanceList((prev) => (sameMembers(prev, nextInstances) ? prev : nextInstances))
+    }, 250)
+
+    return () => clearInterval(snapshotId)
   }, [isReady])
 
   // Spawn a new drone

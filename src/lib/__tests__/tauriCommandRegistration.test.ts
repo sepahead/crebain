@@ -91,10 +91,15 @@ describe('Tauri command registration', () => {
       TAURI_COMMANDS.transport.publishPose,
     ]) {
       const block = commandBlock(TRANSPORT_COMMANDS, command)
+      // The engine is acquired either via the current_bridge() helper or a
+      // direct TRANSPORT_ENGINE.lock(); validation must come first either way.
+      const engineIndexes = [
+        block.indexOf('current_bridge()'),
+        block.indexOf('TRANSPORT_ENGINE.lock()'),
+      ].filter((index) => index >= 0)
+      expect(engineIndexes.length).toBeGreaterThan(0)
       expect(block.indexOf('validate_topic(&topic)?;')).toBeGreaterThanOrEqual(0)
-      expect(block.indexOf('validate_topic(&topic)?;')).toBeLessThan(
-        block.indexOf('TRANSPORT_ENGINE.lock()')
-      )
+      expect(block.indexOf('validate_topic(&topic)?;')).toBeLessThan(Math.min(...engineIndexes))
     }
   })
 

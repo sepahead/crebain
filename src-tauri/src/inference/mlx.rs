@@ -4,20 +4,24 @@
 //! Provides MLX-style tensor operations on Apple Silicon.
 //!
 //! ## Status
-//! This backend is experimental and opt-in. The full YOLOv8 forward pass
-//! (backbone, PAN-FPN neck, Detect head with DFL postprocessing) is implemented,
-//! but it requires an externally supplied safetensors model with validated
-//! tensor contracts, class mapping, and target-hardware benchmarks before
-//! release claims. Enable with `CREBAIN_ENABLE_EXPERIMENTAL_MLX=1`.
+//! This backend is experimental and opt-in. A YOLOv8-style forward pass
+//! (backbone, PAN-FPN neck, Detect head with DFL postprocessing) is implemented
+//! with a FIXED, hardcoded architecture; it requires an externally supplied
+//! safetensors model with validated tensor contracts, class mapping, and
+//! target-hardware benchmarks before release claims (external model-contract
+//! validation is required). Enable with `CREBAIN_ENABLE_EXPERIMENTAL_MLX=1`.
 //! See `docs/MODEL_CONTRACTS.md` and `README.md` for the current MLX status.
 //!
 //! # Model Format
-//! Models are loaded from safetensors format (compatible with MLX/PyTorch).
-//! Convert ONNX/PyTorch models using:
-//! ```bash
-//! python -c "from safetensors.torch import save_file; import torch; \
-//!   model = torch.load('yolov8s.pt'); save_file(model, 'yolov8s.safetensors')"
-//! ```
+//! Models are loaded from safetensors format, but the network implemented here
+//! is NOT a stock ultralytics YOLOv8s: the layer dimensions are the unscaled
+//! YOLOv8 YAML values (backbone channels 64->1024, C2f depths 3/6/6/3) rather
+//! than the width/depth-scaled yolov8s ones (32->512, depths 1/2/2/1), the
+//! Detect-head hidden channel widths differ from ultralytics, and every conv
+//! layer requires a `conv.bias` tensor that ultralytics exports omit
+//! (`Conv2d(bias=False)` before BatchNorm). A matching CUSTOM safetensors
+//! export is therefore required; converting a stock ultralytics `yolov8s.pt`
+//! checkpoint will not load.
 
 use super::{
     validate_rgba_input_len, Backend, Detection, Detector, InferenceError, InferenceStats, Result,
@@ -123,6 +127,9 @@ impl MlxDetector {
             }};
         }
 
+        // NOTE: The channel counts and C2f depths below are the unscaled
+        // YOLOv8 YAML values, not the width/depth-scaled yolov8s ones; weights
+        // must come from a matching custom export (see module docs).
         // ── Backbone ──────────────────────────────────────────────────
         // model.0: Conv(3->64, k=3, s=2)
         let x = timed!("model.0", conv_block(&prefix("model.0"), x, 64, 3, 2)?);
@@ -352,8 +359,11 @@ fn conv_block(
     let x = conv
         .forward(x)
         .map_err(|e| InferenceError::InferenceError(e.to_string()))?;
+    // Inference mode (train=false): use the stored running statistics. With
+    // train=true candle-nn's BatchNorm normalizes with per-batch stats and
+    // mutates the running stats, which is wrong for inference.
     let x = bn
-        .forward_t(&x, true)
+        .forward_t(&x, false)
         .map_err(|e| InferenceError::InferenceError(e.to_string()))?;
     let sigmoid =
         candle_nn::ops::sigmoid(&x).map_err(|e| InferenceError::InferenceError(e.to_string()))?;
@@ -466,6 +476,9 @@ fn detect_head(vb: &VarBuilder, p3: &Tensor, p4: &Tensor, p5: &Tensor) -> Result
 
     // cv2: box regression branches (reg_max*4 outputs per scale)
     // cv3: class scores (nc outputs per scale)
+    // NOTE: both branches use `no` (=144) hidden channels, which does NOT match
+    // the ultralytics Detect head (c2 = max(16, ch/4, reg_max*4),
+    // c3 = max(ch, min(nc, 100))); a matching custom export is required.
     let detect_layer = |vb: &VarBuilder, feat: &Tensor, idx: usize| -> Result<Tensor> {
         let cv2_0 = conv_block(&vb.pp(format!("cv2.{}.0", idx)), feat, no, 3, 1)?;
         let cv2_1 = conv_block(&vb.pp(format!("cv2.{}.1", idx)), &cv2_0, no, 3, 1)?;
@@ -601,40 +614,36 @@ fn load_safetensors(
 
     for (name, tensor_view) in tensors.tensors() {
         let shape: Vec<usize> = tensor_view.shape().to_vec();
-        let dtype = match tensor_view.dtype() {
-            safetensors::Dtype::F32 => DType::F32,
-            safetensors::Dtype::F16 => DType::F16,
-            safetensors::Dtype::BF16 => DType::BF16,
-            _ => continue, // Skip unsupported dtypes
-        };
 
-        // Get raw bytes and convert to tensor
+        // Get raw bytes and convert to f32 for processing
         let bytes = tensor_view.data();
-
-        // Create tensor from bytes
-        let tensor = match dtype {
-            DType::F32 => {
-                let floats: Vec<f32> = bytes
-                    .chunks_exact(4)
-                    .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
-                    .collect();
-                Tensor::from_vec(floats, shape.as_slice(), device)
+        let floats: Vec<f32> = match tensor_view.dtype() {
+            safetensors::Dtype::F32 => bytes
+                .chunks_exact(4)
+                .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+                .collect(),
+            safetensors::Dtype::F16 => bytes
+                .chunks_exact(2)
+                .map(|b| half::f16::from_le_bytes([b[0], b[1]]).to_f32())
+                .collect(),
+            safetensors::Dtype::BF16 => bytes
+                .chunks_exact(2)
+                .map(|b| half::bf16::from_le_bytes([b[0], b[1]]).to_f32())
+                .collect(),
+            other => {
+                log::warn!(
+                    "[MLX] Skipping tensor '{}' with unsupported dtype {:?}",
+                    name,
+                    other
+                );
+                continue;
             }
-            DType::F16 => {
-                let halfs: Vec<half::f16> = bytes
-                    .chunks_exact(2)
-                    .map(|b| half::f16::from_le_bytes([b[0], b[1]]))
-                    .collect();
-                // Convert to f32 for processing
-                let floats: Vec<f32> = halfs.iter().map(|h| h.to_f32()).collect();
-                Tensor::from_vec(floats, shape.as_slice(), device)
-            }
-            _ => continue,
         };
 
-        if let Ok(t) = tensor {
-            weights.insert(name.to_string(), t);
-        }
+        let tensor = Tensor::from_vec(floats, shape.as_slice(), device).map_err(|e| {
+            InferenceError::ModelLoadError(format!("Failed to create tensor '{}': {}", name, e))
+        })?;
+        weights.insert(name.to_string(), tensor);
     }
 
     Ok(weights)
@@ -686,7 +695,8 @@ fn preprocess_image(data: &[u8], width: u32, height: u32, device: &Device) -> Re
         .permute((2, 0, 1))
         .map_err(|e| InferenceError::InvalidInput(e.to_string()))?;
 
-    // Resize to INPUT_SIZE x INPUT_SIZE using bilinear interpolation
+    // Resize to INPUT_SIZE x INPUT_SIZE using nearest-neighbor sampling
+    // (see resize_tensor)
     let tensor = resize_tensor(&tensor, INPUT_SIZE, INPUT_SIZE, device)?;
 
     // Add batch dimension [1, C, H, W]

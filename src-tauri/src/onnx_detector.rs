@@ -79,7 +79,12 @@ pub struct OnnxDetector {
     backend_name: String,
 }
 
-static DETECTOR: OnceLock<Result<OnnxDetector, String>> = OnceLock::new();
+static DETECTOR: OnceLock<OnnxDetector> = OnceLock::new();
+
+/// Last initialization failure, kept for diagnostics (`get_onnx_detector_info`).
+/// Unlike `DETECTOR`, failures are NOT cached as final: every
+/// `init_global_detector` call may retry until a detector is set.
+static LAST_INIT_ERROR: Mutex<Option<String>> = Mutex::new(None);
 
 impl OnnxDetector {
     /// Create a new ONNX detector with the given model path
@@ -216,8 +221,10 @@ impl OnnxDetector {
 
         match result {
             Ok(inner) => inner,
+            // ORT_DYLIB_PATH is only honored by load-dynamic builds (Linux);
+            // macOS links ONNX Runtime statically, so give macOS guidance.
             Err(_) => Err(
-                "ONNX Runtime panicked while initializing (check ORT_DYLIB_PATH/LD_LIBRARY_PATH)"
+                "ONNX Runtime panicked while initializing (ONNX Runtime is statically linked on macOS; verify the model file is a valid ONNX model)"
                     .to_string(),
             ),
         }
@@ -237,8 +244,10 @@ impl OnnxDetector {
 
         match result {
             Ok(inner) => inner,
+            // ORT_DYLIB_PATH is only honored by load-dynamic builds (Linux);
+            // this platform links ONNX Runtime statically.
             Err(_) => Err(
-                "ONNX Runtime panicked while initializing (check ORT_DYLIB_PATH/LD_LIBRARY_PATH)"
+                "ONNX Runtime panicked while initializing (ONNX Runtime is statically linked on this platform; verify the model file is a valid ONNX model)"
                     .to_string(),
             ),
         }
@@ -253,7 +262,7 @@ impl OnnxDetector {
 
         let mut output = vec![0.0f32; 3 * target_h * target_w];
 
-        // Bilinear resize and normalize
+        // Nearest-neighbor resize and normalize
         for y in 0..target_h {
             for x in 0..target_w {
                 let src_x = (x as f32 * src_w as f32 / target_w as f32) as usize;
@@ -531,37 +540,61 @@ fn find_onnx_model_path() -> Option<PathBuf> {
     possible_paths.into_iter().flatten().find(|p| p.exists())
 }
 
-/// Initialize the global ONNX detector
+fn record_init_error(msg: &str) {
+    if let Ok(mut slot) = LAST_INIT_ERROR.lock() {
+        *slot = Some(msg.to_string());
+    }
+}
+
+fn last_init_error() -> Option<String> {
+    LAST_INIT_ERROR.lock().ok().and_then(|slot| slot.clone())
+}
+
+/// Initialize the global ONNX detector.
+///
+/// Only successful initialization is cached; failures (e.g. a missing model
+/// file) are returned but not made permanent, so later calls can retry once
+/// the environment changes.
 pub fn init_global_detector() -> Result<(), String> {
-    let init_result = DETECTOR.get_or_init(|| {
-        let model_path = match find_onnx_model_path() {
-            Some(p) => p,
-            None => {
-                let msg = "ONNX model not found (set CREBAIN_ONNX_MODEL or place yolov8s.onnx in src-tauri/resources)"
-                    .to_string();
-                log::warn!("[ONNX] {}", msg);
-                return Err(msg);
+    if DETECTOR.get().is_some() {
+        return Ok(());
+    }
+
+    let model_path = match find_onnx_model_path() {
+        Some(p) => p,
+        None => {
+            let msg = "ONNX model not found (set CREBAIN_ONNX_MODEL or place yolov8s.onnx in src-tauri/resources)"
+                .to_string();
+            log::warn!("[ONNX] {}", msg);
+            record_init_error(&msg);
+            return Err(msg);
+        }
+    };
+
+    log::info!("ONNX: Loading model from {:?}", model_path);
+
+    match OnnxDetector::new(&model_path.to_string_lossy(), 0.25, 0.45) {
+        Ok(detector) => {
+            // A concurrent init may have won the race; either way a detector
+            // is now available.
+            let _ = DETECTOR.set(detector);
+            if let Ok(mut slot) = LAST_INIT_ERROR.lock() {
+                *slot = None;
             }
-        };
-
-        log::info!("ONNX: Loading model from {:?}", model_path);
-
-        OnnxDetector::new(&model_path.to_string_lossy(), 0.25, 0.45).map_err(|e| {
+            Ok(())
+        }
+        Err(e) => {
             let msg = format!("ONNX detector init failed: {}", e);
             log::error!("[ONNX] {}", msg);
-            msg
-        })
-    });
-
-    match init_result {
-        Ok(_) => Ok(()),
-        Err(e) => Err(e.clone()),
+            record_init_error(&msg);
+            Err(msg)
+        }
     }
 }
 
 /// Get the global ONNX detector
 pub fn get_global_detector() -> Option<&'static OnnxDetector> {
-    DETECTOR.get().and_then(|res| res.as_ref().ok())
+    DETECTOR.get()
 }
 
 /// Run detection using the global ONNX detector
@@ -571,9 +604,10 @@ pub fn detect_with_onnx(
     height: u32,
 ) -> Result<OnnxDetectionResult, String> {
     match DETECTOR.get() {
-        Some(Ok(detector)) => detector.detect(pixels, width, height),
-        Some(Err(e)) => Err(e.clone()),
-        None => Err("ONNX detector not initialized".to_string()),
+        Some(detector) => detector.detect(pixels, width, height),
+        None => {
+            Err(last_init_error().unwrap_or_else(|| "ONNX detector not initialized".to_string()))
+        }
     }
 }
 
@@ -605,24 +639,26 @@ pub fn get_onnx_detector_info() -> serde_json::Value {
     let providers = serde_json::json!({});
 
     match DETECTOR.get() {
-        Some(Ok(detector)) => serde_json::json!({
+        Some(detector) => serde_json::json!({
             "available": true,
             "ready": true,
             "backend": detector.get_backend_name(),
             "providers": providers,
         }),
-        Some(Err(e)) => serde_json::json!({
-            "available": true,
-            "ready": false,
-            "backend": "Init Failed",
-            "providers": providers,
-            "error": e,
-        }),
-        None => serde_json::json!({
-            "available": true,
-            "ready": false,
-            "backend": "Not Loaded",
-            "providers": providers,
-        }),
+        None => match last_init_error() {
+            Some(e) => serde_json::json!({
+                "available": true,
+                "ready": false,
+                "backend": "Init Failed",
+                "providers": providers,
+                "error": e,
+            }),
+            None => serde_json::json!({
+                "available": true,
+                "ready": false,
+                "backend": "Not Loaded",
+                "providers": providers,
+            }),
+        },
     }
 }

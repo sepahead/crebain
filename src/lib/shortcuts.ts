@@ -14,6 +14,7 @@ export const VIEWER_SHORTCUTS = {
   toggleCameraFeeds: 'v',
   toggleDetectionPanel: 't',
   toggleDetectionEnabled: 'y',
+  toggleSplatPerformanceMode: 'm',
   cycleCamera: 'tab',
   cancelSelection: 'escape',
 } as const
@@ -37,5 +38,10 @@ export function normalizeShortcutKey(key: string): string {
 }
 
 export function isTextInputTarget(target: EventTarget | null): boolean {
-  return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement ||
+    (target instanceof HTMLElement && target.isContentEditable)
+  )
 }

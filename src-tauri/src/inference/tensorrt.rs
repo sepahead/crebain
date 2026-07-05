@@ -164,7 +164,7 @@ impl TensorRtDetector {
         let mut output = vec![0.0f32; 3 * target_h * target_w];
         let plane_size = target_h * target_w;
 
-        // Bilinear resize and normalize
+        // Nearest-neighbor resize and normalize
         for y in 0..target_h {
             for x in 0..target_w {
                 let src_x = (x as f32 * src_w as f32 / target_w as f32) as usize;

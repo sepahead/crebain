@@ -174,20 +174,46 @@ export function useGazeboSimulation(
     }
   }, [gazeboDrones.hostileDrones, gazeboDrones.friendlyDrones])
 
-  // Manage guidance controllers for active missions
+  // Publish the interception system's active missions to React state.
+  // The system mutates mission objects in place, so published missions are
+  // shallow clones; the compare (length + ids + status + lastUpdate) then
+  // detects real changes and returns `prev` otherwise, so the idle update loop
+  // does not re-render the whole App at 10 Hz with fresh array identities.
+  const publishActiveMissions = useCallback(() => {
+    const system = interceptionSystemRef.current
+    setActiveMissions((prev) => {
+      const next = system.getActiveMissions()
+      const unchanged =
+        prev.length === next.length &&
+        next.every((mission, i) => {
+          const previous = prev[i]
+          return (
+            previous.id === mission.id &&
+            previous.status === mission.status &&
+            previous.lastUpdate === mission.lastUpdate
+          )
+        })
+      if (unchanged) return prev
+      return next.map((mission) => ({ ...mission }))
+    })
+  }, [])
+
+  // Manage guidance controllers for active missions.
+  // This effect only diffs controllers against the current active interceptor
+  // ids — it must NOT stop all controllers on dep change, because
+  // `activeMissions` refreshes at the update-loop rate while missions run.
+  // Stop-all lives in a separate unmount-only effect below.
   useEffect(() => {
     const cfg = configRef.current
-    // Stable ref Map; captured once so both cleanup paths avoid reading ref.current.
     const controllers = guidanceControllersRef.current
 
-    // Early return if not connected, but still set up cleanup
     if (!rosBridge.bridge || !rosBridge.isConnected || !cfg.enableContinuousGuidance) {
-      return () => {
-        for (const controller of controllers.values()) {
-          controller.stop()
-        }
-        controllers.clear()
+      // Not connected / guidance disabled: stop everything now.
+      for (const controller of controllers.values()) {
+        controller.stop()
       }
+      controllers.clear()
+      return
     }
 
     // Get current active mission interceptor IDs
@@ -230,15 +256,19 @@ export function useGazeboSimulation(
         controllers.delete(interceptorId)
       }
     }
+  }, [activeMissions, rosBridge.bridge, rosBridge.isConnected])
 
-    // Cleanup on unmount
+  // Stop all guidance controllers on unmount only.
+  useEffect(() => {
+    // Stable ref Map; captured once so cleanup avoids reading ref.current.
+    const controllers = guidanceControllersRef.current
     return () => {
       for (const controller of controllers.values()) {
         controller.stop()
       }
       controllers.clear()
     }
-  }, [activeMissions, rosBridge.bridge, rosBridge.isConnected])
+  }, [])
 
   // Update guidance controllers with latest interception data
   useEffect(() => {
@@ -285,7 +315,7 @@ export function useGazeboSimulation(
       for (const mission of missions) {
         system.updateMission(mission.id)
       }
-      setActiveMissions([...system.getActiveMissions()])
+      publishActiveMissions()
 
       // Selective trajectory prediction - only for active mission targets
       // This reduces computation by ~80% compared to predicting all hostiles
@@ -300,7 +330,12 @@ export function useGazeboSimulation(
           newPredictions.set(targetId, trajectory)
         }
       }
-      setTrajectoryPredictions(newPredictions)
+      // Trajectories are recomputed from live drone state, so any non-empty
+      // prediction set is genuinely new; only the (common, idle) empty→empty
+      // transition keeps the previous Map identity to avoid 10 Hz re-renders.
+      setTrajectoryPredictions((prev) =>
+        prev.size === 0 && newPredictions.size === 0 ? prev : newPredictions
+      )
     }
 
     updateIntervalRef.current = setInterval(updateSimulation, configRef.current.updateIntervalMs)
@@ -311,7 +346,7 @@ export function useGazeboSimulation(
         updateIntervalRef.current = null
       }
     }
-  }, [isSimulationActive])
+  }, [isSimulationActive, publishActiveMissions])
 
   // Initiate intercept
   const initiateIntercept = useCallback(
@@ -330,25 +365,28 @@ export function useGazeboSimulation(
 
       if (mission) {
         system.activateMission(mission.id)
-        setActiveMissions([...system.getActiveMissions()])
+        publishActiveMissions()
         // Guidance controller will be created automatically by the effect
         // when activeMissions state updates
       }
 
       return mission
     },
-    []
+    [publishActiveMissions]
   )
 
   // Abort mission
-  const abortMission = useCallback((missionId: string): boolean => {
-    const system = interceptionSystemRef.current
-    const success = system.abortMission(missionId)
-    if (success) {
-      setActiveMissions([...system.getActiveMissions()])
-    }
-    return success
-  }, [])
+  const abortMission = useCallback(
+    (missionId: string): boolean => {
+      const system = interceptionSystemRef.current
+      const success = system.abortMission(missionId)
+      if (success) {
+        publishActiveMissions()
+      }
+      return success
+    },
+    [publishActiveMissions]
+  )
 
   // Toggle simulation
   const toggleSimulation = useCallback(() => {

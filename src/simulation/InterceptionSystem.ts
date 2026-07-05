@@ -93,6 +93,10 @@ const DEFAULT_INTERCEPTOR_CONFIG: InterceptorConfig = {
 const SPEED_THRESHOLD_SQ = 0.01 // 0.1² for stationary detection
 const MIN_LATERAL_SPEED_SQ = 0.01 // 0.1² minimum lateral speed
 
+// Below this separation (meters) the interceptor is effectively on target;
+// guards divisions by the interceptor-to-target distance.
+const MIN_INTERCEPT_DISTANCE = 0.001
+
 // ─────────────────────────────────────────────────────────────────────────────
 // INTERCEPTION SYSTEM
 // ─────────────────────────────────────────────────────────────────────────────
@@ -312,6 +316,19 @@ export class InterceptionSystem {
       const predicted = predictPosition(target.position, target.velocity, timeGuess)
       const toPredict = subtract(predicted, interceptor.position)
       const distToPredict = magnitude(toPredict)
+
+      if (distToPredict < MIN_INTERCEPT_DISTANCE) {
+        // Already at the predicted point - immediate intercept. Guards the
+        // 1/distToPredict normalization below against division by zero.
+        return {
+          interceptPoint: predicted,
+          timeToIntercept: 0,
+          interceptorVelocity: { x: 0, y: 0, z: 0 },
+          strategy: 'LEAD',
+          isPossible: true,
+        }
+      }
+
       const newTimeGuess = distToPredict / maxSpeed
 
       const timeDiff = newTimeGuess - timeGuess
@@ -388,25 +405,39 @@ export class InterceptionSystem {
       }
     }
 
-    const lateralSpeed = Math.sqrt(lateralSpeedSq)
+    // Close BOTH gap components. Matching the target's forward speed exactly
+    // would leave the along-track gap constant forever (missions hang ACTIVE),
+    // so the forward component must also include an along-track closing term.
+    // Solve for the intercept time T at which flying at exactly maxSpeed
+    // closes the along-track gap (gPar) and the perpendicular gap (gPerp)
+    // simultaneously:
+    //   (targetSpeed + gPar/T)² + (gPerp/T)² = maxSpeed²
+    // which rearranges to a·T² − b·T − c = 0 with the positive root below.
+    // a = lateralSpeedSq > 0 (checked above) and c ≥ gPerp² > 0 (checked
+    // above), so the discriminant is positive and T > 0.
+    const gPar = losAlongHeading
+    const gPerp = Math.sqrt(sidePerpMagSq)
+    const a = lateralSpeedSq // maxSpeed² − targetSpeed²
+    const b = 2 * targetSpeed * gPar
+    const c = gPar * gPar + gPerp * gPerp
+    const timeToIntercept = (b + Math.sqrt(b * b + 4 * a * c)) / (2 * a)
+
+    const alongSpeed = targetSpeed + gPar / timeToIntercept
+    const lateralSpeed = gPerp / timeToIntercept
     const sideDir = normalize(sidePerp)
 
-    // Forward (matches the target) + lateral (closes the perpendicular gap). The
-    // two components are orthogonal so |v| == maxSpeed by construction; clamp as
-    // a numerical safety net so PARALLEL never commands above maxSpeed.
+    // Forward (matches the target plus along-track closure) + lateral (closes
+    // the perpendicular gap). The two components are orthogonal and sized so
+    // |v| == maxSpeed by construction; clamp as a numerical safety net so
+    // PARALLEL never commands above maxSpeed.
     const interceptorVelocity = clampMagnitude(
       {
-        x: targetDir.x * targetSpeed + sideDir.x * lateralSpeed,
-        y: targetDir.y * targetSpeed + sideDir.y * lateralSpeed,
-        z: targetDir.z * targetSpeed + sideDir.z * lateralSpeed,
+        x: targetDir.x * alongSpeed + sideDir.x * lateralSpeed,
+        y: targetDir.y * alongSpeed + sideDir.y * lateralSpeed,
+        z: targetDir.z * alongSpeed + sideDir.z * lateralSpeed,
       },
       interceptor.config.maxSpeed
     )
-
-    // Time to close the perpendicular offset at the lateral speed (only the
-    // lateral component shrinks the gap; the slant range would mis-estimate it).
-    const lateralDistance = Math.sqrt(sidePerpMagSq)
-    const timeToIntercept = lateralDistance / lateralSpeed
 
     return {
       interceptPoint: predictPosition(target.position, target.velocity, timeToIntercept),

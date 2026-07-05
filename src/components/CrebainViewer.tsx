@@ -34,6 +34,7 @@ import { getGazeboController } from '../ros/GazeboController'
 import { getROSBridge } from '../ros/ROSBridge'
 import { MAVERICK_SDF } from '../ros/models'
 import { calculateLatencyStats, normalizeSystemInfo, type SystemInfo } from '../lib/diagnostics'
+import { isTextInputTarget, VIEWER_SHORTCUTS } from '../lib/shortcuts'
 import { TAURI_COMMANDS } from '../lib/tauriCommands'
 
 import type {
@@ -222,6 +223,9 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
   const feedBuffersRef = useRef<Map<string, Uint8Array>>(new Map())
   // Reusable ImageData per camera (avoids ~1MB createImageData alloc each feed tick)
   const feedImageDataRef = useRef<Map<string, ImageData>>(new Map())
+  // Timestamp (performance.now) of each camera's last render-to-target, so
+  // exportCameraFeed can skip targets the round-robin/governor left stale.
+  const feedLastRenderAtRef = useRef<Map<string, number>>(new Map())
   // Round-robin cursor: feed render + pixel readback process ONE camera per tick
   // so per-frame GPU cost stays bounded regardless of how many cameras are placed.
   const feedRoundRobinRef = useRef(0)
@@ -254,6 +258,10 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
   // Last splat source/name so toggling performance mode can reload it in place.
   const lastSplatSourceRef = useRef<File | string | ArrayBuffer | null>(null)
   const lastSplatNameRef = useRef<string | undefined>(undefined)
+  // Splat load generation: bumped per loadSplat call so callbacks of a
+  // superseded load (onLoad/timeout/interval/error) can detect they are stale
+  // and must not touch the scene or loading UI.
+  const splatLoadGenRef = useRef(0)
   const scratchVectors = useRef({
     forward: new THREE.Vector3(),
     right: new THREE.Vector3(),
@@ -285,6 +293,10 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
   // an 83 ms interval, a worst-case feed still refreshes ~every 0.5 s.
   const FEED_FRAME_BUDGET_MS = 6
   const MAX_FEED_STRIDE = 6
+  // Max age (ms) of a camera's render target for detection exports: the
+  // round-robin + governor may leave a target unrefreshed for seconds, and
+  // pairing those stale pixels with current camera poses corrupts fusion.
+  const FEED_EXPORT_MAX_AGE_MS = 500
   // Default patrol camera speed
   const DEFAULT_PATROL_SPEED = 0.015
   // Patrol waypoint arrival threshold in meters
@@ -379,6 +391,13 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
     scene: sceneRef.current,
     enabled: true,
   })
+
+  // Mirrors selectedDroneId for the window-level key handlers (registered in
+  // effects that must not re-run on selection changes).
+  const droneControlActiveRef = useRef(false)
+  useEffect(() => {
+    droneControlActiveRef.current = selectedDroneId !== null
+  }, [selectedDroneId])
 
   const handleSpawnRequest = useCallback(
     (typeId: string, name?: string) => {
@@ -631,11 +650,14 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
         return prev.filter((c) => c.id !== cameraId)
       })
       if (selectedCamera === cameraId) setSelectedCamera(null)
-      // Free the per-camera feed canvas ref and pixel-readback buffer (~0.9 MB
-      // each at 640x360) so removed cameras don't leak. The canvas ref callback
-      // ignores the null unmount call, so these are never cleared otherwise.
+      // Free the per-camera feed state: the canvas ref callback also deletes
+      // its entry on unmount, but the pixel-readback buffer and pooled
+      // ImageData (~0.9 MB each at 640x360) plus the last-render timestamp
+      // have no unmount hook, so clear everything here.
       feedCanvasRefs.current.delete(cameraId)
       feedBuffersRef.current.delete(cameraId)
+      feedImageDataRef.current.delete(cameraId)
+      feedLastRenderAtRef.current.delete(cameraId)
       // Purge retained detections for the removed camera (the Map grows otherwise).
       setCameraDetections((prev) => {
         if (!prev.has(cameraId)) return prev
@@ -653,25 +675,38 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
   }, [])
 
   // GPU pixel readback is synchronous; the Promise contract is kept for API
-  // stability and to match async camera-capture backends.
+  // stability and to match async camera-capture backends. Reuses the pooled
+  // per-camera buffer/ImageData (shared with updateFeeds) instead of
+  // allocating ~1.8 MB per call at the 100 ms detection tick.
   const exportCameraFeed = useCallback(
-    (cameraId: string): Promise<ImageData | null> => {
+    (cameraId: string, maxAgeMs: number = FEED_EXPORT_MAX_AGE_MS): Promise<ImageData | null> => {
       const cam = cameras.find((c) => c.id === cameraId)
       if (!cam || !rendererRef.current) return Promise.resolve(null)
+      // Skip targets the round-robin/governor hasn't refreshed recently so
+      // stale pixels never get paired with current camera poses downstream.
+      const renderedAt = feedLastRenderAtRef.current.get(cameraId)
+      if (renderedAt === undefined || performance.now() - renderedAt > maxAgeMs) {
+        return Promise.resolve(null)
+      }
       const width = cam.renderTarget.width
       const height = cam.renderTarget.height
-      const buffer = new Uint8Array(width * height * 4)
+      const bufferSize = width * height * 4
+      let buffer = feedBuffersRef.current.get(cameraId)
+      if (!buffer || buffer.length !== bufferSize) {
+        buffer = new Uint8Array(bufferSize)
+        feedBuffersRef.current.set(cameraId, buffer)
+      }
       rendererRef.current.readRenderTargetPixels(cam.renderTarget, 0, 0, width, height, buffer)
-      const imageData = new ImageData(width, height)
+      let imageData = feedImageDataRef.current.get(cameraId)
+      if (!imageData || imageData.width !== width || imageData.height !== height) {
+        imageData = new ImageData(width, height)
+        feedImageDataRef.current.set(cameraId, imageData)
+      }
+      // Row-wise vertical flip (GPU readback is bottom-up).
+      const data = imageData.data
       for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-          const srcIdx = ((height - 1 - y) * width + x) * 4
-          const dstIdx = (y * width + x) * 4
-          imageData.data[dstIdx] = buffer[srcIdx]
-          imageData.data[dstIdx + 1] = buffer[srcIdx + 1]
-          imageData.data[dstIdx + 2] = buffer[srcIdx + 2]
-          imageData.data[dstIdx + 3] = buffer[srcIdx + 3]
-        }
+        const srcRowStart = (height - 1 - y) * width * 4
+        data.set(buffer.subarray(srcRowStart, srcRowStart + width * 4), y * width * 4)
       }
       return Promise.resolve(imageData)
     },
@@ -680,7 +715,8 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
 
   const downloadCameraFeed = useCallback(
     async (cameraId: string) => {
-      const imageData = await exportCameraFeed(cameraId)
+      // User-initiated export: accept any rendered frame, however stale.
+      const imageData = await exportCameraFeed(cameraId, Infinity)
       if (!imageData) return
       const canvas = document.createElement('canvas')
       canvas.width = imageData.width
@@ -1119,6 +1155,10 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
   const loadSplat = useCallback(
     async (source: File | string | ArrayBuffer, name?: string) => {
       if (!sceneRef.current) return
+      // Bump the load generation: any callback belonging to an older, still
+      // in-flight load becomes stale and must not touch the scene or UI.
+      const generation = ++splatLoadGenRef.current
+      const isStale = () => splatLoadGenRef.current !== generation
       lastSplatSourceRef.current = source
       lastSplatNameRef.current = name
       const displayName = name || (source instanceof File ? source.name : 'OBJEKT')
@@ -1191,25 +1231,37 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
           setLoadingProgress(50)
         }
 
+        if (isStale()) return
+
         setLoadingStage('processing')
         const fileSizeMB = (fileBytes.byteLength / 1024 / 1024).toFixed(1)
         addMessage('system', `VERARBEITE: ${fileSizeMB} MB`)
 
         await new Promise((resolve) => setTimeout(resolve, 16))
+        if (isStale()) return
 
-        let loadCompleted = false
+        let loadSettled = false
 
         loadTimeout = setTimeout(() => {
-          if (!loadCompleted) {
-            clearInterval(progressInterval)
-            setIsLoading(false)
-            setLoadingName(null)
-            setLoadingProgress(0)
-            addMessage('error', `ZEITÜBERSCHREITUNG: ${displayName}`)
+          if (loadSettled) return
+          loadSettled = true
+          clearInterval(progressInterval)
+          // Remove and dispose the timed-out mesh so it doesn't leak in the
+          // scene (a newer load already handled it if the ref moved on).
+          if (splatMeshRef.current === newSplat) {
+            scene.remove(newSplat)
+            newSplat.dispose?.()
+            splatMeshRef.current = null
           }
+          if (isStale()) return
+          setIsLoading(false)
+          setLoadingName(null)
+          setLoadingProgress(0)
+          addMessage('error', `ZEITÜBERSCHREITUNG: ${displayName}`)
         }, 120000)
 
         progressInterval = setInterval(() => {
+          if (isStale()) return
           setLoadingProgress((prev) => {
             if (prev >= 95) return prev
             return prev + Math.random() * 5
@@ -1234,9 +1286,13 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
           fileName: splatFileName,
           ...(perfMaxSplatsRef.current > 0 ? { maxSplats: perfMaxSplatsRef.current } : {}),
           onLoad: () => {
-            loadCompleted = true
+            if (loadSettled) return // timed out or failed already
             clearTimeout(loadTimeout)
             clearInterval(progressInterval)
+            // A newer load superseded this one; it already removed/disposed
+            // this mesh via splatMeshRef, so just stand down.
+            if (isStale()) return
+            loadSettled = true
             setLoadingProgress(100)
 
             // Splats are captured in arbitrary world coords, so at the origin they
@@ -1266,6 +1322,7 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
             }
 
             setTimeout(() => {
+              if (isStale()) return
               setIsLoading(false)
               setLoadingName(null)
               setLoadingProgress(0)
@@ -1278,9 +1335,28 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
         newSplat.rotation.set(Math.PI, 0, 0)
         scene.add(newSplat)
         splatMeshRef.current = newSplat
+        // Spark has no onError option; `initialized` rejects on load failure
+        // (e.g. unknown splat format), so clean up and surface it from there.
+        newSplat.initialized.catch((error: unknown) => {
+          if (loadSettled) return
+          loadSettled = true
+          clearTimeout(loadTimeout)
+          clearInterval(progressInterval)
+          if (splatMeshRef.current === newSplat) {
+            scene.remove(newSplat)
+            newSplat.dispose?.()
+            splatMeshRef.current = null
+          }
+          if (isStale()) return
+          setIsLoading(false)
+          setLoadingName(null)
+          setLoadingProgress(0)
+          addMessage('error', `FEHLER: ${error instanceof Error ? error.message : 'Unbekannt'}`)
+        })
       } catch (error) {
         clearTimeout(loadTimeout)
         clearInterval(progressInterval)
+        if (isStale()) return
         setIsLoading(false)
         setLoadingName(null)
         setLoadingProgress(0)
@@ -1732,7 +1808,9 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
     window.addEventListener('resize', handleResize)
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (isTextInputTarget(e.target)) return
+      // While a drone is selected its control scheme owns W/A/S/D/Q/E/Space/Shift.
+      if (droneControlActiveRef.current) return
 
       if (e.shiftKey) moveState.current.sprint = true
       if (e.ctrlKey || e.metaKey) moveState.current.precision = true
@@ -1906,49 +1984,51 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (isTextInputTarget(e.target)) return
 
       switch (e.key.toLowerCase()) {
-        case 'r':
+        case VIEWER_SHORTCUTS.resetCamera:
+          // With a drone selected, R belongs to the drone arm/disarm toggle.
+          if (droneControlActiveRef.current) break
           resetCamera()
           break
-        case 'f':
+        case VIEWER_SHORTCUTS.focusContent:
           focusOnContent()
           break
-        case 'g':
+        case VIEWER_SHORTCUTS.toggleGrid:
           setShowGrid((prev) => !prev)
           break
-        case 'escape':
+        case VIEWER_SHORTCUTS.cancelSelection:
           setCameraPlacementMode(null)
           setSelectedCamera(null)
           clearSelection()
           break
-        case '1':
+        case VIEWER_SHORTCUTS.placeStaticCamera:
           setCameraPlacementMode('static')
           addMessage('tactical', 'SK-PLATZIERUNG AKTIV')
           break
-        case '2':
+        case VIEWER_SHORTCUTS.placePTZCamera:
           setCameraPlacementMode('ptz')
           addMessage('tactical', 'PTZ-PLATZIERUNG AKTIV')
           break
-        case '3':
+        case VIEWER_SHORTCUTS.placePatrolCamera:
           setCameraPlacementMode('patrol')
           addMessage('tactical', 'PK-PLATZIERUNG AKTIV')
           break
-        case 'v':
+        case VIEWER_SHORTCUTS.toggleCameraFeeds:
           setShowCameraFeeds((prev) => !prev)
           break
-        case 't':
+        case VIEWER_SHORTCUTS.toggleDetectionPanel:
           setShowDetectionPanel((prev) => !prev)
           break
-        case 'y':
+        case VIEWER_SHORTCUTS.toggleDetectionEnabled:
           setDetectionEnabled((prev) => !prev)
           break
-        case 'tab':
+        case VIEWER_SHORTCUTS.cycleCamera:
           e.preventDefault()
           cycleCamera()
           break
-        case 'p': {
+        case VIEWER_SHORTCUTS.toggleSplatPerformanceMode: {
           // Toggle splat performance mode: cap/uncap splats, then reload in place.
           const enabling = perfMaxSplatsRef.current === 0
           perfMaxSplatsRef.current = enabling ? 1_500_000 : 0
@@ -2029,7 +2109,6 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
               cam.mesh.quaternion.copy(cam.camera.quaternion)
             }
           }
-
         }
 
         // Round-robin: render + read back ONE camera per tick. A feed update is a
@@ -2056,10 +2135,12 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
         renderer.setRenderTarget(rrCam.renderTarget)
         renderer.render(scene, rrCam.camera)
         renderer.setRenderTarget(currentRT)
+        feedLastRenderAtRef.current.set(rrCam.id, performance.now())
 
         if (!showCameraFeeds) {
           // Still account for the render-to-target cost so the governor adapts.
-          feedCostEmaRef.current = feedCostEmaRef.current * 0.8 + (performance.now() - heavyStart) * 0.2
+          feedCostEmaRef.current =
+            feedCostEmaRef.current * 0.8 + (performance.now() - heavyStart) * 0.2
           return
         }
 
@@ -2107,7 +2188,8 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
         }
 
         // Record the cost of this heavy tick so the governor can adapt the stride.
-        feedCostEmaRef.current = feedCostEmaRef.current * 0.8 + (performance.now() - heavyStart) * 0.2
+        feedCostEmaRef.current =
+          feedCostEmaRef.current * 0.8 + (performance.now() - heavyStart) * 0.2
       } catch (e) {
         log.error('Error updating camera feeds', { error: e })
       } finally {
@@ -2536,6 +2618,11 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
                                     sceneRef.current.remove(splatMeshRef.current)
                                     splatMeshRef.current.dispose?.()
                                     splatMeshRef.current = null
+                                    // Drop the reload source too, or perf-mode
+                                    // reload would resurrect the removed asset
+                                    // (and pin its File/ArrayBuffer in memory).
+                                    lastSplatSourceRef.current = null
+                                    lastSplatNameRef.current = undefined
                                     setCurrentAsset(null)
                                     addMessage('system', 'ENTFERNT')
                                   }
@@ -2882,14 +2969,16 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
                 onClick={() => setSelectedCamera(cam.id)}
                 className={`relative cursor-pointer border transition-all ${selectedCamera === cam.id ? 'border-[#505050]' : 'border-[#1a1a1a] hover:border-[#303030]'}`}
               >
+                {/* Bitmap matches the 640x360 render target so putImageData and
+                    detection overlays land 1:1; CSS scales it to thumbnail size. */}
                 <canvas
                   ref={(el) => {
                     if (el) feedCanvasRefs.current.set(cam.id, el)
                     else feedCanvasRefs.current.delete(cam.id)
                   }}
-                  width={140}
-                  height={79}
-                  className="bg-black block"
+                  width={640}
+                  height={360}
+                  className="bg-black block w-[140px] h-[79px]"
                 />
                 <div className="absolute inset-0 pointer-events-none">
                   <div
@@ -2991,7 +3080,7 @@ export default function CrebainViewer({ onDetectionComplete }: CrebainViewerProp
             WECHS: <span className="text-[#707070]">⇥</span>
           </span>
           <span>
-            FEEDS: <span className="text-[#707070]">C</span>
+            FEEDS: <span className="text-[#707070]">V</span>
           </span>
           <span>
             DETEK: <span className="text-[#707070]">T</span>

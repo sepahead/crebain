@@ -286,7 +286,7 @@ async function benchmarkDetector(type: DetectorType): Promise<DetectorBenchmarkR
   } finally {
     if (detector) {
       try {
-        detector.dispose()
+        await detector.dispose()
       } catch {
         // Ignore disposal errors
       }
@@ -557,7 +557,7 @@ describe.skipIf(!process.env.RUN_BENCHMARKS)('Detector Benchmarks', () => {
           }
 
           // Dispose
-          detector.dispose()
+          await detector.dispose()
 
           // Verify detector is no longer ready
           expect(detector.isReady()).toBe(false)
@@ -565,7 +565,7 @@ describe.skipIf(!process.env.RUN_BENCHMARKS)('Detector Benchmarks', () => {
           // Initialization failed, which is acceptable
         } finally {
           if (detector?.isReady()) {
-            detector.dispose()
+            await detector.dispose()
           }
         }
       }

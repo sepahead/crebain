@@ -78,7 +78,7 @@ A research-oriented tactical visualization and autonomy prototype with 3D scene 
   - `SK` (Statische Kamera): Fixed surveillance position
   - `PTZ` (Pan-Tilt-Zoom): Full PTZ control with sliders
   - `PK` (Patrouillenkamera): Automated waypoint patrol
-- **Live Feeds**: Up to 4 camera feeds rendered simultaneously at 12 FPS
+- **Live Feeds**: Up to 4 camera feed thumbnails; feeds refresh on an 83 ms tick (~12 Hz) rendered round-robin across active cameras, with an adaptive frame-budget governor that stretches the interval under load
 - **Feed Export**: Download individual camera captures as PNG
 - **Detection Overlay**: Bounding boxes on camera feeds
 - **Camera Management**: Place, rename, and remove cameras via UI
@@ -217,23 +217,25 @@ flowchart LR
 **Solution**: Prefer the validated backend for the host platform, report backend availability in diagnostics, and keep experimental backends opt-in until their behavior is measured and complete.
 
 ```rust
-// Automatic backend selection
-pub fn create_detector() -> Box<dyn Detector> {
+// Automatic backend selection (simplified from src-tauri/src/inference/mod.rs)
+pub fn create_detector() -> Result<Box<dyn Detector>> {
+    // Explicit override first: CREBAIN_BACKEND=coreml|mlx|onnx|cuda|tensorrt
+    if let Ok(backend) = std::env::var("CREBAIN_BACKEND") {
+        return create_detector_with_backend(backend.parse()?);
+    }
     #[cfg(target_os = "macos")]
     {
         // Apple Silicon: CoreML > experimental MLX (opt-in) > ONNX
-        if coreml::is_available() { return Box::new(CoreMlDetector::new()); }
-        if experimental_mlx_enabled() && mlx::is_available() {
-            return Box::new(MlxDetector::new());
-        }
+        if coreml::is_available() { /* CoreML detector */ }
+        if experimental_mlx_enabled() && mlx::is_available() { /* MLX detector */ }
     }
     #[cfg(target_os = "linux")]
     {
         // NVIDIA: TensorRT > CUDA > ONNX
-        if tensorrt::is_available() { return Box::new(TensorRtDetector::new()); }
-        if cuda::is_available() { return Box::new(CudaDetector::new()); }
+        if tensorrt::is_available() { /* TensorRT detector */ }
+        if cuda::is_available() { /* CUDA detector */ }
     }
-    Box::new(OnnxDetector::new()) // Universal fallback
+    // Universal fallback: ONNX Runtime (CPU)
 }
 ```
 
@@ -386,26 +388,31 @@ export CREBAIN_ONNX_MODEL=/path/to/your/model.onnx
 ## Usage
 
 1. **Launch the app**: `bun run tauri:dev`
-2. **Load a scene**: Drag and drop a .spz/.ply/.splat file, or use Ctrl+O
+2. **Load a scene**: Drag and drop a .spz/.ply/.splat file, or use Ctrl+O (Cmd+O on macOS)
 3. **Place cameras**: Press 1/2/3 to enter camera placement mode, click to place
 4. **Enable detection**: Detection runs automatically on camera feeds
 5. **View performance**: Press P to toggle the performance panel
-6. **Sensor fusion**: Press U to toggle the sensor fusion panel
+6. **Sensor fusion**: Press U to expand/collapse the sensor fusion panel
 7. **Connect ROS**: Press N to open the ROS connection panel
+8. **Splat performance mode**: Press M to cap the splat count (1.5M) and reload the scene
 
 ---
 
 ## Keyboard Controls
 
-### Navigation
+### Navigation (free-fly camera)
 | Key | Action |
 |-----|--------|
 | W/A/S/D | Move forward/left/back/right |
 | Q/E | Move down/up |
+| Z/X or ←/→ | Rotate camera left/right |
 | Shift | Sprint (3x speed) |
 | Ctrl | Precision mode (0.2x speed) |
-| Space | Emergency stop |
+| Space | Emergency stop (zero velocity) |
 | R | Reset camera to origin |
+
+Navigation keys are suppressed while a drone is selected — the drone control
+scheme below owns them.
 
 ### Camera System
 | Key | Action |
@@ -423,9 +430,32 @@ export CREBAIN_ONNX_MODEL=/path/to/your/model.onnx
 | F | Focus scene content |
 | G | Toggle 3D grid |
 | N | Toggle ROS Connection Panel |
-| U | Toggle Sensor Fusion Panel |
+| U | Expand/collapse Sensor Fusion Panel |
 | T | Toggle detection panel |
 | Y | Toggle detection on/off |
+| M | Toggle splat performance mode (cap 1.5M splats, reloads scene) |
+| Ctrl/Cmd+O | Open scene file |
+| Esc | Cancel placement / clear selection |
+
+### Drone Control (drone selected)
+| Key | Action |
+|-----|--------|
+| W/S/A/D | Horizontal flight |
+| Q/E | Yaw left/right |
+| Space | Throttle up |
+| Shift | Throttle down |
+| C | Switch camera view |
+| R | Arm/disarm |
+| Esc | Emergency disarm (all drones) |
+
+### Object Transform (object selected)
+| Key | Action |
+|-----|--------|
+| I/K | Rotate around X |
+| J/L | Rotate around Y |
+| ,/. | Rotate around Z |
+| +/- | Scale up/down |
+| Del/Backspace | Delete object |
 
 ---
 
@@ -436,16 +466,14 @@ export CREBAIN_ONNX_MODEL=/path/to/your/model.onnx
 ```
 src/
 ├── components/
-│   ├── CrebainViewer.tsx      # Main 3D viewer (orchestrates everything)
-│   ├── CameraFeed.tsx         # Individual camera with detection overlay
-
+│   ├── CrebainViewer.tsx      # Main 3D viewer (scene, cameras, feeds, splats)
 │   ├── DetectionOverlay.tsx   # Bounding box rendering
 │   └── *Panel.tsx             # Draggable UI panels
 │
 ├── hooks/
 │   ├── useGazeboDrones.ts     # Drone state from ROS (CircularBuffer, memoized)
 │   ├── useGazeboSimulation.ts # Continuous guidance controller
-│   ├── useROSSensors.ts       # Sensor fusion integration
+│   ├── useDroneController.ts  # Local drone spawning, physics loop, keyboard flight
 │   └── useDraggable.ts        # Shared panel drag logic
 │
 ├── ros/
@@ -453,7 +481,8 @@ src/
 │   ├── ROSCameraStream.ts     # Camera frame decoding
 │   ├── GuidanceController.ts  # 20Hz PD control loop
 │   ├── TransformManager.ts    # TF tree with caching
-│   └── WaypointManager.ts     # MAVROS mission support
+│   ├── WaypointManager.ts     # MAVROS mission support
+│   └── useROSSensors.ts       # Multi-modal sensor fusion integration
 │
 └── lib/
     ├── CircularBuffer.ts      # O(1) position history
@@ -486,6 +515,8 @@ src-tauri/src/
 │   ├── rosbridge.rs      # rosbridge WebSocket fallback
 │   └── commands.rs       # Tauri transport commands
 │
+├── ncp/                  # NCP (Engram) client — off-by-default `ncp` feature
+│
 └── sensor_fusion.rs      # KF/EKF/UKF/PF/IMM filters
 ```
 
@@ -505,14 +536,14 @@ flowchart TB
         Frontend -->|"WebSocket<br/>(JSON, flexible)"| TSBridge
     end
 
-    subgraph ROS["GAZEBO / ROS2 (Headless)"]
-        RMW["RMW_IMPLEMENTATION=rmw_zenoh_cpp"]
+    subgraph ROS["GAZEBO / ROS (Headless)"]
+        Peers["Zenoh peers<br/>(CREBAIN key scheme)"]
         Camera["Camera Plugins"]
         Physics["Physics Engine"]
         MAVROS["MAVROS Bridge"]
     end
 
-    RustZenoh -->|"Zenoh Protocol<br/>(shared mem / UDP)"| ROS
+    RustZenoh -->|"Zenoh Protocol<br/>(plain-topic keys)"| ROS
     TSBridge -->|"WebSocket<br/>(TCP port 9090)"| ROS
 ```
 
@@ -603,6 +634,8 @@ silently corrupts a modality's tracks:
 
 Radar stays polar end-to-end so the EKF models its angular error correctly; lidar is
 a precise Cartesian centroid and is never routed through a polar conversion.
+Covariance entries must be strictly positive and radar ranges non-negative —
+measurements failing validation are rejected at the IPC boundary.
 
 ### Filter Selection Guide
 
@@ -664,21 +697,34 @@ stateDiagram-v2
 /crebain/thermal/detections:       crebain_msgs/ThermalDetectionArray
 /crebain/acoustic/detections:      crebain_msgs/AcousticDetectionArray
 /crebain/radar/detections:         crebain_msgs/RadarDetectionArray
+/crebain/lidar/detections:         crebain_msgs/LidarDetectionArray
+# (visual measurements come from the local detection pipeline, not a ROS topic)
 
-# Gazebo services (rosbridge fallback)
-/gazebo/spawn_entity:              gazebo_msgs/SpawnEntity
+# Gazebo Classic services (rosbridge fallback)
+/gazebo/spawn_urdf_model:          gazebo_msgs/SpawnModel
+/gazebo/spawn_sdf_model:           gazebo_msgs/SpawnModel
+/gazebo/delete_model:              gazebo_msgs/DeleteModel
+/gazebo/pause_physics, /gazebo/unpause_physics, /gazebo/reset_world
 ```
 
 ### Quick Start
 
 ```bash
-# Terminal 1: Gazebo (headless) with Zenoh RMW
-export RMW_IMPLEMENTATION=rmw_zenoh_cpp
-gzserver --headless your_world.sdf
+# Terminal 1: Gazebo Classic server (headless by design; the GUI is gzclient)
+gzserver your_world.sdf
 
-# Terminal 2: CREBAIN
+# Terminal 2: rosbridge WebSocket server (the service names above are
+# Gazebo Classic / ROS 1-style; run the matching rosbridge setup)
+roslaunch rosbridge_server rosbridge_websocket.launch
+
+# Terminal 3: CREBAIN
 bun run tauri:dev
 ```
+
+The native Zenoh transport speaks CREBAIN's own plain-topic key scheme. Direct
+interop with an `rmw_zenoh_cpp` ROS 2 graph (which keys topics as
+`<domain>/<topic>/<type>/<hash>`) requires a re-keying bridge and is not
+provided out of the box.
 
 ---
 
@@ -700,7 +746,7 @@ bun run tauri:dev
 
 **rosbridge**: Development, ROS1/ROS2 WebSocket integration, experimental sensors, flexibility needed
 
-**Zenoh-oriented transport**: Typed robotics data and deployments that benefit from Zenoh’s pub/sub/query model; benchmark in your own topology before depending on a latency target
+**Zenoh-oriented transport**: Typed robotics data and deployments that benefit from Zenoh’s pub/sub/query model; benchmark in your own topology before depending on a latency target. Note: the bridge uses CREBAIN's plain-topic key scheme — direct `rmw_zenoh_cpp` graph interop needs a re-keying bridge
 
 ---
 
@@ -726,11 +772,12 @@ bun run tauri:dev
 | `CREBAIN_ENABLE_EXPERIMENTAL_MLX` | Allow experimental MLX auto-selection on Apple Silicon after model-contract validation | `1` / `true` |
 | `CREBAIN_MLX_MODEL` | MLX safetensors model path | Path to `.safetensors` |
 | `CREBAIN_MLX_MODEL_SHA256` | Optional MLX model digest pin | 64-character SHA-256 hex digest |
+| `CREBAIN_PROFILE_MLX` | Per-layer MLX latency logging | `1` |
 | `CREBAIN_TRT_CACHE_DIR` | TensorRT engine cache dir | Directory path (Linux) |
 | `CREBAIN_DISABLE_TRT_CACHE` | Disable TensorRT caching | `1` / `true` |
-| `ORT_DYLIB_PATH` | ONNX Runtime library path (load-dynamic) | Path to `libonnxruntime.*` |
-| `CREBAIN_ZENOH` | Enable Zenoh | `1` (default) or `0` |
-| `RMW_IMPLEMENTATION` | ROS2 middleware | `rmw_zenoh_cpp` |
+| `ORT_DYLIB_PATH` | ONNX Runtime library path (honored by `ort` only on Linux `load-dynamic` builds) | Path to `libonnxruntime.so` |
+| `CREBAIN_ZENOH` | Enable native Zenoh transport (default: enabled). Only `1`/`true`/`yes`/`on` enable it; any other value selects the rosbridge fallback | `1` / `0` |
+| `CREBAIN_ROSBRIDGE_URL` | rosbridge URL for the Rust fallback transport | `ws://localhost:9090` (default) |
 
 ---
 
@@ -746,7 +793,11 @@ bun run tauri:dev
 | Selective trajectory prediction | `useGazeboSimulation.ts` | Avoids unnecessary prediction work |
 | 20Hz continuous guidance | `GuidanceController.ts` | Smooth control |
 | Stable config refs | Various hooks | Avoids effect re-runs |
-| ImageBitmap decoding | `ROSCameraStream.ts` | Browser-native image decode path |
+| ImageBitmap decoding + explicit close() | `ROSCameraStream.ts` | Browser-native decode without bitmap leaks |
+| Round-robin camera feed rendering | `CrebainViewer.tsx` | One render-to-target per 83 ms tick |
+| Frame-budget feed governor | `CrebainViewer.tsx` | Stretches feed cadence under load (EMA-based stride) |
+| Splat performance mode (`M`) | `CrebainViewer.tsx` | Caps splat count at 1.5M for weak GPUs |
+| Pooled feed buffers | `CrebainViewer.tsx` | No per-tick ImageData/array allocations |
 
 ### Benchmarking
 
@@ -805,6 +856,9 @@ Primary references used for external claims:
 | IOU Threshold | 0.45 | 0.0-1.0 |
 | Max Detections | 100 | 1-1000 |
 
+Individual browser backends override the confidence default (CoreML 0.3,
+RF-DETR 0.35, Moondream 0.3); see `src/detection/*Detector.ts`.
+
 ### Sensor Fusion Settings
 
 | Parameter | Default | Description |
@@ -825,10 +879,13 @@ See [docs/SENSOR_FUSION.md](docs/SENSOR_FUSION.md) for per-parameter tuning guid
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| Rate | 20Hz | Control loop frequency |
+| Rate | 20Hz | Control loop frequency (browser timers permitting) |
 | Max Velocity | 15 m/s | Speed limit |
+| Max Acceleration | 5 m/s² | Velocity ramp limit |
 | kP | 1.5 | Proportional gain |
-| kD | 0.5 | Derivative gain |
+| kD | 0.5 | Derivative gain (on measured velocity) |
+| Approach Distance | 10 m | Deceleration radius |
+| Arrival Threshold | 0.5 m | Waypoint-reached distance |
 
 ---
 
@@ -840,21 +897,27 @@ crebain/
 │   ├── components/               # UI components
 │   ├── hooks/                    # React hooks
 │   ├── ros/                      # ROS integration
-│   ├── detection/                # Detection types
+│   ├── detection/                # Detection pipeline + browser fusion
 │   ├── physics/                  # Drone physics
 │   ├── simulation/               # Interception system
+│   ├── state/                    # Scene serialization/persistence
+│   ├── context/                  # React contexts (UI scaling)
+│   ├── neuro/                    # NCP TypeScript glue (versionGuard)
 │   └── lib/                      # Utilities
 │
 ├── src-tauri/                    # Rust backend
 │   ├── src/
+│   │   ├── common/               # Shared detection/NMS/YOLO/path utils
 │   │   ├── inference/            # ML abstraction layer
-│   │   ├── transport/            # Zenoh transport
+│   │   ├── transport/            # Zenoh + rosbridge transport
+│   │   ├── ncp/                  # NCP client (off-by-default feature)
 │   │   └── sensor_fusion.rs      # Filter algorithms
 │   ├── native/
 │   │   └── coreml-ffi/           # Swift CoreML bridge
-│   └── resources/                # ML models
+│   ├── sidecar/                  # Swift sidecar package
+│   └── resources/                # ML models (you create this; gitignored)
 │
-├── ros/                          # ROS reference files
+├── ros/                          # ROS reference files (crebain_msgs)
 │   ├── msg/                      # Message definitions
 │   ├── srv/                      # Service definitions
 │   └── launch/                   # Launch files
@@ -874,7 +937,8 @@ Use the same commands in local development, CI, and PR review:
 # Frontend typecheck + Vitest
 bun run validate
 
-# Full validation: frontend + Rust check/test/clippy
+# Full validation: frontend + Rust fmt/check/test/clippy,
+# including the off-by-default `ncp` feature (clippy + tests)
 bun run validate:all
 ```
 

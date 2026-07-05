@@ -191,6 +191,8 @@ export function nonMaxSuppression(
     return []
   }
 
+  // Per-class NMS: a box only suppresses overlapping boxes of the SAME class,
+  // so e.g. a high-confidence bird box cannot erase a co-located drone box.
   const sorted = [...detections].sort((a, b) => b.confidence - a.confidence)
   const kept: Detection[] = []
 
@@ -202,7 +204,10 @@ export function nonMaxSuppression(
     kept.push(best)
 
     for (let index = sorted.length - 1; index >= 0; index--) {
-      if (intersectionOverUnion(best.bbox, sorted[index].bbox) > iouThreshold) {
+      if (
+        sorted[index].class === best.class &&
+        intersectionOverUnion(best.bbox, sorted[index].bbox) > iouThreshold
+      ) {
         sorted.splice(index, 1)
       }
     }

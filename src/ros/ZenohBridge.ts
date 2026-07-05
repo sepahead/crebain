@@ -132,15 +132,16 @@ export class ZenohBridge {
   async disconnect(): Promise<void> {
     try {
       await invoke(TAURI_COMMANDS.transport.disconnect)
+    } catch {
+      // Disconnect errors are non-fatal
+    } finally {
+      // Always release local listeners, even if the backend invoke rejected.
       for (const unlisten of this.unlisteners.values()) {
         unlisten()
       }
       this.unlisteners.clear()
       this.listeners.clear()
       this.topicThrottles.clear()
-      this.setState('disconnected')
-    } catch {
-      // Disconnect errors are non-fatal
       this.setState('disconnected')
     }
   }
@@ -215,6 +216,14 @@ export class ZenohBridge {
         // Check if listeners were removed while we were setting up
         if (!this.listeners.has(topic)) {
           unlisten()
+          // The backend subscription outlived its last local subscriber —
+          // release the zenoh-side subscription too, or it leaks.
+          invoke(TAURI_COMMANDS.transport.unsubscribe, { topic }).catch(err => {
+            log.warn(`Failed to unsubscribe from ${topic}`, {
+              error: err,
+              eventName: getTransportEventName(topic),
+            })
+          })
           return
         }
         this.unlisteners.set(topic, unlisten)

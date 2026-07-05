@@ -13,6 +13,7 @@ import type { ZenohBridge } from './ZenohBridge'
 import type { CameraInfo } from './types'
 import {
   ROSCameraStream,
+  closeFrameImage,
   type DecodedFrame,
   type CameraStreamConfig,
   type CameraStreamStats,
@@ -110,6 +111,10 @@ export function useROSCamera(
 
   const streamRef = useRef<ROSCameraStream | null>(null)
   const statsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Tracks the frame currently owned by this hook so its GPU-backed bitmap
+  // can be closed when replaced or on teardown (state alone can't do this
+  // reliably: updaters do not run after unmount).
+  const latestFrameRef = useRef<DecodedFrame | null>(null)
 
   // Build topic paths
   const topicConfig = {
@@ -139,6 +144,13 @@ export function useROSCamera(
 
     // Handle frames
     const unsubFrame = stream.onFrame((decodedFrame) => {
+      // Close the replaced frame's bitmap — decoded frames arrive ~30/s per
+      // camera and each unclosed ImageBitmap leaks GPU memory.
+      const previous = latestFrameRef.current
+      if (previous && previous !== decodedFrame) {
+        closeFrameImage(previous)
+      }
+      latestFrameRef.current = decodedFrame
       setFrame(decodedFrame)
       setIsStreaming(true)
       setError(null)
@@ -173,6 +185,12 @@ export function useROSCamera(
         clearInterval(statsIntervalRef.current)
         statsIntervalRef.current = null
       }
+      // Release the bitmap of the last delivered frame.
+      if (latestFrameRef.current) {
+        closeFrameImage(latestFrameRef.current)
+        latestFrameRef.current = null
+      }
+      setFrame(null)
       setIsStreaming(false)
     }
   }, [bridge, namespace, enabled])

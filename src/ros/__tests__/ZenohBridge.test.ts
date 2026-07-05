@@ -134,7 +134,7 @@ describe('ZenohBridge', () => {
       getTransportEventName('/über/image raw'),
       expect.any(Function)
     ))
-    expect(getTransportEventName('/über/image raw')).toBe('crebain.transport.%2F%C3%BCber%2Fimage%20raw')
+    expect(getTransportEventName('/über/image raw')).toBe('crebain:transport:/_C3_BCber/image_20raw')
   })
 
   it('cleans up the event listener when backend subscription fails', async () => {

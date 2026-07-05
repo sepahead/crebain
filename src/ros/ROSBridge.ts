@@ -48,6 +48,11 @@ interface PendingServiceCall {
   timeout: ReturnType<typeof setTimeout>
 }
 
+interface SubscribeParams {
+  throttleRate?: number
+  queueLength?: number
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ROS BRIDGE CLIENT
 // ─────────────────────────────────────────────────────────────────────────────
@@ -81,6 +86,10 @@ function validateRosMessageType(type: string): void {
   if (!ROS_MESSAGE_TYPE_PATTERN.test(type)) {
     throw new Error('Invalid ROS message type')
   }
+}
+
+function subscribeParamsEqual(a: SubscribeParams, b: SubscribeParams): boolean {
+  return a.throttleRate === b.throttleRate && a.queueLength === b.queueLength
 }
 
 function validateNonNegativeNumber(value: number | undefined, field: string): void {
@@ -119,6 +128,8 @@ export class ROSBridge {
   private state: ConnectionState = 'disconnected'
   private reconnectAttempts = 0
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private intentionalClose = false
+  private pendingConnectReject: ((error: Error) => void) | null = null
   private subscriptions: Map<string, Subscription[]> = new Map()
   private advertisedTopics: Map<string, string> = new Map() // topic -> type
   private pendingServiceCalls: Map<string, PendingServiceCall> = new Map()
@@ -143,17 +154,35 @@ export class ROSBridge {
   // ───────────────────────────────────────────────────────────────────────────
 
   connect(): Promise<void> {
+    // A manual (re)connect re-enables auto-reconnect after an intentional
+    // disconnect() and starts with a fresh reconnect-attempt budget.
+    this.intentionalClose = false
+    this.reconnectAttempts = 0
+    return this.openSocket()
+  }
+
+  private openSocket(): Promise<void> {
     return new Promise((resolve, reject) => {
-      if (this.state === 'connected') {
+      if (this.state === 'connected' && this.canSend()) {
         resolve()
         return
       }
 
-      this.setState('connecting')
-      
-      this.ws = new WebSocket(this.config.url)
+      // Re-entry safety: cancel any pending reconnect and tear down a socket
+      // that is still connecting/open so two live sockets never coexist and an
+      // orphaned socket's events cannot clobber the state of a newer one.
+      this.clearReconnectTimer()
+      this.teardownSocket()
 
-      this.ws.onopen = () => {
+      this.setState('connecting')
+
+      const ws = new WebSocket(this.config.url)
+      this.ws = ws
+      this.pendingConnectReject = reject
+
+      ws.onopen = () => {
+        if (this.ws !== ws) return
+        this.pendingConnectReject = null
         this.setState('connected')
         this.reconnectAttempts = 0
         this.resubscribeAll()
@@ -162,30 +191,47 @@ export class ROSBridge {
         resolve()
       }
 
-      this.ws.onclose = () => {
+      ws.onclose = () => {
+        if (this.ws !== ws) return
         this.ws = null
         const wasConnected = this.state === 'connected'
         this.setState('disconnected')
-        
+
+        // A socket that closed before opening is a failed connect attempt.
+        const pendingReject = this.pendingConnectReject
+        this.pendingConnectReject = null
+        pendingReject?.(new Error('Connection closed before opening'))
+
+        // A dropped connection can never answer in-flight service calls;
+        // fail them now instead of letting them hang to their full timeout.
+        this.rejectPendingServiceCalls('Disconnected from ROS bridge')
+
         if (wasConnected) {
           this.config.onDisconnect?.()
         }
 
-        if (this.config.autoReconnect && this.reconnectAttempts < this.config.maxReconnectAttempts) {
+        if (
+          !this.intentionalClose &&
+          this.config.autoReconnect &&
+          this.reconnectAttempts < this.config.maxReconnectAttempts
+        ) {
           this.scheduleReconnect()
         }
       }
 
-      this.ws.onerror = (event) => {
+      ws.onerror = (event) => {
+        if (this.ws !== ws) return
         const error = new Error(`WebSocket error: ${event.type}`)
         this.config.onError?.(error)
-        
+
         if (this.state === 'connecting') {
+          this.pendingConnectReject = null
           reject(error)
         }
       }
 
-      this.ws.onmessage = (event: MessageEvent<unknown>) => {
+      ws.onmessage = (event: MessageEvent<unknown>) => {
+        if (this.ws !== ws) return
         if (typeof event.data === 'string') {
           this.handleMessage(event.data)
         }
@@ -194,22 +240,40 @@ export class ROSBridge {
   }
 
   disconnect(): void {
-    this.config.autoReconnect = false
+    // Mark the close as intentional so it does not trigger auto-reconnect;
+    // the next manual connect() re-enables reconnection.
+    this.intentionalClose = true
     this.clearReconnectTimer()
-    
-    // Clear all pending service calls to prevent memory leaks
-    for (const [, pending] of this.pendingServiceCalls) {
+    this.rejectPendingServiceCalls('Disconnected from ROS bridge')
+    this.teardownSocket('Disconnected from ROS bridge')
+    this.setState('disconnected')
+  }
+
+  /**
+   * Detach and close the current socket (if any) without firing its handlers,
+   * rejecting any connect() promise still waiting on it.
+   */
+  private teardownSocket(reason: string = 'Connection attempt superseded'): void {
+    const pendingReject = this.pendingConnectReject
+    this.pendingConnectReject = null
+    pendingReject?.(new Error(reason))
+
+    const ws = this.ws
+    if (!ws) return
+    this.ws = null
+    ws.onopen = null
+    ws.onclose = null
+    ws.onerror = null
+    ws.onmessage = null
+    ws.close()
+  }
+
+  private rejectPendingServiceCalls(message: string): void {
+    for (const pending of this.pendingServiceCalls.values()) {
       clearTimeout(pending.timeout)
-      pending.reject(new Error('Disconnected from ROS bridge'))
+      pending.reject(new Error(message))
     }
     this.pendingServiceCalls.clear()
-    
-    if (this.ws) {
-      this.ws.close()
-      this.ws = null
-    }
-    
-    this.setState('disconnected')
   }
 
   private setState(state: ConnectionState): void {
@@ -223,7 +287,9 @@ export class ROSBridge {
     this.setState('reconnecting')
     
     this.reconnectTimer = setTimeout(() => {
-      this.connect().catch((error) => {
+      // Use openSocket() directly so automatic retries do not reset the
+      // reconnect-attempt budget the way a manual connect() does.
+      this.openSocket().catch((error) => {
         if (this.config.onError) {
           this.config.onError(error instanceof Error ? error : new Error(String(error)))
         }
@@ -344,19 +410,15 @@ export class ROSBridge {
 
     // Add to local subscriptions
     const subs = this.subscriptions.get(topic) || []
+    const previousParams = this.effectiveSubscribeParams(subs)
     subs.push(subscription)
     this.subscriptions.set(topic, subs)
 
-    // Send subscribe message if this is the first subscription to this topic
-    if (subs.length === 1) {
-      this.send({
-        op: 'subscribe',
-        id: this.generateId(),
-        topic,
-        type,
-        throttle_rate: throttleRate,
-        queue_length: queueLength,
-      })
+    // (Re)send the subscribe request when this is the first subscriber or the
+    // pooled throttle/queue parameters became more permissive.
+    const params = this.effectiveSubscribeParams(subs)
+    if (subs.length === 1 || !subscribeParamsEqual(previousParams, params)) {
+      this.sendSubscribe(topic, subs[0].type, params)
     }
 
     // Return unsubscribe function
@@ -369,9 +431,10 @@ export class ROSBridge {
     if (!subs) return
 
     const idx = subs.findIndex(s => s.callback === callback)
-    if (idx !== -1) {
-      subs.splice(idx, 1)
-    }
+    if (idx === -1) return
+
+    const previousParams = this.effectiveSubscribeParams(subs)
+    subs.splice(idx, 1)
 
     // Send unsubscribe message if no more subscriptions to this topic
     if (subs.length === 0) {
@@ -381,7 +444,50 @@ export class ROSBridge {
         id: this.generateId(),
         topic,
       })
+      return
     }
+
+    // Remaining subscribers may allow stricter throttling — update the server.
+    const params = this.effectiveSubscribeParams(subs)
+    if (!subscribeParamsEqual(previousParams, params)) {
+      this.sendSubscribe(topic, subs[0].type, params)
+    }
+  }
+
+  /**
+   * Pool the most permissive subscribe parameters across a topic's
+   * subscribers: the smallest throttle interval and the largest queue.
+   * An undefined throttle from any subscriber means "every message", which
+   * always wins.
+   */
+  private effectiveSubscribeParams(subs: Subscription[]): SubscribeParams {
+    let throttleRate: number | undefined
+    let queueLength: number | undefined
+    let unthrottled = subs.length === 0
+
+    for (const sub of subs) {
+      if (sub.throttleRate === undefined) {
+        unthrottled = true
+      } else if (throttleRate === undefined || sub.throttleRate < throttleRate) {
+        throttleRate = sub.throttleRate
+      }
+      if (sub.queueLength !== undefined && (queueLength === undefined || sub.queueLength > queueLength)) {
+        queueLength = sub.queueLength
+      }
+    }
+
+    return { throttleRate: unthrottled ? undefined : throttleRate, queueLength }
+  }
+
+  private sendSubscribe(topic: string, type: string, params: SubscribeParams): void {
+    this.send({
+      op: 'subscribe',
+      id: this.generateId(),
+      topic,
+      type,
+      throttle_rate: params.throttleRate,
+      queue_length: params.queueLength,
+    })
   }
 
   advertise(topic: string, type: string): void {
@@ -419,15 +525,7 @@ export class ROSBridge {
   private resubscribeAll(): void {
     for (const [topic, subs] of this.subscriptions) {
       if (subs.length > 0) {
-        const first = subs[0]
-        this.send({
-          op: 'subscribe',
-          id: this.generateId(),
-          topic,
-          type: first.type,
-          throttle_rate: first.throttleRate,
-          queue_length: first.queueLength,
-        })
+        this.sendSubscribe(topic, subs[0].type, this.effectiveSubscribeParams(subs))
       }
     }
   }

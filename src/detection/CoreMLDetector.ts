@@ -125,21 +125,22 @@ export class CoreMLDetector implements ObjectDetector {
   }
 
   /**
-   * Initialize the ONNX session with WebGPU/WebGL/WASM fallback
+   * Initialize the ONNX session with WebGPU/WASM fallback
    */
   async initialize(): Promise<void> {
     if (this.session) {
       return
     }
 
-    // Configure execution providers with fallback chain
+    // Configure execution providers with fallback chain.
+    // Note: the 'webgl' execution provider no longer exists in onnxruntime-web
+    // 1.24 (cpu/wasm/webgpu/webnn only), so WASM is the sole CPU fallback.
     const executionProviders: ort.InferenceSession.ExecutionProviderConfig[] = []
 
     if (this.config.useWebGPU) {
       executionProviders.push('webgpu')
     }
 
-    executionProviders.push('webgl')
     executionProviders.push({ name: 'wasm' })
 
     const sessionOptions: ort.InferenceSession.SessionOptions = {
@@ -172,8 +173,17 @@ export class CoreMLDetector implements ObjectDetector {
     const startTime = performance.now()
 
     try {
+      // Compute the letterbox geometry once per frame (pixel-aligned, matching
+      // the preprocessing draw) and reuse it in postprocessing so boxes are
+      // projected back with the exact geometry the image was drawn with.
+      const geometry = computeLetterboxGeometry(
+        { width: imageData.width, height: imageData.height },
+        this.inputSize,
+        true
+      )
+
       // Preprocess image with CoreML-style normalization
-      const inputTensor = this.preprocessImage(imageData)
+      const inputTensor = this.preprocessImage(imageData, geometry)
 
       // Get input name from session or config
       const inputName = this.config.inputName || this.session.inputNames[0] || 'image'
@@ -214,7 +224,13 @@ export class CoreMLDetector implements ObjectDetector {
           break
         case 'yolo': {
           const yoloData = validateRank3Tensor(output.data, outputDims, '[CoreMLDetector]')
-          detections = this.postprocessYOLO(yoloData, outputDims, imageData.width, imageData.height)
+          detections = this.postprocessYOLO(
+            yoloData,
+            outputDims,
+            imageData.width,
+            imageData.height,
+            geometry
+          )
           break
         }
         case 'detection':
@@ -225,7 +241,8 @@ export class CoreMLDetector implements ObjectDetector {
             outputDims,
             imageData.width,
             imageData.height,
-            results
+            results,
+            geometry
           )
         }
       }
@@ -244,7 +261,7 @@ export class CoreMLDetector implements ObjectDetector {
    * Preprocess image with Apple Vision-style normalization
    * CoreML models may expect different normalization than ImageNet
    */
-  private preprocessImage(imageData: ImageData): ort.Tensor {
+  private preprocessImage(imageData: ImageData, geometry: LetterboxGeometry): ort.Tensor {
     const { width, height, data } = imageData
     const targetWidth = this.inputSize.width
     const targetHeight = this.inputSize.height
@@ -265,13 +282,6 @@ export class CoreMLDetector implements ObjectDetector {
     const tempImageData = tempCtx.createImageData(width, height)
     tempImageData.data.set(data)
     tempCtx.putImageData(tempImageData, 0, 0)
-
-    // Resize with aspect ratio preservation (letterboxing)
-    const geometry = computeLetterboxGeometry(
-      { width, height },
-      { width: targetWidth, height: targetHeight },
-      true
-    )
 
     // Fill with neutral color based on preprocess mode
     ctx.fillStyle = this.config.preprocessMode === 'vision_bias' ? '#808080' : '#000000'
@@ -332,15 +342,10 @@ export class CoreMLDetector implements ObjectDetector {
     dims: readonly number[],
     origWidth: number,
     origHeight: number,
-    allResults: ort.InferenceSession.OnnxValueMapType
+    allResults: ort.InferenceSession.OnnxValueMapType,
+    geometry: LetterboxGeometry
   ): Detection[] {
     const detections: Detection[] = []
-
-    // Calculate scale factors for coordinate conversion
-    const geometry = computeLetterboxGeometry(
-      { width: origWidth, height: origHeight },
-      this.inputSize
-    )
 
     // Try to detect output format from dimensions
     // Common formats:
@@ -400,7 +405,7 @@ export class CoreMLDetector implements ObjectDetector {
         score = output[baseIdx + 4]
         classId = 0
       } else if (hasClassScores) {
-        // Format: [x, y, w, h, class_scores...]
+        // Format: [x, y, w, h, obj_conf, class_scores...]
         const cx = output[baseIdx]
         const cy = output[baseIdx + 1]
         const w = output[baseIdx + 2]
@@ -408,16 +413,18 @@ export class CoreMLDetector implements ObjectDetector {
 
         box = centerBoxToCorners(cx, cy, w, h)
 
-        // Find max class score
-        const numClasses = predSize - 4
+        // obj_conf sits at baseIdx + 4; class scores start at baseIdx + 5.
+        // Final confidence is obj_conf × best class score.
+        const objConf = output[baseIdx + 4]
+        const numClasses = predSize - 5
         const { classIndex: maxClassIdx, score: maxScore } = findMaxScore(
           output,
-          baseIdx + 4,
+          baseIdx + 5,
           numClasses
         )
 
         classId = maxClassIdx
-        score = maxScore
+        score = objConf * maxScore
       } else {
         continue
       }
@@ -612,18 +619,14 @@ export class CoreMLDetector implements ObjectDetector {
     output: Float32Array,
     dims: readonly number[],
     origWidth: number,
-    origHeight: number
+    origHeight: number,
+    geometry: LetterboxGeometry
   ): Detection[] {
     if (dims[0] !== 1 || dims[1] <= 4 || dims[2] <= 0) {
       throw new Error(`[CoreMLDetector] Invalid YOLO output shape: [${dims.join(', ')}]`)
     }
 
     const detections: Detection[] = []
-
-    const geometry = computeLetterboxGeometry(
-      { width: origWidth, height: origHeight },
-      this.inputSize
-    )
 
     // YOLOv8 format: [1, 84, 8400] (84 = 4 bbox + 80 classes)
     const numClasses = dims[1] - 4
@@ -684,11 +687,19 @@ export class CoreMLDetector implements ObjectDetector {
   /**
    * Dispose of the session and free resources
    */
-  dispose(): void {
-    if (this.session) {
-      this.session = null
-      this.ready = false
-      this.latencyHistory = []
+  async dispose(): Promise<void> {
+    const session = this.session
+    this.session = null
+    this.ready = false
+    this.latencyHistory = []
+    if (session) {
+      // ONNX Runtime Web sessions hold WASM/GPU memory that is NOT garbage
+      // collected — it must be released explicitly.
+      try {
+        await session.release()
+      } catch {
+        // Best effort: releasing an already-released session must not throw.
+      }
     }
   }
 }

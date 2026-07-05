@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(crebain_gazebo)
+project(crebain_msgs)
 
 ## Find catkin macros and libraries
 find_package(catkin REQUIRED COMPONENTS
@@ -17,6 +17,8 @@ add_message_files(
   DroneTarget.msg
   InterceptionCommand.msg
   InterceptionStatus.msg
+  LidarDetection.msg
+  LidarDetectionArray.msg
   RadarDetection.msg
   RadarDetectionArray.msg
   ThermalDetection.msg

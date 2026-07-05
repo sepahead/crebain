@@ -89,7 +89,7 @@ export function useCoreMLDetection(): UseCoreMLDetectionReturn {
       const rgbaData = imageDataToRGBA(imageData)
 
       const response = await invoke<unknown>(TAURI_COMMANDS.detection.nativeRaw, {
-        rgbaData: Array.from(rgbaData),
+        rgbaData, // Uint8Array serializes natively in Tauri 2 — no per-byte boxing
         width: imageData.width,
         height: imageData.height,
         confidenceThreshold: DEFAULT_CONFIDENCE_THRESHOLD,
@@ -141,7 +141,7 @@ export function useCoreMLDetection(): UseCoreMLDetectionReturn {
         const rgbaData = imageDataToRGBA(imageData)
 
         const response = await invoke<unknown>(TAURI_COMMANDS.detection.nativeRaw, {
-          rgbaData: Array.from(rgbaData),
+          rgbaData, // Uint8Array serializes natively in Tauri 2 — no per-byte boxing
           width: imageData.width,
           height: imageData.height,
           confidenceThreshold: DEFAULT_CONFIDENCE_THRESHOLD,

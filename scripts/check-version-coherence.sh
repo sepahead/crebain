@@ -12,6 +12,7 @@
 #     falling back to [package].version for a single-crate repo)
 #   - the npm package.json "version" (where a package.json is present)
 #   - the CITATION.cff "version"
+#   - the Tauri config version (src-tauri/tauri.conf.json "version")
 #   must all be byte-equal. A release that bumps one but forgets another is the
 #   classic "moved tag / stale metadata" footgun this guard exists to catch.
 #
@@ -115,15 +116,24 @@ cff_version() {
   ' "$f"
 }
 
+# Tauri: src-tauri/tauri.conf.json top-level "version": "x.y.z"
+tauri_version() {
+  local f="$REPO_ROOT/src-tauri/tauri.conf.json"
+  [[ -f "$f" ]] || return
+  awk -F'"' '/^[[:space:]]*"version"[[:space:]]*:/ { print $4; exit }' "$f"
+}
+
 CARGO_VER="$(cargo_version || true)"
 NPM_VER="$(npm_version || true)"
 CFF_VER="$(cff_version || true)"
+TAURI_VER="$(tauri_version || true)"
 
 echo "Version coherence (repo: $REPO_ROOT)"
 echo
 printf '  %-22s %s\n' "Cargo (workspace/pkg)" "${CARGO_VER:-<not present>}"
 printf '  %-22s %s\n' "npm (package.json)"     "${NPM_VER:-<not present>}"
 printf '  %-22s %s\n' "CITATION.cff"           "${CFF_VER:-<not present>}"
+printf '  %-22s %s\n' "tauri.conf.json"        "${TAURI_VER:-<not present>}"
 echo
 
 problems=()
@@ -135,6 +145,7 @@ present_values=()
 [[ -n "$CARGO_VER" ]] && { present_labels+=("Cargo"); present_values+=("$CARGO_VER"); }
 [[ -n "$NPM_VER"   ]] && { present_labels+=("npm");   present_values+=("$NPM_VER"); }
 [[ -n "$CFF_VER"   ]] && { present_labels+=("CITATION.cff"); present_values+=("$CFF_VER"); }
+[[ -n "$TAURI_VER" ]] && { present_labels+=("tauri.conf.json"); present_values+=("$TAURI_VER"); }
 
 if [[ "${#present_values[@]}" -eq 0 ]]; then
   echo "ERROR: no version source found (no Cargo.toml / package.json / CITATION.cff version)" >&2

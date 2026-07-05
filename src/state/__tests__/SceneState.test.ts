@@ -194,6 +194,36 @@ describe('SceneStateManager filesystem IPC', () => {
     expect(manager.getState()?.name).toBe('Current Scene')
   })
 
+  it('rejects scene files with an unsupported version with a clear error', () => {
+    const manager = new SceneStateManager()
+    const future = { ...validScene('Future Scene'), version: '2.0.0' }
+
+    expect(() => manager.deserialize(JSON.stringify(future))).toThrow(
+      'Unsupported scene state version "2.0.0" (expected "1.0.0")'
+    )
+  })
+
+  it('dispatches migration on the raw version before strict validation', () => {
+    const manager = new SceneStateManager()
+
+    // A minimal old-format file that does NOT satisfy the current strict
+    // schema: the version dispatch must fire first with a clear error instead
+    // of a generic validation failure.
+    expect(() => manager.deserialize(JSON.stringify({ version: '0.9.0', name: 'Old' }))).toThrow(
+      'Unsupported scene state version "0.9.0" (expected "1.0.0")'
+    )
+  })
+
+  it('rejects scene files without a version string', () => {
+    const manager = new SceneStateManager()
+    const scene = validScene('No Version') as unknown as Record<string, unknown>
+    delete scene.version
+
+    expect(() => manager.deserialize(JSON.stringify(scene))).toThrow(
+      'Unsupported scene state version "missing" (expected "1.0.0")'
+    )
+  })
+
   it('skips malformed localStorage scene entries when listing saved states', () => {
     localStorage.setItem(
       'crebain_scene_good',

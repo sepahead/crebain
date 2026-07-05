@@ -8,6 +8,7 @@
 
 import type { ROSBridge } from './ROSBridge'
 import type { Waypoint, WaypointList, NavSatFix } from './types'
+import { namespacedRosTopic } from './utils'
 import { rosLogger as log } from '../lib/logger'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -193,6 +194,12 @@ export class WaypointManager {
    * Connect to MAVROS
    */
   connect(bridge: ROSBridge, namespace: string = ''): void {
+    // Re-connecting must not stack duplicate subscriptions on top of old ones.
+    for (const unsub of this.unsubscribes) {
+      unsub()
+    }
+    this.unsubscribes = []
+
     this.bridge = bridge
     this.namespace = namespace
 
@@ -247,12 +254,14 @@ export class WaypointManager {
     this.currentPosition = null
   }
 
+  // namespacedRosTopic normalizes empty/non-absolute namespaces into valid
+  // absolute ROS graph names (raw prefixing would produce relative topics).
   private prefixTopic(topic: string): string {
-    return this.namespace ? `${this.namespace}${topic}` : topic
+    return namespacedRosTopic(this.namespace, topic)
   }
 
   private prefixService(service: string): string {
-    return this.namespace ? `${this.namespace}${service}` : service
+    return namespacedRosTopic(this.namespace, service)
   }
 
   // ───────────────────────────────────────────────────────────────────────────

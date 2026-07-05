@@ -166,10 +166,13 @@ export function ObjectTransformControls({
         case 'l':
           rotateY(1)
           break // Rotate Y positive (turn right)
-        case 'u':
+        // ',' / '.' rather than 'u' / 'o': 'u' toggles the sensor-fusion panel
+        // (APP_SHORTCUTS) and plain 'o' sits next to the Ctrl/Cmd+O file-open
+        // binding — both fired here too when an object was selected.
+        case ',':
           rotateZ(-1)
           break // Rotate Z negative
-        case 'o':
+        case '.':
           rotateZ(1)
           break // Rotate Z positive
 

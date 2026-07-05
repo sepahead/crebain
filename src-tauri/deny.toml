@@ -16,7 +16,7 @@ version = 2
 # Yanked crates warn rather than fail: the only yanked entries are transitive
 # (core2, stabby — pulled in by the Zenoh stack) with no newer published
 # versions, so failing here would block on something we cannot fix. The audit
-# workflow (cargo audit) keeps them visible and Dependabot tracks upstream fixes.
+# workflow (cargo audit) keeps them visible; dependencies are updated manually.
 yanked = "warn"
 # Only fail on *unmaintained* advisories for crates we depend on directly; the
 # deep transitive GUI stack pulled in by Tauri on Linux (gtk-rs, etc.) is not

@@ -456,24 +456,25 @@ export class SceneStateManager {
   }
 
   /**
-   * Load state from JSON string
+   * Load state from JSON string.
+   *
+   * Parses leniently, dispatches version migration on the raw object first
+   * (older files may not satisfy the current strict schema until migrated),
+   * then validates the migrated result against the current schema.
    */
   deserialize(json: string): SceneState {
-    const state: unknown = JSON.parse(json)
-    if (!isSceneState(state)) {
+    const raw: unknown = JSON.parse(json)
+    if (!isRecord(raw)) {
       throw new Error('Invalid scene state file')
     }
 
-    // Version migration if needed
-    if (state.version !== CURRENT_VERSION) {
-      this.migrateState(state)
-      if (!isSceneState(state)) {
-        throw new Error('Invalid migrated scene state file')
-      }
+    const migrated = this.migrateState(raw)
+    if (!isSceneState(migrated)) {
+      throw new Error('Invalid scene state file')
     }
 
-    this.currentState = state
-    return state
+    this.currentState = migrated
+    return migrated
   }
 
   /**
@@ -663,9 +664,28 @@ export class SceneStateManager {
   // STATE MIGRATION
   // ─────────────────────────────────────────────────────────────────────────────
 
-  private migrateState(state: SceneState): void {
-    // Future version migrations go here
-    state.version = CURRENT_VERSION
+  /**
+   * Migrate a raw (pre-validation) state object to the current schema version.
+   *
+   * Dispatches on the file's own version string. Known older versions get a
+   * transformation to the current schema; anything else (including future
+   * versions) is rejected with a clear error instead of being silently
+   * relabelled as the current version.
+   */
+  private migrateState(state: Record<string, unknown>): Record<string, unknown> {
+    const version = typeof state.version === 'string' ? state.version : 'missing'
+
+    switch (version) {
+      case CURRENT_VERSION:
+        return state
+      // Transformations for known older versions go here, e.g.:
+      // case '0.9.0':
+      //   return migrateFrom090(state)
+      default:
+        throw new Error(
+          `Unsupported scene state version "${version}" (expected "${CURRENT_VERSION}")`
+        )
+    }
   }
 
   /**

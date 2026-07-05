@@ -45,16 +45,29 @@ async function dropSplat(page, path) {
   await page.evaluate((p) => {
     const url = location.origin + p
     const c = document.querySelector('div[tabindex="0"]')
-    const dt = new DataTransfer(); dt.setData('text/plain', url)
+    const dt = new DataTransfer()
+    dt.setData('text/plain', url)
     c.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }))
   }, path)
 }
 async function placeCamera(page, fx, fy) {
   await page.keyboard.press('1')
-  await page.evaluate(([x, y]) => {
-    const c = document.querySelector('div[tabindex="0"]'); const r = c.getBoundingClientRect()
-    c.dispatchEvent(new MouseEvent('click', { clientX: r.left + r.width * x, clientY: r.top + r.height * y, bubbles: true, cancelable: true, view: window }))
-  }, [fx, fy])
+  await page.evaluate(
+    ([x, y]) => {
+      const c = document.querySelector('div[tabindex="0"]')
+      const r = c.getBoundingClientRect()
+      c.dispatchEvent(
+        new MouseEvent('click', {
+          clientX: r.left + r.width * x,
+          clientY: r.top + r.height * y,
+          bubbles: true,
+          cancelable: true,
+          view: window,
+        })
+      )
+    },
+    [fx, fy]
+  )
 }
 
 const results = {}
@@ -85,6 +98,8 @@ for (const [k, floor] of Object.entries(THRESHOLDS)) {
   const r = results[k] || { fps: 0 }
   const ok = r.fps >= floor
   if (!ok) failed = true
-  console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${k.padEnd(16)} fps=${r.fps} (floor ${floor})  p95=${r.p95 ?? '-'}ms`)
+  console.log(
+    `  ${ok ? 'PASS' : 'FAIL'}  ${k.padEnd(16)} fps=${r.fps} (floor ${floor})  p95=${r.p95 ?? '-'}ms`
+  )
 }
 process.exit(failed ? 1 : 0)

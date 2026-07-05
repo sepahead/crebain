@@ -20,8 +20,15 @@ import type {
 
 // Worker state
 let detector: ObjectDetector | null = null
-let isInitializing = false
 let currentDetectorType: DetectorType = 'yolo'
+
+// Sequential message queue: ort-web sessions do not support concurrent run()
+// calls (a second detect while one is in flight throws "Session already
+// started"), and an init arriving mid-detect must not dispose the detector
+// under the in-flight inference. Chaining every message through this promise
+// serializes init/detect/dispose, so a re-init only runs after the current
+// detect has finished (or rejected) and its response has been sent.
+let messageQueue: Promise<void> = Promise.resolve()
 
 const DETECTOR_TYPES = new Set<DetectorType>(['yolo', 'rf-detr', 'moondream', 'coreml'])
 const WORKER_MESSAGE_TYPES = new Set<DetectionWorkerMessage['type']>([
@@ -92,43 +99,53 @@ function normalizeWorkerMessage(value: unknown): DetectionWorkerMessage | null {
 /**
  * Handle incoming messages from main thread
  */
-self.onmessage = async (event: MessageEvent<unknown>) => {
+self.onmessage = (event: MessageEvent<unknown>) => {
   const message = normalizeWorkerMessage(event.data)
   if (!message) {
+    const raw = isRecord(event.data) ? event.data : undefined
     sendResponse({
       type: 'error',
+      requestId: typeof raw?.requestId === 'number' ? raw.requestId : undefined,
       payload: { error: 'Malformed worker message' },
     })
     return
   }
 
-  const { type, payload } = message
+  messageQueue = messageQueue
+    .then(() => dispatchMessage(message))
+    .catch((error) => {
+      sendResponse({
+        type: 'error',
+        requestId: message.requestId,
+        payload: { error: error instanceof Error ? error.message : String(error) },
+      })
+    })
+}
+
+async function dispatchMessage(message: DetectionWorkerMessage): Promise<void> {
+  const { type, payload, requestId } = message
 
   switch (type) {
     case 'init':
-      await handleInit(payload?.detectorType, payload?.config)
+      await handleInit(requestId, payload?.detectorType, payload?.config)
       break
 
     case 'detect':
-      await handleDetect(
-        message.requestId,
-        payload?.imageData,
-        payload?.imageWidth,
-        payload?.imageHeight
-      )
+      await handleDetect(requestId, payload?.imageData, payload?.imageWidth, payload?.imageHeight)
       break
 
     case 'dispose':
-      handleDispose()
+      await handleDispose(requestId)
       break
 
     case 'status':
-      handleStatus()
+      handleStatus(requestId)
       break
 
     default:
       sendResponse({
         type: 'error',
+        requestId,
         payload: { error: `Unknown message type: ${String(type)}` },
       })
   }
@@ -138,23 +155,17 @@ self.onmessage = async (event: MessageEvent<unknown>) => {
  * Initialize the detector
  */
 async function handleInit(
+  requestId: number | undefined,
   detectorType?: DetectorType,
   config?: Partial<DetectorConfig>
 ): Promise<void> {
-  if (isInitializing) {
-    sendResponse({
-      type: 'error',
-      payload: { error: 'Already initializing' },
-    })
-    return
-  }
-
   const requestedType = detectorType || 'yolo'
 
   // If detector is ready and same type, return early
   if (detector?.isReady() && currentDetectorType === requestedType) {
     sendResponse({
       type: 'ready',
+      requestId,
       payload: {
         status: {
           isReady: true,
@@ -166,13 +177,12 @@ async function handleInit(
     return
   }
 
-  // Dispose existing detector if switching types
+  // Dispose existing detector if switching types. The message queue guarantees
+  // no detect is in flight here.
   if (detector && currentDetectorType !== requestedType) {
-    detector.dispose()
+    await detector.dispose()
     detector = null
   }
-
-  isInitializing = true
 
   try {
     detector = createDetector(requestedType, config)
@@ -181,6 +191,7 @@ async function handleInit(
 
     sendResponse({
       type: 'ready',
+      requestId,
       payload: {
         status: {
           isReady: true,
@@ -193,10 +204,9 @@ async function handleInit(
     const message = error instanceof Error ? error.message : String(error)
     sendResponse({
       type: 'error',
+      requestId,
       payload: { error: `Initialization failed: ${message}` },
     })
-  } finally {
-    isInitializing = false
   }
 }
 
@@ -274,13 +284,14 @@ async function handleDetect(
 /**
  * Dispose detector and free resources
  */
-function handleDispose(): void {
+async function handleDispose(requestId?: number): Promise<void> {
   if (detector) {
-    detector.dispose()
+    await detector.dispose()
     detector = null
   }
   sendResponse({
     type: 'status',
+    requestId,
     payload: {
       status: {
         isReady: false,
@@ -294,9 +305,10 @@ function handleDispose(): void {
 /**
  * Get current status
  */
-function handleStatus(): void {
+function handleStatus(requestId?: number): void {
   sendResponse({
     type: 'status',
+    requestId,
     payload: {
       status: {
         isReady: detector?.isReady() ?? false,
