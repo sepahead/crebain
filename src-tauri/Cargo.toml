@@ -70,7 +70,7 @@ rand_distr = "0.5"
 # Using the pinned 2.0.0 release-candidate API selected for this project.
 ort = "2.0.0-rc.10"
 
-# Zenoh-oriented ROS2 communication (updated to 1.7.x)
+# Zenoh-oriented ROS2 communication (1.9.x series)
 # Deployment latency depends on topology, payloads, and transport configuration.
 zenoh = { version = "1.9", features = ["default"], optional = true }
 
@@ -78,8 +78,8 @@ zenoh = { version = "1.9", features = ["default"], optional = true }
 # (canonical home: https://github.com/sepahead/NCP). Resolves standalone on a fresh
 # checkout, so the default (ncp-off) build no longer needs a sibling on disk. Optional,
 # pulled in only by the `ncp` feature; bump the tag to adopt a newer NCP wire.
-ncp-core = { git = "https://github.com/sepahead/NCP", tag = "v0.5.2", optional = true }
-ncp-zenoh = { git = "https://github.com/sepahead/NCP", tag = "v0.5.2", optional = true }
+ncp-core = { git = "https://github.com/sepahead/NCP", tag = "v0.5.3", optional = true }
+ncp-zenoh = { git = "https://github.com/sepahead/NCP", tag = "v0.5.3", optional = true }
 
 # TypeScript type generation from Rust types (serde-compat for existing Serialize derives)
 ts-rs = { version = "12", features = ["serde-compat"], optional = true }
