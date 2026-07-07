@@ -11,6 +11,8 @@ import { DRONE_TYPES, toQuadcopterParams, type DroneTypeDefinition } from '../ph
 import { useKeyboardControls, type DroneControlInput } from './useKeyboardControls'
 import { logger } from '../lib/logger'
 import { disposeObject3D, forEachMesh } from '../lib/three/sceneObjects'
+// The SDK plant-side deadline/seq/latch primitive for the dev NCP→drone bridge.
+import { ActionBuffer } from '@sepahead/ncp'
 
 const log = logger.scope('DroneController')
 
@@ -691,11 +693,15 @@ export function useDroneController(options: UseDroneControllerOptions) {
 
   // ── DEV-ONLY: NCP → drone test bridge ──────────────────────────────────────
   // Additive, dev-gated injection point that lets an external NCP peer drive a
-  // managed CREBAIN drone from wire-v0.5 CommandFrames (velocity_setpoint in
-  // m/s). It enforces a `mode` safety gate that is deliberately STRICTER than
-  // ncp-core's plant rules: ncp-core blanks actuation only on Hold|Estop (Init
-  // still actuates), while this bridge actuates only on `active` — anything
-  // else (init/hold/estop/unknown) de-energizes.
+  // managed CREBAIN drone from wire-0.6 CommandFrames (velocity_setpoint in m/s).
+  // Since wire 0.6 it delegates the safety-critical parts to the SDK's ActionBuffer
+  // (@sepahead/ncp) instead of hand-rolling them: seq >= 1 discipline (an
+  // unstamped frame is dropped), the ttl_ms deadline (a stale frame HOLDs), the
+  // active-mode allowlist, and a LATCHING ESTOP (once tripped, every later frame
+  // HOLDs until reset()). It keeps CREBAIN-specific kinematics on top — a per-axis
+  // velocity clamp, the integration-step clamp, and the altitude floor — which the
+  // SDK does not own. This is STRICTER than ncp-core's raw allowlist only in that
+  // it exposes an explicit reset() for the dev latch.
   // This deliberately does NOT touch the owned NCP bridges (src/neuro,
   // src-tauri/src/ncp); it exists to verify that NCP action-plane input visibly
   // moves a real drone. Exposed on window only under Vite dev.
@@ -707,16 +713,16 @@ export function useDroneController(options: UseDroneControllerOptions) {
     }
     interface NcpCommandFrame {
       mode?: string
+      seq?: number
       ttl_ms?: number
       channels?: Record<string, NcpChannel>
     }
-    // Safety limits for NCP-driven actuation.
-    const DEFAULT_TTL_MS = 200 // freshness window when the frame omits ttl_ms
+    // Safety limits for NCP-driven actuation (the kinematic layer the SDK does
+    // not own; the SDK ActionBuffer owns seq/ttl/mode/latch).
     const MAX_NCP_VELOCITY_MS = 10 // per-axis velocity clamp (m/s)
     const MAX_NCP_DT_S = 0.5 // integration step clamp (s)
-    // First-seen receipt time per frame object, used to enforce ttl_ms: a
-    // frame replayed after its ttl has elapsed must hold instead of actuate.
-    const frameReceiptMs = new WeakMap<NcpCommandFrame, number>()
+    // The SDK deadline backstop + seq discipline + latching ESTOP for the bridge.
+    const buffer = new ActionBuffer()
     const clampUp = (y: number) => Math.max(0.1, y)
     const clampVelocity = (v: number) =>
       Number.isFinite(v) ? Math.max(-MAX_NCP_VELOCITY_MS, Math.min(MAX_NCP_VELOCITY_MS, v)) : 0
@@ -772,29 +778,30 @@ export function useDroneController(options: UseDroneControllerOptions) {
       setPose(id: string, x: number, y: number, z: number) {
         return moveTo(id, x, y, z)
       },
-      // Apply one NCP CommandFrame: gate on `mode` and ttl_ms freshness, clamp
-      // the setpoint, then integrate velocity_setpoint (m/s) over dt seconds.
+      // Apply one NCP CommandFrame. The SDK ActionBuffer owns the safety-critical
+      // decision (seq >= 1 discipline, ttl_ms deadline, active-mode allowlist,
+      // latching ESTOP); this bridge only clamps the resulting setpoint and
+      // integrates it kinematically. `active(now)` returns the setpoint channels
+      // to apply, or null to HOLD (fail-safe to zero velocity).
       applyCommand(id: string, frame: NcpCommandFrame, dt = 0.05) {
         const p = posOf(id)
         if (!p) return null
-        const mode = frame?.mode ?? 'hold'
+        const nowS = performance.now() / 1000
+        // Ingest the frame; ActionBuffer drops seq<1, refreshes the deadline, and
+        // latches on an ESTOP (fail-safe never dropped, stamped or not).
+        buffer.onCommand(nowS, {
+          mode: (frame?.mode ?? 'hold') as 'init' | 'active' | 'hold' | 'estop',
+          seq: frame?.seq ?? 0,
+          ttl_ms: frame?.ttl_ms,
+          channels: (frame?.channels ?? {}) as Record<string, { data: number[]; unit?: string }>,
+        })
+        const setpoint = buffer.active(nowS) // null => HOLD (stale/estop/non-active/unstamped)
         let v: [number, number, number] = [0, 0, 0]
-        let stale = false
-        if (mode === 'active' && frame) {
-          const now = performance.now()
-          let receivedAt = frameReceiptMs.get(frame)
-          if (receivedAt === undefined) {
-            receivedAt = now
-            frameReceiptMs.set(frame, receivedAt)
-          }
-          const ttl =
-            typeof frame.ttl_ms === 'number' && frame.ttl_ms > 0 ? frame.ttl_ms : DEFAULT_TTL_MS
-          stale = now - receivedAt > ttl
-          if (!stale) {
-            const ch = frame.channels?.velocity_setpoint?.data
-            if (Array.isArray(ch) && ch.length >= 3) {
-              v = [clampVelocity(ch[0]), clampVelocity(ch[1]), clampVelocity(ch[2])]
-            }
+        const held = setpoint === null
+        if (setpoint) {
+          const ch = setpoint.velocity_setpoint?.data
+          if (Array.isArray(ch) && ch.length >= 3) {
+            v = [clampVelocity(ch[0]), clampVelocity(ch[1]), clampVelocity(ch[2])]
           }
         }
         const step = Number.isFinite(dt) ? Math.max(0, Math.min(MAX_NCP_DT_S, dt)) : 0
@@ -804,7 +811,17 @@ export function useDroneController(options: UseDroneControllerOptions) {
         // cmd_vel (Z-up) — peers must match the convention of the path they
         // target.
         moveTo(id, p.x + v[0] * step, p.y + v[1] * step, p.z + v[2] * step)
-        return { pose: posOf(id), mode, applied: v, stale }
+        return {
+          pose: posOf(id),
+          mode: frame?.mode ?? 'hold',
+          applied: v,
+          held,
+          estopped: buffer.isEstopped(),
+        }
+      },
+      // Supervisor authority: clear a latched ESTOP so the bridge can actuate again.
+      reset() {
+        buffer.reset()
       },
     }
     const w = window as unknown as { __ncpDrone?: typeof bridge }

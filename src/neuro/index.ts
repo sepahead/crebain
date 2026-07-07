@@ -3,7 +3,7 @@
  *
  * The NCP wire — message types, enums, the `NeuroSimClient` and the WebSocket
  * transport — is the single source of truth in the canonical repo
- * (https://github.com/sepahead/NCP), consumed here as the `@sepehrmn/ncp` package
+ * (https://github.com/sepahead/NCP), consumed here as the `@sepahead/ncp` package
  * (a git dependency pinned by tag in package.json). CREBAIN re-declares none of it:
  * if the protocol has to change, it changes there via a pull request and we bump
  * the pin. This module re-exports the package as CREBAIN's local integration point
@@ -12,7 +12,7 @@
  * `src-tauri/src/ncp/`. See README.md.
  */
 
-export * from '@sepehrmn/ncp'
+export * from '@sepahead/ncp'
 
 // CREBAIN-specific TS glue (the one thing this module adds over the package): a
 // thin, transport-agnostic reply `ncp_version` guard. The canonical client stamps

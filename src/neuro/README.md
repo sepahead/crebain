@@ -8,7 +8,7 @@ or neither** (the rest stays classic ML in CREBAIN).
 
 The NCP wire (message types, enums, `NeuroSimClient`, the WebSocket transport) is
 **owned by the canonical repo** [`sepahead/NCP`](https://github.com/sepahead/NCP)
-and consumed here as the **`@sepehrmn/ncp`** package — a git dependency pinned by
+and consumed here as the **`@sepahead/ncp`** package — a git dependency pinned by
 tag in `package.json`, symmetric with how the Rust crates (`ncp-core` /
 `ncp-zenoh`) are pinned in `src-tauri/Cargo.toml`. CREBAIN re-declares none of it.
 **If the protocol has to change, it changes there via a pull request** and we bump
@@ -46,8 +46,8 @@ The canonical `NeuroSimClient` stamps `ncp_version` on every *request* but does 
 validate the version a peer returns on a *reply* (its `unwrap` only rejects
 `error` frames). `index.ts` therefore re-exports a thin, transport-agnostic guard —
 the only thing CREBAIN adds over the package — that refuses a reply whose
-`ncp_version` is absent or differs from the version this build speaks (`NCP_VERSION`,
-"0.5"). It changes no wire bytes (NCP stays pinned at v0.5.0); it just stops a peer
+`ncp_version` is absent or not wire-compatible with the version this build speaks (`NCP_VERSION`,
+"0.6", checked via the SDK's `checkVersion`). It changes no wire bytes (NCP stays pinned at v0.6.0); it just stops a peer
 that has drifted off the protocol from masquerading as a success:
 
 ```ts
@@ -61,7 +61,7 @@ const engram = new NeuroSimClient(guardReplyVersion(transport.send))
 
 ## Transports (your choice; both non-invasive)
 
-- **WebSocket** (`WebSocketNeuroSim` from `@sepehrmn/ncp`) — point at Engram's
+- **WebSocket** (`WebSocketNeuroSim` from `@sepahead/ncp`) — point at Engram's
   `/api/neurocontrol/ws`. Simplest; works from the Tauri webview.
 - **Zenoh** — for a fully **decoupled** bus, implement the package's `Send` over
   CREBAIN's `ZenohBridge` (query `engram/ncp/rpc`; subscribe to

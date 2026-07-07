@@ -1,33 +1,44 @@
 /**
- * Reply `ncp_version` guard — CREBAIN-specific TS glue over `@sepehrmn/ncp`.
+ * Reply `ncp_version` + scientific-boundary guard — CREBAIN-specific TS glue over
+ * `@sepahead/ncp`.
  *
- * The canonical `NeuroSimClient` stamps `ncp_version` on every *request* but the
- * package does not validate the version carried on a *reply*: its `unwrap` only
- * rejects `{ kind: 'error', … }` frames. A peer (Engram) that drifts
- * to an incompatible protocol could therefore hand CREBAIN a reply whose shape no
- * longer matches the pinned bindings, and we would parse it as a success.
+ * The canonical `NeuroSimClient` stamps `ncp_version` on every *request*, and
+ * since wire 0.6 the package validates the version on a *reply* internally — but
+ * CREBAIN wraps the transport so the check happens at the `Send` boundary, using
+ * the SAME compatibility semantics as every other NCP peer and additionally
+ * pinning the scientific-boundary discriminators. A peer (Engram) that drifts to
+ * an incompatible protocol, or hands back a frame claiming calibrated /
+ * non-simulation status, is refused before it reaches `NeuroSimClient`.
  *
  * This is the one place the `src/neuro` README reserves for CREBAIN-specific glue:
- * a thin, transport-agnostic wrapper that decorates any `Send` so that every
- * non-error reply must carry an `ncp_version` equal to the version this build
- * speaks (`NCP_VERSION`, "0.5"). It changes no wire bytes — NCP stays pinned at
- * v0.5.0 — it only refuses to trust a reply that claims a different protocol.
+ * a thin, transport-agnostic wrapper that decorates any `Send`. It changes no wire
+ * bytes — NCP stays pinned at v0.6.0 — it only refuses to trust an incompatible or
+ * boundary-violating reply.
  *
- * Error frames (`{ kind: 'error', … }`) and primitive replies are passed through
- * untouched so the package's own `unwrap`/error handling keeps working; only a
- * reply object that *has* an `ncp_version` field (or is missing one when one is
- * expected) is checked.
+ * Version compatibility uses the SDK's `checkVersion` (the hard `(major, minor)`
+ * pre-1.0 gate — identical to the Rust/Python/C++ peers), NOT a bespoke exact
+ * string compare, so it stays correct across a future `1.x` where the minor is no
+ * longer breaking. Error frames (`{ kind: 'error', … }`) and primitive replies
+ * pass through so the package's own `unwrap`/error handling keeps working.
  */
-import { NCP_VERSION, type Send } from '@sepehrmn/ncp'
+import {
+  NCP_VERSION,
+  checkVersion,
+  assertScientificBoundary,
+  NcpVersionError,
+  type Send,
+} from '@sepahead/ncp'
 
-/** Thrown when a reply's `ncp_version` is absent or does not match `NCP_VERSION`. */
+/** Thrown when a reply's `ncp_version` is absent or not wire-compatible with this
+ *  build. Kept as a stable CREBAIN type while the underlying compatibility rule is
+ *  now the canonical SDK one (`checkVersion`). */
 export class NcpVersionMismatchError extends Error {
   readonly expected: string
   readonly received: unknown
 
   constructor(received: unknown) {
     super(
-      `NCP reply version mismatch: expected ncp_version "${NCP_VERSION}", got ` +
+      `NCP reply version mismatch: expected wire-compatible with "${NCP_VERSION}", got ` +
         `${received === undefined ? '<absent>' : JSON.stringify(received)}`
     )
     this.name = 'NcpVersionMismatchError'
@@ -36,13 +47,16 @@ export class NcpVersionMismatchError extends Error {
   }
 }
 
-/** Behaviour when a reply fails the version check. */
+/** Behaviour when a reply fails a check. */
 export type OnVersionMismatch = 'throw' | 'warn'
 
 /**
- * Wrap a `Send` so each reply is checked against `NCP_VERSION` before it reaches
- * `NeuroSimClient`. `mode: 'throw'` (default) rejects the call; `mode: 'warn'`
- * logs and passes the reply through (useful while a peer is mid-migration).
+ * Wrap a `Send` so each reply is checked against the wire contract before it
+ * reaches `NeuroSimClient`: (1) a compatible `ncp_version` (SDK `checkVersion`),
+ * and (2) the scientific-boundary discriminators (SDK `assertScientificBoundary`
+ * — `is_simulation_output === true`, `calibrated_posterior === false`). `mode:
+ * 'throw'` (default) rejects the call; `mode: 'warn'` logs and passes through
+ * (useful while a peer is mid-migration).
  *
  * @example
  *   const client = new NeuroSimClient(guardReplyVersion(transport.send))
@@ -58,7 +72,7 @@ export function guardReplyVersion(send: Send, mode: OnVersionMismatch = 'throw')
 /**
  * Validate one already-parsed reply. Pass-through for error frames and
  * non-object/primitive replies; otherwise the reply must carry an `ncp_version`
- * equal to `NCP_VERSION`.
+ * wire-compatible with this build AND satisfy the scientific-boundary pins.
  */
 export function assertReplyVersion(reply: unknown, mode: OnVersionMismatch = 'throw'): void {
   // Error frames are handled by the package's `unwrap`; leave them alone.
@@ -66,18 +80,41 @@ export function assertReplyVersion(reply: unknown, mode: OnVersionMismatch = 'th
   if (reply.kind === 'error') return
 
   const received = reply.ncp_version
-  if (received === NCP_VERSION) return
-
-  if (mode === 'warn') {
-    // eslint-disable-next-line no-console
-    console.warn(
-      `NCP reply version mismatch: expected "${NCP_VERSION}", got ` +
-        `${received === undefined ? '<absent>' : JSON.stringify(received)}`
-    )
-    return
+  // The version must be present and wire-compatible. `checkVersion` throws
+  // NcpVersionError on an unparseable/absent version; treat that and an
+  // incompatible (returns false) version identically — a mismatch.
+  let compatible: boolean
+  try {
+    compatible = typeof received === 'string' && checkVersion(received, false)
+  } catch (e) {
+    if (!(e instanceof NcpVersionError)) throw e
+    compatible = false
+  }
+  if (!compatible) {
+    if (mode === 'warn') {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `NCP reply version mismatch: expected wire-compatible with "${NCP_VERSION}", got ` +
+          `${received === undefined ? '<absent>' : JSON.stringify(received)}`
+      )
+    } else {
+      throw new NcpVersionMismatchError(received)
+    }
   }
 
-  throw new NcpVersionMismatchError(received)
+  // Scientific boundary: a reply asserting calibrated / non-simulation status is
+  // refused, never trusted (mirrors ncp_core::validate's boundary pins). Only
+  // frames that CARRY the discriminators are checked; others pass through.
+  try {
+    assertScientificBoundary(reply)
+  } catch (e) {
+    if (mode === 'warn') {
+      // eslint-disable-next-line no-console
+      console.warn(`NCP reply boundary violation: ${(e as Error).message}`)
+    } else {
+      throw e
+    }
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
