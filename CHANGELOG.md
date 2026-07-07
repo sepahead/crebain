@@ -13,9 +13,28 @@ Open-source readiness and quality hardening.
 
 ### Changed
 
-- Re-pinned NCP to `v0.5.3` (wire unchanged at `0.5`; upstream patch releases
-  including wire-safe safety fixes). Bumped `ncp-core`/`ncp-zenoh` (Cargo.toml +
-  Cargo.lock) and `@sepehrmn/ncp` (package.json + bun.lock).
+- **Re-pinned NCP to `v0.6.0` (wire `0.5` → `0.6`, the enforcement cut) and adopted
+  the SDK's version/boundary/safety helpers.** Wire 0.6 is a semantic break with an
+  unchanged serialization (`CONTRACT_HASH` still `24e8e6e31e1dec8a`): every message
+  must carry a compatible `ncp_version`, and `sensor_frame`/`command_frame` must
+  stamp `seq >= 1` (the `seq == 0` escape hatch is gone). Bumped `ncp-core`/
+  `ncp-zenoh` (Cargo.toml + Cargo.lock) and the npm dependency (package.json +
+  bun.lock), and **renamed the npm scope `@sepehrmn/ncp` → `@sepahead/ncp`** to
+  complete the org rename (all `src/**` imports updated).
+  - `src/neuro/versionGuard.ts` now delegates to the SDK's `checkVersion`
+    (major/minor compatibility, shared with every peer) instead of a bespoke exact
+    string compare, and applies the SDK's `assertScientificBoundary` to inbound
+    replies — CREBAIN now refuses a frame claiming calibrated / non-simulation
+    status (it previously never enforced the boundary). New vitest coverage for the
+    0.5-rejected and boundary-violation cases; the `NCP_VERSION` pin assertion → `0.6`.
+  - The DEV-only `__ncpDrone` bridge (`useDroneController.ts`) now delegates its
+    safety-critical decision to the SDK's `ActionBuffer` — `seq >= 1` discipline,
+    the `ttl_ms` deadline, the active-mode allowlist, and a **latching ESTOP**
+    (with a supervisor `reset()`) — keeping only CREBAIN's kinematic velocity/dt
+    clamps and altitude floor on top.
+  - The native Rust command tap (`src-tauri/src/ncp/mod.rs`) now accepts frames
+    through `ncp_core::decode_validated`, dropping a version-less / incompatible /
+    unstamped frame with a diagnostic instead of actuating on it.
 
 - Re-pinned NCP to `v0.5.0` (wire `0.4` -> `0.5`, the stable-wire cut: the command/sim `mode` strings are now proto enums (`Mode`/`SimMode`), `CONTRACT_HASH` recomputed). Bumped `ncp-core`/`ncp-zenoh` (Cargo.toml + Cargo.lock) and `@sepehrmn/ncp` (package.json + bun.lock); the reply-`ncp_version` guard now speaks `0.5`.
 

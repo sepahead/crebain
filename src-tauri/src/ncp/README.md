@@ -22,7 +22,7 @@ cargo check  --features ncp --manifest-path src-tauri/Cargo.toml
 cargo test   --features ncp --lib ncp --manifest-path src-tauri/Cargo.toml
 ```
 
-It depends on the published NCP SDK via a git + tag dependency (tag `v0.5.0`)
+It depends on the published NCP SDK via a git + tag dependency (tag `v0.6.0`)
 on https://github.com/sepahead/NCP, declared in `src-tauri/Cargo.toml`; no
 sibling checkout is required.
 
@@ -57,7 +57,7 @@ TS WebSocket client (`src/neuro`) remains the shipped path.
 
 ## Compatibility & versioning
 
-Pinned to NCP **`v0.5.0`** (`src-tauri/Cargo.toml`, behind the `ncp` feature).
+Pinned to NCP **`v0.6.0`** (`src-tauri/Cargo.toml`, behind the `ncp` feature).
 NCP's `#10` neuron-family extension (`RecordTarget.recordables`, the
 `binary_state` / `rate_inject` enum values, `StimulusTarget.params`) is purely
 **additive** to the wire and shipped in the `v0.2.x` line, so this client already
@@ -66,7 +66,7 @@ gained the value, not a `serde(other)` fallback). **To adopt a newer NCP wire:**
 bump the `ncp-core`/`ncp-zenoh` tag in `src-tauri/Cargo.toml` (the send path —
 `Observable::Spikes` / `StimulusKind::CurrentPa` — is unaffected by additive
 changes). The TypeScript client (`@sepehrmn/ncp`, `package.json`) pins the same
-release (`#v0.5.0`); run `bun install` to refresh a stale snapshot. **Keep the
+release (`#v0.6.0`); run `bun install` to refresh a stale snapshot. **Keep the
 typed enums** — NCP's architecture review confirmed they are abstract SNN concepts
 (compile-checked), *not* to be flattened to strings.
 

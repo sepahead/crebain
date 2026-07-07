@@ -1,7 +1,7 @@
 /**
  * Contract tests for `src/neuro` — CREBAIN's NCP TypeScript peer.
  *
- * `src/neuro/index.ts` re-exports the canonical `@sepehrmn/ncp` package (the wire
+ * `src/neuro/index.ts` re-exports the canonical `@sepahead/ncp` package (the wire
  * is owned there, pinned by tag) and adds one piece of CREBAIN-specific glue: a
  * reply `ncp_version` guard. These tests assert the contract CREBAIN relies on —
  * the public surface exists, the WebSocket transport constructs and round-trips a
@@ -42,8 +42,8 @@ describe('src/neuro public surface', () => {
   it('re-exports the canonical NCP client, transport, and version', () => {
     expect(typeof NeuroSimClient).toBe('function')
     expect(typeof WebSocketNeuroSim).toBe('function')
-    // The protocol version this build speaks; CREBAIN pins NCP at v0.5.0 (wire 0.5).
-    expect(NCP_VERSION).toBe('0.5')
+    // The protocol version this build speaks; CREBAIN pins NCP at v0.6.0 (wire 0.6).
+    expect(NCP_VERSION).toBe('0.6')
   })
 
   it('exposes the CREBAIN reply-version guard glue', () => {
@@ -119,9 +119,52 @@ describe('reply ncp_version guard', () => {
     expect(() => assertReplyVersion(reply)).toThrow(NcpVersionMismatchError)
   })
 
+  it('rejects the PREVIOUS wire (0.5) via the SDK compatibility gate', () => {
+    // Wire 0.6: a 0.5 reply is a breaking minor difference (pre-1.0 exact
+    // major.minor), so the checkVersion-based guard must refuse it — this is the
+    // case a bespoke `=== NCP_VERSION` compare also caught, but now it is the
+    // canonical SDK rule shared with every peer.
+    const reply = { kind: 'session_closed', ncp_version: '0.5' }
+    expect(() => assertReplyVersion(reply)).toThrow(NcpVersionMismatchError)
+  })
+
   it('throws on a reply that is missing ncp_version', () => {
     const reply = { kind: 'session_closed' }
     expect(() => assertReplyVersion(reply)).toThrow(/<absent>/)
+  })
+
+  it('rejects a reply that violates the scientific boundary', () => {
+    // A peer must not hand CREBAIN a frame claiming calibrated / non-simulation
+    // status; the guard applies the SDK's assertScientificBoundary on inbound
+    // replies (which crebain previously never enforced).
+    const lie = {
+      kind: 'observation_frame',
+      ncp_version: NCP_VERSION,
+      session_id: 's',
+      seq: 1,
+      is_simulation_output: false,
+      calibrated_posterior: false,
+    }
+    expect(() => assertReplyVersion(lie)).toThrow()
+    const calibrated = {
+      kind: 'observation_frame',
+      ncp_version: NCP_VERSION,
+      session_id: 's',
+      seq: 1,
+      is_simulation_output: true,
+      calibrated_posterior: true,
+    }
+    expect(() => assertReplyVersion(calibrated)).toThrow()
+    // An honest observation frame passes.
+    const honest = {
+      kind: 'observation_frame',
+      ncp_version: NCP_VERSION,
+      session_id: 's',
+      seq: 1,
+      is_simulation_output: true,
+      calibrated_posterior: false,
+    }
+    expect(() => assertReplyVersion(honest)).not.toThrow()
   })
 
   it('leaves error frames to the package unwrap (no version check)', () => {

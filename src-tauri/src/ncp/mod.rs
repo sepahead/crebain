@@ -286,6 +286,12 @@ impl NcpBridge {
     /// shared [`CommandPlant`] (`on_command`) and pull [`CommandPlant::velocity_at`]
     /// at the actuator rate — that pull cadence is what replays the horizon during a
     /// dropout and enforces the deadline. Do not mistake this for the safe path.
+    ///
+    /// Wire 0.6: even on this best-effort tap, a frame is accepted through the
+    /// `ncp_core::decode_validated` ingress gate — a version-less, wire-incompatible,
+    /// wrong-kind, or unstamped (`seq < 1`) frame is DROPPED rather than actuated
+    /// on. That is the wire-contract floor; the `CommandPlant` path above adds the
+    /// stateful replay/deadline/latch semantics on top.
     pub async fn subscribe_commands<F>(
         &self,
         session_id: &str,
@@ -297,8 +303,14 @@ impl NcpBridge {
     {
         self.bus
             .subscribe_commands(session_id, move |_key, bytes| {
-                if let Ok(cmd) = serde_json::from_slice::<CommandFrame>(&bytes) {
-                    on_command(velocity_from_command(&cmd, &frame_id));
+                match ncp_core::decode_validated::<CommandFrame>(&bytes) {
+                    Ok(cmd) => on_command(velocity_from_command(&cmd, &frame_id)),
+                    // Drop a frame that fails the wire-0.6 contract; surface WHY so a
+                    // version-incompatible or unstamped peer is observable, not silent.
+                    Err(e) => match ncp_core::diagnose_version(&bytes) {
+                        Some(ve) => eprintln!("ncp: dropped command frame ({ve})"),
+                        None => eprintln!("ncp: dropped command frame: {e}"),
+                    },
                 }
             })
             .await
@@ -458,7 +470,7 @@ mod tests {
         // The native bridge opens sessions through `ZenohNcpClient::open`, which runs
         // the NCP version handshake (`check_version(opened.ncp_version, strict=true)`)
         // and rejects — never coerces — an incompatible `SessionOpened`. This guards
-        // that contract against the pinned wire (`NCP_VERSION`, v0.5.0 = "0.5"):
+        // that contract against the pinned wire (`NCP_VERSION`, v0.6.0 = "0.6"):
         //   * the version CREBAIN builds against is accepted, and
         //   * a skewed or malformed `ncp_version` in a reply is rejected (Err under
         //     strict), so `open_feature_neuron` surfaces a clean error instead of
@@ -469,6 +481,9 @@ mod tests {
             ncp_core::check_version(ncp_core::NCP_VERSION, true).unwrap(),
             "the wire version CREBAIN is pinned to must be self-compatible"
         );
+        // Wire 0.6: the PREVIOUS wire (0.5) is now a breaking-minor skew, rejected
+        // not coerced — a half-upgraded fleet fails closed.
+        assert!(ncp_core::check_version("0.5", true).is_err());
         // A breaking-minor skew (pre-1.0 minors are breaking) is rejected, not coerced.
         assert!(ncp_core::check_version("0.1", true).is_err());
         // A different major is rejected.
@@ -507,6 +522,9 @@ mod tests {
         };
         let mut plant = CommandPlant::new("base_link");
         let cmd = CommandFrame {
+            // Wire 0.6: a command MUST stamp seq >= 1 (echoing the sensor seq); the
+            // ActionBuffer drops seq<1, so an unstamped fixture would HOLD.
+            seq: 5,
             ttl_ms: 200.0,
             channels: mk(-0.5),
             horizon: vec![mk(-0.4), mk(-0.3)],

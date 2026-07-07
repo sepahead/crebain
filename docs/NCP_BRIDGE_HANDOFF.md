@@ -76,7 +76,7 @@ Already correct — **do not regress**:
 
 > **DONE:** the cut-over below has shipped. `src-tauri/Cargo.toml` now declares the
 > NCP SDK as optional **git + tag** deps (the current tag is pinned in
-> `src-tauri/Cargo.toml` — `v0.5.3` at the time of writing; fix (a) below); the
+> `src-tauri/Cargo.toml` — `v0.6.0` at the time of writing; fix (a) below); the
 > sibling path deps are gone and a fresh clone builds with no `Engram`/NCP
 > tree on disk. The historical analysis is kept for context.
 
@@ -103,8 +103,8 @@ standalone principle at **build/CI** time (runtime is fine).
 - **Fix (choose one; (a) is the smaller change, (b) is the most decoupled):**
   - **(a) Git dependency on the extracted repo, optional and pinned:**
     ```toml
-    ncp-core  = { git = "https://github.com/sepahead/NCP", tag = "v0.5.0", optional = true }
-    ncp-zenoh = { git = "https://github.com/sepahead/NCP", tag = "v0.5.0", optional = true }
+    ncp-core  = { git = "https://github.com/sepahead/NCP", tag = "v0.6.0", optional = true }
+    ncp-zenoh = { git = "https://github.com/sepahead/NCP", tag = "v0.6.0", optional = true }
     ```
     The default build then resolves NCP's manifest from the pinned rev (CI has
     network); fresh clones build. Commit the resulting `Cargo.lock`. Trade-off: the
