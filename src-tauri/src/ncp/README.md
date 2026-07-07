@@ -65,7 +65,7 @@ consumes it: an `observable:"binary_state"` observation deserializes (the enums
 gained the value, not a `serde(other)` fallback). **To adopt a newer NCP wire:**
 bump the `ncp-core`/`ncp-zenoh` tag in `src-tauri/Cargo.toml` (the send path —
 `Observable::Spikes` / `StimulusKind::CurrentPa` — is unaffected by additive
-changes). The TypeScript client (`@sepehrmn/ncp`, `package.json`) pins the same
+changes). The TypeScript client (`@sepahead/ncp`, `package.json`) pins the same
 release (`#v0.6.0`); run `bun install` to refresh a stale snapshot. **Keep the
 typed enums** — NCP's architecture review confirmed they are abstract SNN concepts
 (compile-checked), *not* to be flattened to strings.
