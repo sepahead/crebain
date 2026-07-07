@@ -26,7 +26,7 @@ setpoints on the **action plane**. Two peers, one wire:
 | Peer | Path | Role |
 |---|---|---|
 | **Rust** | `src-tauri/src/ncp/mod.rs` | Native Zenoh client: `NcpBridge`, `CommandPlant`, `sensor_frame_from_pose`, `velocity_from_command`, `observation_scalar`. Behind the off-by-default `ncp` Cargo feature. |
-| **TypeScript** | `src/neuro/` (`index.ts`, `versionGuard.ts`) | Thin glue over the pinned `@sepehrmn/ncp` npm package (which provides `NeuroSimClient` and the WebSocket transport) plus a fail-closed reply-version guard. Self-contained; imported by nothing in the app today. |
+| **TypeScript** | `src/neuro/` (`index.ts`, `versionGuard.ts`) | Thin glue over the pinned `@sepahead/ncp` npm package (which provides `NeuroSimClient` and the WebSocket transport) plus a fail-closed reply-version guard. Self-contained; imported by nothing in the app today. |
 
 It is **not** on crebain's critical path. The default build, the frontend tests
 (206), the Rust tests (150), and the running app all work with no NCP / Engram /
@@ -66,7 +66,7 @@ Already correct — **do not regress**:
   real deadline backstop. Covered by tests in `src-tauri/src/ncp/mod.rs`.
 - **V↔command echo.** `sensor_frame_from_pose` stamps a `seq`; `CommandFrame`s echo
   it, so an action is paired with the sensor frame that produced it.
-- **NCP WS-client liveness.** The WS client (now shipped inside the `@sepehrmn/ncp`
+- **NCP WS-client liveness.** The WS client (now shipped inside the `@sepahead/ncp`
   package) settles every pending request on socket close/error and guards
   `JSON.parse` (fixed — no hung promises).
 
@@ -172,7 +172,7 @@ cargo test  --features ncp --lib ncp --manifest-path src-tauri/Cargo.toml
 ## 7. References
 
 - `src-tauri/src/ncp/mod.rs`, `src-tauri/src/ncp/README.md` — the Rust bridge.
-- `src/neuro/{index.ts,versionGuard.ts}`, `src/neuro/README.md` — the TS glue over `@sepehrmn/ncp`.
+- `src/neuro/{index.ts,versionGuard.ts}`, `src/neuro/README.md` — the TS glue over `@sepahead/ncp`.
 - `src-tauri/Cargo.toml` (`[features] ncp`, the optional pinned git deps) — Gap 1.
 - `.github/workflows/ci.yml` — the Rust jobs that must stay green.
 - Companion: `engram/ncp_EXTRACTION_AND_EVOLUTION_HANDOFF.md` — the
