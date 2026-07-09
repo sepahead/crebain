@@ -92,7 +92,7 @@ standard recursive multi-target tracker:
 ```mermaid
 flowchart TD
     A["measurements[]<br/>(this frame)"] --> B["1. PREDICT<br/>advance every track to now<br/>x' = F·x,  P' = F·P·Fᵀ + Q·dt"]
-    B --> C["2. ASSOCIATE<br/>gate by Mahalanobis distance,<br/>pick nearest track per measurement"]
+    B --> C["2. ASSOCIATE<br/>gate by Mahalanobis distance,<br/>global nearest neighbour (Hungarian) per cluster"]
     C --> D["3. UPDATE<br/>fuse associated measurements,<br/>correct state + covariance"]
     C --> E["4. INITIATE<br/>spawn Tentative track from<br/>each unassociated measurement"]
     D --> F["5. LIFECYCLE<br/>age, confirm, coast,<br/>delete missed tracks"]
@@ -331,8 +331,11 @@ stateDiagram-v2
 
 - **Tentative** → **Confirmed** once `popcount(hit_history & N) ≥ min_confirmation_hits`
   (M hits in the last N opportunities). Misses are counted only over the *filled*
-  slots (`opportunities = age + missed_detections`, capped at N), so a brand-new
-  track is never deleted on its first frames for not-yet-observed window bits.
+  slots (`opportunities` is its own per-track counter, incremented once per frame
+  the track existed and capped at N — deriving it as `age + missed_detections`
+  undercounts, which is exactly why the independent counter exists), so a
+  brand-new track is never deleted on its first frames for not-yet-observed
+  window bits.
   Confirmation latches: a Confirmed track that briefly dips below M hits (with < 2
   consecutive misses) stays Confirmed rather than flickering.
 - Any live track → **Coasting** once it accumulates `≥ 2` *consecutive* missed frames.
@@ -526,13 +529,15 @@ are deliberately deferred:
    the polar→Cartesian Jacobian cross-terms and Doppler off-diagonals.
 
 > **Gotchas for whoever picks this up.** Radar measurement `R` is polar
-> (`[m², rad², rad²]`); the association gate already converts it to Cartesian, but
-> `create_track` still seeds the *initial position* covariance from it verbatim, so
-> for radar the birth position covariance is polar units treated as Cartesian — fold
-> the Jacobian conversion in when addressing full covariances. When a gate seems too
-> tight, fix the *scenario realism* (e.g. the single-point birth velocity prior), not
-> the threshold. The browser `triangulatePosition` minimizes algebraic, not
-> perpendicular, distance and lacks a behind-camera (cheirality) check.
+> (`[m², rad², rad²]`); the association gate converts it to Cartesian, and
+> `create_track` now seeds the birth position covariance through the same
+> polar→Cartesian Jacobian congruence (regression-tested), so the historical
+> polar-units-as-Cartesian birth bug is fixed — keep it that way when touching
+> full covariances. When a gate seems too tight, fix the *scenario realism*
+> (e.g. the single-point birth velocity prior), not the threshold. The browser
+> `triangulatePosition` now solves the perpendicular least-squares projector
+> normal equations and ray-gates with a cheirality (behind-camera) check; the
+> old algebraic-distance/no-cheirality caveat no longer applies.
 
 ---
 

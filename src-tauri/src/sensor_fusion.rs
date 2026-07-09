@@ -2384,6 +2384,12 @@ impl MultiSensorFusion {
         self.imm_filters.clear();
         self.next_track_id = 1;
         self.frame_count = 0;
+        // Reset the prediction clock too: a stale value would make any replay/sim
+        // feed whose timestamps are at or before the old clock see `dt = 0` on
+        // every frame after a clear — no prediction, no process-noise inflation,
+        // association gates sized off frozen covariances — silently, until
+        // wall-clock timestamps catch up.
+        self.last_predict_ms = 0;
     }
 
     /// Update configuration
@@ -3605,6 +3611,34 @@ mod tests {
         fusion.clear();
         assert!(fusion.get_tracks().is_empty());
         assert_eq!(fusion.get_stats().frame_count, 0);
+        // Regression: the predict clock must reset with everything else, or a
+        // post-clear replay whose timestamps are at or before the old clock sees
+        // dt = 0 on every frame (no prediction, frozen covariances, mis-sized
+        // association gates) until wall-clock time catches up.
+        assert_eq!(fusion.last_predict_ms, 0);
+
+        // And a replayed stream with earlier timestamps must actually predict:
+        // two frames 100 ms apart re-establish a track after the clear.
+        for (t, x) in [(100u64, 10.0f64), (200, 10.5)] {
+            let m = vec![SensorMeasurement {
+                sensor_id: "cam1".to_string(),
+                modality: SensorModality::Visual,
+                timestamp_ms: t,
+                position: [x, 0.0, 5.0],
+                velocity: None,
+                covariance: [1.0, 1.0, 1.0],
+                confidence: 0.9,
+                class_label: "drone".to_string(),
+                metadata: HashMap::new(),
+            }];
+            fusion.process_measurements(m, t);
+        }
+        assert_eq!(
+            fusion.get_tracks().len(),
+            1,
+            "replay after clear must track"
+        );
+        assert_eq!(fusion.last_predict_ms, 200, "clock must follow the replay");
     }
 
     #[test]
