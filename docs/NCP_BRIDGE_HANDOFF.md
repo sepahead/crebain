@@ -28,8 +28,8 @@ setpoints on the **action plane**. Two peers, one wire:
 | **Rust** | `src-tauri/src/ncp/mod.rs` | Native Zenoh client: `NcpBridge`, `CommandPlant`, `sensor_frame_from_pose`, `velocity_from_command`, `observation_scalar`. Behind the off-by-default `ncp` Cargo feature. |
 | **TypeScript** | `src/neuro/` (`index.ts`, `versionGuard.ts`) | Thin glue over the pinned `@sepahead/ncp` npm package (which provides `NeuroSimClient` and the WebSocket transport) plus a fail-closed reply-version guard. Self-contained; imported by nothing in the app today. |
 
-It is **not** on crebain's critical path. The default build, the frontend tests
-(206), the Rust tests (150), and the running app all work with no NCP / Engram /
+It is **not** on crebain's critical path. The default build, the frontend tests,
+the Rust tests, and the running app all work with no NCP / Engram /
 sibling SDK present. **Your job is to keep that true** while making the bridge
 depend cleanly on the *extracted, standalone* NCP repo instead of the
 `engram/ncp` sibling path.
