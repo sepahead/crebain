@@ -3790,6 +3790,110 @@ mod tests {
         assert_eq!(fusion.last_predict_ms, 200, "clock must follow the replay");
     }
 
+    /// Fixture generator for the cross-repo integration proof (not a test of
+    /// crebain itself, hence `#[ignore]`): writes a deterministic clean-capture
+    /// JSONL of emitted `PidObservation`s to `CREBAIN_PID_FIXTURE_PATH`. The
+    /// output is checked into galadriel as
+    /// `crates/galadriel-ncp/tests/fixtures/crebain_clean_capture.jsonl`, where
+    /// an integration test proves genuine crebain output parses and does not
+    /// false-alarm the detector. Regenerate with:
+    ///
+    /// ```text
+    /// CREBAIN_PID_FIXTURE_PATH=/tmp/capture.jsonl \
+    ///   cargo test generate_galadriel_pid_fixture -- --ignored
+    /// ```
+    #[test]
+    #[ignore = "fixture generator; run manually with CREBAIN_PID_FIXTURE_PATH set"]
+    fn generate_galadriel_pid_fixture() {
+        let Some(path) = std::env::var_os("CREBAIN_PID_FIXTURE_PATH") else {
+            eprintln!("CREBAIN_PID_FIXTURE_PATH not set; nothing to do");
+            return;
+        };
+        // Deterministic pseudo-noise: xorshift64*, Irwin–Hall(4) ≈ N(0,1).
+        let mut rng_state: u64 = 0x9E37_79B9_7F4A_7C15 ^ 0xC0FF_EE00;
+        let mut next_unit = move || -> f64 {
+            let mut x = rng_state;
+            x ^= x >> 12;
+            x ^= x << 25;
+            x ^= x >> 27;
+            rng_state = x;
+            (x.wrapping_mul(0x2545_F491_4F6C_DD1D) >> 11) as f64 / (1u64 << 53) as f64
+        };
+        let mut gauss = move || -> f64 {
+            // Irwin–Hall(4): mean 2, var 4/12; scaled to unit variance.
+            ((next_unit() + next_unit() + next_unit() + next_unit()) - 2.0) / (1.0 / 3.0f64).sqrt()
+        };
+
+        let config = FusionConfig {
+            emit_innovations: true,
+            emit_innovation_research: true,
+            ..FusionConfig::default()
+        };
+        let mut fusion = MultiSensorFusion::new(config);
+        let mut records = Vec::new();
+        for frame in 0..160u64 {
+            let t = 1_000 + frame * 100;
+            let dt = frame as f64 * 0.1;
+            // One true target, constant velocity.
+            let truth = [50.0 + 2.0 * dt, 30.0 + 1.0 * dt, 20.0];
+            let mut ms = Vec::new();
+            // Visual + acoustic: Cartesian, noise matched to the declared R.
+            for (sensor, modality, std) in [
+                ("cam1", SensorModality::Visual, 1.0f64),
+                ("mic1", SensorModality::Acoustic, 2.0f64.sqrt()),
+            ] {
+                ms.push(SensorMeasurement {
+                    sensor_id: sensor.to_string(),
+                    modality,
+                    timestamp_ms: t,
+                    position: [
+                        truth[0] + std * gauss(),
+                        truth[1] + std * gauss(),
+                        truth[2] + std * gauss(),
+                    ],
+                    velocity: None,
+                    covariance: [std * std, std * std, std * std],
+                    confidence: 0.9,
+                    class_label: "drone".to_string(),
+                    metadata: HashMap::new(),
+                });
+            }
+            // Radar: polar [range m, az rad, el rad], noise matched to R.
+            let range = (truth[0] * truth[0] + truth[1] * truth[1] + truth[2] * truth[2]).sqrt();
+            let az = truth[1].atan2(truth[0]);
+            let el = (truth[2] / range).asin();
+            ms.push(SensorMeasurement {
+                sensor_id: "radar1".to_string(),
+                modality: SensorModality::Radar,
+                timestamp_ms: t,
+                position: [
+                    range + 1.0 * gauss(),
+                    az + 0.0316 * gauss(),
+                    el + 0.0316 * gauss(),
+                ],
+                velocity: None,
+                covariance: [1.0, 0.001, 0.001],
+                confidence: 0.9,
+                class_label: "drone".to_string(),
+                metadata: HashMap::new(),
+            });
+            fusion.process_measurements(ms, t);
+            records.extend(fusion.drain_pid_observations());
+        }
+        assert!(
+            records.len() > 400,
+            "expected a rich capture, got {} records",
+            records.len()
+        );
+        let mut out = String::new();
+        for record in &records {
+            out.push_str(&serde_json::to_string(record).unwrap());
+            out.push('\n');
+        }
+        std::fs::write(&path, out).expect("write fixture");
+        eprintln!("wrote {} records to {path:?}", records.len());
+    }
+
     #[test]
     fn emit_innovations_produces_contract_records_with_consistent_nis() {
         let config = FusionConfig {
