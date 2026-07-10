@@ -6,20 +6,22 @@ smoke record.
 
 ## Current Candidate
 
-The current hardening batch is **pending**. Populate immutable identifiers and
-results only after the final commit is created and every required gate runs on
-that exact commit.
+The automated hardening candidate is green. Runtime/deployment evidence remains
+pending where the repository cannot provide the required hardware, model,
+network topology, credentials, or operator acceptance record.
 
 | Field | Evidence |
 |-------|----------|
-| Candidate commit | Pending final commit |
+| Candidate commit | `5dec6037fe1fa461fae76083d682be35ae5352ab` |
 | Branch/tag | `main`; tag pending |
-| GitHub Actions run | Pending |
-| Hosted supply-chain audit | Pending if dependency inputs changed |
-| Hosted CodeQL | Pending/current scheduled evidence must be linked before a release claim |
-| Local `bun run validate:all` | Pending final candidate run |
-| Frontend test/coverage/bundle result | Pending; copy exact output/run links, do not estimate counts |
-| Rust default/NCP/feature result | Pending; copy exact output/run links, do not estimate counts |
+| GitHub Actions run | [CI 29104945626](https://github.com/sepahead/crebain/actions/runs/29104945626): success on Linux/macOS |
+| Hosted supply-chain audit | [Audit 29104945725](https://github.com/sepahead/crebain/actions/runs/29104945725): Bun audit and cargo-deny success |
+| Hosted CodeQL | [CodeQL 29104945672](https://github.com/sepahead/crebain/actions/runs/29104945672): JavaScript/TypeScript and Rust success |
+| Additional hosted policy | [ROS definitions 29104945665](https://github.com/sepahead/crebain/actions/runs/29104945665) and [OpenSSF Scorecard 29104945793](https://github.com/sepahead/crebain/actions/runs/29104945793): success |
+| Local `bun run validate:all` | Success: 318 frontend tests (8 skipped), 252 default Rust tests (1 ignored), 276 NCP Rust tests (1 ignored), clean fmt/check/clippy |
+| Frontend test/coverage/bundle result | 318 passed / 8 skipped; 37.91% statements and 39.06% lines; 438.4 KiB initial gzip against 700 KiB |
+| Rust default/NCP/feature result | Default and NCP suites above; `--no-default-features`, `cuda,tensorrt`, and extra no-default CUDA/TensorRT checks passed locally; hosted feature gates passed |
+| Hardware-WebGL performance smoke | 60.0 FPS empty, 39.5 FPS splat, 37.2 FPS splat plus feeds against unchanged 50/25/12 floors; Apple M4 Max Chromium Metal |
 | Manual smoke | Pending target-platform execution |
 | Boundary focus | Scene/asset bounds and restore lifecycle; unified camera schemas; ROS service correlation; Gazebo XML policy; transport disconnects; fusion/NCP fail-safe behavior |
 
@@ -27,15 +29,15 @@ that exact commit.
 
 | Area | Required evidence | Current status |
 |------|-------------------|----------------|
-| Version coherence | Metadata/tag guard on candidate | Pending |
-| Frontend validation | Typecheck, lint, format, and tests | Pending final candidate |
-| Bundle and coverage | Hosted bundle budget and coverage thresholds | Pending final candidate |
-| Rust default | fmt, check, tests, and clippy on Linux/macOS | Pending final candidate |
-| NCP feature | NCP clippy and tests on Linux/macOS | Pending final candidate |
-| Rust feature gates | `cuda,tensorrt` and `--no-default-features` checks | Pending final candidate |
-| Supply chain | cargo-deny and `bun audit` | Pending final candidate/dependency run |
-| Static analysis | CodeQL JavaScript/TypeScript and Rust | Pending linked evidence |
-| Diff hygiene | `git diff --check` before commit and cached diff check | Pending final candidate |
+| Version coherence | Metadata/tag guard on candidate | Passed in CI 29104945626 |
+| Frontend validation | Typecheck, lint, format, and tests | Passed locally and in CI 29104945626 |
+| Bundle and coverage | Hosted bundle budget and coverage thresholds | Passed in CI 29104945626 |
+| Rust default | fmt, check, tests, and clippy on Linux/macOS | Passed in CI 29104945626 |
+| NCP feature | NCP clippy and tests on Linux/macOS | Passed in CI 29104945626 |
+| Rust feature gates | `cuda,tensorrt` and `--no-default-features` checks | Passed locally and in CI 29104945626 |
+| Supply chain | cargo-deny and `bun audit` | Passed in audit 29104945725 |
+| Static analysis | CodeQL JavaScript/TypeScript and Rust | Passed in CodeQL 29104945672 |
+| Diff hygiene | `git diff --check` before commit and cached diff check | Passed before `5dec603` |
 
 ## Manual evidence required
 
