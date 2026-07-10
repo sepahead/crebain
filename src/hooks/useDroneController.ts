@@ -11,8 +11,17 @@ import { DRONE_TYPES, toQuadcopterParams, type DroneTypeDefinition } from '../ph
 import { useKeyboardControls, type DroneControlInput } from './useKeyboardControls'
 import { logger } from '../lib/logger'
 import { disposeObject3D, forEachMesh } from '../lib/three/sceneObjects'
-// The SDK plant-side deadline/seq/latch primitive for the dev NCP→drone bridge.
-import { ActionBuffer } from '@sepahead/ncp'
+// The SDK plant-side wire gate + deadline/seq/latch primitive for the dev
+// NCP→drone bridge.
+import {
+  ActionBuffer,
+  assertWireFrame,
+  maxHorizonLen,
+  MAX_TTL_MS,
+  type CommandLike,
+  type Mode,
+  type WireChannels,
+} from '@sepahead/ncp'
 
 const log = logger.scope('DroneController')
 
@@ -21,6 +30,249 @@ const log = logger.scope('DroneController')
 const scratchEuler = new THREE.Euler()
 const scratchVelocity = new THREE.Vector3()
 const scratchQuaternion = new THREE.Quaternion()
+
+const MAX_DEV_NCP_CHANNELS = 64
+const MAX_DEV_NCP_CHANNEL_VALUES = 64
+const MAX_DEV_NCP_HORIZON_STEPS = 1_000
+const MAX_DEV_NCP_NAME_BYTES = 128
+const MAX_DEV_NCP_UNIT_BYTES = 32
+const MAX_DEV_NCP_DT_S = 0.5
+const INITIAL_DEV_NCP_DT_S = 0.05
+const utf8Encoder = new TextEncoder()
+
+export interface DevNcpCommandFrame {
+  kind?: unknown
+  ncp_version?: unknown
+  mode?: unknown
+  seq?: unknown
+  t?: unknown
+  frame_id?: unknown
+  ttl_ms?: unknown
+  channels?: unknown
+  horizon?: unknown
+  horizon_dt_ms?: unknown
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function utf8Length(value: string): number {
+  return utf8Encoder.encode(value).byteLength
+}
+
+function containsUnsafeText(value: string): boolean {
+  return Array.from(value).some(
+    (character) => /\s/u.test(character) || character.charCodeAt(0) < 32 || character === '\u007f'
+  )
+}
+
+function isMode(value: unknown): value is Mode {
+  return value === 'init' || value === 'active' || value === 'hold' || value === 'estop'
+}
+
+function parseWireChannels(value: unknown, label: string): WireChannels {
+  if (!isRecord(value)) throw new Error(`${label} must be an object`)
+  const entries = Object.entries(value)
+  if (entries.length > MAX_DEV_NCP_CHANNELS) {
+    throw new Error(`${label} exceeds ${MAX_DEV_NCP_CHANNELS} channels`)
+  }
+
+  // A null-prototype map prevents special input keys such as `__proto__` from
+  // mutating the normalized channel container.
+  const channels = Object.create(null) as WireChannels
+  for (const [name, rawChannel] of entries) {
+    if (
+      name.length === 0 ||
+      utf8Length(name) > MAX_DEV_NCP_NAME_BYTES ||
+      containsUnsafeText(name)
+    ) {
+      throw new Error(`${label} contains an invalid channel name`)
+    }
+    if (!isRecord(rawChannel) || !Array.isArray(rawChannel.data)) {
+      throw new Error(`${label}.${name}.data must be an array`)
+    }
+    if (rawChannel.data.length > MAX_DEV_NCP_CHANNEL_VALUES) {
+      throw new Error(`${label}.${name}.data exceeds ${MAX_DEV_NCP_CHANNEL_VALUES} values`)
+    }
+    if (
+      !rawChannel.data.every(
+        (entry): entry is number => typeof entry === 'number' && Number.isFinite(entry)
+      )
+    ) {
+      throw new Error(`${label}.${name}.data must contain only finite numbers`)
+    }
+    const unit = rawChannel.unit
+    if (
+      unit !== undefined &&
+      unit !== null &&
+      (typeof unit !== 'string' ||
+        utf8Length(unit) > MAX_DEV_NCP_UNIT_BYTES ||
+        containsUnsafeText(unit))
+    ) {
+      throw new Error(`${label}.${name}.unit must be a short string or null`)
+    }
+    channels[name] = { data: [...rawChannel.data], unit }
+  }
+  return channels
+}
+
+function requireVelocitySetpoint(channels: WireChannels, label: string): void {
+  const velocity = channels.velocity_setpoint
+  if (
+    velocity?.unit !== 'm/s' ||
+    velocity.data.length !== 3 ||
+    !velocity.data.every(Number.isFinite)
+  ) {
+    throw new Error(`${label}.velocity_setpoint must be a finite m/s vec3`)
+  }
+}
+
+/** Normalize and validate the dev-only NCP action ingress against published wire 0.6. */
+export function normalizeDevNcpCommand(input: unknown): CommandLike {
+  if (!isRecord(input)) throw new Error('NCP command must be an object')
+  const mode = input.mode === undefined ? 'hold' : input.mode
+  if (!isMode(mode)) throw new Error('NCP command mode is invalid')
+  const seq = input.seq
+  if (typeof seq !== 'number' || !Number.isSafeInteger(seq) || seq < 1) {
+    throw new Error('NCP command seq must be a safe integer greater than zero')
+  }
+  assertWireFrame(input, 'command_frame')
+  const ncpVersion = input.ncp_version
+  if (typeof ncpVersion !== 'string') {
+    throw new Error('NCP command ncp_version must be a string')
+  }
+
+  // Fail-safe modes never need to retain attacker-controlled channel/horizon
+  // payloads. Normalize them to the smallest safe command after the envelope
+  // gate; omitted mode/channels follow the wire-0.6 HOLD/empty-map defaults.
+  if (mode !== 'active') {
+    return {
+      kind: 'command_frame',
+      ncp_version: ncpVersion,
+      mode,
+      seq,
+      ttl_ms: 200,
+      channels: Object.create(null) as WireChannels,
+    }
+  }
+
+  const ttlMs = input.ttl_ms === undefined ? 200 : input.ttl_ms
+  if (typeof ttlMs !== 'number' || !Number.isFinite(ttlMs) || ttlMs <= 0 || ttlMs > MAX_TTL_MS) {
+    throw new Error(`NCP command ttl_ms must be within (0, ${MAX_TTL_MS}]`)
+  }
+  if (input.t !== undefined && (typeof input.t !== 'number' || !Number.isFinite(input.t))) {
+    throw new Error('NCP command timestamp must be finite')
+  }
+  if (
+    input.frame_id !== undefined &&
+    (typeof input.frame_id !== 'string' ||
+      utf8Length(input.frame_id) > MAX_DEV_NCP_NAME_BYTES ||
+      containsUnsafeText(input.frame_id))
+  ) {
+    throw new Error('NCP command frame_id is invalid')
+  }
+
+  const channels = parseWireChannels(input.channels ?? {}, 'NCP command channels')
+  requireVelocitySetpoint(channels, 'NCP command channels')
+
+  let horizon: WireChannels[] | undefined
+  let horizonDtMs: number | null | undefined
+  if (input.horizon_dt_ms !== undefined && input.horizon_dt_ms !== null) {
+    if (
+      typeof input.horizon_dt_ms !== 'number' ||
+      !Number.isFinite(input.horizon_dt_ms) ||
+      input.horizon_dt_ms <= 0
+    ) {
+      throw new Error('NCP command horizon_dt_ms must be finite and positive')
+    }
+    horizonDtMs = input.horizon_dt_ms
+  } else {
+    horizonDtMs = input.horizon_dt_ms
+  }
+  if (input.horizon !== undefined) {
+    if (!Array.isArray(input.horizon)) throw new Error('NCP command horizon must be an array')
+    if (input.horizon.length > MAX_DEV_NCP_HORIZON_STEPS) {
+      throw new Error(`NCP command horizon exceeds ${MAX_DEV_NCP_HORIZON_STEPS} steps`)
+    }
+    if (input.horizon.length > 0 && typeof horizonDtMs !== 'number') {
+      throw new Error('NCP command horizon requires horizon_dt_ms')
+    }
+    const allowedSteps =
+      typeof horizonDtMs === 'number'
+        ? Math.min(MAX_DEV_NCP_HORIZON_STEPS, maxHorizonLen(ttlMs, horizonDtMs))
+        : 0
+    if (input.horizon.length > allowedSteps) {
+      throw new Error(
+        `NCP command horizon exceeds its ttl or ${MAX_DEV_NCP_HORIZON_STEPS}-step cap`
+      )
+    }
+    horizon = input.horizon.map((entry, index) => {
+      const step = parseWireChannels(entry, `NCP command horizon[${index}]`)
+      requireVelocitySetpoint(step, `NCP command horizon[${index}]`)
+      return step
+    })
+  }
+  const command: CommandLike = {
+    kind: 'command_frame',
+    ncp_version: ncpVersion,
+    mode,
+    seq,
+    t: typeof input.t === 'number' ? input.t : undefined,
+    frame_id: typeof input.frame_id === 'string' ? input.frame_id : undefined,
+    ttl_ms: ttlMs,
+    channels,
+    horizon,
+    horizon_dt_ms: horizonDtMs,
+  }
+  return command
+}
+
+/** Latch raw ESTOP first, then admit only a fully validated wire-0.6 command. */
+export function ingestDevNcpCommand(
+  buffer: ActionBuffer,
+  nowS: number,
+  input: unknown
+): CommandLike {
+  if (isRecord(input) && input.mode === 'estop') {
+    buffer.onCommand(nowS, { mode: 'estop', seq: 0, channels: {} })
+  }
+  if (!Number.isFinite(nowS) || nowS < 0) throw new Error('NCP receive time is invalid')
+  const command = normalizeDevNcpCommand(input)
+  buffer.onCommand(nowS, command)
+  return command
+}
+
+/** Per-entity command state. Reset replaces the buffer so old commands cannot
+ * become active again when an ESTOP latch is cleared. */
+export class DevNcpCommandStream {
+  private buffer = new ActionBuffer()
+
+  ingest(nowS: number, input: unknown): CommandLike {
+    return ingestDevNcpCommand(this.buffer, nowS, input)
+  }
+
+  active(nowS: number): WireChannels | null {
+    return this.buffer.active(nowS)
+  }
+
+  isEstopped(): boolean {
+    return this.buffer.isEstopped()
+  }
+
+  reset(): void {
+    this.buffer = new ActionBuffer()
+  }
+}
+
+/** Integrate only monotonic local elapsed time; callers cannot supply a larger
+ * simulation step by invoking the developer hook repeatedly. */
+export function boundedDevNcpElapsed(previousS: number | null, nowS: number): number {
+  if (!Number.isFinite(nowS)) return 0
+  if (previousS === null) return INITIAL_DEV_NCP_DT_S
+  if (!Number.isFinite(previousS) || nowS < previousS) return 0
+  return Math.min(nowS - previousS, MAX_DEV_NCP_DT_S)
+}
 
 export type RouteMode = 'none' | 'once' | 'patrol'
 
@@ -750,44 +1002,44 @@ export function useDroneController(options: UseDroneControllerOptions) {
   }, [])
 
   // ── DEV-ONLY: NCP → drone test bridge ──────────────────────────────────────
-  // Additive, dev-gated injection point that lets an external NCP peer drive a
-  // managed CREBAIN drone from wire-0.6 CommandFrames (velocity_setpoint in m/s).
-  // Since wire 0.6 it delegates the safety-critical parts to the SDK's ActionBuffer
+  // Additive, dev-gated in-browser injection point for manually exercising a
+  // managed CREBAIN drone with wire-shaped NCP CommandFrames. It opens no NCP
+  // transport or session; callers invoke the window helper directly.
+  // It delegates the safety-critical parts to the SDK's ActionBuffer
   // (@sepahead/ncp) instead of hand-rolling them: seq >= 1 discipline (an
   // unstamped frame is dropped), the ttl_ms deadline (a stale frame HOLDs), the
   // active-mode allowlist, and a LATCHING ESTOP (once tripped, every later frame
   // HOLDs until reset()). It keeps CREBAIN-specific kinematics on top — a per-axis
   // velocity clamp, the integration-step clamp, and the altitude floor — which the
-  // SDK does not own. This is STRICTER than ncp-core's raw allowlist only in that
-  // it exposes an explicit reset() for the dev latch.
+  // SDK does not own. The published wire gate runs before ActionBuffer for every
+  // non-ESTOP command; a raw ESTOP still latches before validation by design.
   // This deliberately does NOT touch the owned NCP bridges (src/neuro,
   // src-tauri/src/ncp); it exists to verify that NCP action-plane input visibly
   // moves a real drone. Exposed on window only under Vite dev.
   useEffect(() => {
     if (!import.meta.env.DEV) return
-    interface NcpChannel {
-      data?: number[]
-      unit?: string
-    }
-    interface NcpCommandFrame {
-      mode?: string
-      seq?: number
-      ttl_ms?: number
-      channels?: Record<string, NcpChannel>
-    }
     // Safety limits for NCP-driven actuation (the kinematic layer the SDK does
     // not own; the SDK ActionBuffer owns seq/ttl/mode/latch).
     const MAX_NCP_VELOCITY_MS = 10 // per-axis velocity clamp (m/s)
-    const MAX_NCP_DT_S = 0.5 // integration step clamp (s)
-    // The SDK deadline backstop + seq discipline + latching ESTOP for the bridge.
-    const buffer = new ActionBuffer()
     const clampUp = (y: number) => Math.max(0.1, y)
     const clampVelocity = (v: number) =>
       Number.isFinite(v) ? Math.max(-MAX_NCP_VELOCITY_MS, Math.min(MAX_NCP_VELOCITY_MS, v)) : 0
     // Physics-free "kinematic" drones (id -> mesh) so an NCP peer can drive a
     // visible drone even where the Rapier WASM runtime is unavailable.
     const kin = new Map<string, THREE.Object3D>()
+    const commandStreams = new Map<
+      string,
+      { stream: DevNcpCommandStream; lastApplyS: number | null }
+    >()
     let kinCounter = 0
+    const streamFor = (id: string) => {
+      let state = commandStreams.get(id)
+      if (!state) {
+        state = { stream: new DevNcpCommandStream(), lastApplyS: null }
+        commandStreams.set(id, state)
+      }
+      return state
+    }
     const posOf = (id: string): { x: number; y: number; z: number } | null => {
       const m = kin.get(id)
       if (m) return { x: m.position.x, y: m.position.y, z: m.position.z }
@@ -832,37 +1084,50 @@ export function useDroneController(options: UseDroneControllerOptions) {
       pose(id: string) {
         return posOf(id)
       },
-      // Kinematic teleport (NCP-computed trajectory replay).
-      setPose(id: string, x: number, y: number, z: number) {
-        return moveTo(id, x, y, z)
-      },
       // Apply one NCP CommandFrame. The SDK ActionBuffer owns the safety-critical
       // decision (seq >= 1 discipline, ttl_ms deadline, active-mode allowlist,
       // latching ESTOP); this bridge only clamps the resulting setpoint and
       // integrates it kinematically. `active(now)` returns the setpoint channels
       // to apply, or null to HOLD (fail-safe to zero velocity).
-      applyCommand(id: string, frame: NcpCommandFrame, dt = 0.05) {
+      applyCommand(id: string, frame: unknown) {
         const p = posOf(id)
         if (!p) return null
         const nowS = performance.now() / 1000
-        // Ingest the frame; ActionBuffer drops seq<1, refreshes the deadline, and
-        // latches on an ESTOP (fail-safe never dropped, stamped or not).
-        buffer.onCommand(nowS, {
-          mode: (frame?.mode ?? 'hold') as 'init' | 'active' | 'hold' | 'estop',
-          seq: frame?.seq ?? 0,
-          ttl_ms: frame?.ttl_ms,
-          channels: (frame?.channels ?? {}) as Record<string, { data: number[]; unit?: string }>,
-        })
-        const setpoint = buffer.active(nowS) // null => HOLD (stale/estop/non-active/unstamped)
-        let v: [number, number, number] = [0, 0, 0]
-        const held = setpoint === null
-        if (setpoint) {
-          const ch = setpoint.velocity_setpoint?.data
-          if (Array.isArray(ch) && ch.length >= 3) {
-            v = [clampVelocity(ch[0]), clampVelocity(ch[1]), clampVelocity(ch[2])]
+        const state = streamFor(id)
+        const step = boundedDevNcpElapsed(state.lastApplyS, nowS)
+        state.lastApplyS = nowS
+        let command: CommandLike
+        try {
+          command = state.stream.ingest(nowS, frame)
+        } catch (error) {
+          log.warn('Dropped unsafe dev NCP command', {
+            error: error instanceof Error ? error.message : String(error),
+          })
+          return {
+            pose: posOf(id),
+            mode: isRecord(frame) && frame.mode === 'estop' ? 'estop' : 'hold',
+            applied: [0, 0, 0] as [number, number, number],
+            held: true,
+            estopped: state.stream.isEstopped(),
           }
         }
-        const step = Number.isFinite(dt) ? Math.max(0, Math.min(MAX_NCP_DT_S, dt)) : 0
+        const setpoint = state.stream.active(nowS) // null => HOLD (stale/estop/non-active)
+        let v: [number, number, number] = [0, 0, 0]
+        let held = setpoint === null
+        if (setpoint) {
+          const velocity = setpoint.velocity_setpoint
+          const ch = velocity?.data
+          if (
+            velocity?.unit === 'm/s' &&
+            Array.isArray(ch) &&
+            ch.length === 3 &&
+            ch.every(Number.isFinite)
+          ) {
+            v = [clampVelocity(ch[0]), clampVelocity(ch[1]), clampVelocity(ch[2])]
+          } else {
+            held = true
+          }
+        }
         // Axis convention: the wire [x, y, z] is applied directly to three.js
         // world coordinates (Y-up; v[1] is the altitude rate). The Rust `ncp`
         // feature path instead forwards the same vector as a MAVROS ENU
@@ -871,15 +1136,17 @@ export function useDroneController(options: UseDroneControllerOptions) {
         moveTo(id, p.x + v[0] * step, p.y + v[1] * step, p.z + v[2] * step)
         return {
           pose: posOf(id),
-          mode: frame?.mode ?? 'hold',
+          mode: command.mode,
           applied: v,
           held,
-          estopped: buffer.isEstopped(),
+          estopped: state.stream.isEstopped(),
         }
       },
-      // Supervisor authority: clear a latched ESTOP so the bridge can actuate again.
-      reset() {
-        buffer.reset()
+      // Supervisor authority: replace stream state so clearing ESTOP cannot
+      // resurrect a command buffered before or during the latch.
+      reset(id?: string) {
+        if (id === undefined) commandStreams.clear()
+        else commandStreams.delete(id)
       },
     }
     const w = window as unknown as { __ncpDrone?: typeof bridge }
@@ -887,6 +1154,7 @@ export function useDroneController(options: UseDroneControllerOptions) {
     return () => {
       for (const m of kin.values()) sceneRef.current?.remove(m)
       kin.clear()
+      commandStreams.clear()
       delete w.__ncpDrone
     }
   }, [spawnDrone])

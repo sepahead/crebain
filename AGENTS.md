@@ -70,7 +70,7 @@ cargo build --manifest-path src-tauri/Cargo.toml
 - `common/` - Shared detection, NMS, YOLO, error, and path validation utilities
 - `inference/` - ML abstraction layer with CoreML default on macOS, experimental MLX YOLOv8 safetensors path, CUDA/TensorRT on Linux, and ONNX fallback
 - `transport/` - Zenoh-oriented transport, CDR validation, and Tauri transport commands
-- `ncp/` - Neuro-Cybernetic Protocol (NCP) client for Engram — native Rust+Zenoh, behind the off-by-default `ncp` feature; pulls the canonical NCP SDK (`ncp-core`/`ncp-zenoh`) as a pinned git dependency on github.com/sepahead/NCP (tag in `src-tauri/Cargo.toml`). Its Tauri commands are not registered in the product runtime. See `src-tauri/src/ncp/README.md`. (The dormant TypeScript peer is `src/neuro/`, backed by the pinned `@sepahead/ncp` npm dependency.)
+- `ncp/` - Neuro-Cybernetic Protocol (NCP) client for Engram — native Rust+Zenoh, behind the off-by-default `ncp` feature; pulls the canonical NCP SDK (`ncp-core`/`ncp-zenoh`) as a pinned git dependency on github.com/sepahead/NCP (tag in `src-tauri/Cargo.toml`). Its Tauri commands are not registered in the product runtime. See `src-tauri/src/ncp/README.md`. (The dormant TypeScript peer is `src/neuro/`, backed by the pinned `@sepahead/ncp` npm dependency. Vite dev separately exposes a manual, transport-free `window.__ncpDrone` command-injection harness from `useDroneController`.)
 - `sensor_fusion.rs` - Kalman/EKF/UKF/Particle/IMM filters
 - `lib.rs` - Tauri IPC commands and app setup
 

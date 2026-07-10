@@ -1639,6 +1639,7 @@ impl Transport for ZenohBridge {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "zenoh-transport")]
     use super::*;
 
     #[cfg(feature = "zenoh-transport")]

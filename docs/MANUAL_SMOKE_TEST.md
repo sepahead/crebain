@@ -51,7 +51,8 @@ candidate:
 | ROS 2 re-keying | Any direct `rmw_zenoh_cpp` claim uses and records an explicit key-rewriting bridge; env selection alone is not accepted | ⬜ |  |
 | Fusion reconnect | Disconnect clears/ages native and UI state as documented; reconnect recovers without overlapping batches or stale tracks | 🟡 hook/native lifecycle tests; live transport manual |  |
 | PID JSONL | Operator-approved path appends parseable lines; I/O failure does not block fusion; result is labeled local parser/NIS smoke only | 🟡 serialization/sink tests; filesystem permissions manual |  |
-| NCP feature | Default UI exposes no NCP control; feature tests pass; if integration wiring is under test, stale/invalid commands end in zero-velocity HOLD | ✅ feature/unit contract; live Engram path absent by default |  |
+| NCP feature | Default UI exposes no NCP control; missing `NCP_ZENOH_CONFIG` fails secure connect; quiet development is explicit; lifecycle replies require `ok`; stale/invalid commands HOLD; raw ESTOP latches; stop drops the subscriber and requests final HOLD | ✅ feature/unit contract; live Engram/TLS/ACL evidence absent by default |  |
+| Vite-dev NCP harness | Manual `window.__ncpDrone` active command uses exact finite m/s vec3 and bounded horizon; malformed/null calls do not move; drone streams stay independent; ESTOP reset requires a fresh command | ✅ unit contract; transport-free browser injection only |  |
 | Keyboard/emergency | Documented shortcuts work; Escape emergency disarm remains active; keys reset on blur/visibility loss | 🟡 keyboard tests; shell behavior manual |  |
 | Close app | App exits without panic, hung service futures, or lingering transport tasks | ⬜ |  |
 
