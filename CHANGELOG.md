@@ -69,6 +69,13 @@ Open-source readiness and quality hardening.
   unit, and speed failures HOLD at zero, and stop/close emits a final HOLD. The
   feature and Tauri commands remain off/unregistered, so this is not a live
   product loop.
+- **Optional NCP boundaries now fail closed without unreleased wire-0.7 APIs.**
+  The pinned wire-0.6 bridge caps command payloads, retains only bounded actuator
+  data, latches a minimal raw ESTOP, serializes start/open/close per session,
+  drops dedicated subscriber handles, and requires explicit lifecycle `ok`
+  fields. The Vite-dev harness now validates complete active frames, isolates
+  sequence/deadline state per drone, derives motion from local elapsed time,
+  applies HOLD on malformed calls, and clears buffered freshness on reset.
 
 ### Changed
 - **SPD covariance solves use Cholesky instead of explicit inversion** at the six
@@ -79,9 +86,10 @@ Open-source readiness and quality hardening.
 
 - **Re-pinned NCP to `v0.6.0` (wire `0.5` → `0.6`, the enforcement cut) and adopted
   the SDK's version/boundary/safety helpers.** Wire 0.6 is a semantic break with an
-  unchanged serialization (`CONTRACT_HASH` still `24e8e6e31e1dec8a`): every message
-  must carry a compatible `ncp_version`, and `sensor_frame`/`command_frame` must
-  stamp `seq >= 1` (the `seq == 0` escape hatch is gone). Bumped `ncp-core`/
+  unchanged serialization (`CONTRACT_HASH` still `24e8e6e31e1dec8a`): every success
+  and data-plane message must carry a compatible `ncp_version` (v0.6 error replies
+  remain unversioned), and `sensor_frame`/`command_frame` must stamp `seq >= 1` (the
+  `seq == 0` escape hatch is gone). Bumped `ncp-core`/
   `ncp-zenoh` (Cargo.toml + Cargo.lock) and the npm dependency (package.json +
   bun.lock), and **renamed the npm scope `@sepehrmn/ncp` → `@sepahead/ncp`** to
   complete the org rename (all `src/**` imports updated).
@@ -98,7 +106,13 @@ Open-source readiness and quality hardening.
     clamps and altitude floor on top.
   - The native Rust command tap (`src-tauri/src/ncp/mod.rs`) now accepts frames
     through `ncp_core::decode_validated`, dropping a version-less / incompatible /
-    unstamped frame with a diagnostic instead of actuating on it.
+    unstamped non-ESTOP frame with a diagnostic instead of actuating on it. A
+    recognizable ESTOP deliberately latches first and is reduced to a minimal
+    payload.
+  - Native connection now defaults to the SDK's secure config path:
+    `NCP_ZENOH_CONFIG` is required or connect fails closed. An explicit
+    `quiet_development` mode remains available for unauthenticated local work;
+    loading either config is not proof that deployment TLS/ACL policy is sound.
 
 - Re-pinned NCP to `v0.5.0` (wire `0.4` -> `0.5`, the stable-wire cut: the command/sim `mode` strings are now proto enums (`Mode`/`SimMode`), `CONTRACT_HASH` recomputed). Bumped `ncp-core`/`ncp-zenoh` (Cargo.toml + Cargo.lock) and `@sepehrmn/ncp` (package.json + bun.lock); the reply-`ncp_version` guard now speaks `0.5`.
 

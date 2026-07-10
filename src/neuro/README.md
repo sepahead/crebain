@@ -1,8 +1,9 @@
 # `src/neuro` — dormant TypeScript NCP glue
 
 This directory re-exports the pinned `@sepahead/ncp` package and adds
-`guardReplyVersion`, CREBAIN's transport wrapper for compatible reply versions
-and NCP scientific-boundary fields.
+`guardReplyVersion`, CREBAIN's strict transport wrapper for compatible reply
+versions, success kind/session attribution, explicit success status, optional
+error-session consistency, and NCP scientific-boundary fields.
 
 It is **not imported by any product component or hook today**. No WebSocket is
 opened, no session is created, and no always-on CREBAIN↔Engram loop ships from
@@ -48,11 +49,12 @@ const spikeCount = obs.records.spk.times.length
 await engram.close('uav3-percept')
 ```
 
-The default guard mode throws when an object success reply lacks a compatible
-`ncp_version` or violates carried scientific-boundary fields. NCP error frames
-remain for the SDK's own unwrap/error path. A `'warn'` mode exists for controlled
-migrations but passes the suspect reply through and must not be used for
-actuation or release evidence.
+The guard always throws when a success reply lacks a compatible `ncp_version`,
+the expected kind/session, an explicit successful boolean `ok` where applicable,
+or valid carried scientific-boundary fields. Wire-0.6 error frames are
+unversioned and may omit `session_id`; their shape is validated, a present
+session must match, and the SDK then surfaces the denial. There is no permissive
+or warning-only mode.
 
 ## Transport choices are integration work
 
@@ -64,6 +66,9 @@ actuation or release evidence.
 - The native Rust NCP module provides a separate feature-gated Zenoh adapter; its
   Tauri commands also remain unregistered. See
   [`src-tauri/src/ncp/README.md`](../../src-tauri/src/ncp/README.md).
+- Vite development builds separately expose `window.__ncpDrone`, a manual
+  in-browser injection harness for wire-shaped command frames. It opens no NCP
+  transport or session and is absent from production builds.
 
 For action, a deliberate integration must connect a validated native
 `CommandPlant` output to the intended actuator publisher. The TS re-export alone

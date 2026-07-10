@@ -581,10 +581,13 @@ flowchart TB
     TSBridge -->|"WebSocket<br/>(TCP port 9090)"| ROS
 ```
 
-The NCP integrations are separate, dormant opt-in surfaces: the Rust module is
-compiled only with `--features ncp`, its Tauri commands are not registered, and
-`src/neuro` is not imported by the product runtime. There is no always-on
-CREBAIN↔Engram loop. See [the current bridge handoff](docs/NCP_BRIDGE_HANDOFF.md).
+The production NCP integrations are separate, dormant opt-in surfaces: the Rust
+module is compiled only with `--features ncp`, its Tauri commands are not
+registered, and `src/neuro` is not imported by the product runtime. Vite
+development builds do expose a manual `window.__ncpDrone` injection harness for
+bounded wire-0.6 command frames; it opens no transport/session and is absent from
+production builds. There is no always-on CREBAIN↔Engram loop. See
+[the current bridge handoff](docs/NCP_BRIDGE_HANDOFF.md).
 
 ---
 

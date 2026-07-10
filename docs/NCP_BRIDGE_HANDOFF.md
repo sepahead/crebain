@@ -14,6 +14,7 @@ standalone. NCP is not on the default runtime path:
 | Rust `src-tauri/src/ncp/mod.rs` | Compiles only with the off-by-default `ncp` feature; provides `NcpBridge`, validated feature-neuron RPCs, and a wired fail-closed `CommandPlant` action loop as library APIs |
 | Rust Tauri commands | Defined, but `NcpHandle` is not managed and the four `ncp_*` commands are not registered |
 | TypeScript `src/neuro` | Thin guarded re-export of `@sepahead/ncp`; imported by no product component/hook |
+| Vite-dev `window.__ncpDrone` | Manual in-browser wire-shaped command injection; no NCP transport/session; absent from production builds |
 | Live CREBAIN↔Engram loop | Not implemented or enabled |
 
 No Engram process or sibling checkout is required to run CREBAIN. Cargo's pinned
@@ -47,12 +48,30 @@ inputs, RPC kind/version/body/session identity, required spike records, command
 units/shapes/speeds, sequence, TTL, and horizon bounds. Connect and control RPCs
 are bounded by 15-second timeouts.
 
+Native connect defaults to `Secure`: `NCP_ZENOH_CONFIG` must name a readable
+Zenoh configuration or startup fails closed. `QuietDevelopment` is an explicit
+unauthenticated development choice. Loading either configuration is not proof
+that the target TLS identities, ACL policy, certificates, or topology are
+correct.
+
 `NcpBridge::subscribe_commands` feeds wire-validated frames into `CommandPlant`
-and runs a 50 Hz output loop. The plant replays only a bounded predictive horizon,
-enforces SDK sequence/TTL semantics, and emits zero velocity when no usable
-command remains. Stop/close sends a final HOLD before remote close; a stuck action
-task is aborted after a one-second stop bound. This closes the former gap where a
-validated helper existed without a continuously enforced plant loop.
+and runs a 50 Hz output loop. A recognizable raw ESTOP latches first; every other
+frame passes the wire gate. The plant stores only its bounded actuator channel and
+horizon, enforces SDK sequence/TTL semantics, and emits zero velocity when no
+usable command remains. Each loop owns subscriber handles that are dropped on
+stop/close/cancellation. Lifecycle operations are serialized per session, so a
+loop cannot install after close without a successful reopen. Stop/close requests
+a final HOLD before remote close; a stuck or panicked callback is reported after
+the one-second stop bound instead of claiming success. Reconnect drains the old
+runtime's action loops before replacing the managed bridge.
+Action reservations and persistent close tombstones are cardinality-bounded;
+tombstone saturation fails closed until reconnect rather than evicting safety
+state.
+
+Lifecycle RPCs use the pinned SDK's canonical wire types plus a local raw reply
+decoder because v0.6 defaults a missing `ok` to `true` after deserialization. The
+decoder therefore requires the boolean field to be present before accepting a
+success.
 
 This remains a library guarantee, not a product deployment claim: no registered
 command or frontend hook calls the loop, and no callback is wired to MAVROS by
@@ -85,7 +104,9 @@ product integration updates the registry, Tauri handler, tests, and UI together.
    actuator publisher with a documented ownership/stop lifecycle.
 5. Prove the external Engram realm, key ACL, version, session behavior, and
    failure recovery in the target network.
-6. Reconcile stale external Engram examples/profiles before treating them as
+6. Supply and audit the secure Zenoh configuration, identities, and certificates;
+   loading `NCP_ZENOH_CONFIG` alone is insufficient evidence.
+7. Reconcile stale external Engram examples/profiles before treating them as
    executable integration documentation.
 
 ## Non-goals and evidence limits

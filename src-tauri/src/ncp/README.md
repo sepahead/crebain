@@ -36,6 +36,7 @@ as deployment evidence.
 ## Available library surface
 
 - `sensor_frame_from_pose`: pose + body velocity to NCP `SensorFrame`.
+  It returns `Result` and rejects a wire-invalid sequence.
 - `velocity_from_command`: strict one-frame conversion to
   `TwistStampedData`; only a valid active `velocity_setpoint` in `m/s` can
   actuate, while HOLD/ESTOP produce zero velocity.
@@ -48,10 +49,27 @@ as deployment evidence.
   single-population perception example.
 
 `subscribe_commands` now owns a 50 Hz local action loop. Wire-valid commands pass
-through `CommandPlant`; invalid/incompatible frames are logged and dropped. Close
-stops local actuation first and emits a final zero-velocity HOLD even when the
-remote close RPC later fails. The output callback must be non-blocking. This is
+through `CommandPlant`; a recognizable raw ESTOP is reduced to a minimal command
+and latched before the receive-time/wire gate. Other invalid/incompatible frames
+are logged and dropped. Every action loop owns a dedicated subscriber container;
+stop, close, setup cancellation, and runtime drop release that container without
+closing the shared Zenoh session. Reconnect drains the previous runtime's action
+loops before replacement. Close requests a final zero-velocity HOLD before
+the remote RPC. A nonblocking, nonpanicking output callback is required; callback
+failure/timeout is surfaced because final HOLD cannot then be guaranteed. This is
 library behavior only until a deliberate integration calls it.
+
+## Connection posture
+
+`NcpBridge::connect` and the dormant `ncp_connect` command default to `Secure`.
+That path requires `NCP_ZENOH_CONFIG` to name a readable Zenoh configuration;
+missing or malformed configuration fails closed. `QuietDevelopment` is an
+explicit unauthenticated/scouting-off development choice and must not be used as
+deployment evidence.
+
+Successfully loading a configuration proves only startup posture. CREBAIN cannot
+prove that its TLS identities, ACL rules, router topology, or certificate policy
+are sufficient; those remain target-deployment evidence.
 
 ## Input and reply boundaries
 
@@ -63,10 +81,17 @@ library behavior only until a deliberate integration calls it.
 - command TTL is finite and within `(0, 60,000]` ms;
 - horizon length is at most 1,000, requires a positive finite interval, and may
   not extend beyond TTL;
+- inbound command JSON is capped at 256 KiB, and accepted commands retain only
+  the required bounded velocity channel/horizon in the action buffer;
 - Zenoh connect and each control RPC time out after 15 seconds;
+- each action subscription setup times out after 15 seconds and close prevents a
+  new loop until an explicit successful reopen;
+- at most 64 action loops/reservations and 256 closed-session tombstones are
+  retained; tombstone saturation rejects all new opens/actions until reconnect;
 - action-loop stop waits at most 1 second before aborting the task;
 - RPC replies must be valid NCP, have the expected `kind`, include required
-  boolean result fields, and return the requested session ID; and
+  explicit boolean result fields (`ok` is never inferred from an SDK default),
+  report success, and return the requested session ID; and
 - feature-neuron observations must provide the expected `spk` port/target,
   `spikes` observable, and finite spike times.
 

@@ -42,7 +42,6 @@ describe('src/neuro public surface', () => {
   it('re-exports the canonical NCP client, transport, and version', () => {
     expect(typeof NeuroSimClient).toBe('function')
     expect(typeof WebSocketNeuroSim).toBe('function')
-    // The protocol version this build speaks; CREBAIN pins NCP at v0.6.0 (wire 0.6).
     expect(NCP_VERSION).toBe('0.6')
   })
 
@@ -76,6 +75,7 @@ describe('WebSocketNeuroSim (transport smoke + round-trip)', () => {
       kind: 'session_closed',
       ncp_version: NCP_VERSION,
       session_id: 'sess-1',
+      ok: true,
     }
     ws.receive(reply)
 
@@ -110,26 +110,37 @@ describe('WebSocketNeuroSim (transport smoke + round-trip)', () => {
 
 describe('reply ncp_version guard', () => {
   it('passes a reply that matches the pinned version through unchanged', () => {
-    const reply = { kind: 'session_closed', ncp_version: NCP_VERSION }
+    const reply = {
+      kind: 'session_closed',
+      ncp_version: NCP_VERSION,
+      session_id: 'session-1',
+      ok: true,
+    }
     expect(() => assertReplyVersion(reply)).not.toThrow()
   })
 
   it('throws on a mismatched reply version', () => {
-    const reply = { kind: 'session_closed', ncp_version: '0.1' }
+    const reply = {
+      kind: 'session_closed',
+      ncp_version: '0.1',
+      session_id: 'session-1',
+      ok: true,
+    }
     expect(() => assertReplyVersion(reply)).toThrow(NcpVersionMismatchError)
   })
 
-  it('rejects the PREVIOUS wire (0.5) via the SDK compatibility gate', () => {
-    // Wire 0.6: a 0.5 reply is a breaking minor difference (pre-1.0 exact
-    // major.minor), so the checkVersion-based guard must refuse it — this is the
-    // case a bespoke `=== NCP_VERSION` compare also caught, but now it is the
-    // canonical SDK rule shared with every peer.
-    const reply = { kind: 'session_closed', ncp_version: '0.5' }
+  it('rejects the previous wire (0.5) via the SDK compatibility gate', () => {
+    const reply = {
+      kind: 'session_closed',
+      ncp_version: '0.5',
+      session_id: 'session-1',
+      ok: true,
+    }
     expect(() => assertReplyVersion(reply)).toThrow(NcpVersionMismatchError)
   })
 
   it('throws on a reply that is missing ncp_version', () => {
-    const reply = { kind: 'session_closed' }
+    const reply = { kind: 'session_closed', session_id: 'session-1', ok: true }
     expect(() => assertReplyVersion(reply)).toThrow(/<absent>/)
   })
 
@@ -142,6 +153,7 @@ describe('reply ncp_version guard', () => {
       ncp_version: NCP_VERSION,
       session_id: 's',
       seq: 1,
+      records: {},
       is_simulation_output: false,
       calibrated_posterior: false,
     }
@@ -151,6 +163,7 @@ describe('reply ncp_version guard', () => {
       ncp_version: NCP_VERSION,
       session_id: 's',
       seq: 1,
+      records: {},
       is_simulation_output: true,
       calibrated_posterior: true,
     }
@@ -161,26 +174,110 @@ describe('reply ncp_version guard', () => {
       ncp_version: NCP_VERSION,
       session_id: 's',
       seq: 1,
+      records: {},
       is_simulation_output: true,
       calibrated_posterior: false,
     }
     expect(() => assertReplyVersion(honest)).not.toThrow()
   })
 
-  it('leaves error frames to the package unwrap (no version check)', () => {
-    const errorFrame = { kind: 'error', error: 'boom' }
+  it('accepts the published unversioned wire-0.6 error frame', () => {
+    const errorFrame = {
+      kind: 'error',
+      error: 'boom',
+      session_id: 'session-1',
+    }
     expect(() => assertReplyVersion(errorFrame)).not.toThrow()
   })
 
-  it('warns instead of throwing in "warn" mode', () => {
-    const reply = { kind: 'session_closed', ncp_version: '9.9' }
-    expect(() => assertReplyVersion(reply, 'warn')).not.toThrow()
+  it('rejects malformed errors, malformed successes, and primitive replies', () => {
+    expect(() => assertReplyVersion({ kind: 'error', error: '' })).toThrow(/non-empty/)
+    expect(() =>
+      assertReplyVersion({
+        kind: 'error',
+        error: 'boom',
+        session_id: 7,
+      })
+    ).toThrow(/session_id/)
+    expect(() =>
+      assertReplyVersion({
+        kind: 'error',
+        error: 'boom',
+        session_id: '',
+      })
+    ).toThrow(/session_id/)
+    expect(() =>
+      assertReplyVersion({
+        kind: 'session_closed',
+        ncp_version: NCP_VERSION,
+        session_id: 'session-1',
+      })
+    ).toThrow(/boolean ok/)
+    expect(() =>
+      assertReplyVersion({
+        kind: 'session_opened',
+        ncp_version: NCP_VERSION,
+        session_id: 'session-1',
+        ok: false,
+        backend: 'nest',
+        resolved: {},
+        error: 'denied',
+        provenance: null,
+      })
+    ).toThrow('denied')
+    expect(() => assertReplyVersion('error')).toThrow()
+  })
+
+  it('requires complete observation identity and a map-shaped records field', () => {
+    expect(() =>
+      assertReplyVersion({
+        kind: 'observation_frame',
+        ncp_version: NCP_VERSION,
+        seq: 0,
+        records: {},
+        is_simulation_output: true,
+        calibrated_posterior: false,
+      })
+    ).toThrow(/session_id/)
+    expect(() =>
+      assertReplyVersion({
+        kind: 'observation_frame',
+        ncp_version: NCP_VERSION,
+        session_id: 'session-1',
+        seq: 0,
+        records: [],
+        is_simulation_output: true,
+        calibrated_posterior: false,
+      })
+    ).toThrow(/records/)
+  })
+
+  it('enforces the wire-0.6 observation sequence gate', () => {
+    const observation = (seq: number) => ({
+      kind: 'observation_frame',
+      ncp_version: NCP_VERSION,
+      session_id: 'session-1',
+      seq,
+      records: {},
+      is_simulation_output: true,
+      calibrated_posterior: false,
+    })
+    expect(() => assertReplyVersion(observation(0))).not.toThrow()
+    expect(() => assertReplyVersion(observation(-1))).toThrow(/seq/)
+    expect(() => assertReplyVersion(observation(1.5))).toThrow(/seq/)
   })
 
   it('guardReplyVersion wraps a Send and rejects a drifted reply', async () => {
-    const drifted = async () => ({ kind: 'session_closed', ncp_version: '0.1' })
+    const drifted = async () => ({
+      kind: 'session_closed',
+      ncp_version: '0.1',
+      session_id: 'session-1',
+      ok: true,
+    })
     const guarded = guardReplyVersion(drifted)
-    await expect(guarded({ kind: 'close_session' })).rejects.toThrow(NcpVersionMismatchError)
+    await expect(
+      guarded({ kind: 'close_session', ncp_version: NCP_VERSION, session_id: 'session-1' })
+    ).rejects.toThrow(NcpVersionMismatchError)
   })
 
   it('guardReplyVersion forwards a matching reply', async () => {
@@ -188,11 +285,68 @@ describe('reply ncp_version guard', () => {
       kind: 'session_closed',
       ncp_version: NCP_VERSION,
       session_id: 'ok',
+      ok: true,
     })
     const guarded = guardReplyVersion(matching)
-    await expect(guarded({ kind: 'close_session' })).resolves.toMatchObject({
-      session_id: 'ok',
-    })
+    await expect(
+      guarded({ kind: 'close_session', ncp_version: NCP_VERSION, session_id: 'ok' })
+    ).resolves.toMatchObject({ session_id: 'ok' })
+  })
+
+  it('rejects success replies and errors attributed to another session', async () => {
+    const wrongSession = guardReplyVersion(async () => ({
+      kind: 'error',
+      error: 'boom',
+      session_id: 'other',
+    }))
+    await expect(
+      wrongSession({
+        kind: 'close_session',
+        ncp_version: NCP_VERSION,
+        session_id: 'session-1',
+      })
+    ).rejects.toThrow(/session mismatch/)
+
+    const wrongKind = guardReplyVersion(async () => ({
+      kind: 'observation_frame',
+      ncp_version: NCP_VERSION,
+      session_id: 'session-1',
+      seq: 0,
+      records: {},
+      is_simulation_output: true,
+      calibrated_posterior: false,
+    }))
+    await expect(
+      wrongKind({
+        kind: 'close_session',
+        ncp_version: NCP_VERSION,
+        session_id: 'session-1',
+      })
+    ).rejects.toThrow(/kind mismatch/)
+
+    const wrongSuccessSession = guardReplyVersion(async () => ({
+      kind: 'session_closed',
+      ncp_version: NCP_VERSION,
+      session_id: 'other',
+      ok: true,
+    }))
+    await expect(
+      wrongSuccessSession({
+        kind: 'close_session',
+        ncp_version: NCP_VERSION,
+        session_id: 'session-1',
+      })
+    ).rejects.toThrow(/session mismatch/)
+  })
+
+  it('passes a sessionless wire-0.6 error to the canonical client denial path', async () => {
+    const client = new NeuroSimClient(
+      guardReplyVersion(async () => ({
+        kind: 'error',
+        error: 'boom',
+      }))
+    )
+    await expect(client.close('session-1')).rejects.toThrow('NCP error: boom')
   })
 
   it('composes with NeuroSimClient over a mocked socket', async () => {
@@ -204,7 +358,7 @@ describe('reply ncp_version guard', () => {
     const pending = client.close('sess-guarded')
     await flushMicrotasks()
     // Peer replies with a stale protocol version → the guard rejects it.
-    ws.receive({ kind: 'session_closed', ncp_version: '0.1', session_id: 'x' })
+    ws.receive({ kind: 'session_closed', ncp_version: '0.1', session_id: 'x', ok: true })
 
     await expect(pending).rejects.toThrow(NcpVersionMismatchError)
   })
