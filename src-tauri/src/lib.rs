@@ -9,6 +9,7 @@
 pub mod common;
 mod coreml;
 mod onnx_detector;
+pub mod pid_observation;
 mod sensor_fusion;
 
 // Inference backends (conditional compilation)
@@ -568,6 +569,13 @@ async fn scene_load_file<R: tauri::Runtime>(
 fn fusion_init(config: Option<FusionConfig>) -> Result<(), String> {
     let cfg = config.unwrap_or_default();
     validate_fusion_config(&cfg)?;
+    let mut cfg = cfg;
+    // CREBAIN_PID_JSONL turns on the galadriel innovation sidecar without a
+    // frontend config round-trip: emission on, records appended as JSONL to
+    // the given path (directly consumable by galadriel-ncp's read_jsonl).
+    if std::env::var_os("CREBAIN_PID_JSONL").is_some() {
+        cfg.emit_innovations = true;
+    }
     let fusion = MultiSensorFusion::new(cfg);
 
     let mut guard = FUSION_ENGINE.lock().map_err(|e| e.to_string())?;
@@ -579,6 +587,55 @@ fn fusion_init(config: Option<FusionConfig>) -> Result<(), String> {
 
 /// Process sensor measurements and return fused tracks
 /// Uses spawn_blocking to avoid blocking the async runtime for heavy fusion operations
+/// JSONL sink for the galadriel innovation sidecar (`CREBAIN_PID_JSONL`).
+/// Best-effort instrumentation: a write failure is logged once per process and
+/// never backpressures or fails the fusion path.
+static PID_JSONL_SINK: LazyLock<Mutex<Option<std::io::BufWriter<std::fs::File>>>> =
+    LazyLock::new(|| {
+        let Some(path) = std::env::var_os("CREBAIN_PID_JSONL") else {
+            return Mutex::new(None);
+        };
+        let writer = match std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+        {
+            Ok(file) => Some(std::io::BufWriter::new(file)),
+            Err(err) => {
+                log::warn!("[pid-jsonl] cannot open {path:?}: {err}");
+                None
+            }
+        };
+        Mutex::new(writer)
+    });
+
+fn append_pid_observations(records: Vec<pid_observation::PidObservation>) {
+    if records.is_empty() {
+        return;
+    }
+    use std::io::Write;
+    let Ok(mut guard) = PID_JSONL_SINK.lock() else {
+        return;
+    };
+    let Some(writer) = guard.as_mut() else {
+        return; // env var unset, or the file failed to open (warned once)
+    };
+    for record in &records {
+        match serde_json::to_string(record) {
+            Ok(line) => {
+                if let Err(err) = writeln!(writer, "{line}") {
+                    log::warn!("[pid-jsonl] write failed: {err}");
+                    return;
+                }
+            }
+            Err(err) => log::warn!("[pid-jsonl] serialize failed: {err}"),
+        }
+    }
+    if let Err(err) = writer.flush() {
+        log::warn!("[pid-jsonl] flush failed: {err}");
+    }
+}
+
 #[tauri::command]
 async fn fusion_process(
     measurements: Vec<SensorMeasurement>,
@@ -589,6 +646,7 @@ async fn fusion_process(
         let mut guard = FUSION_ENGINE.lock().map_err(|e| e.to_string())?;
         let fusion = guard.as_mut().ok_or("Fusion engine not initialized")?;
         let tracks = fusion.process_measurements(measurements, timestamp_ms);
+        append_pid_observations(fusion.drain_pid_observations());
         Ok(tracks)
     })
     .await
