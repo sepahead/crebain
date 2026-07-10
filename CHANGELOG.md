@@ -11,7 +11,34 @@ README and treated as unverified until measured on target hardware.
 
 Open-source readiness and quality hardening.
 
+### Added
+- **The galadriel innovation sidecar.** `update_track` emits one contract-frozen
+  `PidObservation` per associated measurement that actually corrected the filter
+  (`FusionConfig.emit_innovations`, or `CREBAIN_PID_JSONL=<path>` for a best-effort JSONL
+  sink directly consumable by `galadriel-ncp`); golden tests pin byte-equality with
+  galadriel's frozen sidecar contract on both sides. Filter updates (KF/CT/EKF-polar/UKF)
+  now return `Option<InnovationStats>` — the pre-update innovation `y` and covariance `S`,
+  `None` on skipped updates; NIS is computed by Cholesky solve. Track birth and singular-S
+  skips emit nothing; Particle (no `S` exists) and IMM (per-model updates only) are
+  excluded and documented (`docs/SENSOR_FUSION.md`).
+
+### Fixed
+- **Skipped updates no longer count as track hits.** A frame whose every associated
+  measurement update was skipped (non-positive-definite innovation covariance) previously
+  still refreshed `last_update_ms`, reset `missed_detections`, and boosted confidence — a
+  track could stay Confirmed on "hits" that never corrected its state. `update_track` now
+  withholds hit credit and the frame registers as a miss in the lifecycle pass.
+- **`clear()` resets the predict clock** (`last_predict_ms`): a stale value made any
+  post-clear replay whose timestamps were at or before the old wall-clock see `dt = 0` on
+  every frame — no prediction, frozen covariances, mis-sized gates — until timestamps
+  caught up. Regression test replays an earlier-timestamp stream after a clear.
+
 ### Changed
+- **SPD covariance solves use Cholesky instead of explicit inversion** at the six
+  innovation/association sites (KF, EKF, UKF gains; IMM likelihoods; association gate;
+  measurement clustering): cheaper, better conditioned, and failure is a principled
+  positive-definiteness guard rather than a hard-singularity-only one. The
+  polar→Cartesian Jacobian inverse (non-SPD) correctly keeps `try_inverse`.
 
 - **Re-pinned NCP to `v0.6.0` (wire `0.5` → `0.6`, the enforcement cut) and adopted
   the SDK's version/boundary/safety helpers.** Wire 0.6 is a semantic break with an
