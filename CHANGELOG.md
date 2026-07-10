@@ -23,6 +23,16 @@ Open-source readiness and quality hardening.
   excluded and documented (`docs/SENSOR_FUSION.md`).
 
 ### Fixed
+- **Unit-correct "lowest-noise" selection across modalities.** The birth-representative
+  and first-update orderings summed each measurement's raw covariance triple, comparing
+  radar's `[m², rad², rad²]` against Cartesian `[m², m², m²]` — radar's tiny rad² terms
+  made it look near-noiseless and win seeding/linearization slots over genuinely tighter
+  sensors. Both sites now compare the **Cartesian R trace**. And the degenerate-geometry
+  fallback in `measurement_r_cartesian` (singular polar Jacobian at/near the origin) no
+  longer installs the raw polar diagonal as Cartesian — it falls back to isotropic range
+  variance with a warning. Regression tests cover both (a 100 m radar with tight angular
+  variances must lose the seed to a 0.5 m² visual; an origin radar return gets isotropic
+  m² fallback).
 - **Multi-second dropouts are now fully integrated by prediction.** The predict step
   clamped `dt` to 1 s while advancing the clock by the whole gap, so a 5 s dropout moved
   the state only 1 s with no covariance inflation for the remainder — the next

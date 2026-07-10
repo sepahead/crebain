@@ -204,9 +204,19 @@ fn measurement_r_cartesian(meas: &SensorMeasurement, meas_pos: &Vector3<f64>) ->
             );
             match j.try_inverse() {
                 Some(j_inv) => j_inv * r_diag * j_inv.transpose(),
-                // Degenerate geometry (target at the origin): fall back to the raw
-                // diagonal rather than fabricate a covariance.
-                None => r_diag,
+                // Degenerate geometry (target at/near the origin, where the
+                // polar Jacobian is singular): the old fallback installed the
+                // RAW polar diagonal [m², rad², rad²] as Cartesian m² — the
+                // very unit mixing this function exists to fix. Near the
+                // origin the angular uncertainties contribute ~r² ≈ 0 lateral
+                // variance, so the honest conservative fallback is isotropic
+                // range variance.
+                None => {
+                    log::warn!(
+                        "[fusion] degenerate radar geometry: isotropic range-variance fallback"
+                    );
+                    Matrix3::from_diagonal_element(r_diag[(0, 0)])
+                }
             }
         }
         _ => r_diag,
@@ -1996,10 +2006,20 @@ impl MultiSensorFusion {
         // non-representative members are dropped for that frame rather than seeding —
         // an accepted v1 trade-off (no over-spawning) revisited with adaptive gating.
         let cluster_representative = |cl: &[usize]| -> usize {
+            // Unit-correct "lowest noise": the CARTESIAN R trace, not the raw
+            // covariance triple (radar's [m², rad², rad²] summed against
+            // Cartesian [m², m², m²] made radar look near-noiseless and win
+            // birth-representative slots over genuinely tighter sensors).
             *cl.iter()
                 .min_by(|&&a, &&b| {
-                    let ta: f64 = measurements[a].covariance.iter().sum();
-                    let tb: f64 = measurements[b].covariance.iter().sum();
+                    let ta = {
+                        let pos = measurement_position_cartesian(&measurements[a]);
+                        measurement_r_cartesian(&measurements[a], &pos).trace()
+                    };
+                    let tb = {
+                        let pos = measurement_position_cartesian(&measurements[b]);
+                        measurement_r_cartesian(&measurements[b], &pos).trace()
+                    };
                     ta.partial_cmp(&tb)
                         .unwrap_or(std::cmp::Ordering::Equal)
                         .then(a.cmp(&b))
@@ -2127,10 +2147,23 @@ impl MultiSensorFusion {
         }
 
         let mut ordered = meas_indices.to_vec();
+        // Order lowest-noise-first by the CARTESIAN R trace: summing the raw
+        // covariance triple compared radar's [m², rad², rad²] against Cartesian
+        // [m², m², m²], making radar look near-noiseless and win the
+        // first-update (best-linearization) slot over genuinely tighter sensors.
+        let cartesian_trace = |idx: usize| -> f64 {
+            let meas = &measurements[idx];
+            let pos = measurement_position_cartesian(meas);
+            measurement_r_cartesian(meas, &pos).trace()
+        };
+        let traces: std::collections::HashMap<usize, f64> = meas_indices
+            .iter()
+            .map(|&idx| (idx, cartesian_trace(idx)))
+            .collect();
         ordered.sort_by(|&a, &b| {
-            let ta: f64 = measurements[a].covariance.iter().sum();
-            let tb: f64 = measurements[b].covariance.iter().sum();
-            ta.partial_cmp(&tb).unwrap_or(std::cmp::Ordering::Equal)
+            traces[&a]
+                .partial_cmp(&traces[&b])
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         // PF/IMM apply their updates internally (no innovation stats surface),
@@ -3913,6 +3946,83 @@ mod tests {
         }
         std::fs::write(&path, out).expect("write fixture");
         eprintln!("wrote {} records to {path:?}", records.len());
+    }
+
+    #[test]
+    fn degenerate_radar_geometry_falls_back_to_isotropic_cartesian() {
+        // A radar return at the origin makes the polar Jacobian singular; the
+        // fallback must be isotropic RANGE variance in m² — not the raw polar
+        // diagonal, whose rad² entries reintroduce the unit mixing this
+        // function exists to fix.
+        let meas = SensorMeasurement {
+            sensor_id: "radar1".to_string(),
+            modality: SensorModality::Radar,
+            timestamp_ms: 1_000,
+            position: [0.0, 0.0, 0.0], // range 0: degenerate
+            velocity: None,
+            covariance: [4.0, 0.001, 0.001],
+            confidence: 0.9,
+            class_label: "drone".to_string(),
+            metadata: HashMap::new(),
+        };
+        let pos = measurement_position_cartesian(&meas);
+        let r = measurement_r_cartesian(&meas, &pos);
+        for i in 0..3 {
+            assert!(
+                (r[(i, i)] - 4.0).abs() < 1e-12,
+                "diag[{i}] = {} — expected isotropic range variance",
+                r[(i, i)]
+            );
+        }
+    }
+
+    #[test]
+    fn lowest_noise_ordering_is_unit_correct_across_modalities() {
+        // Radar at 100 m with tight ANGULAR variances has a large Cartesian
+        // lateral spread (r²·σ_ang² = 10 m² per angle); a 0.5 m² visual is the
+        // genuinely tighter sensor. Under the old raw-triple sum radar "won"
+        // (4.0+0.001+0.001 ≈ 4.0 < 1.5) and seeded the track; unit-correct
+        // ordering must seed from the visual measurement instead.
+        let radar = SensorMeasurement {
+            sensor_id: "radar1".to_string(),
+            modality: SensorModality::Radar,
+            timestamp_ms: 1_000,
+            position: [100.0, 0.0, 0.0], // polar: range 100, az 0, el 0
+            velocity: None,
+            covariance: [4.0, 0.001, 0.001],
+            confidence: 0.9,
+            class_label: "drone".to_string(),
+            metadata: HashMap::new(),
+        };
+        let visual = SensorMeasurement {
+            sensor_id: "cam1".to_string(),
+            modality: SensorModality::Visual,
+            timestamp_ms: 1_000,
+            position: [100.4, 0.3, 0.2], // same cluster, distinct location
+            velocity: None,
+            covariance: [0.5, 0.5, 0.5],
+            confidence: 0.9,
+            class_label: "drone".to_string(),
+            metadata: HashMap::new(),
+        };
+        // Sanity: Cartesian traces order visual < radar.
+        let rt = measurement_r_cartesian(&radar, &measurement_position_cartesian(&radar)).trace();
+        let vt = measurement_r_cartesian(&visual, &measurement_position_cartesian(&visual)).trace();
+        assert!(vt < rt, "visual ({vt}) must be tighter than radar ({rt})");
+
+        let mut fusion = MultiSensorFusion::new(FusionConfig::default());
+        fusion.process_measurements(vec![radar, visual.clone()], 1_000);
+        let track = fusion.tracks.values().next().expect("one track");
+        // The born track is seeded from the cluster representative: with
+        // unit-correct ordering that is the visual measurement's position.
+        for (axis, expect) in [(0, 100.4), (1, 0.3), (2, 0.2)] {
+            assert!(
+                (track.state[axis] - expect).abs() < 1e-9,
+                "state[{axis}] = {} — track must be seeded from the visual \
+                 measurement, not the unit-mixed radar pick",
+                track.state[axis]
+            );
+        }
     }
 
     #[test]
