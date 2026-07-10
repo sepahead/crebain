@@ -94,6 +94,40 @@ describe('useGazeboDrones', () => {
     })
   })
 
+  it('clears the last drone snapshot as soon as the bridge disconnects', async () => {
+    let connected = true
+    let modelStatesCallback: ((msg: ModelStates) => void) | undefined
+    const unsubscribe = vi.fn()
+    const bridge = {
+      isConnected: () => connected,
+      subscribeToModelStates: vi.fn((callback: (msg: ModelStates) => void) => {
+        modelStatesCallback = callback
+        return unsubscribe
+      }),
+    }
+    const container = document.createElement('div')
+    const root = createRoot(container)
+
+    await act(async () => {
+      root.render(<Harness bridge={bridge} tick={0} config={{ throttleRateMs: 0 }} />)
+    })
+    await act(async () => {
+      modelStatesCallback?.(modelStates(['hostile_drone_target'], [{ x: 5, y: 0, z: 5 }]))
+    })
+    expect(result.getDrone('hostile_drone_target')).toBeDefined()
+
+    connected = false
+    await act(async () => {
+      root.render(<Harness bridge={bridge} tick={1} config={{ throttleRateMs: 0 }} />)
+    })
+
+    expect(unsubscribe).toHaveBeenCalledTimes(1)
+    expect(result.drones.size).toBe(0)
+    expect(result.getDrone('hostile_drone_target')).toBeUndefined()
+
+    await act(async () => root.unmount())
+  })
+
   it('converts model states into classified drones and predictions', async () => {
     let modelStatesCallback: ((msg: ModelStates) => void) | undefined
     const bridge = {
@@ -201,6 +235,35 @@ describe('useGazeboDrones', () => {
     })
 
     expect(result.getDrone('friendly_drone')).toBeDefined()
+    expect(result.getDrone('hostile_drone_target')).toBeUndefined()
+
+    await act(async () => root.unmount())
+  })
+
+  it('evicts stale drones when a connected publisher freezes', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(1_000)
+    let modelStatesCallback: ((msg: ModelStates) => void) | undefined
+    const bridge = {
+      isConnected: () => true,
+      subscribeToModelStates: vi.fn((callback: (msg: ModelStates) => void) => {
+        modelStatesCallback = callback
+        return vi.fn()
+      }),
+    }
+    const container = document.createElement('div')
+    const root = createRoot(container)
+
+    await act(async () => {
+      root.render(<Harness bridge={bridge} tick={0} config={{ throttleRateMs: 0 }} />)
+    })
+    await act(async () => {
+      modelStatesCallback?.(modelStates(['hostile_drone_target'], [{ x: 5, y: 0, z: 5 }]))
+    })
+    expect(result.getDrone('hostile_drone_target')).toBeDefined()
+
+    await act(async () => vi.advanceTimersByTime(5_000))
+
     expect(result.getDrone('hostile_drone_target')).toBeUndefined()
 
     await act(async () => root.unmount())

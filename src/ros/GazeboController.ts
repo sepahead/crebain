@@ -10,6 +10,14 @@ import type { ROSBridge } from './ROSBridge'
 import type { ZenohBridge } from './ZenohBridge'
 import type { Pose, Twist, ModelState, Point, Quaternion } from './types'
 import { gazeboLogger as log } from '../lib/logger'
+import { MAVERICK_SDF } from './models'
+import {
+  validateGazeboFrameId,
+  validateGazeboModelName,
+  validateGazeboPose,
+  validateGazeboSpawn,
+  validateGazeboTwist,
+} from './gazeboValidation'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -255,15 +263,15 @@ export class GazeboController {
   ): Promise<boolean> {
     if (!this.bridge) return false
 
-    const request: SpawnModelRequest = {
-      model_name: name,
-      model_xml: urdfXml,
-      robot_namespace: namespace,
-      initial_pose: pose,
-      reference_frame: referenceFrame,
-    }
-
     try {
+      validateGazeboSpawn(name, urdfXml, pose, namespace, referenceFrame)
+      const request: SpawnModelRequest = {
+        model_name: name,
+        model_xml: urdfXml,
+        robot_namespace: namespace,
+        initial_pose: pose,
+        reference_frame: referenceFrame,
+      }
       const response = await this.bridge.callService<SpawnModelRequest, SpawnModelResponse>(
         GAZEBO_SERVICES.SPAWN_URDF,
         request
@@ -271,7 +279,7 @@ export class GazeboController {
       if (!response.success) {
         log.warn('Spawn URDF failed', { message: response.status_message })
       }
-      return response.success
+      return response.success === true
     } catch (error) {
       log.error('Failed to spawn URDF', { error })
       return false
@@ -290,15 +298,40 @@ export class GazeboController {
   ): Promise<boolean> {
     if (!this.bridge) return false
 
-    const request: SpawnModelRequest = {
-      model_name: name,
-      model_xml: sdfXml,
-      robot_namespace: namespace,
-      initial_pose: pose,
-      reference_frame: referenceFrame,
-    }
+    return this.spawnSdfWithPolicy(name, sdfXml, pose, namespace, referenceFrame, false)
+  }
 
+  /** Spawn the audited, built-in Maverick model without accepting caller-supplied privileged XML. */
+  async spawnBundledMaverick(name: string, pose: Pose): Promise<boolean> {
+    const namespacedSdf = MAVERICK_SDF.split('cmd/motor_speed/').join(`${name}/cmd/motor_speed/`)
+    return this.spawnSdfWithPolicy(name, namespacedSdf, pose, '', 'world', true)
+  }
+
+  private async spawnSdfWithPolicy(
+    name: string,
+    sdfXml: string,
+    pose: Pose,
+    namespace: string,
+    referenceFrame: string,
+    allowBundledPrivilegedXml: boolean
+  ): Promise<boolean> {
+    if (!this.bridge) return false
     try {
+      validateGazeboSpawn(
+        name,
+        sdfXml,
+        pose,
+        namespace,
+        referenceFrame,
+        allowBundledPrivilegedXml
+      )
+      const request: SpawnModelRequest = {
+        model_name: name,
+        model_xml: sdfXml,
+        robot_namespace: namespace,
+        initial_pose: pose,
+        reference_frame: referenceFrame,
+      }
       const response = await this.bridge.callService<SpawnModelRequest, SpawnModelResponse>(
         GAZEBO_SERVICES.SPAWN_SDF,
         request
@@ -306,7 +339,7 @@ export class GazeboController {
       if (!response.success) {
         log.warn('Spawn SDF failed', { message: response.status_message })
       }
-      return response.success
+      return response.success === true
     } catch (error) {
       log.error('Failed to spawn SDF', { error })
       return false
@@ -320,6 +353,7 @@ export class GazeboController {
     if (!this.bridge) return false
 
     try {
+      validateGazeboModelName(name)
       const response = await this.bridge.callService<DeleteModelRequest, DeleteModelResponse>(
         GAZEBO_SERVICES.DELETE_MODEL,
         { model_name: name }
@@ -327,7 +361,7 @@ export class GazeboController {
       if (!response.success) {
         log.warn('Delete model failed', { message: response.status_message })
       }
-      return response.success
+      return response.success === true
     } catch (error) {
       log.error('Failed to delete model', { error })
       return false
@@ -344,6 +378,8 @@ export class GazeboController {
     if (!this.bridge) return null
 
     try {
+      validateGazeboModelName(modelName)
+      validateGazeboFrameId(relativeTo, 'Gazebo relative entity')
       const response = await this.bridge.callService<GetModelStateRequest, GetModelStateResponse>(
         GAZEBO_SERVICES.GET_MODEL_STATE,
         { model_name: modelName, relative_entity_name: relativeTo }
@@ -383,6 +419,10 @@ export class GazeboController {
     }
 
     try {
+      validateGazeboModelName(modelName)
+      validateGazeboPose(pose)
+      validateGazeboTwist(modelState.twist)
+      validateGazeboFrameId(referenceFrame)
       const response = await this.bridge.callService<SetModelStateRequest, SetModelStateResponse>(
         GAZEBO_SERVICES.SET_MODEL_STATE,
         { model_state: modelState }
@@ -390,7 +430,7 @@ export class GazeboController {
       if (!response.success) {
         log.warn('Set model state failed', { status: response.status_message })
       }
-      return response.success
+      return response.success === true
     } catch (error) {
       log.error('Failed to set model state', { error })
       return false

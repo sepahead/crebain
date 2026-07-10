@@ -45,7 +45,7 @@ export interface DraggablePanelReturn {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Base font size calculation for scaled panels */
-export const PANEL_FONT_SIZE = 'calc(8px * var(--ui-scale, 1))'
+export const PANEL_FONT_SIZE = 'max(12px, calc(12px * var(--ui-scale, 1)))'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HOOK

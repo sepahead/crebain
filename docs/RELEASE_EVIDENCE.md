@@ -1,49 +1,65 @@
 # CREBAIN Release Evidence Log
 
-This log records release-readiness evidence for stabilization batches. It does not replace the acceptance matrix, model contracts, manual smoke checklist, or security policy.
+This log records release-readiness evidence for stabilization batches. It does
+not replace the acceptance matrix, model contract, security policy, or manual
+smoke record.
 
 ## Current Candidate
 
+The current hardening batch is **pending**. Populate immutable identifiers and
+results only after the final commit is created and every required gate runs on
+that exact commit.
+
 | Field | Evidence |
 |-------|----------|
-| Validated code baseline | `0afecfe fix: complete mlx rosbridge fusion hardening` plus current documentation consistency edits |
-| Branch | `main` |
-| Remote CI run | GitHub Actions run `25701811000` for `sepahead/crebain` passed before the final evidence-pointer doc update |
-| Local validation | `bun run validate:all` passed locally on this candidate |
-| Frontend local result | 200 tests passed, 8 benchmark tests skipped by default |
-| Rust local result | 138 tests passed, 0 failed; clippy passed with `-D warnings` |
-| Boundary focus | MLX safetensors checksum validation + forward profiling, rosbridge WebSocket fallback/service calls, Gazebo spawn IPC validation, scene schema migration, radar/lidar polar fusion, benchmark budgets, transport/model/fusion guardrails |
+| Candidate commit | Pending final commit |
+| Branch/tag | `main`; tag pending |
+| GitHub Actions run | Pending |
+| Hosted supply-chain audit | Pending if dependency inputs changed |
+| Hosted CodeQL | Pending/current scheduled evidence must be linked before a release claim |
+| Local `bun run validate:all` | Pending final candidate run |
+| Frontend test/coverage/bundle result | Pending; copy exact output/run links, do not estimate counts |
+| Rust default/NCP/feature result | Pending; copy exact output/run links, do not estimate counts |
+| Manual smoke | Pending target-platform execution |
+| Boundary focus | Scene/asset bounds and restore lifecycle; unified camera schemas; ROS service correlation; Gazebo XML policy; transport disconnects; fusion/NCP fail-safe behavior |
 
-## Automated Evidence Required
+## Automated evidence required
 
-| Area | Required Evidence | Current Status |
+| Area | Required evidence | Current status |
 |------|-------------------|----------------|
-| Hosted CI | Frontend and Rust matrix jobs pass on GitHub Actions | Not run for current local documentation candidate; previous hosted baseline passed in run `25701811000` |
-| Frontend validation | `bun run validate` passes | Passed locally; CI summary records test counts |
-| Full local validation | `bun run validate:all` passes | Passed locally |
-| Diff hygiene | `git diff --check` and `git diff --cached --check` pass | Passed before commit |
+| Version coherence | Metadata/tag guard on candidate | Pending |
+| Frontend validation | Typecheck, lint, format, and tests | Pending final candidate |
+| Bundle and coverage | Hosted bundle budget and coverage thresholds | Pending final candidate |
+| Rust default | fmt, check, tests, and clippy on Linux/macOS | Pending final candidate |
+| NCP feature | NCP clippy and tests on Linux/macOS | Pending final candidate |
+| Rust feature gates | `cuda,tensorrt` and `--no-default-features` checks | Pending final candidate |
+| Supply chain | cargo-deny and `bun audit` | Pending final candidate/dependency run |
+| Static analysis | CodeQL JavaScript/TypeScript and Rust | Pending linked evidence |
+| Diff hygiene | `git diff --check` before commit and cached diff check | Pending final candidate |
 
-## Manual Evidence Required
+## Manual evidence required
 
-| Area | Required Evidence | Current Status |
+| Area | Required evidence | Current status |
 |------|-------------------|----------------|
-| Native app launch | Tauri app launches and diagnostics render | Requires manual smoke execution |
-| Scene save/load | Valid scene saves/loads and malformed scenes are rejected | Automated boundary tests exist; manual smoke still required |
-| ROS/Zenoh topology | Target deployment topics, events, publish paths, and disconnect behavior are exercised | Requires target ROS/Gazebo/Zenoh environment |
-| Model contract | At least one externally supplied model has provenance, tensor contract, fixture detections, and benchmark context | Requires selected model artifact and fixture frames |
-| Performance claims | Latency/FPS/accuracy claims cite target hardware and command context | Not claimed without measurements |
+| Native launch | Packaged/dev Tauri launch and diagnostics on each target | Pending |
+| Scene save/restore | Valid save plus migrated/partial/oversized asset paths | Pending |
+| ROS 1 / Gazebo Classic | WebSocket custom messages and mutation services in recorded topology | Pending |
+| Native Zenoh | Typed message surface plus explicit unsupported-path behavior | Pending |
+| Model contract | Approved artifact digest, tensors, class mapping, fixtures, and rights | Pending external artifact |
+| Performance | Candidate-specific hardware/model/command evidence for every numeric claim | No numeric claim approved yet |
 
-## Blocked External Evidence
+## External evidence boundaries
 
-The following roadmap items cannot be honestly completed from repository files alone:
+- Hardware-in-the-loop and real autopilot behavior need the target vehicle stack.
+- Direct ROS 2 `rmw_zenoh_cpp` interoperability needs a deployed re-keying bridge.
+- Zenoh TLS/ACL evidence needs the deployment certificates and topology.
+- NCP's default-dormant bridge needs explicit runtime wiring plus a compatible
+  Engram/realm/ACL deployment before any live-loop claim.
+- PID JSONL proves only local append/parser/basic NIS behavior; it is not evidence
+  of Galadriel correlation, PID control, ACL, versioned streaming, or live NCP.
+- Model and accuracy evidence needs an approved immutable model plus fixture data.
 
-- Hardware-in-the-loop validation requires target vehicles/simulation hardware.
-- Real PX4/ArduPilot integration requires a configured autopilot stack.
-- Zenoh-TLS/encrypted deployment evidence requires certificate and topology configuration.
-- Full model-contract validation requires an approved model file, rights/provenance, and fixture frames.
-- Manual smoke results require an operator to launch and inspect the app in the target shell.
-
-## Related Documents
+## Related documents
 
 - `docs/RELEASE_ACCEPTANCE.md`
 - `docs/MODEL_CONTRACTS.md`

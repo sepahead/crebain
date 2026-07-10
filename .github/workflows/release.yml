@@ -31,6 +31,14 @@ jobs:
           toolchain: 1.91.1
           targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin' || '' }}
 
+      - name: Locate macOS clang runtime
+        if: runner.os == 'macOS'
+        run: |
+          CLANG_RT_DIR="$(xcrun clang --print-resource-dir)/lib/darwin"
+          test -e "$CLANG_RT_DIR/libclang_rt.osx.a"
+          echo "RUSTFLAGS=-Lnative=$CLANG_RT_DIR" >> "$GITHUB_ENV"
+          echo "LIBRARY_PATH=$CLANG_RT_DIR${LIBRARY_PATH:+:$LIBRARY_PATH}" >> "$GITHUB_ENV"
+
       - name: Cache cargo
         uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:

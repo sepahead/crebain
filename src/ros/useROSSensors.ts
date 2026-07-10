@@ -6,6 +6,7 @@
  */
 
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
+import { isTauri } from '@tauri-apps/api/core'
 import { ROSBridge, type ConnectionState } from './ROSBridge'
 import type {
   ThermalDetection,
@@ -57,13 +58,33 @@ export interface ROSSensorConfig {
   fusionRateHz: number
 }
 
+/**
+ * A ROS connection whose lifecycle is owned outside this hook.
+ *
+ * Passing this object opts out of the hook's legacy, internally owned
+ * WebSocket. The sensor hook may add and remove only its own subscriptions; it
+ * never connects or disconnects the supplied bridge.
+ */
+export interface ExternalROSSensorConnection {
+  bridge: Pick<ROSBridge, 'subscribe'> | null
+  connectionState: ConnectionState
+  connectionError?: string | null
+  /** Explain why the external transport cannot carry custom sensor topics. */
+  unsupportedReason?: string | null
+}
+
 export type ROSSensorConfigInput = Partial<Omit<ROSSensorConfig, 'topics'>> & {
   topics?: Partial<ROSSensorConfig['topics']>
+  externalConnection?: ExternalROSSensorConnection
 }
 
 export interface ROSSensorState {
   connectionState: ConnectionState
   connectionError: string | null
+  /** Whether the native Tauri sensor-fusion backend can be used. */
+  fusionAvailable: boolean
+  /** Native fusion availability or initialization error, if any. */
+  fusionError: string | null
   fusionStats: FusionStats | null
   tracks: FusedTrack[]
   sensorStatus: {
@@ -108,6 +129,21 @@ export const DEFAULT_ROS_SENSOR_CONFIG: ROSSensorConfig = {
     visual: '/crebain/visual/detections',
   },
   fusionRateHz: 10,
+}
+
+export const ROS_SENSOR_WEBSOCKET_REQUIRED =
+  'Custom ROS sensor fusion topics require the WebSocket transport. Switch the ROS transport to WebSocket to enable them.'
+
+export const NATIVE_FUSION_BACKEND_REQUIRED =
+  'Native sensor fusion is unavailable in browser mode. Open CREBAIN in the desktop app to enable fused tracks.'
+
+const INACTIVE_SENSOR_STATUS: ROSSensorState['sensorStatus'] = {
+  thermal: false,
+  acoustic: false,
+  radar: false,
+  lidar: false,
+  visual: false,
+  radiofrequency: false,
 }
 
 // Maximum measurements to process per fusion cycle (backpressure guard)
@@ -163,7 +199,10 @@ function assertRecord(value: unknown, name: string): asserts value is Record<str
   }
 }
 
-function assertPoint(point: unknown, name: string): asserts point is { x: number; y: number; z: number } {
+function assertPoint(
+  point: unknown,
+  name: string
+): asserts point is { x: number; y: number; z: number } {
   assertRecord(point, name)
   const record = point
   assertFiniteNumber(record.x, `${name}.x`)
@@ -171,9 +210,12 @@ function assertPoint(point: unknown, name: string): asserts point is { x: number
   assertFiniteNumber(record.z, `${name}.z`)
 }
 
-function assertTimestamp(header: unknown, name: string): asserts header is { stamp: { secs: number; nsecs: number } } {
+function assertTimestamp(
+  header: unknown,
+  name: string
+): asserts header is { stamp: { secs: number; nsecs: number } } {
   assertRecord(header, name)
-  const stamp = (header).stamp
+  const stamp = header.stamp
   assertRecord(stamp, `${name}.stamp`)
   const record = stamp
   const secs = record.secs
@@ -181,7 +223,12 @@ function assertTimestamp(header: unknown, name: string): asserts header is { sta
   if (typeof secs !== 'number' || !Number.isSafeInteger(secs) || secs < 0) {
     throw new Error(`${name}.stamp.secs must be a safe non-negative integer`)
   }
-  if (typeof nsecs !== 'number' || !Number.isSafeInteger(nsecs) || nsecs < 0 || nsecs >= 1_000_000_000) {
+  if (
+    typeof nsecs !== 'number' ||
+    !Number.isSafeInteger(nsecs) ||
+    nsecs < 0 ||
+    nsecs >= 1_000_000_000
+  ) {
     throw new Error(`${name}.stamp.nsecs must be a safe integer within [0, 1000000000)`)
   }
 }
@@ -194,7 +241,10 @@ function timestampMs(header: { stamp: { secs: number; nsecs: number } }): number
   return Math.round(header.stamp.secs * 1000 + header.stamp.nsecs / 1e6)
 }
 
-function assertVector3Tuple(value: unknown, name: string): asserts value is [number, number, number] {
+function assertVector3Tuple(
+  value: unknown,
+  name: string
+): asserts value is [number, number, number] {
   if (!Array.isArray(value) || value.length !== 3) {
     throw new Error(`${name} must contain exactly 3 values`)
   }
@@ -212,7 +262,15 @@ function pushValidatedMeasurements<T>(
   }
 
   const measurements: SensorMeasurement[] = []
-  detections.forEach((det, index) => {
+  const startIndex = Math.max(0, detections.length - MAX_MEASUREMENTS_PER_CYCLE)
+  if (startIndex > 0) {
+    log.warn('Dropping oldest ROS sensor detections before validation', {
+      modality,
+      dropped: startIndex,
+    })
+  }
+  detections.slice(startIndex).forEach((det, relativeIndex) => {
+    const index = startIndex + relativeIndex
     try {
       measurements.push(convert(det as T, `${modality}_${index}`))
     } catch (error) {
@@ -409,73 +467,95 @@ export function lidarToMeasurement(det: LidarDetection, sensorId: string): Senso
 // HOOK
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export function useROSSensors(
-  config: ROSSensorConfigInput = {}
-): UseROSSensorsReturn {
+export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsReturn {
   const rosUrl = config.rosUrl ?? DEFAULT_ROS_SENSOR_CONFIG.rosUrl
   const autoConnect = config.autoConnect ?? DEFAULT_ROS_SENSOR_CONFIG.autoConnect
   const algorithm = config.algorithm ?? DEFAULT_ROS_SENSOR_CONFIG.algorithm
   const processNoise = config.processNoise ?? DEFAULT_ROS_SENSOR_CONFIG.processNoise
   const measurementNoise = config.measurementNoise ?? DEFAULT_ROS_SENSOR_CONFIG.measurementNoise
   const fusionRateHz = config.fusionRateHz ?? DEFAULT_ROS_SENSOR_CONFIG.fusionRateHz
-  const thermalTopic = config.topics?.thermal
-  const acousticTopic = config.topics?.acoustic
-  const radarTopic = config.topics?.radar
-  const lidarTopic = config.topics?.lidar
-  const visualTopic = config.topics?.visual
+  const thermalTopic = config.topics?.thermal ?? DEFAULT_ROS_SENSOR_CONFIG.topics.thermal
+  const acousticTopic = config.topics?.acoustic ?? DEFAULT_ROS_SENSOR_CONFIG.topics.acoustic
+  const radarTopic = config.topics?.radar ?? DEFAULT_ROS_SENSOR_CONFIG.topics.radar
+  const lidarTopic = config.topics?.lidar ?? DEFAULT_ROS_SENSOR_CONFIG.topics.lidar
+  const visualTopic = config.topics?.visual ?? DEFAULT_ROS_SENSOR_CONFIG.topics.visual
+  const usesExternalConnection = config.externalConnection !== undefined
+  const externalBridge = config.externalConnection?.bridge ?? null
+  const externalConnectionState = config.externalConnection?.connectionState ?? 'disconnected'
+  const externalConnectionError = config.externalConnection?.connectionError ?? null
+  const externalUnsupportedReason = config.externalConnection?.unsupportedReason ?? null
+  const [fusionBackendAvailable] = useState(() => {
+    try {
+      return isTauri()
+    } catch (error) {
+      log.warn('Failed to detect the Tauri runtime; disabling native sensor fusion', { error })
+      return false
+    }
+  })
 
-  const fullConfig = useMemo(() => mergeROSSensorConfig({
-    rosUrl,
-    autoConnect,
-    algorithm,
-    processNoise,
-    measurementNoise,
-    fusionRateHz,
-    topics: {
-      thermal: thermalTopic,
-      acoustic: acousticTopic,
-      radar: radarTopic,
-      lidar: lidarTopic,
-      visual: visualTopic,
-    },
-  }), [
-    rosUrl,
-    autoConnect,
-    algorithm,
-    processNoise,
-    measurementNoise,
-    fusionRateHz,
-    thermalTopic,
-    acousticTopic,
-    radarTopic,
-    lidarTopic,
-    visualTopic,
-  ])
+  const fullConfig = useMemo(
+    () =>
+      mergeROSSensorConfig({
+        rosUrl,
+        autoConnect,
+        algorithm,
+        processNoise,
+        measurementNoise,
+        fusionRateHz,
+        topics: {
+          thermal: thermalTopic,
+          acoustic: acousticTopic,
+          radar: radarTopic,
+          lidar: lidarTopic,
+          visual: visualTopic,
+        },
+      }),
+    [
+      rosUrl,
+      autoConnect,
+      algorithm,
+      processNoise,
+      measurementNoise,
+      fusionRateHz,
+      thermalTopic,
+      acousticTopic,
+      radarTopic,
+      lidarTopic,
+      visualTopic,
+    ]
+  )
 
   const [state, setState] = useState<ROSSensorState>({
     connectionState: 'disconnected',
     connectionError: null,
+    fusionAvailable: fusionBackendAvailable,
+    fusionError: fusionBackendAvailable ? null : NATIVE_FUSION_BACKEND_REQUIRED,
     fusionStats: null,
     tracks: [],
-    sensorStatus: {
-      thermal: false,
-      acoustic: false,
-      radar: false,
-      lidar: false,
-      visual: false,
-      radiofrequency: false,
-    },
+    sensorStatus: { ...INACTIVE_SENSOR_STATUS },
     lastUpdateMs: 0,
   })
 
-  const rosBridgeRef = useRef<ROSBridge | null>(null)
+  const ownedBridgeRef = useRef<ROSBridge | null>(null)
+  const subscriptionCleanupsRef = useRef<Array<() => void>>([])
   const measurementBufferRef = useRef<SensorMeasurement[]>([])
   const fusionIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const fusionReadyRef = useRef(false)
+  const fusionCycleRunningRef = useRef(false)
+  const fusionCycleRequestedRef = useRef(false)
+  const fusionCycleGenerationRef = useRef(0)
+  const fusionCycleCompletionRef = useRef<Promise<void>>(Promise.resolve())
+  const fusionMaintenanceRef = useRef<Promise<void>>(Promise.resolve())
+  const fusionMaintenanceCountRef = useRef(0)
+  const fusionInitGenerationRef = useRef(0)
+  const hasActiveTracksRef = useRef(false)
+  const previousExternalBridgeRef = useRef<ExternalROSSensorConnection['bridge']>(null)
+  const externalWasConnectedRef = useRef(false)
   const sensorTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
 
   // Mark sensor as active (with timeout)
   const markSensorActive = useCallback((modality: keyof ROSSensorState['sensorStatus']) => {
-    setState(prev => ({
+    setState((prev) => ({
       ...prev,
       sensorStatus: { ...prev.sensorStatus, [modality]: true },
     }))
@@ -486,7 +566,7 @@ export function useROSSensors(
 
     // Set timeout to mark as inactive after 2 seconds of no data
     const timeout = setTimeout(() => {
-      setState(prev => ({
+      setState((prev) => ({
         ...prev,
         sensorStatus: { ...prev.sensorStatus, [modality]: false },
       }))
@@ -494,46 +574,309 @@ export function useROSSensors(
     sensorTimeoutsRef.current.set(modality, timeout)
   }, [])
 
-  // Process buffered measurements through fusion
-  const runFusionCycle = useCallback(async () => {
-    let measurements = measurementBufferRef.current
-    if (measurements.length === 0) return
-
-    // Backpressure guard: if buffer is overflowing, drop oldest measurements
-    // This prevents memory spikes if a ROS topic floods with data
-    if (measurements.length > MAX_MEASUREMENTS_PER_CYCLE) {
-      log.warn(`Dropping ${measurements.length - MAX_MEASUREMENTS_PER_CYCLE} excess measurements (buffer overflow)`)
-      measurements = measurements.slice(-MAX_MEASUREMENTS_PER_CYCLE)
-    }
-
-    measurementBufferRef.current = []
-
-    try {
-      const tracks = await processMeasurements(measurements)
-      const stats = await getFusionStats()
-
-      setState(prev => ({
-        ...prev,
-        tracks,
-        fusionStats: stats,
-        lastUpdateMs: Date.now(),
-      }))
-    } catch (error) {
-      log.error('Fusion cycle error', { error })
+  const removeSensorSubscriptions = useCallback(() => {
+    const cleanups = subscriptionCleanupsRef.current.splice(0)
+    for (const unsubscribe of cleanups) {
+      try {
+        unsubscribe()
+      } catch (error) {
+        log.warn('Failed to remove ROS sensor subscription', { error })
+      }
     }
   }, [])
 
+  const resetSensorActivity = useCallback(() => {
+    // Results from a cycle started before this reset no longer describe the
+    // active sensor session and must not repopulate React state.
+    fusionCycleGenerationRef.current += 1
+    for (const timeout of sensorTimeoutsRef.current.values()) {
+      clearTimeout(timeout)
+    }
+    sensorTimeoutsRef.current.clear()
+    measurementBufferRef.current = []
+    fusionCycleRequestedRef.current = false
+    hasActiveTracksRef.current = false
+    setState((prev) => ({
+      ...prev,
+      sensorStatus: { ...INACTIVE_SENSOR_STATUS },
+      tracks: [],
+      fusionStats: null,
+      lastUpdateMs: 0,
+    }))
+  }, [])
+
+  /**
+   * Serialize fusion maintenance behind the active processing cycle. Besides
+   * keeping React state honest via the generation check, this ordering ensures
+   * an old native process command cannot finish after a clear/init command and
+   * repopulate the backend with measurements from the previous session.
+   */
+  const queueFusionMaintenance = useCallback(
+    <T,>(operation: () => Promise<T>): Promise<T> => {
+      if (!fusionBackendAvailable) {
+        return Promise.reject(new Error(NATIVE_FUSION_BACKEND_REQUIRED))
+      }
+
+      const previousMaintenance = fusionMaintenanceRef.current
+      const activeCycle = fusionCycleCompletionRef.current
+      fusionMaintenanceCountRef.current += 1
+
+      const task = previousMaintenance
+        .then(() => activeCycle)
+        .then(operation)
+        .finally(() => {
+          fusionMaintenanceCountRef.current -= 1
+        })
+
+      // Keep the queue usable after a failed maintenance command while still
+      // returning the original rejection to the caller.
+      fusionMaintenanceRef.current = task.then(
+        () => undefined,
+        () => undefined
+      )
+      return task
+    },
+    [fusionBackendAvailable]
+  )
+
+  const appendMeasurements = useCallback((measurements: SensorMeasurement[]) => {
+    if (!fusionBackendAvailable || measurements.length === 0) return
+
+    const current = measurementBufferRef.current
+    const total = current.length + measurements.length
+    if (total <= MAX_MEASUREMENTS_PER_CYCLE) {
+      current.push(...measurements)
+      return
+    }
+
+    const dropped = total - MAX_MEASUREMENTS_PER_CYCLE
+    log.warn('Dropping oldest buffered ROS measurements', { dropped })
+    if (measurements.length >= MAX_MEASUREMENTS_PER_CYCLE) {
+      measurementBufferRef.current = measurements.slice(-MAX_MEASUREMENTS_PER_CYCLE)
+      return
+    }
+
+    measurementBufferRef.current = current.slice(dropped).concat(measurements)
+  }, [fusionBackendAvailable])
+
+  const installSensorSubscriptions = useCallback(
+    (bridge: NonNullable<ExternalROSSensorConnection['bridge']>) => {
+      removeSensorSubscriptions()
+      const cleanups: Array<() => void> = []
+
+      try {
+        if (fullConfig.topics.thermal) {
+          cleanups.push(
+            bridge.subscribe<ThermalDetectionArray>(
+              fullConfig.topics.thermal,
+              'crebain_msgs/ThermalDetectionArray',
+              (msg) => {
+                markSensorActive('thermal')
+                const measurements = pushValidatedMeasurements(
+                  msg?.detections,
+                  'thermal',
+                  thermalToMeasurement
+                )
+                appendMeasurements(measurements)
+              }
+            )
+          )
+        }
+
+        if (fullConfig.topics.acoustic) {
+          cleanups.push(
+            bridge.subscribe<AcousticDetectionArray>(
+              fullConfig.topics.acoustic,
+              'crebain_msgs/AcousticDetectionArray',
+              (msg) => {
+                markSensorActive('acoustic')
+                const measurements = pushValidatedMeasurements(
+                  msg?.detections,
+                  'acoustic',
+                  acousticToMeasurement
+                )
+                appendMeasurements(measurements)
+              }
+            )
+          )
+        }
+
+        if (fullConfig.topics.radar) {
+          cleanups.push(
+            bridge.subscribe<RadarDetectionArray>(
+              fullConfig.topics.radar,
+              'crebain_msgs/RadarDetectionArray',
+              (msg) => {
+                markSensorActive('radar')
+                const measurements = pushValidatedMeasurements(
+                  msg?.detections,
+                  'radar',
+                  radarToMeasurement
+                )
+                appendMeasurements(measurements)
+              }
+            )
+          )
+        }
+
+        if (fullConfig.topics.lidar) {
+          cleanups.push(
+            bridge.subscribe<LidarDetectionArray>(
+              fullConfig.topics.lidar,
+              'crebain_msgs/LidarDetectionArray',
+              (msg) => {
+                markSensorActive('lidar')
+                const measurements = pushValidatedMeasurements(
+                  msg?.detections,
+                  'lidar',
+                  lidarToMeasurement
+                )
+                appendMeasurements(measurements)
+              }
+            )
+          )
+        }
+      } catch (error) {
+        for (const unsubscribe of cleanups) {
+          unsubscribe()
+        }
+        throw error
+      }
+
+      subscriptionCleanupsRef.current = cleanups
+    },
+    [appendMeasurements, fullConfig.topics, markSensorActive, removeSensorSubscriptions]
+  )
+
+  // Process buffered measurements through fusion. The native backend is
+  // serialized here as well as internally: an interval tick during a slow
+  // cycle requests one follow-up pass instead of launching overlapping IPC.
+  const runFusionCycle = useCallback(async () => {
+    if (!fusionBackendAvailable || !fusionReadyRef.current) return
+    if (fusionMaintenanceCountRef.current > 0) {
+      fusionCycleRequestedRef.current = true
+      return
+    }
+    if (fusionCycleRunningRef.current) {
+      fusionCycleRequestedRef.current = true
+      return
+    }
+
+    fusionCycleRunningRef.current = true
+    const generation = fusionCycleGenerationRef.current
+
+    const cycle = (async () => {
+      try {
+        do {
+          fusionCycleRequestedRef.current = false
+          if (!fusionReadyRef.current || generation !== fusionCycleGenerationRef.current) break
+
+          const measurements = measurementBufferRef.current
+          if (measurements.length === 0 && !hasActiveTracksRef.current) break
+          measurementBufferRef.current = []
+
+          try {
+            const tracks = await processMeasurements(measurements)
+            if (!fusionReadyRef.current || generation !== fusionCycleGenerationRef.current) break
+
+            hasActiveTracksRef.current = tracks.length > 0
+            let stats: FusionStats | null | undefined
+            try {
+              stats = await getFusionStats()
+            } catch (error) {
+              log.error('Failed to read fusion statistics', { error })
+            }
+
+            if (generation === fusionCycleGenerationRef.current && fusionReadyRef.current) {
+              setState((prev) => ({
+                ...prev,
+                tracks,
+                fusionStats: stats === undefined ? prev.fusionStats : stats,
+                lastUpdateMs: Date.now(),
+              }))
+            }
+          } catch (error) {
+            log.error('Fusion cycle error', { error })
+          }
+        } while (fusionCycleRequestedRef.current)
+      } finally {
+        fusionCycleRunningRef.current = false
+      }
+    })()
+
+    fusionCycleCompletionRef.current = cycle
+    try {
+      await cycle
+    } finally {
+      if (fusionCycleCompletionRef.current === cycle) {
+        fusionCycleCompletionRef.current = Promise.resolve()
+      }
+    }
+  }, [fusionBackendAvailable])
+
   // Initialize fusion engine
   useEffect(() => {
-    initFusion({
-      algorithm: fullConfig.algorithm,
-      process_noise: fullConfig.processNoise,
-      measurement_noise: fullConfig.measurementNoise,
-    }).catch(err => log.error('Fusion init failed', { error: err }))
-  }, [fullConfig.algorithm, fullConfig.processNoise, fullConfig.measurementNoise])
+    const generation = ++fusionInitGenerationRef.current
+    fusionCycleGenerationRef.current += 1
+    let cancelled = false
+    fusionReadyRef.current = false
+    hasActiveTracksRef.current = false
+    setState((prev) => ({
+      ...prev,
+      fusionAvailable: fusionBackendAvailable,
+      fusionError: fusionBackendAvailable ? null : NATIVE_FUSION_BACKEND_REQUIRED,
+      tracks: [],
+      fusionStats: null,
+      lastUpdateMs: 0,
+    }))
+
+    if (!fusionBackendAvailable) {
+      return () => {
+        cancelled = true
+        fusionReadyRef.current = false
+      }
+    }
+
+    void queueFusionMaintenance(() =>
+      initFusion({
+        algorithm: fullConfig.algorithm,
+        process_noise: fullConfig.processNoise,
+        measurement_noise: fullConfig.measurementNoise,
+      })
+    )
+      .then(() => {
+        if (!cancelled && generation === fusionInitGenerationRef.current) {
+          fusionReadyRef.current = true
+          setState((prev) => ({ ...prev, fusionError: null }))
+        }
+      })
+      .catch((error) => {
+        if (!cancelled && generation === fusionInitGenerationRef.current) {
+          log.error('Fusion init failed', { error })
+          const message = error instanceof Error ? error.message : String(error)
+          setState((prev) => ({
+            ...prev,
+            fusionError: `Native sensor fusion failed to initialize: ${message}`,
+          }))
+        }
+      })
+
+    return () => {
+      cancelled = true
+      fusionReadyRef.current = false
+    }
+  }, [
+    fullConfig.algorithm,
+    fullConfig.processNoise,
+    fullConfig.measurementNoise,
+    fusionBackendAvailable,
+    queueFusionMaintenance,
+  ])
 
   // Set up fusion interval
   useEffect(() => {
+    if (!fusionBackendAvailable) return
+
     const intervalMs = 1000 / fullConfig.fusionRateHz
     fusionIntervalRef.current = setInterval(() => void runFusionCycle(), intervalMs)
 
@@ -542,163 +885,261 @@ export function useROSSensors(
         clearInterval(fusionIntervalRef.current)
       }
     }
-  }, [fullConfig.fusionRateHz, runFusionCycle])
+  }, [fullConfig.fusionRateHz, fusionBackendAvailable, runFusionCycle])
 
-  // Connect to ROS bridge
+  const disconnectOwnedBridge = useCallback(() => {
+    removeSensorSubscriptions()
+    resetSensorActivity()
+    if (ownedBridgeRef.current) {
+      ownedBridgeRef.current.disconnect()
+      ownedBridgeRef.current = null
+    }
+    if (fusionBackendAvailable) {
+      void queueFusionMaintenance(clearTracks).catch((error) =>
+        log.error('Failed to clear fusion tracks', { error })
+      )
+    }
+    setState((prev) => ({
+      ...prev,
+      connectionState: 'disconnected',
+    }))
+  }, [
+    fusionBackendAvailable,
+    queueFusionMaintenance,
+    removeSensorSubscriptions,
+    resetSensorActivity,
+  ])
+
+  // Connect the legacy internally owned bridge, or attach subscriptions to an
+  // already-connected external bridge without taking ownership of it.
   const connect = useCallback(async () => {
-    if (rosBridgeRef.current) {
-      rosBridgeRef.current.disconnect()
+    if (usesExternalConnection) {
+      if (externalUnsupportedReason) {
+        throw new Error(externalUnsupportedReason)
+      }
+      if (!externalBridge || externalConnectionState !== 'connected') {
+        throw new Error('The externally managed ROS bridge is not connected')
+      }
+
+      installSensorSubscriptions(externalBridge)
+      setState((prev) => ({
+        ...prev,
+        connectionState: externalConnectionState,
+        connectionError: externalConnectionError,
+      }))
+      return
     }
 
+    disconnectOwnedBridge()
     const bridge = new ROSBridge({
       url: fullConfig.rosUrl,
       autoReconnect: true,
       onStateChange: (newState) => {
-        setState(prev => ({ ...prev, connectionState: newState }))
+        setState((prev) => ({ ...prev, connectionState: newState }))
       },
       onError: (error) => {
-        setState(prev => ({ ...prev, connectionError: error.message }))
+        setState((prev) => ({ ...prev, connectionError: error.message }))
       },
     })
 
-    rosBridgeRef.current = bridge
+    ownedBridgeRef.current = bridge
 
     try {
       await bridge.connect()
-
-      // Subscribe to thermal detections
-      if (fullConfig.topics.thermal) {
-        bridge.subscribe<ThermalDetectionArray>(
-          fullConfig.topics.thermal,
-          'crebain_msgs/ThermalDetectionArray',
-          (msg) => {
-            markSensorActive('thermal')
-            const measurements = pushValidatedMeasurements(msg?.detections, 'thermal', thermalToMeasurement)
-            measurementBufferRef.current.push(...measurements)
-          }
-        )
-      }
-
-      // Subscribe to acoustic detections
-      if (fullConfig.topics.acoustic) {
-        bridge.subscribe<AcousticDetectionArray>(
-          fullConfig.topics.acoustic,
-          'crebain_msgs/AcousticDetectionArray',
-          (msg) => {
-            markSensorActive('acoustic')
-            const measurements = pushValidatedMeasurements(msg?.detections, 'acoustic', acousticToMeasurement)
-            measurementBufferRef.current.push(...measurements)
-          }
-        )
-      }
-
-      // Subscribe to radar detections
-      if (fullConfig.topics.radar) {
-        bridge.subscribe<RadarDetectionArray>(
-          fullConfig.topics.radar,
-          'crebain_msgs/RadarDetectionArray',
-          (msg) => {
-            markSensorActive('radar')
-            const measurements = pushValidatedMeasurements(msg?.detections, 'radar', radarToMeasurement)
-            measurementBufferRef.current.push(...measurements)
-          }
-        )
-      }
-
-      // Subscribe to LIDAR detections
-      if (fullConfig.topics.lidar) {
-        bridge.subscribe<LidarDetectionArray>(
-          fullConfig.topics.lidar,
-          'crebain_msgs/LidarDetectionArray',
-          (msg) => {
-            markSensorActive('lidar')
-            const measurements = pushValidatedMeasurements(msg?.detections, 'lidar', lidarToMeasurement)
-            measurementBufferRef.current.push(...measurements)
-          }
-        )
-      }
-
-      setState(prev => ({ ...prev, connectionError: null }))
+      installSensorSubscriptions(bridge)
+      setState((prev) => ({ ...prev, connectionError: null }))
     } catch (error) {
+      removeSensorSubscriptions()
+      bridge.disconnect()
+      if (ownedBridgeRef.current === bridge) {
+        ownedBridgeRef.current = null
+      }
       const message = error instanceof Error ? error.message : String(error)
-      setState(prev => ({ ...prev, connectionError: message }))
+      setState((prev) => ({
+        ...prev,
+        connectionState: 'disconnected',
+        connectionError: message,
+      }))
       throw error
     }
-  }, [fullConfig.rosUrl, fullConfig.topics, markSensorActive])
+  }, [
+    disconnectOwnedBridge,
+    externalBridge,
+    externalConnectionError,
+    externalConnectionState,
+    externalUnsupportedReason,
+    fullConfig.rosUrl,
+    installSensorSubscriptions,
+    removeSensorSubscriptions,
+    usesExternalConnection,
+  ])
 
-  // Disconnect from ROS bridge
+  // Detach this hook's subscriptions in external mode; only an internally
+  // owned bridge is actually disconnected.
   const disconnect = useCallback(() => {
-    if (rosBridgeRef.current) {
-      rosBridgeRef.current.disconnect()
-      rosBridgeRef.current = null
+    if (usesExternalConnection) {
+      removeSensorSubscriptions()
+      resetSensorActivity()
+      if (fusionBackendAvailable) {
+        void queueFusionMaintenance(clearTracks).catch((error) =>
+          log.error('Failed to clear fusion tracks', { error })
+        )
+      }
+      return
     }
-    setState(prev => ({
-      ...prev,
-      connectionState: 'disconnected',
-      sensorStatus: {
-        thermal: false,
-        acoustic: false,
-        radar: false,
-        lidar: false,
-        visual: false,
-        radiofrequency: false,
-      },
-    }))
-  }, [])
+    disconnectOwnedBridge()
+  }, [
+    disconnectOwnedBridge,
+    fusionBackendAvailable,
+    queueFusionMaintenance,
+    removeSensorSubscriptions,
+    resetSensorActivity,
+    usesExternalConnection,
+  ])
 
   // Set fusion algorithm
-  const setAlgorithm = useCallback(async (algorithm: FilterAlgorithm) => {
-    await setFusionConfig({
-      algorithm,
-      process_noise: fullConfig.processNoise,
-      measurement_noise: fullConfig.measurementNoise,
-      association_threshold: 11.345,
-      max_missed_detections: 5,
-      min_confirmation_hits: 3,
-      particle_count: 100,
-    })
-  }, [fullConfig.processNoise, fullConfig.measurementNoise])
+  const setAlgorithm = useCallback(
+    async (algorithm: FilterAlgorithm) => {
+      if (!fusionBackendAvailable) {
+        setState((prev) => ({ ...prev, fusionError: NATIVE_FUSION_BACKEND_REQUIRED }))
+        throw new Error(NATIVE_FUSION_BACKEND_REQUIRED)
+      }
+
+      fusionCycleGenerationRef.current += 1
+      fusionCycleRequestedRef.current = false
+      try {
+        await queueFusionMaintenance(() =>
+          setFusionConfig({
+            algorithm,
+            process_noise: fullConfig.processNoise,
+            measurement_noise: fullConfig.measurementNoise,
+            association_threshold: 11.345,
+            max_missed_detections: 5,
+            min_confirmation_hits: 3,
+            particle_count: 100,
+          })
+        )
+        setState((prev) => ({ ...prev, fusionError: null }))
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        setState((prev) => ({ ...prev, fusionError: message }))
+        throw error
+      }
+    },
+    [
+      fullConfig.processNoise,
+      fullConfig.measurementNoise,
+      fusionBackendAvailable,
+      queueFusionMaintenance,
+    ]
+  )
 
   // Clear all tracks
   const clearAllTracks = useCallback(async () => {
-    await clearTracks()
-    setState(prev => ({ ...prev, tracks: [], fusionStats: null }))
-  }, [])
+    fusionCycleGenerationRef.current += 1
+    measurementBufferRef.current = []
+    fusionCycleRequestedRef.current = false
+    if (fusionBackendAvailable) {
+      await queueFusionMaintenance(clearTracks)
+    }
+    hasActiveTracksRef.current = false
+    setState((prev) => ({ ...prev, tracks: [], fusionStats: null }))
+  }, [fusionBackendAvailable, queueFusionMaintenance])
 
   // Add visual detection from CoreML/YOLO
-  const addVisualDetection = useCallback((
-    cameraId: string,
-    position: [number, number, number],
-    confidence: number,
-    classLabel: string
-  ) => {
-    assertString(cameraId, 'cameraId')
-    assertVector3Tuple(position, 'visual.position')
-    assertConfidence(confidence, 'visual.confidence')
-    assertString(classLabel, 'visual.classLabel')
-    markSensorActive('visual')
-    measurementBufferRef.current.push({
-      sensor_id: cameraId,
-      modality: 'visual',
-      timestamp_ms: Date.now(),
-      position,
-      covariance: [1, 1, 1],
-      confidence,
-      class_label: classLabel,
-      metadata: {},
-    })
-  }, [markSensorActive])
+  const addVisualDetection = useCallback(
+    (
+      cameraId: string,
+      position: [number, number, number],
+      confidence: number,
+      classLabel: string
+    ) => {
+      assertString(cameraId, 'cameraId')
+      assertVector3Tuple(position, 'visual.position')
+      assertConfidence(confidence, 'visual.confidence')
+      assertString(classLabel, 'visual.classLabel')
+      markSensorActive('visual')
+      appendMeasurements([{
+        sensor_id: cameraId,
+        modality: 'visual',
+        timestamp_ms: Date.now(),
+        position,
+        covariance: [1, 1, 1],
+        confidence,
+        class_label: classLabel,
+        metadata: {},
+      }])
+    },
+    [appendMeasurements, markSensorActive]
+  )
 
-  // Auto-connect - connect/disconnect are stable useCallback refs
+  // Follow an externally owned connection. Subscription cleanup is scoped to
+  // this hook, and no lifecycle method is ever called on the supplied bridge.
   useEffect(() => {
-    if (fullConfig.autoConnect) {
-      connect().catch(err => log.error('Auto-connect failed', { error: err }))
+    if (!usesExternalConnection) return
+
+    const externalIsConnected =
+      !externalUnsupportedReason && externalConnectionState === 'connected' && !!externalBridge
+    const bridgeChanged =
+      previousExternalBridgeRef.current !== null &&
+      previousExternalBridgeRef.current !== externalBridge
+    if (
+      fusionBackendAvailable &&
+      ((externalWasConnectedRef.current && !externalIsConnected) || bridgeChanged)
+    ) {
+      void queueFusionMaintenance(clearTracks).catch((error) =>
+        log.error('Failed to clear tracks after ROS connection change', { error })
+      )
+    }
+    previousExternalBridgeRef.current = externalBridge
+    externalWasConnectedRef.current = externalIsConnected
+
+    removeSensorSubscriptions()
+    resetSensorActivity()
+
+    const connectionError = externalUnsupportedReason ?? externalConnectionError
+    setState((prev) => ({
+      ...prev,
+      connectionState: externalUnsupportedReason ? 'disconnected' : externalConnectionState,
+      connectionError,
+    }))
+
+    if (externalUnsupportedReason || externalConnectionState !== 'connected' || !externalBridge) {
+      return
     }
 
-    return () => {
-      disconnect()
+    try {
+      installSensorSubscriptions(externalBridge)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      setState((prev) => ({ ...prev, connectionError: message }))
     }
-  }, [fullConfig.autoConnect, connect, disconnect])
+
+    return removeSensorSubscriptions
+  }, [
+    externalBridge,
+    externalConnectionError,
+    externalConnectionState,
+    externalUnsupportedReason,
+    fusionBackendAvailable,
+    installSensorSubscriptions,
+    queueFusionMaintenance,
+    removeSensorSubscriptions,
+    resetSensorActivity,
+    usesExternalConnection,
+  ])
+
+  // Preserve standalone compatibility: without an external connection, this
+  // hook still owns and may auto-connect its own ROSBridge.
+  useEffect(() => {
+    if (usesExternalConnection) return
+
+    if (fullConfig.autoConnect) {
+      connect().catch((err) => log.error('Auto-connect failed', { error: err }))
+    }
+
+    return disconnectOwnedBridge
+  }, [connect, disconnectOwnedBridge, fullConfig.autoConnect, usesExternalConnection])
 
   // Cleanup
   useEffect(() => {
@@ -709,6 +1150,9 @@ export function useROSSensors(
         clearTimeout(timeout)
       }
       sensorTimeouts.clear()
+      fusionReadyRef.current = false
+      fusionCycleGenerationRef.current += 1
+      fusionCycleRequestedRef.current = false
     }
   }, [])
 

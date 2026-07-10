@@ -28,7 +28,7 @@
 //! let bridge = create_bridge().await?;
 //!
 //! // Subscribe to camera feed
-//! bridge.subscribe_camera("/drone1/camera/image_raw", |frame| {
+//! bridge.subscribe_camera("/drone1/camera/image_raw", CameraStreamKind::Raw, |frame| {
 //!     // Process frame
 //! }).await?;
 //!
@@ -92,6 +92,7 @@ pub struct ImuData {
     pub angular_velocity: [f64; 3],    // rad/s
     pub linear_acceleration: [f64; 3], // m/s²
     pub timestamp: f64,
+    pub frame_id: String,
 }
 
 /// Pose data (position + orientation)
@@ -163,6 +164,14 @@ pub type ImuCallback = Box<dyn Fn(ImuData) + Send + Sync>;
 pub type PoseCallback = Box<dyn Fn(PoseData) + Send + Sync>;
 pub type ModelStatesCallback = Box<dyn Fn(ModelStates) + Send + Sync>;
 
+/// Wire schema for camera subscriptions. This is explicit because compressed
+/// image topics are not required to end in `/compressed`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CameraStreamKind {
+    Raw,
+    Compressed,
+}
+
 /// Transport layer abstraction (object-safe)
 pub trait Transport: Send + Sync {
     /// Connect to the transport
@@ -182,6 +191,7 @@ pub trait Transport: Send + Sync {
     fn subscribe_camera(
         &self,
         topic: &str,
+        stream_kind: CameraStreamKind,
         callback: CameraCallback,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>>;
 

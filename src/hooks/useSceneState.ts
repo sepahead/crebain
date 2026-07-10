@@ -10,6 +10,9 @@ import {
   sceneStateManager,
   type SceneState,
   type CameraState,
+  type DetectionState,
+  type SplatSceneState,
+  type SceneAssetState,
   type DroneState,
   type ViewerSettingsState,
   vector3ToState,
@@ -43,6 +46,7 @@ export interface CrebainCamera {
   // Patrol specific
   patrolPath?: THREE.Vector3[]
   patrolSpeed?: number
+  resolution?: [number, number]
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -67,7 +71,7 @@ export function serializeCamera(camera: CrebainCamera): CameraState {
     near: camera.near,
     far: camera.far,
     isActive: camera.isActive,
-    resolution: [640, 480],
+    resolution: camera.resolution ?? [640, 480],
     pan: camera.pan,
     tilt: camera.tilt,
     zoom: camera.zoom,
@@ -95,6 +99,7 @@ export function deserializeCamera(state: CameraState): CrebainCamera {
     zoom: state.zoom,
     patrolPath: state.patrolPoints?.map(stateToVector3),
     patrolSpeed: state.patrolSpeed,
+    resolution: state.resolution,
   }
 }
 
@@ -105,6 +110,7 @@ export function serializeDrone(drone: ManagedDrone): DroneState {
   const { physicsBody } = drone
   return {
     id: drone.id,
+    name: drone.name,
     type: drone.type,
     position: vector3ToState(physicsBody.state.position),
     orientation: quaternionToState(physicsBody.state.orientation),
@@ -114,7 +120,11 @@ export function serializeDrone(drone: ManagedDrone): DroneState {
     // DronePhysics tracks battery as a 0-1 fraction; the persisted scene format
     // (and isDroneState's 0-100 validation) use a percentage.
     battery: physicsBody.state.battery * 100,
-    flightMode: 'manual',
+    flightMode: drone.route.isActive ? 'waypoint' : 'manual',
+    waypoints: drone.route.waypoints.map((waypoint) => vector3ToState(waypoint.position)),
+    routeMode: drone.route.mode,
+    routeActive: drone.route.isActive,
+    routeCurrentWaypointIndex: drone.route.currentWaypointIndex,
   }
 }
 
@@ -130,7 +140,7 @@ export function deserializeDroneSpawnData(state: DroneState): {
 } {
   return {
     type: state.type,
-    name: state.id.split('_')[0] || 'DRONE',
+    name: state.name || state.id.split('_')[0] || 'DRONE',
     position: stateToVector3(state.position),
     orientation: stateToQuaternion(state.orientation),
     armed: state.armed,
@@ -154,7 +164,11 @@ interface UseSceneStateReturn {
     drones: ManagedDrone[],
     viewCamera: { position: THREE.Vector3; target: THREE.Vector3 },
     settings: Partial<ViewerSettingsState>,
-    splatUrl?: string
+    splatUrl?: string,
+    recentDetections?: DetectionState[],
+    splatScene?: SplatSceneState,
+    assets?: SceneAssetState[],
+    activeCameraId?: string
   ) => SceneState
 
   saveToStorage: (key?: string) => void
@@ -206,7 +220,11 @@ export function useSceneState(options: UseSceneStateOptions = {}): UseSceneState
       drones: ManagedDrone[],
       viewCamera: { position: THREE.Vector3; target: THREE.Vector3 },
       settings: Partial<ViewerSettingsState>,
-      splatUrl?: string
+      splatUrl?: string,
+      recentDetections: DetectionState[] = [],
+      splatScene?: SplatSceneState,
+      assets: SceneAssetState[] = [],
+      activeCameraId?: string
     ): SceneState => {
       // Serialize cameras
       const cameraStates = cameras.map(serializeCamera)
@@ -220,8 +238,9 @@ export function useSceneState(options: UseSceneStateOptions = {}): UseSceneState
         timestamp: Date.now(),
         name: sceneName,
         cameras: cameraStates,
+        activeCameraId,
         drones: droneStates,
-        recentDetections: [],
+        recentDetections,
         settings: {
           detectionEnabled: settings.detectionEnabled ?? true,
           showDetectionPanel: settings.showDetectionPanel ?? true,
@@ -234,17 +253,23 @@ export function useSceneState(options: UseSceneStateOptions = {}): UseSceneState
           position: vector3ToState(viewCamera.position),
           target: vector3ToState(viewCamera.target),
         },
-        splatScene: splatUrl
-          ? {
-              url: splatUrl,
-              position: { x: 0, y: 0, z: 0 },
-              rotation: { x: 0, y: 0, z: 0 },
-              scale: { x: 1, y: 1, z: 1 },
-            }
-          : undefined,
+        splatScene:
+          splatScene ??
+          (splatUrl
+            ? {
+                url: splatUrl,
+                position: { x: 0, y: 0, z: 0 },
+                rotation: { x: 0, y: 0, z: 0 },
+                scale: { x: 1, y: 1, z: 1 },
+              }
+            : undefined),
+        assets,
       }
 
       // Update state manager
+      if (!sceneStateManager.getState()) {
+        sceneStateManager.createNew(sceneName)
+      }
       sceneStateManager.updateState(state)
 
       return state

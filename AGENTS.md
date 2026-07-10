@@ -21,12 +21,15 @@ bun run test:coverage    # Run tests with coverage (enforces thresholds)
 bun run test:benchmark   # Run detector benchmarks
 bun run check:bundle     # Build + initial-bundle size budget
 bun run validate         # typecheck + lint + format:check + frontend tests
-bun run validate:all     # Frontend validation + Rust fmt/check/test/clippy
+bun run validate:all     # Frontend + Rust default fmt/check/test/clippy + NCP clippy/tests
 
 # Rust backend
 bun run check:rust       # cargo check --manifest-path src-tauri/Cargo.toml
 bun run test:rust        # cargo test --manifest-path src-tauri/Cargo.toml
 bun run clippy:rust      # cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+bun run check:rust:ncp   # cargo check with the off-by-default ncp feature
+bun run clippy:rust:ncp  # clippy with ncp, all targets, warnings denied
+bun run test:rust:ncp    # cargo test with ncp enabled
 cargo build --manifest-path src-tauri/Cargo.toml
 ```
 
@@ -67,7 +70,7 @@ cargo build --manifest-path src-tauri/Cargo.toml
 - `common/` - Shared detection, NMS, YOLO, error, and path validation utilities
 - `inference/` - ML abstraction layer with CoreML default on macOS, experimental MLX YOLOv8 safetensors path, CUDA/TensorRT on Linux, and ONNX fallback
 - `transport/` - Zenoh-oriented transport, CDR validation, and Tauri transport commands
-- `ncp/` - Neuro-Cybernetic Protocol (NCP) client for Engram — native Rust+Zenoh, behind the off-by-default `ncp` feature; pulls the canonical NCP SDK (`ncp-core`/`ncp-zenoh`) as a pinned git dependency on github.com/sepahead/NCP (tag in `src-tauri/Cargo.toml`). Non-invasive: does not change the default command surface. See `src/ncp/README.md`. (The TypeScript peer is `src/neuro/`, backed by the pinned `@sepahead/ncp` npm dependency.)
+- `ncp/` - Neuro-Cybernetic Protocol (NCP) client for Engram — native Rust+Zenoh, behind the off-by-default `ncp` feature; pulls the canonical NCP SDK (`ncp-core`/`ncp-zenoh`) as a pinned git dependency on github.com/sepahead/NCP (tag in `src-tauri/Cargo.toml`). Its Tauri commands are not registered in the product runtime. See `src-tauri/src/ncp/README.md`. (The dormant TypeScript peer is `src/neuro/`, backed by the pinned `@sepahead/ncp` npm dependency.)
 - `sensor_fusion.rs` - Kalman/EKF/UKF/Particle/IMM filters
 - `lib.rs` - Tauri IPC commands and app setup
 

@@ -59,6 +59,14 @@ export interface UseRosBridgeReturn {
   recordMessage: (topic: string, sizeBytes: number, latencyMs?: number) => void
 }
 
+type RosTransport = UseRosBridgeConfig['transport']
+type RosBridgeInstance = ROSBridge | ZenohBridge
+
+interface BridgeSnapshot {
+  transport: RosTransport
+  bridge: RosBridgeInstance | null
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // DEFAULT CONFIG
 // ─────────────────────────────────────────────────────────────────────────────
@@ -99,82 +107,115 @@ export function useRosBridge(config: Partial<UseRosBridgeConfig> = {}): UseRosBr
   const [quality, setQuality] = useState<ConnectionQuality | null>(null)
   const [topicStats, setTopicStats] = useState<TopicStats[]>([])
 
-  const bridgeRef = useRef<ROSBridge | ZenohBridge | null>(null)
+  const requestedTransportRef = useRef<RosTransport>(transport)
+  requestedTransportRef.current = transport
+  const [bridgeSnapshot, setBridgeSnapshot] = useState<BridgeSnapshot>(() => ({
+    transport,
+    bridge: null,
+  }))
+  const bridgeSnapshotRef = useRef<BridgeSnapshot>({ transport, bridge: null })
   const performanceMonitorRef = useRef<ROSPerformanceMonitor | null>(null)
+
+  const getActiveBridge = useCallback((): RosBridgeInstance | null => {
+    const snapshot = bridgeSnapshotRef.current
+    return snapshot.transport === requestedTransportRef.current ? snapshot.bridge : null
+  }, [])
 
   // Initialize bridge and performance monitor
   useEffect(() => {
-    let bridge: ROSBridge | ZenohBridge
+    let bridge: RosBridgeInstance
+    let monitor: ROSPerformanceMonitor | null = null
+    const ownsBridge = () => {
+      const snapshot = bridgeSnapshotRef.current
+      return (
+        requestedTransportRef.current === transport &&
+        snapshot.transport === transport &&
+        snapshot.bridge === bridge
+      )
+    }
+    const updateConnectionState = (nextState: ConnectionState) => {
+      if (ownsBridge()) setState(nextState)
+    }
+    const updateError = (nextError: unknown) => {
+      if (ownsBridge()) {
+        setError(nextError instanceof Error ? nextError.message : String(nextError))
+      }
+    }
 
     if (transport === 'zenoh') {
       bridge = new ZenohBridge()
-      bridge.onStateChange = setState
-      // Handle auto-connect for Zenoh
-      if (autoConnect) {
-        bridge.connect().catch((err) => {
-          setError(err instanceof Error ? err.message : String(err))
-        })
-      }
+      bridge.onStateChange = updateConnectionState
     } else {
       bridge = new ROSBridge({
         url,
         autoReconnect,
         reconnectIntervalMs,
         maxReconnectAttempts,
-        onStateChange: setState,
-        onError: (err) => setError(err.message),
+        onStateChange: updateConnectionState,
+        onError: updateError,
         onConnect: () => {
+          if (!ownsBridge()) return
           setError(null)
           // Reset performance monitor on connect
-          performanceMonitorRef.current?.reset()
+          monitor?.reset()
         },
       })
+    }
 
-      if (autoConnect) {
-        bridge.connect().catch((err: unknown) => {
-          setError(err instanceof Error ? err.message : String(err))
-        })
-      }
+    const nextSnapshot: BridgeSnapshot = { transport, bridge }
+    bridgeSnapshotRef.current = nextSnapshot
+    setBridgeSnapshot(nextSnapshot)
+    setState(bridge.getState())
+    setError(null)
 
+    if (bridge instanceof ROSBridge) {
       // Expose the WebSocket ROS bridge as the process-wide default so
       // non-React consumers (the render-loop actuator publisher) can reach it.
       setROSBridge(bridge)
     }
 
-    bridgeRef.current = bridge
-
     // Initialize performance monitor if enabled
     let statsInterval: ReturnType<typeof setInterval> | null = null
     if (enablePerformanceMonitoring) {
-      const monitor = new ROSPerformanceMonitor({
+      monitor = new ROSPerformanceMonitor({
         highLatencyThresholdMs,
       })
 
       // Subscribe to alerts
       monitor.onAlert((alert) => {
-        setAlerts((prev) => [...prev.slice(-99), alert]) // Keep last 100 alerts
+        if (ownsBridge()) {
+          setAlerts((prev) => [...prev.slice(-99), alert]) // Keep last 100 alerts
+        }
       })
 
       performanceMonitorRef.current = monitor
 
       // Update stats periodically
       statsInterval = setInterval(() => {
-        if (performanceMonitorRef.current) {
-          setQuality(performanceMonitorRef.current.getConnectionQuality())
-          setTopicStats(performanceMonitorRef.current.getAllTopicStats())
+        if (ownsBridge() && monitor) {
+          setQuality(monitor.getConnectionQuality())
+          setTopicStats(monitor.getAllTopicStats())
         }
       }, 1000)
     }
 
+    if (autoConnect) {
+      bridge.connect().catch(updateError)
+    }
+
     return () => {
       if (statsInterval) clearInterval(statsInterval)
+      if (bridgeSnapshotRef.current.bridge === bridge) {
+        bridgeSnapshotRef.current = { transport, bridge: null }
+      }
       // Only clear the default singleton if it still points at this bridge.
       if (getROSBridge() === bridge) {
         setROSBridge(null)
       }
       void bridge.disconnect()
-      bridgeRef.current = null
-      performanceMonitorRef.current = null
+      if (performanceMonitorRef.current === monitor) {
+        performanceMonitorRef.current = null
+      }
     }
   }, [
     transport,
@@ -189,22 +230,25 @@ export function useRosBridge(config: Partial<UseRosBridgeConfig> = {}): UseRosBr
 
   // Connect function
   const connect = useCallback(async () => {
-    if (bridgeRef.current) {
+    const bridge = getActiveBridge()
+    if (bridge) {
       setError(null)
       try {
-        await bridgeRef.current.connect()
+        await bridge.connect()
       } catch (err) {
+        if (getActiveBridge() !== bridge) return
         setError(err instanceof Error ? err.message : String(err))
       }
     }
-  }, [])
+  }, [getActiveBridge])
 
   // Disconnect function
   const disconnect = useCallback(() => {
-    if (bridgeRef.current) {
-      void bridgeRef.current.disconnect()
+    const bridge = getActiveBridge()
+    if (bridge) {
+      void bridge.disconnect()
     }
-  }, [])
+  }, [getActiveBridge])
 
   // Subscribe function
   const subscribe = useCallback(
@@ -214,39 +258,51 @@ export function useRosBridge(config: Partial<UseRosBridgeConfig> = {}): UseRosBr
       callback: ROSMessageCallback<T>,
       throttleRate?: number
     ): (() => void) => {
-      if (bridgeRef.current) {
-        return bridgeRef.current.subscribe(topic, type, callback, throttleRate)
+      const bridge = getActiveBridge()
+      if (bridge) {
+        return bridge.subscribe(topic, type, callback, throttleRate)
       }
       return () => {}
     },
-    []
+    [getActiveBridge]
   )
 
   // Publish function
-  const publish = useCallback(<T>(topic: string, msg: T) => {
-    if (bridgeRef.current) {
-      bridgeRef.current.publish(topic, msg)
-    }
-  }, [])
+  const publish = useCallback(
+    <T>(topic: string, msg: T) => {
+      const bridge = getActiveBridge()
+      if (bridge) {
+        bridge.publish(topic, msg)
+      }
+    },
+    [getActiveBridge]
+  )
 
   // Call service function
-  const callService = useCallback(<TReq, TRes>(service: string, request: TReq): Promise<TRes> => {
-    if (bridgeRef.current) {
-      return bridgeRef.current.callService(service, request)
-    }
-    return Promise.reject(new Error('ROS bridge not connected'))
-  }, [])
+  const callService = useCallback(
+    <TReq, TRes>(service: string, request: TReq): Promise<TRes> => {
+      const bridge = getActiveBridge()
+      if (bridge) {
+        return bridge.callService(service, request)
+      }
+      return Promise.reject(new Error('ROS bridge not connected'))
+    },
+    [getActiveBridge]
+  )
 
   // Record message for performance tracking
   const recordMessage = useCallback((topic: string, sizeBytes: number, latencyMs?: number) => {
     performanceMonitorRef.current?.recordMessage(topic, sizeBytes, latencyMs)
   }, [])
 
+  const activeBridge = bridgeSnapshot.transport === transport ? bridgeSnapshot.bridge : null
+  const activeState = activeBridge ? state : 'disconnected'
+
   return {
-    state,
-    isConnected: state === 'connected',
+    state: activeState,
+    isConnected: activeState === 'connected',
     error,
-    bridge: bridgeRef.current,
+    bridge: activeBridge,
     connect,
     disconnect,
     subscribe,

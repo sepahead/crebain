@@ -578,28 +578,31 @@ and estimation literature.
 - Hartley & Zisserman, *Multiple View Geometry*, Ch. 8: <https://www.robots.ox.ac.uk/~vgg/hzbook/hzbook1/HZepipolar.pdf>
 
 
-## The galadriel innovation sidecar (`emit_innovations`)
+## Galadriel-oriented innovation JSONL (`emit_innovations`)
 
-With `FusionConfig.emit_innovations = true` (or the `CREBAIN_PID_JSONL=<path>` environment
-variable, which also appends the records as JSONL), `update_track` emits one
-`PidObservation` per associated measurement that **actually corrected the filter** —
-`{track_id, timestamp_ms, seq, modality, nis, dof}` plus, under
-`emit_innovation_research`, the raw innovation `y` and covariance `S`. The struct
-byte-matches galadriel's frozen sidecar contract (golden-tested on both sides), and the
-JSONL output is directly consumable by `galadriel-ncp`'s `read_jsonl`.
+`FusionConfig.emit_innovations = true` records a minimal observation after an
+associated measurement actually corrects a Kalman-family filter. Setting the
+trusted-process environment variable `CREBAIN_PID_JSONL=<path>` enables that flag
+at fusion initialization and appends newline-delimited records with
+`track_id`, `timestamp_ms`, `seq`, `modality`, `nis`, and `dof`.
+The environment variable does not enable the separate research-field option;
+default JSONL lines therefore omit raw innovation/covariance fields. They also
+carry no schema-version, realm, authentication, or ACL envelope.
 
-Semantics worth knowing before consuming the records:
+The repository proves local serialization/parsing and basic NIS consistency. It
+does **not** prove a live Galadriel reader, cross-process correlation, PID control,
+an NCP session, deployment ACLs, or a negotiated/versioned streaming protocol.
+Treat the file as best-effort local instrumentation: the operator owns the path,
+write failures are logged without blocking fusion, and the file may contain
+sensitive track/timing data.
 
-- `nis = yᵀS⁻¹y` (Cholesky solve) is formed against the state **entering that
-  measurement's update** — the a-priori state for the first measurement of a frame, the
-  sequentially conditioned prior for co-located follow-ups (standard sequential fusion).
-- **Track birth emits nothing** (the first measurement seeds the state; an innovation only
-  exists against a prior), and **singular-S skipped updates emit nothing** — never a
-  fabricated NIS.
-- **Frames:** Cartesian metres for visual/thermal/acoustic/lidar; radar under the EKF is
-  the polar residual `[m, rad, rad]` with azimuth wrapped, and under non-EKF algorithms the
-  Cartesian conversion frame. `nis`/`dof` are frame-agnostic either way.
-- **Not emitted under Particle** (no innovation covariance exists) **or IMM** (per-model
-  updates only; a combined-estimate record is future work).
-- The JSONL sink is best-effort instrumentation: write failures are logged and never
-  backpressure or fail the fusion path.
+Semantics:
+
+- `nis = yᵀS⁻¹y` uses the state entering that measurement update. Co-located
+  follow-up measurements therefore see the sequentially conditioned state.
+- Track birth has no prior innovation and emits nothing. A skipped update with an
+  unusable innovation covariance also emits nothing.
+- Visual/thermal/acoustic/lidar use Cartesian metres. EKF radar NIS derives from
+  the polar `[m, rad, rad]` residual; non-EKF radar uses its Cartesian conversion.
+- Particle and IMM filters do not emit these records because this implementation
+  has no single compatible innovation covariance for them.

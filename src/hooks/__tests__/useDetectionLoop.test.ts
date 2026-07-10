@@ -22,6 +22,18 @@ function imageData(): ImageData {
   }
 }
 
+function successfulResult() {
+  return {
+    success: true,
+    detections: [],
+    inferenceTimeMs: 12,
+    preprocessTimeMs: 2,
+    postprocessTimeMs: 3,
+    backend: 'test',
+    error: null,
+  }
+}
+
 function renderDetectionLoop({
   enabled = true,
   exportCameraFeed = vi.fn(() => imageData()),
@@ -230,6 +242,239 @@ describe('useDetectionLoop helpers', () => {
     expect(onDetection).not.toHaveBeenCalled()
     expect(onError).not.toHaveBeenCalled()
 
+    await act(async () => root.unmount())
+  })
+
+  it('does not restart when runtime inputs change and uses them on the next cycle', async () => {
+    vi.useFakeTimers()
+    invokeMock.mockResolvedValue(successfulResult())
+    const firstExport = vi.fn(() => imageData())
+    const secondExport = vi.fn(() => imageData())
+    const firstDetection = vi.fn()
+    const secondDetection = vi.fn()
+    const firstPerformance = vi.fn()
+    const secondPerformance = vi.fn()
+
+    interface HarnessProps {
+      cameraId: string
+      confidenceThreshold: number
+      exportCameraFeed: (cameraId: string) => ImageData
+      onDetection: typeof firstDetection
+      onPerformance: typeof firstPerformance
+    }
+
+    function Harness(props: HarnessProps) {
+      useDetectionLoop({
+        cameras: [{ id: props.cameraId, name: props.cameraId, isActive: true }],
+        exportCameraFeed: props.exportCameraFeed,
+        enabled: true,
+        intervalMs: 1_000,
+        confidenceThreshold: props.confidenceThreshold,
+        onDetection: props.onDetection,
+        onPerformance: props.onPerformance,
+      })
+      return null
+    }
+
+    const container = document.createElement('div')
+    const root = createRoot(container)
+
+    await act(async () => {
+      root.render(
+        createElement(Harness, {
+          cameraId: 'cam-1',
+          confidenceThreshold: 0.25,
+          exportCameraFeed: firstExport,
+          onDetection: firstDetection,
+          onPerformance: firstPerformance,
+        })
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(invokeMock).toHaveBeenCalledTimes(1)
+    expect(firstExport).toHaveBeenCalledWith('cam-1')
+    expect(firstDetection).toHaveBeenCalledTimes(1)
+    expect(firstPerformance).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      root.render(
+        createElement(Harness, {
+          cameraId: 'cam-2',
+          confidenceThreshold: 0.75,
+          exportCameraFeed: secondExport,
+          onDetection: secondDetection,
+          onPerformance: secondPerformance,
+        })
+      )
+      await Promise.resolve()
+    })
+
+    expect(invokeMock).toHaveBeenCalledTimes(1)
+    expect(secondExport).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+
+    expect(invokeMock).toHaveBeenCalledTimes(2)
+    expect(secondExport).toHaveBeenCalledWith('cam-2')
+    expect(secondDetection).toHaveBeenCalledTimes(1)
+    expect(secondPerformance).toHaveBeenCalledTimes(1)
+    expect(invokeMock).toHaveBeenLastCalledWith(
+      'detect_native_raw',
+      expect.objectContaining({ confidenceThreshold: 0.75 })
+    )
+
+    await act(async () => root.unmount())
+  })
+
+  it('delivers an in-flight result only to the latest callbacks without restarting', async () => {
+    let resolveDetection!: (value: ReturnType<typeof successfulResult>) => void
+    invokeMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveDetection = resolve
+        })
+    )
+    const firstDetection = vi.fn()
+    const secondDetection = vi.fn()
+    const firstPerformance = vi.fn()
+    const secondPerformance = vi.fn()
+    const stableCamera = { id: 'cam-1', name: 'Camera 1', isActive: true }
+
+    function Harness({ latest }: { latest: boolean }) {
+      useDetectionLoop({
+        cameras: [stableCamera],
+        exportCameraFeed: () => imageData(),
+        enabled: true,
+        intervalMs: 1_000,
+        onDetection: latest ? secondDetection : firstDetection,
+        onPerformance: latest ? secondPerformance : firstPerformance,
+      })
+      return null
+    }
+
+    const container = document.createElement('div')
+    const root = createRoot(container)
+
+    await act(async () => {
+      root.render(createElement(Harness, { latest: false }))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(invokeMock).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      root.render(createElement(Harness, { latest: true }))
+      await Promise.resolve()
+    })
+    expect(invokeMock).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      resolveDetection(successfulResult())
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(firstDetection).not.toHaveBeenCalled()
+    expect(firstPerformance).not.toHaveBeenCalled()
+    expect(secondDetection).toHaveBeenCalledTimes(1)
+    expect(secondPerformance).toHaveBeenCalledTimes(1)
+
+    await act(async () => root.unmount())
+  })
+
+  it('drops an in-flight result when its camera is removed', async () => {
+    let resolveDetection!: (value: ReturnType<typeof successfulResult>) => void
+    invokeMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveDetection = resolve
+        })
+    )
+    const onDetection = vi.fn()
+    const onPerformance = vi.fn()
+
+    function Harness({ includeCamera }: { includeCamera: boolean }) {
+      useDetectionLoop({
+        cameras: includeCamera ? [{ id: 'cam-1', name: 'Camera 1', isActive: true }] : [],
+        exportCameraFeed: () => imageData(),
+        enabled: true,
+        intervalMs: 1_000,
+        onDetection,
+        onPerformance,
+      })
+      return null
+    }
+
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    await act(async () => {
+      root.render(createElement(Harness, { includeCamera: true }))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(invokeMock).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      root.render(createElement(Harness, { includeCamera: false }))
+      await Promise.resolve()
+    })
+    await act(async () => {
+      resolveDetection(successfulResult())
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(onDetection).not.toHaveBeenCalled()
+    expect(onPerformance).not.toHaveBeenCalled()
+
+    await act(async () => root.unmount())
+  })
+
+  it('drops an in-flight result when a restored camera reuses the same id', async () => {
+    let resolveDetection!: (value: ReturnType<typeof successfulResult>) => void
+    invokeMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveDetection = resolve
+        })
+    )
+    const oldCamera = { id: 'cam-1', name: 'Old Camera', isActive: true }
+    const restoredCamera = { id: 'cam-1', name: 'Restored Camera', isActive: true }
+    const onDetection = vi.fn()
+
+    function Harness({ restored }: { restored: boolean }) {
+      useDetectionLoop({
+        cameras: [restored ? restoredCamera : oldCamera],
+        exportCameraFeed: () => imageData(),
+        enabled: true,
+        intervalMs: 1_000,
+        onDetection,
+      })
+      return null
+    }
+
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    await act(async () => {
+      root.render(createElement(Harness, { restored: false }))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    await act(async () => {
+      root.render(createElement(Harness, { restored: true }))
+      await Promise.resolve()
+    })
+    await act(async () => {
+      resolveDetection(successfulResult())
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(onDetection).not.toHaveBeenCalled()
     await act(async () => root.unmount())
   })
 })

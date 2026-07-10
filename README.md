@@ -58,7 +58,7 @@ A research-oriented tactical visualization and autonomy prototype with 3D scene 
 
 | Capability | Description | Status |
 |------------|-------------|--------|
-| **3D Visualization** | Gaussian Splatting + GLB/GLTF models via Three.js | Prototype |
+| **3D Visualization** | Gaussian Splatting + self-contained GLB models via Three.js | Prototype |
 | **Multi-Camera Surveillance** | Up to 4 simultaneous camera feeds with PTZ control | Prototype |
 | **ML Detection** | Object detection pipeline with CoreML/ONNX paths and experimental backends | Prototype |
 | **Sensor Fusion** | 5 filter algorithms (KF/EKF/UKF/PF/IMM) for multi-modal tracking | Prototype |
@@ -68,7 +68,7 @@ A research-oriented tactical visualization and autonomy prototype with 3D scene 
 
 ### 3D Visualization
 - **Gaussian Splatting**: Load and view 3D Gaussian Splat scenes (.spz, .ply, .splat, .ksplat)
-- **GLB/GLTF Support**: Import 3D models for tactical overlays
+- **Self-contained GLB support**: Import GLB 2.0 models whose buffers and PNG/JPEG textures are embedded; standalone `.gltf` and external-resource references are rejected
 - **Rendering**: Three.js-based rendering; WebGPU/WebGL behavior depends on runtime support and renderer configuration
 - **First-Person Navigation**: WASD movement, Q/E for vertical, Shift to sprint
 - **Drone Visualization**: Live 3D drone models with rotor animation
@@ -88,13 +88,19 @@ A research-oriented tactical visualization and autonomy prototype with 3D scene 
   - macOS: CoreML by default; MLX is experimental, opt-in, and implements a YOLOv8 safetensors forward/postprocess path that still requires external model-contract validation before release claims
   - Linux: CUDA / TensorRT (NVIDIA GPU)
   - Fallback: ONNX Runtime (CPU)
-- **YOLO-Family Models**: Detection backends are designed around YOLO-style model outputs; model weights are not shipped in this repository
+- **YOLO-Family Models**: The shared native ONNX/TensorRT postprocessor currently accepts YOLOv8 COCO-80 output shaped `[1,84,N]` or `[1,N,84]`; model weights are not shipped in this repository
 - **Detection Classes** (tactical mapping):
   - `drone` - project-specific high-priority class
   - `bird` - environmental
   - `aircraft` - potentially friendly
   - `helicopter` - potentially friendly
   - `unknown` - requires analysis
+
+The five tactical labels are a downstream application taxonomy, not the native
+model tensor contract. A five-class exporter such as Manwe's `[1,9,N]` output is
+not drop-in compatible: it requires an explicit adapter, class map, and golden
+fixture coverage before it can be selected as a native backend. See
+[the model contract](docs/MODEL_CONTRACTS.md).
 
 ### Advanced Sensor Fusion
 
@@ -396,6 +402,34 @@ export CREBAIN_ONNX_MODEL=/path/to/your/model.onnx
 7. **Connect ROS**: Press N to open the ROS connection panel
 8. **Splat performance mode**: Press M to cap the splat count (1.5M) and reload the scene
 
+### Scene and asset import contract
+
+Scene JSON is bounded to 10 MiB before browser or native parsing. Older versions
+are migrated before the current schema is validated. The current schema allows at
+most 64 cameras, 256 drones, 128 GLB assets, 10,000 recent detections, 4,096 route
+points per route, and 16,777,216 aggregate camera render-target pixels. IDs must be
+unique, references must resolve, numeric values must be finite and bounded, and
+camera/drone quaternions must be approximately unit length. Native saves use an
+atomic same-directory temporary file before replacement.
+
+Restorable external sources are limited to app-relative paths, HTTPS URLs, and
+HTTP loopback URLs (`localhost`, `127.0.0.1`, or `::1`) without URL credentials.
+Scene GLB entries must end in `.glb`; browser-selected local files that have no
+reloadable source are intentionally not serialized as restorable assets.
+
+Asset loading is bounded independently from the scene JSON:
+
+| Asset | Boundary |
+|-------|----------|
+| Splat | 256 MiB source; remote download aborts after 30 s; renderer initialization aborts after 120 s |
+| GLB | 128 MiB per source; 512 MiB aggregate loaded/pending GLB bytes; 128 assets |
+| GLB contents | GLB 2.0 only; any buffer must use the single embedded binary chunk; no external buffers/images; embedded images must be PNG/JPEG with matching MIME bytes and at most 16,777,216 aggregate texture pixels |
+| Floor texture | PNG/JPEG only; 32 MiB source; at most 8,192 px per dimension and 16,777,216 pixels; remote download aborts after 30 s |
+
+Streaming byte ceilings are enforced even when `Content-Length` is missing or
+dishonest. Scene restore waits for each asset result, ignores superseded loads,
+and reports a partial restore instead of claiming success when an asset fails.
+
 ---
 
 ## Keyboard Controls
@@ -547,6 +581,11 @@ flowchart TB
     TSBridge -->|"WebSocket<br/>(TCP port 9090)"| ROS
 ```
 
+The NCP integrations are separate, dormant opt-in surfaces: the Rust module is
+compiled only with `--features ncp`, its Tauri commands are not registered, and
+`src/neuro` is not imported by the product runtime. There is no always-on
+CREBAIN↔Engram loop. See [the current bridge handoff](docs/NCP_BRIDGE_HANDOFF.md).
+
 ---
 
 ## ML Inference Pipeline
@@ -680,24 +719,26 @@ stateDiagram-v2
 ### Supported Topics
 
 ```yaml
-# Drone State (subscribe)
-/gazebo/model_states:              gazebo_msgs/ModelStates
-/mavros/*/local_position/pose:     geometry_msgs/PoseStamped
-/mavros/*/state:                   mavros_msgs/State
+# Topic templates: replace <ns>; the literal `*` is not accepted.
+# Drone state (subscribe)
+/gazebo/model_states:                         gazebo_msgs/ModelStates
+/<ns>/mavros/local_position/pose:             geometry_msgs/PoseStamped
+/<ns>/mavros/state:                           mavros_msgs/State  # WebSocket UI only
 
-# Camera (subscribe via Zenoh)
-/*/camera/image_raw/compressed:    sensor_msgs/CompressedImage
-/*/camera/camera_info:             sensor_msgs/CameraInfo
+# Camera (subscribe; caller explicitly selects raw or compressed schema)
+/<ns>/camera/image_raw:                       sensor_msgs/Image
+/<ns>/camera/image_raw/compressed:            sensor_msgs/CompressedImage
+/<ns>/camera/camera_info:                     sensor_msgs/CameraInfo
 
 # Control (publish)
-/mavros/*/setpoint_position/local: geometry_msgs/PoseStamped
-/mavros/*/setpoint_velocity/cmd_vel: geometry_msgs/TwistStamped
+/<ns>/mavros/setpoint_position/local:         geometry_msgs/PoseStamped
+/<ns>/mavros/setpoint_velocity/cmd_vel:       geometry_msgs/TwistStamped
 
-# Sensor Fusion (subscribe)
-/crebain/thermal/detections:       crebain_msgs/ThermalDetectionArray
-/crebain/acoustic/detections:      crebain_msgs/AcousticDetectionArray
-/crebain/radar/detections:         crebain_msgs/RadarDetectionArray
-/crebain/lidar/detections:         crebain_msgs/LidarDetectionArray
+# Custom fusion arrays (WebSocket UI path only)
+/crebain/thermal/detections:                  crebain_msgs/ThermalDetectionArray
+/crebain/acoustic/detections:                 crebain_msgs/AcousticDetectionArray
+/crebain/radar/detections:                    crebain_msgs/RadarDetectionArray
+/crebain/lidar/detections:                    crebain_msgs/LidarDetectionArray
 # (visual measurements come from the local detection pipeline, not a ROS topic)
 
 # Gazebo Classic services (rosbridge fallback)
@@ -706,6 +747,32 @@ stateDiagram-v2
 /gazebo/delete_model:              gazebo_msgs/DeleteModel
 /gazebo/pause_physics, /gazebo/unpause_physics, /gazebo/reset_world
 ```
+
+These are topic templates, not wildcard subscriptions. The shipped product UI
+defaults to the TypeScript rosbridge WebSocket path, which supports the Gazebo
+Classic service calls and custom fusion arrays above. Selecting **Zenoh (Tauri)**
+switches to the native transport's fixed typed surface: raw/compressed camera,
+CameraInfo, IMU, PoseStamped, ModelStates, and pose/twist publishing. It does not
+implement ROS service calls, MAVROS state/odometry helpers, or the custom fusion
+arrays; the UI surfaces those operations as unsupported.
+
+### Camera wire contract
+
+Both native transports use the same explicit camera schema; topic suffixes do not
+select a decoder. The Tauri command carries `compressed: true|false`, and emitted
+`CameraFrame.data` is base64 text in both cases.
+
+- Raw `sensor_msgs/Image`: `rgba8`, `bgra8`, `rgb8`, `bgr8`, or `mono8`; width
+  and height each `1..=8192`; `step` must cover the encoded row; decoded data must
+  equal `height * step` and remain within 64 MiB.
+- `sensor_msgs/CompressedImage`: PNG or JPEG only. The declared format must match
+  the encoded bytes; an empty format is accepted only as the ROS JPEG fallback.
+  Encoded dimensions must fit the same `1..=8192` / 64 MiB decoded-RGBA budget.
+- `sensor_msgs/CameraInfo`: finite `K[9]`, `R[9]`, and `P[12]`; `D` is exactly 5
+  for `plumb_bob`, 8 for `rational_polynomial`, 4 for `equidistant`, or at most
+  32 finite coefficients for a custom model.
+- Headers require a non-negative finite timestamp (`nsec < 1,000,000,000`) and a
+  bounded, control-character-free frame ID.
 
 ### Quick Start
 
@@ -721,10 +788,11 @@ roslaunch rosbridge_server rosbridge_websocket.launch
 bun run tauri:dev
 ```
 
-The native Zenoh transport speaks CREBAIN's own plain-topic key scheme. Direct
+The native Zenoh transport speaks CREBAIN's own plain-key topic scheme. Direct
 interop with an `rmw_zenoh_cpp` ROS 2 graph (which keys topics as
 `<domain>/<topic>/<type>/<hash>`) requires a re-keying bridge and is not
-provided out of the box.
+provided out of the box. Setting `RMW_IMPLEMENTATION=rmw_zenoh_cpp` alone does
+not make the two key schemes compatible.
 
 ---
 
@@ -737,16 +805,19 @@ provided out of the box.
 | **Latency** | Deployment-dependent | Deployment-dependent |
 | **Throughput** | Deployment-dependent | Deployment-dependent |
 | **CPU Usage** | JSON parsing overhead applies | Depends on topology and payload path |
-| **Setup** | Easy | Requires RMW change |
+| **Setup** | rosbridge server + matching ROS message packages | Zenoh peer using CREBAIN keys, or an explicit ROS 2 re-keying bridge |
 | **Add Sensors** | Dynamic JSON messages | Needs Rust-side topic/type handling |
 | **ROS1 Support** | Yes | No |
 | **Debugging** | Browser DevTools | Harder |
 
 ### When to Use Each
 
-**rosbridge**: Development, ROS1/ROS2 WebSocket integration, experimental sensors, flexibility needed
+**rosbridge**: The shipped UI default and the required path for the documented
+Gazebo Classic services and custom fusion messages.
 
-**Zenoh-oriented transport**: Typed robotics data and deployments that benefit from Zenoh’s pub/sub/query model; benchmark in your own topology before depending on a latency target. Note: the bridge uses CREBAIN's plain-topic key scheme — direct `rmw_zenoh_cpp` graph interop needs a re-keying bridge
+**Zenoh-oriented transport**: A native typed pub/sub path for its fixed message
+surface. Benchmark in your topology, and provide a re-keying bridge for direct
+`rmw_zenoh_cpp` graph interoperability.
 
 ---
 
@@ -776,8 +847,15 @@ provided out of the box.
 | `CREBAIN_TRT_CACHE_DIR` | TensorRT engine cache dir | Directory path (Linux) |
 | `CREBAIN_DISABLE_TRT_CACHE` | Disable TensorRT caching | `1` / `true` |
 | `ORT_DYLIB_PATH` | ONNX Runtime library path (honored by `ort` only on Linux `load-dynamic` builds) | Path to `libonnxruntime.so` |
-| `CREBAIN_ZENOH` | Enable native Zenoh transport (default: enabled). Only `1`/`true`/`yes`/`on` enable it; any other value selects the rosbridge fallback | `1` / `0` |
-| `CREBAIN_ROSBRIDGE_URL` | rosbridge URL for the Rust fallback transport | `ws://localhost:9090` (default) |
+| `CREBAIN_ZENOH` | Select the native Rust transport: unset/true-like uses Zenoh; any other value uses its rosbridge fallback. This does not choose the product UI transport. | `1` / `0` |
+| `CREBAIN_ROSBRIDGE_URL` | URL used only by the native Rust rosbridge fallback (`CREBAIN_ZENOH=0`) | `ws://localhost:9090` (default) |
+| `CREBAIN_ALLOW_UNSAFE_GAZEBO_XML` | Native Rust trusted-development bypass for caller-supplied Gazebo XML containing plugin/include/URI/external-resource directives | `1` only in an isolated trusted environment |
+| `CREBAIN_PID_JSONL` | Native best-effort innovation-record append sink; the path is trusted operator configuration and may contain sensitive telemetry | Writable local path |
+
+The frontend ROS connection panel defaults separately to WebSocket and uses its
+own URL field. Frontend caller-supplied Gazebo XML always rejects privileged
+directives; only the audited bundled Maverick helper has a fixed privileged
+frontend path. The native environment bypass does not weaken that frontend rule.
 
 ---
 
@@ -902,7 +980,7 @@ crebain/
 │   ├── simulation/               # Interception system
 │   ├── state/                    # Scene serialization/persistence
 │   ├── context/                  # React contexts (UI scaling)
-│   ├── neuro/                    # NCP TypeScript glue (versionGuard)
+│   ├── neuro/                    # Dormant NCP TypeScript glue (version guard)
 │   └── lib/                      # Utilities
 │
 ├── src-tauri/                    # Rust backend
@@ -910,7 +988,7 @@ crebain/
 │   │   ├── common/               # Shared detection/NMS/YOLO/path utils
 │   │   ├── inference/            # ML abstraction layer
 │   │   ├── transport/            # Zenoh + rosbridge transport
-│   │   ├── ncp/                  # NCP client (off-by-default feature)
+│   │   ├── ncp/                  # Dormant NCP client (off-by-default feature)
 │   │   └── sensor_fusion.rs      # Filter algorithms
 │   ├── native/
 │   │   └── coreml-ffi/           # Swift CoreML bridge
@@ -934,11 +1012,11 @@ crebain/
 Use the same commands in local development, CI, and PR review:
 
 ```bash
-# Frontend typecheck + Vitest
+# Frontend typecheck + lint + format check + Vitest
 bun run validate
 
-# Full validation: frontend + Rust fmt/check/test/clippy,
-# including the off-by-default `ncp` feature (clippy + tests)
+# Local cross-language gate: frontend validation + Rust fmt/check/test/clippy,
+# plus clippy and tests with the off-by-default `ncp` feature
 bun run validate:all
 ```
 
@@ -955,20 +1033,31 @@ bun run check:rust
 bun run fmt:rust:check
 bun run test:rust
 bun run clippy:rust
+bun run check:rust:ncp
+bun run clippy:rust:ncp
+bun run test:rust:ncp
 ```
 
 The authoritative pass/fail status and test counts are the
 [CI runs](https://github.com/sepahead/crebain/actions/workflows/ci.yml); see
 `CHANGELOG.md` for what changed per release. `bun run validate:all` runs the full
-frontend + Rust gate locally.
+frontend/default-Rust/NCP-Rust gate locally. It does **not** run the hosted
+bundle-size, coverage, feature-gate (`cuda,tensorrt` and `--no-default-features`),
+CodeQL, or supply-chain-audit jobs; release candidates require those hosted gates
+as specified in [the acceptance matrix](docs/RELEASE_ACCEPTANCE.md).
 
 Current backend boundary hardening covers:
 
 - Native detection image ingress and structured failure payloads
-- Scene path/JSON validation and saved-scene listing guards
+- Scene path/JSON validation, bounded open-once native reads, atomic saves,
+  browser pre-read bounds, migration, schema/cardinality guards, and bounded
+  self-contained asset restore
 - Sensor-fusion config, measurement, track, and stats validation
-- ROSBridge outbound graph/service validation and disconnected service-call rejection
-- Zenoh topic/event naming, CDR sequence bounds, raw image metadata validation, and transport publish payload validation
+- ROSBridge graph/service validation, bounded base64-only image parsing,
+  correlated service replies, queue/time limits, and fail-closed mutation results
+- Unified raw/compressed camera schemas across rosbridge and Zenoh; Zenoh
+  topic/event naming, bounded CDR strings/sequences/image metadata, and finite
+  transport publish payloads
 - TensorRT model path and engine-build input validation, including unsupported INT8 build rejection without calibration data
 
 Release readiness artifacts:

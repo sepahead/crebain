@@ -56,6 +56,9 @@ tauri-plugin-log = "2"
 base64 = "0.22"
 sha2 = "0.10"
 
+# Atomic same-directory scene persistence.
+tempfile = "3.27"
+
 # Image processing. The base64 IPC path accepts PNG/JPEG only; disabling the
 # default codec set removes unused decoders (including the yanked AVIF chain)
 # and keeps the untrusted-image attack surface narrow.
@@ -74,7 +77,11 @@ ort = "2.0.0-rc.10"
 
 # Zenoh-oriented ROS2 communication (1.9.x series)
 # Deployment latency depends on topology, payloads, and transport configuration.
-zenoh = { version = "1.9", features = ["default"], optional = true }
+zenoh = { version = "1.9", default-features = false, features = [
+    "transport_tcp",
+    "transport_udp",
+    "shared-memory",
+], optional = true }
 
 # Neuro-Cybernetic Protocol (NCP) standard SDK — pinned to the published repo
 # (canonical home: https://github.com/sepahead/NCP). Resolves standalone on a fresh

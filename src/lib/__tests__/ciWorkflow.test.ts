@@ -5,6 +5,7 @@ const PACKAGE = JSON.parse(readFileSync(`${process.cwd()}/package.json`, 'utf8')
   scripts: Record<string, string>
 }
 const WORKFLOW = readFileSync(`${process.cwd()}/.github/workflows/ci.yml`, 'utf8')
+const RELEASE_WORKFLOW = readFileSync(`${process.cwd()}/.github/workflows/release.yml`, 'utf8')
 const WORKFLOWS = readdirSync(`${process.cwd()}/.github/workflows`)
   .filter((file) => file.endsWith('.yml') || file.endsWith('.yaml'))
   .map((file) => readFileSync(`${process.cwd()}/.github/workflows/${file}`, 'utf8'))
@@ -57,6 +58,15 @@ describe('CI workflow', () => {
     expect(actionReferences.length).toBeGreaterThan(0)
     for (const [, action, revision] of actionReferences) {
       expect(revision, `${action} must use a full commit SHA`).toMatch(/^[0-9a-f]{40}$/)
+    }
+  })
+
+  it('uses clang reported runtime path for macOS ONNX linking', () => {
+    for (const workflow of [WORKFLOW, RELEASE_WORKFLOW]) {
+      expect(workflow).toContain('xcrun clang --print-resource-dir')
+      expect(workflow).toContain('test -e "$CLANG_RT_DIR/libclang_rt.osx.a"')
+      expect(workflow).toContain('RUSTFLAGS=-Lnative=$CLANG_RT_DIR')
+      expect(workflow).toContain('LIBRARY_PATH=$CLANG_RT_DIR')
     }
   })
 

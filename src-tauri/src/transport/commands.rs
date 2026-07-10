@@ -1,6 +1,6 @@
 use super::{
-    create_bridge, CameraFrame, CameraInfoData, ImuData, ModelStates, PoseData, Transport,
-    TransportError, TransportStats, TwistStampedData, VelocityCmd,
+    create_bridge, CameraFrame, CameraInfoData, CameraStreamKind, ImuData, ModelStates, PoseData,
+    Transport, TransportError, TransportStats, TwistStampedData, VelocityCmd,
 };
 use std::future::Future;
 use std::sync::{Arc, LazyLock};
@@ -14,10 +14,17 @@ use tokio::sync::Mutex;
 static TRANSPORT_ENGINE: LazyLock<Mutex<Option<Arc<dyn Transport>>>> =
     LazyLock::new(|| Mutex::new(None));
 
-const MAX_TOPIC_LEN: usize = 512;
+const MAX_TOPIC_LEN: usize = 256;
 const MAX_FRAME_ID_LEN: usize = 256;
 const MAX_GAZEBO_MODEL_NAME_LEN: usize = 128;
-const MAX_GAZEBO_MODEL_XML_BYTES: usize = 2 * 1024 * 1024;
+const MAX_GAZEBO_MODEL_XML_BYTES: usize = 256 * 1024;
+// These are command-surface safety ceilings, not flight-controller tuning.
+// They deliberately sit above every bundled airframe's envelope while still
+// rejecting finite-but-dangerous values before they reach ROS actuators.
+const MAX_LINEAR_SPEED_MPS: f64 = 100.0;
+const MAX_ANGULAR_SPEED_RAD_S: f64 = 50.0;
+const MAX_POSITION_MAGNITUDE_M: f64 = 1_000_000.0;
+const QUATERNION_NORM_TOLERANCE: f64 = 0.01;
 const TRANSPORT_EVENT_PREFIX: &str = "crebain:transport:";
 const TRANSPORT_OP_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -40,8 +47,8 @@ async fn with_timeout<T>(op: impl Future<Output = super::Result<T>>) -> Result<T
 }
 
 fn validate_topic(topic: &str) -> Result<(), String> {
-    if topic.trim().is_empty() {
-        return Err("Transport topic must not be empty".to_string());
+    if topic.is_empty() || topic.trim() != topic {
+        return Err("Transport topic must not be empty or padded".to_string());
     }
     if topic.contains('\0') {
         return Err("Transport topic must not contain null bytes".to_string());
@@ -53,12 +60,18 @@ fn validate_topic(topic: &str) -> Result<(), String> {
             MAX_TOPIC_LEN
         ));
     }
-    // ROS-graph character whitelist. This also keeps zenoh key-expression
-    // metacharacters (`*`, `?`, `#`, `$`, ...) out of topics that are passed
-    // verbatim as key expressions, consistent with rosbridge-side validation.
+    if topic == "/" || !topic.starts_with('/') {
+        return Err("Transport topic must be an absolute ROS name".to_string());
+    }
+    if topic.contains("//") {
+        return Err("Transport topic must not contain empty path segments".to_string());
+    }
+    // ROS-graph character whitelist. This also keeps Zenoh key-expression
+    // metacharacters (`*`, `?`, `#`, `$`, ...) out of topics passed verbatim as
+    // key expressions.
     if !topic
         .chars()
-        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '/' | '.'))
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '/'))
     {
         return Err("Transport topic contains unsupported characters".to_string());
     }
@@ -66,6 +79,9 @@ fn validate_topic(topic: &str) -> Result<(), String> {
 }
 
 fn validate_frame_id(name: &str, frame_id: &str) -> Result<(), String> {
+    if frame_id.is_empty() || frame_id.trim() != frame_id {
+        return Err(format!("{} must not be empty or padded", name));
+    }
     if frame_id.contains('\0') {
         return Err(format!("{} must not contain null bytes", name));
     }
@@ -77,6 +93,13 @@ fn validate_frame_id(name: &str, frame_id: &str) -> Result<(), String> {
             MAX_FRAME_ID_LEN
         ));
     }
+    if frame_id.contains("//")
+        || !frame_id
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || matches!(character, '_' | '/'))
+    {
+        return Err(format!("{} contains unsupported characters", name));
+    }
     Ok(())
 }
 
@@ -85,6 +108,20 @@ fn validate_finite_array(name: &str, values: &[f64]) -> Result<(), String> {
         if !value.is_finite() {
             return Err(format!("{}[{}] must be finite", name, index));
         }
+    }
+    Ok(())
+}
+
+fn validate_vector_magnitude(name: &str, values: &[f64], maximum: f64) -> Result<(), String> {
+    validate_finite_array(name, values)?;
+    let magnitude = values
+        .iter()
+        .fold(0.0_f64, |accumulator, value| accumulator.hypot(*value));
+    if magnitude > maximum {
+        return Err(format!(
+            "{} magnitude must not exceed {}, got {}",
+            name, maximum, magnitude
+        ));
     }
     Ok(())
 }
@@ -102,8 +139,16 @@ fn validate_timestamp(name: &str, timestamp: f64) -> Result<(), String> {
 }
 
 fn validate_velocity_cmd(name: &str, cmd: &VelocityCmd) -> Result<(), String> {
-    validate_finite_array(&format!("{}.linear", name), &cmd.linear)?;
-    validate_finite_array(&format!("{}.angular", name), &cmd.angular)
+    validate_vector_magnitude(
+        &format!("{}.linear", name),
+        &cmd.linear,
+        MAX_LINEAR_SPEED_MPS,
+    )?;
+    validate_vector_magnitude(
+        &format!("{}.angular", name),
+        &cmd.angular,
+        MAX_ANGULAR_SPEED_RAD_S,
+    )
 }
 
 fn validate_twist_stamped(cmd: &TwistStampedData) -> Result<(), String> {
@@ -113,8 +158,18 @@ fn validate_twist_stamped(cmd: &TwistStampedData) -> Result<(), String> {
 }
 
 fn validate_pose_data(pose: &PoseData) -> Result<(), String> {
-    validate_finite_array("pose.position", &pose.position)?;
+    validate_vector_magnitude("pose.position", &pose.position, MAX_POSITION_MAGNITUDE_M)?;
     validate_finite_array("pose.orientation", &pose.orientation)?;
+    let orientation_norm = pose
+        .orientation
+        .iter()
+        .fold(0.0_f64, |accumulator, value| accumulator.hypot(*value));
+    if (orientation_norm - 1.0).abs() > QUATERNION_NORM_TOLERANCE {
+        return Err(format!(
+            "pose.orientation must be a unit quaternion within {} tolerance, got norm {}",
+            QUATERNION_NORM_TOLERANCE, orientation_norm
+        ));
+    }
     validate_timestamp("pose.timestamp", pose.timestamp)?;
     validate_frame_id("pose.frame_id", &pose.frame_id)
 }
@@ -128,7 +183,10 @@ pub struct GazeboSpawnModelRequest {
     pub reference_frame: Option<String>,
 }
 
-fn validate_gazebo_spawn_request(request: &GazeboSpawnModelRequest) -> Result<(), String> {
+fn validate_gazebo_spawn_request_with_policy(
+    request: &GazeboSpawnModelRequest,
+    allow_unsafe_xml: bool,
+) -> Result<(), String> {
     validate_bounded_graph_name("model name", &request.name, MAX_GAZEBO_MODEL_NAME_LEN)?;
     if request.xml.trim().is_empty() {
         return Err("model XML must not be empty".to_string());
@@ -143,6 +201,28 @@ fn validate_gazebo_spawn_request(request: &GazeboSpawnModelRequest) -> Result<()
             MAX_GAZEBO_MODEL_XML_BYTES
         ));
     }
+    let normalized_xml = request.xml.to_ascii_lowercase();
+    const PRIVILEGED_XML_MARKERS: [&str; 9] = [
+        "<!doctype",
+        "<!entity",
+        "<include",
+        "<plugin",
+        "<uri",
+        "filename=",
+        "file://",
+        "http://",
+        "https://",
+    ];
+    if !allow_unsafe_xml
+        && PRIVILEGED_XML_MARKERS
+            .iter()
+            .any(|marker| normalized_xml.contains(marker))
+    {
+        return Err(
+            "model XML contains external-resource or plugin directives; set CREBAIN_ALLOW_UNSAFE_GAZEBO_XML=1 only in a trusted development environment"
+                .to_string(),
+        );
+    }
     if let Some(namespace) = &request.robot_namespace {
         validate_bounded_graph_name("robot namespace", namespace, MAX_FRAME_ID_LEN)?;
     }
@@ -150,6 +230,18 @@ fn validate_gazebo_spawn_request(request: &GazeboSpawnModelRequest) -> Result<()
         validate_frame_id("reference_frame", reference_frame)?;
     }
     validate_pose_data(&request.initial_pose)
+}
+
+fn validate_gazebo_spawn_request(request: &GazeboSpawnModelRequest) -> Result<(), String> {
+    let allow_unsafe_xml = std::env::var("CREBAIN_ALLOW_UNSAFE_GAZEBO_XML")
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes"
+            )
+        })
+        .unwrap_or(false);
+    validate_gazebo_spawn_request_with_policy(request, allow_unsafe_xml)
 }
 
 fn validate_bounded_graph_name(name: &str, value: &str, max_len: usize) -> Result<(), String> {
@@ -238,7 +330,11 @@ pub async fn transport_disconnect() -> Result<(), String> {
 /// Subscribe to a camera topic
 /// frames will be emitted as events with the same name as the topic
 #[tauri::command]
-pub async fn transport_subscribe_camera(app: AppHandle, topic: String) -> Result<(), String> {
+pub async fn transport_subscribe_camera(
+    app: AppHandle,
+    topic: String,
+    compressed: Option<bool>,
+) -> Result<(), String> {
     validate_topic(&topic)?;
     let bridge = current_bridge().await?;
 
@@ -259,7 +355,12 @@ pub async fn transport_subscribe_camera(app: AppHandle, topic: String) -> Result
         }
     });
 
-    with_timeout(bridge.subscribe_camera(&topic, callback)).await
+    let stream_kind = if compressed.unwrap_or(false) {
+        CameraStreamKind::Compressed
+    } else {
+        CameraStreamKind::Raw
+    };
+    with_timeout(bridge.subscribe_camera(&topic, stream_kind, callback)).await
 }
 
 /// Subscribe to a CameraInfo topic
@@ -405,8 +506,8 @@ pub async fn transport_spawn_gazebo_model(request: GazeboSpawnModelRequest) -> R
     let bridge = current_bridge().await?;
     let pose = request.initial_pose;
     let args = serde_json::json!({
-        "name": request.name,
-        "xml": request.xml,
+        "model_name": request.name,
+        "model_xml": request.xml,
         "robot_namespace": request.robot_namespace.unwrap_or_default(),
         "initial_pose": {
             "position": {
@@ -423,7 +524,11 @@ pub async fn transport_spawn_gazebo_model(request: GazeboSpawnModelRequest) -> R
         },
         "reference_frame": request.reference_frame.unwrap_or_else(|| pose.frame_id.clone())
     });
-    with_timeout(bridge.call_service("/gazebo/spawn_entity", "gazebo_msgs/SpawnEntity", args)).await
+    // The rosbridge fallback intentionally follows the documented Gazebo
+    // Classic / ROS 1 deployment contract. Native Zenoh currently rejects
+    // service calls explicitly rather than pretending ROS 2 services work.
+    with_timeout(bridge.call_service("/gazebo/spawn_sdf_model", "gazebo_msgs/SpawnModel", args))
+        .await
 }
 
 /// Get transport statistics
@@ -453,14 +558,24 @@ pub fn validate_gazebo_spawn_request_for_test(
 }
 
 fn validate_message_type(msg_type: &str) -> Result<(), String> {
-    if msg_type.trim().is_empty() {
-        return Err("Message type must not be empty".to_string());
+    if msg_type.is_empty() || msg_type.trim() != msg_type {
+        return Err("Message type must not be empty or padded".to_string());
     }
     if msg_type.contains('\0') {
         return Err("Message type must not contain null bytes".to_string());
     }
-    if !msg_type.contains('/') {
-        return Err(format!("Message type must contain '/': {}", msg_type));
+    let segments: Vec<_> = msg_type.split('/').collect();
+    let valid_segment = |segment: &&str| {
+        segment
+            .chars()
+            .next()
+            .is_some_and(|first| first.is_ascii_alphabetic())
+            && segment
+                .chars()
+                .all(|character| character.is_ascii_alphanumeric() || character == '_')
+    };
+    if !(segments.len() == 2 || segments.len() == 3) || !segments.iter().all(valid_segment) {
+        return Err(format!("Invalid message type: {}", msg_type));
     }
     Ok(())
 }
@@ -472,7 +587,6 @@ mod tests {
     #[test]
     fn validate_topic_accepts_common_ros_topics() {
         assert!(validate_topic("/camera/image_raw").is_ok());
-        assert!(validate_topic("mavros/local_position/pose").is_ok());
     }
 
     #[test]
@@ -489,7 +603,7 @@ mod tests {
             .contains("must not be empty"));
         assert!(validate_topic("   ")
             .unwrap_err()
-            .contains("must not be empty"));
+            .contains("must not be empty or padded"));
         assert!(validate_topic("/camera\0/image")
             .unwrap_err()
             .contains("null bytes"));
@@ -499,13 +613,31 @@ mod tests {
 
     #[test]
     fn validate_topic_rejects_wildcards_and_metacharacters() {
-        for topic in ["/**", "/camera/*", "/cam?era", "/cam#era", "/cam$era"] {
+        for topic in [
+            "/**",
+            "/camera/*",
+            "/cam?era",
+            "/cam#era",
+            "/cam$era",
+            "/cam-era",
+            "/cam.era",
+        ] {
             assert!(
                 validate_topic(topic)
                     .unwrap_err()
                     .contains("unsupported characters"),
                 "expected rejection for {}",
                 topic
+            );
+        }
+    }
+
+    #[test]
+    fn validate_topic_rejects_non_canonical_ros_names() {
+        for topic in ["relative/topic", "/", "/double//slash", "/padded "] {
+            assert!(
+                validate_topic(topic).is_err(),
+                "expected rejection for {topic}"
             );
         }
     }
@@ -562,6 +694,19 @@ mod tests {
     }
 
     #[test]
+    fn transport_publish_velocity_rejects_excessive_finite_payload_before_connection_check() {
+        let cmd = VelocityCmd {
+            linear: [MAX_LINEAR_SPEED_MPS + 1.0, 0.0, 0.0],
+            angular: [0.0, 0.0, 0.0],
+        };
+        let error =
+            tauri::async_runtime::block_on(transport_publish_velocity("/cmd_vel".to_string(), cmd))
+                .unwrap_err();
+
+        assert!(error.contains("cmd.linear magnitude must not exceed"));
+    }
+
+    #[test]
     fn transport_publish_twist_stamped_rejects_invalid_header_before_connection_check() {
         let cmd = TwistStampedData {
             twist: VelocityCmd {
@@ -593,6 +738,46 @@ mod tests {
                 .unwrap_err();
 
         assert!(error.contains("pose.frame_id must not contain null bytes"));
+    }
+
+    #[test]
+    fn transport_publish_pose_rejects_malformed_frame_id_before_connection_check() {
+        let pose = PoseData {
+            position: [0.0, 0.0, 0.0],
+            orientation: [0.0, 0.0, 0.0, 1.0],
+            timestamp: 0.0,
+            frame_id: "bad frame".to_string(),
+        };
+        let error =
+            tauri::async_runtime::block_on(transport_publish_pose("/setpoint".to_string(), pose))
+                .unwrap_err();
+
+        assert!(error.contains("pose.frame_id contains unsupported characters"));
+    }
+
+    #[test]
+    fn transport_publish_pose_rejects_non_unit_orientation_before_connection_check() {
+        let pose = PoseData {
+            position: [0.0, 0.0, 0.0],
+            orientation: [0.0, 0.0, 0.0, 0.0],
+            timestamp: 0.0,
+            frame_id: "map".to_string(),
+        };
+        let error =
+            tauri::async_runtime::block_on(transport_publish_pose("/setpoint".to_string(), pose))
+                .unwrap_err();
+
+        assert!(error.contains("must be a unit quaternion"));
+    }
+
+    #[test]
+    fn gazebo_spawn_rejects_excessive_position() {
+        let mut request = valid_spawn_request();
+        request.initial_pose.position = [MAX_POSITION_MAGNITUDE_M + 1.0, 0.0, 0.0];
+
+        let error = validate_gazebo_spawn_request(&request).unwrap_err();
+
+        assert!(error.contains("pose.position magnitude must not exceed"));
     }
 
     fn valid_spawn_request() -> GazeboSpawnModelRequest {
@@ -634,6 +819,18 @@ mod tests {
         let error = validate_gazebo_spawn_request(&request).unwrap_err();
 
         assert!(error.contains("model XML too large"));
+    }
+
+    #[test]
+    fn gazebo_spawn_rejects_plugins_and_external_resources_by_default() {
+        let mut request = valid_spawn_request();
+        request.xml =
+            "<sdf><model><plugin filename=\"libmalicious.so\" /></model></sdf>".to_string();
+
+        let error = validate_gazebo_spawn_request_with_policy(&request, false).unwrap_err();
+
+        assert!(error.contains("external-resource or plugin directives"));
+        assert!(validate_gazebo_spawn_request_with_policy(&request, true).is_ok());
     }
 
     #[test]
