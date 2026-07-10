@@ -16,12 +16,7 @@ import type { Position } from '../hooks/useDraggable'
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type PanelId =
-  | 'drone'
-  | 'droneSpawn'
-  | 'rosConnection'
-  | 'sensorFusion'
-  | 'performance'
-  | 'saveLoad'
+  'drone' | 'droneSpawn' | 'rosConnection' | 'sensorFusion' | 'performance' | 'saveLoad'
 
 export interface PanelPositionConfig {
   initialPosition: Position

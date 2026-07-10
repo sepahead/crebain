@@ -13,11 +13,9 @@ all-features = true
 
 [advisories]
 version = 2
-# Yanked crates warn rather than fail: the only yanked entries are transitive
-# (core2, stabby — pulled in by the Zenoh stack) with no newer published
-# versions, so failing here would block on something we cannot fix. The audit
-# workflow (cargo audit) keeps them visible; dependencies are updated manually.
-yanked = "warn"
+# Yanked dependencies are release blockers. Keep unused image codecs disabled
+# and refresh the lockfile rather than carrying abandoned transitive versions.
+yanked = "deny"
 # Only fail on *unmaintained* advisories for crates we depend on directly; the
 # deep transitive GUI stack pulled in by Tauri on Linux (gtk-rs, etc.) is not
 # something this project can fix and is tracked upstream.
@@ -32,6 +30,11 @@ ignore = [
     # rand unsoundness only under a specific custom-global-logger interaction;
     # not triggered by CREBAIN's usage. Remove once a patched rand is published.
     "RUSTSEC-2026-0097",
+    # Zenoh 1.9 constrains lz4_flex to 0.10. That release enables safe-decode by
+    # default, and Zenoh's affected decompress_into call allocates a fresh output
+    # buffer for every batch, so neither advisory leak condition is reachable.
+    # Remove when Zenoh accepts lz4_flex >=0.11.6.
+    "RUSTSEC-2026-0041",
 ]
 
 [licenses]
@@ -47,10 +50,8 @@ allow = [
     "Zlib",
     "MPL-2.0",
     "Unicode-3.0",
-    "Unicode-DFS-2016",
     "CC0-1.0",
     "Unlicense",
-    "OpenSSL",
     "BSL-1.0",
     # Permissive data license (transitive, e.g. webpki-roots certificate data).
     "CDLA-Permissive-2.0",
