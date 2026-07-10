@@ -28,6 +28,9 @@ import {
   NcpVersionError,
   type Send,
 } from '@sepahead/ncp'
+import { logger } from '../lib/logger'
+
+const log = logger.scope('NCP')
 
 /** Thrown when a reply's `ncp_version` is absent or not wire-compatible with this
  *  build. Kept as a stable CREBAIN type while the underlying compatibility rule is
@@ -92,11 +95,10 @@ export function assertReplyVersion(reply: unknown, mode: OnVersionMismatch = 'th
   }
   if (!compatible) {
     if (mode === 'warn') {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `NCP reply version mismatch: expected wire-compatible with "${NCP_VERSION}", got ` +
-          `${received === undefined ? '<absent>' : JSON.stringify(received)}`
-      )
+      log.warn('NCP reply version mismatch', {
+        expected: NCP_VERSION,
+        received: received === undefined ? '<absent>' : received,
+      })
     } else {
       throw new NcpVersionMismatchError(received)
     }
@@ -109,8 +111,9 @@ export function assertReplyVersion(reply: unknown, mode: OnVersionMismatch = 'th
     assertScientificBoundary(reply)
   } catch (e) {
     if (mode === 'warn') {
-      // eslint-disable-next-line no-console
-      console.warn(`NCP reply boundary violation: ${(e as Error).message}`)
+      log.warn('NCP reply boundary violation', {
+        error: e instanceof Error ? e.message : String(e),
+      })
     } else {
       throw e
     }

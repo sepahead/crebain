@@ -47,6 +47,7 @@ export interface CameraState {
 
 export interface DroneState {
   id: string
+  name?: string
   type: string // e.g., 'maverick', 'shahed', 'fpv_racer'
   position: Vector3State
   orientation: QuaternionState
@@ -59,6 +60,9 @@ export interface DroneState {
   targetPosition?: Vector3State
   flightMode?: 'manual' | 'stabilized' | 'altitude_hold' | 'position_hold' | 'waypoint'
   waypoints?: Vector3State[]
+  routeMode?: 'none' | 'once' | 'patrol'
+  routeActive?: boolean
+  routeCurrentWaypointIndex?: number
 }
 
 export interface DetectionState {
@@ -72,8 +76,18 @@ export interface DetectionState {
 }
 
 export interface SplatSceneState {
-  url?: string
+  url: string
   localPath?: string
+  position: Vector3State
+  rotation: Vector3State
+  scale: Vector3State
+}
+
+export interface SceneAssetState {
+  id: string
+  name: string
+  type: 'glb'
+  source: string
   position: Vector3State
   rotation: Vector3State
   scale: Vector3State
@@ -96,6 +110,7 @@ export interface SceneState {
 
   // Core scene
   splatScene?: SplatSceneState
+  assets?: SceneAssetState[]
 
   // Cameras
   cameras: CameraState[]
@@ -155,6 +170,15 @@ export function stateToEuler(s: Vector3State): THREE.Euler {
 const CURRENT_VERSION = '1.0.0'
 const STORAGE_KEY = 'crebain_scene_state'
 const AUTOSAVE_KEY = 'crebain_autosave'
+export const MAX_SCENE_STATE_BYTES = 10 * 1024 * 1024
+const MAX_SCENE_CAMERAS = 64
+const MAX_SCENE_DRONES = 256
+export const MAX_SCENE_ASSETS = 128
+const MAX_SCENE_DETECTIONS = 10_000
+const MAX_ROUTE_POINTS = 4096
+const MAX_NAME_LENGTH = 256
+const MAX_CAMERA_RENDER_PIXELS = 16_777_216
+const MAX_VECTOR_COMPONENT = 1_000_000
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -178,18 +202,27 @@ function isOptionalString(value: unknown): value is string | undefined {
 
 function isVector3State(value: unknown): value is Vector3State {
   return (
-    isRecord(value) && isFiniteNumber(value.x) && isFiniteNumber(value.y) && isFiniteNumber(value.z)
+    isRecord(value) &&
+    isFiniteNumber(value.x) &&
+    Math.abs(value.x) <= MAX_VECTOR_COMPONENT &&
+    isFiniteNumber(value.y) &&
+    Math.abs(value.y) <= MAX_VECTOR_COMPONENT &&
+    isFiniteNumber(value.z) &&
+    Math.abs(value.z) <= MAX_VECTOR_COMPONENT
   )
 }
 
 function isQuaternionState(value: unknown): value is QuaternionState {
-  return (
+  if (!(
     isRecord(value) &&
     isFiniteNumber(value.x) &&
     isFiniteNumber(value.y) &&
     isFiniteNumber(value.z) &&
     isFiniteNumber(value.w)
-  )
+  ))
+    return false
+  const normSquared = value.x ** 2 + value.y ** 2 + value.z ** 2 + value.w ** 2
+  return Number.isFinite(normSquared) && Math.abs(Math.sqrt(normSquared) - 1) <= 0.01
 }
 
 function isCameraType(value: unknown): value is CameraState['type'] {
@@ -217,7 +250,9 @@ function isResolution(value: unknown): value is [number, number] {
     Number.isSafeInteger(value[0]) &&
     Number.isSafeInteger(value[1]) &&
     value[0] > 0 &&
-    value[1] > 0
+    value[1] > 0 &&
+    value[0] <= 4096 &&
+    value[1] <= 4096
   )
 }
 
@@ -226,12 +261,23 @@ function isFiniteTuple4(value: unknown): value is [number, number, number, numbe
 }
 
 function isOptionalVector3Array(value: unknown): value is Vector3State[] | undefined {
-  return value === undefined || (Array.isArray(value) && value.every(isVector3State))
+  return (
+    value === undefined ||
+    (Array.isArray(value) && value.length <= MAX_ROUTE_POINTS && value.every(isVector3State))
+  )
 }
 
 function isCameraState(value: unknown): value is CameraState {
   if (!isRecord(value)) return false
-  if (!isString(value.id) || !isString(value.name)) return false
+  if (
+    !isString(value.id) ||
+    value.id.length === 0 ||
+    value.id.length > MAX_NAME_LENGTH ||
+    !isString(value.name) ||
+    value.name.length === 0 ||
+    value.name.length > MAX_NAME_LENGTH
+  )
+    return false
   if (!isCameraType(value.type)) return false
   if (!isVector3State(value.position) || !isVector3State(value.rotation)) return false
   if (!isFiniteNumber(value.fov) || value.fov <= 0 || value.fov >= 180) return false
@@ -245,7 +291,7 @@ function isCameraState(value: unknown): value is CameraState {
   if (!isOptionalVector3Array(value.patrolPoints)) return false
   if (
     value.patrolSpeed !== undefined &&
-    (!isFiniteNumber(value.patrolSpeed) || value.patrolSpeed < 0)
+    (!isFiniteNumber(value.patrolSpeed) || value.patrolSpeed < 0 || value.patrolSpeed > 1)
   )
     return false
   return true
@@ -253,7 +299,18 @@ function isCameraState(value: unknown): value is CameraState {
 
 function isDroneState(value: unknown): value is DroneState {
   if (!isRecord(value)) return false
-  if (!isString(value.id) || !isString(value.type)) return false
+  if (
+    !isString(value.id) ||
+    value.id.length === 0 ||
+    value.id.length > MAX_NAME_LENGTH ||
+    !isString(value.type) ||
+    value.type.length === 0 ||
+    value.type.length > MAX_NAME_LENGTH
+  )
+    return false
+  if (!isOptionalString(value.name)) return false
+  if (value.name !== undefined && (value.name.length === 0 || value.name.length > MAX_NAME_LENGTH))
+    return false
   if (!isVector3State(value.position)) return false
   if (!isQuaternionState(value.orientation)) return false
   if (!isVector3State(value.velocity) || !isVector3State(value.angularVelocity)) return false
@@ -263,26 +320,112 @@ function isDroneState(value: unknown): value is DroneState {
   if (value.targetPosition !== undefined && !isVector3State(value.targetPosition)) return false
   if (value.flightMode !== undefined && !isFlightMode(value.flightMode)) return false
   if (!isOptionalVector3Array(value.waypoints)) return false
+  if (
+    value.routeMode !== undefined &&
+    value.routeMode !== 'none' &&
+    value.routeMode !== 'once' &&
+    value.routeMode !== 'patrol'
+  )
+    return false
+  if (value.routeActive !== undefined && !isBoolean(value.routeActive)) return false
+  if (
+    value.routeCurrentWaypointIndex !== undefined &&
+    (!isFiniteNumber(value.routeCurrentWaypointIndex) ||
+      !Number.isSafeInteger(value.routeCurrentWaypointIndex) ||
+      value.routeCurrentWaypointIndex < 0)
+  )
+    return false
+  if (
+    value.routeCurrentWaypointIndex !== undefined &&
+    (value.waypoints?.length ?? 0) > 0 &&
+    value.routeCurrentWaypointIndex >= (value.waypoints?.length ?? 0)
+  )
+    return false
   return true
 }
 
 function isDetectionState(value: unknown): value is DetectionState {
   if (!isRecord(value)) return false
-  if (!isString(value.id) || !isString(value.cameraId) || !isString(value.class)) return false
+  if (
+    !isString(value.id) ||
+    value.id.length === 0 ||
+    value.id.length > MAX_NAME_LENGTH ||
+    !isString(value.cameraId) ||
+    value.cameraId.length === 0 ||
+    value.cameraId.length > MAX_NAME_LENGTH ||
+    !isString(value.class) ||
+    value.class.length === 0 ||
+    value.class.length > MAX_NAME_LENGTH
+  )
+    return false
   if (!isFiniteNumber(value.confidence) || value.confidence < 0 || value.confidence > 1)
     return false
-  if (!isFiniteTuple4(value.bbox)) return false
-  if (!isFiniteNumber(value.timestamp)) return false
-  if (!isFiniteNumber(value.threatLevel) || value.threatLevel < 0) return false
+  if (
+    !isFiniteTuple4(value.bbox) ||
+    value.bbox.some((coordinate) => coordinate < 0 || coordinate > MAX_VECTOR_COMPONENT) ||
+    value.bbox[2] < value.bbox[0] ||
+    value.bbox[3] < value.bbox[1]
+  )
+    return false
+  if (!isFiniteNumber(value.timestamp) || value.timestamp < 0) return false
+  if (!isFiniteNumber(value.threatLevel) || value.threatLevel < 0 || value.threatLevel > 4)
+    return false
   return true
 }
 
 function isSplatSceneState(value: unknown): value is SplatSceneState {
   if (!isRecord(value)) return false
-  if (!isOptionalString(value.url) || !isOptionalString(value.localPath)) return false
-  return (
-    isVector3State(value.position) && isVector3State(value.rotation) && isVector3State(value.scale)
+  if (!isString(value.url) || !isReloadableSceneSource(value.url)) return false
+  if (!isOptionalString(value.localPath)) return false
+  if (
+    !isVector3State(value.position) ||
+    !isVector3State(value.rotation) ||
+    !isVector3State(value.scale)
   )
+    return false
+  return value.scale.x > 0 && value.scale.y > 0 && value.scale.z > 0
+}
+
+export function isReloadableSceneSource(value: string): boolean {
+  if (value.length === 0 || value.length > 2048 || value.includes('\0')) return false
+  if (/^(\/|\.\/|\.\.\/)/.test(value)) return true
+  try {
+    const url = new URL(value)
+    if (url.username || url.password) return false
+    if (url.protocol === 'https:') return true
+    return (
+      url.protocol === 'http:' &&
+      (url.hostname === 'localhost' ||
+        url.hostname === '127.0.0.1' ||
+        url.hostname === '::1' ||
+        url.hostname === '[::1]')
+    )
+  } catch {
+    return false
+  }
+}
+
+function isSceneAssetState(value: unknown): value is SceneAssetState {
+  if (!isRecord(value)) return false
+  if (
+    !isString(value.id) ||
+    value.id.length === 0 ||
+    value.id.length > MAX_NAME_LENGTH ||
+    !isString(value.name) ||
+    value.name.length === 0 ||
+    value.name.length > MAX_NAME_LENGTH ||
+    value.type !== 'glb'
+  )
+    return false
+  if (!isString(value.source) || !isReloadableSceneSource(value.source)) return false
+  if (!value.source.split('?')[0].toLowerCase().endsWith('.glb')) return false
+  if (
+    !isVector3State(value.position) ||
+    !isVector3State(value.rotation) ||
+    !isVector3State(value.scale)
+  )
+    return false
+  return value.scale.x > 0 && value.scale.y > 0 && value.scale.z > 0
 }
 
 function isViewerSettingsState(value: unknown): value is ViewerSettingsState {
@@ -301,19 +444,63 @@ function isSceneState(value: unknown): value is SceneState {
   if (!isRecord(value)) return false
   if (typeof value.version !== 'string') return false
   if (!isFiniteNumber(value.timestamp)) return false
-  if (typeof value.name !== 'string') return false
+  if (
+    typeof value.name !== 'string' ||
+    value.name.length === 0 ||
+    value.name.length > MAX_NAME_LENGTH
+  )
+    return false
   if (!isOptionalString(value.description)) return false
   if (value.splatScene !== undefined && !isSplatSceneState(value.splatScene)) return false
-  if (!Array.isArray(value.cameras) || !value.cameras.every(isCameraState)) return false
+  if (
+    value.assets !== undefined &&
+    (!Array.isArray(value.assets) ||
+      value.assets.length > MAX_SCENE_ASSETS ||
+      !value.assets.every(isSceneAssetState))
+  )
+    return false
+  if (
+    !Array.isArray(value.cameras) ||
+    value.cameras.length > MAX_SCENE_CAMERAS ||
+    !value.cameras.every(isCameraState)
+  )
+    return false
+  const renderPixels = value.cameras.reduce(
+    (total, camera) => total + camera.resolution[0] * camera.resolution[1],
+    0
+  )
+  if (!Number.isSafeInteger(renderPixels) || renderPixels > MAX_CAMERA_RENDER_PIXELS) return false
   if (!isOptionalString(value.activeCameraId)) return false
-  if (!Array.isArray(value.drones) || !value.drones.every(isDroneState)) return false
-  if (!Array.isArray(value.recentDetections) || !value.recentDetections.every(isDetectionState))
+  if (
+    !Array.isArray(value.drones) ||
+    value.drones.length > MAX_SCENE_DRONES ||
+    !value.drones.every(isDroneState)
+  )
+    return false
+  if (
+    !Array.isArray(value.recentDetections) ||
+    value.recentDetections.length > MAX_SCENE_DETECTIONS ||
+    !value.recentDetections.every(isDetectionState)
+  )
     return false
   if (!isViewerSettingsState(value.settings)) return false
   if (!isRecord(value.viewCamera)) return false
   if (!isVector3State(value.viewCamera.position) || !isVector3State(value.viewCamera.target))
     return false
   if (value.metadata !== undefined && !isRecord(value.metadata)) return false
+  const allIds = [
+    ...value.cameras.map((camera) => camera.id),
+    ...value.drones.map((drone) => drone.id),
+    ...(value.assets ?? []).map((asset) => asset.id),
+  ]
+  if (new Set(allIds).size !== allIds.length) return false
+  if (
+    value.activeCameraId !== undefined &&
+    !value.cameras.some((camera) => camera.id === value.activeCameraId)
+  )
+    return false
+  const cameraIds = new Set(value.cameras.map((camera) => camera.id))
+  if (value.recentDetections.some((detection) => !cameraIds.has(detection.cameraId))) return false
   return true
 }
 
@@ -452,7 +639,14 @@ export class SceneStateManager {
     if (!this.currentState) {
       throw new Error('No state to serialize')
     }
-    return JSON.stringify(this.currentState, null, 2)
+    if (!isSceneState(this.currentState)) {
+      throw new Error('Current scene state is invalid and cannot be saved')
+    }
+    const json = JSON.stringify(this.currentState, null, 2)
+    if (new TextEncoder().encode(json).byteLength > MAX_SCENE_STATE_BYTES) {
+      throw new Error(`Scene state exceeds ${MAX_SCENE_STATE_BYTES} bytes`)
+    }
+    return json
   }
 
   /**
@@ -463,6 +657,13 @@ export class SceneStateManager {
    * then validates the migrated result against the current schema.
    */
   deserialize(json: string): SceneState {
+    if (json.length > MAX_SCENE_STATE_BYTES) {
+      throw new Error(`Scene state exceeds ${MAX_SCENE_STATE_BYTES} bytes`)
+    }
+    const encodedLength = new TextEncoder().encode(json).byteLength
+    if (encodedLength > MAX_SCENE_STATE_BYTES) {
+      throw new Error(`Scene state exceeds ${MAX_SCENE_STATE_BYTES} bytes`)
+    }
     const raw: unknown = JSON.parse(json)
     if (!isRecord(raw)) {
       throw new Error('Invalid scene state file')
@@ -499,6 +700,12 @@ export class SceneStateManager {
    * Load state from file
    */
   async loadFromFile(file: File): Promise<SceneState> {
+    if (!file.name.toLowerCase().endsWith('.json')) {
+      throw new Error('Scene file must end with .json')
+    }
+    if (file.size > MAX_SCENE_STATE_BYTES) {
+      throw new Error(`Scene state exceeds ${MAX_SCENE_STATE_BYTES} bytes`)
+    }
     const text = await file.text()
     return this.deserialize(text)
   }
@@ -506,12 +713,14 @@ export class SceneStateManager {
   /**
    * Save to localStorage
    */
-  saveToLocalStorage(key: string = STORAGE_KEY): void {
-    if (!this.currentState) return
+  saveToLocalStorage(key: string = STORAGE_KEY): boolean {
+    if (!this.currentState) return false
     try {
       localStorage.setItem(key, this.serialize())
+      return true
     } catch (e) {
       log.warn('Failed to save to localStorage', { error: e })
+      return false
     }
   }
 
@@ -533,10 +742,30 @@ export class SceneStateManager {
   /**
    * Enable autosave every N seconds
    */
-  enableAutosave(intervalSeconds: number = 30): void {
+  enableAutosave(
+    intervalSeconds: number = 30,
+    createSnapshot?: () => SceneState,
+    onError?: (error: Error) => void
+  ): void {
     this.disableAutosave()
     this.autosaveInterval = window.setInterval(() => {
-      this.saveToLocalStorage(AUTOSAVE_KEY)
+      if (createSnapshot) {
+        try {
+          const snapshot = createSnapshot()
+          if (!isSceneState(snapshot)) {
+            throw new Error('Autosave snapshot failed validation')
+          }
+          this.currentState = snapshot
+        } catch (error) {
+          log.warn('Failed to capture live autosave snapshot', { error })
+          return
+        }
+      }
+      if (!this.saveToLocalStorage(AUTOSAVE_KEY)) {
+        const error = new Error('Autosave storage is unavailable or full')
+        this.disableAutosave()
+        onError?.(error)
+      }
     }, intervalSeconds * 1000)
   }
 
@@ -584,16 +813,22 @@ export class SceneStateManager {
     try {
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i)
-        if (key?.startsWith('crebain_scene_')) {
+        if (key?.startsWith('crebain_scene_') || key === AUTOSAVE_KEY) {
           const json = localStorage.getItem(key)
           if (json) {
-            const state: unknown = JSON.parse(json)
-            if (isSceneState(state)) {
-              states.push({
-                key,
-                name: state.name,
-                timestamp: state.timestamp,
-              })
+            try {
+              const raw: unknown = JSON.parse(json)
+              if (!isRecord(raw)) continue
+              const state = this.migrateState(raw)
+              if (isSceneState(state)) {
+                states.push({
+                  key,
+                  name: state.name,
+                  timestamp: state.timestamp,
+                })
+              }
+            } catch {
+              // Ignore malformed or unsupported entries without hiding later saves.
             }
           }
         }
@@ -678,9 +913,36 @@ export class SceneStateManager {
     switch (version) {
       case CURRENT_VERSION:
         return state
-      // Transformations for known older versions go here, e.g.:
-      // case '0.9.0':
-      //   return migrateFrom090(state)
+      case '0.4.0':
+      case '0.5.0':
+      case 'missing': {
+        const migrated: Record<string, unknown> = {
+          ...state,
+          version: CURRENT_VERSION,
+          timestamp: isFiniteNumber(state.timestamp) ? state.timestamp : Date.now(),
+          cameras: Array.isArray(state.cameras) ? state.cameras : [],
+          assets: Array.isArray(state.assets) ? state.assets : [],
+          drones: Array.isArray(state.drones) ? state.drones : [],
+          recentDetections: Array.isArray(state.recentDetections) ? state.recentDetections : [],
+          settings: isRecord(state.settings)
+            ? state.settings
+            : {
+                detectionEnabled: true,
+                showDetectionPanel: true,
+                showPerformancePanel: true,
+                renderQuality: 'high',
+                physicsEnabled: true,
+                sensorSimulationEnabled: true,
+              },
+          viewCamera: isRecord(state.viewCamera)
+            ? state.viewCamera
+            : {
+                position: { x: 0, y: 5, z: 10 },
+                target: { x: 0, y: 0, z: 0 },
+              },
+        }
+        return migrated
+      }
       default:
         throw new Error(
           `Unsupported scene state version "${version}" (expected "${CURRENT_VERSION}")`

@@ -317,17 +317,25 @@ pub struct TrackOutput {
 
 impl From<&TrackState> for TrackOutput {
     fn from(track: &TrackState) -> Self {
-        // Guard against negative covariance diagonals (numerical drift)
-        // which would produce NaN from sqrt and break JSON serialization.
+        // Invalid covariance is quarantined by the lifecycle pass before normal
+        // output. Keep this conversion conservative as a final boundary guard:
+        // an invalid variance must never be presented as zero uncertainty.
+        let uncertainty = |variance: f64| {
+            if variance.is_finite() && variance >= 0.0 {
+                variance.sqrt()
+            } else {
+                f64::MAX.sqrt()
+            }
+        };
         let pos_unc = [
-            track.covariance[(0, 0)].max(0.0).sqrt(),
-            track.covariance[(1, 1)].max(0.0).sqrt(),
-            track.covariance[(2, 2)].max(0.0).sqrt(),
+            uncertainty(track.covariance[(0, 0)]),
+            uncertainty(track.covariance[(1, 1)]),
+            uncertainty(track.covariance[(2, 2)]),
         ];
         let vel_unc = [
-            track.covariance[(3, 3)].max(0.0).sqrt(),
-            track.covariance[(4, 4)].max(0.0).sqrt(),
-            track.covariance[(5, 5)].max(0.0).sqrt(),
+            uncertainty(track.covariance[(3, 3)]),
+            uncertainty(track.covariance[(4, 4)]),
+            uncertainty(track.covariance[(5, 5)]),
         ];
 
         let threat_level = calculate_threat_level(&track.class_label, track.confidence);
@@ -1354,7 +1362,7 @@ impl IMMFilter {
     }
 
     /// Update step
-    pub fn update(&mut self, measurement: &Vector3<f64>, r: Option<&Matrix3<f64>>) {
+    pub fn update(&mut self, measurement: &Vector3<f64>, r: Option<&Matrix3<f64>>) -> bool {
         let h = KalmanFilter::measurement_matrix();
         // Per-measurement R when provided, else the shared CV-model R.
         let rr = r.unwrap_or(&self.kf_cv.r);
@@ -1412,22 +1420,30 @@ impl IMMFilter {
         }
 
         // Update each filter using raw methods (zero allocation)
-        self.kf_cv.update_raw(
-            &mut self.states[0],
-            &mut self.covariances[0],
-            measurement,
-            Some(rr),
-        );
+        let cv_applied = self
+            .kf_cv
+            .update_raw(
+                &mut self.states[0],
+                &mut self.covariances[0],
+                measurement,
+                Some(rr),
+            )
+            .is_some();
         // Update the CT mode with the SAME per-measurement R used for its
         // likelihood (line above) and for the CV mode — otherwise a per-measurement
         // R override would score the CT mode with one R but update it with the
         // embedded static R, an IMM cross-mode inconsistency.
-        self.ct.update_raw(
-            &mut self.states[1],
-            &mut self.covariances[1],
-            measurement,
-            Some(rr),
-        );
+        let ct_applied = self
+            .ct
+            .update_raw(
+                &mut self.states[1],
+                &mut self.covariances[1],
+                measurement,
+                Some(rr),
+            )
+            .is_some();
+
+        cv_applied || ct_applied
     }
 
     /// Get combined state estimate
@@ -1798,15 +1814,16 @@ impl MultiSensorFusion {
         let preexisting_ids: std::collections::HashSet<String> =
             self.tracks.keys().cloned().collect();
 
-        // Step 3: Update associated tracks. Record the IDs touched THIS frame so the
-        // sliding-window update credits a hit only to genuinely-associated tracks —
-        // robust even when consecutive frames reuse a timestamp (the spec-sanctioned
-        // "explicit per-frame associated-track-id set" feeding Step 4.5).
+        // Step 3: Update associated tracks. Record only IDs whose filter actually
+        // accepted at least one update THIS frame, so a singular/rejected update
+        // cannot become lifecycle evidence. The explicit per-frame set remains
+        // robust when consecutive frames reuse a timestamp.
         let mut hit_this_frame: std::collections::HashSet<String> =
             std::collections::HashSet::new();
         for (track_id, meas_indices) in associations {
-            self.update_track(&track_id, &measurements, &meas_indices, timestamp_ms);
-            hit_this_frame.insert(track_id);
+            if self.update_track(&track_id, &measurements, &meas_indices, timestamp_ms) {
+                hit_this_frame.insert(track_id);
+            }
         }
 
         // Step 4: Create new tracks from unassociated measurements
@@ -2117,10 +2134,10 @@ impl MultiSensorFusion {
         measurements: &[SensorMeasurement],
         meas_indices: &[usize],
         timestamp_ms: u64,
-    ) {
+    ) -> bool {
         let track = match self.tracks.get_mut(track_id) {
             Some(t) => t,
-            None => return,
+            None => return false,
         };
 
         // Sequential per-sensor information-form fusion. Apply each associated
@@ -2166,14 +2183,11 @@ impl MultiSensorFusion {
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
 
-        // PF/IMM apply their updates internally (no innovation stats surface),
-        // so they always count as applied; for the Kalman family a track whose
-        // EVERY associated update was skipped (non-PD S) received no correction
-        // this frame and must not be credited with a hit below.
-        let mut any_applied = matches!(
-            self.config.algorithm,
-            FilterAlgorithm::Particle | FilterAlgorithm::IMM
-        );
+        // For the Kalman family, `InnovationStats` doubles as the update-success
+        // signal. PF/IMM do not expose innovation stats, so their map/update path
+        // reports success separately. Missing per-track state is a failed update,
+        // never evidence for the lifecycle hit window.
+        let mut any_applied = false;
         for &idx in &ordered {
             let meas = &measurements[idx];
             let pos = measurement_position_cartesian(meas);
@@ -2181,13 +2195,14 @@ impl MultiSensorFusion {
             // active filter exposes them and the update was actually applied
             // (None = singular-S skip, or a PF/IMM path — see the emission
             // note on `FusionConfig::emit_innovations`).
-            let stats: Option<InnovationStats> = match self.config.algorithm {
+            let (stats, applied): (Option<InnovationStats>, bool) = match self.config.algorithm {
                 FilterAlgorithm::Kalman => {
                     let r = measurement_r_cartesian(meas, &pos);
-                    self.kf.update(track, &pos, Some(&r))
+                    let stats = self.kf.update(track, &pos, Some(&r));
+                    (stats, stats.is_some())
                 }
                 FilterAlgorithm::ExtendedKalman => {
-                    if let Some(polar) = measurement_position_polar(meas) {
+                    let stats = if let Some(polar) = measurement_position_polar(meas) {
                         // Radar polar update consumes the raw polar R directly.
                         let r = Matrix3::from_diagonal(&Vector3::new(
                             meas.covariance[0],
@@ -2198,21 +2213,30 @@ impl MultiSensorFusion {
                     } else {
                         let r = measurement_r_cartesian(meas, &pos);
                         self.kf.update(track, &pos, Some(&r))
-                    }
+                    };
+                    (stats, stats.is_some())
                 }
                 FilterAlgorithm::UnscentedKalman => {
                     let rc = measurement_r_cartesian(meas, &pos);
                     let r_dyn = DMatrix::from_fn(3, 3, |i, j| rc[(i, j)]);
-                    self.ukf
-                        .update(&mut track.state, &mut track.covariance, &pos, Some(&r_dyn))
+                    let stats = self.ukf.update(
+                        &mut track.state,
+                        &mut track.covariance,
+                        &pos,
+                        Some(&r_dyn),
+                    );
+                    (stats, stats.is_some())
                 }
                 FilterAlgorithm::Particle => {
-                    if let Some(pf) = self.particle_filters.get_mut(track_id) {
+                    let applied = if let Some(pf) = self.particle_filters.get_mut(track_id) {
                         let rc = measurement_r_cartesian(meas, &pos);
                         let var = Vector3::new(rc[(0, 0)], rc[(1, 1)], rc[(2, 2)]);
                         pf.update(&pos, Some(&var));
-                    }
-                    None
+                        true
+                    } else {
+                        false
+                    };
+                    (None, applied)
                 }
                 FilterAlgorithm::IMM => {
                     // NOTE: each call re-runs the IMM mode-probability update, so
@@ -2220,15 +2244,17 @@ impl MultiSensorFusion {
                     // the model probabilities (the per-model KF states stay correct).
                     // Acceptable for the common 1-2 returns/track; a per-frame single
                     // mode update is future work.
-                    if let Some(imm) = self.imm_filters.get_mut(track_id) {
+                    let applied = if let Some(imm) = self.imm_filters.get_mut(track_id) {
                         let rc = measurement_r_cartesian(meas, &pos);
-                        imm.update(&pos, Some(&rc));
-                    }
-                    None
+                        imm.update(&pos, Some(&rc))
+                    } else {
+                        false
+                    };
+                    (None, applied)
                 }
             };
 
-            any_applied |= stats.is_some();
+            any_applied |= applied;
 
             // The galadriel sidecar record: one per associated measurement that
             // actually corrected the filter. Singular-S skips emit nothing (the
@@ -2298,9 +2324,9 @@ impl MultiSensorFusion {
         // exactly like a frame with no associated measurements at all.
         if !any_applied {
             log::warn!(
-                "[fusion] track {track_id}: every associated update was skipped                  (non-PD innovation covariance); withholding hit credit this frame"
+                "[fusion] track {track_id}: every associated update was unavailable or rejected; withholding hit credit this frame"
             );
-            return;
+            return false;
         }
         track.sensor_sources = sensor_sources;
         track.last_update_ms = timestamp_ms;
@@ -2328,6 +2354,7 @@ impl MultiSensorFusion {
         // Confirmation is decided uniformly for ALL tracks in the lifecycle pass
         // (handle_missed_detections) AFTER the sliding window is current, so the
         // age-based promotion that used to live here has moved out.
+        true
     }
 
     fn create_track(&mut self, measurement: &SensorMeasurement, timestamp_ms: u64) {
@@ -2417,9 +2444,9 @@ impl MultiSensorFusion {
     /// Step 4.5: advance every live track's sliding M-of-N hit window by one
     /// frame. Shift each bitmask left, mask to the N low bits, and OR in the
     /// per-frame hit; the per-track opportunity counter advances in lockstep so
-    /// the window fill is exact. A track counts as hit iff it was associated or
-    /// born this frame (`hit_this_frame`), which is robust even when
-    /// consecutive frames reuse a timestamp.
+    /// the window fill is exact. A track counts as hit iff at least one associated
+    /// filter update applied, or it was born this frame (`hit_this_frame`), which
+    /// is robust even when consecutive frames reuse a timestamp.
     fn update_hit_history(&mut self, hit_this_frame: &std::collections::HashSet<String>) {
         let n_mask: u32 = self.window_mask(); // N low bits
         for track in self.tracks.values_mut() {
@@ -2432,10 +2459,15 @@ impl MultiSensorFusion {
         }
     }
 
-    /// Position-block (3×3) covariance determinant, clamped to ≥ 0 to guard
-    /// against NaN from numerical drift (mirrors the TrackOutput sqrt guard).
-    fn position_cov_volume(track: &TrackState) -> f64 {
+    /// Return the position-block (3×3) covariance determinant when the complete
+    /// state covariance is finite, has non-negative marginal variances, and the
+    /// position determinant is finite/non-negative. `None` quarantines corrupted
+    /// filter state instead of allowing `NaN.max(0.0)` to masquerade as certainty.
+    fn position_cov_volume(track: &TrackState) -> Option<f64> {
         let c = &track.covariance;
+        if c.iter().any(|value| !value.is_finite()) || (0..6).any(|axis| c[(axis, axis)] < 0.0) {
+            return None;
+        }
         let p = Matrix3::new(
             c[(0, 0)],
             c[(0, 1)],
@@ -2447,7 +2479,8 @@ impl MultiSensorFusion {
             c[(2, 1)],
             c[(2, 2)],
         );
-        p.determinant().max(0.0)
+        let determinant = p.determinant();
+        (determinant.is_finite() && determinant >= 0.0).then_some(determinant)
     }
 
     /// Unified lifecycle pass: applies the sliding-window M-of-N confirmation and
@@ -2468,7 +2501,7 @@ impl MultiSensorFusion {
             // Only increment missed_detections (CONSECUTIVE-miss count) for tracks
             // that were NOT updated this frame. update_track resets it to 0 and sets
             // last_update_ms = timestamp_ms, so any track with a different
-            // last_update_ms was not associated this frame. (This consecutive-miss
+            // last_update_ms was not successfully updated this frame. (This consecutive-miss
             // counter — which only drives Coasting — intentionally keys off
             // last_update_ms, NOT the sliding window's per-frame hit set; the two
             // agree for all monotonic-timestamp frames and differ only under
@@ -2492,7 +2525,15 @@ impl MultiSensorFusion {
             let window_fill = track.opportunities.min(n);
             let misses_in_window = window_fill.saturating_sub(hits);
 
-            let cov_volume = Self::position_cov_volume(track);
+            let covariance_diverged = match Self::position_cov_volume(track) {
+                Some(volume) => volume > self.config.max_position_cov_volume,
+                None => {
+                    log::error!(
+                        "[fusion] track {track_id}: invalid covariance; quarantining track"
+                    );
+                    true
+                }
+            };
 
             // DELETE first (overrides everything). Then COAST on consecutive misses
             // (a live "predicting forward" state that overrides Confirmed, matching
@@ -2500,9 +2541,7 @@ impl MultiSensorFusion {
             // none of the branches fire the state is left unchanged, so a Confirmed
             // track that drops below M hits but has < 2 consecutive misses STAYS
             // Confirmed (track confirmation does not flicker).
-            if misses_in_window >= self.config.max_missed_detections
-                || cov_volume > self.config.max_position_cov_volume
-            {
+            if misses_in_window >= self.config.max_missed_detections || covariance_diverged {
                 track.state_label = TrackStateLabel::Lost;
                 tracks_to_remove.push(track_id.clone());
             } else if track.missed_detections >= 2 {
@@ -2576,10 +2615,23 @@ impl MultiSensorFusion {
     /// Update configuration
     pub fn set_config(&mut self, config: FusionConfig) {
         let algorithm_changed = self.config.algorithm != config.algorithm;
-        self.config = config.clone();
+        let active_filter_requires_reseed = algorithm_changed
+            || match config.algorithm {
+                FilterAlgorithm::Particle => {
+                    self.config.particle_count != config.particle_count
+                        || self.config.process_noise != config.process_noise
+                        || self.config.measurement_noise != config.measurement_noise
+                }
+                FilterAlgorithm::IMM => {
+                    self.config.process_noise != config.process_noise
+                        || self.config.measurement_noise != config.measurement_noise
+                }
+                _ => false,
+            };
         self.kf = KalmanFilter::new(config.process_noise, config.measurement_noise);
         self.ekf = ExtendedKalmanFilter::new(config.process_noise, config.measurement_noise);
         self.ukf = UnscentedKalmanFilter::new(config.process_noise, config.measurement_noise);
+        self.config = config;
 
         // When the algorithm changes, per-track filter state (particles, IMM
         // mode probabilities) from the old algorithm is invalid. Drop it AND
@@ -2588,7 +2640,7 @@ impl MultiSensorFusion {
         // so without this re-seed every pre-existing track would silently freeze
         // (predict/update find no filter and no-op) while still being counted as
         // alive and Confirmed.
-        if algorithm_changed {
+        if active_filter_requires_reseed {
             self.particle_filters.clear();
             self.imm_filters.clear();
             self.reinitialize_track_filters();
@@ -2855,6 +2907,133 @@ mod tests {
         fusion.set_config(config);
         assert!(fusion.particle_filters.is_empty());
         assert_eq!(fusion.imm_filters.len(), fusion.tracks.len());
+    }
+
+    #[test]
+    fn same_particle_algorithm_config_change_reseeds_existing_tracks() {
+        let mut fusion = MultiSensorFusion::new(FusionConfig {
+            algorithm: FilterAlgorithm::Particle,
+            particle_count: 8,
+            process_noise: 0.5,
+            measurement_noise: 1.5,
+            ..FusionConfig::default()
+        });
+        fusion.process_measurements(m_of_n_meas(1000, [10.0, 0.0, 5.0]), 1000);
+        let track_id = fusion.tracks.keys().next().expect("track created").clone();
+
+        fusion.set_config(FusionConfig {
+            algorithm: FilterAlgorithm::Particle,
+            particle_count: 16,
+            process_noise: 2.5,
+            measurement_noise: 3.5,
+            ..FusionConfig::default()
+        });
+
+        let particle_filter = fusion
+            .particle_filters
+            .get(&track_id)
+            .expect("existing track reseeded");
+        assert_eq!(particle_filter.num_particles, 16);
+        assert_eq!(particle_filter.particles.len(), 16);
+        assert_eq!(particle_filter.process_noise, 2.5);
+        assert_eq!(particle_filter.measurement_noise, 3.5);
+
+        let tracks = fusion.process_measurements(m_of_n_meas(1000, [10.0, 0.0, 5.0]), 1000);
+        assert_eq!(
+            tracks.len(),
+            1,
+            "reseeded particle track must keep updating"
+        );
+    }
+
+    #[test]
+    fn same_imm_algorithm_noise_change_reseeds_existing_tracks() {
+        let mut fusion = MultiSensorFusion::new(FusionConfig {
+            algorithm: FilterAlgorithm::IMM,
+            process_noise: 1.0,
+            measurement_noise: 2.0,
+            ..FusionConfig::default()
+        });
+        fusion.process_measurements(m_of_n_meas(1000, [10.0, 0.0, 5.0]), 1000);
+        let track_id = fusion.tracks.keys().next().expect("track created").clone();
+        fusion
+            .imm_filters
+            .get_mut(&track_id)
+            .expect("IMM exists")
+            .model_probs = [0.1, 0.9];
+
+        fusion.set_config(FusionConfig {
+            algorithm: FilterAlgorithm::IMM,
+            process_noise: 6.0,
+            measurement_noise: 7.0,
+            ..FusionConfig::default()
+        });
+
+        let imm = fusion
+            .imm_filters
+            .get(&track_id)
+            .expect("existing track reseeded");
+        assert_eq!(imm.model_probs, [0.8, 0.2]);
+        assert_eq!(imm.kf_cv.q[(3, 3)], 3.0);
+        assert_eq!(imm.kf_cv.r[(0, 0)], 7.0);
+        assert_eq!(imm.ct.q[(3, 3)], 6.0);
+        assert_eq!(imm.ct.r[(0, 0)], 7.0);
+
+        let tracks = fusion.process_measurements(m_of_n_meas(1000, [10.0, 0.0, 5.0]), 1000);
+        assert_eq!(tracks.len(), 1, "reseeded IMM track must keep updating");
+    }
+
+    #[test]
+    fn process_does_not_credit_a_hit_when_every_filter_update_fails() {
+        let mut fusion = MultiSensorFusion::new(FusionConfig {
+            algorithm: FilterAlgorithm::Kalman,
+            ..FusionConfig::default()
+        });
+        fusion.process_measurements(m_of_n_meas(1000, [10.0, 0.0, 5.0]), 1000);
+        let track_id = fusion.tracks.keys().next().expect("track created").clone();
+        fusion
+            .tracks
+            .get_mut(&track_id)
+            .expect("track exists")
+            .covariance = Matrix6::zeros();
+
+        // Fault injection below intentionally bypasses IPC validation: P = 0 and
+        // R = 0 make S singular, exercising the process-level skipped-update path.
+        let mut singular_measurement = m_of_n_meas(1000, [10.0, 0.0, 5.0]);
+        singular_measurement[0].covariance = [0.0; 3];
+        fusion.process_measurements(singular_measurement, 1000);
+
+        let track = fusion.tracks.get(&track_id).expect("track remains live");
+        assert_eq!(
+            track.hit_history & 0b11,
+            0b10,
+            "the failed association must append a miss bit"
+        );
+        assert_eq!(track.opportunities, 2);
+        assert_eq!(
+            track.age, 1,
+            "failed updates must not age the track as a hit"
+        );
+    }
+
+    #[test]
+    fn process_quarantines_nonfinite_covariance_and_output_never_claims_zero_uncertainty() {
+        let mut fusion = MultiSensorFusion::new(FusionConfig::default());
+        fusion.process_measurements(m_of_n_meas(1000, [10.0, 0.0, 5.0]), 1000);
+        let track_id = fusion.tracks.keys().next().expect("track created").clone();
+        let track = fusion.tracks.get_mut(&track_id).expect("track exists");
+        track.covariance[(0, 0)] = f64::NAN;
+
+        let guarded_output = TrackOutput::from(&*track);
+        assert!(guarded_output.position_uncertainty[0].is_finite());
+        assert!(
+            guarded_output.position_uncertainty[0] > 1.0,
+            "invalid variance must be conservative, never zero"
+        );
+
+        let outputs = fusion.process_measurements(Vec::new(), 1000);
+        assert!(outputs.is_empty(), "corrupted track must be quarantined");
+        assert!(!fusion.tracks.contains_key(&track_id));
     }
 
     #[test]

@@ -1,186 +1,98 @@
-# crebain ↔ NCP Bridge — Developer Handoff Prompt
+# CREBAIN ↔ NCP bridge handoff
 
-> Copy-pasteable brief for a developer (or coding agent) bringing crebain's NCP
-> bridge up to standard: a thin, non-invasive bridge onto the **standalone NCP
-> SDK**, so crebain stays buildable and CI-green with *zero* NCP/Engram checkout
-> on disk. Self-contained; read top to bottom before touching code. The
-> protocol-level decisions (rename, hardening, commander model) live in the
-> companion **Engram `NCP_EXTRACTION_AND_EVOLUTION_HANDOFF.md`** — this prompt
-> only touches crebain.
+This is the current implementation handoff for CREBAIN's optional
+Neuro-Cybernetic Protocol integration. It replaces the former extraction plan;
+the sibling-path dependency problem is historical and already fixed.
 
-## 1. Context (what this is and is not)
+## Product boundary
 
-crebain is a Tauri (Rust) + React/TS counter-UAV surveillance/interception
-prototype. Its **detection → sensor-fusion → interception** pipeline is fully
-**standalone** and must stay that way: it depends on Engram/NCP for *no* core
-result.
+CREBAIN's detection, fusion, visualization, and interception prototype remains
+standalone. NCP is not on the default runtime path:
 
-NCP — the **Neuro-Cybernetic Protocol** (renamed from "Neuro-Control"; cybernetics
-= control *and* communication, i.e. the perception+action loop; see the Engram
-handoff) and extracted into its own repo (`github.com/sepahead/NCP`) — is an
-**optional, off-by-default bridge** that
-lets crebain be one of the "bodies" an Engram/NEST brain coordinates: crebain
-publishes pose/velocity on the **perception plane** and applies brain-issued
-setpoints on the **action plane**. Two peers, one wire:
+| Surface | Current state |
+|---------|---------------|
+| Rust `src-tauri/src/ncp/mod.rs` | Compiles only with the off-by-default `ncp` feature; provides `NcpBridge`, validated feature-neuron RPCs, and a wired fail-closed `CommandPlant` action loop as library APIs |
+| Rust Tauri commands | Defined, but `NcpHandle` is not managed and the four `ncp_*` commands are not registered |
+| TypeScript `src/neuro` | Thin guarded re-export of `@sepahead/ncp`; imported by no product component/hook |
+| Live CREBAIN↔Engram loop | Not implemented or enabled |
 
-| Peer | Path | Role |
-|---|---|---|
-| **Rust** | `src-tauri/src/ncp/mod.rs` | Native Zenoh client: `NcpBridge`, `CommandPlant`, `sensor_frame_from_pose`, `velocity_from_command`, `observation_scalar`. Behind the off-by-default `ncp` Cargo feature. |
-| **TypeScript** | `src/neuro/` (`index.ts`, `versionGuard.ts`) | Thin glue over the pinned `@sepahead/ncp` npm package (which provides `NeuroSimClient` and the WebSocket transport) plus a fail-closed reply-version guard. Self-contained; imported by nothing in the app today. |
+No Engram process or sibling checkout is required to run CREBAIN. Cargo's pinned
+Git dependencies must still be network/cache-resolvable when resolving or building
+the NCP feature; “no sibling checkout” does not mean “no dependency resolution.”
 
-It is **not** on crebain's critical path. The default build, the frontend tests,
-the Rust tests, and the running app all work with no NCP / Engram /
-sibling SDK present. **Your job is to keep that true** while making the bridge
-depend cleanly on the *extracted, standalone* NCP repo instead of the
-`engram/ncp` sibling path.
+## Current dependency contract
 
-## 2. The bar to clear ("done")
+The canonical NCP SDK lives at `github.com/sepahead/NCP`. CREBAIN pins tag
+`v0.6.0` in:
 
-1. A fresh `git clone` of crebain — **with no `Engram` / NCP tree on disk** —
-   passes the full gate `bun run validate:all` (tsc, eslint, prettier, frontend
-   tests, `cargo fmt --check`, `cargo check`, `cargo test`, `clippy -D warnings`),
-   exit 0.
-2. CI (`.github/workflows/ci.yml`) Rust jobs — `bun run check:rust` (line 122),
-   `clippy:rust` (127), `test:rust` (132) — pass on a clean runner that never
-   clones the sibling.
-3. With the standalone NCP dependency resolvable, `cargo check --features ncp
-   --manifest-path src-tauri/Cargo.toml` builds and `cargo test --features ncp
-   --lib ncp` passes — against the **external** `ncp-core`/`ncp-zenoh`, not a path
-   sibling.
-4. Runtime standalone preserved: the `generate_handler!` list and the
-   `backend_invoke_handler_lists_frontend_command_contract` test are **unchanged**;
-   the app runs identically with NCP absent.
+- `ncp-core` and `ncp-zenoh` in `src-tauri/Cargo.toml` / `Cargo.lock`; and
+- `@sepahead/ncp` in `package.json` / `bun.lock`.
 
-## 3. Current state
+All four files must move together. Wire compatibility is validated by the SDK;
+CREBAIN does not coerce incompatible or missing versions into success. External
+Engram examples that still show wire `0.5`, older package scopes, or `std_msgs`
+profiles are stale integration material and must be corrected in their owning
+repository rather than copied here.
 
-Already correct — **do not regress**:
+The audited external ACL/profile set also does not currently establish an
+authorized Galadriel-sidecar identity in CREBAIN's intended realm. That is an
+external deployment blocker, not permission to widen CREBAIN or NCP ACLs here.
+Resolve and test it in the owning NCP/Engram deployment before a live ecosystem
+claim.
 
-- **Off-by-default & non-invasive.** `ncp` Cargo feature is off (`default =
-  ["zenoh-transport"]`); the NCP Tauri commands (`ncp_connect`,
-  `ncp_open_feature_neuron`, `ncp_step_feature_neuron`, `ncp_close`) are
-  deliberately **not** registered in `lib.rs::run()`; `src/neuro` is imported by no
-  component/hook; there is no NCP env config.
-- **Action plane fails safe.** `velocity_from_command` returns zero velocity on
-  `hold`/`estop`; `CommandPlant` replays a predictive horizon through dropouts and
-  **HOLDs (zero velocity)** once `ttl_ms` expires — turning NCP's `ttl_ms` into a
-  real deadline backstop. Covered by tests in `src-tauri/src/ncp/mod.rs`.
-- **V↔command echo.** `sensor_frame_from_pose` stamps a `seq`; `CommandFrame`s echo
-  it, so an action is paired with the sensor frame that produced it.
-- **NCP WS-client liveness.** The WS client (now shipped inside the `@sepahead/ncp`
-  package) settles every pending request on socket close/error and guards
-  `JSON.parse` (fixed — no hung promises).
+## Implemented Rust safety path
 
-## 4. Workstreams (the gaps, in priority order)
+The current native adapter validates realm/session/model names, feature-neuron
+inputs, RPC kind/version/body/session identity, required spike records, command
+units/shapes/speeds, sequence, TTL, and horizon bounds. Connect and control RPCs
+are bounded by 15-second timeouts.
 
-### Gap 1 — the bridge breaks crebain's standalone build (DONE; was the live regression)
+`NcpBridge::subscribe_commands` feeds wire-validated frames into `CommandPlant`
+and runs a 50 Hz output loop. The plant replays only a bounded predictive horizon,
+enforces SDK sequence/TTL semantics, and emits zero velocity when no usable
+command remains. Stop/close sends a final HOLD before remote close; a stuck action
+task is aborted after a one-second stop bound. This closes the former gap where a
+validated helper existed without a continuously enforced plant loop.
 
-> **DONE:** the cut-over below has shipped. `src-tauri/Cargo.toml` now declares the
-> NCP SDK as optional **git + tag** deps (the current tag is pinned in
-> `src-tauri/Cargo.toml` — `v0.6.0` at the time of writing; fix (a) below); the
-> sibling path deps are gone and a fresh clone builds with no `Engram`/NCP
-> tree on disk. The historical analysis is kept for context.
+This remains a library guarantee, not a product deployment claim: no registered
+command or frontend hook calls the loop, and no callback is wired to MAVROS by
+default.
 
-`src-tauri/Cargo.toml` declared the NCP SDK as **optional path deps** to the sibling:
-
-```toml
-ncp-core  = { path = "../../engram/ncp/ncp-core",  optional = true }
-ncp-zenoh = { path = "../../engram/ncp/ncp-zenoh", optional = true }
-```
-
-Cargo resolves **every** path dependency during resolution — even optional,
-inactive ones — so a checkout without the sibling fails the **default** (ncp-off)
-build (verified empirically):
-
-```
-error: failed to get `ncp-core` as a dependency of package `crebain`
-  ... failed to read `.../ncp-core/Cargo.toml`: No such file or directory
-```
-
-CI never clones Engram, so its Rust jobs cannot pass on a clean runner, and a
-plain `git clone` of crebain alone cannot `cargo check`. This violates the
-standalone principle at **build/CI** time (runtime is fine).
-
-- **Fix (choose one; (a) is the smaller change, (b) is the most decoupled):**
-  - **(a) Git dependency on the extracted repo, optional and pinned:**
-    ```toml
-    ncp-core  = { git = "https://github.com/sepahead/NCP", tag = "v0.6.0", optional = true }
-    ncp-zenoh = { git = "https://github.com/sepahead/NCP", tag = "v0.6.0", optional = true }
-    ```
-    The default build then resolves NCP's manifest from the pinned rev (CI has
-    network); fresh clones build. Commit the resulting `Cargo.lock`. Trade-off: the
-    default build clones NCP metadata over the network.
-  - **(b) Excluded bridge crate (mirror pid_vla, truest standalone):** move the
-    Rust bridge into its own crate `src-tauri/ncp-bridge/` and exclude it from the
-    default workspace (`[workspace] exclude = ["ncp-bridge"]`), built explicitly
-    only when the SDK is present. Then drop the `#[cfg(feature="ncp")] pub mod
-    ncp;` from `lib.rs`, and add `cfg(feature, values("ncp"))` to the manifest's
-    `[lints.rust] unexpected_cfgs` `check-cfg` allow-list so `clippy -D warnings`
-    stays clean. The default dependency graph then references **nothing** external.
-- **Acceptance:** §2 gates 1 and 2 pass with no sibling on disk; gate 3 passes when
-  the SDK is available.
-
-### Gap 2 — track the NCP rename + pin a version (MEDIUM)
-
-The standard is renamed **NCP = "Neuro-Cybernetic Protocol"** (cybernetics = "the
-study of control and communication in the animal and the machine" — the
-perception+action feedback loop). The `NCP` initialism and the `ncp_version` wire
-constant are stable, so the change is prose-only, and the crebain bridge's prose is
-**already updated**. Remaining:
-
-- Pin a **specific** NCP release (tag/version), and keep `ncp_version`
-  compatibility strict: **reject on mismatch, never coerce** (lesson from MCP's
-  weak versioning — see Engram handoff §B).
-- **Acceptance:** no stale "Neuro-Control Protocol" prose remains; the bridge pins
-  one NCP release; the TS `NCP_VERSION` and Rust `ncp_version` agree with the SDK.
-
-### Gap 3 — (optional) make the bridge live (LOW; only if crebain should actually act as a body)
-
-Today the bridge is inert by design. If/when crebain should be a live body under
-the Engram commander: register the four `ncp_*` commands in `lib.rs::run()` (plus
-the matching frontend registry entry and the command-contract test), and add a
-hook that opens a session and runs the perception→action loop (publish
-`SensorFrame`, drive MAVROS from `CommandPlant::velocity_at`). Keep it behind an
-explicit user opt-in.
-- **Acceptance:** enabling NCP is a deliberate, documented opt-in; the default
-  command surface and default build are unchanged.
-
-## 5. Hard constraints (do not violate)
-
-1. **crebain stays standalone.** No core result may depend on Engram/NCP; the
-   default build and CI must **never** require the SDK on disk.
-2. **crebain is a body, not a commander.** It only *publishes perception* and
-   *applies action*; it never commands Engram or another project. There is exactly
-   one control plane — the Engram commander.
-3. **Project-specific mapping stays here.** The pose/velocity ↔ NCP channel mapping
-   lives in `src-tauri/src/ncp` / `src/neuro`, never in the NCP SDK.
-4. **Action plane fails safe.** Preserve `hold`/`estop` → zero and `ttl_ms` → HOLD;
-   never let a stale or missing command keep driving the plant.
-5. **Off by default.** Do not add NCP to the default command surface or the default
-   dependency graph.
-
-## 6. Build & run
+## Validation
 
 ```bash
-# Default crebain build — must pass with NO NCP/Engram checkout present:
+# Default product and full local gate
 bun run validate:all
 
-# With the standalone NCP SDK resolvable (git dep or sibling), exercise the bridge:
-cargo check --features ncp --manifest-path src-tauri/Cargo.toml
-cargo test  --features ncp --lib ncp --manifest-path src-tauri/Cargo.toml
+# Focused optional bridge gates
+bun run check:rust:ncp
+bun run clippy:rust:ncp
+bun run test:rust:ncp
 ```
 
-## 7. References
+CI must run NCP clippy/tests on clean Linux and macOS checkouts. The default
+command-registry contract must continue to exclude `ncp_*` until a deliberate
+product integration updates the registry, Tauri handler, tests, and UI together.
 
-- `src-tauri/src/ncp/mod.rs`, `src-tauri/src/ncp/README.md` — the Rust bridge.
-- `src/neuro/{index.ts,versionGuard.ts}`, `src/neuro/README.md` — the TS glue over `@sepahead/ncp`.
-- `src-tauri/Cargo.toml` (`[features] ncp`, the optional pinned git deps) — Gap 1.
-- `.github/workflows/ci.yml` — the Rust jobs that must stay green.
-- Companion: `engram/ncp_EXTRACTION_AND_EVOLUTION_HANDOFF.md` — the
-  rename, the MCP/ACP-lesson hardening, the single-commander model, and the
-  dependency coordinate (git URL + tag) you pin in Gap 1/2.
+## Work required before a live integration
 
-## 8. Out of scope
+1. Add an explicit user/deployment opt-in and manage `NcpHandle`.
+2. Register the four control-plane Tauri commands and synchronize the frontend
+   registry/contract tests.
+3. Decide whether the product uses native Rust or TypeScript WebSocket control;
+   do not run two competing control planes.
+4. Wire pose/velocity input and the validated action callback to the intended
+   actuator publisher with a documented ownership/stop lifecycle.
+5. Prove the external Engram realm, key ACL, version, session behavior, and
+   failure recovery in the target network.
+6. Reconcile stale external Engram examples/profiles before treating them as
+   executable integration documentation.
 
-- Making crebain depend on Engram/NCP for any core result.
-- Changing the NCP wire contract or `ncp.proto` (that is the NCP repo's job).
-- Any commander / peer-to-peer behaviour originating from crebain.
+## Non-goals and evidence limits
+
+- CREBAIN must not become an NCP commander or depend on Engram for a core result.
+- Protocol changes belong in the NCP repository; project mapping remains here.
+- Raw simulation outputs are not calibrated biological/scientific results.
+- The Galadriel PID JSONL sidecar is separate from NCP. Its local parser/NIS tests
+  do not prove Galadriel correlation, PID actuation, realm ACLs, or a live NCP
+  session.

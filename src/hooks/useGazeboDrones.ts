@@ -96,6 +96,10 @@ const DEFAULT_CONFIG: Omit<UseGazeboDronesConfig, 'bridge'> = {
   maxHistoryLength: 100,
 }
 
+/** Maximum age of a Gazebo observation before it is unsafe to act on. */
+export const GAZEBO_DRONE_STALE_MS = 5000
+const GAZEBO_STALE_SWEEP_INTERVAL_MS = 1000
+
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPER FUNCTIONS
 // ─────────────────────────────────────────────────────────────────────────────
@@ -204,12 +208,20 @@ export function useGazeboDrones(
   // Client-side throttle timestamp (works for both ROSBridge and ZenohBridge)
   const lastUpdateRef = useRef(0)
 
-  // Stale drone timeout in milliseconds
-  const STALE_DRONE_MS = 5000
-
   // Subscribe to Gazebo model states
   useEffect(() => {
-    if (!bridge || !bridgeConnected) return
+    if (!bridge || !bridgeConnected) {
+      // A disconnected transport cannot keep its last snapshot authoritative.
+      // Clear it here instead of waiting for another model-states message that
+      // may never arrive after the connection has gone away.
+      if (dronesInternalRef.current.size > 0) {
+        const emptyDrones = new Map<string, DroneStateInternal>()
+        dronesInternalRef.current = emptyDrones
+        setDronesInternal(emptyDrones)
+      }
+      lastUpdateRef.current = 0
+      return
+    }
 
     const handleModelStates = (msg: ModelStates) => {
       const cfg = configRef.current
@@ -275,10 +287,10 @@ export function useGazeboDrones(
         newDrones.set(id, drone)
       }
 
-      // Cleanup stale drones that haven't been seen for STALE_DRONE_MS
+      // Cleanup stale drones that haven't been seen for GAZEBO_DRONE_STALE_MS
       // Prevents unbounded Map growth in long-running sessions with dynamic spawning
       for (const [id, drone] of newDrones) {
-        if (!seenIds.has(id) && timestamp - drone.lastUpdate > STALE_DRONE_MS) {
+        if (!seenIds.has(id) && timestamp - drone.lastUpdate >= GAZEBO_DRONE_STALE_MS) {
           newDrones.delete(id)
         }
       }
@@ -298,6 +310,32 @@ export function useGazeboDrones(
       unsubscribesRef.current = []
     }
   }, [bridge, bridgeConnected]) // Re-subscribe when bridge connects/disconnects
+
+  // A connected socket can remain open while the publisher freezes. Sweep by
+  // wall-clock age so stale targets disappear even when no later message
+  // arrives to trigger the message-driven cleanup above.
+  useEffect(() => {
+    if (!bridgeConnected) return
+
+    const sweep = () => {
+      const timestamp = Date.now()
+      const current = dronesInternalRef.current
+      let next: Map<string, DroneStateInternal> | null = null
+      for (const [id, drone] of current) {
+        if (timestamp - drone.lastUpdate >= GAZEBO_DRONE_STALE_MS) {
+          next ??= new Map(current)
+          next.delete(id)
+        }
+      }
+      if (next) {
+        dronesInternalRef.current = next
+        setDronesInternal(next)
+      }
+    }
+
+    const interval = setInterval(sweep, GAZEBO_STALE_SWEEP_INTERVAL_MS)
+    return () => clearInterval(interval)
+  }, [bridgeConnected])
 
   // Convert internal Map to external Map (memoized)
   const drones = useMemo(() => {

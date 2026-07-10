@@ -20,9 +20,9 @@ import {
   formatAlgorithmName,
   formatModality,
   getAlgorithms,
-  setFusionConfig,
 } from '../detection/AdvancedSensorFusion'
 import { fusionLogger as log } from '../lib/logger'
+import type { ConnectionState } from '../ros/ROSBridge'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -36,6 +36,12 @@ interface SensorFusionPanelProps {
   onToggleExpand?: () => void
   onSelectTrack?: (trackId: string) => void
   selectedTrackId?: string | null
+  connectionState?: ConnectionState
+  connectionError?: string | null
+  onOpenConnection?: () => void
+  algorithm: FilterAlgorithm
+  onAlgorithmChange: (algorithm: FilterAlgorithm) => Promise<void>
+  fusionAvailable?: boolean
 }
 
 interface AlgorithmOption {
@@ -56,6 +62,8 @@ const SensorIcon = ({ modality, active }: { modality: SensorModality; active: bo
     case 'visual':
       return (
         <svg
+          aria-hidden="true"
+          focusable="false"
           width={size}
           height={size}
           viewBox="0 0 24 24"
@@ -70,6 +78,8 @@ const SensorIcon = ({ modality, active }: { modality: SensorModality; active: bo
     case 'thermal':
       return (
         <svg
+          aria-hidden="true"
+          focusable="false"
           width={size}
           height={size}
           viewBox="0 0 24 24"
@@ -83,6 +93,8 @@ const SensorIcon = ({ modality, active }: { modality: SensorModality; active: bo
     case 'acoustic':
       return (
         <svg
+          aria-hidden="true"
+          focusable="false"
           width={size}
           height={size}
           viewBox="0 0 24 24"
@@ -97,6 +109,8 @@ const SensorIcon = ({ modality, active }: { modality: SensorModality; active: bo
     case 'radar':
       return (
         <svg
+          aria-hidden="true"
+          focusable="false"
           width={size}
           height={size}
           viewBox="0 0 24 24"
@@ -112,6 +126,8 @@ const SensorIcon = ({ modality, active }: { modality: SensorModality; active: bo
     case 'lidar':
       return (
         <svg
+          aria-hidden="true"
+          focusable="false"
           width={size}
           height={size}
           viewBox="0 0 24 24"
@@ -154,9 +170,17 @@ export default function SensorFusionPanel({
   onToggleExpand,
   onSelectTrack,
   selectedTrackId,
+  connectionState = 'disconnected',
+  connectionError = null,
+  onOpenConnection,
+  algorithm,
+  onAlgorithmChange,
+  fusionAvailable = true,
 }: SensorFusionPanelProps) {
   const [algorithms, setAlgorithms] = useState<AlgorithmOption[]>([])
-  const [selectedAlgorithm, setSelectedAlgorithm] = useState<FilterAlgorithm>('ExtendedKalman')
+  const [algorithmsLoading, setAlgorithmsLoading] = useState(fusionAvailable)
+  const [algorithmPending, setAlgorithmPending] = useState(false)
+  const [algorithmError, setAlgorithmError] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
 
   // Use combined draggable panel hook
@@ -172,28 +196,48 @@ export default function SensorFusionPanel({
 
   // Load available algorithms
   useEffect(() => {
+    let cancelled = false
+    if (!fusionAvailable) {
+      setAlgorithms([])
+      setAlgorithmsLoading(false)
+      return () => {
+        cancelled = true
+      }
+    }
+    setAlgorithmsLoading(true)
     getAlgorithms()
-      .then((algos) => setAlgorithms(algos as AlgorithmOption[]))
-      .catch((err) => log.error('Failed to load algorithms', { error: err }))
-  }, [])
+      .then((algos) => {
+        if (!cancelled) setAlgorithms(algos)
+      })
+      .catch((err) => {
+        log.error('Failed to load algorithms', { error: err })
+        if (!cancelled) setAlgorithmError('Algorithmen konnten nicht geladen werden')
+      })
+      .finally(() => {
+        if (!cancelled) setAlgorithmsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [fusionAvailable])
 
   // Handle algorithm change
-  const handleAlgorithmChange = useCallback(async (algorithm: FilterAlgorithm) => {
-    setSelectedAlgorithm(algorithm)
-    try {
-      await setFusionConfig({
-        algorithm,
-        process_noise: 1.0,
-        measurement_noise: 2.0,
-        association_threshold: 11.345,
-        max_missed_detections: 5,
-        min_confirmation_hits: 3,
-        particle_count: 100,
-      })
-    } catch (error) {
-      log.error('Failed to set algorithm', { error })
-    }
-  }, [])
+  const handleAlgorithmChange = useCallback(
+    async (nextAlgorithm: FilterAlgorithm) => {
+      if (!fusionAvailable || algorithmPending || nextAlgorithm === algorithm) return
+      setAlgorithmPending(true)
+      setAlgorithmError(null)
+      try {
+        await onAlgorithmChange(nextAlgorithm)
+      } catch (error) {
+        log.error('Failed to set algorithm', { error })
+        setAlgorithmError('Algorithmuswechsel fehlgeschlagen')
+      } finally {
+        setAlgorithmPending(false)
+      }
+    },
+    [algorithm, algorithmPending, fusionAvailable, onAlgorithmChange]
+  )
 
   // Sort tracks by threat level (memoized to prevent unnecessary re-renders)
   const sortedTracks = useMemo(
@@ -222,9 +266,11 @@ export default function SensorFusionPanel({
         onMouseDown={handleMouseDown}
       >
         <button
+          type="button"
           data-drag-handle
           onClick={handleHeaderClick}
-          className="px-3 py-2 bg-[#0c0c0c] border border-[#252525] text-[1.25em] hover:border-[#404040] cursor-grab select-none"
+          className="min-h-10 border border-[#252525] bg-[#0c0c0c] px-3 py-2 text-[1.25em] hover:border-[#404040] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8fb69a] cursor-grab select-none"
+          aria-label="Sensor-Fusion-Panel ausklappen"
         >
           <div className="flex items-center gap-2">
             <span className="text-[#606060]">FUSION</span>
@@ -232,7 +278,9 @@ export default function SensorFusionPanel({
               {tracks.length} TRK
             </span>
             <span className="text-[#505050]">|</span>
-            <span className="text-[#606060]">{formatAlgorithmName(selectedAlgorithm)}</span>
+            <span className={connectionState === 'connected' ? 'text-[#606060]' : 'text-[#a06a4a]'}>
+              {connectionState === 'connected' ? formatAlgorithmName(algorithm) : 'ROS OFF'}
+            </span>
           </div>
         </button>
       </div>
@@ -248,38 +296,66 @@ export default function SensorFusionPanel({
     >
       <div className="bg-[#0c0c0c] border border-[#1a1a1a]">
         {/* Header - Drag Handle */}
-        <div
-          data-drag-handle
-          className="h-8 border-b border-[#1a1a1a] flex items-center justify-between px-3 bg-[#101010] cursor-grab select-none"
-          onClick={handleHeaderClick}
-        >
-          <div className="flex items-center gap-2">
+        <div className="min-h-10 border-b border-[#1a1a1a] flex items-center justify-between bg-[#101010] select-none">
+          <button
+            type="button"
+            data-drag-handle
+            className="min-h-10 flex min-w-0 flex-1 cursor-grab items-center gap-2 px-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-[#8fb69a]"
+            onClick={handleHeaderClick}
+            aria-label="Sensor-Fusion-Panel einklappen"
+          >
             <span className="text-[1.25em] text-[#909090] tracking-[0.2em]">SENSOR FUSION</span>
             <span className="text-[1.125em] px-1.5 py-0.5 bg-[#1a1a1a] border border-[#252525] text-[#707070]">
-              {formatAlgorithmName(stats?.algorithm ?? selectedAlgorithm)}
+              {formatAlgorithmName(stats?.algorithm ?? algorithm)}
             </span>
-          </div>
+          </button>
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation()
                 setShowSettings(!showSettings)
               }}
-              className="text-[1.125em] text-[#505050] hover:text-[#909090]"
+              className="min-h-10 min-w-10 text-[1.125em] text-[#737373] hover:text-[#b0b0b0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8fb69a]"
+              aria-label="Fusion-Einstellungen öffnen"
+              aria-expanded={showSettings}
             >
               ⚙
             </button>
             <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation()
                 onToggleExpand?.()
               }}
-              className="text-[1.125em] text-[#505050] hover:text-[#909090]"
+              className="min-h-10 min-w-10 text-[1.125em] text-[#737373] hover:text-[#b0b0b0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8fb69a]"
+              aria-label="Sensor-Fusion-Panel einklappen"
             >
               ─
             </button>
           </div>
         </div>
+
+        {connectionState !== 'connected' && (
+          <div
+            role="status"
+            className="border-b border-[#493024] bg-[#1a110d] px-3 py-2 text-[#c58a68]"
+          >
+            <div className="text-[1.25em] tracking-wider">ROS-SENSOREN GETRENNT</div>
+            <div className="mt-1 text-[1.125em] leading-relaxed text-[#9b725d]">
+              {connectionError ?? 'Mit dem ROS-WebSocket verbinden, um Sensordaten zu fusionieren.'}
+            </div>
+            {onOpenConnection && (
+              <button
+                type="button"
+                onClick={onOpenConnection}
+                className="mt-2 min-h-8 border border-[#714b38] px-2 text-[1.125em] tracking-wider text-[#d19a78] hover:border-[#9b684e] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#d19a78]"
+              >
+                VERBINDUNG ÖFFNEN
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Settings Panel */}
         {showSettings && (
@@ -288,13 +364,16 @@ export default function SensorFusionPanel({
               FILTER ALGORITHMUS
             </div>
             <div className="grid grid-cols-5 gap-1">
+              {algorithmsLoading && <div role="status">WIRD GELADEN…</div>}
               {algorithms.map((algo) => (
                 <button
+                  type="button"
                   key={algo.id}
                   onClick={() => void handleAlgorithmChange(algo.id)}
                   title={algo.description}
-                  className={`py-1.5 text-[1.125em] border transition-all ${
-                    selectedAlgorithm === algo.id
+                  disabled={algorithmPending || !fusionAvailable}
+                  className={`min-h-10 py-1.5 text-[1.125em] border transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8fb69a] disabled:cursor-not-allowed disabled:opacity-50 ${
+                    algorithm === algo.id
                       ? 'bg-[#1a2a1a] border-[#3a6b4a] text-[#6a9a7a]'
                       : 'bg-[#0c0c0c] border-[#1a1a1a] text-[#505050] hover:border-[#303030]'
                   }`}
@@ -303,6 +382,16 @@ export default function SensorFusionPanel({
                 </button>
               ))}
             </div>
+            {!fusionAvailable && (
+              <div role="status" className="mt-2 text-[#c58a68]">
+                NATIVE FUSION IST IM BROWSER NICHT VERFÜGBAR
+              </div>
+            )}
+            {algorithmError && (
+              <div role="alert" className="mt-2 text-[#d98282]">
+                {algorithmError}
+              </div>
+            )}
           </div>
         )}
 

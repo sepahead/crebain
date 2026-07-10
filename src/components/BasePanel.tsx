@@ -200,6 +200,7 @@ export function BasePanel({
 
   // For right-side panels, we need to add 'right' positioning via className
   const sideClass = positionConfig.side === 'right' ? 'right-3' : ''
+  const contentId = `${panelId}-panel-content`
 
   // Collapsed view
   if (!isExpanded) {
@@ -212,16 +213,25 @@ export function BasePanel({
       >
         <div
           data-drag-handle
-          className={`p-2 border ${themeStyles.border} bg-[#0a0a0a]/90 ${themeStyles.headerText} hover:border-[#3a3a3a] cursor-grab select-none`}
-          onClick={handleHeaderClick}
-          title={`${title} öffnen`}
+          className={`flex items-stretch border ${themeStyles.border} bg-[#0a0a0a]/90 ${themeStyles.headerText} hover:border-[#3a3a3a] select-none`}
         >
-          {collapsedContent ?? (
-            <div className="flex items-center gap-2">
-              {icon && <span>{icon}</span>}
-              <span className="font-bold tracking-wider">{title}</span>
-            </div>
-          )}
+          <span aria-hidden="true" className="flex cursor-grab items-center px-1 text-[#505050]">
+            ⋮
+          </span>
+          <button
+            type="button"
+            className="min-w-0 flex-1 p-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-current"
+            onClick={handleHeaderClick}
+            title={`${title} öffnen`}
+            aria-expanded={false}
+          >
+            {collapsedContent ?? (
+              <span className="flex items-center gap-2">
+                {icon && <span aria-hidden="true">{icon}</span>}
+                <span className="font-bold tracking-wider">{title}</span>
+              </span>
+            )}
+          </button>
         </div>
       </div>
     )
@@ -231,7 +241,7 @@ export function BasePanel({
   return (
     <div
       ref={elementRef}
-      className={`fixed ${zClass} ${sideClass} ${widthClass} border ${themeStyles.border} bg-[#0a0a0a]/95 backdrop-blur-sm font-mono ${className}`}
+      className={`fixed ${zClass} ${sideClass} ${widthClass} max-h-[calc(100vh-92px)] overflow-y-auto border ${themeStyles.border} bg-[#0a0a0a]/95 backdrop-blur-sm font-mono ${className}`}
       style={panelStyle}
       onMouseDown={handleMouseDown}
     >
@@ -239,20 +249,29 @@ export function BasePanel({
       <div
         data-drag-handle
         className={`flex items-center justify-between p-2 border-b ${themeStyles.headerBorder} ${themeStyles.headerBg} cursor-grab select-none`}
-        onClick={handleHeaderClick}
       >
-        <div className={`flex items-center gap-2 ${themeStyles.headerText} font-bold`}>
-          {icon && <span>{icon}</span>}
+        <span aria-hidden="true" className="cursor-grab text-[#505050]">
+          ⋮
+        </span>
+        <button
+          type="button"
+          onClick={handleHeaderClick}
+          className={`flex min-w-0 flex-1 items-center gap-2 ${themeStyles.headerText} font-bold text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current`}
+          aria-expanded={true}
+          aria-controls={contentId}
+          aria-label={`${title} schließen`}
+        >
+          {icon && <span aria-hidden="true">{icon}</span>}
           <span className="tracking-wider">{title}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          {headerRight}
-          <button className="text-[#505050] hover:text-[#707070]">{isExpanded ? '▼' : '▶'}</button>
-        </div>
+          <span aria-hidden="true" className="ml-auto text-[#707070]">
+            ▼
+          </span>
+        </button>
+        <div className="flex items-center gap-2">{headerRight}</div>
       </div>
 
       {/* Content */}
-      {children}
+      <div id={contentId}>{children}</div>
     </div>
   )
 }

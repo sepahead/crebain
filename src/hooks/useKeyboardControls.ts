@@ -81,25 +81,39 @@ export function useKeyboardControls(options: UseKeyboardControlsOptions = {}) {
   const [keyState, setKeyState] = useState<KeyboardState>(createDefaultState)
   const armedRef = useRef(false)
   const baseThrottleRef = useRef(0.5) // Hover throttle
-
   const smoothedInputRef = useRef({ pitch: 0, roll: 0, yaw: 0 })
+  const lastThrottleUpdateRef = useRef(0)
+
+  const clearTransientControls = useCallback(() => {
+    smoothedInputRef.current = { pitch: 0, roll: 0, yaw: 0 }
+    baseThrottleRef.current = 0.5
+    lastThrottleUpdateRef.current = 0
+    setKeyState((prev) => ({ ...createDefaultState(), arm: prev.arm }))
+  }, [])
 
   // Handle keydown
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      if (!enabled) return
-
       // Ignore OS key auto-repeat: the key is already marked active by the first
       // keydown, so repeats only churn keyState identity (re-rendering consumers
       // and re-subscribing the physics rAF loop in useDroneController).
       if (e.repeat) return
 
-      // Ignore if typing in an input
-      if (isTextInputTarget(e.target)) {
+      const key = normalizeShortcutKey(e.key)
+
+      // Emergency stop is global: it must remain available when flight controls
+      // are disabled, no drone is selected, or focus is inside a form field.
+      if (key === DRONE_CONTROL_SHORTCUTS.emergency) {
+        setKeyState((prev) => ({
+          ...prev,
+          emergency: true,
+          activeKeys: new Set(prev.activeKeys).add(key),
+        }))
+        onEmergency?.()
         return
       }
 
-      const key = normalizeShortcutKey(e.key)
+      if (!enabled || isTextInputTarget(e.target)) return
 
       setKeyState((prev) => {
         const newKeys = new Set(prev.activeKeys)
@@ -136,10 +150,6 @@ export function useKeyboardControls(options: UseKeyboardControlsOptions = {}) {
           case DRONE_CONTROL_SHORTCUTS.cameraSwitch:
             newState.cameraSwitch = true
             break
-          case DRONE_CONTROL_SHORTCUTS.emergency:
-            newState.emergency = true
-            onEmergency?.()
-            break
           case DRONE_CONTROL_SHORTCUTS.armToggle:
             // Toggle arm state
             armedRef.current = !armedRef.current
@@ -161,9 +171,20 @@ export function useKeyboardControls(options: UseKeyboardControlsOptions = {}) {
   // Handle keyup
   const handleKeyUp = useCallback(
     (e: KeyboardEvent) => {
-      if (!enabled) return
-
       const key = normalizeShortcutKey(e.key)
+
+      // Always release the global emergency key, including after controls were
+      // disabled between keydown and keyup.
+      if (key === DRONE_CONTROL_SHORTCUTS.emergency) {
+        setKeyState((prev) => {
+          const newKeys = new Set(prev.activeKeys)
+          newKeys.delete(key)
+          return { ...prev, emergency: false, activeKeys: newKeys }
+        })
+        return
+      }
+
+      if (!enabled) return
 
       setKeyState((prev) => {
         const newKeys = new Set(prev.activeKeys)
@@ -199,9 +220,6 @@ export function useKeyboardControls(options: UseKeyboardControlsOptions = {}) {
           case DRONE_CONTROL_SHORTCUTS.cameraSwitch:
             newState.cameraSwitch = false
             break
-          case DRONE_CONTROL_SHORTCUTS.emergency:
-            newState.emergency = false
-            break
         }
 
         return newState
@@ -210,23 +228,33 @@ export function useKeyboardControls(options: UseKeyboardControlsOptions = {}) {
     [enabled]
   )
 
-  // Register event listeners
-  useEffect(() => {
-    if (!enabled) return
+  const handleVisibilityChange = useCallback(() => {
+    if (document.visibilityState === 'hidden') clearTransientControls()
+  }, [clearTransientControls])
 
+  // Register global safety listeners. Key listeners stay active while normal
+  // controls are disabled so Escape can always trigger the emergency callback.
+  useEffect(() => {
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('keyup', handleKeyUp)
+    window.addEventListener('blur', clearTransientControls)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
+      window.removeEventListener('blur', clearTransientControls)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [enabled, handleKeyDown, handleKeyUp])
+  }, [clearTransientControls, handleKeyDown, handleKeyUp, handleVisibilityChange])
+
+  useEffect(() => {
+    if (!enabled) clearTransientControls()
+  }, [clearTransientControls, enabled])
 
   // Convert key state to drone control input with smoothing
   // Track last call time to prevent throttle ramping at multiples of intended rate
   // when getControlInput is called more than once per frame.
-  const lastThrottleUpdateRef = useRef(0)
   const getControlInput = useCallback((): DroneControlInput => {
     let targetPitch = 0
     let targetRoll = 0

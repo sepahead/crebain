@@ -59,7 +59,8 @@ function camera(): CrebainCamera {
     far: 1000,
     isActive: true,
     patrolPath: [new THREE.Vector3(4, 5, 6)],
-    patrolSpeed: 3,
+    patrolSpeed: 0.3,
+    resolution: [800, 450],
   }
 }
 
@@ -117,13 +118,14 @@ describe('useSceneState helpers', () => {
       name: 'Camera 1',
       type: 'patrol',
       position: { x: 1, y: 2, z: 3 },
-      resolution: [640, 480],
+      resolution: [800, 450],
       patrolPoints: [{ x: 4, y: 5, z: 6 }],
-      patrolSpeed: 3,
+      patrolSpeed: 0.3,
     })
     expect(restored.position).toBeInstanceOf(THREE.Vector3)
     expect(restored.rotation).toBeInstanceOf(THREE.Euler)
     expect(restored.patrolPath?.[0]).toBeInstanceOf(THREE.Vector3)
+    expect(restored.resolution).toEqual([800, 450])
   })
 
   it('serializes drone state and derives spawn data', () => {
@@ -132,14 +134,17 @@ describe('useSceneState helpers', () => {
 
     expect(serialized).toMatchObject({
       id: 'maverick_1',
+      name: 'Maverick 1',
       type: 'maverick',
       position: { x: 1, y: 2, z: 3 },
       velocity: { x: 4, y: 5, z: 6 },
       armed: true,
       battery: 87,
       flightMode: 'manual',
+      routeMode: 'none',
+      routeActive: false,
     })
-    expect(spawnData.name).toBe('maverick')
+    expect(spawnData.name).toBe('Maverick 1')
     expect(spawnData.position).toBeInstanceOf(THREE.Vector3)
     expect(spawnData.orientation).toBeInstanceOf(THREE.Quaternion)
   })
@@ -155,7 +160,11 @@ describe('useSceneState helpers', () => {
         [drone()],
         { position: new THREE.Vector3(10, 11, 12), target: new THREE.Vector3(0, 1, 2) },
         { detectionEnabled: false, renderQuality: 'medium' },
-        '/scene.splat'
+        '/scene.splat',
+        [],
+        undefined,
+        [],
+        'cam-1'
       )
     })
 
@@ -164,6 +173,7 @@ describe('useSceneState helpers', () => {
     expect(state?.drones).toHaveLength(1)
     expect(state?.settings).toMatchObject({ detectionEnabled: false, renderQuality: 'medium' })
     expect(state?.splatScene?.url).toBe('/scene.splat')
+    expect(state?.activeCameraId).toBe('cam-1')
     expect(hook.getCurrentState()?.name).toBe('Hook Scene')
 
     await act(async () => root.unmount())

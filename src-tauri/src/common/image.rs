@@ -55,9 +55,10 @@ pub fn validate_rgba_input_len(rgba_len: usize, width: u32, height: u32) -> Resu
     Ok(expected_size)
 }
 
-/// Decode an untrusted PNG/JPEG while enforcing CREBAIN's dimensions and
-/// decoded-RGBA byte budget before allocating the full pixel buffer.
-pub fn decode_image_with_limits(encoded: &[u8]) -> Result<DynamicImage, String> {
+/// Inspect an untrusted encoded image without decoding its pixel buffer.
+/// Only PNG/JPEG are accepted and their declared dimensions must fit the same
+/// RGBA allocation budget used by the full decoder.
+pub fn inspect_encoded_image(encoded: &[u8]) -> Result<(ImageFormat, u32, u32), String> {
     if encoded.is_empty() {
         return Err("Image data is empty".to_string());
     }
@@ -73,6 +74,14 @@ pub fn decode_image_with_limits(encoded: &[u8]) -> Result<DynamicImage, String> 
         .into_dimensions()
         .map_err(|e| format!("Image dimension decode error: {e}"))?;
     validate_rgba_dimensions(width, height)?;
+
+    Ok((format, width, height))
+}
+
+/// Decode an untrusted PNG/JPEG while enforcing CREBAIN's dimensions and
+/// decoded-RGBA byte budget before allocating the full pixel buffer.
+pub fn decode_image_with_limits(encoded: &[u8]) -> Result<DynamicImage, String> {
+    let (format, _, _) = inspect_encoded_image(encoded)?;
 
     let mut limits = Limits::default();
     limits.max_image_width = Some(MAX_IMAGE_DIMENSION);
@@ -105,6 +114,20 @@ mod tests {
     fn rejects_unknown_encoded_image_formats() {
         let error = decode_image_with_limits(b"not an image").unwrap_err();
         assert!(error.contains("Unsupported image format"));
+    }
+
+    #[test]
+    fn inspects_encoded_dimensions_without_decoding_pixels() {
+        let image = DynamicImage::new_rgba8(2, 3);
+        let mut png = Vec::new();
+        image
+            .write_to(&mut Cursor::new(&mut png), ImageFormat::Png)
+            .unwrap();
+
+        assert_eq!(
+            inspect_encoded_image(&png).unwrap(),
+            (ImageFormat::Png, 2, 3)
+        );
     }
 
     #[test]

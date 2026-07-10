@@ -89,6 +89,7 @@
     "globals": "^17.7.0",
     "happy-dom": "^20.10.6",
     "postcss": "^8.5.16",
+    "playwright": "^1.61.1",
     "prettier": "^3.9.5",
     "tailwindcss": "^4.3.2",
     "typescript": "^6.0.3",

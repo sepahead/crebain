@@ -29,6 +29,10 @@ export interface LoadedAsset {
   type: 'splat' | 'glb'
   /** The THREE.js object added to the scene */
   object: THREE.Object3D
+  /** Reloadable source URL. Local File handles are intentionally not persisted. */
+  source?: string
+  /** Primary source bytes retained for aggregate scene-budget accounting. */
+  byteSize?: number
 }
 
 /** A message displayed in the tactical console overlay. */
@@ -134,13 +138,12 @@ export function isSplatFormat(name: string): boolean {
 }
 
 /**
- * Checks if a filename indicates a GLTF/GLB model format.
+ * Checks if a filename indicates the self-contained GLB model format.
  * @param name - Filename to check
- * @returns True if the file is a GLTF format (.glb, .gltf)
+ * @returns True only for a GLB container; standalone .gltf resources are unsupported
  */
-export function isGltfFormat(name: string): boolean {
-  const lower = name.toLowerCase()
-  return lower.endsWith('.glb') || lower.endsWith('.gltf')
+export function isGlbFormat(name: string): boolean {
+  return name.toLowerCase().endsWith('.glb')
 }
 
 /**

@@ -6,8 +6,8 @@
  * Uses UIScaleProvider for centralized UI scaling management.
  */
 
-import { useState, useEffect } from 'react'
-import { invoke } from '@tauri-apps/api/core'
+import { useCallback, useEffect, useState } from 'react'
+import { invoke, isTauri } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import CrebainViewer from './components/CrebainViewer'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -18,23 +18,27 @@ import { AboutModal } from './components/AboutModal'
 import { UIScaleProvider } from './context/UIScaleContext'
 import { usePerformanceTracker } from './hooks/usePerformanceTracker'
 import { useGazeboSimulation } from './hooks/useGazeboSimulation'
-import { useROSSensors } from './ros/useROSSensors'
+import { ROS_SENSOR_WEBSOCKET_REQUIRED, useROSSensors } from './ros/useROSSensors'
 import { APP_SHORTCUTS, isTextInputTarget, normalizeShortcutKey } from './lib/shortcuts'
 import { TAURI_COMMANDS } from './lib/tauriCommands'
 import { getBackendHealth, normalizeSystemInfo, type SystemInfo } from './lib/diagnostics'
 import { logger } from './lib/logger'
+import type { FilterAlgorithm } from './detection/AdvancedSensorFusion'
 
 const log = logger.scope('App')
 
 export default function App() {
   const performanceTracker = usePerformanceTracker({ maxHistory: 100 })
+  const { recordSample } = performanceTracker
   const [detectionError, setDetectionError] = useState<string | null>(null)
   const [showPerformancePanel, setShowPerformancePanel] = useState(true)
   const [showROSPanel, setShowROSPanel] = useState(false)
   const [showFusionPanel, setShowFusionPanel] = useState(true)
   const [showAbout, setShowAbout] = useState(false)
   const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null)
+  const [fusionAlgorithm, setFusionAlgorithm] = useState<FilterAlgorithm>('ExtendedKalman')
   const [systemInfo, setSystemInfo] = useState<SystemInfo>(() => normalizeSystemInfo(null))
+  const handleCloseAbout = useCallback(() => setShowAbout(false), [])
 
   // ROS-Gazebo simulation
   const gazebo = useGazeboSimulation({
@@ -46,23 +50,61 @@ export default function App() {
   const sensors = useROSSensors({
     rosUrl: 'ws://localhost:9090',
     autoConnect: false,
-    algorithm: 'ExtendedKalman',
+    algorithm: fusionAlgorithm,
+    externalConnection:
+      gazebo.transport === 'websocket'
+        ? {
+            bridge: gazebo.bridge,
+            connectionState: gazebo.connectionState,
+            connectionError: gazebo.connectionError,
+          }
+        : {
+            bridge: null,
+            connectionState: 'disconnected',
+            unsupportedReason: ROS_SENSOR_WEBSOCKET_REQUIRED,
+          },
   })
+  const { addVisualDetection, setAlgorithm } = sensors
+  const handleFusionAlgorithmChange = useCallback(
+    async (algorithm: FilterAlgorithm) => {
+      await setAlgorithm(algorithm)
+      setFusionAlgorithm(algorithm)
+    },
+    [setAlgorithm]
+  )
+
+  const onVisualTrack = useCallback(
+    (track: {
+      id: string
+      position: [number, number, number]
+      confidence: number
+      classLabel: string
+    }) => {
+      addVisualDetection(`visual:${track.id}`, track.position, track.confidence, track.classLabel)
+    },
+    [addVisualDetection]
+  )
 
   // Handle detection results from CrebainViewer
-  const onDetectionComplete = (result: {
-    inferenceTimeMs: number
-    preprocessTimeMs?: number
-    postprocessTimeMs?: number
-    detectionCount: number
-  }) => {
-    performanceTracker.recordSample(result)
-    // Clear any previous error on successful detection
-    if (detectionError) setDetectionError(null)
-  }
+  const onDetectionComplete = useCallback(
+    (result: {
+      inferenceTimeMs: number
+      preprocessTimeMs?: number
+      postprocessTimeMs?: number
+      detectionCount: number
+    }) => {
+      recordSample(result)
+      // React ignores the update when the error is already clear.
+      setDetectionError(null)
+    },
+    [recordSample]
+  )
 
   // Keyboard shortcuts and Menu Events
   useEffect(() => {
+    let disposed = false
+    let unlisten: (() => void) | null = null
+
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't trigger if typing in an input
       if (isTextInputTarget(e.target)) return
@@ -82,18 +124,34 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown)
 
-    // Listen for the "show-about" event from the backend menu
-    const unlistenPromise = listen('show-about', () => {
-      setShowAbout(true)
-    })
+    // The native menu does not exist in browser/Vite mode. Guarding this call
+    // avoids a rejected Tauri IPC promise on every browser mount.
+    if (isTauri()) {
+      void listen('show-about', () => {
+        setShowAbout(true)
+      })
+        .then((cleanup) => {
+          if (disposed) {
+            cleanup()
+          } else {
+            unlisten = cleanup
+          }
+        })
+        .catch((error) => {
+          log.warn('Failed to register native menu listener', { error })
+        })
+    }
 
     return () => {
+      disposed = true
       window.removeEventListener('keydown', handleKeyDown)
-      void unlistenPromise.then((unlisten) => unlisten())
+      unlisten?.()
     }
   }, [])
 
   useEffect(() => {
+    if (!isTauri()) return
+
     let cancelled = false
 
     const refreshSystemInfo = async () => {
@@ -123,7 +181,12 @@ export default function App() {
     <ErrorBoundary>
       <UIScaleProvider persist={true}>
         <div className="w-full h-full relative">
-          <CrebainViewer onDetectionComplete={onDetectionComplete} />
+          <CrebainViewer
+            onDetectionComplete={onDetectionComplete}
+            onVisualTrack={onVisualTrack}
+            performancePanelVisible={showPerformancePanel}
+            onPerformancePanelVisibleChange={setShowPerformancePanel}
+          />
           {showPerformancePanel && (
             <PerformancePanel
               data={performanceTracker.currentData}
@@ -158,8 +221,17 @@ export default function App() {
             onToggleExpand={() => setShowFusionPanel((prev) => !prev)}
             onSelectTrack={setSelectedTrackId}
             selectedTrackId={selectedTrackId}
+            connectionState={sensors.connectionState}
+            connectionError={sensors.fusionError ?? sensors.connectionError}
+            onOpenConnection={() => {
+              if (gazebo.transport !== 'websocket') gazebo.setTransport('websocket')
+              setShowROSPanel(true)
+            }}
+            algorithm={fusionAlgorithm}
+            onAlgorithmChange={handleFusionAlgorithmChange}
+            fusionAvailable={sensors.fusionAvailable}
           />
-          <AboutModal isOpen={showAbout} onClose={() => setShowAbout(false)} />
+          <AboutModal isOpen={showAbout} onClose={handleCloseAbout} />
         </div>
       </UIScaleProvider>
     </ErrorBoundary>

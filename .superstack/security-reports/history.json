@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "reports": [
+    {
+      "project": "crebain",
+      "date": "2026-07-10",
+      "mode": "comprehensive",
+      "report": ".superstack/security-reports/crebain-2026-07-10.md",
+      "status": "actionable-findings-resolved",
+      "findings": {
+        "critical_open": 0,
+        "high_open": 0,
+        "resolved": 14,
+        "accepted_or_external_boundaries": 7
+      }
+    }
+  ]
+}

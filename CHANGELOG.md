@@ -12,15 +12,14 @@ README and treated as unverified until measured on target hardware.
 Open-source readiness and quality hardening.
 
 ### Added
-- **The galadriel innovation sidecar.** `update_track` emits one contract-frozen
-  `PidObservation` per associated measurement that actually corrected the filter
-  (`FusionConfig.emit_innovations`, or `CREBAIN_PID_JSONL=<path>` for a best-effort JSONL
-  sink directly consumable by `galadriel-ncp`); golden tests pin byte-equality with
-  galadriel's frozen sidecar contract on both sides. Filter updates (KF/CT/EKF-polar/UKF)
-  now return `Option<InnovationStats>` — the pre-update innovation `y` and covariance `S`,
-  `None` on skipped updates; NIS is computed by Cholesky solve. Track birth and singular-S
-  skips emit nothing; Particle (no `S` exists) and IMM (per-model updates only) are
-  excluded and documented (`docs/SENSOR_FUSION.md`).
+- **Galadriel-oriented local innovation JSONL.** `update_track` can emit a minimal
+  observation after an associated measurement actually corrects a Kalman-family
+  filter (`FusionConfig.emit_innovations`). `CREBAIN_PID_JSONL=<trusted-path>`
+  enables best-effort local JSONL append at fusion initialization. Repository
+  tests cover local serialization/parsing and basic NIS consistency; they do not
+  claim live Galadriel correlation, PID actuation, NCP, ACL, or versioned-stream
+  interoperability. Track birth and skipped updates emit nothing; Particle and
+  IMM are excluded because they have no single compatible innovation covariance.
 
 ### Fixed
 - **Unit-correct "lowest-noise" selection across modalities.** The birth-representative
@@ -52,6 +51,24 @@ Open-source readiness and quality hardening.
   post-clear replay whose timestamps were at or before the old wall-clock see `dt = 0` on
   every frame — no prediction, frozen covariances, mis-sized gates — until timestamps
   caught up. Regression test replays an earlier-timestamp stream after a clear.
+- **Scene and asset restoration is bounded and completion-aware.** Browser and
+  native scene reads enforce the 10 MiB ceiling before parsing, migration precedes
+  strict schema validation, native saves replace atomically, and restore now
+  cancels stale work and reports partial asset failure. Splat, self-contained GLB,
+  embedded texture, aggregate-scene, and floor-image byte/pixel/time budgets are
+  enforced during streaming and parsing.
+- **ROS/Gazebo boundaries are consistent across the Tauri camera command and its
+  native rosbridge/Zenoh transports.** Camera subscriptions carry an explicit
+  raw/compressed schema, validate bounded base64/CDR data and CameraInfo matrices,
+  and inspect PNG/JPEG headers. ROS 1
+  Gazebo Classic service replies are ID-correlated, timed out, and require
+  mutation success; caller XML is bounded and privileged directives are rejected
+  except for the fixed bundled frontend model or explicit trusted native opt-in.
+- **The optional NCP action receiver now enforces fail-safe output continuously.**
+  Wire-valid commands feed a bounded 50 Hz `CommandPlant`; sequence, TTL, horizon,
+  unit, and speed failures HOLD at zero, and stop/close emits a final HOLD. The
+  feature and Tauri commands remain off/unregistered, so this is not a live
+  product loop.
 
 ### Changed
 - **SPD covariance solves use Cholesky instead of explicit inversion** at the six
@@ -85,7 +102,7 @@ Open-source readiness and quality hardening.
 
 - Re-pinned NCP to `v0.5.0` (wire `0.4` -> `0.5`, the stable-wire cut: the command/sim `mode` strings are now proto enums (`Mode`/`SimMode`), `CONTRACT_HASH` recomputed). Bumped `ncp-core`/`ncp-zenoh` (Cargo.toml + Cargo.lock) and `@sepehrmn/ncp` (package.json + bun.lock); the reply-`ncp_version` guard now speaks `0.5`.
 
-- Re-pinned NCP to `v0.4.0` (wire `0.3` -> `0.4`, the decoupling+robustness release: consumer-neutral proto package, advisory contract handshake, additive-is-non-breaking). The reply-`ncp_version` guard now speaks `0.4`; `cargo check --features ncp`, clippy, and the neuro TS tests pass (engram->crebain flow verified).
+- Re-pinned NCP to `v0.4.0` (wire `0.3` -> `0.4`, the decoupling+robustness release: consumer-neutral proto package, advisory contract handshake, additive-is-non-breaking). The reply-`ncp_version` guard now speaks `0.4`; feature compilation, clippy, and local neuro contract tests passed (no live Engram loop was claimed).
 
 - Re-pinned NCP to `v0.3.0` (wire `0.2` → `0.3`): the symmetric contract-hash
   handshake. Bumped `ncp-core`/`ncp-zenoh` (Cargo.toml + Cargo.lock) and
@@ -132,19 +149,14 @@ Open-source readiness and quality hardening.
   rather than via automated Dependabot PRs.
 - Governance: `CODEOWNERS`, structured issue forms, `SUPPORT.md`, `CHANGELOG.md`,
   `CITATION.cff`, and a committed `flake.lock`.
-- NCP TypeScript peer (`src/neuro`): vitest contract tests for the re-exported
-  `@sepehrmn/ncp` surface (`NeuroSimClient`/`WebSocketNeuroSim`/`NCP_VERSION`),
-  a transport smoke construction, and a mocked-socket frame round-trip; plus a thin
-  transport-agnostic reply `ncp_version` guard (`guardReplyVersion`) — the canonical
-  client stamps the version on requests but does not validate it on replies, so the
-  guard refuses a reply whose `ncp_version` is absent or differs from the version
-  this build speaks (read dynamically from `NCP_VERSION`; the current NCP pin is in
-  the Changed section above).
-- NCP native bridge: a targeted unit test (behind `#[cfg(all(test, feature = "ncp"))]`)
-  guarding the NCP wire-version handshake the `ncp` consumer relies on — the pinned
-  `NCP_VERSION` (read dynamically) is self-compatible and a skewed/malformed reply
-  version is rejected (not coerced) on session open, consistent with the SDK's
-  `ZenohNcpClient::open` enforcement.
+- NCP TypeScript peer (`src/neuro`): local contract tests for the re-exported
+  `@sepahead/ncp` surface and a thin `guardReplyVersion` transport wrapper. On the
+  current wire it applies the SDK's compatibility rule plus scientific-boundary
+  checks before a success reply reaches `NeuroSimClient`. The directory remains
+  unimported by the product runtime.
+- NCP native bridge: feature-gated tests cover the pinned SDK compatibility rule,
+  malformed/kind-mismatched control replies, required result fields, and session
+  identity. Incompatible or malformed replies are rejected rather than coerced.
 - `docs/SENSOR_FUSION.md`: a full sensor-fusion design reference (estimation math,
   the per-modality coordinate/covariance contract, data association and gating,
   multi-sensor fusion semantics, track lifecycle, tuning, validation metrics, and

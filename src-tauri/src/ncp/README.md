@@ -1,88 +1,95 @@
-# `src/ncp` — Engram neuro-cybernetic (NCP), Rust client
+# `src-tauri/src/ncp` — optional native NCP adapter
 
-CREBAIN's **native Rust + Zenoh** client for the Neuro-Cybernetic Protocol (NCP) —
-the high-performance peer to the TypeScript WebSocket client in
-[`../../../src/neuro/`](../../../src/neuro). It lets CREBAIN ask **Engram**
-(Engram) for a neural simulation and/or be steered as a controller, for
-**perception, action, both, or neither**, over the recommended decoupled Zenoh
-bus.
+This module is CREBAIN's Rust + Zenoh adapter for the Neuro-Cybernetic Protocol
+(NCP). Project-specific pose/velocity/channel mapping stays here; the canonical
+wire types and key construction come from pinned `ncp-core` and `ncp-zenoh`
+dependencies in [`src-tauri/Cargo.toml`](../../Cargo.toml).
 
-It uses the canonical NCP SDK (`ncp-core` + `ncp-zenoh`) from the published
-**[`sepahead/NCP`](https://github.com/sepahead/NCP)** repo, so the wire is
-identical across the Rust, Python and TS peers. Spec:
-`NEURO_CYBERNETIC_PROTOCOL.md` in that repo.
+It is **dormant in the product runtime**:
 
-## Opt-in (feature-gated)
+- the `ncp` Cargo feature is off by default;
+- `NcpHandle` is not managed by the Tauri builder;
+- `ncp_connect`, `ncp_open_feature_neuron`, `ncp_step_feature_neuron`, and
+  `ncp_close` are not registered in `generate_handler!`; and
+- no frontend hook runs a perception/action loop.
 
-This module is behind the **`ncp` Cargo feature** (off by default) so the default
-CREBAIN build and the command-contract test are unchanged:
+Compiling this module does not make CREBAIN an always-on Engram body.
+
+## Build and test
+
+The SDK is pinned to tag `v0.6.0` in both Cargo and npm manifests. A sibling
+checkout is not required, but the pinned Git dependency must be resolvable when
+Cargo resolves/builds the feature.
 
 ```bash
-cargo check  --features ncp --manifest-path src-tauri/Cargo.toml
-cargo test   --features ncp --lib ncp --manifest-path src-tauri/Cargo.toml
+bun run check:rust:ncp
+bun run clippy:rust:ncp
+bun run test:rust:ncp
 ```
 
-It depends on the published NCP SDK via a git + tag dependency (tag `v0.6.0`)
-on https://github.com/sepahead/NCP, declared in `src-tauri/Cargo.toml`; no
-sibling checkout is required.
+Keep `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `package.json`, and `bun.lock`
+on one compatible NCP release. Do not copy a wire version from an external
+example: some Engram examples/profiles still describe older wire `0.5` or
+`std_msgs` conventions and must be updated in their owning repository before use
+as deployment evidence.
 
-## What it provides
+## Available library surface
 
-- **Project mapping (CREBAIN-specific, stays here):** `sensor_frame_from_pose`
-  (pose + body velocity → NCP `SensorFrame`), `velocity_from_command` (NCP
-  `CommandFrame` → `TwistStampedData` for `/mavros/<ns>/setpoint_velocity/cmd_vel`,
-  failing safe to zero on `hold`/`estop`), and `observation_scalar` (a population
-  observation → a scalar feature).
-- **`NcpBridge`** — a Zenoh-backed client: `connect`, `open_feature_neuron` /
-  `step_feature_neuron` / `close` (perception/sim service via control-plane RPC),
-  `publish_sensor` (perception plane), `subscribe_commands` (action plane → MAVROS).
-- **Tauri commands** (`ncp_connect`, `ncp_open_feature_neuron`,
-  `ncp_step_feature_neuron`, `ncp_close`) — ready to register.
+- `sensor_frame_from_pose`: pose + body velocity to NCP `SensorFrame`.
+- `velocity_from_command`: strict one-frame conversion to
+  `TwistStampedData`; only a valid active `velocity_setpoint` in `m/s` can
+  actuate, while HOLD/ESTOP produce zero velocity.
+- `CommandPlant`: wraps the SDK `ActionBuffer`, validates active commands, replays
+  a bounded predictive horizon, enforces monotonic sequence and TTL, and returns
+  zero velocity after expiry/drain/invalid state.
+- `NcpBridge`: bounded Zenoh connect/control RPC, sensor publish, and action
+  subscription helpers.
+- `open_feature_neuron` / `step_feature_neuron` / `close`: the current
+  single-population perception example.
 
-## Exposing it to the frontend (one deliberate step)
+`subscribe_commands` now owns a 50 Hz local action loop. Wire-valid commands pass
+through `CommandPlant`; invalid/incompatible frames are logged and dropped. Close
+stops local actuation first and emits a final zero-velocity HOLD even when the
+remote close RPC later fails. The output callback must be non-blocking. This is
+library behavior only until a deliberate integration calls it.
 
-The commands compile but are **not** registered by default (so the
-`generate_handler!` command-contract test stays green). To turn them on, in
-`src-tauri/src/lib.rs::run()`:
+## Input and reply boundaries
 
-```rust
-// after `tauri::Builder::default()`:
-#[cfg(feature = "ncp")] let builder = builder.manage(crate::ncp::NcpHandle::default());
-// and add to the generate_handler![] list:
-//   ncp_connect, ncp_open_feature_neuron, ncp_step_feature_neuron, ncp_close,
-```
+- realm, session ID, and model name are limited to 128 bytes and safe key/name
+  characters;
+- `drive_pa` is finite and within ±1,000,000 pA;
+- `advance_ms` is finite and within `(0, 10,000]`;
+- active velocity norm is at most 100 m/s;
+- command TTL is finite and within `(0, 60,000]` ms;
+- horizon length is at most 1,000, requires a positive finite interval, and may
+  not extend beyond TTL;
+- Zenoh connect and each control RPC time out after 15 seconds;
+- action-loop stop waits at most 1 second before aborting the task;
+- RPC replies must be valid NCP, have the expected `kind`, include required
+  boolean result fields, and return the requested session ID; and
+- feature-neuron observations must provide the expected `spk` port/target,
+  `spikes` observable, and finite spike times.
 
-then add the matching entries to the frontend command registry. Until then, the
-TS WebSocket client (`src/neuro`) remains the shipped path.
+The wire/version/scientific-boundary validation is delegated to the pinned SDK;
+contract-hash advisory output is logged. Do not weaken version errors into a
+successful response.
 
-## Compatibility & versioning
+## Deliberate product integration
 
-Pinned to NCP **`v0.6.0`** (`src-tauri/Cargo.toml`, behind the `ncp` feature).
-NCP's `#10` neuron-family extension (`RecordTarget.recordables`, the
-`binary_state` / `rate_inject` enum values, `StimulusTarget.params`) is purely
-**additive** to the wire and shipped in the `v0.2.x` line, so this client already
-consumes it: an `observable:"binary_state"` observation deserializes (the enums
-gained the value, not a `serde(other)` fallback). **To adopt a newer NCP wire:**
-bump the `ncp-core`/`ncp-zenoh` tag in `src-tauri/Cargo.toml` (the send path —
-`Observable::Spikes` / `StimulusKind::CurrentPa` — is unaffected by additive
-changes). The TypeScript client (`@sepahead/ncp`, `package.json`) pins the same
-release (`#v0.6.0`); run `bun install` to refresh a stale snapshot. **Keep the
-typed enums** — NCP's architecture review confirmed they are abstract SNN concepts
-(compile-checked), *not* to be flattened to strings.
+Exposing the four Tauri control commands requires managing `NcpHandle`, adding
+the commands to `generate_handler!`, updating the frontend command registry and
+contract tests, and adding an explicit opt-in UI/hook. Closed-loop action also
+requires a separate caller to subscribe to commands and publish the callback's
+validated `TwistStampedData` to the intended actuator path. Registration alone is
+not that loop.
 
-## Simulator-agnostic by design
+Before a live deployment claim, also prove the target NCP realm/key ACL allows
+the CREBAIN participant. Repository unit tests do not validate an external
+Engram/Galadriel ACL or network topology.
 
-CREBAIN talks to the **abstract NCP wire**, not to NEST. The typed vocabulary
-(`V_m`/`spikes`/`current_pA`/…) are simulator-neutral SNN concepts the Engram
-backend maps to NEST; backend-specific names live in the generic
-`recordables`/`params` escape hatches. If Engram ever runs a different simulator
-(NEURON / Brian2 / GeNN) behind the same wire, CREBAIN needs **no change** — it
-speaks the contract, not the simulator. (NEST is NCP's only implemented backend
-today; others are a documented future direction in the NCP repo.)
+## Scientific boundary
 
-## Boundary
-
-Returned `V_m`/spikes are raw simulation outputs (`calibrated_posterior=false`,
-`is_simulation_output=true`), never a validated reproduction; a neuro-controller
-is a control artifact, not a scientific claim. Engram holds no CREBAIN-specific
-topic knowledge — the mapping lives here, in CREBAIN.
+Returned membrane potential/spikes are raw simulation outputs
+(`calibrated_posterior=false`, `is_simulation_output=true`), not a validated
+biological reproduction. A neuro-controller is a control artifact, not a
+scientific or safety claim.

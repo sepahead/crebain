@@ -7,8 +7,8 @@
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { useRosBridge } from './useRosBridge'
-import { useGazeboDrones, type DroneState } from './useGazeboDrones'
+import { useRosBridge, type UseRosBridgeReturn } from './useRosBridge'
+import { GAZEBO_DRONE_STALE_MS, useGazeboDrones, type DroneState } from './useGazeboDrones'
 import {
   type InterceptionSystem,
   type InterceptionMission,
@@ -27,12 +27,17 @@ import { logger } from '../lib/logger'
 
 const log = logger.scope('GazeboSim')
 
+function isFreshDroneObservation(drone: DroneState, timestamp: number = Date.now()): boolean {
+  const ageMs = timestamp - drone.lastUpdate
+  return Number.isFinite(ageMs) && ageMs <= GAZEBO_DRONE_STALE_MS
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface UseGazeboSimulationConfig {
-  /** Transport layer to use (default: zenoh) */
+  /** Transport layer to use (default: websocket) */
   transport: 'websocket' | 'zenoh'
   rosUrl: string
   autoConnect: boolean
@@ -47,6 +52,8 @@ export interface UseGazeboSimulationConfig {
 export interface UseGazeboSimulationReturn {
   // Connection
   connectionState: ConnectionState
+  /** Active transport instance owned by this hook. */
+  bridge: UseRosBridgeReturn['bridge']
   transport: 'websocket' | 'zenoh'
   setTransport: (transport: 'websocket' | 'zenoh') => void
   rosUrl: string
@@ -85,7 +92,9 @@ export interface UseGazeboSimulationReturn {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const DEFAULT_CONFIG: UseGazeboSimulationConfig = {
-  transport: 'zenoh',
+  // WebSocket is the honest default until Zenoh supports Gazebo service calls
+  // and CREBAIN's custom sensor message types end to end.
+  transport: 'websocket',
   rosUrl: 'ws://localhost:9090',
   autoConnect: false,
   updateIntervalMs: 100,
@@ -119,6 +128,8 @@ export function useGazeboSimulation(
   const interceptionSystemRef = useRef<InterceptionSystem>(getInterceptionSystem())
   const updateIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const guidanceControllersRef = useRef<Map<string, GuidanceController>>(new Map())
+  const syncedTargetIdsRef = useRef<Set<string>>(new Set())
+  const syncedInterceptorIdsRef = useRef<Set<string>>(new Set())
   const configRef = useRef(mergedConfig)
   configRef.current = mergedConfig
 
@@ -154,26 +165,6 @@ export function useGazeboSimulation(
     [activeMissions]
   )
 
-  // Sync drones with interception system
-  useEffect(() => {
-    const system = interceptionSystemRef.current
-
-    // Update targets (hostile drones)
-    for (const drone of gazeboDrones.hostileDrones) {
-      system.updateTarget(drone.id, drone.pose.position, drone.velocity.linear)
-    }
-
-    // Update interceptors (friendly drones)
-    for (const drone of gazeboDrones.friendlyDrones) {
-      const existingInterceptor = system.getInterceptor(drone.id)
-      if (existingInterceptor) {
-        system.updateInterceptor(drone.id, drone.pose.position, drone.velocity.linear)
-      } else {
-        system.registerInterceptor(drone.id, drone.pose.position, drone.velocity.linear)
-      }
-    }
-  }, [gazeboDrones.hostileDrones, gazeboDrones.friendlyDrones])
-
   // Publish the interception system's active missions to React state.
   // The system mutates mission objects in place, so published missions are
   // shallow clones; the compare (length + ids + status + lastUpdate) then
@@ -196,6 +187,81 @@ export function useGazeboSimulation(
       if (unchanged) return prev
       return next.map((mission) => ({ ...mission }))
     })
+  }, [])
+
+  // Sync the current, fresh Gazebo snapshot with the interception system.
+  // Tracking IDs explicitly lets us remove models that disappear instead of
+  // leaving actionable ghost targets/interceptors in the singleton system.
+  useEffect(() => {
+    const system = interceptionSystemRef.current
+    const timestamp = Date.now()
+    const bridgeIsConnected = rosBridge.isConnected && (rosBridge.bridge?.isConnected() ?? false)
+    const isFresh = (drone: DroneState) => isFreshDroneObservation(drone, timestamp)
+    const hostileDrones = bridgeIsConnected ? gazeboDrones.hostileDrones.filter(isFresh) : []
+    const friendlyDrones = bridgeIsConnected ? gazeboDrones.friendlyDrones.filter(isFresh) : []
+    const activeTargetIds = new Set(hostileDrones.map((drone) => drone.id))
+    const activeInterceptorIds = new Set(friendlyDrones.map((drone) => drone.id))
+    let removedEntity = false
+
+    for (const targetId of syncedTargetIdsRef.current) {
+      if (!activeTargetIds.has(targetId)) {
+        system.removeTarget(targetId)
+        removedEntity = true
+      }
+    }
+    for (const interceptorId of syncedInterceptorIdsRef.current) {
+      if (!activeInterceptorIds.has(interceptorId)) {
+        system.removeInterceptor(interceptorId)
+        removedEntity = true
+      }
+    }
+
+    for (const drone of hostileDrones) {
+      system.updateTarget(drone.id, drone.pose.position, drone.velocity.linear)
+    }
+
+    for (const drone of friendlyDrones) {
+      const existingInterceptor = system.getInterceptor(drone.id)
+      if (existingInterceptor) {
+        system.updateInterceptor(drone.id, drone.pose.position, drone.velocity.linear)
+      } else {
+        system.registerInterceptor(drone.id, drone.pose.position, drone.velocity.linear)
+      }
+    }
+
+    syncedTargetIdsRef.current.clear()
+    activeTargetIds.forEach((id) => syncedTargetIdsRef.current.add(id))
+    syncedInterceptorIdsRef.current.clear()
+    activeInterceptorIds.forEach((id) => syncedInterceptorIdsRef.current.add(id))
+
+    if (removedEntity) {
+      publishActiveMissions()
+    }
+  }, [
+    gazeboDrones.hostileDrones,
+    gazeboDrones.friendlyDrones,
+    publishActiveMissions,
+    rosBridge.bridge,
+    rosBridge.isConnected,
+  ])
+
+  // The interception system is a singleton, so release this hook's models on
+  // unmount as well as on ordinary disconnect/model-removal transitions.
+  useEffect(() => {
+    const system = interceptionSystemRef.current
+    const targetIds = syncedTargetIdsRef.current
+    const interceptorIds = syncedInterceptorIdsRef.current
+
+    return () => {
+      for (const targetId of targetIds) {
+        system.removeTarget(targetId)
+      }
+      for (const interceptorId of interceptorIds) {
+        system.removeInterceptor(interceptorId)
+      }
+      targetIds.clear()
+      interceptorIds.clear()
+    }
   }, [])
 
   // Manage guidance controllers for active missions.
@@ -353,6 +419,17 @@ export function useGazeboSimulation(
     (targetId: string, strategy: InterceptionStrategy = 'LEAD'): InterceptionMission | null => {
       const system = interceptionSystemRef.current
 
+      if (!rosBridge.bridge || !rosBridge.isConnected || !rosBridge.bridge.isConnected()) {
+        log.warn('Cannot initiate intercept while ROS is disconnected', { targetId })
+        return null
+      }
+
+      const target = gazeboDrones.hostileDrones.find((drone) => drone.id === targetId)
+      if (!target || !isFreshDroneObservation(target)) {
+        log.warn('Cannot initiate intercept for missing or stale target', { targetId })
+        return null
+      }
+
       // Find best available interceptor
       const assignment = system.assignBestInterceptor(targetId)
       if (!assignment) {
@@ -372,7 +449,7 @@ export function useGazeboSimulation(
 
       return mission
     },
-    [publishActiveMissions]
+    [gazeboDrones.hostileDrones, publishActiveMissions, rosBridge.bridge, rosBridge.isConnected]
   )
 
   // Abort mission
@@ -403,6 +480,7 @@ export function useGazeboSimulation(
   return {
     // Connection
     connectionState: rosBridge.state,
+    bridge: rosBridge.bridge,
     transport,
     setTransport,
     rosUrl,

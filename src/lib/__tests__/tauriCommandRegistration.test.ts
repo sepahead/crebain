@@ -106,6 +106,7 @@ describe('Tauri command registration', () => {
   it('keeps scene file commands guarded by path, size, and JSON validation', () => {
     const saveBlock = commandBlock(BACKEND, TAURI_COMMANDS.scene.saveFile)
     const loadBlock = commandBlock(BACKEND, TAURI_COMMANDS.scene.loadFile)
+    const boundedReadBlock = commandBlock(BACKEND, 'read_scene_file_bounded')
 
     expect(saveBlock).toContain('if json.is_empty()')
     expect(saveBlock).toContain('json.len() > MAX_SCENE_STATE_BYTES')
@@ -113,8 +114,12 @@ describe('Tauri command registration', () => {
     expect(saveBlock).toContain('serde_json::from_str(&json)')
 
     expect(loadBlock).toContain('validate_scene_file_path(&path, &scenes_dir)?')
-    expect(loadBlock).toContain('meta.len() as usize > MAX_SCENE_STATE_BYTES')
+    expect(loadBlock).toContain('read_scene_file_bounded(&validated_path, MAX_SCENE_STATE_BYTES)?')
     expect(loadBlock).toContain('serde_json::from_str(&contents)')
+
+    expect(boundedReadBlock).toContain('.checked_add(1)')
+    expect(boundedReadBlock).toContain('.take(read_limit)')
+    expect(boundedReadBlock).toContain('bytes.len() > max_bytes')
   })
 
   it('keeps model path environment variables guarded by model-path validation', () => {

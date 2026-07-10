@@ -86,6 +86,7 @@ export function useDraggable(config: DraggableConfig): DraggableReturn {
       // Only drag from elements with data-drag-handle attribute
       const target = e.target as HTMLElement
       if (!target.closest('[data-drag-handle]')) return
+      if (target.closest('button, input, select, textarea, a, [role="button"]')) return
 
       e.preventDefault()
       e.stopPropagation()
@@ -184,6 +185,42 @@ export function useDraggable(config: DraggableConfig): DraggableReturn {
       window.removeEventListener('mouseup', handleMouseUp)
     }
   }, [isDragging, snapDistance, edgePadding, headerHeight, side])
+
+  // Keep panels reachable after viewport or panel-size changes. Drag clamping
+  // alone is insufficient: a panel positioned for a large window can otherwise
+  // remain entirely off-screen after resize or expansion.
+  useEffect(() => {
+    const clampToViewport = () => {
+      const viewportWidth = window.innerWidth
+      const viewportHeight = window.innerHeight
+      const elementWidth = elementRef.current?.offsetWidth ?? 300
+      const elementHeight = elementRef.current?.offsetHeight ?? 200
+      const minY = edgePadding + headerHeight
+      const maxY = Math.max(minY, viewportHeight - elementHeight - edgePadding)
+      const rightOffset = 12
+      const minX =
+        side === 'left'
+          ? edgePadding
+          : Math.min(0, -(viewportWidth - elementWidth - edgePadding - rightOffset))
+      const maxX = side === 'left' ? Math.max(minX, viewportWidth - elementWidth - edgePadding) : 0
+
+      setPosition((current) => ({
+        x: Math.max(minX, Math.min(maxX, current.x)),
+        y: Math.max(minY, Math.min(maxY, current.y)),
+      }))
+    }
+
+    clampToViewport()
+    window.addEventListener('resize', clampToViewport)
+    const resizeObserver =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(clampToViewport)
+    if (elementRef.current) resizeObserver?.observe(elementRef.current)
+
+    return () => {
+      window.removeEventListener('resize', clampToViewport)
+      resizeObserver?.disconnect()
+    }
+  }, [edgePadding, headerHeight, side])
 
   return {
     position,

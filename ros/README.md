@@ -1,91 +1,130 @@
-# CREBAIN ROS Integration
+# CREBAIN ROS 1 / Gazebo Classic references
 
-Reference files for ROS/Gazebo integration. These files document message formats and launch configurations intended for CREBAIN-compatible ROS packages; they are not a complete standalone ROS package. These are ROS1-style (catkin) reference definitions consumed over rosbridge, so the type names must match the server-side package (`crebain_msgs`).
+This directory is a catkin package named `crebain_msgs`. It contains ROS 1
+message/service definitions plus Gazebo Classic, MAVROS, and rosbridge launch
+references. It is not a ROS 2 package and does not make CREBAIN's native Zenoh
+keys directly compatible with an `rmw_zenoh_cpp` graph.
 
 ## Structure
 
-```
+```text
 ros/
-├── msg/                    # Message definitions
-│   ├── ThermalDetection.msg
-│   ├── ThermalDetectionArray.msg
-│   ├── AcousticDetection.msg
-│   ├── AcousticDetectionArray.msg
-│   ├── RadarDetection.msg
-│   ├── RadarDetectionArray.msg
-│   ├── LidarDetection.msg
-│   ├── LidarDetectionArray.msg
-│   ├── DroneTarget.msg
-│   ├── InterceptionCommand.msg
-│   └── InterceptionStatus.msg
-├── srv/                    # Service definitions
-│   ├── InitiateIntercept.srv
-│   └── AbortMission.srv
-└── launch/                 # Launch files
-    ├── simulation.launch   # Full simulation
-    ├── multi_drone.launch  # Multi-drone spawning
-    └── rosbridge.launch    # WebSocket bridge config
+├── CMakeLists.txt
+├── package.xml
+├── msg/                     # Detection, target, and interception messages
+├── srv/                     # InitiateIntercept and AbortMission
+└── launch/
+    ├── simulation.launch    # Gazebo Classic + rosbridge + multi-drone include
+    ├── rosbridge.launch     # Standalone rosbridge/rosapi configuration
+    ├── multi_drone.launch   # Interceptor/target groups
+    └── single_drone.launch  # Gazebo model + MAVROS + static TF
 ```
 
-## Usage
+## Build
 
-To use these definitions with a full ROS package:
-
-1. Create a catkin package:
-
-   ```bash
-   # Run from ~/catkin_ws/src
-   catkin_create_pkg crebain_msgs std_msgs geometry_msgs
-   ```
-
-2. Copy `msg/` and `srv/` to the package.
-3. Update `CMakeLists.txt` and `package.xml`.
-4. Build:
-
-   ```bash
-   catkin_make
-   ```
-
-## Topics
-
-| Topic | Type | Description |
-|-------|------|-------------|
-| `/crebain/thermal/detections` | ThermalDetectionArray | Thermal camera detections |
-| `/crebain/acoustic/detections` | AcousticDetectionArray | Microphone array detections |
-| `/crebain/radar/detections` | RadarDetectionArray | Radar returns |
-| `/crebain/lidar/detections` | LidarDetectionArray | Clustered LIDAR detections |
-| `/crebain/targets` | DroneTarget[] | Tracked targets |
-
-CREBAIN also contains WebSocket-based rosbridge integration and Zenoh-oriented transport adapters. Treat latency and throughput as deployment-specific; measure them in the target ROS/Gazebo topology instead of relying on generic transport assumptions.
-
-## Services
-
-| Service | Type | Description |
-|---------|------|-------------|
-| `/crebain/initiate_intercept` | InitiateIntercept | Start interception |
-| `/crebain/abort_mission` | AbortMission | Abort mission |
-| `/gazebo/spawn_entity` | gazebo_msgs/SpawnEntity | Spawn a Gazebo model through the validated transport command path |
-
-## Quick Start
+Copy or symlink this directory into a ROS 1 catkin workspace, then install the
+runtime packages referenced by `package.xml`:
 
 ```bash
-# Terminal 1: Launch simulation / rosbridge
-roslaunch crebain_msgs simulation.launch
-
-# Terminal 2: Start CREBAIN
-bun run dev
+ln -s /path/to/crebain/ros ~/catkin_ws/src/crebain_msgs
+cd ~/catkin_ws
+catkin_make
+source devel/setup.bash
 ```
 
-Connect to `ws://localhost:9090` in CREBAIN.
+The multi-drone launch files also expect PX4/MAVROS and
+`mavlink_sitl_gazebo` model assets. They are reference topology, not a bundled
+autopilot distribution.
 
-For Zenoh-oriented ROS 2 deployments, set the middleware explicitly in the ROS environment:
+## Custom messages and services
+
+| Topic template | Type | Path |
+|----------------|------|------|
+| `/crebain/thermal/detections` | `crebain_msgs/ThermalDetectionArray` | Product WebSocket sensor-fusion path |
+| `/crebain/acoustic/detections` | `crebain_msgs/AcousticDetectionArray` | Product WebSocket sensor-fusion path |
+| `/crebain/radar/detections` | `crebain_msgs/RadarDetectionArray` | Product WebSocket sensor-fusion path |
+| `/crebain/lidar/detections` | `crebain_msgs/LidarDetectionArray` | Product WebSocket sensor-fusion path |
+| `/crebain/targets` | `crebain_msgs/DroneTarget` | Reference output contract |
+
+| Service | Type |
+|---------|------|
+| `/crebain/initiate_intercept` | `crebain_msgs/InitiateIntercept` |
+| `/crebain/abort_mission` | `crebain_msgs/AbortMission` |
+
+The product's Gazebo controller uses ROS 1 Gazebo Classic services over
+rosbridge:
+
+| Service | Type |
+|---------|------|
+| `/gazebo/spawn_sdf_model` | `gazebo_msgs/SpawnModel` |
+| `/gazebo/spawn_urdf_model` | `gazebo_msgs/SpawnModel` |
+| `/gazebo/delete_model` | `gazebo_msgs/DeleteModel` |
+| `/gazebo/pause_physics`, `/gazebo/unpause_physics`, `/gazebo/reset_world`, `/gazebo/reset_simulation` | `std_srvs/Empty` |
+
+`/gazebo/spawn_entity` / `gazebo_msgs/SpawnEntity` is a different Gazebo/ROS 2
+contract and is not the shipped CREBAIN service path.
+
+## Launch
+
+The full launch defaults to `gui:=true`. Set `gui:=false` for the documented
+headless server mode:
 
 ```bash
-export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+# Terminal 1
+roslaunch crebain_msgs simulation.launch gui:=false
+
+# Terminal 2, from the CREBAIN repository
+bun run tauri:dev
 ```
 
-## Security and Validation Notes
+Alternatively launch `rosbridge.launch` against an already-running ROS 1 / Gazebo
+Classic graph. Connect the product UI to `ws://localhost:9090`.
 
-- Treat ROS URLs, topic names, service names, message types, queue parameters, and transport topics as untrusted input.
-- Do not expose rosbridge or Zenoh endpoints to untrusted networks without deployment-appropriate authentication, network policy, and transport security.
-- Keep README, SECURITY, and release-acceptance docs aligned when adding topics, services, or transport assumptions.
+## Transport boundary
+
+The product UI defaults to the TypeScript rosbridge WebSocket client. That path
+supports the custom sensor arrays and Gazebo services. **Zenoh (Tauri)** selects a
+different native typed surface: camera, CameraInfo, IMU, PoseStamped, ModelStates,
+and pose/twist publishing. It does not provide ROS service calls or the custom
+sensor arrays.
+
+The native Zenoh adapter maps ROS-looking topic strings to CREBAIN plain keys.
+An `rmw_zenoh_cpp` graph uses DDS/RMW-qualified keys, so setting
+`RMW_IMPLEMENTATION=rmw_zenoh_cpp` is insufficient; deploy an explicit re-keying
+bridge.
+
+## Camera contract
+
+The caller explicitly selects `sensor_msgs/Image` or
+`sensor_msgs/CompressedImage`; a `/compressed` suffix is not used for schema
+inference. The native Rust rosbridge fallback and native Zenoh transport enforce:
+
+- raw encodings `rgba8`, `bgra8`, `rgb8`, `bgr8`, or `mono8`; dimensions
+  `1..=8192`; `step >= width * bytes_per_pixel`; exact `height * step`; maximum
+  decoded data 64 MiB;
+- compressed PNG/JPEG bytes only, with declared format matching the bytes (empty
+  format is the JPEG fallback) and the same dimension/RGBA allocation budget;
+- base64 text for rosbridge image data and base64 `CameraFrame.data` over Tauri;
+- CameraInfo `K[9]`, `R[9]`, `P[12]`; `D[5]` for `plumb_bob`, `D[8]` for
+  `rational_polynomial`, `D[4]` for `equidistant`, or at most 32 coefficients for
+  a custom model; and
+- finite/non-negative header time with nanoseconds below `1,000,000,000` plus a
+  bounded, control-character-free frame ID.
+
+## Gazebo XML policy
+
+Names, frames, poses, velocities, and model XML are validated in the frontend and
+native command paths. XML is limited to 256 KiB. Frontend caller-supplied XML
+always rejects plugin/include/URI/external-resource directives; only the fixed,
+audited bundled Maverick helper may use privileged XML. The native Rust command
+has a separate trusted-development escape hatch,
+`CREBAIN_ALLOW_UNSAFE_GAZEBO_XML=1`; never enable it for untrusted input or an
+exposed rosbridge endpoint.
+
+Rosbridge service calls are ID-correlated, bounded to 16 pending calls, time out
+after 8 seconds, accept only correlated `service_response` messages, and require
+`values.success=true` for spawn/delete mutations. Camera byte fields are
+base64-only; JSON byte arrays are rejected.
+
+Do not expose rosbridge or Zenoh endpoints to untrusted networks without
+deployment-specific authentication, network policy, and transport security.

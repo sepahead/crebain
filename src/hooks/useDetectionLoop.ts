@@ -118,78 +118,94 @@ export function useDetectionLoop(options: DetectionLoopOptions): void {
   const currentCameraIndexRef = useRef(0)
   const loopGenerationRef = useRef(0)
 
+  // Detection inputs can change independently of the scheduler. Keeping their
+  // latest values in refs prevents ordinary parent renders from cancelling and
+  // immediately restarting the loop while still applying updates next cycle.
+  const camerasRef = useRef(cameras)
+  const exportCameraFeedRef = useRef(exportCameraFeed)
+  const confidenceThresholdRef = useRef(confidenceThreshold)
+  const onDetectionRef = useRef(onDetection)
+  const onPerformanceRef = useRef(onPerformance)
+  const onErrorRef = useRef(onError)
+
+  camerasRef.current = cameras
+  exportCameraFeedRef.current = exportCameraFeed
+  confidenceThresholdRef.current = confidenceThreshold
+  onDetectionRef.current = onDetection
+  onPerformanceRef.current = onPerformance
+  onErrorRef.current = onError
+
   // Stable reference to the detection function
-  const runDetectionCycle = useCallback(
-    async (isCurrent: () => boolean = () => true) => {
-      // Skip if already processing or no cameras
-      if (isProcessingRef.current) return
+  const runDetectionCycle = useCallback(async (isCurrent: () => boolean = () => true) => {
+    // Skip if already processing or no cameras
+    if (isProcessingRef.current) return
 
-      const activeCameras = cameras.filter((c) => c.isActive)
-      if (activeCameras.length === 0) return
+    const activeCameras = camerasRef.current.filter((camera) => camera.isActive)
+    if (activeCameras.length === 0) return
 
-      isProcessingRef.current = true
-      let processingCameraId: string | undefined
+    isProcessingRef.current = true
+    let processingCameraId: string | undefined
 
-      try {
-        // Round-robin: process one camera per cycle for better performance
-        const cameraIndex = currentCameraIndexRef.current % activeCameras.length
-        const camera = activeCameras[cameraIndex]
-        processingCameraId = camera.id
-        currentCameraIndexRef.current = (cameraIndex + 1) % activeCameras.length
-
-        // Export camera feed
-        const imageData = await exportCameraFeed(camera.id)
-        if (!isCurrent()) return
-        if (!imageData) {
-          isProcessingRef.current = false
-          return
-        }
-
-        // Use the raw RGBA path to avoid PNG encode/decode overhead.
-        // Uint8Array is serializable by Tauri 2.x to Vec<u8>.
-        const rgbaData = imageDataToRGBA(imageData)
-
-        const response = await invoke<unknown>(TAURI_COMMANDS.detection.nativeRaw, {
-          rgbaData,
-          width: imageData.width,
-          height: imageData.height,
-          confidenceThreshold,
-          maxDetections: DEFAULT_MAX_DETECTIONS,
-        })
-        if (!isCurrent()) return
-        const result = normalizeNativeDetectionResult(response)
-
-        if (!result.success) {
-          onError?.(result.error || 'Detection failed', camera.id)
-          isProcessingRef.current = false
-          return
-        }
-
-        // Convert detections
-        const detections = result.detections.map((det) =>
-          convertDetection(det, imageData.width, imageData.height)
+    try {
+      // Round-robin: process one camera per cycle for better performance
+      const cameraIndex = currentCameraIndexRef.current % activeCameras.length
+      const camera = activeCameras[cameraIndex]
+      processingCameraId = camera.id
+      const cameraIsStillActive = () =>
+        camerasRef.current.some(
+          (currentCamera) => currentCamera === camera && currentCamera.isActive
         )
+      currentCameraIndexRef.current = (cameraIndex + 1) % activeCameras.length
 
-        // Report detections
-        onDetection?.(camera.id, detections, result.inferenceTimeMs)
+      // Export camera feed
+      const imageData = await exportCameraFeedRef.current(camera.id)
+      if (!isCurrent() || !cameraIsStillActive()) return
+      if (!imageData) return
 
-        // Report performance
-        onPerformance?.({
-          inferenceTimeMs: result.inferenceTimeMs,
-          preprocessTimeMs: result.preprocessTimeMs ?? 0,
-          postprocessTimeMs: result.postprocessTimeMs ?? 0,
-          detectionCount: detections.length,
-          cameraId: camera.id,
-        })
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        onError?.(message, processingCameraId)
-      } finally {
-        isProcessingRef.current = false
+      // Use the raw RGBA path to avoid PNG encode/decode overhead.
+      // Uint8Array is serializable by Tauri 2.x to Vec<u8>.
+      const rgbaData = imageDataToRGBA(imageData)
+
+      const response = await invoke<unknown>(TAURI_COMMANDS.detection.nativeRaw, {
+        rgbaData,
+        width: imageData.width,
+        height: imageData.height,
+        confidenceThreshold: confidenceThresholdRef.current,
+        maxDetections: DEFAULT_MAX_DETECTIONS,
+      })
+      if (!isCurrent() || !cameraIsStillActive()) return
+      const result = normalizeNativeDetectionResult(response)
+
+      if (!result.success) {
+        onErrorRef.current?.(result.error || 'Detection failed', camera.id)
+        return
       }
-    },
-    [cameras, exportCameraFeed, confidenceThreshold, onDetection, onPerformance, onError]
-  )
+
+      // Convert detections
+      const detections = result.detections.map((det) =>
+        convertDetection(det, imageData.width, imageData.height)
+      )
+
+      // Report detections
+      onDetectionRef.current?.(camera.id, detections, result.inferenceTimeMs)
+
+      // Report performance
+      onPerformanceRef.current?.({
+        inferenceTimeMs: result.inferenceTimeMs,
+        preprocessTimeMs: result.preprocessTimeMs ?? 0,
+        postprocessTimeMs: result.postprocessTimeMs ?? 0,
+        detectionCount: detections.length,
+        cameraId: camera.id,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (isCurrent()) {
+        onErrorRef.current?.(message, processingCameraId)
+      }
+    } finally {
+      isProcessingRef.current = false
+    }
+  }, [])
 
   // Set up the detection loop using async iteration for better backpressure handling
   // This prevents queue buildup when detection takes longer than intervalMs

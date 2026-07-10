@@ -71,16 +71,22 @@ const CDR_LITTLE_ENDIAN: u8 = 0x01;
 const CDR_LE_ENCAPSULATION: [u8; 4] = [0x00, CDR_LITTLE_ENDIAN, 0x00, 0x00];
 
 #[cfg(feature = "zenoh-transport")]
-const MAX_CDR_STRING_LEN: usize = 1024 * 1024; // 1MB max string length
+const MAX_CDR_STRING_LEN: usize = 4096;
 
 #[cfg(feature = "zenoh-transport")]
-const MAX_CDR_DATA_LEN: usize = 100 * 1024 * 1024; // 100MB max data array length
+const MAX_CDR_DATA_LEN: usize = crate::common::image::MAX_IMAGE_SIZE_BYTES;
 
 #[cfg(feature = "zenoh-transport")]
-const MAX_CDR_SEQUENCE_LEN: usize = 100_000;
+const MAX_CDR_SEQUENCE_LEN: usize = 10_000;
 
 #[cfg(feature = "zenoh-transport")]
 const MAX_CDR_IMAGE_DIMENSION: u32 = 8192;
+
+#[cfg(feature = "zenoh-transport")]
+const MAX_CAMERA_SCHEMA_TOKEN_LEN: usize = 64;
+
+#[cfg(feature = "zenoh-transport")]
+const MAX_DISTORTION_COEFFICIENTS: usize = 32;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // CDR READING HELPERS - Bounds-checked primitive reads
@@ -197,6 +203,12 @@ fn read_f64(data: &[u8], offset: &mut usize, is_little_endian: bool) -> Result<f
             TransportError::DecodingError("f64 slice conversion failed".to_string())
         })?)
     };
+    if !val.is_finite() {
+        return Err(TransportError::DecodingError(format!(
+            "Non-finite f64 at offset {}",
+            *offset
+        )));
+    }
     *offset = end;
     Ok(val)
 }
@@ -232,6 +244,11 @@ fn read_cdr_string(data: &[u8], offset: &mut usize, is_little_endian: bool) -> R
         )));
     }
     let str_len = str_len_u32 as usize;
+    if str_len == 0 {
+        return Err(TransportError::DecodingError(
+            "CDR string length must include a null terminator".to_string(),
+        ));
+    }
 
     // Check bounds safely: offset + str_len can still overflow on 32-bit
     let end_offset = offset.checked_add(str_len).ok_or_else(|| {
@@ -245,10 +262,22 @@ fn read_cdr_string(data: &[u8], offset: &mut usize, is_little_endian: bool) -> R
         )));
     }
 
-    // CDR strings include null terminator in length — strip it
-    let string = String::from_utf8_lossy(&data[*offset..end_offset])
-        .trim_end_matches('\0')
+    let encoded = &data[*offset..end_offset];
+    if encoded.last() != Some(&0) {
+        return Err(TransportError::DecodingError(
+            "CDR string is missing its null terminator".to_string(),
+        ));
+    }
+    let string = std::str::from_utf8(&encoded[..encoded.len() - 1])
+        .map_err(|error| {
+            TransportError::DecodingError(format!("CDR string is not valid UTF-8: {error}"))
+        })?
         .to_string();
+    if string.contains('\0') || string.chars().any(char::is_control) {
+        return Err(TransportError::DecodingError(
+            "CDR string contains embedded null or control characters".to_string(),
+        ));
+    }
     *offset = end_offset;
 
     // No trailing alignment: per OMG CDR/XCDR1 (as emitted by FastCDR/rmw_zenoh),
@@ -276,6 +305,11 @@ fn decode_ros2_header(
         read_i32_be(data, offset)?
     };
     let nanosec = read_u32(data, offset, is_little_endian)?;
+    if sec < 0 || nanosec >= 1_000_000_000 {
+        return Err(TransportError::DecodingError(format!(
+            "Invalid ROS timestamp sec={sec}, nanosec={nanosec}"
+        )));
+    }
     let timestamp = sec as f64 + nanosec as f64 * 1e-9;
 
     // Frame ID: CDR string (length-prefixed, null-terminated)
@@ -285,13 +319,60 @@ fn decode_ros2_header(
 }
 
 #[cfg(feature = "zenoh-transport")]
-fn min_bytes_per_pixel(encoding: &str) -> usize {
+fn normalize_camera_token(value: &str, field: &str, allow_empty: bool) -> Result<String> {
+    let normalized = value.trim().to_ascii_lowercase();
+    if value.chars().any(char::is_control)
+        || (!allow_empty && normalized.is_empty())
+        || normalized.len() > MAX_CAMERA_SCHEMA_TOKEN_LEN
+        || !normalized.chars().all(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, '_' | '-' | '.')
+        })
+    {
+        return Err(TransportError::DecodingError(format!(
+            "{field} must be a safe token up to {MAX_CAMERA_SCHEMA_TOKEN_LEN} characters"
+        )));
+    }
+    Ok(normalized)
+}
+
+#[cfg(feature = "zenoh-transport")]
+fn normalize_compressed_format(value: &str) -> Result<String> {
+    let normalized = value.trim().to_ascii_lowercase();
+    if value.chars().any(char::is_control)
+        || normalized.len() > MAX_CAMERA_SCHEMA_TOKEN_LEN
+        || !normalized.chars().all(|character| {
+            character.is_ascii_alphanumeric()
+                || matches!(character, '_' | '-' | '.' | '/' | ';' | ' ')
+        })
+    {
+        return Err(TransportError::DecodingError(format!(
+            "CompressedImage.format must be safe and at most {MAX_CAMERA_SCHEMA_TOKEN_LEN} characters"
+        )));
+    }
+    Ok(normalized)
+}
+
+#[cfg(feature = "zenoh-transport")]
+fn declared_compressed_format(format: &str) -> Option<image::ImageFormat> {
+    if format.is_empty() {
+        return Some(image::ImageFormat::Jpeg);
+    }
+    format
+        .split(|character: char| !character.is_ascii_alphanumeric())
+        .find_map(|token| match token {
+            "png" => Some(image::ImageFormat::Png),
+            "jpeg" | "jpg" => Some(image::ImageFormat::Jpeg),
+            _ => None,
+        })
+}
+
+#[cfg(feature = "zenoh-transport")]
+fn min_bytes_per_pixel(encoding: &str) -> Option<usize> {
     match encoding.trim().to_ascii_lowercase().as_str() {
-        "rgb8" | "bgr8" | "8uc3" => 3,
-        "rgba8" | "bgra8" | "8uc4" | "32fc1" => 4,
-        "mono16" | "16uc1" | "16sc1" | "bayer_rggb16" | "bayer_bggr16" | "bayer_gbrg16"
-        | "bayer_grbg16" => 2,
-        _ => 1,
+        "rgb8" | "bgr8" => Some(3),
+        "rgba8" | "bgra8" => Some(4),
+        "mono8" => Some(1),
+        _ => None,
     }
 }
 
@@ -319,8 +400,11 @@ fn validate_image_step(width: u32, height: u32, step: u32, encoding: &str) -> Re
         ));
     }
 
+    let bytes_per_pixel = min_bytes_per_pixel(encoding).ok_or_else(|| {
+        TransportError::DecodingError(format!("Unsupported raw image encoding: {encoding}"))
+    })?;
     let min_row_bytes = (width as usize)
-        .checked_mul(min_bytes_per_pixel(encoding))
+        .checked_mul(bytes_per_pixel)
         .ok_or_else(|| TransportError::DecodingError("Image row size overflow".to_string()))?;
     if (step as usize) < min_row_bytes {
         return Err(TransportError::DecodingError(format!(
@@ -340,6 +424,19 @@ fn validate_image_step(width: u32, height: u32, step: u32, encoding: &str) -> Re
     }
 
     Ok(expected_len)
+}
+
+#[cfg(feature = "zenoh-transport")]
+fn validate_unit_quaternion(quaternion: &[f64; 4], name: &str) -> Result<()> {
+    let norm = quaternion
+        .iter()
+        .fold(0.0_f64, |accumulator, value| accumulator.hypot(*value));
+    if !(0.99..=1.01).contains(&norm) {
+        return Err(TransportError::DecodingError(format!(
+            "{name} must be a unit quaternion, got norm {norm}"
+        )));
+    }
+    Ok(())
 }
 
 #[cfg(feature = "zenoh-transport")]
@@ -385,6 +482,7 @@ fn decode_image_cdr(data: &[u8]) -> Result<CameraFrame> {
 
     // Encoding string (CDR string format)
     let encoding = read_cdr_string(data, &mut offset, is_little_endian)?;
+    let encoding = normalize_camera_token(&encoding, "Image.encoding", false)?;
 
     // is_bigendian (1 byte)
     if data.len() <= offset {
@@ -453,9 +551,8 @@ fn decode_image_cdr(data: &[u8]) -> Result<CameraFrame> {
 #[cfg(feature = "zenoh-transport")]
 /// Decode sensor_msgs/CompressedImage from CDR
 /// Layout: header, format, data
-/// Note: Compressed images must be decompressed to get dimensions.
-/// This function reads the compressed data but dimensions remain 0.
-/// Caller should decompress the image to get actual dimensions.
+/// The encoded image header is inspected so an oversized PNG/JPEG cannot defer
+/// an unbounded pixel allocation to the frontend.
 fn decode_compressed_image_cdr(data: &[u8]) -> Result<CameraFrame> {
     if data.len() < CDR_HEADER_SIZE + 16 {
         return Err(TransportError::DecodingError(
@@ -471,6 +568,7 @@ fn decode_compressed_image_cdr(data: &[u8]) -> Result<CameraFrame> {
 
     // Format string (CDR string format)
     let encoding = read_cdr_string(data, &mut offset, is_little_endian)?;
+    let encoding = normalize_compressed_format(&encoding)?;
 
     // Data array (length-prefixed)
     let data_len_u32 = read_u32(data, &mut offset, is_little_endian)?;
@@ -493,14 +591,25 @@ fn decode_compressed_image_cdr(data: &[u8]) -> Result<CameraFrame> {
             data_len, offset
         )));
     }
-    let image_data_b64 = general_purpose::STANDARD.encode(&data[offset..end_offset]);
+    let image_data = &data[offset..end_offset];
+    let (detected_format, width, height) = crate::common::image::inspect_encoded_image(image_data)
+        .map_err(TransportError::DecodingError)?;
+    if declared_compressed_format(&encoding) != Some(detected_format) {
+        return Err(TransportError::DecodingError(format!(
+            "CompressedImage format {encoding:?} does not match encoded image"
+        )));
+    }
+    let image_data_b64 = general_purpose::STANDARD.encode(image_data);
+    let encoding = if encoding.is_empty() {
+        "jpeg".to_string()
+    } else {
+        encoding
+    };
 
-    // For compressed images, dimensions/step are 0 until decompressed.
-    // The caller (CrebainViewer) should decompress using image::codecs to get real dimensions.
     Ok(CameraFrame {
         data: image_data_b64,
-        width: 0,
-        height: 0,
+        width,
+        height,
         encoding,
         timestamp,
         frame_id,
@@ -535,10 +644,29 @@ fn decode_camera_info_cdr(data: &[u8]) -> Result<CameraInfoData> {
 
     let height = read_u32(data, &mut offset, is_little_endian)?;
     let width = read_u32(data, &mut offset, is_little_endian)?;
+    validate_image_dimensions(width, height)?;
     let distortion_model = read_cdr_string(data, &mut offset, is_little_endian)?;
+    let distortion_model =
+        normalize_camera_token(&distortion_model, "CameraInfo.distortion_model", true)?;
 
     // D sequence (f64 elements: 8 bytes each)
     let d_len = read_bounded_sequence_len(data, &mut offset, is_little_endian, "CameraInfo.D")?;
+    let expected_distortion_len = match distortion_model.as_str() {
+        "plumb_bob" => Some(5),
+        "rational_polynomial" => Some(8),
+        "equidistant" => Some(4),
+        _ => None,
+    };
+    if expected_distortion_len.is_some_and(|expected| d_len != expected) {
+        return Err(TransportError::DecodingError(format!(
+            "CameraInfo.D length {d_len} does not match distortion model {distortion_model}"
+        )));
+    }
+    if expected_distortion_len.is_none() && d_len > MAX_DISTORTION_COEFFICIENTS {
+        return Err(TransportError::DecodingError(format!(
+            "CameraInfo.D length {d_len} exceeds custom-model maximum {MAX_DISTORTION_COEFFICIENTS}"
+        )));
+    }
     let mut d = Vec::with_capacity(clamped_capacity(d_len, data.len(), offset, 8));
     for _ in 0..d_len {
         d.push(read_f64(data, &mut offset, is_little_endian)?);
@@ -589,7 +717,7 @@ fn decode_imu_cdr(data: &[u8]) -> Result<ImuData> {
     let mut offset = CDR_HEADER_SIZE;
 
     // Decode header
-    let (timestamp, _frame_id) = decode_ros2_header(data, &mut offset, is_little_endian)?;
+    let (timestamp, frame_id) = decode_ros2_header(data, &mut offset, is_little_endian)?;
 
     // Orientation quaternion (x, y, z, w) - 4 * f64
     let orientation = [
@@ -598,14 +726,16 @@ fn decode_imu_cdr(data: &[u8]) -> Result<ImuData> {
         read_f64(data, &mut offset, is_little_endian)?,
         read_f64(data, &mut offset, is_little_endian)?,
     ];
-
-    // Skip orientation covariance (9 * f64 = 72 bytes)
-    if data.len() < offset + 72 {
-        return Err(TransportError::DecodingError(
-            "Orientation covariance truncated".to_string(),
-        ));
+    // A first covariance value of -1 is the ROS sentinel for an unavailable
+    // orientation estimate. Preserve the finite wire quaternion in that case,
+    // but require a unit quaternion whenever orientation is available.
+    let mut orientation_covariance = [0.0; 9];
+    for value in &mut orientation_covariance {
+        *value = read_f64(data, &mut offset, is_little_endian)?;
     }
-    offset += 72;
+    if orientation_covariance[0] != -1.0 {
+        validate_unit_quaternion(&orientation, "Imu.orientation")?;
+    }
 
     // Angular velocity (x, y, z) - 3 * f64
     let angular_velocity = [
@@ -634,6 +764,7 @@ fn decode_imu_cdr(data: &[u8]) -> Result<ImuData> {
         angular_velocity,
         linear_acceleration,
         timestamp,
+        frame_id,
     })
 }
 
@@ -667,6 +798,7 @@ fn decode_pose_cdr(data: &[u8]) -> Result<PoseData> {
         read_f64(data, &mut offset, is_little_endian)?,
         read_f64(data, &mut offset, is_little_endian)?,
     ];
+    validate_unit_quaternion(&orientation, "Pose.orientation")?;
 
     Ok(PoseData {
         position,
@@ -695,6 +827,7 @@ fn read_pose_from_stream(
         read_f64(data, offset, is_little_endian)?,
         read_f64(data, offset, is_little_endian)?,
     ];
+    validate_unit_quaternion(&orientation, "ModelStates.pose.orientation")?;
     Ok(PoseData {
         position,
         orientation,
@@ -759,6 +892,12 @@ fn decode_model_states_cdr(data: &[u8]) -> Result<ModelStates> {
     let mut twist = Vec::with_capacity(clamped_capacity(twist_len, data.len(), offset, 48));
     for _ in 0..twist_len {
         twist.push(read_twist_from_stream(data, &mut offset, is_little_endian)?);
+    }
+
+    if name_len != pose_len || name_len != twist_len {
+        return Err(TransportError::DecodingError(format!(
+            "ModelStates arrays must have equal lengths, got name={name_len}, pose={pose_len}, twist={twist_len}"
+        )));
     }
 
     Ok(ModelStates { name, pose, twist })
@@ -997,6 +1136,7 @@ impl Transport for ZenohBridge {
     fn subscribe_camera(
         &self,
         topic: &str,
+        stream_kind: super::CameraStreamKind,
         callback: super::CameraCallback,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
         let key = Self::ros_to_zenoh_key(topic);
@@ -1006,7 +1146,7 @@ impl Transport for ZenohBridge {
         let latency_sum = self.latency_sum_ns.clone();
         let latency_count = self.latency_count.clone();
         let subscribers = self.subscribers.clone();
-        let is_compressed = topic.ends_with("/compressed");
+        let is_compressed = stream_kind == super::CameraStreamKind::Compressed;
 
         Box::pin(async move {
             Self::ensure_connected(&self.connected, "subscribe to", &key)?;
@@ -1383,6 +1523,7 @@ impl Transport for ZenohBridge {
     fn subscribe_camera(
         &self,
         _topic: &str,
+        _stream_kind: super::CameraStreamKind,
         _callback: super::CameraCallback,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
         Box::pin(async move {
@@ -1522,6 +1663,12 @@ mod tests {
     }
 
     #[cfg(feature = "zenoh-transport")]
+    fn push_f64_le(data: &mut Vec<u8>, value: f64) {
+        push_aligned(data, 8);
+        data.extend_from_slice(&value.to_le_bytes());
+    }
+
+    #[cfg(feature = "zenoh-transport")]
     fn push_cdr_string(data: &mut Vec<u8>, value: &str) {
         // Spec-correct CDR string: 4-aligned u32 length + bytes + null, with NO
         // trailing pad (mirrors read_cdr_string). The next pushed field aligns
@@ -1555,6 +1702,71 @@ mod tests {
         data
     }
 
+    #[cfg(feature = "zenoh-transport")]
+    fn compressed_image_cdr(format: &str, image_format: image::ImageFormat) -> Vec<u8> {
+        let image = image::DynamicImage::new_rgb8(2, 3);
+        let mut image_bytes = Vec::new();
+        image
+            .write_to(&mut std::io::Cursor::new(&mut image_bytes), image_format)
+            .unwrap();
+
+        let mut data = CDR_LE_ENCAPSULATION.to_vec();
+        push_i32_le(&mut data, 0);
+        push_u32_le(&mut data, 0);
+        push_cdr_string(&mut data, "camera");
+        push_cdr_string(&mut data, format);
+        push_u32_le(&mut data, image_bytes.len() as u32);
+        data.extend_from_slice(&image_bytes);
+        data
+    }
+
+    #[cfg(feature = "zenoh-transport")]
+    fn camera_info_prefix(distortion_model: &str, distortion_len: usize) -> Vec<u8> {
+        let mut data = CDR_LE_ENCAPSULATION.to_vec();
+        push_i32_le(&mut data, 0);
+        push_u32_le(&mut data, 0);
+        push_cdr_string(&mut data, "camera");
+        push_u32_le(&mut data, 480);
+        push_u32_le(&mut data, 640);
+        push_cdr_string(&mut data, distortion_model);
+        push_u32_le(&mut data, distortion_len as u32);
+        data
+    }
+
+    #[cfg(feature = "zenoh-transport")]
+    fn imu_cdr(orientation: [f64; 4], orientation_unavailable: bool) -> Vec<u8> {
+        let mut data = CDR_LE_ENCAPSULATION.to_vec();
+        push_i32_le(&mut data, 0);
+        push_u32_le(&mut data, 0);
+        push_cdr_string(&mut data, "imu");
+        for value in orientation {
+            push_f64_le(&mut data, value);
+        }
+        for index in 0..9 {
+            push_f64_le(
+                &mut data,
+                if orientation_unavailable && index == 0 {
+                    -1.0
+                } else {
+                    0.0
+                },
+            );
+        }
+        for value in [0.1, 0.2, 0.3] {
+            push_f64_le(&mut data, value);
+        }
+        for _ in 0..9 {
+            push_f64_le(&mut data, 0.0);
+        }
+        for value in [0.0, 0.0, 9.81] {
+            push_f64_le(&mut data, value);
+        }
+        for _ in 0..9 {
+            push_f64_le(&mut data, 0.0);
+        }
+        data
+    }
+
     #[test]
     #[cfg(feature = "zenoh-transport")]
     fn test_encode_twist_cdr() {
@@ -1579,18 +1791,23 @@ mod tests {
     #[test]
     #[cfg(feature = "zenoh-transport")]
     fn camera_info_rejects_oversized_distortion_sequence() {
-        let mut data = CDR_LE_ENCAPSULATION.to_vec();
-        push_i32_le(&mut data, 0);
-        push_u32_le(&mut data, 0);
-        push_cdr_string(&mut data, "camera");
-        push_u32_le(&mut data, 480);
-        push_u32_le(&mut data, 640);
-        push_cdr_string(&mut data, "plumb_bob");
-        push_u32_le(&mut data, MAX_CDR_SEQUENCE_LEN as u32 + 1);
+        let data = camera_info_prefix("plumb_bob", MAX_CDR_SEQUENCE_LEN + 1);
 
         let error = decode_camera_info_cdr(&data).unwrap_err();
 
         assert!(error.to_string().contains("CameraInfo.D length"));
+    }
+
+    #[test]
+    #[cfg(feature = "zenoh-transport")]
+    fn camera_info_preserves_standard_lengths_and_bounds_custom_models() {
+        let standard = camera_info_prefix("plumb_bob", 4);
+        let standard_error = decode_camera_info_cdr(&standard).unwrap_err();
+        assert!(standard_error.to_string().contains("does not match"));
+
+        let custom = camera_info_prefix("custom_model", MAX_DISTORTION_COEFFICIENTS + 1);
+        let custom_error = decode_camera_info_cdr(&custom).unwrap_err();
+        assert!(custom_error.to_string().contains("custom-model maximum"));
     }
 
     #[test]
@@ -1603,7 +1820,7 @@ mod tests {
         let height = 1u32;
         let step = 6u32; // rgb8 => 3 bytes/px * 2 px
         let payload = (height * step) as usize;
-        let data = image_cdr(width, height, "rgb8", 1, step, payload);
+        let data = image_cdr(width, height, " RGB8 ", 1, step, payload);
 
         let frame = decode_image_cdr(&data).unwrap();
 
@@ -1612,6 +1829,32 @@ mod tests {
         assert_eq!(frame.encoding, "rgb8");
         assert_eq!(frame.is_bigendian, 1);
         assert_eq!(frame.step, step);
+    }
+
+    #[test]
+    #[cfg(feature = "zenoh-transport")]
+    fn compressed_image_normalizes_format_and_applies_empty_jpeg_fallback() {
+        let png = compressed_image_cdr(" RGB8; PNG compressed RGB8 ", image::ImageFormat::Png);
+        let png_frame = decode_compressed_image_cdr(&png).unwrap();
+        assert_eq!(png_frame.encoding, "rgb8; png compressed rgb8");
+
+        let jpeg = compressed_image_cdr("", image::ImageFormat::Jpeg);
+        let jpeg_frame = decode_compressed_image_cdr(&jpeg).unwrap();
+        assert_eq!(jpeg_frame.encoding, "jpeg");
+
+        let empty_png = compressed_image_cdr("", image::ImageFormat::Png);
+        assert!(decode_compressed_image_cdr(&empty_png).is_err());
+    }
+
+    #[test]
+    #[cfg(feature = "zenoh-transport")]
+    fn imu_accepts_unavailable_orientation_but_validates_present_orientation() {
+        let unavailable = imu_cdr([0.0; 4], true);
+        let imu = decode_imu_cdr(&unavailable).unwrap();
+        assert_eq!(imu.orientation, [0.0; 4]);
+
+        let invalid_present = imu_cdr([0.0; 4], false);
+        assert!(decode_imu_cdr(&invalid_present).is_err());
     }
 
     #[test]

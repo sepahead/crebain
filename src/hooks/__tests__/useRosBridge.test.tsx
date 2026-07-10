@@ -3,15 +3,29 @@ import { createRoot } from 'react-dom/client'
 import { act } from 'react'
 import { useRosBridge, type UseRosBridgeConfig, type UseRosBridgeReturn } from '../useRosBridge'
 import { installMockWebSocket, MockWebSocket, sentMessages } from '../../test/mockWebSocket'
+import { getROSBridge, ROSBridge, setROSBridge } from '../../ros/ROSBridge'
+import { ZenohBridge } from '../../ros/ZenohBridge'
+
+const tauriMocks = vi.hoisted(() => ({ invoke: vi.fn() }))
+
+vi.mock('@tauri-apps/api/core', () => ({ invoke: tauriMocks.invoke }))
 ;(
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true
 
 let hook: UseRosBridgeReturn
 let restoreWebSocket: () => void
+let renderSnapshots: Array<{
+  requestedTransport: UseRosBridgeConfig['transport']
+  bridge: UseRosBridgeReturn['bridge']
+}>
 
 function Harness({ config }: { config: Partial<UseRosBridgeConfig> }) {
   hook = useRosBridge(config)
+  renderSnapshots.push({
+    requestedTransport: config.transport ?? 'websocket',
+    bridge: hook.bridge,
+  })
   return null
 }
 
@@ -41,12 +55,93 @@ async function connectHook() {
 describe('useRosBridge', () => {
   beforeEach(() => {
     restoreWebSocket = installMockWebSocket()
+    renderSnapshots = []
+    tauriMocks.invoke.mockReset().mockResolvedValue(undefined)
+    setROSBridge(null)
   })
 
   afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
+    setROSBridge(null)
     restoreWebSocket()
+  })
+
+  it('reactively exposes the bridge even when it is not connected', async () => {
+    const root = await renderHook({
+      transport: 'websocket',
+      autoConnect: false,
+      enablePerformanceMonitoring: false,
+    })
+
+    expect(hook.bridge).toBeInstanceOf(ROSBridge)
+    expect(hook.state).toBe('disconnected')
+    expect(getROSBridge()).toBe(hook.bridge)
+
+    await act(async () => root.unmount())
+    expect(getROSBridge()).toBeNull()
+  })
+
+  it('never exposes a bridge owned by the previous transport during a switch', async () => {
+    const websocketConfig: Partial<UseRosBridgeConfig> = {
+      transport: 'websocket',
+      autoConnect: false,
+      enablePerformanceMonitoring: false,
+    }
+    const root = await renderHook(websocketConfig)
+    const websocketBridge = hook.bridge
+    expect(websocketBridge).toBeInstanceOf(ROSBridge)
+
+    renderSnapshots = []
+    await act(async () => {
+      root.render(<Harness config={{ ...websocketConfig, transport: 'zenoh' }} />)
+    })
+
+    expect(renderSnapshots[0]).toEqual({
+      requestedTransport: 'zenoh',
+      bridge: null,
+    })
+    expect(
+      renderSnapshots.some(
+        ({ requestedTransport, bridge }) =>
+          requestedTransport === 'zenoh' && bridge === websocketBridge
+      )
+    ).toBe(false)
+    expect(hook.bridge).toBeInstanceOf(ZenohBridge)
+    expect(getROSBridge()).toBeNull()
+
+    await act(async () => root.unmount())
+  })
+
+  it('ignores connection failures from a bridge superseded by a transport switch', async () => {
+    const root = await renderHook({
+      transport: 'websocket',
+      autoConnect: true,
+      autoReconnect: false,
+      enablePerformanceMonitoring: false,
+    })
+
+    expect(MockWebSocket.last()).toBeDefined()
+    expect(hook.state).toBe('connecting')
+
+    await act(async () => {
+      root.render(
+        <Harness
+          config={{
+            transport: 'zenoh',
+            autoConnect: false,
+            enablePerformanceMonitoring: false,
+          }}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    expect(hook.bridge).toBeInstanceOf(ZenohBridge)
+    expect(hook.state).toBe('disconnected')
+    expect(hook.error).toBeNull()
+
+    await act(async () => root.unmount())
   })
 
   it('connects a websocket bridge and delegates topic and service operations', async () => {

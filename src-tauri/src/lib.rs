@@ -189,13 +189,126 @@ fn migrate_scene_json(mut value: serde_json::Value) -> Result<serde_json::Value,
         );
     }
 
-    for key in ["cameras", "assets", "drones", "annotations"] {
+    for key in [
+        "cameras",
+        "assets",
+        "drones",
+        "annotations",
+        "recentDetections",
+    ] {
         if !object.get(key).is_some_and(|entry| entry.is_array()) {
             object.insert(key.to_string(), serde_json::Value::Array(Vec::new()));
         }
     }
 
+    if !object
+        .get("settings")
+        .is_some_and(|entry| entry.is_object())
+    {
+        object.insert(
+            "settings".to_string(),
+            serde_json::json!({
+                "detectionEnabled": true,
+                "showDetectionPanel": true,
+                "showPerformancePanel": true,
+                "renderQuality": "high",
+                "physicsEnabled": true,
+                "sensorSimulationEnabled": true
+            }),
+        );
+    }
+    if !object
+        .get("viewCamera")
+        .is_some_and(|entry| entry.is_object())
+    {
+        object.insert(
+            "viewCamera".to_string(),
+            serde_json::json!({
+                "position": { "x": 0.0, "y": 5.0, "z": 10.0 },
+                "target": { "x": 0.0, "y": 0.0, "z": 0.0 }
+            }),
+        );
+    }
+
     Ok(value)
+}
+
+fn read_scene_file_bounded(path: &std::path::Path, max_bytes: usize) -> Result<String, String> {
+    use std::io::Read;
+
+    let read_limit = u64::try_from(max_bytes)
+        .map_err(|_| "Scene size limit exceeds the supported range".to_string())?
+        .checked_add(1)
+        .ok_or_else(|| "Scene size limit exceeds the supported range".to_string())?;
+    let file = std::fs::File::open(path)
+        .map_err(|e| format!("Failed to open {}: {}", path.display(), e))?;
+    let mut bytes = Vec::new();
+    file.take(read_limit)
+        .read_to_end(&mut bytes)
+        .map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
+
+    if bytes.len() > max_bytes {
+        return Err(format!(
+            "Scene file too large: exceeds maximum {} bytes",
+            max_bytes
+        ));
+    }
+
+    String::from_utf8(bytes)
+        .map_err(|e| format!("Scene file {} is not valid UTF-8: {}", path.display(), e))
+}
+
+#[cfg(unix)]
+fn sync_directory(path: &std::path::Path) -> Result<(), String> {
+    std::fs::File::open(path)
+        .and_then(|directory| directory.sync_all())
+        .map_err(|e| format!("Failed to sync directory {}: {}", path.display(), e))
+}
+
+#[cfg(not(unix))]
+fn sync_directory(_path: &std::path::Path) -> Result<(), String> {
+    Ok(())
+}
+
+fn persist_scene_contents_atomically(
+    path: &std::path::Path,
+    contents: &[u8],
+) -> Result<(), String> {
+    use std::io::Write;
+
+    let parent = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .ok_or_else(|| {
+            format!(
+                "Invalid scene path: {} has no parent directory",
+                path.display()
+            )
+        })?;
+    std::fs::create_dir_all(parent)
+        .map_err(|e| format!("Failed to create directory {}: {}", parent.display(), e))?;
+
+    let mut temporary = tempfile::Builder::new()
+        .prefix(".crebain-scene-")
+        .suffix(".tmp")
+        .tempfile_in(parent)
+        .map_err(|e| format!("Failed to create temporary scene file: {}", e))?;
+    temporary
+        .write_all(contents)
+        .map_err(|e| format!("Failed to write temporary scene file: {}", e))?;
+    temporary
+        .as_file()
+        .sync_all()
+        .map_err(|e| format!("Failed to sync temporary scene file: {}", e))?;
+
+    temporary.persist(path).map_err(|e| {
+        format!(
+            "Failed to atomically replace {}: {}",
+            path.display(),
+            e.error
+        )
+    })?;
+    sync_directory(parent)
 }
 
 /// Run CoreML detection on raw RGBA data.
@@ -457,59 +570,15 @@ async fn scene_save_file<R: tauri::Runtime>(
         let pretty = serde_json::to_string_pretty(&value)
             .map_err(|e| format!("JSON encode error: {}", e))?;
 
-        if let Some(parent) = validated_path
-            .parent()
-            .filter(|p| !p.as_os_str().is_empty())
-        {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| format!("Failed to create directory {}: {}", parent.display(), e))?;
+        if pretty.len() > MAX_SCENE_STATE_BYTES {
+            return Err(format!(
+                "Migrated scene JSON too large: {} bytes exceeds maximum {} bytes",
+                pretty.len(),
+                MAX_SCENE_STATE_BYTES
+            ));
         }
 
-        let file_name = validated_path
-            .file_name()
-            .and_then(|s| s.to_str())
-            .ok_or_else(|| "Invalid scene path: missing file name".to_string())?;
-        let tmp_path = validated_path.with_file_name(format!("{}.tmp", file_name));
-
-        {
-            use std::io::Write;
-            let mut file = std::fs::File::create(&tmp_path)
-                .map_err(|e| format!("Failed to create {}: {}", tmp_path.display(), e))?;
-            file.write_all(pretty.as_bytes())
-                .map_err(|e| format!("Failed to write {}: {}", tmp_path.display(), e))?;
-            let _ = file.sync_all();
-        }
-
-        // Replace destination. On Unix, `rename` overwrites atomically; on Windows it
-        // fails if the destination exists, so we fall back to remove+rename.
-        if let Err(rename_err) = std::fs::rename(&tmp_path, &validated_path) {
-            if validated_path.exists() {
-                std::fs::remove_file(&validated_path).map_err(|e| {
-                    format!(
-                        "Failed to remove existing {}: {}",
-                        validated_path.display(),
-                        e
-                    )
-                })?;
-                std::fs::rename(&tmp_path, &validated_path).map_err(|e| {
-                    format!(
-                        "Failed to move {} -> {}: {}",
-                        tmp_path.display(),
-                        validated_path.display(),
-                        e
-                    )
-                })?;
-            } else {
-                return Err(format!(
-                    "Failed to move {} -> {}: {}",
-                    tmp_path.display(),
-                    validated_path.display(),
-                    rename_err
-                ));
-            }
-        }
-
-        Ok(())
+        persist_scene_contents_atomically(&validated_path, pretty.as_bytes())
     })
     .await
     .map_err(|e| format!("Task join error: {}", e))?
@@ -536,18 +605,7 @@ async fn scene_load_file<R: tauri::Runtime>(
     let validated_path = validate_scene_file_path(&path, &scenes_dir)?;
 
     tauri::async_runtime::spawn_blocking(move || {
-        let meta = std::fs::metadata(&validated_path)
-            .map_err(|e| format!("Failed to stat {}: {}", validated_path.display(), e))?;
-        if meta.len() as usize > MAX_SCENE_STATE_BYTES {
-            return Err(format!(
-                "Scene file too large: {} bytes exceeds maximum {} bytes",
-                meta.len(),
-                MAX_SCENE_STATE_BYTES
-            ));
-        }
-
-        let contents = std::fs::read_to_string(&validated_path)
-            .map_err(|e| format!("Failed to read {}: {}", validated_path.display(), e))?;
+        let contents = read_scene_file_bounded(&validated_path, MAX_SCENE_STATE_BYTES)?;
 
         // Validate JSON so callers get consistent errors.
         let value: serde_json::Value =
@@ -585,11 +643,9 @@ fn fusion_init(config: Option<FusionConfig>) -> Result<(), String> {
     Ok(())
 }
 
-/// Process sensor measurements and return fused tracks
-/// Uses spawn_blocking to avoid blocking the async runtime for heavy fusion operations
 /// JSONL sink for the galadriel innovation sidecar (`CREBAIN_PID_JSONL`).
-/// Best-effort instrumentation: a write failure is logged once per process and
-/// never backpressures or fails the fusion path.
+/// Best-effort instrumentation: write failures are logged and do not fail the
+/// fusion result. Callers release `FUSION_ENGINE` before invoking this sink.
 static PID_JSONL_SINK: LazyLock<Mutex<Option<std::io::BufWriter<std::fs::File>>>> =
     LazyLock::new(|| {
         let Some(path) = std::env::var_os("CREBAIN_PID_JSONL") else {
@@ -636,6 +692,28 @@ fn append_pid_observations(records: Vec<pid_observation::PidObservation>) {
     }
 }
 
+fn process_fusion_batch_with_sink<F>(
+    measurements: Vec<SensorMeasurement>,
+    timestamp_ms: u64,
+    sink: F,
+) -> Result<Vec<TrackOutput>, String>
+where
+    F: FnOnce(Vec<pid_observation::PidObservation>),
+{
+    let (tracks, records) = {
+        let mut guard = FUSION_ENGINE.lock().map_err(|e| e.to_string())?;
+        let fusion = guard.as_mut().ok_or("Fusion engine not initialized")?;
+        let tracks = fusion.process_measurements(measurements, timestamp_ms);
+        let records = fusion.drain_pid_observations();
+        (tracks, records)
+    };
+
+    sink(records);
+    Ok(tracks)
+}
+
+/// Process sensor measurements and return fused tracks.
+/// Uses `spawn_blocking` to avoid blocking the async runtime for fusion and sidecar I/O.
 #[tauri::command]
 async fn fusion_process(
     measurements: Vec<SensorMeasurement>,
@@ -643,11 +721,7 @@ async fn fusion_process(
 ) -> Result<Vec<TrackOutput>, String> {
     validate_sensor_measurements(&measurements)?;
     tauri::async_runtime::spawn_blocking(move || {
-        let mut guard = FUSION_ENGINE.lock().map_err(|e| e.to_string())?;
-        let fusion = guard.as_mut().ok_or("Fusion engine not initialized")?;
-        let tracks = fusion.process_measurements(measurements, timestamp_ms);
-        append_pid_observations(fusion.drain_pid_observations());
-        Ok(tracks)
+        process_fusion_batch_with_sink(measurements, timestamp_ms, append_pid_observations)
     })
     .await
     .map_err(|e| format!("Task join error: {}", e))?
@@ -1016,6 +1090,19 @@ mod tests {
     }
 
     #[test]
+    fn process_fusion_batch_releases_engine_lock_before_invoking_sink() {
+        fusion_init(Some(test_fusion_config())).unwrap();
+
+        process_fusion_batch_with_sink(vec![test_sensor_measurement()], 1000, |_| {
+            assert!(
+                FUSION_ENGINE.try_lock().is_ok(),
+                "fusion engine lock remained held while invoking the PID sink"
+            );
+        })
+        .unwrap();
+    }
+
+    #[test]
     fn migrate_scene_json_upgrades_legacy_scene_shape() {
         let migrated = migrate_scene_json(serde_json::json!({
             "version": "0.4.0",
@@ -1025,9 +1112,17 @@ mod tests {
 
         assert_eq!(migrated["version"], CURRENT_SCENE_VERSION);
         assert!(migrated["timestamp"].is_number());
-        for key in ["cameras", "assets", "drones", "annotations"] {
+        for key in [
+            "cameras",
+            "assets",
+            "drones",
+            "annotations",
+            "recentDetections",
+        ] {
             assert!(migrated[key].is_array());
         }
+        assert!(migrated["settings"].is_object());
+        assert!(migrated["viewCamera"].is_object());
     }
 
     #[test]
@@ -1098,6 +1193,65 @@ mod tests {
         let error = validate_scene_file_path("/tmp/scene\0.json", &root).unwrap_err();
 
         assert!(error.contains("null byte"));
+    }
+
+    #[test]
+    fn read_scene_file_bounded_accepts_exact_limit() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("scene.json");
+        std::fs::write(&path, b"1234").unwrap();
+
+        let contents = read_scene_file_bounded(&path, 4).unwrap();
+
+        assert_eq!(contents, "1234");
+    }
+
+    #[test]
+    fn read_scene_file_bounded_rejects_limit_plus_one() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("scene.json");
+        std::fs::write(&path, b"12345").unwrap();
+
+        let error = read_scene_file_bounded(&path, 4).unwrap_err();
+
+        assert!(error.contains("exceeds maximum 4 bytes"));
+    }
+
+    #[test]
+    fn persist_scene_contents_atomically_replaces_existing_file() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("scene.json");
+        std::fs::write(&path, b"old scene").unwrap();
+
+        persist_scene_contents_atomically(&path, b"new scene").unwrap();
+
+        assert_eq!(std::fs::read(&path).unwrap(), b"new scene");
+    }
+
+    #[test]
+    fn persist_scene_contents_atomically_does_not_reuse_legacy_temp_name() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("scene.json");
+        let legacy_temp = directory.path().join("scene.json.tmp");
+        std::fs::write(&legacy_temp, b"unrelated file").unwrap();
+
+        persist_scene_contents_atomically(&path, b"new scene").unwrap();
+
+        assert_eq!(std::fs::read(&legacy_temp).unwrap(), b"unrelated file");
+    }
+
+    #[test]
+    fn persist_scene_contents_atomically_preserves_destination_on_replace_error() {
+        let directory = tempfile::tempdir().unwrap();
+        let destination = directory.path().join("scene.json");
+        std::fs::create_dir(&destination).unwrap();
+        let sentinel = destination.join("keep.txt");
+        std::fs::write(&sentinel, b"original").unwrap();
+
+        let error = persist_scene_contents_atomically(&destination, b"replacement").unwrap_err();
+
+        assert!(error.contains("Failed to atomically replace"));
+        assert_eq!(std::fs::read(&sentinel).unwrap(), b"original");
     }
 
     #[test]

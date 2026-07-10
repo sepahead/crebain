@@ -240,8 +240,9 @@ export function PerformancePanel({
   const fps = useMemo(() => {
     if (history.length < 2) return 0
     const timeSpan = history[history.length - 1].timestamp - history[0].timestamp
-    if (timeSpan === 0) return 0
-    return Math.round((history.length / (timeSpan / 1000)) * 10) / 10
+    if (timeSpan <= 0) return 0
+    const completedIntervals = history.length - 1
+    return Math.round((completedIntervals / (timeSpan / 1000)) * 10) / 10
   }, [history])
 
   // Get inference times for sparkline

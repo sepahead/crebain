@@ -70,6 +70,7 @@ interface RustImuData {
   angular_velocity: [number, number, number]
   linear_acceleration: [number, number, number]
   timestamp: number
+  frame_id: string
 }
 
 interface RustModelStates {
@@ -85,9 +86,34 @@ interface RustTwistStampedData {
 }
 
 type UnknownRecord = Record<string, unknown>
+const ROS_TOPIC_PATTERN = /^\/[A-Za-z0-9_/]+$/
+const MAX_ROS_TOPIC_LENGTH = 256
 
 function isRecord(value: unknown): value is UnknownRecord {
   return typeof value === 'object' && value !== null
+}
+
+function validateNativeTopic(topic: string): void {
+  if (
+    topic.length === 0 ||
+    topic.length > MAX_ROS_TOPIC_LENGTH ||
+    topic.trim() !== topic ||
+    topic === '/' ||
+    topic.includes('//') ||
+    !ROS_TOPIC_PATTERN.test(topic)
+  ) {
+    throw new Error('Invalid native ROS topic')
+  }
+}
+
+function headerFromRust(frameId: string, timestamp: number) {
+  const seconds = Number.isFinite(timestamp) && timestamp >= 0 ? timestamp : 0
+  const secs = Math.floor(seconds)
+  const nsecs = Math.min(999_999_999, Math.round((seconds - secs) * 1e9))
+  return {
+    ...createHeader(frameId),
+    stamp: { secs, nsecs },
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -175,8 +201,15 @@ export class ZenohBridge {
     type: string,
     callback: ROSMessageCallback<T>,
     throttleRate?: number,
-    _queueLength?: number
+    queueLength?: number
   ): () => void {
+    validateNativeTopic(topic)
+    if (throttleRate !== undefined && (!Number.isFinite(throttleRate) || throttleRate < 0)) {
+      throw new Error('Invalid native ROS throttle rate')
+    }
+    if (queueLength !== undefined && (!Number.isSafeInteger(queueLength) || queueLength < 0)) {
+      throw new Error('Invalid native ROS queue length')
+    }
     const wrappedCallback = callback as ROSMessageCallback<unknown>
     const existing = this.listeners.get(topic)
 
@@ -324,7 +357,11 @@ export class ZenohBridge {
 
     // NOW tell backend to start subscription
     try {
-      await invoke(command, { topic })
+      const args =
+        command === TAURI_COMMANDS.transport.subscribeCamera
+          ? { topic, compressed: type === 'sensor_msgs/CompressedImage' }
+          : { topic }
+      await invoke(command, args)
     } catch (error) {
       // If backend subscription fails, clean up the listener
       unlisten()
@@ -398,7 +435,7 @@ export class ZenohBridge {
 
   private mapImageFrame(frame: RustCameraFrame): Image {
     return {
-      header: createHeader(frame.frame_id),
+      header: headerFromRust(frame.frame_id, frame.timestamp),
       height: frame.height,
       width: frame.width,
       encoding: frame.encoding,
@@ -410,7 +447,7 @@ export class ZenohBridge {
 
   private mapCompressedImageFrame(frame: RustCameraFrame): CompressedImage {
     return {
-      header: createHeader(frame.frame_id),
+      header: headerFromRust(frame.frame_id, frame.timestamp),
       format: frame.encoding,
       data: frame.data,
     }
@@ -418,7 +455,7 @@ export class ZenohBridge {
 
   private mapCameraInfoData(info: RustCameraInfoData): CameraInfo {
     return {
-      header: createHeader(info.frame_id),
+      header: headerFromRust(info.frame_id, info.timestamp),
       height: info.height,
       width: info.width,
       distortion_model: info.distortion_model,
@@ -431,7 +468,7 @@ export class ZenohBridge {
 
   private mapImuData(data: RustImuData): Imu {
     return {
-      header: createHeader('imu_link'),
+      header: headerFromRust(data.frame_id, data.timestamp),
       orientation: { x: data.orientation[0], y: data.orientation[1], z: data.orientation[2], w: data.orientation[3] },
       orientation_covariance: [],
       angular_velocity: { x: data.angular_velocity[0], y: data.angular_velocity[1], z: data.angular_velocity[2] },
@@ -443,7 +480,7 @@ export class ZenohBridge {
 
   private mapPoseData(data: RustPoseData): PoseStamped {
     return {
-      header: createHeader(data.frame_id),
+      header: headerFromRust(data.frame_id, data.timestamp),
       pose: {
         position: { x: data.position[0], y: data.position[1], z: data.position[2] },
         orientation: { x: data.orientation[0], y: data.orientation[1], z: data.orientation[2], w: data.orientation[3] }

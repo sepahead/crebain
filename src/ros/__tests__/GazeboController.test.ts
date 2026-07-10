@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createGazeboController } from '../GazeboController'
 import type { ROSBridge } from '../ROSBridge'
 import type { Pose, Twist } from '../types'
+import { MAX_GAZEBO_MODEL_XML_BYTES } from '../gazeboValidation'
 
 type ClockMessage = { clock: { secs: number; nsecs: number } }
 type TestBridge = {
@@ -128,6 +129,69 @@ describe('GazeboController', () => {
       reference_frame: 'map',
     })
     expect(bridge.callService).toHaveBeenNthCalledWith(3, '/gazebo/delete_model', { model_name: 'drone1' })
+  })
+
+  it('rejects unsafe or oversized caller-supplied model XML before service dispatch', async () => {
+    const bridge = createBridge({
+      callService: vi.fn(async () => ({ success: true, status_message: 'ok' })),
+    })
+    const controller = createGazeboController()
+    connectTestBridge(controller, bridge)
+    const invalidPose: Pose = {
+      position: { x: 0, y: 0, z: 0 },
+      orientation: { x: 0, y: 0, z: 0, w: 2 },
+    }
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    try {
+      await expect(controller.spawnSDF('unsafe', '<sdf><plugin /></sdf>', pose)).resolves.toBe(false)
+      await expect(
+        controller.spawnSDF('oversized', 'x'.repeat(MAX_GAZEBO_MODEL_XML_BYTES + 1), pose)
+      ).resolves.toBe(false)
+      await expect(controller.spawnSDF('bad-pose', '<sdf />', invalidPose)).resolves.toBe(false)
+    } finally {
+      consoleError.mockRestore()
+    }
+    expect(bridge.callService).not.toHaveBeenCalled()
+  })
+
+  it('allows privileged directives only through the fixed bundled Maverick model path', async () => {
+    const bridge = createBridge({
+      callService: vi.fn(async () => ({ success: true, status_message: 'ok' })),
+    })
+    const controller = createGazeboController()
+    connectTestBridge(controller, bridge)
+
+    await expect(controller.spawnBundledMaverick('maverick_1', pose)).resolves.toBe(true)
+
+    expect(bridge.callService).toHaveBeenCalledWith(
+      '/gazebo/spawn_sdf_model',
+      expect.objectContaining({
+        model_name: 'maverick_1',
+        model_xml: expect.stringContaining('<plugin'),
+      })
+    )
+  })
+
+  it('rejects unsafe model-state actuator payloads before service dispatch', async () => {
+    const bridge = createBridge({
+      callService: vi.fn(async () => ({ success: true, status_message: 'ok' })),
+    })
+    const controller = createGazeboController()
+    connectTestBridge(controller, bridge)
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    try {
+      await expect(
+        controller.setModelState('drone1', pose, {
+          linear: { x: 101, y: 0, z: 0 },
+          angular: { x: 0, y: 0, z: 0 },
+        })
+      ).resolves.toBe(false)
+    } finally {
+      consoleError.mockRestore()
+    }
+    expect(bridge.callService).not.toHaveBeenCalled()
   })
 
   it('gets and sets model state including velocity updates', async () => {

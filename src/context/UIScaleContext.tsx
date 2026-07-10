@@ -28,7 +28,7 @@ import {
 
 /** UI Scale configuration limits */
 export const UI_SCALE_CONFIG = {
-  MIN: 0.6,
+  MIN: 0.8,
   MAX: 2.0,
   DEFAULT: 1.0,
   STEP: 0.1,

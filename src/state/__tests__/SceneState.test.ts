@@ -8,7 +8,7 @@ vi.mock('@tauri-apps/api/core', () => ({
   isTauri: isTauriMock,
 }))
 
-import { SceneStateManager, type SceneState } from '../SceneState'
+import { MAX_SCENE_STATE_BYTES, SceneStateManager, type SceneState } from '../SceneState'
 
 function validScene(name = 'Valid Scene'): SceneState {
   return {
@@ -22,6 +22,17 @@ function validScene(name = 'Valid Scene'): SceneState {
       rotation: { x: 0, y: 0, z: 0 },
       scale: { x: 1, y: 1, z: 1 },
     },
+    assets: [
+      {
+        id: 'asset-1',
+        name: 'Remote model',
+        type: 'glb',
+        source: '/models/remote.glb',
+        position: { x: 1, y: 0, z: 2 },
+        rotation: { x: 0, y: 0.5, z: 0 },
+        scale: { x: 1, y: 1, z: 1 },
+      },
+    ],
     cameras: [
       {
         id: 'cam-1',
@@ -167,6 +178,7 @@ describe('SceneStateManager filesystem IPC', () => {
     const state = manager.deserialize(JSON.stringify(validScene('Nested Scene')))
 
     expect(state.cameras[0]?.resolution).toEqual([640, 480])
+    expect(state.assets?.[0]?.source).toBe('/models/remote.glb')
     expect(state.drones[0]?.battery).toBe(90)
     expect(state.recentDetections[0]?.confidence).toBe(0.9)
     expect(manager.getState()?.name).toBe('Nested Scene')
@@ -194,6 +206,93 @@ describe('SceneStateManager filesystem IPC', () => {
     expect(manager.getState()?.name).toBe('Current Scene')
   })
 
+  it('rejects non-reloadable asset URLs and invalid transforms', () => {
+    const manager = new SceneStateManager()
+    const unsafeSource = validScene('Unsafe Asset')
+    unsafeSource.assets![0].source = 'data:model/gltf-binary;base64,AAAA'
+    expect(() => manager.deserialize(JSON.stringify(unsafeSource))).toThrow(
+      'Invalid scene state file'
+    )
+
+    const invalidScale = validScene('Invalid Asset Scale')
+    invalidScale.assets![0].scale.x = 0
+    expect(() => manager.deserialize(JSON.stringify(invalidScale))).toThrow(
+      'Invalid scene state file'
+    )
+
+    const insecureRemote = validScene('Insecure remote asset')
+    insecureRemote.assets![0].source = 'http://example.com/model.glb'
+    expect(() => manager.deserialize(JSON.stringify(insecureRemote))).toThrow(
+      'Invalid scene state file'
+    )
+
+    const externalGltf = validScene('External glTF')
+    externalGltf.assets![0].source = 'https://example.com/model.gltf'
+    expect(() => manager.deserialize(JSON.stringify(externalGltf))).toThrow(
+      'Invalid scene state file'
+    )
+
+    const missingAssetId = validScene('Missing asset id')
+    missingAssetId.assets![0].id = ''
+    expect(() => manager.deserialize(JSON.stringify(missingAssetId))).toThrow(
+      'Invalid scene state file'
+    )
+
+    const oversizedAssetName = validScene('Oversized asset name')
+    oversizedAssetName.assets![0].name = 'x'.repeat(257)
+    expect(() => manager.deserialize(JSON.stringify(oversizedAssetName))).toThrow(
+      'Invalid scene state file'
+    )
+  })
+
+  it('rejects non-reloadable splats, orphan detections, and excessive camera GPU budgets', () => {
+    const manager = new SceneStateManager()
+
+    const localOnlySplat = validScene('Local-only splat')
+    localOnlySplat.splatScene = {
+      url: '',
+      localPath: '/tmp/private.splat',
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
+      scale: { x: 1, y: 1, z: 1 },
+    }
+    expect(() => manager.deserialize(JSON.stringify(localOnlySplat))).toThrow(
+      'Invalid scene state file'
+    )
+
+    const orphanDetection = validScene('Orphan detection')
+    orphanDetection.recentDetections[0].cameraId = 'missing-camera'
+    expect(() => manager.deserialize(JSON.stringify(orphanDetection))).toThrow(
+      'Invalid scene state file'
+    )
+
+    const excessiveTargets = validScene('Excessive render targets')
+    excessiveTargets.cameras[0].resolution = [4096, 4096]
+    excessiveTargets.cameras.push({
+      ...excessiveTargets.cameras[0],
+      id: 'cam-2',
+      name: 'Camera 2',
+    })
+    expect(() => manager.deserialize(JSON.stringify(excessiveTargets))).toThrow(
+      'Invalid scene state file'
+    )
+  })
+
+  it('rejects non-unit drone orientations and unsafe patrol speeds', () => {
+    const manager = new SceneStateManager()
+    const invalidQuaternion = validScene('Invalid quaternion')
+    invalidQuaternion.drones[0].orientation = { x: 0, y: 0, z: 0, w: 2 }
+    expect(() => manager.deserialize(JSON.stringify(invalidQuaternion))).toThrow(
+      'Invalid scene state file'
+    )
+
+    const invalidPatrol = validScene('Invalid patrol')
+    invalidPatrol.cameras[0].patrolSpeed = 1.1
+    expect(() => manager.deserialize(JSON.stringify(invalidPatrol))).toThrow(
+      'Invalid scene state file'
+    )
+  })
+
   it('rejects scene files with an unsupported version with a clear error', () => {
     const manager = new SceneStateManager()
     const future = { ...validScene('Future Scene'), version: '2.0.0' }
@@ -214,14 +313,44 @@ describe('SceneStateManager filesystem IPC', () => {
     )
   })
 
-  it('rejects scene files without a version string', () => {
+  it('migrates supported legacy and missing-version scenes with safe defaults', () => {
     const manager = new SceneStateManager()
-    const scene = validScene('No Version') as unknown as Record<string, unknown>
-    delete scene.version
+    const legacy = manager.deserialize(JSON.stringify({ version: '0.4.0', name: 'Legacy' }))
+    expect(legacy).toMatchObject({
+      version: '1.0.0',
+      name: 'Legacy',
+      cameras: [],
+      drones: [],
+      recentDetections: [],
+    })
+    expect(legacy.settings.renderQuality).toBe('high')
+    expect(legacy.viewCamera.position).toEqual({ x: 0, y: 5, z: 10 })
 
-    expect(() => manager.deserialize(JSON.stringify(scene))).toThrow(
-      'Unsupported scene state version "missing" (expected "1.0.0")'
-    )
+    const missingVersion = validScene('No Version') as unknown as Record<string, unknown>
+    delete missingVersion.version
+    expect(manager.deserialize(JSON.stringify(missingVersion)).version).toBe('1.0.0')
+  })
+
+  it('rejects oversized and non-JSON browser scene files before reading them', async () => {
+    const manager = new SceneStateManager()
+    const readOversized = vi.fn(async () => JSON.stringify(validScene()))
+    const oversized = {
+      name: 'oversized.json',
+      size: MAX_SCENE_STATE_BYTES + 1,
+      text: readOversized,
+    } as unknown as File
+
+    await expect(manager.loadFromFile(oversized)).rejects.toThrow('Scene state exceeds')
+    expect(readOversized).not.toHaveBeenCalled()
+
+    const readWrongType = vi.fn(async () => JSON.stringify(validScene()))
+    const wrongType = {
+      name: 'scene.txt',
+      size: 10,
+      text: readWrongType,
+    } as unknown as File
+    await expect(manager.loadFromFile(wrongType)).rejects.toThrow('must end with .json')
+    expect(readWrongType).not.toHaveBeenCalled()
   })
 
   it('skips malformed localStorage scene entries when listing saved states', () => {
@@ -238,6 +367,97 @@ describe('SceneStateManager filesystem IPC', () => {
     expect(manager.listSavedStates()).toEqual([
       { key: 'crebain_scene_good', name: 'Good Scene', timestamp: 2 },
     ])
+  })
+
+  it('lists the autosave as a recoverable scene entry', () => {
+    localStorage.setItem(
+      'crebain_autosave',
+      JSON.stringify({ ...validScene('Recovered Autosave'), timestamp: 10 })
+    )
+    const manager = new SceneStateManager()
+
+    expect(manager.listSavedStates()).toContainEqual({
+      key: 'crebain_autosave',
+      name: 'Recovered Autosave',
+      timestamp: 10,
+    })
+  })
+
+  it('reports localStorage quota failures to the caller', () => {
+    const manager = new SceneStateManager()
+    manager.createNew('Quota Scene')
+    const setItem = vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+      throw new DOMException('Quota exceeded', 'QuotaExceededError')
+    })
+
+    try {
+      expect(manager.saveToLocalStorage('crebain_scene_quota')).toBe(false)
+    } finally {
+      setItem.mockRestore()
+    }
+  })
+
+  it('captures a fresh snapshot before autosaving', () => {
+    vi.useFakeTimers()
+    const manager = new SceneStateManager()
+    manager.createNew('Stale Scene')
+    const capture = vi.fn(() => validScene('Live Autosave'))
+
+    try {
+      manager.enableAutosave(1, capture)
+      vi.advanceTimersByTime(1_000)
+
+      expect(capture).toHaveBeenCalledOnce()
+      expect(JSON.parse(localStorage.getItem('crebain_autosave') ?? '{}').name).toBe(
+        'Live Autosave'
+      )
+    } finally {
+      manager.disableAutosave()
+      vi.useRealTimers()
+    }
+  })
+
+  it('stops autosave and reports storage failures', () => {
+    vi.useFakeTimers()
+    const manager = new SceneStateManager()
+    manager.createNew('Quota Autosave')
+    const onError = vi.fn()
+    const setItem = vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+      throw new DOMException('Quota exceeded', 'QuotaExceededError')
+    })
+
+    try {
+      manager.enableAutosave(1, undefined, onError)
+      vi.advanceTimersByTime(1_000)
+      expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: expect.any(String) }))
+      expect(manager.isAutosaveEnabled()).toBe(false)
+    } finally {
+      setItem.mockRestore()
+      manager.disableAutosave()
+      vi.useRealTimers()
+    }
+  })
+
+  it('refuses to serialize corrupted live scene state', () => {
+    const manager = new SceneStateManager()
+    manager.deserialize(JSON.stringify(validScene('Live Scene')))
+    manager.updateState({
+      viewCamera: {
+        position: { x: Number.NaN, y: 0, z: 0 },
+        target: { x: 0, y: 0, z: 0 },
+      },
+    })
+
+    expect(() => manager.serialize()).toThrow('Current scene state is invalid')
+    expect(manager.saveToLocalStorage('crebain_scene_corrupt')).toBe(false)
+  })
+
+  it('refuses to serialize a scene larger than the load limit', () => {
+    const manager = new SceneStateManager()
+    manager.deserialize(JSON.stringify(validScene('Oversized export')))
+    manager.updateState({ metadata: { padding: 'x'.repeat(MAX_SCENE_STATE_BYTES) } })
+
+    expect(() => manager.serialize()).toThrow('Scene state exceeds')
   })
 
   it('returns null when IPC load fails', async () => {

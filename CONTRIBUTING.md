@@ -10,8 +10,8 @@ Please be respectful and constructive in all interactions. CREBAIN follows the s
 
 ### Prerequisites
 
-- **Bun** 1.0+ for project scripts; **Node.js** 20+ if running Node-based tooling directly
-- **Rust** 1.88+ with `cargo` (MSRV per `src-tauri/Cargo.toml`; `rust-toolchain.toml` pins 1.91.1 for dev/CI)
+- **Bun** 1.3.14+ for project scripts; **Node.js** 20.19+ for Node-based tooling
+- **Rust** 1.88+ with `cargo` (MSRV per `src-tauri/Cargo.toml`); `rust-toolchain.toml` pins 1.91.1 for development and CI
 - **macOS**: Xcode Command Line Tools
 - **Linux**: CUDA Toolkit and NVIDIA runtime libraries when testing CUDA/TensorRT paths
 
@@ -53,10 +53,10 @@ bun run tauri:dev
 Use the smallest check that is honest for the change:
 
 ```bash
-# Frontend validation
+# Frontend typecheck + lint + format check + tests
 bun run validate
 
-# Full validation: frontend + Rust check/test/clippy
+# Frontend validation + Rust fmt/default check/test/clippy + NCP clippy/tests
 bun run validate:all
 ```
 
@@ -68,6 +68,11 @@ bun run validate:all
 | Release-candidate claims | `bun run validate:all` plus `docs/MANUAL_SMOKE_TEST.md` |
 
 For documentation-only changes, keep Markdown files aligned on validation commands, backend status, roadmap items, model assumptions, and security boundaries.
+
+`bun run validate:all` does not run the bundle budget, coverage thresholds,
+`cuda,tensorrt` / `--no-default-features` feature checks, CodeQL, or supply-chain
+audits. Release candidates require those hosted workflows as defined in
+`docs/RELEASE_ACCEPTANCE.md`.
 
 ### Code Style
 

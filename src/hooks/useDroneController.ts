@@ -51,6 +51,15 @@ export interface ManagedDrone {
   route: DroneRoute
 }
 
+export interface DroneSpawnState {
+  id?: string
+  orientation?: THREE.Quaternion
+  velocity?: THREE.Vector3
+  angularVelocity?: THREE.Vector3
+  armed?: boolean
+  battery?: number
+}
+
 interface UseDroneControllerOptions {
   scene: THREE.Scene | null
   enabled?: boolean
@@ -138,6 +147,7 @@ export function useDroneController(options: UseDroneControllerOptions) {
   const animationFrameRef = useRef<number>(0)
   const loaderRef = useRef<GLTFLoader | null>(null)
   const droneCounterRef = useRef(0)
+  const spawnGenerationRef = useRef(0)
 
   if (!loaderRef.current) {
     loaderRef.current = new GLTFLoader()
@@ -157,24 +167,33 @@ export function useDroneController(options: UseDroneControllerOptions) {
     setIsPaused((prev) => !prev)
   }, [isPaused])
 
-  const resetSimulation = useCallback(() => {
-    dronesRef.current.forEach((drone) => {
-      if (drone.mesh && sceneRef.current) {
-        sceneRef.current.remove(drone.mesh)
-        forEachMesh(drone.mesh, (mesh) => {
-          mesh.geometry.dispose()
-          const material = mesh.material
-          if (Array.isArray(material)) material.forEach((m) => m.dispose())
-          else material.dispose()
-        })
-      }
-      physicsWorldRef.current?.removeDrone(drone.id)
+  const setSimulationPaused = useCallback((paused: boolean) => {
+    setIsPaused((wasPaused) => {
+      if (wasPaused && !paused) physicsWorldRef.current?.resetTime()
+      return paused
     })
-    dronesRef.current.clear()
-    updateDronesList()
-    setSelectedDroneId(null)
-    setIsPaused(false)
-  }, [updateDronesList])
+  }, [])
+
+  const resetSimulation = useCallback(
+    (pausedAfterReset = false) => {
+      // Invalidate model loads that began before this reset. The world and scene
+      // objects intentionally keep their identity, so identity checks alone
+      // cannot distinguish a stale spawn from the new simulation generation.
+      spawnGenerationRef.current += 1
+      dronesRef.current.forEach((drone) => {
+        if (drone.mesh && sceneRef.current) {
+          sceneRef.current.remove(drone.mesh)
+          disposeObject3D(drone.mesh)
+        }
+        physicsWorldRef.current?.removeDrone(drone.id)
+      })
+      dronesRef.current.clear()
+      updateDronesList()
+      setSelectedDroneId(null)
+      setIsPaused(pausedAfterReset)
+    },
+    [updateDronesList]
+  )
 
   const { keyState, getControlInput, setArmed } = useKeyboardControls({
     enabled: enabled && selectedDroneId !== null,
@@ -220,6 +239,7 @@ export function useDroneController(options: UseDroneControllerOptions) {
 
     return () => {
       mounted = false
+      spawnGenerationRef.current += 1
       // Remove and dispose spawned drone meshes (same loop as resetSimulation)
       // before destroying the world — scene removal alone leaks GPU resources.
       drones.forEach((drone) => {
@@ -317,9 +337,13 @@ export function useDroneController(options: UseDroneControllerOptions) {
     async (
       typeId: string,
       customName?: string,
-      position?: THREE.Vector3
+      position?: THREE.Vector3,
+      initialState?: DroneSpawnState
     ): Promise<string | null> => {
-      if (!physicsWorldRef.current || !sceneRef.current) {
+      const initialWorld = physicsWorldRef.current
+      const initialScene = sceneRef.current
+      const spawnGeneration = spawnGenerationRef.current
+      if (!initialWorld || !initialScene) {
         log.error('Spawn failed: Physics world or scene not ready', {
           physics: !!physicsWorldRef.current,
           scene: !!sceneRef.current,
@@ -330,11 +354,6 @@ export function useDroneController(options: UseDroneControllerOptions) {
       const droneType = DRONE_TYPES[typeId]
       if (!droneType) return null
 
-      droneCounterRef.current++
-      const id = `drone_${Date.now()}_${droneCounterRef.current}`
-      const name =
-        customName || `${droneType.name.split(' ')[0].toUpperCase()}-${droneCounterRef.current}`
-
       const spawnPos = position
         ? position.clone()
         : new THREE.Vector3(
@@ -343,16 +362,50 @@ export function useDroneController(options: UseDroneControllerOptions) {
             (Math.random() - 0.5) * 10
           )
 
-      const params = toQuadcopterParams(droneType)
-      const physicsBody = physicsWorldRef.current.createDrone(id, params, spawnPos)
-
       const mesh = await loadDroneModel(droneType)
-      if (mesh && sceneRef.current) {
-        mesh.position.copy(spawnPos)
-        sceneRef.current.add(mesh)
-        physicsBody.mesh = mesh
+      if (
+        spawnGenerationRef.current !== spawnGeneration ||
+        physicsWorldRef.current !== initialWorld ||
+        sceneRef.current !== initialScene
+      ) {
+        if (mesh) disposeObject3D(mesh)
+        return null
+      }
 
-        physicsBody.setArmed(true)
+      droneCounterRef.current++
+      const id = initialState?.id || `drone_${Date.now()}_${droneCounterRef.current}`
+      const name =
+        customName || `${droneType.name.split(' ')[0].toUpperCase()}-${droneCounterRef.current}`
+      if (dronesRef.current.has(id)) {
+        if (mesh) disposeObject3D(mesh)
+        log.error('Spawn failed: duplicate drone id', { id })
+        return null
+      }
+
+      const params = toQuadcopterParams(droneType)
+      const physicsBody = initialWorld.createDrone(id, params, spawnPos)
+      if (initialState?.orientation) {
+        physicsBody.state.orientation.copy(initialState.orientation).normalize()
+        physicsBody.rigidBody?.setRotation(physicsBody.state.orientation, true)
+      }
+      if (initialState?.velocity) {
+        physicsBody.state.velocity.copy(initialState.velocity)
+        physicsBody.rigidBody?.setLinvel(initialState.velocity, true)
+      }
+      if (initialState?.angularVelocity) {
+        physicsBody.state.angularVelocity.copy(initialState.angularVelocity)
+        physicsBody.rigidBody?.setAngvel(initialState.angularVelocity, true)
+      }
+      if (initialState?.battery !== undefined) {
+        physicsBody.state.battery = THREE.MathUtils.clamp(initialState.battery, 0, 1)
+      }
+      physicsBody.setArmed(initialState?.armed ?? true)
+
+      if (mesh) {
+        mesh.position.copy(spawnPos)
+        mesh.quaternion.copy(physicsBody.state.orientation)
+        initialScene.add(mesh)
+        physicsBody.mesh = mesh
       }
 
       const flightController = new FlightController()
@@ -395,12 +448,7 @@ export function useDroneController(options: UseDroneControllerOptions) {
 
       if (drone.mesh && sceneRef.current) {
         sceneRef.current.remove(drone.mesh)
-        forEachMesh(drone.mesh, (mesh) => {
-          mesh.geometry.dispose()
-          const material = mesh.material
-          if (Array.isArray(material)) material.forEach((m) => m.dispose())
-          else material.dispose()
-        })
+        disposeObject3D(drone.mesh)
       }
 
       physicsWorldRef.current?.removeDrone(id)
@@ -442,7 +490,12 @@ export function useDroneController(options: UseDroneControllerOptions) {
   )
 
   const setRoute = useCallback(
-    (droneId: string, waypoints: Waypoint[], mode: RouteMode) => {
+    (
+      droneId: string,
+      waypoints: Waypoint[],
+      mode: RouteMode,
+      restored?: { isActive?: boolean; currentWaypointIndex?: number }
+    ) => {
       const drone = dronesRef.current.get(droneId)
       if (!drone) return
 
@@ -460,10 +513,15 @@ export function useDroneController(options: UseDroneControllerOptions) {
       drone.route = {
         waypoints: convertedWaypoints,
         mode,
-        currentWaypointIndex: 0,
-        isActive: convertedWaypoints.length > 0 && mode !== 'none',
+        currentWaypointIndex: Math.min(
+          restored?.currentWaypointIndex ?? 0,
+          Math.max(convertedWaypoints.length - 1, 0)
+        ),
+        isActive: restored?.isActive ?? (convertedWaypoints.length > 0 && mode !== 'none'),
         arrivalThreshold: 2.0,
       }
+
+      if (convertedWaypoints.length === 0 || mode === 'none') drone.route.isActive = false
 
       if (drone.route.isActive && !drone.physicsBody.state.armed) {
         drone.physicsBody.setArmed(true)
@@ -835,6 +893,7 @@ export function useDroneController(options: UseDroneControllerOptions) {
 
   return {
     drones,
+    physicsReady,
     selectedDroneId,
     keyState,
     spawnDrone,
@@ -849,6 +908,7 @@ export function useDroneController(options: UseDroneControllerOptions) {
     physicsWorld: physicsWorldRef.current,
     isPaused,
     togglePause,
+    setSimulationPaused,
     resetSimulation,
   }
 }

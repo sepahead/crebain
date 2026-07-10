@@ -116,7 +116,12 @@ describe('ZenohBridge', () => {
 
     const unsubscribe = bridge.subscribe('/camera/image', 'sensor_msgs/Image', callback)
     await vi.waitFor(() => expect(listenMock).toHaveBeenCalledWith(getTransportEventName('/camera/image'), expect.any(Function)))
-    await vi.waitFor(() => expect(invokeMock).toHaveBeenCalledWith('transport_subscribe_camera', { topic: '/camera/image' }))
+    await vi.waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith('transport_subscribe_camera', {
+        topic: '/camera/image',
+        compressed: false,
+      })
+    )
 
     unsubscribe()
 
@@ -124,17 +129,28 @@ describe('ZenohBridge', () => {
     expect(invokeMock).toHaveBeenCalledWith('transport_unsubscribe', { topic: '/camera/image' })
   })
 
-  it('listens on sanitized event names for unsafe topic characters', async () => {
+  it('selects the compressed camera wire schema explicitly', async () => {
     invokeMock.mockResolvedValue(undefined)
     const bridge = new ZenohBridge()
 
-    bridge.subscribe('/über/image raw', 'sensor_msgs/Image', vi.fn())
+    bridge.subscribe('/camera/custom_feed', 'sensor_msgs/CompressedImage', vi.fn())
 
-    await vi.waitFor(() => expect(listenMock).toHaveBeenCalledWith(
-      getTransportEventName('/über/image raw'),
-      expect.any(Function)
-    ))
-    expect(getTransportEventName('/über/image raw')).toBe('crebain:transport:/_C3_BCber/image_20raw')
+    await vi.waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith('transport_subscribe_camera', {
+        topic: '/camera/custom_feed',
+        compressed: true,
+      })
+    )
+  })
+
+  it('rejects malformed topics before registering a native listener', () => {
+    const bridge = new ZenohBridge()
+
+    expect(() => bridge.subscribe('/über/image raw', 'sensor_msgs/Image', vi.fn())).toThrow(
+      'Invalid native ROS topic'
+    )
+    expect(listenMock).not.toHaveBeenCalled()
+    expect(invokeMock).not.toHaveBeenCalled()
   })
 
   it('cleans up the event listener when backend subscription fails', async () => {
