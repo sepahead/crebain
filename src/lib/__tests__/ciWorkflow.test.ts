@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 
 const PACKAGE = JSON.parse(readFileSync(`${process.cwd()}/package.json`, 'utf8')) as {
   scripts: Record<string, string>
 }
 const WORKFLOW = readFileSync(`${process.cwd()}/.github/workflows/ci.yml`, 'utf8')
+const WORKFLOWS = readdirSync(`${process.cwd()}/.github/workflows`)
+  .filter((file) => file.endsWith('.yml') || file.endsWith('.yaml'))
+  .map((file) => readFileSync(`${process.cwd()}/.github/workflows/${file}`, 'utf8'))
+  .join('\n')
 const README = readFileSync(`${process.cwd()}/README.md`, 'utf8')
 const SECURITY = readFileSync(`${process.cwd()}/SECURITY.md`, 'utf8')
 const MODEL_README = readFileSync(`${process.cwd()}/public/models/README.md`, 'utf8')
@@ -41,8 +45,19 @@ describe('CI workflow', () => {
   })
 
   it('installs the toolchains required by package scripts', () => {
-    expect(WORKFLOW).toContain('oven-sh/setup-bun@v2')
-    expect(WORKFLOW).toContain('dtolnay/rust-toolchain@stable')
+    expect(WORKFLOW).toMatch(/oven-sh\/setup-bun@[0-9a-f]{40}/)
+    expect(WORKFLOW).toContain('bun-version: 1.3.14')
+    expect(WORKFLOW).toMatch(/dtolnay\/rust-toolchain@[0-9a-f]{40}/)
+    expect(WORKFLOW).toContain('toolchain: 1.91.1')
+  })
+
+  it('pins every third-party GitHub Action to an immutable commit', () => {
+    const actionReferences = [...WORKFLOWS.matchAll(/\buses:\s*([^\s@]+)@([^\s#]+)/g)]
+
+    expect(actionReferences.length).toBeGreaterThan(0)
+    for (const [, action, revision] of actionReferences) {
+      expect(revision, `${action} must use a full commit SHA`).toMatch(/^[0-9a-f]{40}$/)
+    }
   })
 
   it('keeps full validation composed from the package scripts documented in README', () => {
