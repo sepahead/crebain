@@ -604,9 +604,8 @@ pub fn detect_base64(
         .decode(image_base64)
         .map_err(|e| format!("Base64 decode error: {}", e))?;
 
-    // Decode PNG/JPEG to raw RGBA
-    let img =
-        image::load_from_memory(&image_data).map_err(|e| format!("Image decode error: {}", e))?;
+    // Decode PNG/JPEG to raw RGBA with strict dimensions/allocation limits.
+    let img = crate::common::image::decode_image_with_limits(&image_data)?;
 
     let rgba = img.to_rgba8();
     let (width, height) = rgba.dimensions();

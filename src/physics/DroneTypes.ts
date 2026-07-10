@@ -11,11 +11,7 @@ import type { QuadcopterParams } from './DronePhysics'
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type DroneCategory =
-  | 'quadcopter'
-  | 'fixed_wing'
-  | 'loitering_munition'
-  | 'hexacopter'
-  | 'vtol'
+  'quadcopter' | 'fixed_wing' | 'loitering_munition' | 'hexacopter' | 'vtol'
 
 export interface DroneTypeDefinition {
   id: string

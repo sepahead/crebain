@@ -2,14 +2,12 @@
  * CREBAIN Moondream Detector
  * Adaptive Response & Awareness System (ARAS)
  *
- * Moondream2 Vision-Language Model implementation using @xenova/transformers
+ * Moondream2 Vision-Language Model placeholder
  * Uses natural language prompting for zero-shot object detection
  *
- * EXPERIMENTAL / NON-FUNCTIONAL: the pinned @xenova/transformers@2.17.2 does
- * not support the moondream2 architecture, and its ImageToTextPipeline ignores
- * the prompt entirely (only pixel_values are fed to generate()), so prompted
- * detection cannot work. initialize() fails fast with a clear error; see
- * MoondreamDetector's class doc for details.
+ * EXPERIMENTAL / NON-FUNCTIONAL: the legacy @xenova/transformers v2 runtime did
+ * not support the moondream2 architecture, so that unused dependency was
+ * removed. initialize() fails fast with a clear error; see the class doc.
  */
 
 import type { ObjectDetector, Detection, DetectionClass, DetectorConfig } from './types'
@@ -21,7 +19,7 @@ import {
 } from './detectorMath'
 import { generateDetectionId, getThreatLevel } from './types'
 
-// Type declaration for @xenova/transformers (optional dependency)
+// Future runtime boundary for a Moondream-capable Transformers.js release.
 type TransformersPipeline = (
   image: string,
   options?: { prompt?: string; max_new_tokens?: number }
@@ -75,19 +73,16 @@ interface ParsedDetection {
 }
 
 /**
- * Moondream Detector using @xenova/transformers
+ * Moondream Detector placeholder for a future compatible runtime
  * Uses vision-language model for zero-shot detection via prompting
  *
- * EXPERIMENTAL — NOT FUNCTIONAL with the currently pinned dependencies:
- * - @xenova/transformers@2.17.2 has no moondream architecture, so the
- *   'Xenova/moondream2' model cannot be loaded by its `pipeline()` at all.
- * - Even for models it can load, v2's ImageToTextPipeline discards the
- *   `prompt` option (generate() receives only pixel_values), so the prompted
- *   zero-shot detection this class is built around is impossible.
- * Migrating to transformers v3 (which added moondream support) is the real
- * fix; until then initialize() rejects with an explicit error and the worker
- * reports the failure instead of silently returning garbage. The parsing/
- * bbox-estimation code below is retained for that future migration.
+ * EXPERIMENTAL — NOT FUNCTIONAL: the former @xenova/transformers v2 runtime
+ * had no moondream architecture and discarded the prompt for image-to-text.
+ * The unused dependency was removed to avoid shipping its obsolete ONNX and
+ * protobuf stack. Adopting a maintained, Moondream-capable runtime is the real
+ * fix; until then initialize() rejects explicitly and the worker reports the
+ * failure instead of silently returning garbage. Parsing/bbox code remains for
+ * that future migration.
  */
 export class MoondreamDetector implements ObjectDetector {
   name = 'Moondream2'
@@ -115,20 +110,16 @@ export class MoondreamDetector implements ObjectDetector {
   /**
    * Fail fast: this detector cannot work with the pinned library.
    *
-   * @xenova/transformers@2.17.2 does not implement the moondream2
-   * architecture, and its ImageToTextPipeline ignores the detection prompt
-   * (generate() is only given pixel_values), so loading a pipeline here would
-   * produce a detector that can never detect anything. Rejecting up front
-   * keeps the failure honest: the worker surfaces "Initialization failed"
-   * and the detector stays not-ready, so detect() is never reached.
+   * No compatible Moondream runtime is installed. Rejecting up front keeps the
+   * failure honest: the worker surfaces "Initialization failed" and the
+   * detector stays not-ready, so detect() is never reached.
    */
   initialize(): Promise<void> {
     return Promise.reject(
       new Error(
-        '[MoondreamDetector] Not functional: the pinned @xenova/transformers@2.17.2 does not ' +
-          'support the moondream2 architecture, and its image-to-text pipeline ignores prompts, ' +
-          'so prompted zero-shot detection cannot work. Select the yolo, rf-detr, or coreml ' +
-          'detector instead (moondream requires a transformers.js v3 migration).'
+        '[MoondreamDetector] Not functional: no compatible Moondream runtime is installed. ' +
+          'Select the yolo, rf-detr, or coreml detector instead until a maintained ' +
+          'Moondream-capable Transformers.js integration is implemented.'
       )
     )
   }

@@ -15,12 +15,7 @@ import { TAURI_COMMANDS } from '../lib/tauriCommands'
 
 /** Sensor modality types */
 export type SensorModality =
-  | 'visual'
-  | 'thermal'
-  | 'acoustic'
-  | 'radar'
-  | 'lidar'
-  | 'radiofrequency'
+  'visual' | 'thermal' | 'acoustic' | 'radar' | 'lidar' | 'radiofrequency'
 
 /** Filter algorithm selection */
 export type FilterAlgorithm = 'Kalman' | 'ExtendedKalman' | 'UnscentedKalman' | 'Particle' | 'IMM'

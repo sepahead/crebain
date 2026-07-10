@@ -27,15 +27,14 @@
 //! ```
 
 use super::{
-    CameraInfoData, PoseData, Result, Transport, TransportError, TransportStats, TwistStampedData,
-    VelocityCmd,
+    PoseData, Result, Transport, TransportError, TransportStats, TwistStampedData, VelocityCmd,
 };
 use std::future::Future;
 use std::pin::Pin;
 use std::time::Instant;
 
 #[cfg(feature = "zenoh-transport")]
-use super::{CameraFrame, ImuData, ModelStates};
+use super::{CameraFrame, CameraInfoData, ImuData, ModelStates};
 
 #[cfg(feature = "zenoh-transport")]
 use base64::{engine::general_purpose, Engine as _};
@@ -1373,7 +1372,7 @@ impl Transport for ZenohBridge {
         })
     }
 
-    fn disconnect(&mut self) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
+    fn disconnect(&self) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
         Box::pin(async move { Ok(()) })
     }
 
