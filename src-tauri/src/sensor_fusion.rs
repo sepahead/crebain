@@ -533,19 +533,19 @@ impl KalmanFilter {
         // Innovation covariance: S = H * P * H^T + R
         let s = h * *covariance * h.transpose() + r;
 
-        // Kalman gain: K = P * H^T * S^(-1)
-        // If innovation covariance is singular, skip update (measurement is redundant)
-        let s_inv = match s.try_inverse() {
-            Some(inv) => inv,
-            None => {
-                log::warn!(
-                    "[KalmanFilter] Innovation covariance singular (det={:.2e}), skipping update",
-                    s.determinant()
-                );
-                return None; // Skip this update rather than corrupt state
-            }
+        // Kalman gain via Cholesky solve: S is SPD by construction (R > 0), a
+        // solve is cheaper and better conditioned than forming S⁻¹, and its
+        // failure is a principled positive-definiteness guard (try_inverse only
+        // failed at hard singularity and returned garbage for merely
+        // ill-conditioned S). K = P Hᵀ S⁻¹  ⇔  Kᵀ = S⁻¹ (H P), P symmetric.
+        let Some(chol) = s.cholesky() else {
+            log::warn!(
+                "[KalmanFilter] Innovation covariance not positive-definite (det={:.2e}), skipping update",
+                s.determinant()
+            );
+            return None; // Skip this update rather than corrupt state
         };
-        let k = *covariance * h.transpose() * s_inv;
+        let k = chol.solve(&(h * *covariance)).transpose();
 
         // State update: x = x + K * y
         *state += k * innovation;
@@ -761,19 +761,17 @@ impl ExtendedKalmanFilter {
 
         // Innovation covariance
         let s = h * state.covariance * h.transpose() + r;
-        let s_inv = match s.try_inverse() {
-            Some(inv) => inv,
-            None => {
-                log::warn!(
-                    "[EKF] Innovation covariance singular (det={:.2e}), skipping polar update",
-                    s.determinant()
-                );
-                return None; // Skip this update rather than corrupt state
-            }
+        // Cholesky solve — same rationale as the KF update.
+        let Some(chol) = s.cholesky() else {
+            log::warn!(
+                "[EKF] Innovation covariance not positive-definite (det={:.2e}), skipping polar update",
+                s.determinant()
+            );
+            return None; // Skip this update rather than corrupt state
         };
 
-        // Kalman gain
-        let k = state.covariance * h.transpose() * s_inv;
+        // Kalman gain: K = P Hᵀ S⁻¹  ⇔  Kᵀ = S⁻¹ (H P), P symmetric.
+        let k = chol.solve(&(h * state.covariance)).transpose();
 
         // State update
         state.state += k * innovation;
@@ -986,15 +984,12 @@ impl UnscentedKalmanFilter {
             pxz += &state_diff * meas_diff.transpose() * *w;
         }
 
-        // Kalman gain
-        let s_inv = match s.clone().try_inverse() {
-            Some(inv) => inv,
-            None => {
-                log::warn!("[UKF] Measurement covariance singular, skipping update");
-                return None; // Skip this update rather than corrupt state
-            }
+        // Kalman gain via Cholesky solve: K = Pxz S⁻¹  ⇔  Kᵀ = S⁻¹ Pxzᵀ.
+        let Some(chol) = s.clone().cholesky() else {
+            log::warn!("[UKF] Measurement covariance not positive-definite, skipping update");
+            return None; // Skip this update rather than corrupt state
         };
-        let k = &pxz * s_inv;
+        let k = chol.solve(&pxz.transpose()).transpose();
 
         // Innovation
         let innovation = meas_dyn - meas_mean;
@@ -1360,8 +1355,8 @@ impl IMMFilter {
             let innovation = measurement - predicted;
             let s = h * cov * h.transpose() + *rr;
 
-            if let Some(s_inv) = s.try_inverse() {
-                let mahalanobis = (innovation.transpose() * s_inv * innovation)[0];
+            if let Some(chol) = s.cholesky() {
+                let mahalanobis = innovation.dot(&chol.solve(&innovation));
                 let det = s.determinant().max(1e-10);
                 // Correct normalizer for a 3-D innovation is sqrt((2π)^3 · det(S)).
                 // The previous (2π·det)^½ was the 1-D form; it is a model-independent
@@ -1869,8 +1864,8 @@ impl MultiSensorFusion {
             track.covariance[(2, 2)],
         );
         let s = pos_cov + r_cart;
-        let d2 = match s.try_inverse() {
-            Some(inv) => (diff.transpose() * inv * diff)[0],
+        let d2 = match s.cholesky() {
+            Some(chol) => diff.dot(&chol.solve(&diff)),
             None => {
                 diff.norm_squared() / (NOMINAL_ASSOCIATION_SIGMA_M * NOMINAL_ASSOCIATION_SIGMA_M)
             }
@@ -1909,8 +1904,8 @@ impl MultiSensorFusion {
                 }
                 let diff = meas_pos[i] - meas_pos[j];
                 let s = r_carts[i] + r_carts[j];
-                let d2 = match s.try_inverse() {
-                    Some(inv) => (diff.transpose() * inv * diff)[0],
+                let d2 = match s.cholesky() {
+                    Some(chol) => diff.dot(&chol.solve(&diff)),
                     None => {
                         diff.norm_squared()
                             / (NOMINAL_ASSOCIATION_SIGMA_M * NOMINAL_ASSOCIATION_SIGMA_M)
@@ -2117,6 +2112,14 @@ impl MultiSensorFusion {
             ta.partial_cmp(&tb).unwrap_or(std::cmp::Ordering::Equal)
         });
 
+        // PF/IMM apply their updates internally (no innovation stats surface),
+        // so they always count as applied; for the Kalman family a track whose
+        // EVERY associated update was skipped (non-PD S) received no correction
+        // this frame and must not be credited with a hit below.
+        let mut any_applied = matches!(
+            self.config.algorithm,
+            FilterAlgorithm::Particle | FilterAlgorithm::IMM
+        );
         for &idx in &ordered {
             let meas = &measurements[idx];
             let pos = measurement_position_cartesian(meas);
@@ -2170,6 +2173,8 @@ impl MultiSensorFusion {
                     None
                 }
             };
+
+            any_applied |= stats.is_some();
 
             // The galadriel sidecar record: one per associated measurement that
             // actually corrected the filter. Singular-S skips emit nothing (the
@@ -2230,7 +2235,19 @@ impl MultiSensorFusion {
             _ => {}
         }
 
-        // Update track metadata
+        // Update track metadata — ONLY if at least one associated measurement
+        // actually corrected the filter. A frame whose every update was skipped
+        // (non-positive-definite S) contributed no evidence: crediting it with a
+        // hit (fresh last_update_ms, missed_detections = 0, a confidence boost)
+        // would let a track stay Confirmed on "hits" that never touched its
+        // state. Ungated, it now registers as a miss in the lifecycle pass,
+        // exactly like a frame with no associated measurements at all.
+        if !any_applied {
+            log::warn!(
+                "[fusion] track {track_id}: every associated update was skipped                  (non-PD innovation covariance); withholding hit credit this frame"
+            );
+            return;
+        }
         track.sensor_sources = sensor_sources;
         track.last_update_ms = timestamp_ms;
         track.age += 1;
@@ -2679,6 +2696,28 @@ fn solve_assignment(cost: &[Vec<i64>], inf: i64) -> Vec<Option<usize>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn kalman_update_skips_and_reports_none_on_non_pd_innovation_covariance() {
+        // P = 0 and R = 0 give S = 0: not positive-definite. The update must
+        // skip (None) and leave the state untouched — and, downstream, a frame
+        // whose every update skips withholds hit credit (update_track gate).
+        let kf = KalmanFilter::new(1.0, 2.0);
+        let mut state = Vector6::zeros();
+        let mut cov = Matrix6::zeros();
+        let r = Matrix3::zeros();
+        let before = state;
+        let stats = kf.update_raw(&mut state, &mut cov, &Vector3::new(1.0, 2.0, 3.0), Some(&r));
+        assert!(stats.is_none(), "non-PD S must skip the update");
+        assert_eq!(state, before, "skipped update must not touch the state");
+
+        // And a healthy update reports self-consistent innovation statistics.
+        let mut cov = Matrix6::identity();
+        let st = kf
+            .update_raw(&mut state, &mut cov, &Vector3::new(1.0, 2.0, 3.0), None)
+            .expect("healthy update applies");
+        assert!(st.nis().expect("SPD") > 0.0);
+    }
 
     #[test]
     fn test_kalman_filter_predict() {
