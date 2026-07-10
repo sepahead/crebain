@@ -23,6 +23,16 @@ Open-source readiness and quality hardening.
   excluded and documented (`docs/SENSOR_FUSION.md`).
 
 ### Fixed
+- **Multi-second dropouts are now fully integrated by prediction.** The predict step
+  clamped `dt` to 1 s while advancing the clock by the whole gap, so a 5 s dropout moved
+  the state only 1 s with no covariance inflation for the remainder — the next
+  association then gated against a mis-timed, overconfident prior (a real re-acquisition
+  hazard after 1–2 s occlusions). Prediction now integrates the whole gap in ≤1 s
+  substeps (exactly equivalent for ≤1 s gaps; the CV transition composes exactly and Q
+  accumulates per substep), capped at 60 s — beyond which a coasting track's covariance
+  has inflated toward the divergence gate anyway, and the cap bounds work under
+  wall-clock jumps. Regression test: one 2 s dropout and two explicit 1 s coasts produce
+  identical post-gap state and covariance.
 - **Skipped updates no longer count as track hits.** A frame whose every associated
   measurement update was skipped (non-positive-definite innovation covariance) previously
   still refreshed `last_update_ms`, reset `missed_detections`, and boosted confidence — a
