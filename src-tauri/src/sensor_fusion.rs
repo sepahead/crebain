@@ -15,6 +15,12 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::f64::consts::PI;
 
+/// Upper bound on the timestamp gap (seconds) integrated by substepped
+/// prediction in one frame. Beyond this a coasting track's covariance has
+/// long since inflated toward the divergence gate; the cap also bounds the
+/// substep loop under wall-clock jumps (suspend/resume, replays).
+const MAX_PREDICT_GAP_S: f64 = 60.0;
+
 pub const MAX_FUSION_MEASUREMENTS_PER_BATCH: usize = 512;
 pub const MAX_FUSION_TRACKS: usize = 1024;
 pub const MAX_FUSION_PARTICLE_COUNT: usize = 1000;
@@ -1749,14 +1755,29 @@ impl MultiSensorFusion {
         // dt comes from real timestamps. Non-increasing timestamps (first frame,
         // duplicates, out-of-order replays) yield dt = 0: no phantom predict / Q
         // inflation, and the predict clock only ever advances monotonically.
-        let dt = if self.last_predict_ms > 0 && timestamp_ms > self.last_predict_ms {
-            ((timestamp_ms - self.last_predict_ms) as f64 / 1000.0).min(1.0)
+        //
+        // A gap longer than one frame is integrated in ≤1 s SUBSTEPS rather than
+        // truncated: the old `min(gap, 1.0)` clamp advanced the clock by the full
+        // gap but the state by at most 1 s, leaving the covariance uninflated for
+        // the unmodeled remainder — after a multi-second dropout the next
+        // association then gated against a mis-timed, overconfident prior.
+        // Substepping keeps each linearization step small while covering the
+        // whole gap (for the linear CV model the transition composes exactly and
+        // Q accumulates per substep). The total is capped: a track coasting
+        // longer than MAX_PREDICT_GAP_S has Q-inflated toward the
+        // covariance-volume divergence gate anyway, and the cap bounds work on
+        // wall-clock jumps (suspend/resume).
+        let gap_s = if self.last_predict_ms > 0 && timestamp_ms > self.last_predict_ms {
+            ((timestamp_ms - self.last_predict_ms) as f64 / 1000.0).min(MAX_PREDICT_GAP_S)
         } else {
             0.0
         };
         self.last_predict_ms = self.last_predict_ms.max(timestamp_ms);
-        if dt > 0.0 {
+        let mut remaining_s = gap_s;
+        while remaining_s > 0.0 {
+            let dt = remaining_s.min(1.0);
             self.predict_all(dt);
+            remaining_s -= dt;
         }
 
         // Step 2: Associate measurements to tracks
@@ -3892,6 +3913,62 @@ mod tests {
         }
         std::fs::write(&path, out).expect("write fixture");
         eprintln!("wrote {} records to {path:?}", records.len());
+    }
+
+    #[test]
+    fn long_gap_prediction_integrates_the_whole_interval() {
+        // One engine sees a single 2 s dropout; its twin coasts through the
+        // same interval as two empty 1 s frames. The substepped predictor must
+        // make both walk the identical predict sequence, so the post-gap
+        // covariance (and state) must match exactly — the old min(gap, 1.0)
+        // clamp integrated only 1 s of the dropout and left the prior
+        // overconfident by the unmodeled remainder.
+        let meas = |t: u64, x: f64| SensorMeasurement {
+            sensor_id: "cam1".to_string(),
+            modality: SensorModality::Visual,
+            timestamp_ms: t,
+            position: [x, 0.0, 5.0],
+            velocity: None,
+            covariance: [1.0, 1.0, 1.0],
+            confidence: 0.9,
+            class_label: "drone".to_string(),
+            metadata: HashMap::new(),
+        };
+        let mut gap = MultiSensorFusion::new(FusionConfig::default());
+        let mut stepped = MultiSensorFusion::new(FusionConfig::default());
+        // Identical hit history (4 hits: confirmed, and 2 misses keep 3-of-5).
+        for k in 0..4u64 {
+            let t = 1_000 + k * 1_000;
+            let x = 10.0 + k as f64;
+            gap.process_measurements(vec![meas(t, x)], t);
+            stepped.process_measurements(vec![meas(t, x)], t);
+        }
+        // Dropout: one 2 s jump vs two explicit empty 1 s frames.
+        gap.process_measurements(vec![], 6_000);
+        stepped.process_measurements(vec![], 5_000);
+        stepped.process_measurements(vec![], 6_000);
+
+        let (gt, st) = (
+            gap.tracks.values().next().expect("gap track"),
+            stepped.tracks.values().next().expect("stepped track"),
+        );
+        for i in 0..6 {
+            assert!(
+                (gt.state[i] - st.state[i]).abs() < 1e-12,
+                "state[{i}] diverged: {} vs {}",
+                gt.state[i],
+                st.state[i]
+            );
+            for j in 0..6 {
+                assert!(
+                    (gt.covariance[(i, j)] - st.covariance[(i, j)]).abs() < 1e-9,
+                    "cov[({i},{j})] diverged: {} vs {} - the gap's remainder \
+                     was not integrated",
+                    gt.covariance[(i, j)],
+                    st.covariance[(i, j)]
+                );
+            }
+        }
     }
 
     #[test]
