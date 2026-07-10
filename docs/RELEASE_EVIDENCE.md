@@ -12,32 +12,32 @@ network topology, credentials, or operator acceptance record.
 
 | Field | Evidence |
 |-------|----------|
-| Candidate commit | `5dec6037fe1fa461fae76083d682be35ae5352ab` |
+| Candidate commit | `e89de5acc2eb7d66b807f85dc407f3da0e35892c` |
 | Branch/tag | `main`; tag pending |
-| GitHub Actions run | [CI 29104945626](https://github.com/sepahead/crebain/actions/runs/29104945626): success on Linux/macOS |
-| Hosted supply-chain audit | [Audit 29104945725](https://github.com/sepahead/crebain/actions/runs/29104945725): Bun audit and cargo-deny success |
-| Hosted CodeQL | [CodeQL 29104945672](https://github.com/sepahead/crebain/actions/runs/29104945672): JavaScript/TypeScript and Rust success |
-| Additional hosted policy | [ROS definitions 29104945665](https://github.com/sepahead/crebain/actions/runs/29104945665) and [OpenSSF Scorecard 29104945793](https://github.com/sepahead/crebain/actions/runs/29104945793): success |
-| Local `bun run validate:all` | Success: 318 frontend tests (8 skipped), 252 default Rust tests (1 ignored), 276 NCP Rust tests (1 ignored), clean fmt/check/clippy |
-| Frontend test/coverage/bundle result | 318 passed / 8 skipped; 37.91% statements and 39.06% lines; 438.4 KiB initial gzip against 700 KiB |
-| Rust default/NCP/feature result | Default and NCP suites above; `--no-default-features`, `cuda,tensorrt`, and extra no-default CUDA/TensorRT checks passed locally; hosted feature gates passed |
+| GitHub Actions run | [CI 29118711312](https://github.com/sepahead/crebain/actions/runs/29118711312): success on Linux/macOS, including NCP and feature gates |
+| Hosted supply-chain audit | Dependency manifests are unchanged; [Audit 29104945725](https://github.com/sepahead/crebain/actions/runs/29104945725) remains the applicable hosted Bun audit/cargo-deny success, and both checks passed locally on this candidate |
+| Hosted CodeQL | [CodeQL 29118711301](https://github.com/sepahead/crebain/actions/runs/29118711301): JavaScript/TypeScript and Rust success |
+| Additional hosted policy | [OpenSSF Scorecard 29118711298](https://github.com/sepahead/crebain/actions/runs/29118711298): success; unchanged ROS definitions remain covered by [run 29104945665](https://github.com/sepahead/crebain/actions/runs/29104945665) |
+| Local `bun run validate:all` | Success: 333 frontend tests (8 skipped), 252 default Rust tests (1 ignored), 290 NCP Rust tests (1 ignored), clean fmt/check/clippy |
+| Frontend test/coverage/bundle result | Hosted: 333 passed / 8 skipped; 38.55% statements, 36.69% branches, 41% functions, and 39.72% lines; 440.9 KiB initial gzip against 700 KiB |
+| Rust default/NCP/feature result | Local default/NCP suites above; hosted macOS passed 252 default and 290 NCP tests, Linux passed 234 default and 272 NCP tests, and `--no-default-features` plus `cuda,tensorrt` feature checks passed |
 | Hardware-WebGL performance smoke | 60.0 FPS empty, 39.5 FPS splat, 37.2 FPS splat plus feeds against unchanged 50/25/12 floors; Apple M4 Max Chromium Metal |
 | Manual smoke | Pending target-platform execution |
-| Boundary focus | Scene/asset bounds and restore lifecycle; unified camera schemas; ROS service correlation; Gazebo XML policy; transport disconnects; fusion/NCP fail-safe behavior |
+| Boundary focus | Pinned NCP wire-0.6 reply validation; raw ESTOP latching; bounded command ingress; per-session lifecycle/action ownership; secure-by-default Zenoh posture; isolated Vite-dev harness state |
 
 ## Automated evidence required
 
 | Area | Required evidence | Current status |
 |------|-------------------|----------------|
-| Version coherence | Metadata/tag guard on candidate | Passed in CI 29104945626 |
-| Frontend validation | Typecheck, lint, format, and tests | Passed locally and in CI 29104945626 |
-| Bundle and coverage | Hosted bundle budget and coverage thresholds | Passed in CI 29104945626 |
-| Rust default | fmt, check, tests, and clippy on Linux/macOS | Passed in CI 29104945626 |
-| NCP feature | NCP clippy and tests on Linux/macOS | Passed in CI 29104945626 |
-| Rust feature gates | `cuda,tensorrt` and `--no-default-features` checks | Passed locally and in CI 29104945626 |
-| Supply chain | cargo-deny and `bun audit` | Passed in audit 29104945725 |
-| Static analysis | CodeQL JavaScript/TypeScript and Rust | Passed in CodeQL 29104945672 |
-| Diff hygiene | `git diff --check` before commit and cached diff check | Passed before `5dec603` |
+| Version coherence | Metadata/tag guard on candidate | Passed in CI 29118711312 |
+| Frontend validation | Typecheck, lint, format, and tests | Passed locally and in CI 29118711312 |
+| Bundle and coverage | Hosted bundle budget and coverage thresholds | Passed in CI 29118711312 |
+| Rust default | fmt, check, tests, and clippy on Linux/macOS | Passed in CI 29118711312 |
+| NCP feature | NCP clippy and tests on Linux/macOS | Passed in CI 29118711312 |
+| Rust feature gates | `cuda,tensorrt` and `--no-default-features` checks | Passed locally and in CI 29118711312 |
+| Supply chain | cargo-deny and `bun audit` | Current-candidate local checks passed; unchanged manifests retain hosted audit 29104945725 |
+| Static analysis | CodeQL JavaScript/TypeScript and Rust | Passed in CodeQL 29118711301 |
+| Diff hygiene | `git diff --check` before commit and cached diff check | Passed before `e89de5a` |
 
 ## Manual evidence required
 
