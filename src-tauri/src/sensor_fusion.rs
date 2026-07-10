@@ -401,6 +401,32 @@ fn calculate_threat_level(class: &str, confidence: f64) -> u8 {
 // KALMAN FILTER
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/// Pre-update innovation statistics from one filter measurement update:
+/// `y = z − h(x̂⁻)` against the state as it stood entering the update (the
+/// a-priori state for the first measurement of a frame; the sequentially
+/// conditioned prior for co-located follow-ups), and `S = H P⁻ Hᵀ + R` in the
+/// same frame as `y`. Returned `None` means the update was **skipped**
+/// (singular innovation covariance) and the state was not corrected.
+#[derive(Debug, Clone, Copy)]
+pub struct InnovationStats {
+    /// Innovation `y` (Cartesian metres, or polar `[m, rad, rad]` for the
+    /// EKF radar path with azimuth wrapped to `[-π, π]`).
+    pub innovation: Vector3<f64>,
+    /// Innovation covariance `S`, same frame as `innovation`.
+    pub innovation_cov: Matrix3<f64>,
+}
+
+impl InnovationStats {
+    /// `NIS = yᵀ S⁻¹ y`, via a Cholesky solve (S is SPD by construction;
+    /// cheaper and better-conditioned than forming `S⁻¹`). `None` if `S` is
+    /// not positive-definite at machine precision.
+    pub fn nis(&self) -> Option<f64> {
+        let chol = self.innovation_cov.cholesky()?;
+        let solved = chol.solve(&self.innovation);
+        Some(self.innovation.dot(&solved))
+    }
+}
+
 /// Standard Kalman Filter for linear systems
 #[derive(Debug)]
 pub struct KalmanFilter {
@@ -479,13 +505,13 @@ impl KalmanFilter {
         state: &mut TrackState,
         measurement: &Vector3<f64>,
         r_override: Option<&Matrix3<f64>>,
-    ) {
+    ) -> Option<InnovationStats> {
         self.update_raw(
             &mut state.state,
             &mut state.covariance,
             measurement,
             r_override,
-        );
+        )
     }
 
     /// Raw update step - operates directly on state/covariance without TrackState overhead
@@ -496,7 +522,7 @@ impl KalmanFilter {
         covariance: &mut Matrix6<f64>,
         measurement: &Vector3<f64>,
         r_override: Option<&Matrix3<f64>>,
-    ) {
+    ) -> Option<InnovationStats> {
         let h = Self::measurement_matrix();
         let r = r_override.unwrap_or(&self.r);
 
@@ -516,7 +542,7 @@ impl KalmanFilter {
                     "[KalmanFilter] Innovation covariance singular (det={:.2e}), skipping update",
                     s.determinant()
                 );
-                return; // Skip this update rather than corrupt state
+                return None; // Skip this update rather than corrupt state
             }
         };
         let k = *covariance * h.transpose() * s_inv;
@@ -533,6 +559,10 @@ impl KalmanFilter {
         let i = Matrix6::identity();
         let ikh = i - k * h;
         *covariance = ikh * *covariance * ikh.transpose() + k * *r * k.transpose();
+        Some(InnovationStats {
+            innovation,
+            innovation_cov: s,
+        })
     }
 }
 
@@ -635,9 +665,9 @@ impl CoordinatedTurnFilter {
         covariance: &mut Matrix6<f64>,
         measurement: &Vector3<f64>,
         r_override: Option<&Matrix3<f64>>,
-    ) {
+    ) -> Option<InnovationStats> {
         self.kf_update
-            .update_raw(state, covariance, measurement, r_override);
+            .update_raw(state, covariance, measurement, r_override)
     }
 }
 
@@ -713,7 +743,7 @@ impl ExtendedKalmanFilter {
         state: &mut TrackState,
         measurement: &Vector3<f64>,
         r: &Matrix3<f64>,
-    ) {
+    ) -> Option<InnovationStats> {
         let h = Self::measurement_jacobian(&state.state);
 
         // Predicted measurement in polar
@@ -738,7 +768,7 @@ impl ExtendedKalmanFilter {
                     "[EKF] Innovation covariance singular (det={:.2e}), skipping polar update",
                     s.determinant()
                 );
-                return; // Skip this update rather than corrupt state
+                return None; // Skip this update rather than corrupt state
             }
         };
 
@@ -754,6 +784,10 @@ impl ExtendedKalmanFilter {
         let i = Matrix6::identity();
         let ikh = i - k * h;
         state.covariance = ikh * state.covariance * ikh.transpose() + k * *r * k.transpose();
+        Some(InnovationStats {
+            innovation,
+            innovation_cov: s,
+        })
     }
 }
 
@@ -917,7 +951,7 @@ impl UnscentedKalmanFilter {
         cov: &mut Matrix6<f64>,
         measurement: &Vector3<f64>,
         r_override: Option<&DMatrix<f64>>,
-    ) {
+    ) -> Option<InnovationStats> {
         let state_dyn = DVector::from_column_slice(state.as_slice());
         let cov_dyn = DMatrix::from_fn(6, 6, |i, j| cov[(i, j)]);
         let meas_dyn = DVector::from_column_slice(measurement.as_slice());
@@ -957,13 +991,17 @@ impl UnscentedKalmanFilter {
             Some(inv) => inv,
             None => {
                 log::warn!("[UKF] Measurement covariance singular, skipping update");
-                return; // Skip this update rather than corrupt state
+                return None; // Skip this update rather than corrupt state
             }
         };
         let k = &pxz * s_inv;
 
         // Innovation
         let innovation = meas_dyn - meas_mean;
+        let stats = InnovationStats {
+            innovation: Vector3::new(innovation[0], innovation[1], innovation[2]),
+            innovation_cov: Matrix3::from_fn(|i, j| s[(i, j)]),
+        };
 
         // Update state
         let state_update = &k * innovation;
@@ -990,6 +1028,7 @@ impl UnscentedKalmanFilter {
                 cov[(j, i)] = avg;
             }
         }
+        Some(stats)
     }
 }
 
@@ -1435,6 +1474,20 @@ pub struct FusionConfig {
     #[serde(default = "default_max_position_cov_volume")]
     pub max_position_cov_volume: f64,
     pub particle_count: usize,
+    /// Emit one `PidObservation` per associated measurement that actually
+    /// updated the filter (the galadriel sidecar contract); drained via
+    /// `drain_pid_observations`. Off by default — instrumentation must be
+    /// asked for. Not emitted under Particle (no innovation covariance
+    /// exists) or IMM (per-model updates only; a combined-estimate record is
+    /// future work) — see `docs/SENSOR_FUSION.md`.
+    #[serde(default)]
+    pub emit_innovations: bool,
+    /// Also attach the raw innovation `y` and covariance `S` (research mode)
+    /// to emitted records. Radar carries the polar frame under the EKF and
+    /// the Cartesian conversion frame otherwise; `nis`/`dof` are
+    /// frame-agnostic either way.
+    #[serde(default)]
+    pub emit_innovation_research: bool,
 }
 
 fn default_confirmation_window() -> u32 {
@@ -1457,6 +1510,8 @@ impl Default for FusionConfig {
             confirmation_window: 5,
             max_position_cov_volume: 1e6,
             particle_count: 100,
+            emit_innovations: false,
+            emit_innovation_research: false,
         }
     }
 }
@@ -1665,6 +1720,9 @@ pub struct MultiSensorFusion {
     next_track_id: u64,
     frame_count: u64,
     last_predict_ms: u64,
+    /// Per-measurement innovation records pending collection
+    /// (`config.emit_innovations`); drained by `drain_pid_observations`.
+    pid_buffer: Vec<crate::pid_observation::PidObservation>,
 }
 
 impl MultiSensorFusion {
@@ -1680,6 +1738,7 @@ impl MultiSensorFusion {
             next_track_id: 1,
             frame_count: 0,
             last_predict_ms: 0,
+            pid_buffer: Vec::new(),
         }
     }
 
@@ -2061,10 +2120,14 @@ impl MultiSensorFusion {
         for &idx in &ordered {
             let meas = &measurements[idx];
             let pos = measurement_position_cartesian(meas);
-            match self.config.algorithm {
+            // Innovation statistics of THIS measurement's update, when the
+            // active filter exposes them and the update was actually applied
+            // (None = singular-S skip, or a PF/IMM path — see the emission
+            // note on `FusionConfig::emit_innovations`).
+            let stats: Option<InnovationStats> = match self.config.algorithm {
                 FilterAlgorithm::Kalman => {
                     let r = measurement_r_cartesian(meas, &pos);
-                    self.kf.update(track, &pos, Some(&r));
+                    self.kf.update(track, &pos, Some(&r))
                 }
                 FilterAlgorithm::ExtendedKalman => {
                     if let Some(polar) = measurement_position_polar(meas) {
@@ -2074,17 +2137,17 @@ impl MultiSensorFusion {
                             meas.covariance[1],
                             meas.covariance[2],
                         ));
-                        self.ekf.update_polar(track, &polar, &r);
+                        self.ekf.update_polar(track, &polar, &r)
                     } else {
                         let r = measurement_r_cartesian(meas, &pos);
-                        self.kf.update(track, &pos, Some(&r));
+                        self.kf.update(track, &pos, Some(&r))
                     }
                 }
                 FilterAlgorithm::UnscentedKalman => {
                     let rc = measurement_r_cartesian(meas, &pos);
                     let r_dyn = DMatrix::from_fn(3, 3, |i, j| rc[(i, j)]);
                     self.ukf
-                        .update(&mut track.state, &mut track.covariance, &pos, Some(&r_dyn));
+                        .update(&mut track.state, &mut track.covariance, &pos, Some(&r_dyn))
                 }
                 FilterAlgorithm::Particle => {
                     if let Some(pf) = self.particle_filters.get_mut(track_id) {
@@ -2092,6 +2155,7 @@ impl MultiSensorFusion {
                         let var = Vector3::new(rc[(0, 0)], rc[(1, 1)], rc[(2, 2)]);
                         pf.update(&pos, Some(&var));
                     }
+                    None
                 }
                 FilterAlgorithm::IMM => {
                     // NOTE: each call re-runs the IMM mode-probability update, so
@@ -2102,6 +2166,43 @@ impl MultiSensorFusion {
                     if let Some(imm) = self.imm_filters.get_mut(track_id) {
                         let rc = measurement_r_cartesian(meas, &pos);
                         imm.update(&pos, Some(&rc));
+                    }
+                    None
+                }
+            };
+
+            // The galadriel sidecar record: one per associated measurement that
+            // actually corrected the filter. Singular-S skips emit nothing (the
+            // Option conveys it) — never a fabricated NIS.
+            if self.config.emit_innovations {
+                if let (Some(st), Some(numeric_id)) =
+                    (stats, crate::pid_observation::track_numeric_id(track_id))
+                {
+                    if let Some(nis) = st.nis() {
+                        let research = self.config.emit_innovation_research;
+                        // nalgebra is column-major: serialize S row-major by
+                        // explicit (row, col) indexing (symmetry would mask a
+                        // transposed bug here).
+                        let cov = st.innovation_cov;
+                        self.pid_buffer
+                            .push(crate::pid_observation::PidObservation {
+                                track_id: numeric_id,
+                                timestamp_ms: meas.timestamp_ms,
+                                seq: self.frame_count,
+                                modality: meas.modality,
+                                nis,
+                                dof: 3,
+                                innovation: research.then(|| {
+                                    [st.innovation[0], st.innovation[1], st.innovation[2]]
+                                }),
+                                innovation_cov: research.then(|| {
+                                    [
+                                        [cov[(0, 0)], cov[(0, 1)], cov[(0, 2)]],
+                                        [cov[(1, 0)], cov[(1, 1)], cov[(1, 2)]],
+                                        [cov[(2, 0)], cov[(2, 1)], cov[(2, 2)]],
+                                    ]
+                                }),
+                            });
                     }
                 }
             }
@@ -2390,6 +2491,15 @@ impl MultiSensorFusion {
         // association gates sized off frozen covariances — silently, until
         // wall-clock timestamps catch up.
         self.last_predict_ms = 0;
+        self.pid_buffer.clear();
+    }
+
+    /// Take the per-measurement innovation records accumulated since the last
+    /// drain (empty unless `config.emit_innovations`). One record per
+    /// associated measurement that actually corrected the filter; bounded per
+    /// frame by the measurement batch cap.
+    pub fn drain_pid_observations(&mut self) -> Vec<crate::pid_observation::PidObservation> {
+        std::mem::take(&mut self.pid_buffer)
     }
 
     /// Update configuration
@@ -3639,6 +3749,89 @@ mod tests {
             "replay after clear must track"
         );
         assert_eq!(fusion.last_predict_ms, 200, "clock must follow the replay");
+    }
+
+    #[test]
+    fn emit_innovations_produces_contract_records_with_consistent_nis() {
+        let config = FusionConfig {
+            emit_innovations: true,
+            emit_innovation_research: true,
+            ..FusionConfig::default()
+        };
+        let mut fusion = MultiSensorFusion::new(config);
+
+        // Three frames, one visual measurement each. Frame 1 BIRTHS the track
+        // (the measurement seeds the state; no filter update, hence no record —
+        // an innovation only exists against a prior), frames 2 and 3 associate
+        // and update, one record each.
+        for (t, x) in [(1000u64, 10.0f64), (1100, 10.4), (1200, 10.8)] {
+            let m = vec![SensorMeasurement {
+                sensor_id: "cam1".to_string(),
+                modality: SensorModality::Visual,
+                timestamp_ms: t,
+                position: [x, 0.0, 5.0],
+                velocity: None,
+                covariance: [1.0, 1.0, 1.0],
+                confidence: 0.9,
+                class_label: "drone".to_string(),
+                metadata: HashMap::new(),
+            }];
+            fusion.process_measurements(m, t);
+        }
+
+        let records = fusion.drain_pid_observations();
+        assert_eq!(
+            records.len(),
+            2,
+            "one record per ASSOCIATED measurement (track birth emits none)"
+        );
+        assert!(
+            fusion.drain_pid_observations().is_empty(),
+            "drain empties the buffer"
+        );
+        for record in &records {
+            assert_eq!(record.dof, 3);
+            assert_eq!(record.modality, SensorModality::Visual);
+            assert!(record.nis.is_finite() && record.nis >= 0.0);
+            // Research mode: y and S present, and NIS must be exactly the
+            // whitened norm of the emitted pair — the record is self-consistent.
+            let y = record.innovation.expect("research innovation");
+            let cov = record.innovation_cov.expect("research covariance");
+            let yv = Vector3::new(y[0], y[1], y[2]);
+            let sm = Matrix3::from_fn(|i, j| cov[i][j]);
+            let recomputed = yv.dot(&sm.cholesky().expect("SPD").solve(&yv));
+            assert!(
+                (record.nis - recomputed).abs() < 1e-9,
+                "nis {} vs recomputed {recomputed}",
+                record.nis
+            );
+            // And the wire line parses back (the galadriel-ingestible shape).
+            let line = serde_json::to_string(record).unwrap();
+            let back: crate::pid_observation::PidObservation = serde_json::from_str(&line).unwrap();
+            assert_eq!(back.track_id, record.track_id);
+        }
+        assert_eq!(records[0].seq, 2, "first ASSOCIATED fusion frame");
+        assert_eq!(records[1].seq, 3);
+        assert_eq!(records[0].timestamp_ms, 1100);
+        assert_eq!(records[1].timestamp_ms, 1200);
+
+        // Off by default: no records without the flag.
+        let mut silent = MultiSensorFusion::new(FusionConfig::default());
+        silent.process_measurements(
+            vec![SensorMeasurement {
+                sensor_id: "cam1".to_string(),
+                modality: SensorModality::Visual,
+                timestamp_ms: 1000,
+                position: [1.0, 0.0, 5.0],
+                velocity: None,
+                covariance: [1.0, 1.0, 1.0],
+                confidence: 0.9,
+                class_label: "drone".to_string(),
+                metadata: HashMap::new(),
+            }],
+            1000,
+        );
+        assert!(silent.drain_pid_observations().is_empty());
     }
 
     #[test]

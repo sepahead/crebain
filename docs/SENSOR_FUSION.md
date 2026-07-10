@@ -576,3 +576,30 @@ and estimation literature.
 - Triangulation (computer vision) — midpoint / DLT, degeneracy: <https://en.wikipedia.org/wiki/Triangulation_(computer_vision)>
 - Epipolar geometry — fundamental matrix, correspondence test: <https://en.wikipedia.org/wiki/Epipolar_geometry>
 - Hartley & Zisserman, *Multiple View Geometry*, Ch. 8: <https://www.robots.ox.ac.uk/~vgg/hzbook/hzbook1/HZepipolar.pdf>
+
+
+## The galadriel innovation sidecar (`emit_innovations`)
+
+With `FusionConfig.emit_innovations = true` (or the `CREBAIN_PID_JSONL=<path>` environment
+variable, which also appends the records as JSONL), `update_track` emits one
+`PidObservation` per associated measurement that **actually corrected the filter** —
+`{track_id, timestamp_ms, seq, modality, nis, dof}` plus, under
+`emit_innovation_research`, the raw innovation `y` and covariance `S`. The struct
+byte-matches galadriel's frozen sidecar contract (golden-tested on both sides), and the
+JSONL output is directly consumable by `galadriel-ncp`'s `read_jsonl`.
+
+Semantics worth knowing before consuming the records:
+
+- `nis = yᵀS⁻¹y` (Cholesky solve) is formed against the state **entering that
+  measurement's update** — the a-priori state for the first measurement of a frame, the
+  sequentially conditioned prior for co-located follow-ups (standard sequential fusion).
+- **Track birth emits nothing** (the first measurement seeds the state; an innovation only
+  exists against a prior), and **singular-S skipped updates emit nothing** — never a
+  fabricated NIS.
+- **Frames:** Cartesian metres for visual/thermal/acoustic/lidar; radar under the EKF is
+  the polar residual `[m, rad, rad]` with azimuth wrapped, and under non-EKF algorithms the
+  Cartesian conversion frame. `nis`/`dof` are frame-agnostic either way.
+- **Not emitted under Particle** (no innovation covariance exists) **or IMM** (per-model
+  updates only; a combined-estimate record is future work).
+- The JSONL sink is best-effort instrumentation: write failures are logged and never
+  backpressure or fail the fusion path.
