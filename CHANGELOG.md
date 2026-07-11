@@ -79,8 +79,9 @@ Open-source readiness and quality hardening.
   time, applies HOLD on malformed calls, and clears buffered freshness on reset.
 
 ### Changed
-- **Re-pinned NCP to `v0.7.0` and adopted the complete typed reply contract.**
-  Cargo and npm manifests plus both lockfiles now resolve the immutable release
+- **Re-pinned NCP to `v0.7.1` and adopted the complete typed reply contract.**
+  The `v0.7.1` SDK is a wire-identical patch over `v0.7.0`; Cargo and npm
+  manifests plus both lockfiles now resolve the immutable patch release
   commit. Native lifecycle RPCs use `ZenohNcpClient`, typed/versioned error frames
   are bound to request and session identity, forward enum values stay lossless but
   cannot actuate, and the TypeScript guard delegates complete message validation

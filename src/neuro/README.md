@@ -19,7 +19,7 @@ NCP wire types, enums, `NeuroSimClient`, and `WebSocketNeuroSim` are owned by
 
 Keep `package.json`, `bun.lock`, `src-tauri/Cargo.toml`, and
 `src-tauri/Cargo.lock` coherent when upgrading. Do not use stale external Engram
-wire-0.6 examples as the version source; the current CREBAIN pin is `v0.7.0`.
+wire-0.6 examples as the version source; the current CREBAIN pin is `v0.7.1`.
 
 ## Guarded example
 
