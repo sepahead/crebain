@@ -61,7 +61,7 @@
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.19.3",
-    "@sepahead/ncp": "github:sepahead/NCP#v0.7.1",
+    "@sepahead/ncp": "github:sepahead/NCP#wire-0.8-stream-identity",
     "@sparkjsdev/spark": "^0.1.10",
     "comlink": "^4.4.2",
     "onnxruntime-web": "^1.27.0",

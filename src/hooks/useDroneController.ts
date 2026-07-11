@@ -44,7 +44,14 @@ export interface DevNcpCommandFrame {
   kind?: unknown
   ncp_version?: unknown
   mode?: unknown
-  seq?: unknown
+  // Wire 0.8: the old top-level `seq` is gone. `stream` is THIS frame's own
+  // `{epoch, seq}` (the ActionBuffer dedup / `seq >= 1` gate reads it); `source`
+  // is the driving sensor echo (correlation only); `session_id`/`session` bind the
+  // live session incarnation.
+  stream?: unknown
+  source?: unknown
+  session?: unknown
+  session_id?: unknown
   t?: unknown
   frame_id?: unknown
   ttl_ms?: unknown
@@ -138,9 +145,14 @@ export function normalizeDevNcpCommand(input: unknown): CommandLike {
   if (!isRecord(input)) throw new Error('NCP command must be an object')
   const mode = input.mode === undefined ? 'hold' : input.mode
   if (!isWireMode(mode)) throw new Error('NCP command mode is invalid')
-  const seq = input.seq
+  // Wire 0.8: the frame's OWN position lives in `stream.seq` (the ActionBuffer
+  // dedup / `seq >= 1` gate), not a top-level `seq`. `assertWireFrame` below fully
+  // validates `stream.epoch` / `session.generation` / `session_id`.
+  const stream = input.stream
+  if (!isRecord(stream)) throw new Error('NCP command stream must be an object')
+  const seq = stream.seq
   if (typeof seq !== 'number' || !Number.isSafeInteger(seq) || seq < 1) {
-    throw new Error('NCP command seq must be a safe integer greater than zero')
+    throw new Error('NCP command stream.seq must be a safe integer greater than zero')
   }
   if (Array.isArray(input.horizon) && input.horizon.length > MAX_DEV_NCP_HORIZON_STEPS) {
     throw new Error(`NCP command horizon exceeds ${MAX_DEV_NCP_HORIZON_STEPS} steps`)
@@ -151,6 +163,12 @@ export function normalizeDevNcpCommand(input: unknown): CommandLike {
     throw new Error('NCP command ncp_version must be a string')
   }
 
+  // Forward the validated wire-0.8 identity so the normalized command still passes
+  // the ActionBuffer's own ingress gate and epoch-keyed acceptance downstream.
+  const streamOut: CommandLike['stream'] = { epoch: stream.epoch as string, seq }
+  const session = input.session as CommandLike['session']
+  const sessionId = input.session_id as CommandLike['session_id']
+
   // Fail-safe modes never need to retain attacker-controlled channel/horizon
   // payloads. Normalize them to the smallest safe command after the envelope
   // gate; omitted mode/channels follow the wire-0.7 HOLD/empty-map defaults.
@@ -159,7 +177,9 @@ export function normalizeDevNcpCommand(input: unknown): CommandLike {
       kind: 'command_frame',
       ncp_version: ncpVersion,
       mode,
-      seq,
+      stream: streamOut,
+      session,
+      session_id: sessionId,
       ttl_ms: 200,
       channels: Object.create(null) as WireChannels,
     }
@@ -225,7 +245,9 @@ export function normalizeDevNcpCommand(input: unknown): CommandLike {
     kind: 'command_frame',
     ncp_version: ncpVersion,
     mode,
-    seq,
+    stream: streamOut,
+    session,
+    session_id: sessionId,
     t: typeof input.t === 'number' ? input.t : undefined,
     frame_id: typeof input.frame_id === 'string' ? input.frame_id : undefined,
     ttl_ms: ttlMs,
@@ -243,7 +265,9 @@ export function ingestDevNcpCommand(
   input: unknown
 ): CommandLike {
   if (isRecord(input) && input.mode === 'estop') {
-    buffer.onCommand(nowS, { mode: 'estop', seq: 0, channels: {} })
+    // Wire 0.8: the old `{ estop, seq: 0 }` unstamped sentinel becomes an unstamped
+    // `stream.seq`. A fail-safe latches regardless of stream identity/ordering.
+    buffer.onCommand(nowS, { mode: 'estop', stream: { epoch: '', seq: 0 }, channels: {} })
   }
   if (!Number.isFinite(nowS) || nowS < 0) throw new Error('NCP receive time is invalid')
   const command = normalizeDevNcpCommand(input)

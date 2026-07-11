@@ -25,8 +25,8 @@ use crate::transport::{PoseData, TwistStampedData, VelocityCmd};
 use ncp_core::keys::Keys;
 use ncp_core::{
     ChannelValue, CloseSession, CommandFrame, NetworkRef, NetworkRefKind, Observation,
-    ObservationFrame, OpenSession, RecordSpec, RecordTarget, SensorFrame, SessionClosed, SimConfig,
-    StepRequest, StimulusFrame, StimulusSpec, StimulusTarget,
+    ObservationFrame, OpenSession, RecordSpec, RecordTarget, SensorFrame, SessionClosed, SessionRef,
+    SimConfig, StepRequest, StimulusFrame, StimulusSpec, StimulusTarget, StreamPosition,
 };
 use ncp_zenoh::{ZenohBus, ZenohNcpClient};
 use serde::Deserialize;
@@ -211,12 +211,17 @@ where
 // ───────────────────────── project mapping (CREBAIN-specific) ─────────────────────────
 
 /// CREBAIN pose + body velocity → an NCP `SensorFrame` (perception plane).
-/// Channels: `pose_position` (vec3, m), `pose_velocity` (vec3, m/s). `seq`/`t`
-/// stamp the frame so the command computed from it can echo the same `seq`.
+/// Channels: `pose_position` (vec3, m), `pose_velocity` (vec3, m/s). Wire 0.8:
+/// `stream` stamps this sensor stream's OWN incarnation + position (the `{epoch,
+/// seq}` a command computed from it echoes back in `source`), and
+/// `session_id`/`session` bind the frame to the live session incarnation; `t` is
+/// producer-local monotonic seconds.
 pub fn sensor_frame_from_pose(
     pose: &PoseData,
     vel: &VelocityCmd,
-    seq: i64,
+    stream: StreamPosition,
+    session_id: &str,
+    session: SessionRef,
 ) -> Result<SensorFrame, String> {
     let mut channels = ncp_core::Map::new();
     channels.insert(
@@ -233,7 +238,9 @@ pub fn sensor_frame_from_pose(
         ChannelValue::vec3(vel.linear[0], vel.linear[1], vel.linear[2], Some("m/s")),
     );
     let frame = SensorFrame {
-        seq,
+        stream,
+        session,
+        session_id: session_id.to_string(),
         t: pose.timestamp,
         frame_id: pose.frame_id.clone(),
         channels,
@@ -350,7 +357,12 @@ fn command_for_buffer(command: &CommandFrame) -> Result<CommandFrame, String> {
         return Ok(CommandFrame {
             ncp_version: command.ncp_version.clone(),
             kind: "command_frame".into(),
-            seq: command.seq,
+            // Wire 0.8: copy this command stream's OWN position — the ActionBuffer
+            // dedup / `seq >= 1` gate reads `stream.{epoch,seq}` — AND the driving
+            // sensor echo in `source` (correlation/provenance, never loss accounting).
+            stream: command.stream.clone(),
+            source: command.source.clone(),
+            source_t: command.source_t,
             t: command.t,
             frame_id: command.frame_id.clone(),
             mode: ncp_core::Mode::Active,
@@ -358,14 +370,17 @@ fn command_for_buffer(command: &CommandFrame) -> Result<CommandFrame, String> {
             channels,
             horizon,
             horizon_dt_ms: command.horizon_dt_ms,
+            session: command.session.clone(),
+            session_id: command.session_id.clone(),
         });
     }
 
-    // HOLD/INIT carry no actuator payload into the persistent buffer. Their
-    // sequence still supersedes a previous Active command; ESTOP is handled by
-    // the caller even earlier and is likewise reduced to this minimal shape.
+    // HOLD/INIT carry no actuator payload into the persistent buffer. Their OWN
+    // stream still supersedes a previous Active command in the ActionBuffer (the
+    // `stream.{epoch,seq}` discipline); ESTOP is handled by the caller even earlier
+    // and is likewise reduced to this minimal shape.
     Ok(CommandFrame {
-        seq: command.seq,
+        stream: command.stream.clone(),
         mode: command.mode.clone(),
         ttl_ms: 0.0,
         ..Default::default()
@@ -1136,6 +1151,26 @@ pub async fn ncp_close(
 mod tests {
     use super::*;
 
+    // Wire-0.8 identity fixtures: canonical lowercase UUIDv4 `stream.epoch` /
+    // `session.generation` and a valid `session_id`, so a constructed frame passes
+    // `WireFrame::validate_wire`.
+    const TEST_EPOCH: &str = "00000000-0000-4000-8000-000000000001";
+    const TEST_GEN: &str = "00000000-0000-4000-8000-0000000000a2";
+    const TEST_SID: &str = "sess";
+
+    fn test_stream(seq: i64) -> StreamPosition {
+        StreamPosition {
+            epoch: TEST_EPOCH.into(),
+            seq,
+        }
+    }
+
+    fn test_session() -> SessionRef {
+        SessionRef {
+            generation: TEST_GEN.into(),
+        }
+    }
+
     fn command_channels(values: Vec<f64>, unit: Option<&str>) -> ncp_core::Map<ChannelValue> {
         let mut channels = ncp_core::Map::new();
         channels.insert(
@@ -1150,7 +1185,9 @@ mod tests {
 
     fn active_command(values: Vec<f64>, unit: Option<&str>) -> CommandFrame {
         CommandFrame {
-            seq: 1,
+            stream: test_stream(1),
+            session: test_session(),
+            session_id: TEST_SID.into(),
             mode: ncp_core::Mode::Active,
             ttl_ms: 200.0,
             channels: command_channels(values, unit),
@@ -1251,8 +1288,13 @@ mod tests {
 
     #[test]
     fn typed_rpc_gate_rejects_wrong_kinds_and_unversioned_or_misattributed_errors() {
+        // A VALID wire-0.8 observation (stamped stream/session identity) of the
+        // WRONG kind for a close_session request: it must pass frame validation and
+        // then be rejected specifically as a reply-kind mismatch.
         let wrong_kind = serde_json::to_vec(&ObservationFrame {
             session_id: "session-1".into(),
+            stream: test_stream(1),
+            session: test_session(),
             ..Default::default()
         })
         .unwrap();
@@ -1379,8 +1421,8 @@ mod tests {
             linear: [0.1, 0.2, 0.3],
             angular: [0.0, 0.0, 0.0],
         };
-        let f = sensor_frame_from_pose(&pose, &vel, 42).unwrap();
-        assert_eq!(f.seq, 42);
+        let f = sensor_frame_from_pose(&pose, &vel, test_stream(42), TEST_SID, test_session()).unwrap();
+        assert_eq!(f.stream.seq, 42);
         assert_eq!(f.frame_id, "map");
         assert_eq!(f.channels["pose_position"].data, vec![1.0, 2.0, 3.0]);
         assert_eq!(f.channels["pose_velocity"].data, vec![0.1, 0.2, 0.3]);
@@ -1398,7 +1440,7 @@ mod tests {
             linear: [0.0; 3],
             angular: [0.0; 3],
         };
-        assert!(sensor_frame_from_pose(&pose, &vel, 0).is_err());
+        assert!(sensor_frame_from_pose(&pose, &vel, test_stream(0), TEST_SID, test_session()).is_err());
     }
 
     #[test]
@@ -1429,7 +1471,9 @@ mod tests {
     #[test]
     fn active_command_rejects_malformed_or_unbounded_velocity_channels() {
         let missing = CommandFrame {
-            seq: 1,
+            stream: test_stream(1),
+            session: test_session(),
+            session_id: TEST_SID.into(),
             mode: ncp_core::Mode::Active,
             ttl_ms: 200.0,
             ..Default::default()
@@ -1494,7 +1538,7 @@ mod tests {
 
         let mut unsafe_replacement =
             active_command(vec![MAX_LINEAR_SPEED_MPS + 1.0, 0.0, 0.0], Some("m/s"));
-        unsafe_replacement.seq = 2;
+        unsafe_replacement.stream.seq = 2;
         assert!(plant.on_command(0.01, unsafe_replacement).is_err());
         assert_eq!(plant.velocity_at(0.015).twist.linear, [1.0, 0.0, 0.0]);
         assert_eq!(plant.velocity_at(0.03).twist.linear, [0.0, 0.0, 0.0]);
@@ -1549,7 +1593,7 @@ mod tests {
         assert_eq!(sanitized.horizon[0].len(), 1);
 
         let hold = command_for_buffer(&CommandFrame {
-            seq: 2,
+            stream: test_stream(2),
             mode: ncp_core::Mode::Hold,
             channels: active.channels,
             horizon: active.horizon,
@@ -1577,7 +1621,7 @@ mod tests {
             .unwrap();
 
         let malformed_active = serde_json::to_vec(&CommandFrame {
-            seq: 0,
+            stream: test_stream(0),
             mode: ncp_core::Mode::Active,
             ttl_ms: 200.0,
             channels: command_channels(vec![9.0, 0.0, 0.0], Some("m/s")),
@@ -1783,8 +1827,9 @@ mod tests {
             linear: [0.0, 0.0, 0.0],
             angular: [0.0, 0.0, 0.0],
         };
-        let sf = sensor_frame_from_pose(&pose, &vel, 5).unwrap();
-        assert_eq!(sf.seq, 5);
+        let sf =
+            sensor_frame_from_pose(&pose, &vel, test_stream(5), TEST_SID, test_session()).unwrap();
+        assert_eq!(sf.stream.seq, 5);
         assert_eq!(sf.channels["pose_position"].data[0], 2.0);
 
         // ACTION: a predictive command (tick0 + 2-step horizon, 50 ms, ttl 200 ms)
@@ -1800,9 +1845,13 @@ mod tests {
         };
         let mut plant = CommandPlant::new("base_link");
         let cmd = CommandFrame {
-            // A command MUST stamp seq >= 1 (echoing the sensor seq); the
-            // ActionBuffer drops seq<1, so an unstamped fixture would HOLD.
-            seq: 5,
+            // Wire 0.8: a command MUST stamp stream.seq >= 1 (its own position,
+            // echoing the driving sensor's stream in `source`); the ActionBuffer
+            // drops stream.seq < 1, so an unstamped fixture would HOLD.
+            stream: test_stream(5),
+            source: Some(test_stream(5)),
+            session: test_session(),
+            session_id: TEST_SID.into(),
             mode: ncp_core::Mode::Active,
             ttl_ms: 200.0,
             channels: mk(-0.5),
