@@ -17,7 +17,7 @@ Compiling this module does not make CREBAIN an always-on Engram body.
 
 ## Build and test
 
-The SDK is pinned to tag `v0.7.0` in both Cargo and npm manifests. A sibling
+The SDK is pinned to tag `v0.7.1` in both Cargo and npm manifests. A sibling
 checkout is not required, but the pinned Git dependency must be resolvable when
 Cargo resolves/builds the feature.
 

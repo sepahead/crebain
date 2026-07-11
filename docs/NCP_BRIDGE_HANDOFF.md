@@ -24,7 +24,7 @@ the NCP feature; “no sibling checkout” does not mean “no dependency resolu
 ## Current dependency contract
 
 The canonical NCP SDK lives at `github.com/sepahead/NCP`. CREBAIN pins tag
-`v0.7.0` in:
+`v0.7.1` in:
 
 - `ncp-core` and `ncp-zenoh` in `src-tauri/Cargo.toml` / `Cargo.lock`; and
 - `@sepahead/ncp` in `package.json` / `bun.lock`.
