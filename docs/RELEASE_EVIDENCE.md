@@ -23,7 +23,7 @@ network topology, credentials, or operator acceptance record.
 | Rust default/NCP/feature result | Local default/NCP suites above; hosted macOS passed 252 default and 290 NCP tests, Linux passed 234 default and 272 NCP tests, and `--no-default-features` plus `cuda,tensorrt` feature checks passed |
 | Hardware-WebGL performance smoke | 60.0 FPS empty, 39.5 FPS splat, 37.2 FPS splat plus feeds against unchanged 50/25/12 floors; Apple M4 Max Chromium Metal |
 | Manual smoke | Pending target-platform execution |
-| Boundary focus | Pinned NCP wire-0.6 reply validation; raw ESTOP latching; bounded command ingress; per-session lifecycle/action ownership; secure-by-default Zenoh posture; isolated Vite-dev harness state |
+| Boundary focus | Pinned NCP wire-0.7 typed reply validation; raw ESTOP latching; bounded command ingress; per-session lifecycle/action ownership; secure-by-default Zenoh posture; isolated Vite-dev harness state |
 
 ## Automated evidence required
 

@@ -23,7 +23,7 @@ function activeCommand(seq = 1) {
 }
 
 describe('dev NCP command ingress', () => {
-  it('accepts a complete published wire-0.6 command', () => {
+  it('accepts a complete published wire-0.7 command', () => {
     const command = normalizeDevNcpCommand(activeCommand())
     expect(command.mode).toBe('active')
     expect(command.channels.velocity_setpoint?.data).toEqual([1, 2, 3])
@@ -44,14 +44,21 @@ describe('dev NCP command ingress', () => {
       { kind: undefined },
       { kind: 'sensor_frame' },
       { ncp_version: undefined },
-      { ncp_version: '0.5' },
+      { ncp_version: '0.6' },
       { seq: 0 },
       { seq: 1.5 },
       { seq: Number.MAX_SAFE_INTEGER + 1 },
-      { mode: 'future_mode' },
     ]) {
       expect(() => normalizeDevNcpCommand({ ...activeCommand(), ...patch })).toThrow()
     }
+  })
+
+  it('preserves an additive mode but only the literal active mode can actuate', () => {
+    const stream = new DevNcpCommandStream()
+    const command = stream.ingest(1, { ...activeCommand(), mode: 'future_mode' })
+    expect(command.mode).toBe('future_mode')
+    expect(command.channels).toEqual({})
+    expect(stream.active(1)).toBeNull()
   })
 
   it('rejects malformed velocity channels', () => {
@@ -107,9 +114,9 @@ describe('dev NCP command ingress', () => {
         horizon_dt_ms: 50,
         horizon: [step, step, step],
       })
-    ).toThrow(/horizon exceeds/)
+    ).toThrow(/horizon|ttl/)
     expect(() => normalizeDevNcpCommand({ ...activeCommand(), horizon: [step] })).toThrow(
-      /requires horizon_dt_ms/
+      /horizon_dt_ms/
     )
     expect(() =>
       normalizeDevNcpCommand({
@@ -121,6 +128,7 @@ describe('dev NCP command ingress', () => {
     expect(() =>
       normalizeDevNcpCommand({
         ...activeCommand(),
+        ttl_ms: 60_000,
         horizon_dt_ms: 1,
         horizon: new Array(1_001).fill(step),
       })
@@ -136,6 +144,7 @@ describe('dev NCP command ingress', () => {
     expect(() =>
       normalizeDevNcpCommand({
         ...activeCommand(),
+        ttl_ms: 60_000,
         horizon_dt_ms: 1,
         horizon: new Array(1_001).fill(unvisitedStep),
       })

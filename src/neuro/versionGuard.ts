@@ -2,20 +2,19 @@
  * Reply `ncp_version` + scientific-boundary guard — CREBAIN-specific TS glue over
  * `@sepahead/ncp`.
  *
- * The canonical `NeuroSimClient` stamps `ncp_version` on every request and
- * validates success versions internally. CREBAIN also gates the transport
- * boundary so reply shape, scientific claims, and request attribution fail closed
- * before the canonical client consumes them.
+ * The canonical `NeuroSimClient` stamps `ncp_version` on every request and wire
+ * 0.7 validates success and typed-error replies internally. CREBAIN also gates
+ * the transport boundary so reply shape, scientific claims, and request
+ * attribution fail closed before the canonical client consumes them.
  *
- * NCP stays pinned at immutable release v0.6.0. Wire-0.6 error frames are
- * deliberately unversioned and may omit session identity; a present session must
- * still match the request.
+ * NCP stays pinned by immutable release tag. Typed errors pass the same canonical
+ * version/message gate as successes; optional request/session attribution must
+ * match when present.
  */
 import {
   NCP_VERSION,
-  assertWireFrame,
+  assertNcpMessage,
   checkVersion,
-  assertScientificBoundary,
   NcpVersionError,
   type Send,
 } from '@sepahead/ncp'
@@ -43,6 +42,7 @@ export class NcpVersionMismatchError extends Error {
  */
 export function guardReplyVersion(send: Send): Send {
   return async (message) => {
+    assertNcpMessage(message)
     const reply = await send(message)
     assertReplyVersion(reply)
     assertReplyAttribution(reply, message)
@@ -51,59 +51,31 @@ export function guardReplyVersion(send: Send): Send {
 }
 
 /**
- * Validate one parsed reply. Successes must be complete and version-compatible.
- * Wire-0.6 error frames have no mandatory version but must carry a non-empty
- * error and can never pass as success.
+ * Validate one parsed reply. Successes and typed errors must both be complete
+ * and wire-compatible; an unversioned error is not a safe escape hatch.
  */
 export function assertReplyVersion(reply: unknown): void {
   if (!isRecord(reply)) throw new Error('NCP reply is not an object')
-
-  if (reply.kind === 'error') {
-    if (typeof reply.error !== 'string' || reply.error.length === 0) {
-      throw new Error('NCP error reply must include a non-empty string error')
-    }
-    if (
-      reply.session_id !== undefined &&
-      reply.session_id !== null &&
-      (typeof reply.session_id !== 'string' || reply.session_id.length === 0)
-    ) {
-      throw new Error('NCP error reply session_id must be a string or null')
-    }
-    return
-  }
-
   const received = reply.ncp_version
+  if (typeof received !== 'string') throw new NcpVersionMismatchError(received)
   try {
-    if (typeof received !== 'string') throw new NcpVersionMismatchError(received)
     checkVersion(received, true)
-    if (reply.kind === 'observation_frame') {
-      assertWireFrame(reply, 'observation_frame')
-      if (typeof reply.session_id !== 'string' || reply.session_id.length === 0) {
-        throw new Error('NCP observation_frame reply must include a non-empty string session_id')
-      }
-      if (!isRecord(reply.records)) {
-        throw new Error('NCP observation_frame reply must include a records object')
-      }
-    } else if (reply.kind === 'session_opened' || reply.kind === 'session_closed') {
-      if (typeof reply.session_id !== 'string' || reply.session_id.length === 0) {
-        throw new Error(`NCP ${reply.kind} reply must include a non-empty string session_id`)
-      }
-      if (typeof reply.ok !== 'boolean') {
-        throw new Error(`NCP ${reply.kind} reply must include a boolean ok field`)
-      }
-      if (!reply.ok) {
-        const detail =
-          typeof reply.error === 'string' && reply.error.length > 0 ? `: ${reply.error}` : ''
-        throw new Error(`NCP ${reply.kind} reply rejected the request${detail}`)
-      }
-    } else {
-      throw new Error(`unsupported NCP reply kind ${JSON.stringify(reply.kind)}`)
-    }
+    assertNcpMessage(reply)
   } catch (error) {
     if (error instanceof NcpVersionError) throw new NcpVersionMismatchError(received)
     throw error
   }
-  assertScientificBoundary(reply)
+
+  if (reply.kind === 'error' || reply.kind === 'observation_frame') return
+  if (reply.kind === 'session_opened' || reply.kind === 'session_closed') {
+    if (reply.ok !== true) {
+      const detail =
+        typeof reply.error === 'string' && reply.error.length > 0 ? `: ${reply.error}` : ''
+      throw new Error(`NCP ${reply.kind} reply rejected the request${detail}`)
+    }
+    return
+  }
+  throw new Error(`unsupported NCP reply kind ${JSON.stringify(reply.kind)}`)
 }
 
 const EXPECTED_REPLY_KIND: Readonly<Record<string, string>> = {
@@ -127,6 +99,11 @@ function assertReplyAttribution(
     throw new Error('NCP lifecycle request carries no non-empty string session_id')
   }
   if (reply.kind === 'error') {
+    if (reply.request_kind != null && reply.request_kind !== requestKind) {
+      throw new Error(
+        `NCP error request_kind mismatch: expected ${JSON.stringify(requestKind)}, got ${JSON.stringify(reply.request_kind)}`
+      )
+    }
     if (reply.session_id != null && reply.session_id !== sessionId) {
       throw new Error(
         `NCP error session mismatch: expected ${JSON.stringify(sessionId)}, got ${JSON.stringify(reply.session_id)}`

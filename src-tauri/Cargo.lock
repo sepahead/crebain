@@ -3251,8 +3251,8 @@ dependencies = [
 
 [[package]]
 name = "ncp-core"
-version = "0.6.0"
-source = "git+https://github.com/sepahead/NCP?tag=v0.6.0#02f3d7be7db39feb3eb59253c6fb5b7260cbf1e7"
+version = "0.7.0"
+source = "git+https://github.com/sepahead/NCP?tag=v0.7.0#702665e7d791891d4f49aa6655f980e4556fffd4"
 dependencies = [
  "serde",
  "serde_json",
@@ -3260,8 +3260,8 @@ dependencies = [
 
 [[package]]
 name = "ncp-zenoh"
-version = "0.6.0"
-source = "git+https://github.com/sepahead/NCP?tag=v0.6.0#02f3d7be7db39feb3eb59253c6fb5b7260cbf1e7"
+version = "0.7.0"
+source = "git+https://github.com/sepahead/NCP?tag=v0.7.0#702665e7d791891d4f49aa6655f980e4556fffd4"
 dependencies = [
  "ncp-core",
  "serde",
@@ -3474,7 +3474,7 @@ version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "680998035259dcfcafe653688bf2aa6d3e2dc05e98be6ab46afb089dc84f1df8"
 dependencies = [
- "proc-macro-crate 3.5.0",
+ "proc-macro-crate 2.0.2",
  "proc-macro2",
  "quote",
  "syn 2.0.117",
@@ -5738,7 +5738,7 @@ version = "72.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b31c4b2434980b67ad83f300a58088ba14d59454dcd79ba3d87419bbd924d31e"
 dependencies = [
- "proc-macro-crate 3.5.0",
+ "proc-macro-crate 2.0.2",
  "proc-macro2",
  "quote",
  "syn 2.0.117",
@@ -6419,6 +6419,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
+name = "tls-listener"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1461056cc1ef47003f7ee16e4cef3741068d4c7f6b627bfce49b7c00c120a530"
+dependencies = [
+ "futures-util",
+ "pin-project-lite",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-rustls",
+]
+
+[[package]]
 name = "token-cell"
 version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6453,6 +6466,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "tokio-rustls"
+version = "0.26.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1729aa945f29d91ba541258c8df89027d5792d85a8841fb65e8bf0f4ede4ef61"
+dependencies = [
+ "rustls",
+ "tokio",
 ]
 
 [[package]]
@@ -8220,6 +8243,7 @@ dependencies = [
  "zenoh-config",
  "zenoh-link-commons",
  "zenoh-link-tcp",
+ "zenoh-link-tls",
  "zenoh-link-udp",
  "zenoh-protocol",
  "zenoh-result",
@@ -8295,6 +8319,36 @@ dependencies = [
  "zenoh-link-commons",
  "zenoh-protocol",
  "zenoh-result",
+]
+
+[[package]]
+name = "zenoh-link-tls"
+version = "1.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e6f6b308ae2599f9c1344fbcd3418b2c3a3a9fe287ec39501ba834168493ba37"
+dependencies = [
+ "async-trait",
+ "base64 0.22.1",
+ "rustls",
+ "rustls-pemfile",
+ "rustls-pki-types",
+ "rustls-webpki",
+ "secrecy",
+ "socket2 0.5.10",
+ "time",
+ "tls-listener",
+ "tokio",
+ "tokio-rustls",
+ "tokio-util",
+ "tracing",
+ "webpki-roots",
+ "x509-parser",
+ "zenoh-config",
+ "zenoh-core",
+ "zenoh-link-commons",
+ "zenoh-protocol",
+ "zenoh-result",
+ "zenoh-runtime",
 ]
 
 [[package]]
