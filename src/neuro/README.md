@@ -2,8 +2,8 @@
 
 This directory re-exports the pinned `@sepahead/ncp` package and adds
 `guardReplyVersion`, CREBAIN's strict transport wrapper for compatible reply
-versions, success kind/session attribution, explicit success status, optional
-error-session consistency, and NCP scientific-boundary fields.
+versions, success kind/session attribution, explicit success status, typed-error
+request/session attribution, and NCP scientific-boundary fields.
 
 It is **not imported by any product component or hook today**. No WebSocket is
 opened, no session is created, and no always-on CREBAIN↔Engram loop ships from
@@ -19,7 +19,7 @@ NCP wire types, enums, `NeuroSimClient`, and `WebSocketNeuroSim` are owned by
 
 Keep `package.json`, `bun.lock`, `src-tauri/Cargo.toml`, and
 `src-tauri/Cargo.lock` coherent when upgrading. Do not use stale external Engram
-wire-0.5 examples as the version source; the current CREBAIN pin is `v0.6.0`.
+wire-0.6 examples as the version source; the current CREBAIN pin is `v0.7.0`.
 
 ## Guarded example
 
@@ -51,10 +51,10 @@ await engram.close('uav3-percept')
 
 The guard always throws when a success reply lacks a compatible `ncp_version`,
 the expected kind/session, an explicit successful boolean `ok` where applicable,
-or valid carried scientific-boundary fields. Wire-0.6 error frames are
-unversioned and may omit `session_id`; their shape is validated, a present
-session must match, and the SDK then surfaces the denial. There is no permissive
-or warning-only mode.
+or valid carried scientific-boundary fields. Wire-0.7 typed errors are versioned;
+their optional `request_kind` and `session_id` must match the originating request
+when present, and the SDK then surfaces the denial. There is no permissive or
+warning-only mode.
 
 ## Transport choices are integration work
 

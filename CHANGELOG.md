@@ -69,15 +69,22 @@ Open-source readiness and quality hardening.
   unit, and speed failures HOLD at zero, and stop/close emits a final HOLD. The
   feature and Tauri commands remain off/unregistered, so this is not a live
   product loop.
-- **Optional NCP boundaries now fail closed without unreleased wire-0.7 APIs.**
-  The pinned wire-0.6 bridge caps command payloads, retains only bounded actuator
-  data, latches a minimal raw ESTOP, serializes start/open/close per session,
-  drops dedicated subscriber handles, and requires explicit lifecycle `ok`
-  fields. The Vite-dev harness now validates complete active frames, isolates
-  sequence/deadline state per drone, derives motion from local elapsed time,
-  applies HOLD on malformed calls, and clears buffered freshness on reset.
+- **Optional NCP boundaries now fail closed on the published wire-0.7 contract.**
+  The native bridge caps command payloads, retains only bounded actuator data,
+  latches a minimal raw ESTOP, serializes start/open/close per session, drops
+  dedicated subscriber handles, and delegates lifecycle reply validation to the
+  SDK's typed `ZenohNcpClient`. The Vite-dev harness validates complete active
+  frames, preserves additive modes without granting them actuation authority,
+  isolates sequence/deadline state per drone, derives motion from local elapsed
+  time, applies HOLD on malformed calls, and clears buffered freshness on reset.
 
 ### Changed
+- **Re-pinned NCP to `v0.7.0` and adopted the complete typed reply contract.**
+  Cargo and npm manifests plus both lockfiles now resolve the immutable release
+  commit. Native lifecycle RPCs use `ZenohNcpClient`, typed/versioned error frames
+  are bound to request and session identity, forward enum values stay lossless but
+  cannot actuate, and the TypeScript guard delegates complete message validation
+  to the canonical SDK. Wire `0.6` peers are rejected fail closed.
 - **SPD covariance solves use Cholesky instead of explicit inversion** at the six
   innovation/association sites (KF, EKF, UKF gains; IMM likelihoods; association gate;
   measurement clustering): cheaper, better conditioned, and failure is a principled

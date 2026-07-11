@@ -24,14 +24,14 @@ the NCP feature; “no sibling checkout” does not mean “no dependency resolu
 ## Current dependency contract
 
 The canonical NCP SDK lives at `github.com/sepahead/NCP`. CREBAIN pins tag
-`v0.6.0` in:
+`v0.7.0` in:
 
 - `ncp-core` and `ncp-zenoh` in `src-tauri/Cargo.toml` / `Cargo.lock`; and
 - `@sepahead/ncp` in `package.json` / `bun.lock`.
 
 All four files must move together. Wire compatibility is validated by the SDK;
 CREBAIN does not coerce incompatible or missing versions into success. External
-Engram examples that still show wire `0.5`, older package scopes, or `std_msgs`
+Engram examples that still show wire `0.6` or older, old package scopes, or `std_msgs`
 profiles are stale integration material and must be corrected in their owning
 repository rather than copied here.
 
@@ -68,10 +68,11 @@ Action reservations and persistent close tombstones are cardinality-bounded;
 tombstone saturation fails closed until reconnect rather than evicting safety
 state.
 
-Lifecycle RPCs use the pinned SDK's canonical wire types plus a local raw reply
-decoder because v0.6 defaults a missing `ok` to `true` after deserialization. The
-decoder therefore requires the boolean field to be present before accepting a
-success.
+Lifecycle RPCs use the pinned SDK's `ZenohNcpClient` typed gates. Wire 0.7 checks
+the raw envelope before deserialization, requires explicit lifecycle result
+fields, binds reply kind/session to the originating request, and validates
+versioned typed-error attribution. CREBAIN accepts no local permissive reply
+path.
 
 This remains a library guarantee, not a product deployment claim: no registered
 command or frontend hook calls the loop, and no callback is wired to MAVROS by

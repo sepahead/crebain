@@ -67,8 +67,13 @@ function containsUnsafeText(value: string): boolean {
   )
 }
 
-function isMode(value: unknown): value is Mode {
-  return value === 'init' || value === 'active' || value === 'hold' || value === 'estop'
+function isWireMode(value: unknown): value is Mode {
+  return (
+    typeof value === 'string' &&
+    value.length > 0 &&
+    utf8Length(value) <= MAX_DEV_NCP_NAME_BYTES &&
+    !containsUnsafeText(value)
+  )
 }
 
 function parseWireChannels(value: unknown, label: string): WireChannels {
@@ -128,14 +133,17 @@ function requireVelocitySetpoint(channels: WireChannels, label: string): void {
   }
 }
 
-/** Normalize and validate the dev-only NCP action ingress against published wire 0.6. */
+/** Normalize and validate the dev-only NCP action ingress against published wire 0.7. */
 export function normalizeDevNcpCommand(input: unknown): CommandLike {
   if (!isRecord(input)) throw new Error('NCP command must be an object')
   const mode = input.mode === undefined ? 'hold' : input.mode
-  if (!isMode(mode)) throw new Error('NCP command mode is invalid')
+  if (!isWireMode(mode)) throw new Error('NCP command mode is invalid')
   const seq = input.seq
   if (typeof seq !== 'number' || !Number.isSafeInteger(seq) || seq < 1) {
     throw new Error('NCP command seq must be a safe integer greater than zero')
+  }
+  if (Array.isArray(input.horizon) && input.horizon.length > MAX_DEV_NCP_HORIZON_STEPS) {
+    throw new Error(`NCP command horizon exceeds ${MAX_DEV_NCP_HORIZON_STEPS} steps`)
   }
   assertWireFrame(input, 'command_frame')
   const ncpVersion = input.ncp_version
@@ -145,7 +153,7 @@ export function normalizeDevNcpCommand(input: unknown): CommandLike {
 
   // Fail-safe modes never need to retain attacker-controlled channel/horizon
   // payloads. Normalize them to the smallest safe command after the envelope
-  // gate; omitted mode/channels follow the wire-0.6 HOLD/empty-map defaults.
+  // gate; omitted mode/channels follow the wire-0.7 HOLD/empty-map defaults.
   if (mode !== 'active') {
     return {
       kind: 'command_frame',
@@ -228,7 +236,7 @@ export function normalizeDevNcpCommand(input: unknown): CommandLike {
   return command
 }
 
-/** Latch raw ESTOP first, then admit only a fully validated wire-0.6 command. */
+/** Latch raw ESTOP first, then admit only a fully validated wire-0.7 command. */
 export function ingestDevNcpCommand(
   buffer: ActionBuffer,
   nowS: number,

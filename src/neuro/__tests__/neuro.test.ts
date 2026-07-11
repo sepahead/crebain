@@ -42,7 +42,7 @@ describe('src/neuro public surface', () => {
   it('re-exports the canonical NCP client, transport, and version', () => {
     expect(typeof NeuroSimClient).toBe('function')
     expect(typeof WebSocketNeuroSim).toBe('function')
-    expect(NCP_VERSION).toBe('0.6')
+    expect(NCP_VERSION).toBe('0.7')
   })
 
   it('exposes the CREBAIN reply-version guard glue', () => {
@@ -129,10 +129,10 @@ describe('reply ncp_version guard', () => {
     expect(() => assertReplyVersion(reply)).toThrow(NcpVersionMismatchError)
   })
 
-  it('rejects the previous wire (0.5) via the SDK compatibility gate', () => {
+  it('rejects the previous wire (0.6) via the SDK compatibility gate', () => {
     const reply = {
       kind: 'session_closed',
-      ncp_version: '0.5',
+      ncp_version: '0.6',
       session_id: 'session-1',
       ok: true,
     }
@@ -181,20 +181,28 @@ describe('reply ncp_version guard', () => {
     expect(() => assertReplyVersion(honest)).not.toThrow()
   })
 
-  it('accepts the published unversioned wire-0.6 error frame', () => {
+  it('accepts a complete typed wire-0.7 error frame', () => {
     const errorFrame = {
       kind: 'error',
+      ncp_version: NCP_VERSION,
       error: 'boom',
       session_id: 'session-1',
+      request_kind: 'close_session',
     }
     expect(() => assertReplyVersion(errorFrame)).not.toThrow()
   })
 
   it('rejects malformed errors, malformed successes, and primitive replies', () => {
-    expect(() => assertReplyVersion({ kind: 'error', error: '' })).toThrow(/non-empty/)
+    expect(() => assertReplyVersion({ kind: 'error', error: 'boom' })).toThrow(
+      NcpVersionMismatchError
+    )
+    expect(() =>
+      assertReplyVersion({ kind: 'error', ncp_version: NCP_VERSION, error: '' })
+    ).toThrow(/non-empty/)
     expect(() =>
       assertReplyVersion({
         kind: 'error',
+        ncp_version: NCP_VERSION,
         error: 'boom',
         session_id: 7,
       })
@@ -202,6 +210,7 @@ describe('reply ncp_version guard', () => {
     expect(() =>
       assertReplyVersion({
         kind: 'error',
+        ncp_version: NCP_VERSION,
         error: 'boom',
         session_id: '',
       })
@@ -212,7 +221,7 @@ describe('reply ncp_version guard', () => {
         ncp_version: NCP_VERSION,
         session_id: 'session-1',
       })
-    ).toThrow(/boolean ok/)
+    ).toThrow(/required field "ok"/)
     expect(() =>
       assertReplyVersion({
         kind: 'session_opened',
@@ -252,7 +261,7 @@ describe('reply ncp_version guard', () => {
     ).toThrow(/records/)
   })
 
-  it('enforces the wire-0.6 observation sequence gate', () => {
+  it('enforces the wire-0.7 observation sequence gate', () => {
     const observation = (seq: number) => ({
       kind: 'observation_frame',
       ncp_version: NCP_VERSION,
@@ -296,8 +305,10 @@ describe('reply ncp_version guard', () => {
   it('rejects success replies and errors attributed to another session', async () => {
     const wrongSession = guardReplyVersion(async () => ({
       kind: 'error',
+      ncp_version: NCP_VERSION,
       error: 'boom',
       session_id: 'other',
+      request_kind: 'close_session',
     }))
     await expect(
       wrongSession({
@@ -339,11 +350,29 @@ describe('reply ncp_version guard', () => {
     ).rejects.toThrow(/session mismatch/)
   })
 
-  it('passes a sessionless wire-0.6 error to the canonical client denial path', async () => {
+  it('rejects an error attributed to a different request kind', async () => {
+    const wrongRequest = guardReplyVersion(async () => ({
+      kind: 'error',
+      ncp_version: NCP_VERSION,
+      error: 'boom',
+      request_kind: 'open_session',
+    }))
+    await expect(
+      wrongRequest({
+        kind: 'close_session',
+        ncp_version: NCP_VERSION,
+        session_id: 'session-1',
+      })
+    ).rejects.toThrow(/request_kind mismatch/)
+  })
+
+  it('passes a sessionless typed error to the canonical client denial path', async () => {
     const client = new NeuroSimClient(
       guardReplyVersion(async () => ({
         kind: 'error',
+        ncp_version: NCP_VERSION,
         error: 'boom',
+        request_kind: 'close_session',
       }))
     )
     await expect(client.close('session-1')).rejects.toThrow('NCP error: boom')

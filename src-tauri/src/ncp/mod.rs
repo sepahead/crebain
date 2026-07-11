@@ -28,8 +28,8 @@ use ncp_core::{
     ObservationFrame, OpenSession, RecordSpec, RecordTarget, SensorFrame, SessionClosed, SimConfig,
     StepRequest, StimulusFrame, StimulusSpec, StimulusTarget,
 };
-use ncp_zenoh::ZenohBus;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use ncp_zenoh::{ZenohBus, ZenohNcpClient};
+use serde::Deserialize;
 use std::{
     collections::{HashMap, HashSet},
     fmt::Display,
@@ -208,65 +208,6 @@ where
         .map_err(|error| format!("NCP {operation} failed: {error}"))
 }
 
-fn decode_rpc_reply<T>(
-    reply: &[u8],
-    expected_kind: &str,
-    required_bool_fields: &[&str],
-) -> Result<T, String>
-where
-    T: DeserializeOwned,
-{
-    let value: serde_json::Value =
-        serde_json::from_slice(reply).map_err(|error| format!("invalid JSON reply: {error}"))?;
-    match ncp_core::message_kind(&value) {
-        Some("error") => {
-            let detail = value
-                .get("error")
-                .and_then(serde_json::Value::as_str)
-                .unwrap_or("unknown error");
-            return Err(format!("NCP error reply: {detail}"));
-        }
-        Some(kind) if kind != expected_kind => {
-            return Err(format!(
-                "NCP reply kind mismatch: expected {expected_kind:?}, got {kind:?}"
-            ));
-        }
-        Some(_) => {}
-        None => return Err("NCP reply has no string `kind`".into()),
-    }
-    ncp_core::validate(&value).map_err(|error| format!("invalid NCP reply: {error}"))?;
-    for field in required_bool_fields {
-        if value
-            .get(*field)
-            .and_then(serde_json::Value::as_bool)
-            .is_none()
-        {
-            return Err(format!(
-                "NCP {expected_kind} reply must include boolean field {field:?}"
-            ));
-        }
-    }
-    serde_json::from_value(value).map_err(|error| format!("invalid NCP reply body: {error}"))
-}
-
-async fn request_rpc<Req, Resp>(
-    bus: &ZenohBus,
-    operation: &str,
-    request: &Req,
-    expected_kind: &str,
-    required_bool_fields: &[&str],
-) -> Result<Resp, String>
-where
-    Req: Serialize,
-    Resp: DeserializeOwned,
-{
-    let request = serde_json::to_vec(request)
-        .map_err(|error| format!("NCP {operation} request serialization failed: {error}"))?;
-    let reply = rpc_with_timeout(operation, NCP_RPC_TIMEOUT, bus.request(&request)).await?;
-    decode_rpc_reply(&reply, expected_kind, required_bool_fields)
-        .map_err(|error| format!("NCP {operation} failed: {error}"))
-}
-
 // ───────────────────────── project mapping (CREBAIN-specific) ─────────────────────────
 
 /// CREBAIN pose + body velocity → an NCP `SensorFrame` (perception plane).
@@ -425,7 +366,7 @@ fn command_for_buffer(command: &CommandFrame) -> Result<CommandFrame, String> {
     // the caller even earlier and is likewise reduced to this minimal shape.
     Ok(CommandFrame {
         seq: command.seq,
-        mode: command.mode,
+        mode: command.mode.clone(),
         ttl_ms: 0.0,
         ..Default::default()
     })
@@ -804,7 +745,7 @@ fn ingest_command_payload(
         .map_err(|error| format!("invalid NCP command JSON: {error}"))?;
     if envelope.get("mode").and_then(serde_json::Value::as_str) == Some("estop") {
         // A recognizable ESTOP is fail-safe even when a peer omitted or skewed
-        // any other typed field. Every other mode must pass the full wire-0.6 gate.
+        // any other typed field. Every other mode must pass the full wire-0.7 gate.
         return lock_unpoisoned(plant).on_command(now_s, minimal_estop_command());
     }
 
@@ -818,6 +759,7 @@ fn ingest_command_payload(
 #[derive(Clone)]
 pub struct NcpBridge {
     bus: ZenohBus,
+    client: Arc<ZenohNcpClient>,
     actions: Arc<NcpActionRuntime>,
     lifecycle_locks: Arc<Mutex<HashMap<String, Weak<tokio::sync::Mutex<()>>>>>,
 }
@@ -836,7 +778,8 @@ impl NcpBridge {
     /// `Secure`; `QuietDevelopment` is available only as a deliberate local opt-in.
     pub async fn connect_with_mode(realm: &str, mode: NcpConnectionMode) -> Result<Self, String> {
         validate_realm(realm)?;
-        let keys = Keys::new(realm.to_string());
+        let keys = Keys::try_new(realm.to_string())
+            .map_err(|error| format!("invalid NCP realm: {error}"))?;
         let open = async move {
             match mode {
                 NcpConnectionMode::Secure => ZenohBus::open_secure(keys).await,
@@ -844,8 +787,10 @@ impl NcpBridge {
             }
         };
         let bus = rpc_with_timeout("zenoh_connect", NCP_RPC_TIMEOUT, open).await?;
+        let client = Arc::new(ZenohNcpClient::new(bus.clone()));
         Ok(Self {
             bus,
+            client,
             actions: Arc::new(NcpActionRuntime::default()),
             lifecycle_locks: Arc::new(Mutex::new(HashMap::new())),
         })
@@ -904,14 +849,11 @@ impl NcpBridge {
             sim: SimConfig::default(),
             ..Default::default()
         };
-        let opened: ncp_core::SessionOpened =
-            request_rpc(&self.bus, "open_session", &open, "session_opened", &["ok"]).await?;
-        let contract_status =
-            ncp_core::negotiate(&opened.ncp_version, opened.contract_hash.as_deref())
-                .map_err(|error| format!("NCP session_opened version failed: {error}"))?;
-        if let Some(advisory) = contract_status.advisory() {
-            log::warn!("ncp: {advisory}");
-        }
+        let opened = self
+            .client
+            .open_with_timeout(&open, NCP_RPC_TIMEOUT)
+            .await
+            .map_err(|error| format!("NCP open_session failed: {error}"))?;
         verify_reply_session("session_opened", session_id, &opened.session_id)?;
         if !opened.ok {
             return Err(opened
@@ -954,8 +896,11 @@ impl NcpBridge {
             }),
             ..Default::default()
         };
-        let observation: ObservationFrame =
-            request_rpc(&self.bus, "step_request", &step, "observation_frame", &[]).await?;
+        let observation = self
+            .client
+            .step_with_timeout(&step, NCP_RPC_TIMEOUT)
+            .await
+            .map_err(|error| format!("NCP step_request failed: {error}"))?;
         verify_reply_session("observation_frame", session_id, &observation.session_id)?;
         spike_count(&observation, "spk", "feat")
     }
@@ -970,17 +915,17 @@ impl NcpBridge {
         // A callback failure is surfaced even though the remote close is attempted.
         let stop_result = self.actions.stop(session_id).await;
         let close_result = async {
-            let closed: SessionClosed = request_rpc(
-                &self.bus,
-                "close_session",
-                &CloseSession {
-                    session_id: session_id.to_string(),
-                    ..Default::default()
-                },
-                "session_closed",
-                &["ok"],
-            )
-            .await?;
+            let closed = self
+                .client
+                .close_with_timeout(
+                    &CloseSession {
+                        session_id: session_id.to_string(),
+                        ..Default::default()
+                    },
+                    NCP_RPC_TIMEOUT,
+                )
+                .await
+                .map_err(|error| format!("NCP close_session failed: {error}"))?;
             ensure_close_succeeded(session_id, &closed)
         }
         .await;
@@ -1290,52 +1235,47 @@ mod tests {
     }
 
     #[test]
-    fn lifecycle_replies_require_an_explicit_boolean_ok() {
-        let opened = ncp_core::SessionOpened {
-            session_id: "session-1".into(),
-            ok: true,
-            ..Default::default()
-        };
+    fn typed_rpc_gate_requires_an_explicit_boolean_ok() {
         let closed = SessionClosed {
             session_id: "session-1".into(),
             ok: true,
             ..Default::default()
         };
-        for (mut value, kind) in [
-            (serde_json::to_value(opened).unwrap(), "session_opened"),
-            (serde_json::to_value(closed).unwrap(), "session_closed"),
-        ] {
-            value.as_object_mut().unwrap().remove("ok");
-            let bytes = serde_json::to_vec(&value).unwrap();
-            let error = match kind {
-                "session_opened" => {
-                    decode_rpc_reply::<ncp_core::SessionOpened>(&bytes, kind, &["ok"]).unwrap_err()
-                }
-                _ => decode_rpc_reply::<SessionClosed>(&bytes, kind, &["ok"]).unwrap_err(),
-            };
-            assert!(error.contains("must include boolean field \"ok\""));
-            value["ok"] = serde_json::Value::String("true".into());
-            let bytes = serde_json::to_vec(&value).unwrap();
-            let error = match kind {
-                "session_opened" => {
-                    decode_rpc_reply::<ncp_core::SessionOpened>(&bytes, kind, &["ok"]).unwrap_err()
-                }
-                _ => decode_rpc_reply::<SessionClosed>(&bytes, kind, &["ok"]).unwrap_err(),
-            };
-            assert!(error.contains("must include boolean field \"ok\""));
-        }
+        let mut value = serde_json::to_value(closed).unwrap();
+        value.as_object_mut().unwrap().remove("ok");
+        let bytes = serde_json::to_vec(&value).unwrap();
+        let error =
+            ncp_core::validate_rpc_reply_for("close_session", "session-1", &bytes).unwrap_err();
+        assert!(error.to_string().contains("required field \"ok\""));
     }
 
     #[test]
-    fn rpc_reply_decoder_rejects_wrong_kinds_and_remote_errors() {
-        let wrong_kind = serde_json::to_vec(&ObservationFrame::default()).unwrap();
-        let error =
-            decode_rpc_reply::<SessionClosed>(&wrong_kind, "session_closed", &["ok"]).unwrap_err();
-        assert!(error.contains("reply kind mismatch"));
-        let remote_error = br#"{"kind":"error","error":"denied"}"#;
-        let error =
-            decode_rpc_reply::<SessionClosed>(remote_error, "session_closed", &["ok"]).unwrap_err();
-        assert!(error.contains("NCP error reply: denied"));
+    fn typed_rpc_gate_rejects_wrong_kinds_and_unversioned_or_misattributed_errors() {
+        let wrong_kind = serde_json::to_vec(&ObservationFrame {
+            session_id: "session-1".into(),
+            ..Default::default()
+        })
+        .unwrap();
+        let error = ncp_core::validate_rpc_reply_for("close_session", "session-1", &wrong_kind)
+            .unwrap_err();
+        assert!(error.to_string().contains("reply kind mismatch"));
+
+        let unversioned_error = br#"{"kind":"error","error":"denied"}"#;
+        assert!(
+            ncp_core::validate_rpc_reply_for("close_session", "session-1", unversioned_error)
+                .is_err()
+        );
+
+        let misattributed = serde_json::to_vec(&ncp_core::ErrorFrame {
+            error: "denied".into(),
+            session_id: Some("session-1".into()),
+            request_kind: Some("open_session".into()),
+            ..Default::default()
+        })
+        .unwrap();
+        assert!(
+            ncp_core::validate_rpc_reply_for("close_session", "session-1", &misattributed).is_err()
+        );
     }
 
     #[tokio::test]
@@ -1472,6 +1412,7 @@ mod tests {
             ncp_core::Mode::Init,
             ncp_core::Mode::Hold,
             ncp_core::Mode::Estop,
+            ncp_core::Mode::Unknown("future_mode".into()),
         ] {
             let safe = CommandFrame {
                 mode,
@@ -1566,7 +1507,7 @@ mod tests {
             serde_json::to_value(active_command(vec![10.0, 0.0, 0.0], Some("m/s"))).unwrap();
         value["mode"] = serde_json::Value::String("future_mode".into());
         let command: CommandFrame = serde_json::from_value(value).unwrap();
-        assert_eq!(command.mode, ncp_core::Mode::Hold);
+        assert_eq!(command.mode, ncp_core::Mode::Unknown("future_mode".into()));
         plant.on_command(0.0, command).unwrap();
         assert_eq!(plant.velocity_at(0.0).twist.linear, [0.0, 0.0, 0.0]);
     }
@@ -1814,13 +1755,13 @@ mod tests {
 
     #[test]
     fn version_skew_is_rejected_on_session_open() {
-        // The raw RPC decoder validates replies before the bridge negotiates them.
+        // The typed NCP client validates replies before the bridge consumes them.
         assert!(
             ncp_core::check_version(ncp_core::NCP_VERSION, true).unwrap(),
             "the wire version CREBAIN is pinned to must be self-compatible"
         );
         // A stale pre-1.0 wire is a breaking-minor skew and fails closed.
-        assert!(ncp_core::check_version("0.5", true).is_err());
+        assert!(ncp_core::check_version("0.6", true).is_err());
         // A breaking-minor skew (pre-1.0 minors are breaking) is rejected, not coerced.
         assert!(ncp_core::check_version("0.1", true).is_err());
         // A different major is rejected.
