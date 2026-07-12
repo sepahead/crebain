@@ -135,6 +135,7 @@ and a diagonal measurement-noise `covariance`. The frame of `position` and
 | `visual` | Cartesian `[x, y, z]` m | `[m², m², m²]` | From triangulation / projection |
 | `thermal` | Cartesian `[x, y, z]` m | `[m², m², m²]` | |
 | `acoustic` | Cartesian `[x, y, z]` m | `[m², m², m²]` | DOA + range estimate, converted on the producer side |
+| `radiofrequency` | Cartesian `[x, y, z]` m | `[m², m², m²]` | RF bearing/multilateration fix, converted on the producer side |
 
 `velocity`, when present, is **always Cartesian** `[vx, vy, vz]` and is only used to
 seed a new track's initial velocity. Radar producers project the scalar radial

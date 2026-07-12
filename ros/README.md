@@ -36,6 +36,28 @@ The multi-drone launch files also expect PX4/MAVROS and
 `mavlink_sitl_gazebo` model assets. They are reference topology, not a bundled
 autopilot distribution.
 
+## Topic templates
+
+Standard topics the product UI subscribes to or publishes on (replace `<ns>`;
+the literal `*` is not accepted):
+
+| Topic template | Type | Direction / path |
+|----------------|------|------------------|
+| `/gazebo/model_states` | `gazebo_msgs/ModelStates` | Subscribe |
+| `/<ns>/mavros/local_position/pose` | `geometry_msgs/PoseStamped` | Subscribe |
+| `/<ns>/mavros/local_position/odom` | `nav_msgs/Odometry` | Subscribe; WebSocket UI only (Zenoh reports unsupported) |
+| `/<ns>/mavros/state` | `mavros_msgs/State` | Subscribe; WebSocket UI only |
+| `/<ns>/camera/image_raw` | `sensor_msgs/Image` | Subscribe; caller explicitly selects the raw schema |
+| `/<ns>/camera/image_raw/compressed` | `sensor_msgs/CompressedImage` | Subscribe; caller explicitly selects the compressed schema |
+| `/<ns>/camera/camera_info` | `sensor_msgs/CameraInfo` | Subscribe |
+| `/<ns>/mavros/setpoint_position/local` | `geometry_msgs/PoseStamped` | Publish |
+| `/<ns>/mavros/setpoint_velocity/cmd_vel` | `geometry_msgs/TwistStamped` | Publish |
+
+`sensor_msgs/Imu` subscriptions are part of the **Zenoh (Tauri)** native typed
+surface only — there is no fixed topic template and the TypeScript WebSocket
+bridge has no IMU support. Visual measurements come from the local detection
+pipeline, not a ROS topic.
+
 ## Custom messages and services
 
 | Topic template | Type | Path |
@@ -59,6 +81,8 @@ rosbridge:
 | `/gazebo/spawn_sdf_model` | `gazebo_msgs/SpawnModel` |
 | `/gazebo/spawn_urdf_model` | `gazebo_msgs/SpawnModel` |
 | `/gazebo/delete_model` | `gazebo_msgs/DeleteModel` |
+| `/gazebo/get_model_state` | `gazebo_msgs/GetModelState` |
+| `/gazebo/set_model_state` | `gazebo_msgs/SetModelState` |
 | `/gazebo/pause_physics`, `/gazebo/unpause_physics`, `/gazebo/reset_world`, `/gazebo/reset_simulation` | `std_srvs/Empty` |
 
 `/gazebo/spawn_entity` / `gazebo_msgs/SpawnEntity` is a different Gazebo/ROS 2
@@ -101,7 +125,10 @@ inference. The native Rust rosbridge fallback and native Zenoh transport enforce
 
 - raw encodings `rgba8`, `bgra8`, `rgb8`, `bgr8`, or `mono8`; dimensions
   `1..=8192`; `step >= width * bytes_per_pixel`; exact `height * step`; maximum
-  decoded data 64 MiB;
+  decoded data 64 MiB (the native rosbridge fallback additionally bounds raw
+  dimensions by the decoded-RGBA budget, `width * height * 4` ≤ 64 MiB, so it
+  is slightly stricter than the Zenoh path for sub-4-byte-per-pixel
+  encodings);
 - compressed PNG/JPEG bytes only, with declared format matching the bytes (empty
   format is the JPEG fallback) and the same dimension/RGBA allocation budget;
 - base64 text for rosbridge image data and base64 `CameraFrame.data` over Tauri;
