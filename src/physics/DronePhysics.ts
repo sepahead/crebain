@@ -15,6 +15,9 @@ import { logger } from '../lib/logger'
 
 const log = logger.scope('Physics')
 
+/** Fixed simulation step: 120 Hz. Shared by Rapier and the local fallback. */
+export const PHYSICS_FIXED_DT = 1 / 120
+
 type RapierModule = typeof RapierNamespace
 type World = InstanceType<RapierModule['World']>
 type RigidBody = InstanceType<RapierModule['RigidBody']>
@@ -70,6 +73,29 @@ export interface MotorCommands {
   front_right: number
   rear_left: number
   rear_right: number
+}
+
+function clampMotorCommand(value: number): number {
+  return Math.max(0, Math.min(1, value))
+}
+
+/**
+ * Canonical mixer for the local rotor order/geometry:
+ * FL (+x,+z), FR (+x,-z), RL (-x,-z), RR (-x,+z), with +Y thrust.
+ * Positive roll, pitch, and yaw therefore request +Z, +X, and +Y torque.
+ */
+export function mixQuadMotorCommands(
+  baseThrottle: number,
+  roll: number,
+  pitch: number,
+  yaw: number
+): MotorCommands {
+  return {
+    front_left: clampMotorCommand(baseThrottle + roll - pitch + yaw),
+    front_right: clampMotorCommand(baseThrottle + roll + pitch - yaw),
+    rear_left: clampMotorCommand(baseThrottle - roll + pitch + yaw),
+    rear_right: clampMotorCommand(baseThrottle - roll - pitch - yaw),
+  }
 }
 
 /** T = k_t * ω² (ω in rad/s) */
@@ -307,7 +333,6 @@ export class DronePhysicsWorld {
   private world: World | null = null
   private drones: Map<string, DronePhysicsBody> = new Map()
   private lastUpdate: number = 0
-  private physicsHz: number = 120 // Physics update rate
   private accumulator: number = 0
   private isInitialized: boolean = false
   private usingFallback: boolean = false
@@ -317,6 +342,7 @@ export class DronePhysicsWorld {
       this.RAPIER = await loadRapier()
 
       this.world = new this.RAPIER.World({ x: 0.0, y: -9.81, z: 0.0 })
+      this.world.timestep = PHYSICS_FIXED_DT
 
       const groundDesc = this.RAPIER.RigidBodyDesc.fixed()
       const groundBody = this.world.createRigidBody(groundDesc)
@@ -410,18 +436,24 @@ export class DronePhysicsWorld {
 
     if (deltaTime > 0.1) deltaTime = 0.1
 
-    const fixedDt = 1 / this.physicsHz
     this.accumulator += deltaTime
 
-    while (this.accumulator >= fixedDt) {
+    while (this.accumulator >= PHYSICS_FIXED_DT) {
       if (this.world) {
+        // Rapier integrates user forces during step(), so each drone's forces
+        // must be prepared first. Applying them afterward introduces a full
+        // fixed-step control delay and advances the first step under gravity
+        // alone.
+        for (const drone of this.drones.values()) {
+          if (drone.rigidBody) {
+            this.applyDroneForces(drone, PHYSICS_FIXED_DT)
+          }
+        }
         this.world.step()
       }
 
       for (const drone of this.drones.values()) {
         if (this.world && drone.rigidBody) {
-          this.applyDroneForces(drone, fixedDt)
-
           const pos = drone.rigidBody.translation()
           const rot = drone.rigidBody.rotation()
           const vel = drone.rigidBody.linvel()
@@ -432,13 +464,13 @@ export class DronePhysicsWorld {
           drone.state.velocity.set(vel.x, vel.y, vel.z)
           drone.state.angularVelocity.set(angVel.x, angVel.y, angVel.z)
         } else {
-          drone.updatePhysics(fixedDt)
+          drone.updatePhysics(PHYSICS_FIXED_DT)
         }
 
         drone.syncMesh()
       }
 
-      this.accumulator -= fixedDt
+      this.accumulator -= PHYSICS_FIXED_DT
     }
   }
 
@@ -626,18 +658,7 @@ export class FlightController {
 
     const baseThrottle = 0.5 + altitudeOutput * 0.1
 
-    const commands: MotorCommands = {
-      front_left: this.clamp(baseThrottle + pitchOutput + rollOutput - yawOutput),
-      front_right: this.clamp(baseThrottle + pitchOutput - rollOutput + yawOutput),
-      rear_left: this.clamp(baseThrottle - pitchOutput + rollOutput + yawOutput),
-      rear_right: this.clamp(baseThrottle - pitchOutput - rollOutput - yawOutput),
-    }
-
-    return commands
-  }
-
-  private clamp(value: number): number {
-    return Math.max(0, Math.min(1, value))
+    return mixQuadMotorCommands(baseThrottle, rollOutput, pitchOutput, yawOutput)
   }
 
   reset() {
