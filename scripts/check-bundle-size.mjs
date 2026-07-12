@@ -4,8 +4,8 @@
  *
  * Reads the Vite build manifest and measures the *initial* (eagerly loaded) JS
  * and CSS the browser must download for the entry point, following only static
- * imports. Dynamic imports (rapier physics, the detection Web Worker, optional
- * model backends) are excluded because they load on demand.
+ * imports. Dynamic imports (currently the Rapier physics module) are excluded
+ * because they load on demand.
  *
  * Fails (exit 1) if the gzipped initial payload exceeds the budget below, so a
  * dependency accidentally pulled into the eager graph is caught in CI.

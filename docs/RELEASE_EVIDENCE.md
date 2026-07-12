@@ -6,38 +6,48 @@ smoke record.
 
 ## Current Candidate
 
-The automated hardening candidate is green. Runtime/deployment evidence remains
-pending where the repository cannot provide the required hardware, model,
-network topology, credentials, or operator acceptance record.
+No release candidate is currently sealed. The hardening work on `main` changes
+source, dependency manifests, and lockfiles, so previous hosted runs are
+historical context only. A new candidate commit and its hosted gates must be
+recorded here after the working tree is committed and pushed.
 
 | Field | Evidence |
 |-------|----------|
-| Candidate commit | `e89de5acc2eb7d66b807f85dc407f3da0e35892c` |
+| Candidate commit | Pending final hardening commit |
 | Branch/tag | `main`; tag pending |
-| GitHub Actions run | [CI 29118711312](https://github.com/sepahead/crebain/actions/runs/29118711312): success on Linux/macOS, including NCP and feature gates |
-| Hosted supply-chain audit | Dependency manifests are unchanged; [Audit 29104945725](https://github.com/sepahead/crebain/actions/runs/29104945725) remains the applicable hosted Bun audit/cargo-deny success, and both checks passed locally on this candidate |
-| Hosted CodeQL | [CodeQL 29118711301](https://github.com/sepahead/crebain/actions/runs/29118711301): JavaScript/TypeScript and Rust success |
-| Additional hosted policy | [OpenSSF Scorecard 29118711298](https://github.com/sepahead/crebain/actions/runs/29118711298): success; unchanged ROS definitions remain covered by [run 29104945665](https://github.com/sepahead/crebain/actions/runs/29104945665) |
-| Local `bun run validate:all` | Success: 333 frontend tests (8 skipped), 252 default Rust tests (1 ignored), 290 NCP Rust tests (1 ignored), clean fmt/check/clippy |
-| Frontend test/coverage/bundle result | Hosted: 333 passed / 8 skipped; 38.55% statements, 36.69% branches, 41% functions, and 39.72% lines; 440.9 KiB initial gzip against 700 KiB |
-| Rust default/NCP/feature result | Local default/NCP suites above; hosted macOS passed 252 default and 290 NCP tests, Linux passed 234 default and 272 NCP tests, and `--no-default-features` plus `cuda,tensorrt` feature checks passed |
-| Hardware-WebGL performance smoke | 60.0 FPS empty, 39.5 FPS splat, 37.2 FPS splat plus feeds against unchanged 50/25/12 floors; Apple M4 Max Chromium Metal |
+| GitHub Actions run | Pending for the new candidate |
+| Hosted supply-chain audit | Required: `package.json` and `bun.lock` changed |
+| Hosted CodeQL | Pending for the new candidate |
+| Additional hosted policy | Pending for the new candidate |
+| Local `bun run validate:all` | Pending final combined-tree run |
+| Frontend test/coverage/bundle result | Pending final combined-tree and hosted runs |
+| Rust default/NCP/feature result | Pending final combined-tree and hosted runs |
+| Hardware-WebGL performance smoke | Prior measurement is not candidate evidence; rerun if a numeric performance claim is proposed |
 | Manual smoke | Pending target-platform execution |
-| Boundary focus | Pinned NCP wire-0.7 typed reply validation; raw ESTOP latching; bounded command ingress; per-session lifecycle/action ownership; secure-by-default Zenoh posture; isolated Vite-dev harness state |
+| Boundary focus | Pinned NCP wire 0.8; complete command mediation; bounded ingress; per-session lifecycle/action ownership; secure-by-default Zenoh posture; isolated development harness state |
+
+## Historical Snapshot (`e89de5a`, not current evidence)
+
+The previous candidate passed [CI 29118711312](https://github.com/sepahead/crebain/actions/runs/29118711312),
+[Audit 29104945725](https://github.com/sepahead/crebain/actions/runs/29104945725),
+[CodeQL 29118711301](https://github.com/sepahead/crebain/actions/runs/29118711301),
+and [OpenSSF Scorecard 29118711298](https://github.com/sepahead/crebain/actions/runs/29118711298).
+Those results describe commit `e89de5acc2eb7d66b807f85dc407f3da0e35892c` and
+must not be reused as evidence for the current dependency or source tree.
 
 ## Automated evidence required
 
 | Area | Required evidence | Current status |
 |------|-------------------|----------------|
-| Version coherence | Metadata/tag guard on candidate | Passed in CI 29118711312 |
-| Frontend validation | Typecheck, lint, format, and tests | Passed locally and in CI 29118711312 |
-| Bundle and coverage | Hosted bundle budget and coverage thresholds | Passed in CI 29118711312 |
-| Rust default | fmt, check, tests, and clippy on Linux/macOS | Passed in CI 29118711312 |
-| NCP feature | NCP clippy and tests on Linux/macOS | Passed in CI 29118711312 |
-| Rust feature gates | `cuda,tensorrt` and `--no-default-features` checks | Passed locally and in CI 29118711312 |
-| Supply chain | cargo-deny and `bun audit` | Current-candidate local checks passed; unchanged manifests retain hosted audit 29104945725 |
-| Static analysis | CodeQL JavaScript/TypeScript and Rust | Passed in CodeQL 29118711301 |
-| Diff hygiene | `git diff --check` before commit and cached diff check | Passed before `e89de5a` |
+| Version coherence | Metadata/tag guard on candidate | Pending new candidate |
+| Frontend validation | Typecheck, lint, format, and tests | Pending final combined-tree run |
+| Bundle and coverage | Hosted bundle budget and coverage thresholds | Pending new candidate |
+| Rust default | fmt, check, tests, and clippy on Linux/macOS | Pending final combined-tree and hosted runs |
+| NCP feature | NCP clippy and tests on Linux/macOS | Pending final combined-tree and hosted runs |
+| Rust feature gates | `cuda,tensorrt` and `--no-default-features` checks | Pending new candidate |
+| Supply chain | cargo-deny and `bun audit` | Pending because dependency manifests changed |
+| Static analysis | CodeQL JavaScript/TypeScript and Rust | Pending new candidate |
+| Diff hygiene | `git diff --check` before commit and cached diff check | Pending final commit |
 
 ## Manual evidence required
 
