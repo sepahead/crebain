@@ -9,7 +9,10 @@
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg)](#license)
 
 <p align="center">
-  <img src="public/crebain-logo.png" alt="CREBAIN Logo" width="120" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg">
+    <img alt="CREBAIN logo" src="assets/logo-light.svg" width="200">
+  </picture>
 </p>
 
 CREBAIN is a research prototype for studying tactical visualization and
