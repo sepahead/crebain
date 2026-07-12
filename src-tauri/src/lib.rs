@@ -629,8 +629,9 @@ fn fusion_init(config: Option<FusionConfig>) -> Result<(), String> {
     validate_fusion_config(&cfg)?;
     let mut cfg = cfg;
     // CREBAIN_PID_JSONL turns on the galadriel innovation sidecar without a
-    // frontend config round-trip: emission on, records appended as JSONL to
-    // the given path (directly consumable by galadriel-ncp's read_jsonl).
+    // frontend config round-trip: emission on, records streamed as JSONL to the
+    // given path (directly consumable by galadriel-ncp's read_jsonl). The file is
+    // truncated at process start — one file holds exactly one producer epoch.
     if std::env::var_os("CREBAIN_PID_JSONL").is_some() {
         cfg.emit_innovations = true;
     }
@@ -651,9 +652,16 @@ static PID_JSONL_SINK: LazyLock<Mutex<Option<std::io::BufWriter<std::fs::File>>>
         let Some(path) = std::env::var_os("CREBAIN_PID_JSONL") else {
             return Mutex::new(None);
         };
+        // One JSONL file = ONE producer epoch: galadriel's `read_jsonl` enforces
+        // strictly increasing per-(track, modality) sequences, so records left over
+        // from a previous crebain run (whose frame counter restarted) would poison
+        // the whole file at parse time. Truncate at the first open of this process;
+        // within the run every write appends through this single BufWriter. Point
+        // CREBAIN_PID_JSONL at a fresh path per run to keep earlier captures.
         let writer = match std::fs::OpenOptions::new()
             .create(true)
-            .append(true)
+            .write(true)
+            .truncate(true)
             .open(&path)
         {
             Ok(file) => Some(std::io::BufWriter::new(file)),
