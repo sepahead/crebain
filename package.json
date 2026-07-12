@@ -42,7 +42,6 @@
     "test": "bunx --bun vitest",
     "test:run": "bunx --bun vitest run",
     "test:ui": "bunx --bun vitest --ui",
-    "test:benchmark": "RUN_BENCHMARKS=1 bunx --bun vitest run --reporter=verbose src/detection/__tests__/DetectorBenchmark.test.ts",
     "test:coverage": "bunx --bun vitest run --coverage",
     "check:rust": "cargo check --manifest-path src-tauri/Cargo.toml",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
@@ -63,8 +62,6 @@
     "@dimforge/rapier3d-compat": "^0.19.3",
     "@sepahead/ncp": "github:sepahead/NCP#v0.8.0",
     "@sparkjsdev/spark": "^0.1.10",
-    "comlink": "^4.4.2",
-    "onnxruntime-web": "^1.27.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "three": "^0.182.0"
@@ -99,10 +96,8 @@
   },
   "overrides": {
     "@babel/core": "7.29.7",
-    "@protobufjs/utf8": "1.1.2",
     "flatted": "3.4.2",
     "picomatch": "4.0.5",
-    "protobufjs": "7.6.5",
     "rollup": "4.62.2"
   }
 }

@@ -25,8 +25,8 @@ simulation. Built with Tauri 2, React 19, SparkJS/Three.js, and Rust.
 > **Project status.** This is a research prototype, not a product. No model
 > weights ship with the repository. Capability statuses below are tracked here
 > and treated as unverified until measured on target hardware — performance
-> claims require reproduction with the repository benchmarks on your own
-> deployment. Experimental backends are opt-in. See the
+> claims require a recorded model, fixture, backend, invocation, and hardware
+> context from your own deployment. Experimental backends are opt-in. See the
 > [Disclaimer](#disclaimer).
 
 | Capability | Description | Status |
@@ -238,7 +238,7 @@ crebain/
 ├── src/               # React frontend (components, hooks, ros, detection,
 │                      #   physics, simulation, state, neuro, lib)
 ├── src-tauri/         # Rust backend (inference, transport, sensor fusion,
-│                      #   NCP feature; Swift CoreML FFI + sidecar)
+│                      #   native CoreML/ONNX, NCP feature)
 ├── ros/               # ROS 1 reference package (crebain_msgs + launch files)
 ├── docs/              # Design docs, contracts, release gates
 ├── scripts/           # Version-coherence, bundle-size, perf-smoke checks
@@ -330,7 +330,6 @@ bun run validate:all
 bun run check:rust
 bun run test:rust
 bun run clippy:rust
-bun run test:benchmark   # detector benchmarks (sets RUN_BENCHMARKS=1; skipped in normal test runs)
 ```
 
 `bun run validate:all` does not run the hosted bundle-size, coverage,

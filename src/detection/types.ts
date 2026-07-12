@@ -5,11 +5,6 @@
 
 import type * as THREE from 'three'
 
-/**
- * Available detector types
- */
-export type DetectorType = 'yolo' | 'rf-detr' | 'moondream' | 'coreml'
-
 // Detection class types for drone/aerial object classification
 export type DetectionClass = 'drone' | 'bird' | 'aircraft' | 'helicopter' | 'unknown'
 
@@ -108,52 +103,6 @@ export interface CameraParams {
 }
 
 /**
- * Abstract detector interface - all detectors must implement this
- */
-export interface ObjectDetector {
-  name: string
-  modelPath: string
-  inputSize: { width: number; height: number }
-  classes: DetectionClass[]
-
-  // Lifecycle
-  initialize(): Promise<void>
-  detect(imageData: ImageData): Promise<Detection[]>
-  /**
-   * Release model resources. Async because ONNX Runtime Web sessions hold
-   * WASM/GPU memory that is only freed by awaiting `session.release()`.
-   */
-  dispose(): Promise<void>
-
-  // Status
-  isReady(): boolean
-  getAverageLatency(): number
-}
-
-/**
- * Detector configuration
- */
-export interface DetectorConfig {
-  modelPath: string
-  confidenceThreshold: number // 0-1
-  iouThreshold: number // 0-1 for NMS
-  maxDetections: number
-  useWebGPU: boolean
-}
-
-/**
- * Detection result from a single camera
- */
-export interface CameraDetectionResult {
-  cameraId: string
-  timestamp: number
-  inferenceTime: number // ms
-  detections: Detection[]
-  frameWidth: number
-  frameHeight: number
-}
-
-/**
  * Sensor fusion configuration
  */
 export interface FusionConfig {
@@ -162,112 +111,6 @@ export interface FusionConfig {
   minConfirmationFrames: number
   velocitySmoothing: number // 0-1
   positionSmoothing: number // 0-1
-}
-
-/**
- * Message types for Web Worker communication
- */
-export interface DetectionWorkerMessage {
-  type: 'init' | 'detect' | 'dispose' | 'status'
-  /**
-   * Monotonic id correlating a `detect` request with its `detections`/`error`
-   * response. Required for correct results when multiple `detect()` calls are
-   * in flight — responses may arrive out of order, so FIFO matching would swap
-   * results between requests.
-   */
-  requestId?: number
-  payload?: {
-    detectorType?: DetectorType
-    modelPath?: string
-    config?: Partial<DetectorConfig>
-    imageData?: ImageData
-    imageWidth?: number
-    imageHeight?: number
-  }
-  transferables?: Transferable[]
-}
-
-export interface DetectionWorkerResponse {
-  type: 'ready' | 'detections' | 'error' | 'status'
-  /** Echoes the originating request's id whenever the request carried one —
-   *  `detect` correlation as described above, but also `init`/`dispose`/`status`
-   *  and malformed-message errors. Absent only when the triggering request had
-   *  no id (or for unsolicited worker messages). */
-  requestId?: number
-  payload?: {
-    detections?: Detection[]
-    inferenceTime?: number
-    error?: string
-    status?: {
-      isReady: boolean
-      modelLoaded: boolean
-      averageLatency: number
-    }
-  }
-}
-
-/**
- * Surveillance camera with detection capabilities
- */
-export interface SurveillanceCamera {
-  id: string
-  name: string
-  position: THREE.Vector3
-  target: THREE.Vector3
-  fov: number
-  aspectRatio: number
-
-  // Status
-  isActive: boolean
-  isRecording: boolean
-
-  // Detection
-  detections: Detection[]
-  lastInferenceTime: number
-  inferenceLatency: number
-  trackingEnabled: boolean
-  fusionWeight: number // 0-1 contribution to sensor fusion
-
-  // Rendering
-  renderTarget?: THREE.WebGLRenderTarget
-  videoElement?: HTMLVideoElement
-
-  // PTZ controls
-  pan: number // degrees
-  tilt: number // degrees
-  zoom: number // 1.0 = normal
-}
-
-/**
- * Detection overlay style configuration
- */
-export interface DetectionOverlayStyle {
-  boxColor: Record<DetectionClass, string>
-  boxWidth: number
-  labelBackground: boolean
-  showConfidence: boolean
-  showTrackId: boolean
-  showVelocity: boolean
-  confidenceFormat: 'percent' | 'decimal'
-}
-
-/**
- * Default detection overlay style (ARAS standard)
- */
-export const DEFAULT_OVERLAY_STYLE: DetectionOverlayStyle = {
-  boxColor: {
-    drone: '#c04040', // Red - hostile
-    bird: '#4a7a4a', // Green - neutral
-    aircraft: '#4a6a8a', // Blue - potentially friendly
-    helicopter: '#4a6a8a', // Blue - potentially friendly
-    unknown: '#a08040', // Amber - unknown
-  },
-  boxWidth: 2,
-  labelBackground: true,
-  showConfidence: true,
-  showTrackId: true,
-  showVelocity: false,
-  confidenceFormat: 'percent',
 }
 
 /**
@@ -330,13 +173,6 @@ export function getThreatLevel(detClass: DetectionClass, confidence: number): Th
 }
 
 /**
- * Generate unique detection ID
- */
-export function generateDetectionId(): string {
-  return `DET-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`.toUpperCase()
-}
-
-/**
  * Generate unique track ID
  */
 export function generateTrackId(): string {
@@ -344,7 +180,7 @@ export function generateTrackId(): string {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// COREML TYPES (shared between useCoreMLDetection and useDetectionLoop)
+// NATIVE DETECTION TYPES (shared by Tauri IPC callers and useDetectionLoop)
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**

@@ -163,7 +163,7 @@ Notes:
 
 ```mermaid
 flowchart TB
-    CameraFeed["Camera Feed<br/>(Three.js)"]
+    CameraViews["Camera Views<br/>(CrebainViewer)"]
 
     subgraph Capture["Frame Capture"]
         WebGL["WebGL RenderTarget"]
@@ -186,17 +186,15 @@ flowchart TB
         TrackID["Track IDs"]
     end
 
-    CameraFeed --> Capture
+    CameraViews --> Capture
     Capture -->|"Tauri IPC (invoke)"| Backend
     Backend -->|"JSON Detections"| Overlay
 ```
 
 Performance depends on hardware, model format, model size, runtime provider,
-image size, batching, and whether the native Tauri app or browser-only path is
-used. Treat any latency target as invalid until reproduced with
-`bun run test:benchmark` on the deployment hardware (the suite runs whenever
-`RUN_BENCHMARKS` is set to any non-empty value; the documented convention is
-`RUN_BENCHMARKS=1`).
+image size, and batching. Treat any latency target as invalid until reproduced
+through the native Tauri path on deployment hardware with the exact model
+digest, thresholds, fixture frames, and invocation recorded.
 
 ### 3. Headless simulation, rich visualization
 
@@ -274,7 +272,7 @@ src/
 │   ├── WaypointManager.ts     # MAVROS mission support
 │   └── useROSSensors.ts       # Multi-modal sensor fusion integration
 │
-├── detection/                 # Detection pipeline + browser fusion engine
+├── detection/                 # Shared detection types + browser fusion engine
 ├── physics/                   # Drone physics simulation (120 Hz)
 ├── simulation/                # Interception system
 ├── state/                     # Scene serialization/persistence
@@ -313,7 +311,7 @@ src-tauri/src/
 └── ncp/                  # NCP (Engram) client — off-by-default `ncp` feature
 ```
 
-`src-tauri/native/coreml-ffi/` holds the Swift CoreML bridge and
-`src-tauri/sidecar/` the Swift sidecar package. AGENTS.md carries the
-contributor-facing architecture notes and performance guidelines for the
-`src/` and `src-tauri/src/` trees above.
+The native macOS CoreML/Vision bridge is implemented directly in
+`src-tauri/src/coreml.rs`; there is no separately built Swift package or
+bundled inference sidecar. AGENTS.md carries the contributor-facing
+architecture notes and performance guidelines for the trees above.
