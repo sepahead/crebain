@@ -1,17 +1,48 @@
 import { describe, expect, it, vi } from 'vitest'
 import * as THREE from 'three'
 
-// Simulate a Rapier WASM init failure so the fallback path is exercised.
-// The tests below never need a real Rapier world: the Rapier-path force
-// application is verified against a fake rigid body.
-const rapierInitMock = vi.hoisted(() => vi.fn())
-vi.mock('@dimforge/rapier3d-compat', () => ({ init: rapierInitMock }))
+// Provide just enough of Rapier to cover both the fallback and successful-init
+// paths without loading WASM in this focused unit suite.
+const rapierMock = vi.hoisted(() => {
+  const init = vi.fn()
+  const fixedBodyDescription = {}
+  const colliderDescription = {
+    setTranslation: vi.fn(() => colliderDescription),
+  }
+  const world = {
+    timestep: 0,
+    createRigidBody: vi.fn(() => ({})),
+    createCollider: vi.fn(() => ({})),
+    removeRigidBody: vi.fn(),
+    step: vi.fn(),
+    free: vi.fn(),
+  }
+
+  return {
+    init,
+    world,
+    World: vi.fn(function RapierWorldMock() {
+      return world
+    }),
+    fixed: vi.fn(() => fixedBodyDescription),
+    cuboid: vi.fn(() => colliderDescription),
+  }
+})
+
+vi.mock('@dimforge/rapier3d-compat', () => ({
+  init: rapierMock.init,
+  World: rapierMock.World,
+  RigidBodyDesc: { fixed: rapierMock.fixed },
+  ColliderDesc: { cuboid: rapierMock.cuboid },
+}))
 
 import {
   DEFAULT_QUADCOPTER_PARAMS,
   DronePhysicsBody,
   DronePhysicsWorld,
   FlightController,
+  PHYSICS_FIXED_DT,
+  mixQuadMotorCommands,
   type MotorCommands,
 } from '../DronePhysics'
 
@@ -25,6 +56,15 @@ const ZERO_COMMANDS: MotorCommands = {
 type WorldInternals = {
   RAPIER: unknown
   applyDroneForces(drone: DronePhysicsBody, dt: number): void
+}
+
+type WorldUpdateInternals = WorldInternals & {
+  world: { step(): void } | null
+  drones: Map<string, DronePhysicsBody>
+  lastUpdate: number
+  accumulator: number
+  isInitialized: boolean
+  update(): void
 }
 
 interface FakeVector {
@@ -41,6 +81,10 @@ function createFakeRigidBody() {
     resetTorques: vi.fn(() => callOrder.push('resetTorques')),
     addForce: vi.fn((_force: FakeVector) => callOrder.push('addForce')),
     addTorque: vi.fn((_torque: FakeVector) => callOrder.push('addTorque')),
+    translation: vi.fn(() => ({ x: 0, y: 10, z: 0 })),
+    rotation: vi.fn(() => ({ x: 0, y: 0, z: 0, w: 1 })),
+    linvel: vi.fn(() => ({ x: 0, y: 0, z: 0 })),
+    angvel: vi.fn(() => ({ x: 0, y: 0, z: 0 })),
   }
 }
 
@@ -51,12 +95,67 @@ function attachFakeRigidBody(
   drone.rigidBody = fake as unknown as NonNullable<DronePhysicsBody['rigidBody']>
 }
 
+function torqueFromMixedControls(roll: number, pitch: number, yaw: number): FakeVector {
+  const world = new DronePhysicsWorld() as unknown as WorldInternals
+  world.RAPIER = {}
+
+  const drone = new DronePhysicsBody(`mixed-${roll}-${pitch}-${yaw}`)
+  drone.setArmed(true)
+  drone.setMotorCommands(mixQuadMotorCommands(0.5, roll, pitch, yaw))
+  const fakeBody = createFakeRigidBody()
+  attachFakeRigidBody(drone, fakeBody)
+
+  world.applyDroneForces(drone, PHYSICS_FIXED_DT)
+  return fakeBody.addTorque.mock.calls[0][0]
+}
+
+describe('canonical quad mixer', () => {
+  it('uses the documented local rotor mapping and clamps every command', () => {
+    const commands = mixQuadMotorCommands(0.5, 0.1, 0.2, 0.05)
+
+    expect(commands.front_left).toBeCloseTo(0.45, 12)
+    expect(commands.front_right).toBeCloseTo(0.75, 12)
+    expect(commands.rear_left).toBeCloseTo(0.65, 12)
+    expect(commands.rear_right).toBeCloseTo(0.15, 12)
+    expect(mixQuadMotorCommands(0.5, 2, -2, 2)).toEqual({
+      front_left: 1,
+      front_right: 0,
+      rear_left: 0,
+      rear_right: 0,
+    })
+  })
+
+  it('turns positive roll into +Z lever torque only', () => {
+    const torque = torqueFromMixedControls(0.1, 0, 0)
+
+    expect(torque.z).toBeGreaterThan(0)
+    expect(torque.x).toBeCloseTo(0, 12)
+    expect(torque.y).toBeCloseTo(0, 12)
+  })
+
+  it('turns positive pitch into +X lever torque only', () => {
+    const torque = torqueFromMixedControls(0, 0.1, 0)
+
+    expect(torque.x).toBeGreaterThan(0)
+    expect(torque.y).toBeCloseTo(0, 12)
+    expect(torque.z).toBeCloseTo(0, 12)
+  })
+
+  it('turns positive yaw into +Y reaction torque with no lever-arm torque', () => {
+    const torque = torqueFromMixedControls(0, 0, 0.1)
+
+    expect(torque.y).toBeGreaterThan(0)
+    expect(torque.x).toBeCloseTo(0, 12)
+    expect(torque.z).toBeCloseTo(0, 12)
+  })
+})
+
 describe('DronePhysicsBody local integrator', () => {
   it('integrates gravity while disarmed instead of hanging mid-air', () => {
     const body = new DronePhysicsBody('drone-1', undefined, new THREE.Vector3(0, 10, 0))
     body.setArmed(false)
 
-    const dt = 1 / 120
+    const dt = PHYSICS_FIXED_DT
     for (let i = 0; i < 120; i++) {
       body.updatePhysics(dt)
     }
@@ -74,7 +173,7 @@ describe('DronePhysicsBody local integrator', () => {
     const body = new DronePhysicsBody('drone-2', undefined, new THREE.Vector3(0, 2, 0))
     body.setArmed(false)
 
-    const dt = 1 / 120
+    const dt = PHYSICS_FIXED_DT
     for (let i = 0; i < 600; i++) {
       body.updatePhysics(dt)
     }
@@ -87,7 +186,7 @@ describe('DronePhysicsBody local integrator', () => {
     body.setArmed(true)
     body.setMotorCommands({ ...ZERO_COMMANDS, front_left: 1 })
 
-    const dt = 1 / 120
+    const dt = PHYSICS_FIXED_DT
     body.updatePhysics(dt)
 
     const { armLength, momentOfInertia } = DEFAULT_QUADCOPTER_PARAMS
@@ -105,6 +204,42 @@ describe('DronePhysicsBody local integrator', () => {
 })
 
 describe('DronePhysicsWorld Rapier force application', () => {
+  it('applies forces before advancing exactly one fixed Rapier step', () => {
+    const world = new DronePhysicsWorld() as unknown as WorldUpdateInternals
+    const drone = new DronePhysicsBody('ordered-step')
+    drone.setArmed(true)
+    drone.setMotorCommands(mixQuadMotorCommands(0.5, 0, 0, 0))
+    const fakeBody = createFakeRigidBody()
+    attachFakeRigidBody(drone, fakeBody)
+
+    const fakeWorld = {
+      step: vi.fn(() => fakeBody.callOrder.push('step')),
+    }
+    world.RAPIER = {}
+    world.world = fakeWorld
+    world.drones.set(drone.id, drone)
+    world.lastUpdate = 1000
+    world.accumulator = PHYSICS_FIXED_DT
+    world.isInitialized = true
+    const now = vi.spyOn(performance, 'now').mockReturnValue(1000)
+
+    try {
+      world.update()
+    } finally {
+      now.mockRestore()
+    }
+
+    expect(fakeWorld.step).toHaveBeenCalledTimes(1)
+    expect(fakeBody.callOrder).toEqual([
+      'resetForces',
+      'resetTorques',
+      'addForce',
+      'addTorque',
+      'step',
+    ])
+    expect(world.accumulator).toBeCloseTo(0, 12)
+  })
+
   it('resets persistent Rapier forces and torques before applying each step', () => {
     const world = new DronePhysicsWorld() as unknown as WorldInternals
     world.RAPIER = {}
@@ -115,7 +250,7 @@ describe('DronePhysicsWorld Rapier force application', () => {
     const fakeBody = createFakeRigidBody()
     attachFakeRigidBody(drone, fakeBody)
 
-    const dt = 1 / 120
+    const dt = PHYSICS_FIXED_DT
     world.applyDroneForces(drone, dt)
     world.applyDroneForces(drone, dt)
 
@@ -145,7 +280,7 @@ describe('DronePhysicsWorld Rapier force application', () => {
     const fakeBody = createFakeRigidBody()
     attachFakeRigidBody(drone, fakeBody)
 
-    world.applyDroneForces(drone, 1 / 120)
+    world.applyDroneForces(drone, PHYSICS_FIXED_DT)
 
     expect(fakeBody.resetForces).toHaveBeenCalledTimes(1)
     expect(fakeBody.resetTorques).toHaveBeenCalledTimes(1)
@@ -165,7 +300,7 @@ describe('DronePhysicsWorld Rapier force application', () => {
     const fakeBody = createFakeRigidBody()
     attachFakeRigidBody(drone, fakeBody)
 
-    world.applyDroneForces(drone, 1 / 120)
+    world.applyDroneForces(drone, PHYSICS_FIXED_DT)
 
     const { armLength } = DEFAULT_QUADCOPTER_PARAMS
     const thrust = drone.state.rotors[0].thrust
@@ -177,17 +312,17 @@ describe('DronePhysicsWorld Rapier force application', () => {
   })
 })
 
-describe('DronePhysicsWorld init fallback', () => {
-  it('logs the Rapier init failure and reports the fallback flag', async () => {
-    rapierInitMock.mockRejectedValueOnce(new Error('wasm init failed'))
+describe('DronePhysicsWorld initialization', () => {
+  it('falls back after an init failure, then retries with the fixed timestep', async () => {
+    rapierMock.init.mockRejectedValueOnce(new Error('wasm init failed'))
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    const world = new DronePhysicsWorld()
+    const fallbackWorld = new DronePhysicsWorld()
 
     try {
-      await world.init()
+      await fallbackWorld.init()
 
-      expect(world.isReady()).toBe(true)
-      expect(world.isUsingFallback()).toBe(true)
+      expect(fallbackWorld.isReady()).toBe(true)
+      expect(fallbackWorld.isUsingFallback()).toBe(true)
       expect(consoleError).toHaveBeenCalledWith(
         '[Physics]',
         expect.stringContaining('Rapier physics init failed'),
@@ -196,6 +331,18 @@ describe('DronePhysicsWorld init fallback', () => {
     } finally {
       consoleError.mockRestore()
     }
+
+    rapierMock.init.mockResolvedValueOnce(undefined)
+    const retryWorld = new DronePhysicsWorld()
+
+    await retryWorld.init()
+
+    expect(retryWorld.isReady()).toBe(true)
+    expect(retryWorld.isUsingFallback()).toBe(false)
+    expect(rapierMock.init).toHaveBeenCalledTimes(2)
+    expect(rapierMock.world.timestep).toBe(PHYSICS_FIXED_DT)
+
+    retryWorld.destroy()
   })
 })
 
@@ -243,5 +390,21 @@ describe('FlightController PID state', () => {
     expect(internals.pitchIntegral).toBe(0)
     expect(internals.yawIntegral).toBe(0)
     expect(internals.altitudeIntegral).toBe(0)
+  })
+
+  it('routes PID outputs through the canonical quad mixer', () => {
+    const controller = new FlightController({
+      rollPID: { kp: 0.1, ki: 0, kd: 0 },
+      pitchPID: { kp: 0.1, ki: 0, kd: 0 },
+      yawPID: { kp: 0.1, ki: 0, kd: 0 },
+      altitudePID: { kp: 0, ki: 0, kd: 0 },
+      maxAngle: 1,
+    })
+    const drone = new DronePhysicsBody('controller-mixer', undefined, new THREE.Vector3(0, 1, 0))
+    drone.setArmed(true)
+
+    const commands = controller.update(drone, 1, 0, 0, 1, 0.1)
+
+    expect(commands).toEqual(mixQuadMotorCommands(0.5, 0.1, 0, 0))
   })
 })
