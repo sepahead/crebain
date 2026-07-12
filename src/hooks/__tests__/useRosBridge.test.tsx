@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { act } from 'react'
 import { useRosBridge, type UseRosBridgeConfig, type UseRosBridgeReturn } from '../useRosBridge'
 import { installMockWebSocket, MockWebSocket, sentMessages } from '../../test/mockWebSocket'
-import { getROSBridge, ROSBridge, setROSBridge } from '../../ros/ROSBridge'
+import { ROSBridge } from '../../ros/ROSBridge'
 import { ZenohBridge } from '../../ros/ZenohBridge'
 
 const tauriMocks = vi.hoisted(() => ({ invoke: vi.fn() }))
@@ -57,13 +57,11 @@ describe('useRosBridge', () => {
     restoreWebSocket = installMockWebSocket()
     renderSnapshots = []
     tauriMocks.invoke.mockReset().mockResolvedValue(undefined)
-    setROSBridge(null)
   })
 
   afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
-    setROSBridge(null)
     restoreWebSocket()
   })
 
@@ -76,10 +74,7 @@ describe('useRosBridge', () => {
 
     expect(hook.bridge).toBeInstanceOf(ROSBridge)
     expect(hook.state).toBe('disconnected')
-    expect(getROSBridge()).toBe(hook.bridge)
-
     await act(async () => root.unmount())
-    expect(getROSBridge()).toBeNull()
   })
 
   it('never exposes a bridge owned by the previous transport during a switch', async () => {
@@ -108,8 +103,6 @@ describe('useRosBridge', () => {
       )
     ).toBe(false)
     expect(hook.bridge).toBeInstanceOf(ZenohBridge)
-    expect(getROSBridge()).toBeNull()
-
     await act(async () => root.unmount())
   })
 

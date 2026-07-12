@@ -1,7 +1,13 @@
 import { act, createElement } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest'
-import { convertDetection, imageDataToRGBA, useDetectionLoop } from '../useDetectionLoop'
+import {
+  CAMERA_CAPTURE_DROP_REPORT_INTERVAL_MS,
+  CAMERA_CAPTURE_UNAVAILABLE_ERROR,
+  convertDetection,
+  imageDataToRGBA,
+  useDetectionLoop,
+} from '../useDetectionLoop'
 import type { CoreMLDetection } from '../../detection/types'
 
 const invokeMock = vi.hoisted(() => vi.fn())
@@ -244,6 +250,107 @@ describe('useDetectionLoop helpers', () => {
 
     await act(async () => root.unmount())
   })
+
+  it('reports unavailable captures per camera without flooding onError', async () => {
+    vi.useFakeTimers()
+    const cameras = [
+      { id: 'cam-1', name: 'Camera 1', isActive: true },
+      { id: 'cam-2', name: 'Camera 2', isActive: true },
+    ]
+    const exportCameraFeed = vi.fn(() => null)
+    const onError = vi.fn()
+
+    function Harness() {
+      useDetectionLoop({
+        cameras,
+        exportCameraFeed,
+        enabled: true,
+        intervalMs: 100,
+        onError,
+      })
+      return null
+    }
+
+    const root = createRoot(document.createElement('div'))
+    await act(async () => {
+      root.render(createElement(Harness))
+      await Promise.resolve()
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100)
+    })
+
+    expect(onError.mock.calls).toEqual([
+      [CAMERA_CAPTURE_UNAVAILABLE_ERROR, 'cam-1'],
+      [CAMERA_CAPTURE_UNAVAILABLE_ERROR, 'cam-2'],
+    ])
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100)
+    })
+    expect(onError).toHaveBeenCalledTimes(2)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(CAMERA_CAPTURE_DROP_REPORT_INTERVAL_MS - 200)
+    })
+    expect(onError).toHaveBeenNthCalledWith(3, CAMERA_CAPTURE_UNAVAILABLE_ERROR, 'cam-1')
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100)
+    })
+    expect(onError).toHaveBeenNthCalledWith(4, CAMERA_CAPTURE_UNAVAILABLE_ERROR, 'cam-2')
+
+    await act(async () => root.unmount())
+  })
+
+  it.each([7, 64])(
+    'detects every one of %i active cameras fairly across repeated round-robin sweeps',
+    async (cameraCount) => {
+      vi.useFakeTimers()
+      invokeMock.mockResolvedValue(successfulResult())
+      const cameras = Array.from({ length: cameraCount }, (_, index) => ({
+        id: `cam-${index + 1}`,
+        name: `Camera ${index + 1}`,
+        isActive: true,
+      }))
+      const exportCameraFeed = vi.fn((_cameraId: string) => imageData())
+      const onDetection = vi.fn(
+        (
+          _cameraId: string,
+          _detections: ReturnType<typeof convertDetection>[],
+          _inferenceTimeMs: number
+        ) => undefined
+      )
+
+      function Harness() {
+        useDetectionLoop({
+          cameras,
+          exportCameraFeed,
+          enabled: true,
+          intervalMs: 10,
+          onDetection,
+        })
+        return null
+      }
+
+      const root = createRoot(document.createElement('div'))
+      await act(async () => {
+        root.render(createElement(Harness))
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync((cameraCount * 2 - 1) * 10)
+      })
+
+      const expectedOrder = [...cameras, ...cameras].map((camera) => camera.id)
+      expect(exportCameraFeed.mock.calls.map(([cameraId]) => cameraId)).toEqual(expectedOrder)
+      expect(onDetection.mock.calls.map(([cameraId]) => cameraId)).toEqual(expectedOrder)
+      expect(invokeMock).toHaveBeenCalledTimes(cameraCount * 2)
+
+      await act(async () => root.unmount())
+    }
+  )
 
   it('does not restart when runtime inputs change and uses them on the next cycle', async () => {
     vi.useFakeTimers()
