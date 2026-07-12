@@ -25,8 +25,9 @@ use crate::transport::{PoseData, TwistStampedData, VelocityCmd};
 use ncp_core::keys::Keys;
 use ncp_core::{
     ChannelValue, CloseSession, CommandFrame, NetworkRef, NetworkRefKind, Observation,
-    ObservationFrame, OpenSession, RecordSpec, RecordTarget, SensorFrame, SessionClosed, SessionRef,
-    SimConfig, StepRequest, StimulusFrame, StimulusSpec, StimulusTarget, StreamPosition,
+    ObservationFrame, OpenSession, RecordSpec, RecordTarget, SensorFrame, SessionClosed,
+    SessionRef, SimConfig, StepRequest, StimulusFrame, StimulusSpec, StimulusTarget,
+    StreamPosition,
 };
 use ncp_zenoh::{ZenohBus, ZenohNcpClient};
 use serde::Deserialize;
@@ -1421,7 +1422,8 @@ mod tests {
             linear: [0.1, 0.2, 0.3],
             angular: [0.0, 0.0, 0.0],
         };
-        let f = sensor_frame_from_pose(&pose, &vel, test_stream(42), TEST_SID, test_session()).unwrap();
+        let f =
+            sensor_frame_from_pose(&pose, &vel, test_stream(42), TEST_SID, test_session()).unwrap();
         assert_eq!(f.stream.seq, 42);
         assert_eq!(f.frame_id, "map");
         assert_eq!(f.channels["pose_position"].data, vec![1.0, 2.0, 3.0]);
@@ -1440,7 +1442,9 @@ mod tests {
             linear: [0.0; 3],
             angular: [0.0; 3],
         };
-        assert!(sensor_frame_from_pose(&pose, &vel, test_stream(0), TEST_SID, test_session()).is_err());
+        assert!(
+            sensor_frame_from_pose(&pose, &vel, test_stream(0), TEST_SID, test_session()).is_err()
+        );
     }
 
     #[test]
