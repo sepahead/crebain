@@ -322,7 +322,12 @@ describe('reply ncp_version guard', () => {
     })
     const guarded = guardReplyVersion(matching)
     await expect(
-      guarded({ kind: 'close_session', ncp_version: NCP_VERSION, session_id: 'ok', session: SESSION })
+      guarded({
+        kind: 'close_session',
+        ncp_version: NCP_VERSION,
+        session_id: 'ok',
+        session: SESSION,
+      })
     ).resolves.toMatchObject({ session_id: 'ok' })
   })
 
