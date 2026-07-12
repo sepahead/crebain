@@ -22,6 +22,12 @@ import {
 } from '../index'
 import { installMockWebSocket, MockWebSocket, sentMessages } from '../../test/mockWebSocket'
 
+// Wire-0.8 identity fixtures: canonical lowercase UUIDv4 `session.generation` /
+// `stream.epoch`, carried on every post-open session-scoped frame.
+const GEN = '00000000-0000-4000-8000-0000000000a2'
+const EPOCH = '00000000-0000-4000-8000-000000000001'
+const SESSION = { generation: GEN }
+
 let restoreWebSocket: () => void
 
 /** Let the event loop drain queued microtasks (a few `await` hops) so the
@@ -42,7 +48,7 @@ describe('src/neuro public surface', () => {
   it('re-exports the canonical NCP client, transport, and version', () => {
     expect(typeof NeuroSimClient).toBe('function')
     expect(typeof WebSocketNeuroSim).toBe('function')
-    expect(NCP_VERSION).toBe('0.7')
+    expect(NCP_VERSION).toBe('0.8')
   })
 
   it('exposes the CREBAIN reply-version guard glue', () => {
@@ -75,6 +81,7 @@ describe('WebSocketNeuroSim (transport smoke + round-trip)', () => {
       kind: 'session_closed',
       ncp_version: NCP_VERSION,
       session_id: 'sess-1',
+      session: SESSION,
       ok: true,
     }
     ws.receive(reply)
@@ -114,6 +121,7 @@ describe('reply ncp_version guard', () => {
       kind: 'session_closed',
       ncp_version: NCP_VERSION,
       session_id: 'session-1',
+      session: SESSION,
       ok: true,
     }
     expect(() => assertReplyVersion(reply)).not.toThrow()
@@ -152,7 +160,8 @@ describe('reply ncp_version guard', () => {
       kind: 'observation_frame',
       ncp_version: NCP_VERSION,
       session_id: 's',
-      seq: 1,
+      session: SESSION,
+      stream: { epoch: EPOCH, seq: 1 },
       records: {},
       is_simulation_output: false,
       calibrated_posterior: false,
@@ -162,7 +171,8 @@ describe('reply ncp_version guard', () => {
       kind: 'observation_frame',
       ncp_version: NCP_VERSION,
       session_id: 's',
-      seq: 1,
+      session: SESSION,
+      stream: { epoch: EPOCH, seq: 1 },
       records: {},
       is_simulation_output: true,
       calibrated_posterior: true,
@@ -173,7 +183,8 @@ describe('reply ncp_version guard', () => {
       kind: 'observation_frame',
       ncp_version: NCP_VERSION,
       session_id: 's',
-      seq: 1,
+      session: SESSION,
+      stream: { epoch: EPOCH, seq: 1 },
       records: {},
       is_simulation_output: true,
       calibrated_posterior: false,
@@ -242,7 +253,8 @@ describe('reply ncp_version guard', () => {
       assertReplyVersion({
         kind: 'observation_frame',
         ncp_version: NCP_VERSION,
-        seq: 0,
+        session: SESSION,
+        stream: { epoch: EPOCH, seq: 1 },
         records: {},
         is_simulation_output: true,
         calibrated_posterior: false,
@@ -253,7 +265,8 @@ describe('reply ncp_version guard', () => {
         kind: 'observation_frame',
         ncp_version: NCP_VERSION,
         session_id: 'session-1',
-        seq: 0,
+        session: SESSION,
+        stream: { epoch: EPOCH, seq: 1 },
         records: [],
         is_simulation_output: true,
         calibrated_posterior: false,
@@ -261,17 +274,22 @@ describe('reply ncp_version guard', () => {
     ).toThrow(/records/)
   })
 
-  it('enforces the wire-0.7 observation sequence gate', () => {
+  it('enforces the wire-0.8 observation stream.seq gate', () => {
+    // Wire 0.8: an observation carries its OWN stream position (`stream.seq >= 1`);
+    // the pull/RPC-reply form is distinguished by `source` ABSENCE, not a `seq == 0`
+    // sentinel. So `stream.seq` 1 is valid and 0 is now rejected.
     const observation = (seq: number) => ({
       kind: 'observation_frame',
       ncp_version: NCP_VERSION,
       session_id: 'session-1',
-      seq,
+      session: SESSION,
+      stream: { epoch: EPOCH, seq },
       records: {},
       is_simulation_output: true,
       calibrated_posterior: false,
     })
-    expect(() => assertReplyVersion(observation(0))).not.toThrow()
+    expect(() => assertReplyVersion(observation(1))).not.toThrow()
+    expect(() => assertReplyVersion(observation(0))).toThrow(/seq/)
     expect(() => assertReplyVersion(observation(-1))).toThrow(/seq/)
     expect(() => assertReplyVersion(observation(1.5))).toThrow(/seq/)
   })
@@ -285,7 +303,12 @@ describe('reply ncp_version guard', () => {
     })
     const guarded = guardReplyVersion(drifted)
     await expect(
-      guarded({ kind: 'close_session', ncp_version: NCP_VERSION, session_id: 'session-1' })
+      guarded({
+        kind: 'close_session',
+        ncp_version: NCP_VERSION,
+        session_id: 'session-1',
+        session: SESSION,
+      })
     ).rejects.toThrow(NcpVersionMismatchError)
   })
 
@@ -294,11 +317,12 @@ describe('reply ncp_version guard', () => {
       kind: 'session_closed',
       ncp_version: NCP_VERSION,
       session_id: 'ok',
+      session: SESSION,
       ok: true,
     })
     const guarded = guardReplyVersion(matching)
     await expect(
-      guarded({ kind: 'close_session', ncp_version: NCP_VERSION, session_id: 'ok' })
+      guarded({ kind: 'close_session', ncp_version: NCP_VERSION, session_id: 'ok', session: SESSION })
     ).resolves.toMatchObject({ session_id: 'ok' })
   })
 
@@ -315,6 +339,7 @@ describe('reply ncp_version guard', () => {
         kind: 'close_session',
         ncp_version: NCP_VERSION,
         session_id: 'session-1',
+        session: SESSION,
       })
     ).rejects.toThrow(/session mismatch/)
 
@@ -322,7 +347,8 @@ describe('reply ncp_version guard', () => {
       kind: 'observation_frame',
       ncp_version: NCP_VERSION,
       session_id: 'session-1',
-      seq: 0,
+      session: SESSION,
+      stream: { epoch: EPOCH, seq: 1 },
       records: {},
       is_simulation_output: true,
       calibrated_posterior: false,
@@ -332,6 +358,7 @@ describe('reply ncp_version guard', () => {
         kind: 'close_session',
         ncp_version: NCP_VERSION,
         session_id: 'session-1',
+        session: SESSION,
       })
     ).rejects.toThrow(/kind mismatch/)
 
@@ -339,6 +366,7 @@ describe('reply ncp_version guard', () => {
       kind: 'session_closed',
       ncp_version: NCP_VERSION,
       session_id: 'other',
+      session: SESSION,
       ok: true,
     }))
     await expect(
@@ -346,6 +374,7 @@ describe('reply ncp_version guard', () => {
         kind: 'close_session',
         ncp_version: NCP_VERSION,
         session_id: 'session-1',
+        session: SESSION,
       })
     ).rejects.toThrow(/session mismatch/)
   })
@@ -362,6 +391,7 @@ describe('reply ncp_version guard', () => {
         kind: 'close_session',
         ncp_version: NCP_VERSION,
         session_id: 'session-1',
+        session: SESSION,
       })
     ).rejects.toThrow(/request_kind mismatch/)
   })

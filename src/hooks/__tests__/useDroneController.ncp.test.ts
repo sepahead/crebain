@@ -7,12 +7,20 @@ import {
   normalizeDevNcpCommand,
 } from '../useDroneController'
 
+// Wire-0.8 identity fixtures: canonical lowercase UUIDv4 stream.epoch /
+// session.generation and a valid session_id, so a fixture passes assertWireFrame.
+const TEST_EPOCH = '00000000-0000-4000-8000-000000000001'
+const TEST_GEN = '00000000-0000-4000-8000-0000000000a2'
+const TEST_SID = 'sess'
+
 function activeCommand(seq = 1) {
   return {
     kind: 'command_frame',
     ncp_version: NCP_VERSION,
     mode: 'active',
-    seq,
+    stream: { epoch: TEST_EPOCH, seq },
+    session: { generation: TEST_GEN },
+    session_id: TEST_SID,
     t: 1,
     frame_id: 'map',
     ttl_ms: 200,
@@ -33,9 +41,11 @@ describe('dev NCP command ingress', () => {
     const command = normalizeDevNcpCommand({
       kind: 'command_frame',
       ncp_version: NCP_VERSION,
-      seq: 1,
+      stream: { epoch: TEST_EPOCH, seq: 1 },
+      session: { generation: TEST_GEN },
+      session_id: TEST_SID,
     })
-    expect(command).toMatchObject({ mode: 'hold', seq: 1, ttl_ms: 200 })
+    expect(command).toMatchObject({ mode: 'hold', stream: { seq: 1 }, ttl_ms: 200 })
     expect(command.channels).toEqual({})
   })
 
@@ -45,9 +55,12 @@ describe('dev NCP command ingress', () => {
       { kind: 'sensor_frame' },
       { ncp_version: undefined },
       { ncp_version: '0.6' },
-      { seq: 0 },
-      { seq: 1.5 },
-      { seq: Number.MAX_SAFE_INTEGER + 1 },
+      { stream: { epoch: TEST_EPOCH, seq: 0 } },
+      { stream: { epoch: TEST_EPOCH, seq: 1.5 } },
+      { stream: { epoch: TEST_EPOCH, seq: Number.MAX_SAFE_INTEGER + 1 } },
+      { stream: { epoch: 'not-a-uuid', seq: 1 } },
+      { session: { generation: 'not-a-uuid' } },
+      { session_id: '' },
     ]) {
       expect(() => normalizeDevNcpCommand({ ...activeCommand(), ...patch })).toThrow()
     }
@@ -192,7 +205,9 @@ describe('dev NCP command ingress', () => {
     stream.ingest(1.01, {
       kind: 'command_frame',
       ncp_version: NCP_VERSION,
-      seq: 2,
+      stream: { epoch: TEST_EPOCH, seq: 2 },
+      session: { generation: TEST_GEN },
+      session_id: TEST_SID,
     })
     expect(stream.active(1.01)).toBeNull()
   })
