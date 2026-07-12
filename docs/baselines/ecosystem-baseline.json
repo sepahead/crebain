@@ -1,0 +1,284 @@
+{
+  "schema_version": 1,
+  "baseline_id": "crebain-ecosystem-phase0-2026-07-12",
+  "captured_at": "2026-07-12T22:50:00+02:00",
+  "purpose": "Exact local source, toolchain, protocol, and CREBAIN configuration baseline for Phase 0; not L1 runtime evidence",
+  "crebain_source": {
+    "repository": "https://github.com/sepahead/crebain",
+    "branch": "main",
+    "commit": null,
+    "commit_resolution": "The immutable CREBAIN commit is recorded by the post-commit release/evidence manifest. Embedding the commit that contains this file would be self-referential.",
+    "whole_repository_hash": null,
+    "clean_tree_required_for_evidence": true
+  },
+  "external_repositories": [
+    {
+      "name": "NCP",
+      "repository": "https://github.com/sepahead/NCP",
+      "verified_remote": "git@github.com:sepahead/NCP.git",
+      "branch": "main",
+      "commit": "205384508d619923e05aef192bedaeb57cf665fc",
+      "remote_main_at_capture": "205384508d619923e05aef192bedaeb57cf665fc",
+      "tag": null,
+      "availability": "remote-verified",
+      "role": "Canonical protocol, typed safety primitives, and Zenoh transport",
+      "l1_status": "Wire release pinned; final UAV profile/live topology still pending"
+    },
+    {
+      "name": "Haldir",
+      "repository": "https://github.com/sepahead/haldir",
+      "verified_remote": "git@github.com:sepahead/haldir.git",
+      "branch": "main",
+      "commit": "2a55f3dc8f78fa3b5c8d11dd02a2de5f4ef8d721",
+      "remote_main_at_capture": "2a55f3dc8f78fa3b5c8d11dd02a2de5f4ef8d721",
+      "tag": null,
+      "availability": "remote-verified",
+      "role": "Admission, policy, final-route Gate, and authority evidence",
+      "l1_status": "Reference/offline implementation; live authenticated Gate not established"
+    },
+    {
+      "name": "Galadriel",
+      "repository": "https://github.com/sepahead/galadriel",
+      "verified_remote": "git@github.com:sepahead/galadriel.git",
+      "branch": "main",
+      "commit": "9bd2cb0756009986d1a1a0e429614a1cbbe42ed5",
+      "remote_main_at_capture": "9bd2cb0756009986d1a1a0e429614a1cbbe42ed5",
+      "tag": null,
+      "availability": "remote-verified",
+      "role": "Read-only advisory common-projection observer",
+      "l1_status": "NCP 0.8 consumer pin declared; live CREBAIN correlation and pid-rs 1.0 migration pending"
+    },
+    {
+      "name": "pid-rs",
+      "repository": "https://github.com/sepahead/pid-rs",
+      "verified_remote": "git@github.com:sepahead/pid-rs.git",
+      "branch": "main",
+      "commit": "1cd2424f7967e1752dcc8e53859e8fdad3566f51",
+      "remote_main_at_capture": "1cd2424f7967e1752dcc8e53859e8fdad3566f51",
+      "tag": null,
+      "availability": "remote-verified",
+      "role": "Scientific PID estimator and status surface",
+      "l1_status": "Source declares 1.0.0 but no v1.0.0 tag/release exists; Galadriel remains pinned to v0.4.0"
+    }
+  ],
+  "excluded_repositories": [
+    {
+      "name": "Engram",
+      "base_commit": "a6f2c5f973783373db9d90769d981b1d549a5b6b",
+      "target_mirror_ref": "v0.8.0",
+      "target_wire_version": "0.8",
+      "reason": "The NCP v0.8.0 consumer checker, ncp/.mirror-ref, and Python runtime wire were validated only in a working-tree migration layered on this base commit; that dirty intermediate tree is not a durable source pin.",
+      "required_follow_up": "Record the migration's final clean commit, preserving ncp/.mirror-ref v0.8.0 and wire 0.8, before claiming an Engram-backed L1 controller."
+    }
+  ],
+  "ncp_release_contract": {
+    "release_tag": "v0.8.0",
+    "tag_object": "54008b16ea0c195a4ccc9691cb533dd1153bf7f0",
+    "commit": "2f5bd586d4bb20c90362bb6f5698b7f64057ba4e",
+    "wire_version": "0.8",
+    "contract_hash": "d1b50a2d8a265276",
+    "proto_sha256": "6f13b12cff76e12fef384f691d11e2944db1f676568c3e780d3f975689131227",
+    "crebain_cargo_resolution": "2f5bd586d4bb20c90362bb6f5698b7f64057ba4e",
+    "crebain_bun_tag_object_prefix": "54008b1"
+  },
+  "toolchains": [
+    {
+      "name": "bun",
+      "version": "1.3.14",
+      "scope": "CREBAIN install/scripts and CI",
+      "source": "local --version and CI pin"
+    },
+    {
+      "name": "node",
+      "version": "26.3.0",
+      "scope": "Phase 0 verifier capture host",
+      "source": "local --version; product minimum remains >=20.19.0"
+    },
+    {
+      "name": "rustc",
+      "version": "1.91.1",
+      "commit": "ed61e7d7e242494fb7057f2657300d9e77bb4fcb",
+      "scope": "CREBAIN",
+      "source": "rust-toolchain.toml and local verbose version"
+    },
+    { "name": "cargo", "version": "1.91.1", "scope": "CREBAIN", "source": "local --version" },
+    {
+      "name": "haldir-rust",
+      "version": "1.96.0",
+      "scope": "Haldir",
+      "source": "Haldir rust-toolchain.toml"
+    },
+    {
+      "name": "galadriel-rust",
+      "version": "1.88.0",
+      "scope": "Galadriel",
+      "source": "Galadriel rust-toolchain.toml"
+    },
+    {
+      "name": "pid-rs-msrv",
+      "version": "1.89",
+      "scope": "pid-rs",
+      "source": "pid-rs Cargo.toml rust-version"
+    }
+  ],
+  "crebain_configuration_artifacts": [
+    {
+      "path": "rust-toolchain.toml",
+      "sha256": "f421f2c48e2b7b333cc572d6720716923b2e3b344e621c5ef7fcc64cf0437098"
+    },
+    {
+      "path": "package.json",
+      "sha256": "c3c550e2b32c32e31d639a74b2e752c19c363cc7d325e0e2fa05f7bc1fdf47e0"
+    },
+    {
+      "path": "bun.lock",
+      "sha256": "17bba19246b42fd1f99abbedaa4c206f572e8975aac1037c0faadc9446dc0c06"
+    },
+    {
+      "path": "src-tauri/Cargo.toml",
+      "sha256": "7ff1e1d3b7902324494eeab15773ce1ea6bda9a7e5b422d4e97f6aa1fe3f9d47"
+    },
+    {
+      "path": "src-tauri/Cargo.lock",
+      "sha256": "e5469ea3eb7643940c9822b9c69ab2ad3000295d6d057f4878694047dd87e58c"
+    },
+    {
+      "path": ".ncp-consumer",
+      "sha256": "30e08b912c0a2c116fe541cb7cffc697e3e08b2301f767e6bb82e527484f8538"
+    },
+    {
+      "path": "src-tauri/tauri.conf.json",
+      "sha256": "c8121f4596212011da4452b532833372d50e680772506f47d04f566418218a12"
+    },
+    {
+      "path": "tsconfig.json",
+      "sha256": "d4214a6319955c6a6442b604112d20fea4e24aae15a272a4756d4e2dd1bada12"
+    },
+    {
+      "path": "vite.config.ts",
+      "sha256": "ea7fec33e46c538236ade866627ae1231e8baae8cf3a208acd91e2d66fd66031"
+    },
+    {
+      "path": "docs/baselines/phase0-command-surfaces.json",
+      "sha256": "068437e201d24bd82d05b7594018ca240db24a8de0c46cf4ab4c63549d339db8"
+    },
+    {
+      "path": "docs/baselines/phase0-hazards.json",
+      "sha256": "758e55822e70371d33d5f7081bca5bb9e3ee7f2337566c8d94f9f706341687f6"
+    },
+    {
+      "path": "scripts/verify-phase0-baseline.mjs",
+      "sha256": "226ad8daa69af83cbbd17d836ad89ac9c247245277ab8bc1ea89c10b324d60da"
+    },
+    {
+      "path": "scripts/test-phase0-baseline.mjs",
+      "sha256": "ce0ca07593defd4dd0355d15361fca48fe1835e84f2d1a6b2e6570b9bc5c2252"
+    },
+    {
+      "path": "scripts/check-production-authority-boundary.mjs",
+      "sha256": "8f2c8fd4c23e80a7866a36258081f9c8220cf1c5b0d873c71c2173819513a245"
+    },
+    {
+      "path": "scripts/test-production-authority-boundary.mjs",
+      "sha256": "f6049a2400cc0a6c0d3d541571d4c0509287fa774a15acb52cee53be06b6abcc"
+    },
+    {
+      "path": "scripts/fixtures/phase0-baseline-invalid-cases.json",
+      "sha256": "c6bc7d78d21eee9919b7492b8b18b004e870645f76fa0e0002442fdce1062b37"
+    },
+    {
+      "path": "scripts/fixtures/production-boundary-invalid-cases.json",
+      "sha256": "b8b4052bd8f60c9acae8321db4327d4e18a6197ea7bb0c92fe89b11578952027"
+    },
+    {
+      "path": ".github/workflows/release.yml",
+      "sha256": "e2fe9f040b933bac8d1c86237d4bb8d0226e535aa1c25f11825426266ccbb281"
+    },
+    {
+      "path": "scripts/fixtures/phase0-evidence-artifact-valid.json",
+      "sha256": "4072dedaa841ef317163e311b0764878e8f370a24dc3bb3c4433c9e0734dce4e"
+    },
+    {
+      "path": "ros/launch/single_drone.launch",
+      "sha256": "84406d8a4629ae1cf8cc6414498e4b5e7b53581ea1795e17c088ccc982a49e33"
+    },
+    {
+      "path": "ros/launch/simulation.launch",
+      "sha256": "d5d997444827423ca23ddeca679204c8fc5404faa727962b3341561bcc70487c"
+    }
+  ],
+  "external_configuration_digests": [
+    {
+      "repository": "NCP",
+      "path": "proto/ncp.proto",
+      "sha256": "6f13b12cff76e12fef384f691d11e2944db1f676568c3e780d3f975689131227"
+    },
+    {
+      "repository": "NCP",
+      "path": "Cargo.lock",
+      "sha256": "327c1edbf8049ee9607bdc3e3c2c8530a1e8980d700ac97cbb1d4b6f2ea0d2df"
+    },
+    {
+      "repository": "NCP",
+      "path": "package.json",
+      "sha256": "0a3993fd064056d1f888dee69a751290d9bec42968e58779a2d190bb83bf19a1"
+    },
+    {
+      "repository": "Haldir",
+      "path": "Cargo.lock",
+      "sha256": "30c133639412a7b7f8a53b0b44b7dbf9841c72efdcfe9002c44ff881a1592dae"
+    },
+    {
+      "repository": "Haldir",
+      "path": "rust-toolchain.toml",
+      "sha256": "61d97acc9676fd1b6348a44dee3c372804b9a1e984385c7d73a2620b322d4927"
+    },
+    {
+      "repository": "Galadriel",
+      "path": "Cargo.lock",
+      "sha256": "858eab9513bbc9c8d8201ac0b37a5b15e4c4bd244c80920c7b190750c7430468"
+    },
+    {
+      "repository": "Galadriel",
+      "path": ".ncp-consumer",
+      "sha256": "907448250cc31872ca6251d38067658a6d6e64a37f34e81e4ee5b9cc2b893870"
+    },
+    {
+      "repository": "Galadriel",
+      "path": "rust-toolchain.toml",
+      "sha256": "3f479e33a1e17ce0eea3222042e418022130c883c486ca00629dd16f823ddc91"
+    },
+    {
+      "repository": "pid-rs",
+      "path": "Cargo.lock",
+      "sha256": "7bb605bfc686dfc710e687fdaa84cf155674a5d7e6de2c7b28168e137ba79260"
+    },
+    {
+      "repository": "pid-rs",
+      "path": "Cargo.toml",
+      "sha256": "c85fcf9e216a4327ccafe6a7736b1e06c653358b6aa216f11f084cb8511ae3f7"
+    }
+  ],
+  "profiles": [
+    {
+      "name": "dev-sim",
+      "status": "current-capabilities-mixed",
+      "authority": "No production authority claim; local/Gazebo mutation permitted and labeled simulation-only"
+    },
+    {
+      "name": "secure-sitl",
+      "status": "not-implemented",
+      "authority": "Must contain only signed intent, exact Haldir route, native sole plant, typed PX4 adapter, and read-only telemetry/evidence"
+    },
+    {
+      "name": "hil",
+      "status": "not-implemented",
+      "authority": "Blocked until L1 and target hardware evidence"
+    },
+    {
+      "name": "field",
+      "status": "forbidden",
+      "authority": "Blocked until L2, approved ODD, permits, containment, trained operators, and independent go/no-go"
+    }
+  ]
+}

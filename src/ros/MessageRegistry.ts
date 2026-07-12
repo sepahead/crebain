@@ -53,7 +53,6 @@ class MessageRegistry {
     'sensor_msgs/CameraInfo',
     'sensor_msgs/Imu',
     'geometry_msgs/PoseStamped',
-    'geometry_msgs/Twist',
     'gazebo_msgs/ModelStates',
     'std_msgs/Header',
     'std_msgs/String',
@@ -134,18 +133,6 @@ class MessageRegistry {
           isRecord(data.pose) &&
           data.pose.position &&
           data.pose.orientation
-        )
-      },
-    })
-
-    this.register('geometry_msgs/Twist', {
-      mapper: (data: unknown) => data,
-      command: TAURI_COMMANDS.transport.publishVelocity,
-      validator: (data: unknown) => {
-        if (!isRecord(data)) return false
-        return Boolean(
-          Array.isArray(data.linear) &&
-          Array.isArray(data.angular)
         )
       },
     })

@@ -57,10 +57,10 @@ that the target TLS identities, ACL policy, certificates, or topology are
 correct.
 
 `NcpBridge::subscribe_commands` feeds wire-validated frames into `CommandPlant`
-and runs a 50 Hz output loop. A recognizable raw ESTOP latches first; every other
-frame passes the wire gate. The plant stores only its bounded actuator channel and
-horizon, enforces SDK sequence/TTL semantics, and emits zero velocity when no
-usable command remains. Each loop owns subscriber handles that are dropped on
+and runs a 50 Hz local-proposal loop. A recognizable raw ESTOP latches first;
+every other frame passes the wire gate. The plant stores only its bounded
+proposal channel and horizon, enforces SDK sequence/TTL semantics, and emits a
+zero-velocity proposal when no usable command remains. Each loop owns subscriber handles that are dropped on
 stop/close/cancellation. Lifecycle operations are serialized per session, so a
 loop cannot install after close without a successful reopen. Stop/close requests
 a final HOLD before remote close; a stuck or panicked callback is reported after
@@ -104,10 +104,10 @@ product integration updates the registry, Tauri handler, tests, and UI together.
 1. Add an explicit user/deployment opt-in and manage `NcpHandle`.
 2. Register the four control-plane Tauri commands and synchronize the frontend
    registry/contract tests.
-3. Decide whether the product uses native Rust or TypeScript WebSocket control;
-   do not run two competing control planes.
-4. Wire pose/velocity input and the validated action callback to the intended
-   actuator publisher with a documented ownership/stop lifecycle.
+3. Keep the renderer and its development WebSocket adapter telemetry-only.
+4. Design and review a separate narrow native plant adapter for the validated
+   proposal, with exclusive ownership, freshness/expiry gates, stop lifecycle,
+   and authoritative FCU acceptance/effect evidence.
 5. Prove the external Engram realm, key ACL, version, session behavior, and
    failure recovery in the target network.
 6. Supply and audit the secure Zenoh configuration, identities, and certificates;

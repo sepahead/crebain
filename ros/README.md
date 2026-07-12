@@ -38,20 +38,18 @@ autopilot distribution.
 
 ## Topic templates
 
-Standard topics the product UI subscribes to or publishes on (replace `<ns>`;
-the literal `*` is not accepted):
+Standard topics the product telemetry UI subscribes to (replace `<ns>`; the
+literal `*` is not accepted):
 
 | Topic template | Type | Direction / path |
 |----------------|------|------------------|
 | `/gazebo/model_states` | `gazebo_msgs/ModelStates` | Subscribe |
 | `/<ns>/mavros/local_position/pose` | `geometry_msgs/PoseStamped` | Subscribe |
-| `/<ns>/mavros/local_position/odom` | `nav_msgs/Odometry` | Subscribe; WebSocket UI only (Zenoh reports unsupported) |
-| `/<ns>/mavros/state` | `mavros_msgs/State` | Subscribe; WebSocket UI only |
+| `/<ns>/mavros/local_position/odom` | `nav_msgs/Odometry` | Subscribe; Vite-development WebSocket only (Zenoh reports unsupported) |
+| `/<ns>/mavros/state` | `mavros_msgs/State` | Subscribe; Vite-development WebSocket only |
 | `/<ns>/camera/image_raw` | `sensor_msgs/Image` | Subscribe; caller explicitly selects the raw schema |
 | `/<ns>/camera/image_raw/compressed` | `sensor_msgs/CompressedImage` | Subscribe; caller explicitly selects the compressed schema |
 | `/<ns>/camera/camera_info` | `sensor_msgs/CameraInfo` | Subscribe |
-| `/<ns>/mavros/setpoint_position/local` | `geometry_msgs/PoseStamped` | Publish |
-| `/<ns>/mavros/setpoint_velocity/cmd_vel` | `geometry_msgs/TwistStamped` | Publish |
 
 `sensor_msgs/Imu` subscriptions are part of the **Zenoh (Tauri)** native typed
 surface only — there is no fixed topic template and the TypeScript WebSocket
@@ -62,19 +60,22 @@ pipeline, not a ROS topic.
 
 | Topic template | Type | Path |
 |----------------|------|------|
-| `/crebain/thermal/detections` | `crebain_msgs/ThermalDetectionArray` | Product WebSocket sensor-fusion path |
-| `/crebain/acoustic/detections` | `crebain_msgs/AcousticDetectionArray` | Product WebSocket sensor-fusion path |
-| `/crebain/radar/detections` | `crebain_msgs/RadarDetectionArray` | Product WebSocket sensor-fusion path |
-| `/crebain/lidar/detections` | `crebain_msgs/LidarDetectionArray` | Product WebSocket sensor-fusion path |
+| `/crebain/thermal/detections` | `crebain_msgs/ThermalDetectionArray` | Vite-development WebSocket sensor-fusion path |
+| `/crebain/acoustic/detections` | `crebain_msgs/AcousticDetectionArray` | Vite-development WebSocket sensor-fusion path |
+| `/crebain/radar/detections` | `crebain_msgs/RadarDetectionArray` | Vite-development WebSocket sensor-fusion path |
+| `/crebain/lidar/detections` | `crebain_msgs/LidarDetectionArray` | Vite-development WebSocket sensor-fusion path |
 | `/crebain/targets` | `crebain_msgs/DroneTarget` | Reference output contract |
+
+Reference service definitions (not registered product commands):
 
 | Service | Type |
 |---------|------|
 | `/crebain/initiate_intercept` | `crebain_msgs/InitiateIntercept` |
 | `/crebain/abort_mission` | `crebain_msgs/AbortMission` |
 
-The product's Gazebo controller uses ROS 1 Gazebo Classic services over
-rosbridge:
+The following ROS 1 Gazebo Classic services are reference contracts for
+external tools only. CREBAIN no longer ships a Gazebo controller or any
+renderer/native service-call method:
 
 | Service | Type |
 |---------|------|
@@ -86,7 +87,7 @@ rosbridge:
 | `/gazebo/pause_physics`, `/gazebo/unpause_physics`, `/gazebo/reset_world`, `/gazebo/reset_simulation` | `std_srvs/Empty` |
 
 `/gazebo/spawn_entity` / `gazebo_msgs/SpawnEntity` is a different Gazebo/ROS 2
-contract and is not the shipped CREBAIN service path.
+contract and likewise is not a CREBAIN product path.
 
 ## Launch
 
@@ -101,16 +102,20 @@ roslaunch crebain_msgs simulation.launch gui:=false
 bun run tauri:dev
 ```
 
-Alternatively launch `rosbridge.launch` against an already-running ROS 1 / Gazebo
-Classic graph. Connect the product UI to `ws://localhost:9090`.
+Alternatively launch `rosbridge.launch` against an already-running ROS 1 /
+Gazebo Classic graph. A Vite development build may select its read-only
+rosbridge telemetry adapter and connect to `ws://localhost:9090`; packaged
+builds do not expose that option.
 
 ## Transport boundary
 
-The product UI defaults to the TypeScript rosbridge WebSocket client. That path
-supports the custom sensor arrays and Gazebo services. **Zenoh (Tauri)** selects a
-different native typed surface: camera, CameraInfo, IMU, PoseStamped, ModelStates,
-and pose/twist publishing. It does not provide ROS service calls or the custom
-sensor arrays.
+The packaged product UI defaults to **Zenoh (Tauri)** and exposes a fixed
+read-only surface: camera, CameraInfo, IMU, PoseStamped, and ModelStates. The
+TypeScript rosbridge client is available only to Vite development builds;
+production substitutes a network-free stub and its CSP omits rosbridge socket
+origins. The native Rust rosbridge fallback (`CREBAIN_ZENOH=0`) is also
+subscription-only. No product transport has generic publish, pose/twist
+setpoint, ROS service, MAVROS mode/mission, or Gazebo mutation methods.
 
 The native Zenoh adapter maps ROS-looking topic strings to CREBAIN plain keys.
 An `rmw_zenoh_cpp` graph uses DDS/RMW-qualified keys, so setting
@@ -138,20 +143,21 @@ inference. The native Rust rosbridge fallback and native Zenoh transport enforce
 - finite/non-negative header time with nanoseconds below `1,000,000,000` plus a
   bounded, control-character-free frame ID.
 
-## Gazebo XML policy
+## Removed mutation boundary
 
-Names, frames, poses, velocities, and model XML are validated in the frontend and
-native command paths. XML is limited to 256 KiB. Frontend caller-supplied XML
-always rejects plugin/include/URI/external-resource directives; only the fixed,
-audited bundled Maverick helper may use privileged XML. The native Rust command
-has a separate trusted-development escape hatch,
-`CREBAIN_ALLOW_UNSAFE_GAZEBO_XML=1`; never enable it for untrusted input or an
-exposed rosbridge endpoint.
+`GazeboController`, `WaypointManager`, renderer service/publish APIs, native
+pose/twist/spawn commands, and the former unsafe-XML environment bypass are
+removed. The SDF strings in `src/ros/models.ts`, launch files, and service
+definitions in this reference package are not callable product capabilities.
+The Phase 0 verifier covers the executable Vite/Cargo/Tauri inputs, including
+root HTML, Cargo build input, public scripts, locks, and relevant build scripts.
+Its TypeScript AST checks literal, concatenated, constant-template,
+array-joined, and computed MAVROS/Gazebo routes and generic command method
+names. The real subscription-only renderer adapter remains explicitly
+classified as development-only; production must resolve to the network-free
+replacement and prove that resolution in the emitted Vite module graph.
 
-Rosbridge service calls are ID-correlated, bounded to 16 pending calls, time out
-after 8 seconds, accept only correlated `service_response` messages, and require
-`values.success=true` for spawn/delete mutations. Camera byte fields are
-base64-only; JSON byte arrays are rejected.
+Camera byte fields remain base64-only; JSON byte arrays are rejected.
 
 Do not expose rosbridge or Zenoh endpoints to untrusted networks without
 deployment-specific authentication, network policy, and transport security.

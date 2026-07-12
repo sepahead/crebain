@@ -21,7 +21,6 @@ pub mod transport;
 #[cfg(feature = "ncp")]
 pub mod ncp;
 
-use coreml::DetectionResult;
 use sensor_fusion::{
     validate_fusion_config, validate_sensor_measurements, FusionConfig, FusionStats,
     MultiSensorFusion, SensorMeasurement, TrackOutput,
@@ -102,28 +101,6 @@ fn init_coreml_detector(app: &tauri::App) {
 
         log::error!("Could not find CoreML model at any expected path");
     });
-}
-
-/// Run CoreML detection on an image - NATIVE FFI (zero subprocess overhead)
-#[tauri::command]
-async fn detect_coreml(
-    image_base64: String,
-    confidence_threshold: Option<f64>,
-    _iou_threshold: Option<f64>,
-    max_detections: Option<i32>,
-) -> Result<DetectionResult, String> {
-    // Validate inputs
-    common::image::validate_base64_image_len(image_base64.len())?;
-
-    let conf = confidence_threshold.unwrap_or(0.25).clamp(0.0, 1.0);
-    let max_det = max_detections.unwrap_or(100).clamp(1, 1000) as usize;
-
-    // Spawn blocking task to avoid blocking the async runtime
-    tauri::async_runtime::spawn_blocking(move || {
-        coreml::detect_base64(&image_base64, conf, max_det)
-    })
-    .await
-    .map_err(|e| format!("Task join error: {}", e))?
 }
 
 /// Maximum allowed image dimension (8K resolution)
@@ -309,28 +286,6 @@ fn persist_scene_contents_atomically(
     sync_directory(parent)
 }
 
-/// Run CoreML detection on raw RGBA data.
-#[tauri::command]
-async fn detect_coreml_raw(
-    rgba_data: Vec<u8>,
-    width: u32,
-    height: u32,
-    confidence_threshold: Option<f64>,
-    max_detections: Option<i32>,
-) -> Result<DetectionResult, String> {
-    validate_rgba_input_len(rgba_data.len(), width, height)?;
-
-    let conf = confidence_threshold.unwrap_or(0.25).clamp(0.0, 1.0);
-    let max_det = max_detections.unwrap_or(100).clamp(1, 1000) as usize;
-
-    // Spawn blocking task
-    tauri::async_runtime::spawn_blocking(move || {
-        coreml::detect_raw(&rgba_data, width, height, conf, max_det)
-    })
-    .await
-    .map_err(|e| format!("Task join error: {}", e))?
-}
-
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 struct NativeBoundingBox {
@@ -484,23 +439,6 @@ async fn detect_native_raw(
             format!("native detector task failed: {error}"),
         )
     }))
-}
-
-/// Run detection using ONNX Runtime (Linux primary backend)
-#[tauri::command]
-async fn detect_onnx(
-    rgba_data: Vec<u8>,
-    width: u32,
-    height: u32,
-) -> Result<onnx_detector::OnnxDetectionResult, String> {
-    validate_rgba_input_len(rgba_data.len(), width, height)?;
-
-    // Spawn blocking task
-    tauri::async_runtime::spawn_blocking(move || {
-        onnx_detector::detect_with_onnx(&rgba_data, width, height)
-    })
-    .await
-    .map_err(|e| format!("Task join error: {}", e))?
 }
 
 /// Get system info including detector availability
@@ -883,10 +821,7 @@ use transport::commands::*;
 pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
-            detect_coreml,
-            detect_coreml_raw,
             detect_native_raw,
-            detect_onnx,
             get_system_info,
             // Scene state persistence (filesystem)
             scene_save_file,
@@ -909,10 +844,6 @@ pub fn run() {
             transport_subscribe_pose,
             transport_subscribe_model_states,
             transport_unsubscribe,
-            transport_publish_velocity,
-            transport_publish_twist_stamped,
-            transport_publish_pose,
-            transport_spawn_gazebo_model,
             transport_get_stats
         ])
         .setup(|app| {
@@ -1226,31 +1157,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn detect_coreml_raw_rejects_zero_dimensions_before_backend_selection() {
-        let error = tauri::async_runtime::block_on(detect_coreml_raw(Vec::new(), 0, 1, None, None))
-            .unwrap_err();
-
-        assert!(error.contains("width and height must be > 0"));
-    }
-
-    #[test]
-    fn detect_coreml_rejects_empty_base64_before_backend_selection() {
-        let error = tauri::async_runtime::block_on(detect_coreml(String::new(), None, None, None))
-            .unwrap_err();
-
-        assert!(error.contains("Empty image data"));
-    }
-
-    #[test]
-    fn detect_coreml_rejects_oversized_base64_before_backend_selection() {
-        let image_base64 = "A".repeat(common::image::MAX_BASE64_IMAGE_CHARS + 1);
-        let error = tauri::async_runtime::block_on(detect_coreml(image_base64, None, None, None))
-            .unwrap_err();
-
-        assert!(error.contains("Base64 image data too large"));
-    }
-
     fn test_fusion_config() -> FusionConfig {
         FusionConfig::default()
     }
@@ -1495,10 +1401,6 @@ mod tests {
             "transport_subscribe_pose",
             "transport_subscribe_model_states",
             "transport_unsubscribe",
-            "transport_publish_velocity",
-            "transport_publish_twist_stamped",
-            "transport_publish_pose",
-            "transport_spawn_gazebo_model",
             "transport_get_stats",
         ] {
             assert!(handler.contains(command), "missing command {command}");
@@ -1516,11 +1418,36 @@ mod tests {
             "detect_native_raw",
             "scene_save_file",
             "fusion_process",
-            "transport_publish_twist_stamped",
+            "transport_subscribe_model_states",
         ] {
             assert!(
                 sources.contains(&format!("fn {command}")),
                 "missing source function for {command}"
+            );
+        }
+    }
+
+    #[test]
+    fn backend_invoke_handler_excludes_direct_mutation_and_inference_bypasses() {
+        let source = include_str!("lib.rs");
+        let handler = source
+            .split("generate_handler![")
+            .nth(1)
+            .and_then(|tail| tail.split("])").next())
+            .unwrap();
+
+        for forbidden in [
+            "detect_coreml",
+            "detect_coreml_raw",
+            "detect_onnx",
+            "transport_publish_velocity",
+            "transport_publish_twist_stamped",
+            "transport_publish_pose",
+            "transport_spawn_gazebo_model",
+        ] {
+            assert!(
+                !handler.contains(forbidden),
+                "registered forbidden command {forbidden}"
             );
         }
     }
@@ -1541,18 +1468,7 @@ mod tests {
     #[test]
     fn transport_commands_accept_valid_topics() {
         assert!(transport::commands::validate_topic_for_test("/drone1/camera").is_ok());
-        assert!(transport::commands::validate_topic_for_test("/cmd_vel").is_ok());
-    }
-
-    #[test]
-    fn transport_publish_validation_rejects_invalid_message_type() {
-        let error = transport::commands::validate_message_type_for_test("InvalidType");
-        assert!(error.is_err());
-    }
-
-    #[test]
-    fn transport_publish_validation_accepts_valid_message_type() {
-        assert!(transport::commands::validate_message_type_for_test("geometry_msgs/Twist").is_ok());
+        assert!(transport::commands::validate_topic_for_test("/drone1/pose").is_ok());
     }
 
     // ─────────────────────────────────────────────────────────────────────────

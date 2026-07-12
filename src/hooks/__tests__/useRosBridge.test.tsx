@@ -72,7 +72,16 @@ describe('useRosBridge', () => {
       enablePerformanceMonitoring: false,
     })
 
-    expect(hook.bridge).toBeInstanceOf(ROSBridge)
+    expect(hook.bridge).not.toBeInstanceOf(ROSBridge)
+    expect(Object.isFrozen(hook.bridge)).toBe(true)
+    expect(hook.bridge).toEqual(
+      expect.objectContaining({
+        getState: expect.any(Function),
+        isConnected: expect.any(Function),
+        subscribe: expect.any(Function),
+        subscribeToModelStates: expect.any(Function),
+      })
+    )
     expect(hook.state).toBe('disconnected')
     await act(async () => root.unmount())
   })
@@ -85,7 +94,7 @@ describe('useRosBridge', () => {
     }
     const root = await renderHook(websocketConfig)
     const websocketBridge = hook.bridge
-    expect(websocketBridge).toBeInstanceOf(ROSBridge)
+    expect(websocketBridge).not.toBeInstanceOf(ROSBridge)
 
     renderSnapshots = []
     await act(async () => {
@@ -102,7 +111,8 @@ describe('useRosBridge', () => {
           requestedTransport === 'zenoh' && bridge === websocketBridge
       )
     ).toBe(false)
-    expect(hook.bridge).toBeInstanceOf(ZenohBridge)
+    expect(hook.bridge).not.toBeInstanceOf(ZenohBridge)
+    expect(Object.isFrozen(hook.bridge)).toBe(true)
     await act(async () => root.unmount())
   })
 
@@ -130,14 +140,15 @@ describe('useRosBridge', () => {
       await Promise.resolve()
     })
 
-    expect(hook.bridge).toBeInstanceOf(ZenohBridge)
+    expect(hook.bridge).not.toBeInstanceOf(ZenohBridge)
+    expect(Object.isFrozen(hook.bridge)).toBe(true)
     expect(hook.state).toBe('disconnected')
     expect(hook.error).toBeNull()
 
     await act(async () => root.unmount())
   })
 
-  it('connects a websocket bridge and delegates topic and service operations', async () => {
+  it('connects a websocket bridge and delegates telemetry subscriptions only', async () => {
     const root = await renderHook({
       transport: 'websocket',
       url: 'ws://localhost:9090',
@@ -148,25 +159,17 @@ describe('useRosBridge', () => {
     const ws = await connectHook()
     const callback = vi.fn()
     const unsubscribe = hook.subscribe('/camera', 'sensor_msgs/Image', callback, 20)
-    hook.publish('/cmd', { value: 1 })
-    const serviceResponse = hook.callService<{ value: number }, { ok: boolean }>('/service', {
-      value: 1,
-    })
-    const serviceCall = sentMessages(ws).find((message) => message.op === 'call_service')
     ws.receive({ op: 'publish', topic: '/camera', msg: { frame: 1 } })
-    ws.receive({ op: 'service_response', id: serviceCall?.id, values: { ok: true }, result: true })
     unsubscribe()
 
     expect(hook.state).toBe('connected')
     expect(hook.isConnected).toBe(true)
     expect(callback).toHaveBeenCalledWith({ frame: 1 })
-    expect(await serviceResponse).toEqual({ ok: true })
-    expect(sentMessages(ws).map((message) => message.op)).toEqual([
-      'subscribe',
-      'publish',
-      'call_service',
-      'unsubscribe',
-    ])
+    expect(sentMessages(ws).map((message) => message.op)).toEqual(['subscribe', 'unsubscribe'])
+
+    const surface = hook as unknown as Record<string, unknown>
+    expect(surface.publish).toBeUndefined()
+    expect(surface.callService).toBeUndefined()
 
     await act(async () => root.unmount())
   })

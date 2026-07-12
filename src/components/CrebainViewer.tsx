@@ -34,7 +34,6 @@ import {
   createTerrainMesh,
   type FloorStyle,
 } from './viewer/ProceduralTerrain'
-import { getGazeboController } from '../ros/GazeboController'
 import { calculateLatencyStats, normalizeSystemInfo, type SystemInfo } from '../lib/diagnostics'
 import { isTextInputTarget, VIEWER_SHORTCUTS } from '../lib/shortcuts'
 import { TAURI_COMMANDS } from '../lib/tauriCommands'
@@ -2540,31 +2539,11 @@ export default function CrebainViewer({
             addMessage('tactical', 'MAVERICK-DROHNE ERKANNT: INITIIERE SYSTEM...')
 
             const id = await spawnDrone('maverick', 'Maverick-Sim')
-            if (!id || !physicsWorld) {
+            if (!id) {
               addMessage('error', 'REACT SPAWN FEHLGESCHLAGEN')
               return
             }
-
-            const reactDrone = physicsWorld.getDrone(id)
-            if (!reactDrone) return
-            const pos = reactDrone.state.position
-            const quat = reactDrone.state.orientation
-
-            const controller = getGazeboController()
-            if (controller.isConnected()) {
-              addMessage('info', 'SPAWNE GAZEBO MODEL...')
-              const success = await controller.spawnBundledMaverick(id, {
-                position: { x: pos.x, y: pos.y, z: pos.z },
-                orientation: { x: quat.x, y: quat.y, z: quat.z, w: quat.w },
-              })
-              if (success) {
-                addMessage('success', 'GAZEBO: SPAWN ERFOLGREICH')
-              } else {
-                addMessage('error', 'GAZEBO: SPAWN FEHLGESCHLAGEN')
-              }
-            } else {
-              addMessage('warning', 'GAZEBO NICHT VERBUNDEN: NUR LOKALE SIMULATION')
-            }
+            addMessage('success', `LOKALE SIMULATION: ${id}`)
             continue
           }
 
@@ -2594,7 +2573,7 @@ export default function CrebainViewer({
       container.removeEventListener('dragleave', handleDragLeave)
       container.removeEventListener('drop', onDrop)
     }
-  }, [loadSplat, loadGlb, loadFloorTexture, spawnDrone, physicsWorld, addMessage])
+  }, [loadSplat, loadGlb, loadFloorTexture, spawnDrone, addMessage])
 
   const createSceneSnapshot = useCallback(
     (sceneName: string): SceneState => {

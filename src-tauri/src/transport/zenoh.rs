@@ -26,9 +26,7 @@
 //! └─────────────────┘                         └─────────────────┘
 //! ```
 
-use super::{
-    PoseData, Result, Transport, TransportError, TransportStats, TwistStampedData, VelocityCmd,
-};
+use super::{PoseData, Result, Transport, TransportError, TransportStats, VelocityCmd};
 use std::future::Future;
 use std::pin::Pin;
 use std::time::Instant;
@@ -66,8 +64,8 @@ const CDR_BIG_ENDIAN: u8 = 0x00;
 #[cfg(feature = "zenoh-transport")]
 const CDR_LITTLE_ENDIAN: u8 = 0x01;
 
-/// The encapsulation emitted by the encoders: CDR_LE with zeroed options.
-#[cfg(feature = "zenoh-transport")]
+/// CDR_LE encapsulation used by decoder test fixtures.
+#[cfg(all(feature = "zenoh-transport", test))]
 const CDR_LE_ENCAPSULATION: [u8; 4] = [0x00, CDR_LITTLE_ENDIAN, 0x00, 0x00];
 
 #[cfg(feature = "zenoh-transport")]
@@ -903,112 +901,6 @@ fn decode_model_states_cdr(data: &[u8]) -> Result<ModelStates> {
     Ok(ModelStates { name, pose, twist })
 }
 
-#[cfg(feature = "zenoh-transport")]
-/// Encode geometry_msgs/Twist to CDR
-fn encode_twist_cdr(cmd: &VelocityCmd) -> Vec<u8> {
-    let mut data = Vec::with_capacity(CDR_HEADER_SIZE + 48);
-
-    // CDR_LE encapsulation: representation identifier [0x00, 0x01] + options
-    data.extend_from_slice(&CDR_LE_ENCAPSULATION);
-
-    // Linear velocity (x, y, z)
-    for v in &cmd.linear {
-        data.extend_from_slice(&v.to_le_bytes());
-    }
-
-    // Angular velocity (x, y, z)
-    for v in &cmd.angular {
-        data.extend_from_slice(&v.to_le_bytes());
-    }
-
-    data
-}
-
-#[cfg(feature = "zenoh-transport")]
-/// Encode geometry_msgs/TwistStamped to CDR
-fn encode_twist_stamped_cdr(cmd: &TwistStampedData) -> Vec<u8> {
-    // Header + string + padding + 6*f64. Conservatively reserve ~128 bytes.
-    let mut data = Vec::with_capacity(CDR_HEADER_SIZE + 128);
-
-    // CDR_LE encapsulation: representation identifier [0x00, 0x01] + options
-    data.extend_from_slice(&CDR_LE_ENCAPSULATION);
-
-    // Header timestamp
-    let sec = cmd.timestamp as i32;
-    let nanosec = ((cmd.timestamp - sec as f64) * 1e9) as u32;
-    data.extend_from_slice(&sec.to_le_bytes());
-    data.extend_from_slice(&nanosec.to_le_bytes());
-
-    // Header frame_id (CDR string)
-    let frame_id_bytes = cmd.frame_id.as_bytes();
-    data.extend_from_slice(&(frame_id_bytes.len() as u32 + 1).to_le_bytes());
-    data.extend_from_slice(frame_id_bytes);
-    data.push(0);
-    // Safe: data always has CDR_HEADER_SIZE bytes at this point
-    while (data.len().saturating_sub(CDR_HEADER_SIZE)) % 4 != 0 {
-        data.push(0);
-    }
-
-    // Align to 8 for f64 fields (relative to payload start).
-    while (data.len().saturating_sub(CDR_HEADER_SIZE)) % 8 != 0 {
-        data.push(0);
-    }
-
-    // Twist: linear then angular (x, y, z) as f64
-    for v in &cmd.twist.linear {
-        data.extend_from_slice(&v.to_le_bytes());
-    }
-    for v in &cmd.twist.angular {
-        data.extend_from_slice(&v.to_le_bytes());
-    }
-
-    data
-}
-
-#[cfg(feature = "zenoh-transport")]
-/// Encode geometry_msgs/PoseStamped to CDR
-fn encode_pose_cdr(pose: &PoseData) -> Vec<u8> {
-    let mut data = Vec::with_capacity(CDR_HEADER_SIZE + 100);
-
-    // CDR_LE encapsulation: representation identifier [0x00, 0x01] + options
-    data.extend_from_slice(&CDR_LE_ENCAPSULATION);
-
-    // Header timestamp
-    let sec = pose.timestamp as i32;
-    let nanosec = ((pose.timestamp - sec as f64) * 1e9) as u32;
-    data.extend_from_slice(&sec.to_le_bytes());
-    data.extend_from_slice(&nanosec.to_le_bytes());
-
-    // Frame ID
-    let frame_bytes = pose.frame_id.as_bytes();
-    let frame_len = (frame_bytes.len() + 1) as u32; // Include null terminator
-    data.extend_from_slice(&frame_len.to_le_bytes());
-    data.extend_from_slice(frame_bytes);
-    data.push(0); // Null terminator
-
-    // Align to 4 bytes (relative to payload start)
-    while (data.len().saturating_sub(CDR_HEADER_SIZE)) % 4 != 0 {
-        data.push(0);
-    }
-
-    // Align to 8 for f64 fields (relative to payload start)
-    while (data.len().saturating_sub(CDR_HEADER_SIZE)) % 8 != 0 {
-        data.push(0);
-    }
-
-    // Position
-    for v in &pose.position {
-        data.extend_from_slice(&v.to_le_bytes());
-    }
-
-    // Orientation
-    for v in &pose.orientation {
-        data.extend_from_slice(&v.to_le_bytes());
-    }
-
-    data
-}
-
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // ZENOH BRIDGE (Feature-gated)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1085,16 +977,13 @@ impl ZenohBridge {
         topic.trim_start_matches('/').to_string()
     }
 
-    fn ensure_connected(connected: &AtomicBool, action: &str, key: &str) -> Result<()> {
+    fn ensure_connected(connected: &AtomicBool, key: &str) -> Result<()> {
         if connected.load(Ordering::SeqCst) {
             return Ok(());
         }
-        let message = format!("Transport disconnected; cannot {} {}", action, key);
-        if action == "publish to" {
-            Err(TransportError::PublishFailed(message))
-        } else {
-            Err(TransportError::SubscriptionFailed(message))
-        }
+        Err(TransportError::SubscriptionFailed(format!(
+            "Transport disconnected; cannot subscribe to {key}"
+        )))
     }
 }
 
@@ -1149,7 +1038,7 @@ impl Transport for ZenohBridge {
         let is_compressed = stream_kind == super::CameraStreamKind::Compressed;
 
         Box::pin(async move {
-            Self::ensure_connected(&self.connected, "subscribe to", &key)?;
+            Self::ensure_connected(&self.connected, &key)?;
             log::info!("[Zenoh] Subscribing to camera: {}", key);
 
             let callback: Arc<dyn Fn(CameraFrame) + Send + Sync> = Arc::from(callback);
@@ -1218,7 +1107,7 @@ impl Transport for ZenohBridge {
         let subscribers = self.subscribers.clone();
 
         Box::pin(async move {
-            Self::ensure_connected(&self.connected, "subscribe to", &key)?;
+            Self::ensure_connected(&self.connected, &key)?;
             log::info!("[Zenoh] Subscribing to camera info: {}", key);
 
             let callback: Arc<dyn Fn(CameraInfoData) + Send + Sync> = Arc::from(callback);
@@ -1258,7 +1147,7 @@ impl Transport for ZenohBridge {
         let subscribers = self.subscribers.clone();
 
         Box::pin(async move {
-            Self::ensure_connected(&self.connected, "subscribe to", &key)?;
+            Self::ensure_connected(&self.connected, &key)?;
             log::info!("[Zenoh] Subscribing to IMU: {}", key);
 
             let callback: Arc<dyn Fn(ImuData) + Send + Sync> = Arc::from(callback);
@@ -1298,7 +1187,7 @@ impl Transport for ZenohBridge {
         let subscribers = self.subscribers.clone();
 
         Box::pin(async move {
-            Self::ensure_connected(&self.connected, "subscribe to", &key)?;
+            Self::ensure_connected(&self.connected, &key)?;
             log::info!("[Zenoh] Subscribing to pose: {}", key);
 
             let callback: Arc<dyn Fn(PoseData) + Send + Sync> = Arc::from(callback);
@@ -1338,7 +1227,7 @@ impl Transport for ZenohBridge {
         let subscribers = self.subscribers.clone();
 
         Box::pin(async move {
-            Self::ensure_connected(&self.connected, "subscribe to", &key)?;
+            Self::ensure_connected(&self.connected, &key)?;
             log::info!("[Zenoh] Subscribing to model states: {}", key);
 
             let callback: Arc<dyn Fn(ModelStates) + Send + Sync> = Arc::from(callback);
@@ -1378,87 +1267,6 @@ impl Transport for ZenohBridge {
                     log::debug!("[Zenoh] No subscription found for: {}", key);
                 }
             }
-            Ok(())
-        })
-    }
-
-    fn publish_velocity(
-        &self,
-        topic: &str,
-        cmd: VelocityCmd,
-    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
-        let key = Self::ros_to_zenoh_key(topic);
-        let session = self.session.clone();
-        let messages_sent = self.messages_sent.clone();
-        let bytes_sent = self.bytes_sent.clone();
-
-        Box::pin(async move {
-            Self::ensure_connected(&self.connected, "publish to", &key)?;
-            let data = encode_twist_cdr(&cmd);
-            let data_len = data.len();
-
-            session
-                .put(&key, data)
-                .await
-                .map_err(|e| TransportError::PublishFailed(e.to_string()))?;
-
-            messages_sent.fetch_add(1, Ordering::Relaxed);
-            bytes_sent.fetch_add(data_len as u64, Ordering::Relaxed);
-
-            Ok(())
-        })
-    }
-
-    fn publish_twist_stamped(
-        &self,
-        topic: &str,
-        cmd: TwistStampedData,
-    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
-        let key = Self::ros_to_zenoh_key(topic);
-        let session = self.session.clone();
-        let messages_sent = self.messages_sent.clone();
-        let bytes_sent = self.bytes_sent.clone();
-
-        Box::pin(async move {
-            Self::ensure_connected(&self.connected, "publish to", &key)?;
-            let data = encode_twist_stamped_cdr(&cmd);
-            let data_len = data.len();
-
-            session
-                .put(&key, data)
-                .await
-                .map_err(|e| TransportError::PublishFailed(e.to_string()))?;
-
-            messages_sent.fetch_add(1, Ordering::Relaxed);
-            bytes_sent.fetch_add(data_len as u64, Ordering::Relaxed);
-
-            Ok(())
-        })
-    }
-
-    fn publish_pose(
-        &self,
-        topic: &str,
-        pose: PoseData,
-    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
-        let key = Self::ros_to_zenoh_key(topic);
-        let session = self.session.clone();
-        let messages_sent = self.messages_sent.clone();
-        let bytes_sent = self.bytes_sent.clone();
-
-        Box::pin(async move {
-            Self::ensure_connected(&self.connected, "publish to", &key)?;
-            let data = encode_pose_cdr(&pose);
-            let data_len = data.len();
-
-            session
-                .put(&key, data)
-                .await
-                .map_err(|e| TransportError::PublishFailed(e.to_string()))?;
-
-            messages_sent.fetch_add(1, Ordering::Relaxed);
-            bytes_sent.fetch_add(data_len as u64, Ordering::Relaxed);
-
             Ok(())
         })
     }
@@ -1583,42 +1391,6 @@ impl Transport for ZenohBridge {
 
     fn unsubscribe(&self, _topic: &str) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
         Box::pin(async move { Ok(()) })
-    }
-
-    fn publish_velocity(
-        &self,
-        _topic: &str,
-        _cmd: VelocityCmd,
-    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
-        Box::pin(async move {
-            Err(TransportError::PublishFailed(
-                "Zenoh transport not enabled".to_string(),
-            ))
-        })
-    }
-
-    fn publish_twist_stamped(
-        &self,
-        _topic: &str,
-        _cmd: TwistStampedData,
-    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
-        Box::pin(async move {
-            Err(TransportError::PublishFailed(
-                "Zenoh transport not enabled".to_string(),
-            ))
-        })
-    }
-
-    fn publish_pose(
-        &self,
-        _topic: &str,
-        _pose: PoseData,
-    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
-        Box::pin(async move {
-            Err(TransportError::PublishFailed(
-                "Zenoh transport not enabled".to_string(),
-            ))
-        })
     }
 
     fn stats(&self) -> TransportStats {
@@ -1766,27 +1538,6 @@ mod tests {
             push_f64_le(&mut data, 0.0);
         }
         data
-    }
-
-    #[test]
-    #[cfg(feature = "zenoh-transport")]
-    fn test_encode_twist_cdr() {
-        let cmd = VelocityCmd {
-            linear: [1.0, 2.0, 3.0],
-            angular: [0.1, 0.2, 0.3],
-        };
-
-        let data = encode_twist_cdr(&cmd);
-
-        // CDR header + 6 * f64 = 4 + 48 = 52 bytes
-        assert_eq!(data.len(), 52);
-
-        // Check CDR header (little-endian: byte 0 = 0x01)
-        assert_eq!(&data[0..4], &CDR_LE_ENCAPSULATION);
-
-        // Check first linear value
-        let val = f64::from_le_bytes(data[4..12].try_into().unwrap());
-        assert!((val - 1.0).abs() < f64::EPSILON);
     }
 
     #[test]

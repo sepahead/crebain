@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { ROSBridge, type ConnectionState } from '../ros/ROSBridge'
+import { ROSBridge } from '#renderer-rosbridge'
 import { ZenohBridge } from '../ros/ZenohBridge'
 import {
   ROSPerformanceMonitor,
@@ -14,7 +14,8 @@ import {
   type PerformanceAlert,
   type TopicStats,
 } from '../ros/ROSPerformanceMonitor'
-import type { ROSMessageCallback } from '../ros/types'
+import type { ConnectionState, ModelStates, ROSMessageCallback } from '../ros/types'
+import type { TelemetryBridge } from '../ros/TelemetryBridge'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -38,7 +39,7 @@ export interface UseRosBridgeReturn {
   state: ConnectionState
   isConnected: boolean
   error: string | null
-  bridge: ROSBridge | ZenohBridge | null
+  bridge: TelemetryBridge | null
   connect: () => Promise<void>
   disconnect: () => void
   subscribe: <T>(
@@ -47,8 +48,6 @@ export interface UseRosBridgeReturn {
     callback: ROSMessageCallback<T>,
     throttleRate?: number
   ) => () => void
-  publish: <T>(topic: string, msg: T) => void
-  callService: <TReq, TRes>(service: string, request: TReq) => Promise<TRes>
   /** Performance monitoring data */
   performance: {
     quality: ConnectionQuality | null
@@ -65,6 +64,23 @@ type RosBridgeInstance = ROSBridge | ZenohBridge
 interface BridgeSnapshot {
   transport: RosTransport
   bridge: RosBridgeInstance | null
+  telemetry: TelemetryBridge | null
+}
+
+function telemetryFacade(bridge: RosBridgeInstance): TelemetryBridge {
+  return Object.freeze({
+    getState: () => bridge.getState(),
+    isConnected: () => bridge.isConnected(),
+    subscribe: <T>(
+      topic: string,
+      type: string,
+      callback: ROSMessageCallback<T>,
+      throttleRate?: number,
+      queueLength?: number
+    ) => bridge.subscribe(topic, type, callback, throttleRate, queueLength),
+    subscribeToModelStates: (callback: ROSMessageCallback<ModelStates>, throttleRate?: number) =>
+      bridge.subscribeToModelStates(callback, throttleRate),
+  })
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -72,7 +88,7 @@ interface BridgeSnapshot {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const DEFAULT_CONFIG: UseRosBridgeConfig = {
-  transport: 'websocket',
+  transport: import.meta.env.DEV ? 'websocket' : 'zenoh',
   url: 'ws://localhost:9090',
   autoConnect: false,
   autoReconnect: true,
@@ -112,8 +128,9 @@ export function useRosBridge(config: Partial<UseRosBridgeConfig> = {}): UseRosBr
   const [bridgeSnapshot, setBridgeSnapshot] = useState<BridgeSnapshot>(() => ({
     transport,
     bridge: null,
+    telemetry: null,
   }))
-  const bridgeSnapshotRef = useRef<BridgeSnapshot>({ transport, bridge: null })
+  const bridgeSnapshotRef = useRef<BridgeSnapshot>({ transport, bridge: null, telemetry: null })
   const performanceMonitorRef = useRef<ROSPerformanceMonitor | null>(null)
 
   const getActiveBridge = useCallback((): RosBridgeInstance | null => {
@@ -162,7 +179,7 @@ export function useRosBridge(config: Partial<UseRosBridgeConfig> = {}): UseRosBr
       })
     }
 
-    const nextSnapshot: BridgeSnapshot = { transport, bridge }
+    const nextSnapshot: BridgeSnapshot = { transport, bridge, telemetry: telemetryFacade(bridge) }
     bridgeSnapshotRef.current = nextSnapshot
     setBridgeSnapshot(nextSnapshot)
     setState(bridge.getState())
@@ -200,7 +217,7 @@ export function useRosBridge(config: Partial<UseRosBridgeConfig> = {}): UseRosBr
     return () => {
       if (statsInterval) clearInterval(statsInterval)
       if (bridgeSnapshotRef.current.bridge === bridge) {
-        bridgeSnapshotRef.current = { transport, bridge: null }
+        bridgeSnapshotRef.current = { transport, bridge: null, telemetry: null }
       }
       void bridge.disconnect()
       if (performanceMonitorRef.current === monitor) {
@@ -257,35 +274,12 @@ export function useRosBridge(config: Partial<UseRosBridgeConfig> = {}): UseRosBr
     [getActiveBridge]
   )
 
-  // Publish function
-  const publish = useCallback(
-    <T>(topic: string, msg: T) => {
-      const bridge = getActiveBridge()
-      if (bridge) {
-        bridge.publish(topic, msg)
-      }
-    },
-    [getActiveBridge]
-  )
-
-  // Call service function
-  const callService = useCallback(
-    <TReq, TRes>(service: string, request: TReq): Promise<TRes> => {
-      const bridge = getActiveBridge()
-      if (bridge) {
-        return bridge.callService(service, request)
-      }
-      return Promise.reject(new Error('ROS bridge not connected'))
-    },
-    [getActiveBridge]
-  )
-
   // Record message for performance tracking
   const recordMessage = useCallback((topic: string, sizeBytes: number, latencyMs?: number) => {
     performanceMonitorRef.current?.recordMessage(topic, sizeBytes, latencyMs)
   }, [])
 
-  const activeBridge = bridgeSnapshot.transport === transport ? bridgeSnapshot.bridge : null
+  const activeBridge = bridgeSnapshot.transport === transport ? bridgeSnapshot.telemetry : null
   const activeState = activeBridge ? state : 'disconnected'
 
   return {
@@ -296,8 +290,6 @@ export function useRosBridge(config: Partial<UseRosBridgeConfig> = {}): UseRosBr
     connect,
     disconnect,
     subscribe,
-    publish,
-    callService,
     performance: {
       quality,
       topicStats,

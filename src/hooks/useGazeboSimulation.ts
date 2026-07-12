@@ -2,11 +2,11 @@
  * CREBAIN Gazebo Simulation Hook
  * Adaptive Response & Awareness System (ARAS)
  *
- * Combined hook for ROS-Gazebo drone simulation with interception
- * Features continuous 20Hz guidance control loop
+ * Combined telemetry hook for ROS-Gazebo drone observations and local
+ * no-authority interception previews.
  */
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRosBridge, type UseRosBridgeReturn } from './useRosBridge'
 import { GAZEBO_DRONE_STALE_MS, useGazeboDrones, type DroneState } from './useGazeboDrones'
 import {
@@ -19,9 +19,8 @@ import {
 import {
   type GuidanceController,
   createGuidanceController,
-  type GuidanceCommand,
+  type GuidanceProposal,
 } from '../ros/GuidanceController'
-import { getGazeboController } from '../ros/GazeboController'
 import type { ConnectionState } from '../ros/ROSBridge'
 import { logger } from '../lib/logger'
 
@@ -37,16 +36,16 @@ function isFreshDroneObservation(drone: DroneState, timestamp: number = Date.now
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface UseGazeboSimulationConfig {
-  /** Transport layer to use (default: websocket) */
+  /** Transport layer to use (development default: websocket; production: zenoh). */
   transport: 'websocket' | 'zenoh'
   rosUrl: string
   autoConnect: boolean
   updateIntervalMs: number
   trajectoryDurationSec: number
-  /** Enable continuous guidance control (default: true) */
-  enableContinuousGuidance: boolean
-  /** Guidance control rate in Hz (default: 20) */
-  guidanceRateHz: number
+  /** Enable local guidance preview generation (default: false). */
+  enableGuidancePreview: boolean
+  /** Local guidance preview rate in Hz (default: 20). */
+  guidancePreviewRateHz: number
 }
 
 export interface UseGazeboSimulationReturn {
@@ -78,13 +77,17 @@ export interface UseGazeboSimulationReturn {
   abortMission: (missionId: string) => boolean
 
   // Guidance
-  guidanceControllers: Map<string, GuidanceController>
-  lastGuidanceCommands: Map<string, GuidanceCommand>
+  guidancePreviews: Map<string, GuidanceController>
+  lastGuidanceProposals: Map<string, GuidanceProposal>
+
+  // Authority posture
+  authority: 'NoAuthority'
+  safeAction: 'Hold'
 
   // Simulation control
   isSimulationActive: boolean
   toggleSimulation: () => void
-  emergencyStopAll: () => void
+  holdAllGuidancePreviews: () => void
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -92,15 +95,15 @@ export interface UseGazeboSimulationReturn {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const DEFAULT_CONFIG: UseGazeboSimulationConfig = {
-  // WebSocket is the honest default until Zenoh supports Gazebo service calls
-  // and CREBAIN's custom sensor message types end to end.
-  transport: 'websocket',
+  // rosbridge is a development-only telemetry adapter. Production defaults to
+  // the native, read-only Zenoh path even if a caller omits the transport.
+  transport: import.meta.env.DEV ? 'websocket' : 'zenoh',
   rosUrl: 'ws://localhost:9090',
   autoConnect: false,
   updateIntervalMs: 100,
   trajectoryDurationSec: 10,
-  enableContinuousGuidance: true,
-  guidanceRateHz: 20,
+  enableGuidancePreview: false,
+  guidancePreviewRateHz: 20,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -115,19 +118,22 @@ export function useGazeboSimulation(
   // State
   const [transport, setTransport] = useState<'websocket' | 'zenoh'>(mergedConfig.transport)
   const [rosUrl, setRosUrl] = useState(mergedConfig.rosUrl)
-  const [isSimulationActive, setIsSimulationActive] = useState(true)
+  const [isSimulationActive, setIsSimulationActive] = useState(false)
   const [activeMissions, setActiveMissions] = useState<InterceptionMission[]>([])
   const [trajectoryPredictions, setTrajectoryPredictions] = useState<
     Map<string, TrajectoryPoint[]>
   >(new Map())
-  const [lastGuidanceCommands, setLastGuidanceCommands] = useState<Map<string, GuidanceCommand>>(
+  const [lastGuidanceProposals, setLastGuidanceProposals] = useState<Map<string, GuidanceProposal>>(
+    new Map()
+  )
+  const [guidancePreviews, setGuidancePreviews] = useState<Map<string, GuidanceController>>(
     new Map()
   )
 
   // Refs
   const interceptionSystemRef = useRef<InterceptionSystem>(getInterceptionSystem())
   const updateIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const guidanceControllersRef = useRef<Map<string, GuidanceController>>(new Map())
+  const guidancePreviewsRef = useRef<Map<string, GuidanceController>>(new Map())
   const syncedTargetIdsRef = useRef<Set<string>>(new Set())
   const syncedInterceptorIdsRef = useRef<Set<string>>(new Set())
   const configRef = useRef(mergedConfig)
@@ -139,31 +145,12 @@ export function useGazeboSimulation(
     url: rosUrl,
     autoConnect: mergedConfig.autoConnect,
   })
+  const disconnectBridge = rosBridge.disconnect
 
   // Gazebo Drones
   const gazeboDrones = useGazeboDrones({
     bridge: rosBridge.bridge,
   })
-
-  // Connect GazeboController singleton
-  useEffect(() => {
-    const controller = getGazeboController()
-    if (rosBridge.bridge && rosBridge.isConnected) {
-      controller.connect(rosBridge.bridge)
-    } else {
-      controller.disconnect()
-    }
-  }, [rosBridge.bridge, rosBridge.isConnected])
-
-  // Memoized guidance controllers map for external access.
-  // The snapshot is intentionally recomputed when `activeMissions` changes:
-  // controllers are added/removed in response to missions, but they live in a
-  // ref the dependency linter cannot track, so the mission list is the trigger.
-  const guidanceControllers = useMemo(
-    () => new Map(guidanceControllersRef.current),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeMissions]
-  )
 
   // Publish the interception system's active missions to React state.
   // The system mutates mission objects in place, so published missions are
@@ -187,6 +174,32 @@ export function useGazeboSimulation(
       if (unchanged) return prev
       return next.map((mission) => ({ ...mission }))
     })
+  }, [])
+
+  /**
+   * Irreversibly discard the current local preview generation.
+   *
+   * The interception system is a singleton and retains mission objects after
+   * they leave React state. Merely stopping controller timers would therefore
+   * let an old ACTIVE mission reappear when simulation or telemetry comes back.
+   * Every authority-boundary transition aborts those missions first, then
+   * clears every derived snapshot exposed by this hook.
+   */
+  const discardGuidancePreviewGeneration = useCallback(() => {
+    const system = interceptionSystemRef.current
+    for (const mission of system.getActiveMissions()) {
+      system.abortMission(mission.id)
+    }
+
+    for (const controller of guidancePreviewsRef.current.values()) {
+      controller.stop()
+    }
+    guidancePreviewsRef.current.clear()
+
+    setActiveMissions((previous) => (previous.length === 0 ? previous : []))
+    setGuidancePreviews((previous) => (previous.size === 0 ? previous : new Map()))
+    setTrajectoryPredictions((previous) => (previous.size === 0 ? previous : new Map()))
+    setLastGuidanceProposals((previous) => (previous.size === 0 ? previous : new Map()))
   }, [])
 
   // Sync the current, fresh Gazebo snapshot with the interception system.
@@ -271,14 +284,16 @@ export function useGazeboSimulation(
   // Stop-all lives in a separate unmount-only effect below.
   useEffect(() => {
     const cfg = configRef.current
-    const controllers = guidanceControllersRef.current
+    const controllers = guidancePreviewsRef.current
+    let snapshotChanged = false
 
-    if (!rosBridge.bridge || !rosBridge.isConnected || !cfg.enableContinuousGuidance) {
-      // Not connected / guidance disabled: stop everything now.
-      for (const controller of controllers.values()) {
-        controller.stop()
-      }
-      controllers.clear()
+    if (
+      !isSimulationActive ||
+      !rosBridge.bridge ||
+      !rosBridge.isConnected ||
+      !cfg.enableGuidancePreview
+    ) {
+      discardGuidancePreviewGeneration()
       return
     }
 
@@ -294,24 +309,21 @@ export function useGazeboSimulation(
       const interceptorId = mission.interceptorId
       if (!controllers.has(interceptorId)) {
         const controller = createGuidanceController({
-          rateHz: cfg.guidanceRateHz,
+          rateHz: cfg.guidancePreviewRateHz,
         })
 
-        // Set up command callback for state updates
-        controller.onCommand((cmd) => {
-          setLastGuidanceCommands((prev) => {
+        // Store local proposals for inspection; this callback has no transport.
+        controller.onProposal((proposal) => {
+          setLastGuidanceProposals((prev) => {
             const updated = new Map(prev)
-            updated.set(interceptorId, cmd)
+            updated.set(interceptorId, proposal)
             return updated
           })
         })
 
-        // Start the controller with validated bridge
-        const bridge = rosBridge.bridge
-        if (bridge) {
-          controller.start(bridge, interceptorId)
-          controllers.set(interceptorId, controller)
-        }
+        controller.startPreview()
+        controllers.set(interceptorId, controller)
+        snapshotChanged = true
       }
     }
 
@@ -320,14 +332,25 @@ export function useGazeboSimulation(
       if (!activeInterceptorIds.has(interceptorId)) {
         controller.stop()
         controllers.delete(interceptorId)
+        snapshotChanged = true
       }
     }
-  }, [activeMissions, rosBridge.bridge, rosBridge.isConnected])
 
-  // Stop all guidance controllers on unmount only.
+    if (snapshotChanged) setGuidancePreviews(new Map(controllers))
+  }, [
+    activeMissions,
+    discardGuidancePreviewGeneration,
+    isSimulationActive,
+    mergedConfig.enableGuidancePreview,
+    mergedConfig.guidancePreviewRateHz,
+    rosBridge.bridge,
+    rosBridge.isConnected,
+  ])
+
+  // Stop all guidance previews on unmount only.
   useEffect(() => {
     // Stable ref Map; captured once so cleanup avoids reading ref.current.
-    const controllers = guidanceControllersRef.current
+    const controllers = guidancePreviewsRef.current
     return () => {
       for (const controller of controllers.values()) {
         controller.stop()
@@ -336,22 +359,20 @@ export function useGazeboSimulation(
     }
   }, [])
 
-  // Update guidance controllers with latest interception data
+  // Update local guidance previews with the latest observation data.
   useEffect(() => {
     const system = interceptionSystemRef.current
 
     for (const mission of activeMissions) {
       if (mission.status !== 'ACTIVE') continue
 
-      const controller = guidanceControllersRef.current.get(mission.interceptorId)
+      const controller = guidancePreviewsRef.current.get(mission.interceptorId)
       if (!controller) continue
 
       // Get guidance command from interception system
       const guidance = system.getGuidanceCommand(mission.interceptorId)
       if (guidance) {
-        // Use direct velocity command for now
-        // Could be enhanced with target position + velocity for full PD control
-        controller.setDirectVelocity(guidance)
+        controller.setPreviewVelocity(guidance)
       }
 
       // Update controller with current drone position for PD feedback
@@ -419,6 +440,13 @@ export function useGazeboSimulation(
     (targetId: string, strategy: InterceptionStrategy = 'LEAD'): InterceptionMission | null => {
       const system = interceptionSystemRef.current
 
+      if (!isSimulationActive) {
+        log.warn('Cannot initiate a local intercept preview while simulation is inactive', {
+          targetId,
+        })
+        return null
+      }
+
       if (!rosBridge.bridge || !rosBridge.isConnected || !rosBridge.bridge.isConnected()) {
         log.warn('Cannot initiate intercept while ROS is disconnected', { targetId })
         return null
@@ -449,7 +477,13 @@ export function useGazeboSimulation(
 
       return mission
     },
-    [gazeboDrones.hostileDrones, publishActiveMissions, rosBridge.bridge, rosBridge.isConnected]
+    [
+      gazeboDrones.hostileDrones,
+      isSimulationActive,
+      publishActiveMissions,
+      rosBridge.bridge,
+      rosBridge.isConnected,
+    ]
   )
 
   // Abort mission
@@ -467,13 +501,26 @@ export function useGazeboSimulation(
 
   // Toggle simulation
   const toggleSimulation = useCallback(() => {
-    setIsSimulationActive((prev) => !prev)
-  }, [])
+    if (isSimulationActive) discardGuidancePreviewGeneration()
+    setIsSimulationActive((previous) => !previous)
+  }, [discardGuidancePreviewGeneration, isSimulationActive])
 
-  // Emergency stop all guidance controllers
-  const emergencyStopAll = useCallback(() => {
-    for (const controller of guidanceControllersRef.current.values()) {
-      controller.emergencyStop()
+  const disconnect = useCallback(() => {
+    discardGuidancePreviewGeneration()
+    disconnectBridge()
+  }, [discardGuidancePreviewGeneration, disconnectBridge])
+
+  const selectTransport = useCallback(
+    (nextTransport: 'websocket' | 'zenoh') => {
+      if (nextTransport !== transport) discardGuidancePreviewGeneration()
+      setTransport(nextTransport)
+    },
+    [discardGuidancePreviewGeneration, transport]
+  )
+
+  const holdAllGuidancePreviews = useCallback(() => {
+    for (const controller of guidancePreviewsRef.current.values()) {
+      controller.hold()
     }
   }, [])
 
@@ -482,11 +529,11 @@ export function useGazeboSimulation(
     connectionState: rosBridge.state,
     bridge: rosBridge.bridge,
     transport,
-    setTransport,
+    setTransport: selectTransport,
     rosUrl,
     setRosUrl,
     connect: rosBridge.connect,
-    disconnect: rosBridge.disconnect,
+    disconnect,
     connectionError: rosBridge.error,
 
     // Drones
@@ -502,13 +549,17 @@ export function useGazeboSimulation(
     abortMission,
 
     // Guidance
-    guidanceControllers,
-    lastGuidanceCommands,
+    guidancePreviews,
+    lastGuidanceProposals,
+
+    // Authority posture
+    authority: 'NoAuthority',
+    safeAction: 'Hold',
 
     // Simulation control
     isSimulationActive,
     toggleSimulation,
-    emergencyStopAll,
+    holdAllGuidancePreviews,
   }
 }
 

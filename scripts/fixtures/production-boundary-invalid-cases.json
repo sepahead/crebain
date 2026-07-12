@@ -1,0 +1,150 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "reflect-get-split-websocket",
+      "source": "const Socket = Reflect.get(globalThis, ['Web', 'Socket'].join('')); new Socket('ws://127.0.0.1:9090')",
+      "expected_error": "Reflect.get"
+    },
+    {
+      "id": "computed-global-websocket",
+      "source": "const Socket = globalThis[['Web', 'Socket'].join('')]; new Socket('ws://127.0.0.1:9090')",
+      "expected_error": "computed WebSocket"
+    },
+    {
+      "id": "reflect-get-fetch",
+      "source": "const networkRead = Reflect.get(globalThis, ['fet', 'ch'].join('')); networkRead('/asset')",
+      "expected_error": "Reflect.get"
+    },
+    {
+      "id": "reflect-get-publish",
+      "source": "const write = Reflect.get(bridge, ['pub', 'lish'].join('')); write(route, payload)",
+      "expected_error": "Reflect.get"
+    },
+    {
+      "id": "computed-reflect-get",
+      "source": "const Socket = Reflect[['g', 'et'].join('')](globalThis, ['Web', 'Socket'].join('')); new Socket(url)",
+      "expected_error": "Reflect.get"
+    },
+    {
+      "id": "aliased-reflect-get-member",
+      "source": "const capabilityGet = Reflect.get; capabilityGet(globalThis, ['Web', 'Socket'].join(''))",
+      "expected_error": "Reflect.get"
+    },
+    {
+      "id": "reflect-get-call",
+      "source": "Reflect.get.call(Reflect, globalThis, ['Web', 'Socket'].join(''))",
+      "expected_error": "Reflect.get"
+    },
+    {
+      "id": "reflect-get-bind",
+      "source": "const capabilityGet = Reflect.get.bind(Reflect); capabilityGet(globalThis, ['Web', 'Socket'].join(''))",
+      "expected_error": "Reflect.get"
+    },
+    {
+      "id": "destructured-reflect-get",
+      "source": "const { get: capabilityGet } = Reflect; capabilityGet(globalThis, ['Web', 'Socket'].join(''))",
+      "expected_error": "Reflect.get destructuring"
+    },
+    {
+      "id": "aliased-computed-global-websocket",
+      "source": "const key = ['Web', 'Socket'].join(''); const Socket = globalThis[key]; new Socket(url)",
+      "expected_error": "computed WebSocket"
+    },
+    {
+      "id": "aliased-computed-global-fetch",
+      "source": "const key = ['fet', 'ch'].join(''); const networkRead = globalThis[key]; networkRead('/asset')",
+      "expected_error": "computed fetch"
+    },
+    {
+      "id": "object-descriptor-value-capability",
+      "source": "const key = ['Web', 'Socket'].join(''); const Socket = Object.getOwnPropertyDescriptor(globalThis, key).value; new Socket(url)",
+      "expected_error": "global property descriptor capability recovery"
+    },
+    {
+      "id": "object-descriptor-getter-capability",
+      "source": "const getter = Object.getOwnPropertyDescriptor(window, ['fet', 'ch'].join('')).get; getter.call(window)",
+      "expected_error": "global property descriptor capability recovery"
+    },
+    {
+      "id": "object-descriptors-computed-destructure-capability",
+      "source": "const key = ['Web', 'Socket'].join(''); const { [key]: { value: Socket } } = Object.getOwnPropertyDescriptors(globalThis); new Socket(url)",
+      "expected_error": "global property descriptor capability recovery"
+    },
+    {
+      "id": "reflect-property-descriptor-capability",
+      "source": "const Socket = Reflect.getOwnPropertyDescriptor(self, ['Web', 'Socket'].join('')).value; new Socket(url)",
+      "expected_error": "global property descriptor capability recovery"
+    },
+    {
+      "id": "bound-property-descriptor-capability",
+      "source": "const descriptor = Object.getOwnPropertyDescriptor.bind(Object); descriptor(globalThis, key).value",
+      "expected_error": "global property descriptor capability recovery"
+    },
+    {
+      "id": "destructured-property-descriptor-method",
+      "source": "const { ['getOwnProperty' + 'Descriptor']: descriptor } = Object; descriptor(globalThis, key)",
+      "expected_error": "property descriptor method destructuring"
+    },
+    {
+      "id": "computed-global-websocket-destructure",
+      "source": "const key = ['Web', 'Socket'].join(''); const { [key]: Socket } = globalThis; new Socket(url)",
+      "expected_error": "global capability destructuring"
+    },
+    {
+      "id": "computed-global-fetch-destructure",
+      "source": "const key = ['fet', 'ch'].join(''); const { [key]: networkRead } = window; networkRead(url)",
+      "expected_error": "global capability destructuring"
+    },
+    {
+      "id": "unresolved-aliased-global-capability",
+      "source": "const root = globalThis; const Socket = root[capabilityName]; new Socket(url)",
+      "expected_error": "unresolved computed global capability"
+    },
+    {
+      "id": "global-object-rest-destructure",
+      "source": "const { ...allRuntimeCapabilities } = self",
+      "expected_error": "global capability destructuring"
+    },
+    {
+      "id": "global-computed-destructure-assignment",
+      "source": "let Socket; ({ [['Web', 'Socket'].join('')]: Socket } = globalThis); new Socket(url)",
+      "expected_error": "global capability destructuring assignment"
+    },
+    {
+      "id": "function-call-dynamic-capability",
+      "source": "Function.call(null, ['return globalThis.', 'fetch'].join(''))()",
+      "expected_error": "dynamic Function"
+    },
+    {
+      "id": "bound-function-dynamic-capability",
+      "source": "const DynamicFunction = Function.bind(null); DynamicFunction('return globalThis')",
+      "expected_error": "dynamic Function"
+    },
+    {
+      "id": "new-function-dynamic-capability",
+      "source": "new Function(['return Web', 'Socket'].join(''))",
+      "expected_error": "dynamic Function code"
+    },
+    {
+      "id": "callable-constructor-dynamic-capability",
+      "source": "(() => {}).constructor(['return Web', 'Socket'].join(''))()",
+      "expected_error": "dynamic callable.constructor"
+    },
+    {
+      "id": "extracted-callable-constructor-dynamic-capability",
+      "source": "const DynamicFunction = (() => {}).constructor; DynamicFunction('return fetch')()",
+      "expected_error": "dynamic callable.constructor"
+    },
+    {
+      "id": "computed-global-function-destructure",
+      "source": "const { [['Func', 'tion'].join('')]: DynamicFunction } = globalThis; DynamicFunction(code)",
+      "expected_error": "global capability destructuring"
+    },
+    {
+      "id": "aliased-eval-dynamic-capability",
+      "source": "const dynamicEval = eval; dynamicEval(code)",
+      "expected_error": "dynamic eval"
+    }
+  ]
+}

@@ -1,8 +1,8 @@
 //! CREBAIN Transport Layer
 //! Adaptive Response & Awareness System (ARAS)
 //!
-//! Zenoh-oriented communication with CREBAIN's own peers, with a rosbridge
-//! WebSocket fallback for ROS2/Gazebo.
+//! Read-only telemetry ingestion from CREBAIN's own peers. Zenoh is the
+//! product transport and native rosbridge remains a backend-only fallback.
 //!
 //! # Architecture
 //!
@@ -17,8 +17,8 @@
 //! NOTE: the Zenoh transport uses a plain-topic key scheme (topic minus the
 //! leading `/`), not the `rmw_zenoh_cpp` keying scheme. Talking directly to
 //! an rmw_zenoh_cpp ROS graph requires a re-keying bridge; see the
-//! `zenoh` module docs for details. For ROS2/Gazebo, use the rosbridge
-//! fallback (`CREBAIN_ZENOH=0`).
+//! `zenoh` module docs for details. The fallback (`CREBAIN_ZENOH=0`) exposes
+//! the same subscription-only interface; it cannot publish or call services.
 //!
 //! # Usage
 //!
@@ -32,8 +32,6 @@
 //!     // Process frame
 //! }).await?;
 //!
-//! // Publish velocity command
-//! bridge.publish_velocity("/drone1/cmd_vel", velocity).await?;
 //! ```
 
 pub mod commands;
@@ -111,14 +109,6 @@ pub struct VelocityCmd {
     pub angular: [f64; 3], // [x, y, z] rad/s
 }
 
-/// Velocity command with ROS2 header (geometry_msgs/TwistStamped)
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct TwistStampedData {
-    pub twist: VelocityCmd,
-    pub timestamp: f64,
-    pub frame_id: String,
-}
-
 /// Model states from Gazebo
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ModelStates {
@@ -132,7 +122,7 @@ pub struct ModelStates {
 pub enum TransportError {
     ConnectionFailed(String),
     SubscriptionFailed(String),
-    PublishFailed(String),
+    SendFailed(String),
     DecodingError(String),
     Timeout,
 }
@@ -142,7 +132,7 @@ impl std::fmt::Display for TransportError {
         match self {
             TransportError::ConnectionFailed(s) => write!(f, "Connection failed: {}", s),
             TransportError::SubscriptionFailed(s) => write!(f, "Subscription failed: {}", s),
-            TransportError::PublishFailed(s) => write!(f, "Publish failed: {}", s),
+            TransportError::SendFailed(s) => write!(f, "Transport send failed: {}", s),
             TransportError::DecodingError(s) => write!(f, "Decoding error: {}", s),
             TransportError::Timeout => write!(f, "Operation timed out"),
         }
@@ -172,7 +162,11 @@ pub enum CameraStreamKind {
     Compressed,
 }
 
-/// Transport layer abstraction (object-safe)
+/// Object-safe, telemetry-only transport abstraction.
+///
+/// This trait deliberately has no generic publish, service, setpoint, or
+/// actuator method. A future plant integration must use a separate narrow,
+/// typed adapter with its own authority checks.
 pub trait Transport: Send + Sync {
     /// Connect to the transport
     fn connect(&mut self) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>>;
@@ -225,43 +219,6 @@ pub trait Transport: Send + Sync {
 
     /// Unsubscribe from a topic
     fn unsubscribe(&self, topic: &str) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>>;
-
-    /// Publish velocity command
-    fn publish_velocity(
-        &self,
-        topic: &str,
-        cmd: VelocityCmd,
-    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>>;
-
-    /// Publish stamped velocity (geometry_msgs/TwistStamped)
-    fn publish_twist_stamped(
-        &self,
-        topic: &str,
-        cmd: TwistStampedData,
-    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>>;
-
-    /// Publish pose setpoint
-    fn publish_pose(
-        &self,
-        topic: &str,
-        pose: PoseData,
-    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>>;
-
-    /// Call a ROS service when the active transport supports request/response.
-    fn call_service<'a>(
-        &'a self,
-        service: &'a str,
-        _service_type: &'a str,
-        _args: serde_json::Value,
-    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
-        let service = service.to_string();
-        Box::pin(async move {
-            Err(TransportError::PublishFailed(format!(
-                "Service calls are not supported by this transport: {}",
-                service
-            )))
-        })
-    }
 
     /// Get transport statistics
     fn stats(&self) -> TransportStats;

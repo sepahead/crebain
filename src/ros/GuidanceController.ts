@@ -2,14 +2,11 @@
  * CREBAIN Guidance Controller
  * Adaptive Response & Awareness System (ARAS)
  *
- * Continuous setpoint publishing with PD control for smooth trajectory following
- * Default rate: 20Hz (50ms interval)
+ * Local, no-authority guidance preview with PD control for trajectory evaluation.
+ * It has no transport dependency and cannot publish a vehicle setpoint.
  */
 
-import type { ROSBridge } from './ROSBridge'
-import type { ZenohBridge } from './ZenohBridge'
-import type { Point, Vector3, TwistStamped } from './types'
-import { createTime } from './types'
+import type { Point, Vector3 } from './types'
 import {
   subtract,
   normalize,
@@ -17,7 +14,6 @@ import {
   magnitude,
   clampMagnitude,
 } from '../lib/mathUtils'
-import { namespacedRosTopic, normalizeRosNamespace } from './utils'
 import { rosLogger as log } from '../lib/logger'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -47,20 +43,21 @@ export interface GuidanceState {
   currentPosition: Point
   /** Measured velocity from odometry/pose updates — feeds the D-term */
   currentVelocity: Vector3
-  /** Last velocity command issued — feeds the acceleration ramp */
-  lastCommandedVelocity: Vector3
+  /** Last local velocity proposal — feeds the acceleration ramp */
+  lastProposedVelocity: Vector3
   isActive: boolean
   lastUpdate: number
 }
 
-export interface GuidanceCommand {
+export interface GuidanceProposal {
+  authority: 'NoAuthority'
+  action: 'Hold' | 'PreviewVelocity'
   velocity: Vector3
-  isEmergencyStop: boolean
   distanceToTarget: number
   estimatedTimeToArrival: number
 }
 
-export type GuidanceCallback = (command: GuidanceCommand) => void
+export type GuidanceCallback = (proposal: GuidanceProposal) => void
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
@@ -76,9 +73,6 @@ const DEFAULT_CONFIG: GuidanceConfig = {
   arrivalThreshold: 0.5, // Stop within 0.5m
 }
 
-const SETPOINT_VELOCITY_TOPIC_SUFFIX = 'mavros/setpoint_velocity/cmd_vel'
-const SETPOINT_VELOCITY_MESSAGE_TYPE = 'geometry_msgs/TwistStamped'
-
 // Clamp dt to a few nominal control periods so timer stalls or connection
 // outages cannot inflate the acceleration-ramp budget (maxAcceleration · dt).
 const MAX_DT_NOMINAL_PERIODS = 3
@@ -88,16 +82,10 @@ const MAX_DT_NOMINAL_PERIODS = 3
 // ─────────────────────────────────────────────────────────────────────────────
 
 export class GuidanceController {
-  private bridge: ROSBridge | ZenohBridge | null = null
   private config: GuidanceConfig
   private state: GuidanceState
   private intervalId: ReturnType<typeof setInterval> | null = null
-  private namespace: string = ''
-  private setpointTopic: string = namespacedRosTopic('', SETPOINT_VELOCITY_TOPIC_SUFFIX)
-  private advertised: boolean = false
-  private skippedUpdate: boolean = false
   private callbacks: Set<GuidanceCallback> = new Set()
-  private sequenceNumber: number = 0
 
   constructor(config: Partial<GuidanceConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config }
@@ -106,7 +94,7 @@ export class GuidanceController {
       targetVelocity: null,
       currentPosition: { x: 0, y: 0, z: 0 },
       currentVelocity: { x: 0, y: 0, z: 0 },
-      lastCommandedVelocity: { x: 0, y: 0, z: 0 },
+      lastProposedVelocity: { x: 0, y: 0, z: 0 },
       isActive: false,
       lastUpdate: 0,
     }
@@ -117,53 +105,18 @@ export class GuidanceController {
   // ───────────────────────────────────────────────────────────────────────────
 
   /**
-   * Start the guidance controller
-   * @param bridge ROS bridge for publishing setpoints
-   * @param namespace Drone namespace (e.g., '/drone1')
+   * Start local proposal generation. No transport capability is accepted.
    */
-  start(bridge: ROSBridge | ZenohBridge, namespace: string): void {
+  startPreview(): void {
     if (this.intervalId) {
       this.stop()
     }
 
-    this.bridge = bridge
-    this.namespace = normalizeRosNamespace(namespace)
-    // Build the setpoint topic up front: an empty namespace resolves to a
-    // valid absolute topic instead of an invalid `//…` name.
-    this.setpointTopic = namespacedRosTopic(namespace, SETPOINT_VELOCITY_TOPIC_SUFFIX)
-    this.advertised = false
-
-    // Advertise eagerly when the bridge is already connected so an invalid
-    // topic throws before the control loop starts; otherwise advertise lazily
-    // on the first publish while connected.
-    if (this.bridge.isConnected()) {
-      try {
-        this.advertiseSetpointTopic()
-      } catch (error) {
-        this.bridge = null
-        throw error
-      }
-    }
-
     this.state.isActive = true
     this.state.lastUpdate = Date.now()
-    this.skippedUpdate = false
 
-    // Start control loop at configured rate
     const intervalMs = 1000 / this.config.rateHz
     this.intervalId = setInterval(() => this.update(), intervalMs)
-  }
-
-  /**
-   * Advertise the velocity setpoint topic once per start().
-   * Zenoh transport needs no explicit advertisement.
-   */
-  private advertiseSetpointTopic(): void {
-    if (this.advertised || !this.bridge) return
-    if ('advertise' in this.bridge) {
-      this.bridge.advertise(this.setpointTopic, SETPOINT_VELOCITY_MESSAGE_TYPE)
-    }
-    this.advertised = true
   }
 
   /**
@@ -175,36 +128,26 @@ export class GuidanceController {
       this.intervalId = null
     }
 
-    // Send zero velocity command before stopping
-    if (this.bridge?.isConnected()) {
-      this.publishVelocity({ x: 0, y: 0, z: 0 })
-    }
-
     this.state.isActive = false
     this.state.targetPosition = null
     this.state.targetVelocity = null
     this.state.currentPosition = { x: 0, y: 0, z: 0 }
     this.state.currentVelocity = { x: 0, y: 0, z: 0 }
-    this.state.lastCommandedVelocity = { x: 0, y: 0, z: 0 }
-    this.advertised = false
-    this.bridge = null
+    this.state.lastProposedVelocity = { x: 0, y: 0, z: 0 }
   }
 
   /**
    * Emergency stop - immediately halt all movement
    */
-  emergencyStop(): void {
+  hold(): void {
     this.state.targetPosition = null
     this.state.targetVelocity = null
-    this.state.lastCommandedVelocity = { x: 0, y: 0, z: 0 }
-
-    if (this.bridge?.isConnected()) {
-      this.publishVelocity({ x: 0, y: 0, z: 0 })
-    }
+    this.state.lastProposedVelocity = { x: 0, y: 0, z: 0 }
 
     this.notifyCallbacks({
+      authority: 'NoAuthority',
+      action: 'Hold',
       velocity: { x: 0, y: 0, z: 0 },
-      isEmergencyStop: true,
       distanceToTarget: 0,
       estimatedTimeToArrival: 0,
     })
@@ -224,9 +167,9 @@ export class GuidanceController {
   }
 
   /**
-   * Set direct velocity command (bypasses PD control)
+   * Set a direct local velocity proposal (bypasses PD preview control).
    */
-  setDirectVelocity(velocity: Vector3): void {
+  setPreviewVelocity(velocity: Vector3): void {
     this.state.targetPosition = null
     this.state.targetVelocity = velocity
   }
@@ -259,15 +202,15 @@ export class GuidanceController {
   // CALLBACKS
   // ───────────────────────────────────────────────────────────────────────────
 
-  onCommand(callback: GuidanceCallback): () => void {
+  onProposal(callback: GuidanceCallback): () => void {
     this.callbacks.add(callback)
     return () => this.callbacks.delete(callback)
   }
 
-  private notifyCallbacks(command: GuidanceCommand): void {
+  private notifyCallbacks(proposal: GuidanceProposal): void {
     for (const callback of this.callbacks) {
       try {
-        callback(command)
+        callback(proposal)
       } catch (err) {
         log.error('Callback error', { error: err })
       }
@@ -279,51 +222,34 @@ export class GuidanceController {
   // ───────────────────────────────────────────────────────────────────────────
 
   private update(): void {
-    if (!this.state.isActive || !this.bridge?.isConnected()) {
-      // Mark the gap so dt does not span the outage once updates resume.
-      this.skippedUpdate = true
-      return
-    }
+    if (!this.state.isActive) return
 
     const now = Date.now()
     const nominalDtSec = 1 / this.config.rateHz
-    let dt: number // seconds
-    if (this.skippedUpdate) {
-      // Resuming after early returns (e.g. a disconnect): restart timing from
-      // a single nominal period instead of the whole outage.
-      this.skippedUpdate = false
-      dt = nominalDtSec
-    } else {
-      dt = Math.min((now - this.state.lastUpdate) / 1000, nominalDtSec * MAX_DT_NOMINAL_PERIODS)
-    }
+    const dt = Math.min(
+      (now - this.state.lastUpdate) / 1000,
+      nominalDtSec * MAX_DT_NOMINAL_PERIODS
+    )
     this.state.lastUpdate = now
 
-    let command: GuidanceCommand
+    let proposal: GuidanceProposal
 
     if (this.state.targetPosition) {
-      // PD control to reach target position
-      command = this.calculatePDControl(this.state.targetPosition, dt)
+      proposal = this.calculatePDControl(this.state.targetPosition, dt)
     } else if (this.state.targetVelocity) {
-      // Direct velocity command with ramping
-      command = this.calculateRampedVelocity(this.state.targetVelocity, dt)
+      proposal = this.calculateRampedVelocity(this.state.targetVelocity, dt)
     } else {
-      // No target - decelerate to stop
-      command = this.calculateDeceleration(dt)
+      proposal = this.calculateDeceleration(dt)
     }
 
-    // Publish velocity command. Track it separately from the measured
-    // velocity so the odometry-fed D-term is not corrupted by our own output.
-    this.publishVelocity(command.velocity)
-    this.state.lastCommandedVelocity = command.velocity
-
-    // Notify callbacks
-    this.notifyCallbacks(command)
+    this.state.lastProposedVelocity = proposal.velocity
+    this.notifyCallbacks(proposal)
   }
 
   /**
    * PD control for position tracking
    */
-  private calculatePDControl(target: Point, dt: number): GuidanceCommand {
+  private calculatePDControl(target: Point, dt: number): GuidanceProposal {
     // Use actual tracked position from pose updates
     const currentPos = this.state.currentPosition
 
@@ -334,8 +260,9 @@ export class GuidanceController {
     // Check arrival
     if (distanceToTarget < this.config.arrivalThreshold) {
       return {
+        authority: 'NoAuthority',
+        action: 'Hold',
         velocity: { x: 0, y: 0, z: 0 },
-        isEmergencyStop: false,
         distanceToTarget,
         estimatedTimeToArrival: 0,
       }
@@ -372,9 +299,9 @@ export class GuidanceController {
     // Clamp to max velocity
     desiredVelocity = clampMagnitude(desiredVelocity, this.config.maxVelocity)
 
-    // Apply velocity ramping (from the last command, not the measurement)
+    // Apply velocity ramping from the last local proposal, not the measurement.
     const velocity = this.applyVelocityRamp(
-      this.state.lastCommandedVelocity,
+      this.state.lastProposedVelocity,
       desiredVelocity,
       dt
     )
@@ -384,27 +311,29 @@ export class GuidanceController {
     const eta = speed > 0.1 ? distanceToTarget / speed : Infinity
 
     return {
+      authority: 'NoAuthority',
+      action: 'PreviewVelocity',
       velocity,
-      isEmergencyStop: false,
       distanceToTarget,
       estimatedTimeToArrival: eta,
     }
   }
 
   /**
-   * Direct velocity command with smooth ramping
+   * Direct local velocity proposal with smooth ramping.
    */
-  private calculateRampedVelocity(target: Vector3, dt: number): GuidanceCommand {
+  private calculateRampedVelocity(target: Vector3, dt: number): GuidanceProposal {
     const clamped = clampMagnitude(target, this.config.maxVelocity)
     const velocity = this.applyVelocityRamp(
-      this.state.lastCommandedVelocity,
+      this.state.lastProposedVelocity,
       clamped,
       dt
     )
 
     return {
+      authority: 'NoAuthority',
+      action: 'PreviewVelocity',
       velocity,
-      isEmergencyStop: false,
       distanceToTarget: 0,
       estimatedTimeToArrival: 0,
     }
@@ -413,16 +342,17 @@ export class GuidanceController {
   /**
    * Smooth deceleration to stop
    */
-  private calculateDeceleration(dt: number): GuidanceCommand {
+  private calculateDeceleration(dt: number): GuidanceProposal {
     const velocity = this.applyVelocityRamp(
-      this.state.lastCommandedVelocity,
+      this.state.lastProposedVelocity,
       { x: 0, y: 0, z: 0 },
       dt
     )
 
     return {
+      authority: 'NoAuthority',
+      action: 'Hold',
       velocity,
-      isEmergencyStop: false,
       distanceToTarget: 0,
       estimatedTimeToArrival: 0,
     }
@@ -452,40 +382,6 @@ export class GuidanceController {
   }
 
   // ───────────────────────────────────────────────────────────────────────────
-  // ROS PUBLISHING
-  // ───────────────────────────────────────────────────────────────────────────
-
-  private publishVelocity(velocity: Vector3): void {
-    if (!this.bridge?.isConnected()) return
-
-    // Advertise lazily so bridges that connect after start() are covered.
-    try {
-      this.advertiseSetpointTopic()
-    } catch (error) {
-      log.error('Failed to advertise guidance setpoint topic', { error })
-      return
-    }
-
-    const twist = {
-      linear: velocity,
-      angular: { x: 0, y: 0, z: 0 },
-    }
-
-    const msg: TwistStamped = {
-      header: {
-        seq: this.sequenceNumber++,
-        stamp: createTime(),
-        frame_id: 'base_link',
-      },
-      twist,
-    }
-
-    Promise.resolve(this.bridge.publishSetpointVelocity(this.namespace, msg)).catch(error => {
-      log.error('Failed to publish guidance velocity setpoint', { error })
-    })
-  }
-
-  // ───────────────────────────────────────────────────────────────────────────
   // ACCESSORS
   // ───────────────────────────────────────────────────────────────────────────
 
@@ -505,7 +401,7 @@ export class GuidanceController {
     this.config = { ...this.config, ...config }
 
     // Recreate only the control-loop interval on a rate change; a full
-    // stop()/start() cycle would zero tracked position/velocity mid-flight.
+    // A full stop/start cycle would discard the current preview state.
     if (config.rateHz && this.intervalId) {
       clearInterval(this.intervalId)
       this.intervalId = setInterval(() => this.update(), 1000 / this.config.rateHz)

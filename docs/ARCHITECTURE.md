@@ -13,7 +13,7 @@ graph TB
         ThreeJS["SparkJS/Three.js<br/>(3D Scene)"]
         CameraFeeds["Camera Feeds<br/>(Overlays)"]
         FusionUI["Sensor Fusion UI<br/>(Tracks)"]
-        ROSControls["ROS Controls<br/>(Bridge)"]
+        ROSControls["ROS Telemetry<br/>(Bridge)"]
     end
 
     subgraph IPC["Tauri IPC"]
@@ -24,7 +24,7 @@ graph TB
         Inference["Inference<br/>Abstraction Layer"]
         SensorFusion["Sensor Fusion<br/>Engine"]
         Zenoh["Transport<br/>(Zenoh)"]
-        ROSBridge["ROS Bridge<br/>(WebSocket)"]
+        ROSBridge["ROS Telemetry Fallback<br/>(WebSocket, read-only)"]
 
         subgraph Platform["Platform Abstraction"]
             macOS["macOS<br/>CoreML default<br/>MLX experimental<br/>Metal GPU<br/>Neural Engine"]
@@ -61,22 +61,24 @@ graph TB
 diagnostics data with very different latency, throughput, and debuggability
 needs.
 
-**Solution**: Use rosbridge where dynamic JSON/WebSocket integration is useful,
-use Zenoh-oriented transport paths for typed robotics data where available, and
-measure end-to-end latency in the target deployment before making performance
-claims.
+**Solution**: Keep the product transport surface read-only, use the native
+Zenoh-oriented path for packaged builds, reserve rosbridge for explicit
+development/native telemetry fallback, and measure end-to-end latency in the
+target deployment before making performance claims.
 
 The three paths and when to use them:
 
-- **rosbridge (JSON over WebSocket)** — the shipped UI default. Flexible ROS
-  integration: dynamic message types, ROS 1 support, Gazebo Classic service
-  calls, the custom fusion detection arrays, and browser-DevTools debugging.
-  JSON parsing overhead applies on every message.
-- **Zenoh-oriented transport (native Rust)** — a typed pub/sub path with a fixed
-  message surface (raw/compressed camera, CameraInfo, IMU, PoseStamped,
-  ModelStates, pose/twist publishing). No ROS service calls, MAVROS state
-  helpers, or custom fusion arrays; the UI surfaces those operations as
-  unsupported. It speaks CREBAIN's own plain-key topic scheme — direct interop
+- **rosbridge (JSON over WebSocket)** — a telemetry-only fallback. The
+  TypeScript client is selectable only in Vite development; production builds
+  substitute a network-free stub and remove rosbridge WebSocket origins from
+  the CSP. Every build records the resolved project-module graph and hashes and
+  scans the finalized JavaScript chunks, so `build --mode test` cannot select
+  the development adapter. The native Rust fallback (`CREBAIN_ZENOH=0`) is also
+  subscription-only. JSON parsing overhead applies on every message.
+- **Zenoh-oriented transport (native Rust)** — the packaged-build default, with
+  a fixed typed read surface (raw/compressed camera, CameraInfo, IMU,
+  PoseStamped, ModelStates). It has no generic publish, setpoint, service, or
+  Gazebo mutation method. It speaks CREBAIN's own plain-key topic scheme — direct interop
   with an `rmw_zenoh_cpp` ROS 2 graph (which keys topics as
   `<domain>/<topic>/<type>/<hash>`) requires an explicit re-keying bridge.
 - **Tauri commands/events** — small frontend/backend notifications only.
@@ -86,6 +88,19 @@ The three paths and when to use them:
 Latency and throughput for either transport depend on topology, payload path,
 and hardware; benchmark in your deployment before relying on numbers.
 
+Renderer network access is deny-by-default in the source inventory: WebSocket
+code is confined to the explicitly development-only adapter, while ordinary
+asset downloads are confined to the bounded fetch module and the documented
+same-origin/HTTPS/HTTP-loopback source classes. Passive remote image URLs are
+not allowed by the packaged CSP.
+
+`GuidanceController` and `InterceptionSystem` remain only as local visualization
+and proposal machinery. Preview generation is disabled by default, exposes
+`NoAuthority`/`Hold`, and accepts no transport object. Disabling preview,
+disconnecting telemetry, changing transport, or toggling simulation off aborts
+the active singleton missions and clears trajectories, proposals, and
+controller snapshots so reconnection cannot resume an earlier generation.
+
 ```mermaid
 flowchart TB
     subgraph Tauri["TAURI APP"]
@@ -93,11 +108,11 @@ flowchart TB
 
         subgraph Transport["Transport Layer"]
             RustZenoh["Rust Transport<br/>(zenoh-rs)"]
-            TSBridge["TypeScript ROSBridge<br/>(rosbridge client)"]
+            TSBridge["TypeScript ROSBridge<br/>(development telemetry only)"]
         end
 
         Frontend -->|"Tauri commands/events<br/>(JSON IPC)"| RustZenoh
-        Frontend -->|"WebSocket<br/>(JSON, flexible)"| TSBridge
+        Frontend -.->|"Vite development only<br/>(JSON telemetry)"| TSBridge
     end
 
     subgraph ROS["GAZEBO / ROS (Headless)"]
@@ -258,18 +273,18 @@ src/
 │
 ├── hooks/
 │   ├── useGazeboDrones.ts     # Drone state from ROS (CircularBuffer, memoized)
-│   ├── useGazeboSimulation.ts # Continuous guidance controller
+│   ├── useGazeboSimulation.ts # Telemetry + disabled-by-default local preview
 │   ├── useDroneController.ts  # Local drone spawning, physics loop, keyboard flight
 │   └── useDraggable.ts        # Shared panel drag logic
 │
 ├── ros/
-│   ├── ROSBridge.ts           # WebSocket client (rosbridge)
-│   ├── ZenohBridge.ts         # Native Zenoh transport adapter
-│   ├── GazeboController.ts    # Gazebo Classic service calls (spawn/state/reset)
+│   ├── ROSBridge.ts           # Development-only read-only WebSocket client
+│   ├── ROSBridgeDisabled.ts   # Network-free packaged-build replacement
+│   ├── TelemetryBridge.ts     # Narrow read-only frontend interface
+│   ├── ZenohBridge.ts         # Native read-only Zenoh transport adapter
 │   ├── ROSCameraStream.ts     # Camera frame decoding
-│   ├── GuidanceController.ts  # 20Hz PD control loop
+│   ├── GuidanceController.ts  # Local NoAuthority proposal preview
 │   ├── TransformManager.ts    # TF tree with caching
-│   ├── WaypointManager.ts     # MAVROS mission support
 │   └── useROSSensors.ts       # Multi-modal sensor fusion integration
 │
 ├── detection/                 # Shared detection types + browser fusion engine
@@ -303,10 +318,10 @@ src-tauri/src/
 │   └── onnx.rs           # Cross-platform fallback
 │
 ├── transport/            # Communication layer
-│   ├── mod.rs            # Transport trait + types
-│   ├── zenoh.rs          # Zenoh implementation
-│   ├── rosbridge.rs      # rosbridge WebSocket fallback
-│   └── commands.rs       # Tauri transport commands
+│   ├── mod.rs            # Telemetry-only Transport trait + types
+│   ├── zenoh.rs          # Read-only Zenoh implementation
+│   ├── rosbridge.rs      # Read-only rosbridge WebSocket fallback
+│   └── commands.rs       # Lifecycle + typed subscription Tauri commands
 │
 └── ncp/                  # NCP (Engram) client — off-by-default `ncp` feature
 ```

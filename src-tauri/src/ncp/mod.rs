@@ -9,8 +9,8 @@
 //! **Project specifics stay here, not in Engram.** Engram speaks only NCP
 //! (entity/channel-addressed); this module owns the CREBAIN-specific mapping
 //! (pose/velocity ↔ NCP sensor/command channels) and the topic wiring. The
-//! perception plane carries `SensorFrame`s CREBAIN publishes; the action plane
-//! carries `CommandFrame`s CREBAIN maps to MAVROS setpoints.
+//! perception plane carries `SensorFrame`s CREBAIN publishes; the dormant
+//! action plane can produce typed local proposals, but has no plant adapter.
 //!
 //! Feature-gated behind `ncp` (off by default) so the default CREBAIN build is
 //! unchanged. To expose it to the frontend, register the commands at the bottom
@@ -21,7 +21,7 @@
 //! (`calibrated_posterior=false`, `is_simulation_output=true`), never a validated
 //! reproduction; a neuro-controller is a control artifact, not a scientific claim.
 
-use crate::transport::{PoseData, TwistStampedData, VelocityCmd};
+use crate::transport::{PoseData, VelocityCmd};
 use ncp_core::keys::Keys;
 use ncp_core::{
     ChannelValue, CloseSession, CommandFrame, NetworkRef, NetworkRefKind, Observation,
@@ -63,6 +63,15 @@ const NCP_ACTION_PERIOD: Duration = Duration::from_millis(20);
 const NCP_ACTION_STOP_TIMEOUT: Duration = Duration::from_secs(1);
 const VELOCITY_SETPOINT_CHANNEL: &str = "velocity_setpoint";
 const VELOCITY_SETPOINT_UNIT: &str = "m/s";
+
+/// Local proposal decoded from NCP; this type carries no transport or actuator
+/// capability and is not registered in the product runtime.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct VelocitySetpointProposal {
+    pub twist: VelocityCmd,
+    pub timestamp: f64,
+    pub frame_id: String,
+}
 
 /// Transport posture for an NCP connection. Secure mode requires an
 /// operator-supplied Zenoh configuration and fails closed when it is absent. The
@@ -252,14 +261,13 @@ pub fn sensor_frame_from_pose(
     Ok(frame)
 }
 
-/// An NCP `CommandFrame` → a CREBAIN `TwistStampedData` for
-/// `/mavros/<ns>/setpoint_velocity/cmd_vel`. Reads the `velocity_setpoint`
-/// channel (exactly three finite m/s values with a bounded vector norm). Only
-/// `active` may actuate; every other mode yields zero velocity (fail-safe).
+/// An NCP `CommandFrame` → a local velocity proposal. Reads the
+/// `velocity_setpoint` channel (exactly three finite m/s values with a bounded
+/// vector norm). Every non-active mode yields zero velocity (fail-safe).
 pub fn velocity_from_command(
     command: &CommandFrame,
     frame_id: &str,
-) -> Result<TwistStampedData, String> {
+) -> Result<VelocitySetpointProposal, String> {
     if !command.t.is_finite() {
         return Err("NCP command timestamp must be finite".into());
     }
@@ -421,8 +429,8 @@ fn velocity_channels(channels: &ncp_core::Map<ChannelValue>) -> Result<[f64; 3],
     Ok(linear)
 }
 
-fn twist_with_linear(frame_id: &str, timestamp: f64, linear: [f64; 3]) -> TwistStampedData {
-    TwistStampedData {
+fn twist_with_linear(frame_id: &str, timestamp: f64, linear: [f64; 3]) -> VelocitySetpointProposal {
+    VelocitySetpointProposal {
         twist: VelocityCmd {
             linear,
             angular: [0.0, 0.0, 0.0],
@@ -432,7 +440,7 @@ fn twist_with_linear(frame_id: &str, timestamp: f64, linear: [f64; 3]) -> TwistS
     }
 }
 
-fn hold_twist(frame_id: &str, timestamp: f64) -> TwistStampedData {
+fn hold_twist(frame_id: &str, timestamp: f64) -> VelocitySetpointProposal {
     twist_with_linear(frame_id, timestamp, [0.0, 0.0, 0.0])
 }
 
@@ -450,8 +458,8 @@ pub fn observation_scalar(frame: &ObservationFrame, port: &str) -> Option<f64> {
 
 /// Plant-side action receiver with **packetized-predictive-control** replay and
 /// `ttl_ms` enforcement (via `ncp_core::ActionBuffer`). Feed it `CommandFrame`s as
-/// they arrive; the actuator loop calls [`CommandPlant::velocity_at`] each tick and
-/// publishes the result to MAVROS. A single dropped command is a non-event (the
+/// they arrive; the local proposal loop calls [`CommandPlant::velocity_at`] each
+/// tick and forwards the result to a non-transport callback. A single dropped command is a non-event (the
 /// horizon is replayed); once the command expires or the horizon drains it **fails
 /// safe to zero velocity (HOLD)** — turning NCP's previously-unenforced `ttl_ms`
 /// into a real deadline backstop.
@@ -491,9 +499,9 @@ impl CommandPlant {
         Ok(())
     }
 
-    /// The `TwistStamped` to publish at `now_s` — the active (possibly replayed)
-    /// setpoint, or **zero velocity** when the buffer says fail safe (HOLD).
-    pub fn velocity_at(&self, now_s: f64) -> TwistStampedData {
+    /// The local proposal at `now_s` — the active (possibly replayed) value,
+    /// or **zero velocity** when the buffer says fail safe (HOLD).
+    pub fn velocity_at(&self, now_s: f64) -> VelocitySetpointProposal {
         if !now_s.is_finite() || now_s < 0.0 {
             return hold_twist(&self.frame_id, 0.0);
         }
@@ -512,7 +520,7 @@ impl CommandPlant {
 
 // ───────────────────────── NCP bridge (async client over Zenoh) ─────────────────────────
 
-type ActionOutput = Arc<dyn Fn(TwistStampedData) + Send + Sync>;
+type ActionOutput = Arc<dyn Fn(VelocitySetpointProposal) + Send + Sync>;
 
 struct ActionTask {
     // A dedicated bus owns only this task's subscriber handles. Dropping it
@@ -711,7 +719,7 @@ impl Drop for NcpActionRuntime {
                 let _ = stop.send(());
             }
             // Dropping a Tokio JoinHandle detaches it. The stop signal lets the
-            // detached task publish one final HOLD and exit on its next poll.
+            // detached task emit one final local HOLD proposal and exit on its next poll.
         }
     }
 }
@@ -926,7 +934,7 @@ impl NcpBridge {
         let lifecycle_lock = self.lifecycle_lock(session_id)?;
         let _lifecycle_guard = lifecycle_lock.lock().await;
         self.actions.mark_closed(session_id);
-        // Stop local actuation before asking the remote peer to close. This emits
+        // Stop local proposal generation before asking the remote peer to close. This emits
         // a final zero setpoint when the callback remains nonblocking/nonpanicking.
         // A callback failure is surfaced even though the remote close is attempted.
         let stop_result = self.actions.stop(session_id).await;
@@ -971,7 +979,7 @@ impl NcpBridge {
             .map_err(|e| e.to_string())
     }
 
-    /// Subscribe to the action plane and emit a bounded 50 Hz actuator stream.
+    /// Subscribe to the action plane and emit a bounded 50 Hz local proposal stream.
     /// A recognizable raw ESTOP latches before the wire gate; all other commands
     /// pass the gate and strict velocity-channel validation into [`CommandPlant`].
     /// The loop continuously enforces monotonic sequence, horizon replay, TTL
@@ -984,14 +992,14 @@ impl NcpBridge {
         on_command: F,
     ) -> Result<(), String>
     where
-        F: Fn(TwistStampedData) + Send + Sync + 'static,
+        F: Fn(VelocitySetpointProposal) + Send + Sync + 'static,
     {
         self.start_action_loop(session_id, frame_id, on_command)
             .await
     }
 
     /// Alias that emphasizes that subscription starts a continuously bounded
-    /// actuator loop. Kept alongside `subscribe_commands` for API compatibility.
+    /// proposal loop. Kept alongside `subscribe_commands` for API compatibility.
     pub async fn start_action_loop<F>(
         &self,
         session_id: &str,
@@ -999,7 +1007,7 @@ impl NcpBridge {
         on_command: F,
     ) -> Result<(), String>
     where
-        F: Fn(TwistStampedData) + Send + Sync + 'static,
+        F: Fn(VelocitySetpointProposal) + Send + Sync + 'static,
     {
         validate_session_id(session_id)?;
         let lifecycle_lock = self.lifecycle_lock(session_id)?;
@@ -1689,7 +1697,7 @@ mod tests {
     #[tokio::test]
     async fn stopping_an_action_task_emits_a_final_hold() {
         assert_eq!(NCP_ACTION_PERIOD, Duration::from_millis(20));
-        let outputs = Arc::new(Mutex::new(Vec::<TwistStampedData>::new()));
+        let outputs = Arc::new(Mutex::new(Vec::<VelocitySetpointProposal>::new()));
         let output_sink = Arc::clone(&outputs);
         let output: ActionOutput = Arc::new(move |command| {
             lock_unpoisoned(&output_sink).push(command);

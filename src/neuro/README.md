@@ -72,9 +72,10 @@ warning-only mode.
   in-browser injection harness for wire-shaped command frames. It opens no NCP
   transport or session and is absent from production builds.
 
-For action, a deliberate integration must connect a validated native
-`CommandPlant` output to the intended actuator publisher. The TS re-export alone
-does not map command frames to MAVROS.
+For action, a deliberate integration must add a separately reviewed narrow
+native plant adapter for the validated `CommandPlant` proposal. The current
+callback and TS re-export have no actuator publisher and do not map command
+frames to MAVROS.
 
 ## Scientific boundary
 

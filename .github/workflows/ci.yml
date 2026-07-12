@@ -34,6 +34,8 @@ jobs:
         run: scripts/check-version-coherence.sh
       - name: NCP consumer coherence (HEAD)
         run: scripts/check-ncp-coherence.sh
+      - name: Phase 0 assurance baseline and fail-closed self-test (HEAD)
+        run: node scripts/verify-phase0-baseline.mjs && node scripts/test-phase0-baseline.mjs
       - name: Version coherence (tag)
         if: startsWith(github.ref, 'refs/tags/')
         run: scripts/check-version-coherence.sh "${GITHUB_REF_NAME}"

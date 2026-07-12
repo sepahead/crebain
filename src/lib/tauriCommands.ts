@@ -1,9 +1,6 @@
 export const TAURI_COMMANDS = {
   detection: {
-    coremlBase64: 'detect_coreml',
-    coremlRaw: 'detect_coreml_raw',
     nativeRaw: 'detect_native_raw',
-    onnxRaw: 'detect_onnx',
     systemInfo: 'get_system_info',
   },
   scene: {
@@ -29,10 +26,6 @@ export const TAURI_COMMANDS = {
     subscribePose: 'transport_subscribe_pose',
     subscribeModelStates: 'transport_subscribe_model_states',
     unsubscribe: 'transport_unsubscribe',
-    publishVelocity: 'transport_publish_velocity',
-    publishTwistStamped: 'transport_publish_twist_stamped',
-    publishPose: 'transport_publish_pose',
-    spawnGazeboModel: 'transport_spawn_gazebo_model',
     getStats: 'transport_get_stats',
   },
 } as const

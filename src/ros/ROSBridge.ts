@@ -13,7 +13,6 @@ import type {
   Odometry,
   PoseStamped,
   State,
-  TwistStamped,
 } from './types'
 import { namespacedRosTopic } from './utils'
 
@@ -22,6 +21,9 @@ import { namespacedRosTopic } from './utils'
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type { ConnectionState } from './types'
+
+/** Raw renderer rosbridge is available only in Vite development and tests. */
+export const RENDERER_ROSBRIDGE_AVAILABLE = true
 
 export interface ROSBridgeConfig {
   url: string
@@ -40,12 +42,6 @@ interface Subscription {
   callback: ROSMessageCallback<unknown>
   throttleRate?: number
   queueLength?: number
-}
-
-interface PendingServiceCall {
-  resolve: (value: unknown) => void
-  reject: (error: Error) => void
-  timeout: ReturnType<typeof setTimeout>
 }
 
 interface SubscribeParams {
@@ -131,8 +127,6 @@ export class ROSBridge {
   private intentionalClose = false
   private pendingConnectReject: ((error: Error) => void) | null = null
   private subscriptions: Map<string, Subscription[]> = new Map()
-  private advertisedTopics: Map<string, string> = new Map() // topic -> type
-  private pendingServiceCalls: Map<string, PendingServiceCall> = new Map()
   private messageIdCounter = 0
 
   constructor(config: Partial<ROSBridgeConfig> & { url: string }) {
@@ -186,7 +180,6 @@ export class ROSBridge {
         this.setState('connected')
         this.reconnectAttempts = 0
         this.resubscribeAll()
-        this.readvertiseAll()
         this.config.onConnect?.()
         resolve()
       }
@@ -201,10 +194,6 @@ export class ROSBridge {
         const pendingReject = this.pendingConnectReject
         this.pendingConnectReject = null
         pendingReject?.(new Error('Connection closed before opening'))
-
-        // A dropped connection can never answer in-flight service calls;
-        // fail them now instead of letting them hang to their full timeout.
-        this.rejectPendingServiceCalls('Disconnected from ROS bridge')
 
         if (wasConnected) {
           this.config.onDisconnect?.()
@@ -244,7 +233,6 @@ export class ROSBridge {
     // the next manual connect() re-enables reconnection.
     this.intentionalClose = true
     this.clearReconnectTimer()
-    this.rejectPendingServiceCalls('Disconnected from ROS bridge')
     this.teardownSocket('Disconnected from ROS bridge')
     this.setState('disconnected')
   }
@@ -266,14 +254,6 @@ export class ROSBridge {
     ws.onerror = null
     ws.onmessage = null
     ws.close()
-  }
-
-  private rejectPendingServiceCalls(message: string): void {
-    for (const pending of this.pendingServiceCalls.values()) {
-      clearTimeout(pending.timeout)
-      pending.reject(new Error(message))
-    }
-    this.pendingServiceCalls.clear()
   }
 
   private setState(state: ConnectionState): void {
@@ -338,10 +318,6 @@ export class ROSBridge {
         if (typeof message.topic !== 'string') return
         this.handleTopicMessage(message.topic, message.msg)
         break
-      case 'service_response':
-        if (typeof message.id !== 'string' || typeof message.result !== 'boolean') return
-        this.handleServiceResponse(message.id, message.values, message.result)
-        break
       default:
         // Ignore other message types
         break
@@ -357,21 +333,7 @@ export class ROSBridge {
     }
   }
 
-  private handleServiceResponse(id: string, values: unknown, result: boolean): void {
-    const pending = this.pendingServiceCalls.get(id)
-    if (pending) {
-      clearTimeout(pending.timeout)
-      this.pendingServiceCalls.delete(id)
-      
-      if (result) {
-        pending.resolve(values)
-      } else {
-        pending.reject(new Error('Service call failed'))
-      }
-    }
-  }
-
-  private send(message: ROSBridgeMessage): boolean {
+  #send(message: ROSBridgeMessage): boolean {
     const ws = this.ws
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify(message))
@@ -439,7 +401,7 @@ export class ROSBridge {
     // Send unsubscribe message if no more subscriptions to this topic
     if (subs.length === 0) {
       this.subscriptions.delete(topic)
-      this.send({
+      this.#send({
         op: 'unsubscribe',
         id: this.generateId(),
         topic,
@@ -480,7 +442,7 @@ export class ROSBridge {
   }
 
   private sendSubscribe(topic: string, type: string, params: SubscribeParams): void {
-    this.send({
+    this.#send({
       op: 'subscribe',
       id: this.generateId(),
       topic,
@@ -490,106 +452,12 @@ export class ROSBridge {
     })
   }
 
-  advertise(topic: string, type: string): void {
-    validateRosGraphName(topic, 'topic')
-    validateRosMessageType(type)
-    this.advertisedTopics.set(topic, type)
-    this.send({
-      op: 'advertise',
-      id: this.generateId(),
-      topic,
-      type,
-    })
-  }
-
-  unadvertise(topic: string): void {
-    validateRosGraphName(topic, 'topic')
-    this.advertisedTopics.delete(topic)
-    this.send({
-      op: 'unadvertise',
-      id: this.generateId(),
-      topic,
-    })
-  }
-
-  publish<T>(topic: string, msg: T): void {
-    validateRosGraphName(topic, 'topic')
-    this.send({
-      op: 'publish',
-      id: this.generateId(),
-      topic,
-      msg,
-    })
-  }
-
   private resubscribeAll(): void {
     for (const [topic, subs] of this.subscriptions) {
       if (subs.length > 0) {
         this.sendSubscribe(topic, subs[0].type, this.effectiveSubscribeParams(subs))
       }
     }
-  }
-
-  private readvertiseAll(): void {
-    // Re-advertise all previously advertised topics after reconnection
-    for (const [topic, type] of this.advertisedTopics) {
-      this.send({
-        op: 'advertise',
-        id: this.generateId(),
-        topic,
-        type,
-      })
-    }
-  }
-
-  // ───────────────────────────────────────────────────────────────────────────
-  // SERVICE OPERATIONS
-  // ───────────────────────────────────────────────────────────────────────────
-
-  callService<TRequest, TResponse>(
-    service: string,
-    request: TRequest,
-    timeoutMs: number = 10000
-  ): Promise<TResponse> {
-    try {
-      validateRosGraphName(service, 'service')
-      if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-        throw new Error('Invalid ROS service timeout: value must be a positive finite number')
-      }
-    } catch (error) {
-      return Promise.reject(error instanceof Error ? error : new Error(String(error)))
-    }
-
-    if (!this.isConnected()) {
-      return Promise.reject(new Error('ROS bridge not connected'))
-    }
-
-    return new Promise((resolve, reject) => {
-      const id = this.generateId()
-
-      const timeout = setTimeout(() => {
-        this.pendingServiceCalls.delete(id)
-        reject(new Error(`Service call to ${service} timed out`))
-      }, timeoutMs)
-
-      this.pendingServiceCalls.set(id, {
-        resolve: resolve as (value: unknown) => void,
-        reject,
-        timeout,
-      })
-
-      const sent = this.send({
-        op: 'call_service',
-        id,
-        service,
-        args: request,
-      })
-      if (!sent) {
-        clearTimeout(timeout)
-        this.pendingServiceCalls.delete(id)
-        reject(new Error('ROS bridge not connected'))
-      }
-    })
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -645,60 +513,4 @@ export class ROSBridge {
     )
   }
 
-  publishSetpointPosition(
-    namespace: string,
-    pose: PoseStamped
-  ): void {
-    this.publish(namespacedRosTopic(namespace, 'mavros/setpoint_position/local'), pose)
-  }
-
-  publishSetpointVelocity(
-    namespace: string,
-    twist: TwistStamped
-  ): void {
-    this.publish(namespacedRosTopic(namespace, 'mavros/setpoint_velocity/cmd_vel'), twist)
-  }
-
-  async setMode(namespace: string, mode: string): Promise<boolean> {
-    const response = await this.callService<{ custom_mode: string }, { mode_sent: boolean }>(
-      namespacedRosTopic(namespace, 'mavros/set_mode'),
-      { custom_mode: mode }
-    )
-    return response.mode_sent
-  }
-
-  async arm(namespace: string, value: boolean = true): Promise<boolean> {
-    const response = await this.callService<{ value: boolean }, { success: boolean }>(
-      namespacedRosTopic(namespace, 'mavros/cmd/arming'),
-      { value }
-    )
-    return response.success
-  }
-
-  async takeoff(
-    namespace: string,
-    altitude: number,
-    latitude: number = 0,
-    longitude: number = 0
-  ): Promise<boolean> {
-    const response = await this.callService<
-      { min_pitch: number; yaw: number; latitude: number; longitude: number; altitude: number },
-      { success: boolean }
-    >(
-      namespacedRosTopic(namespace, 'mavros/cmd/takeoff'),
-      { min_pitch: 0, yaw: 0, latitude, longitude, altitude }
-    )
-    return response.success
-  }
-
-  async land(namespace: string): Promise<boolean> {
-    const response = await this.callService<
-      { min_pitch: number; yaw: number; latitude: number; longitude: number; altitude: number },
-      { success: boolean }
-    >(
-      namespacedRosTopic(namespace, 'mavros/cmd/land'),
-      { min_pitch: 0, yaw: 0, latitude: 0, longitude: 0, altitude: 0 }
-    )
-    return response.success
-  }
 }

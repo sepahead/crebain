@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "fixture_only": true,
+  "hazard_id": "HAZ-001",
+  "control_ids": ["CTL-001", "CTL-002", "CTL-009", "CTL-020"],
+  "command": "node scripts/test-phase0-baseline.mjs --fixture-evidence",
+  "result": {
+    "outcome": "passed",
+    "exit_code": 0
+  },
+  "candidate_commit": "1111111111111111111111111111111111111111"
+}

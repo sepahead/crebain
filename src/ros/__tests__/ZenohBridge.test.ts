@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { TwistStamped } from '../types'
 
 const invokeMock = vi.hoisted(() => vi.fn())
 const listenMock = vi.hoisted(() => vi.fn(async () => vi.fn()))
@@ -44,67 +43,6 @@ describe('ZenohBridge', () => {
 
     expect(states).toEqual(['connecting', 'disconnected'])
     expect(bridge.isConnected()).toBe(false)
-  })
-
-  it('publishes normalized setpoint velocity commands', async () => {
-    invokeMock.mockResolvedValue(undefined)
-    const bridge = new ZenohBridge()
-    const twist: TwistStamped = {
-      header: { stamp: { secs: 10, nsecs: 500_000_000 }, frame_id: 'map' },
-      twist: {
-        linear: { x: 1, y: 2, z: 3 },
-        angular: { x: 0.1, y: 0.2, z: 0.3 },
-      },
-    }
-
-    await bridge.publishSetpointVelocity('/drone1/', twist)
-
-    expect(invokeMock).toHaveBeenCalledWith('transport_publish_twist_stamped', {
-      topic: '/drone1/mavros/setpoint_velocity/cmd_vel',
-      cmd: {
-        twist: {
-          linear: [1, 2, 3],
-          angular: [0.1, 0.2, 0.3],
-        },
-        timestamp: 10.5,
-        frame_id: 'map',
-      },
-    })
-  })
-
-  it('handles malformed legacy publish payloads as unsupported messages', async () => {
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    const bridge = new ZenohBridge()
-
-    try {
-      bridge.publish('/cmd_vel', null)
-      await vi.waitFor(() => expect(consoleError).toHaveBeenCalled())
-    } finally {
-      consoleError.mockRestore()
-    }
-
-    expect(invokeMock).not.toHaveBeenCalled()
-  })
-
-  it('rejects unsupported publish payloads through the awaitable API', async () => {
-    const bridge = new ZenohBridge()
-
-    await expect(bridge.publishAsync('/cmd_vel', null)).rejects.toThrow('Publish message type unknown is not supported')
-    expect(invokeMock).not.toHaveBeenCalled()
-  })
-
-  it('propagates native publish failures through setpoint helpers', async () => {
-    invokeMock.mockRejectedValue(new Error('native publish failed'))
-    const bridge = new ZenohBridge()
-    const twist: TwistStamped = {
-      header: { stamp: { secs: 10, nsecs: 0 }, frame_id: 'map' },
-      twist: {
-        linear: { x: 1, y: 0, z: 0 },
-        angular: { x: 0, y: 0, z: 0 },
-      },
-    }
-
-    await expect(bridge.publishSetpointVelocity('/drone1', twist)).rejects.toThrow('native publish failed')
   })
 
   it('subscribes through the registry command and unsubscribes when the last listener is removed', async () => {
@@ -172,17 +110,28 @@ describe('ZenohBridge', () => {
     expect(invokeMock).toHaveBeenCalledWith('transport_subscribe_camera_info', { topic: '/camera/info' })
   })
 
-  it('rejects service calls because native Zenoh services are unsupported', async () => {
-    const bridge = new ZenohBridge()
-
-    await expect(bridge.callService('/gazebo/reset', {})).rejects.toThrow('Service calls are not supported')
-  })
-
-  it('rejects unsupported MAVROS compatibility methods explicitly', async () => {
+  it('retains telemetry-only compatibility subscriptions', () => {
     const bridge = new ZenohBridge()
 
     expect(() => bridge.subscribeToOdometry('/drone1', vi.fn())).toThrow('Odometry subscriptions is not supported')
     expect(() => bridge.subscribeToState('/drone1', vi.fn())).toThrow('MAVROS state subscriptions is not supported')
-    await expect(bridge.arm('/drone1')).rejects.toThrow('MAVROS arming is not supported')
+  })
+
+  it('has no public publish, service, Gazebo, or MAVROS command methods', () => {
+    const bridge = new ZenohBridge() as unknown as Record<string, unknown>
+
+    for (const method of [
+      'publish',
+      'publishAsync',
+      'callService',
+      'publishSetpointPosition',
+      'publishSetpointVelocity',
+      'setMode',
+      'arm',
+      'takeoff',
+      'land',
+    ]) {
+      expect(bridge[method], method).toBeUndefined()
+    }
   })
 })

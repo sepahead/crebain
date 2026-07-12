@@ -10,8 +10,14 @@ describe('MessageRegistry', () => {
     expect(registry.getCommand('sensor_msgs/CameraInfo')).toBe('transport_subscribe_camera_info')
     expect(registry.getCommand('sensor_msgs/Imu')).toBe('transport_subscribe_imu')
     expect(registry.getCommand('geometry_msgs/PoseStamped')).toBe('transport_subscribe_pose')
-    expect(registry.getCommand('geometry_msgs/Twist')).toBe('transport_publish_velocity')
     expect(registry.getCommand('gazebo_msgs/ModelStates')).toBe('transport_subscribe_model_states')
+  })
+
+  it('does not register command-bearing message types', () => {
+    const registry = createMessageRegistry()
+
+    expect(registry.isRegistered('geometry_msgs/Twist')).toBe(false)
+    expect(registry.getCommand('geometry_msgs/Twist')).toBeNull()
   })
 
   it('validates supported sensor payload shapes', () => {
@@ -68,22 +74,6 @@ describe('MessageRegistry', () => {
     })).toBe(false)
     expect(registry.validate('std_msgs/String', { data: 'ready' })).toBe(true)
     expect(registry.validate('std_msgs/String', { data: 1 })).toBe(false)
-  })
-
-  it('validates velocity command payload boundaries', () => {
-    const registry = createMessageRegistry()
-
-    expect(registry.validate('geometry_msgs/Twist', {
-      linear: [1, 2, 3],
-      angular: [0, 0, 0],
-    })).toBe(true)
-    expect(registry.validate('geometry_msgs/Twist', {
-      linear: { x: 1, y: 2, z: 3 },
-      angular: [0, 0, 0],
-    })).toBe(false)
-    expect(registry.validate('geometry_msgs/Twist', {
-      linear: [1, 2, 3],
-    })).toBe(false)
   })
 
   it('keeps builtin type listings registered and deduplicated', () => {
