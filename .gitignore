@@ -88,7 +88,7 @@ zig-cache/
 zig-out/
 .zig-cache/
 
-# Swift / Xcode (CoreML sidecar)
+# Swift / Xcode tooling artifacts
 .build/
 .swiftpm/
 *.xcodeproj/
