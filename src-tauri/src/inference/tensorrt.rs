@@ -32,7 +32,7 @@ use std::time::Instant;
 
 #[cfg(target_os = "linux")]
 use ort::{
-    execution_providers::{CUDAExecutionProvider, ExecutionProvider, TensorRTExecutionProvider},
+    execution_providers::{ExecutionProvider, TensorRTExecutionProvider},
     session::Session,
     value::Value,
 };
@@ -52,15 +52,14 @@ pub struct TensorRtDetector {
     inference_count: AtomicU64,
     total_inference_ms: AtomicU64,
     model_load_ms: f64,
-    using_tensorrt: bool,
 }
 
 #[cfg(target_os = "linux")]
 impl TensorRtDetector {
     /// Create a new TensorRT detector
     ///
-    /// This will attempt to use the TensorRT execution provider if available,
-    /// falling back to CUDA if TensorRT is not installed.
+    /// This requires the TensorRT execution provider. Backend fallback is owned
+    /// by the inference factory so an explicit TensorRT override remains exact.
     pub fn new() -> Result<Self> {
         if !is_available() {
             return Err(InferenceError::BackendNotAvailable(Backend::TensorRT));
@@ -74,15 +73,10 @@ impl TensorRtDetector {
 
         log::info!("[TensorRT] Loading model: {:?}", model_path);
 
-        // Try TensorRT EP first, fall back to CUDA
-        let (session, using_tensorrt) = Self::create_session(&model_path)?;
+        let session = Self::create_session(&model_path)?;
 
         let model_load_ms = load_start.elapsed().as_secs_f64() * 1000.0;
-        log::info!(
-            "[TensorRT] Model loaded in {:.1}ms (TensorRT EP: {})",
-            model_load_ms,
-            using_tensorrt
-        );
+        log::info!("[TensorRT] Model loaded in {:.1}ms", model_load_ms);
 
         Ok(Self {
             session: Mutex::new(session),
@@ -93,65 +87,42 @@ impl TensorRtDetector {
             inference_count: AtomicU64::new(0),
             total_inference_ms: AtomicU64::new(0),
             model_load_ms,
-            using_tensorrt,
         })
     }
 
-    fn create_session(model_path: &PathBuf) -> Result<(Session, bool)> {
-        // Check if TensorRT EP is available
-        let trt_available = TensorRTExecutionProvider::default()
+    fn create_session(model_path: &PathBuf) -> Result<Session> {
+        if !TensorRTExecutionProvider::default()
             .is_available()
-            .unwrap_or(false);
-
-        if trt_available {
-            log::info!("[TensorRT] TensorRT execution provider available");
-
-            // Configure TensorRT EP with optimizations. Enable caching if we have a
-            // writable cache directory.
-            let mut trt_ep = TensorRTExecutionProvider::default()
-                .with_fp16(true)
-                .with_int8(false)
-                .with_engine_cache(false);
-
-            if let Some(cache_dir) = path::tensorrt_engine_cache_dir() {
-                trt_ep = trt_ep
-                    .with_engine_cache(true)
-                    .with_engine_cache_path(cache_dir.to_string_lossy().to_string());
-            }
-
-            match Session::builder()
-                .map_err(|e| InferenceError::ModelLoadError(e.to_string()))?
-                .with_execution_providers([trt_ep.build()])
-                .map_err(|e| InferenceError::ModelLoadError(e.to_string()))?
-                .commit_from_file(model_path)
-            {
-                Ok(session) => return Ok((session, true)),
-                Err(e) => {
-                    log::warn!(
-                        "[TensorRT] Failed to use TensorRT EP: {}, falling back to CUDA",
-                        e
-                    );
-                }
-            }
+            .unwrap_or(false)
+        {
+            return Err(InferenceError::BackendNotAvailable(Backend::TensorRT));
         }
 
-        // Fall back to CUDA
-        let cuda_available = CUDAExecutionProvider::default()
-            .is_available()
-            .unwrap_or(false);
+        log::info!("[TensorRT] TensorRT execution provider available");
 
-        if cuda_available {
-            log::info!("[TensorRT] Using CUDA execution provider as fallback");
-            let session = Session::builder()
-                .map_err(|e| InferenceError::ModelLoadError(e.to_string()))?
-                .with_execution_providers([CUDAExecutionProvider::default().build()])
-                .map_err(|e| InferenceError::ModelLoadError(e.to_string()))?
-                .commit_from_file(model_path)
-                .map_err(|e| InferenceError::ModelLoadError(e.to_string()))?;
-            return Ok((session, false));
+        // Configure TensorRT EP with optimizations. Enable caching if we have a
+        // writable cache directory.
+        let mut trt_ep = TensorRTExecutionProvider::default()
+            .with_fp16(true)
+            .with_int8(false)
+            .with_engine_cache(false);
+
+        if let Some(cache_dir) = path::tensorrt_engine_cache_dir() {
+            trt_ep = trt_ep
+                .with_engine_cache(true)
+                .with_engine_cache_path(cache_dir.to_string_lossy().to_string());
         }
 
-        Err(InferenceError::BackendNotAvailable(Backend::TensorRT))
+        Session::builder()
+            .map_err(|e| InferenceError::ModelLoadError(e.to_string()))?
+            .with_execution_providers([trt_ep.build().error_on_failure()])
+            .map_err(|e| InferenceError::ModelLoadError(e.to_string()))?
+            .commit_from_file(model_path)
+            .map_err(|e| {
+                InferenceError::ModelLoadError(format!(
+                    "failed to create strict TensorRT session: {e}"
+                ))
+            })
     }
 
     /// Preprocess RGBA image to NCHW float tensor
@@ -261,7 +232,7 @@ impl Detector for TensorRtDetector {
 
         // Run a dummy inference to warm up TensorRT
         let dummy_data = vec![0u8; (self.input_width * self.input_height * 4) as usize];
-        let _ = self.detect(&dummy_data, self.input_width, self.input_height);
+        self.detect(&dummy_data, self.input_width, self.input_height)?;
 
         Ok(())
     }
@@ -341,6 +312,9 @@ impl Detector for TensorRtDetector {
             });
         }
 
+        crate::common::nms::validate_nms_candidate_count(detections.len())
+            .map_err(InferenceError::InferenceError)?;
+
         // Apply NMS
         detections = self.nms(detections, 0.45);
 
@@ -364,11 +338,7 @@ impl Detector for TensorRtDetector {
             },
             total_inferences: count,
             model_load_ms: self.model_load_ms,
-            backend: if self.using_tensorrt {
-                "TensorRT".to_string()
-            } else {
-                "CUDA (TensorRT unavailable)".to_string()
-            },
+            backend: "TensorRT".to_string(),
         }
     }
 }
@@ -574,20 +544,12 @@ pub fn is_available() -> bool {
     {
         // Prefer checking ONNX Runtime execution provider availability since
         // `nvidia-smi` may not be present in minimal/containerized deployments.
-        let (trt_available, cuda_available) =
-            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                (
-                    TensorRTExecutionProvider::default()
-                        .is_available()
-                        .unwrap_or(false),
-                    CUDAExecutionProvider::default()
-                        .is_available()
-                        .unwrap_or(false),
-                )
-            }))
-            .unwrap_or((false, false));
-
-        trt_available || cuda_available
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            TensorRTExecutionProvider::default()
+                .is_available()
+                .unwrap_or(false)
+        }))
+        .unwrap_or(false)
     }
 
     #[cfg(not(target_os = "linux"))]
