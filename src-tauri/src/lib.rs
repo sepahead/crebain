@@ -26,6 +26,7 @@ use sensor_fusion::{
     validate_fusion_config, validate_sensor_measurements, FusionConfig, FusionStats,
     MultiSensorFusion, SensorMeasurement, TrackOutput,
 };
+use std::sync::atomic::{AtomicU64, Ordering};
 #[cfg(target_os = "macos")]
 use std::sync::Once;
 use std::sync::{LazyLock, Mutex};
@@ -37,6 +38,17 @@ static INIT: Once = Once::new();
 // Global sensor fusion engine (thread-safe)
 static FUSION_ENGINE: LazyLock<Mutex<Option<MultiSensorFusion>>> =
     LazyLock::new(|| Mutex::new(None));
+static NATIVE_DETECTION_ID: AtomicU64 = AtomicU64::new(0);
+
+#[cfg(any(target_os = "macos", test))]
+fn should_initialize_coreml(
+    configured_backend: inference::Result<Option<inference::Backend>>,
+) -> bool {
+    matches!(
+        configured_backend,
+        Ok(None | Some(inference::Backend::CoreML))
+    )
+}
 
 /// Initialize the native CoreML detector on app startup (macOS only)
 #[cfg(target_os = "macos")]
@@ -90,20 +102,6 @@ fn init_coreml_detector(app: &tauri::App) {
 
         log::error!("Could not find CoreML model at any expected path");
     });
-}
-
-/// Initialize ONNX Runtime detector (cross-platform fallback)
-fn init_onnx_detector() {
-    log::info!("Initializing ONNX Runtime detector");
-
-    match onnx_detector::init_global_detector() {
-        Ok(()) => {
-            log::info!("ONNX Runtime detector initialized successfully");
-        }
-        Err(e) => {
-            log::warn!("Failed to initialize ONNX detector: {}", e);
-        }
-    }
 }
 
 /// Run CoreML detection on an image - NATIVE FFI (zero subprocess overhead)
@@ -333,121 +331,159 @@ async fn detect_coreml_raw(
     .map_err(|e| format!("Task join error: {}", e))?
 }
 
-/// Run detection using the best available native backend (cross-platform).
-///
-/// This provides a single IPC entry point for the frontend:
-/// - macOS: native CoreML FFI
-/// - Linux/others: ONNX Runtime (TensorRT/CUDA/CPU execution providers)
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NativeBoundingBox {
+    x1: f32,
+    y1: f32,
+    x2: f32,
+    y2: f32,
+}
+
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NativeDetection {
+    id: String,
+    class_label: String,
+    class_index: u32,
+    confidence: f32,
+    bbox: NativeBoundingBox,
+    timestamp: i64,
+}
+
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NativeDetectionResponse {
+    success: bool,
+    detections: Vec<NativeDetection>,
+    inference_time_ms: f64,
+    preprocess_time_ms: Option<f64>,
+    postprocess_time_ms: Option<f64>,
+    backend: String,
+    error: Option<String>,
+}
+
+impl NativeDetectionResponse {
+    fn failure(backend: impl Into<String>, error: impl Into<String>) -> Self {
+        Self {
+            success: false,
+            detections: Vec::new(),
+            inference_time_ms: 0.0,
+            preprocess_time_ms: None,
+            postprocess_time_ms: None,
+            backend: backend.into(),
+            error: Some(error.into()),
+        }
+    }
+}
+
+fn unix_timestamp_millis() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
+        .min(i64::MAX as u128) as i64
+}
+
+fn execute_native_detection(
+    runtime: &inference::DetectorRuntime,
+    rgba_data: &[u8],
+    width: u32,
+    height: u32,
+    policy: inference::DetectionPolicy,
+) -> NativeDetectionResponse {
+    match runtime.detect(rgba_data, width, height, policy) {
+        Ok(output) => {
+            let timestamp = unix_timestamp_millis();
+            let backend = output.backend_name;
+            let detections = output
+                .detections
+                .into_iter()
+                .map(|detection| {
+                    let id = NATIVE_DETECTION_ID.fetch_add(1, Ordering::Relaxed);
+                    NativeDetection {
+                        id: format!("native-{timestamp}-{id}"),
+                        class_label: detection.class_label,
+                        class_index: detection.class_id,
+                        confidence: detection.confidence,
+                        bbox: NativeBoundingBox {
+                            x1: detection.bbox[0],
+                            y1: detection.bbox[1],
+                            x2: detection.bbox[2],
+                            y2: detection.bbox[3],
+                        },
+                        timestamp,
+                    }
+                })
+                .collect();
+
+            NativeDetectionResponse {
+                success: true,
+                detections,
+                inference_time_ms: output.inference_time_ms,
+                preprocess_time_ms: None,
+                postprocess_time_ms: None,
+                backend,
+                error: None,
+            }
+        }
+        Err(error) => {
+            let backend = runtime.snapshot().active_backend.map_or_else(
+                || "Inference Runtime".to_string(),
+                |backend| backend.to_string(),
+            );
+            NativeDetectionResponse::failure(backend, error.to_string())
+        }
+    }
+}
+
+/// Run detection using the persistent factory-selected native backend.
 #[tauri::command]
 async fn detect_native_raw(
     rgba_data: Vec<u8>,
     width: u32,
     height: u32,
     confidence_threshold: Option<f64>,
-    _iou_threshold: Option<f64>,
+    iou_threshold: Option<f64>,
     max_detections: Option<i32>,
-) -> Result<serde_json::Value, String> {
+) -> Result<NativeDetectionResponse, String> {
     validate_rgba_input_len(rgba_data.len(), width, height)?;
 
-    let conf = confidence_threshold.unwrap_or(0.25).clamp(0.0, 1.0);
-    let max_det = max_detections.unwrap_or(100).clamp(1, 1000) as usize;
+    let confidence = confidence_threshold
+        .unwrap_or(f64::from(inference::BACKEND_MIN_CONFIDENCE_THRESHOLD))
+        as f32;
+    let iou = iou_threshold.unwrap_or(f64::from(inference::BACKEND_MAX_IOU_THRESHOLD)) as f32;
+    let max_det =
+        usize::try_from(max_detections.unwrap_or(inference::BACKEND_MAX_DETECTIONS as i32))
+            .map_err(|_| "max detections must be a positive integer".to_string())?;
+    let policy = inference::DetectionPolicy::new(confidence, iou, max_det)
+        .map_err(|error| error.to_string())?;
 
-    tauri::async_runtime::spawn_blocking(move || -> Result<serde_json::Value, String> {
-        // Helper for consistent error payloads (avoid throwing on the JS side).
-        let failure = |backend: &str, error: String| {
-            serde_json::json!({
-                "success": false,
-                "detections": [],
-                "inferenceTimeMs": 0.0,
-                "preprocessTimeMs": 0.0,
-                "postprocessTimeMs": 0.0,
-                "backend": backend,
-                "error": error,
-            })
-        };
-
-        #[cfg(target_os = "macos")]
-        {
-            match coreml::detect_raw(&rgba_data, width, height, conf, max_det) {
-                Ok(result) => {
-                    let mut value = serde_json::to_value(&result)
-                        .map_err(|e| format!("Failed to serialize CoreML result: {}", e))?;
-                    if let serde_json::Value::Object(ref mut map) = value {
-                        map.insert(
-                            "backend".to_string(),
-                            serde_json::Value::String(
-                                "CoreML Native FFI (Metal/Neural Engine)".to_string(),
-                            ),
-                        );
-                    }
-                    Ok(value)
-                }
-                Err(coreml_err) => {
-                    // If CoreML isn't available/initialized, fall back to ONNX if present.
-                    if onnx_detector::is_onnx_detector_ready() {
-                        match onnx_detector::detect_with_onnx(&rgba_data, width, height) {
-                            Ok(mut result) => {
-                                let conf_f32 = conf as f32;
-                                if conf_f32 > 0.0 {
-                                    result.detections.retain(|d| d.confidence >= conf_f32);
-                                }
-                                if result.detections.len() > max_det {
-                                    result.detections.truncate(max_det);
-                                }
-                                let mut value = serde_json::to_value(&result).map_err(|e| {
-                                    format!("Failed to serialize ONNX result: {}", e)
-                                })?;
-                                if let serde_json::Value::Object(ref mut map) = value {
-                                    map.insert(
-                                        "backend".to_string(),
-                                        serde_json::Value::String(format!(
-                                            "{} (CoreML fallback)",
-                                            result.backend
-                                        )),
-                                    );
-                                }
-                                Ok(value)
-                            }
-                            Err(onnx_err) => Ok(failure(
-                                "CoreML/ONNX",
-                                format!("CoreML failed: {}; ONNX failed: {}", coreml_err, onnx_err),
-                            )),
-                        }
-                    } else {
-                        Ok(failure("CoreML Native FFI", coreml_err))
-                    }
-                }
-            }
-        }
-
-        #[cfg(not(target_os = "macos"))]
-        {
-            if !onnx_detector::is_onnx_detector_ready() {
-                return Ok(failure(
-                    "No Backend Available",
-                    "No detector initialized (missing model or backend unavailable)".to_string(),
-                ));
-            }
-
-            let mut result = match onnx_detector::detect_with_onnx(&rgba_data, width, height) {
-                Ok(result) => result,
-                Err(e) => {
-                    return Ok(failure("ONNX Runtime", format!("ONNX Runtime: {}", e)));
-                }
-            };
-            let conf_f32 = conf as f32;
-            if conf_f32 > 0.0 {
-                result.detections.retain(|d| d.confidence >= conf_f32);
-            }
-            if result.detections.len() > max_det {
-                result.detections.truncate(max_det);
-            }
-            serde_json::to_value(&result)
-                .map_err(|e| format!("Failed to serialize ONNX result: {}", e))
-        }
+    let task = tauri::async_runtime::spawn_blocking(move || {
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            execute_native_detection(
+                inference::production_runtime(),
+                &rgba_data,
+                width,
+                height,
+                policy,
+            )
+        }))
+        .unwrap_or_else(|_| {
+            NativeDetectionResponse::failure(
+                "Inference Runtime",
+                "native detector panicked while processing the frame",
+            )
+        })
     })
-    .await
-    .map_err(|e| format!("Task join error: {}", e))?
+    .await;
+
+    Ok(task.unwrap_or_else(|error| {
+        NativeDetectionResponse::failure(
+            "Inference Runtime",
+            format!("native detector task failed: {error}"),
+        )
+    }))
 }
 
 /// Run detection using ONNX Runtime (Linux primary backend)
@@ -490,31 +526,43 @@ fn get_system_info() -> serde_json::Value {
         .lock()
         .ok()
         .and_then(|guard| guard.as_ref().map(|f| f.get_stats()));
-    let available_backends: Vec<String> = inference::available_backends()
+    let runtime_snapshot = inference::production_runtime().snapshot();
+    let (configured_backend, configuration_error) = match inference::configured_backend() {
+        Ok(backend) => (backend.map(|backend| backend.to_string()), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    let candidate_backends: Vec<String> = inference::available_backends()
         .iter()
         .map(|backend| backend.to_string())
         .collect();
 
-    // Determine primary backend based on platform and availability
-    let onnx_backend = onnx_info
-        .get("backend")
-        .and_then(|v| v.as_str())
-        .unwrap_or("ONNX Runtime");
+    let backend = runtime_snapshot
+        .stats
+        .as_ref()
+        .map(|stats| stats.backend.clone())
+        .filter(|backend| !backend.is_empty())
+        .or_else(|| {
+            runtime_snapshot
+                .active_backend
+                .map(|backend| backend.to_string())
+        })
+        .unwrap_or_else(|| match runtime_snapshot.status {
+            inference::RuntimeStatus::Uninitialized => "Not Initialized".to_string(),
+            inference::RuntimeStatus::Failed => "No Backend Available".to_string(),
+            inference::RuntimeStatus::Ready => "Unknown Backend".to_string(),
+        });
 
-    #[cfg(target_os = "macos")]
-    let backend = if coreml_available {
-        "CoreML Native FFI (Metal/Neural Engine)".to_string()
-    } else if onnx_detector::is_onnx_detector_ready() {
-        onnx_backend.to_string()
-    } else {
-        "No Backend Available".to_string()
-    };
+    let runtime_ready = runtime_snapshot.status == inference::RuntimeStatus::Ready;
+    let runtime_error = runtime_snapshot.initialization_error.clone();
 
-    #[cfg(not(target_os = "macos"))]
-    let backend = if onnx_detector::is_onnx_detector_ready() {
-        onnx_backend.to_string()
+    let model_ready_backends: Vec<String> = if runtime_ready {
+        runtime_snapshot
+            .active_backend
+            .iter()
+            .map(ToString::to_string)
+            .collect()
     } else {
-        "No Backend Available".to_string()
+        Vec::new()
     };
 
     serde_json::json!({
@@ -524,7 +572,13 @@ fn get_system_info() -> serde_json::Value {
         "onnxAvailable": onnx_detector::is_onnx_detector_ready(),
         "backend": backend,
         "mode": "raw-rgba",
-        "availableBackends": available_backends,
+        "availableBackends": model_ready_backends,
+        "candidateBackends": candidate_backends,
+        "configuredBackend": configured_backend,
+        "backendConfigurationError": configuration_error,
+        "inferenceReady": runtime_ready,
+        "inferenceInitializationError": runtime_error,
+        "inferenceRuntime": runtime_snapshot,
         "experimentalMlxEnabled": inference::experimental_mlx_enabled(),
         "onnxDetector": onnx_info,
         "sensorFusion": fusion_info
@@ -871,27 +925,32 @@ pub fn run() {
                 app.handle().plugin(log_plugin)?;
             }
 
-            // Platform-specific detector initialization
+            // Resolve bundled CoreML resources before the factory selects its backend.
             #[cfg(target_os = "macos")]
             {
-                // Initialize the native CoreML detector (primary on macOS)
-                init_coreml_detector(app);
-
-                // Try ONNX as secondary fallback (uses CoreML execution provider)
-                init_onnx_detector();
-            }
-
-            #[cfg(target_os = "linux")]
-            {
-                // Initialize ONNX Runtime detector (primary on Linux, uses CUDA if available)
-                init_onnx_detector();
+                if should_initialize_coreml(inference::configured_backend()) {
+                    init_coreml_detector(app);
+                } else {
+                    log::info!(
+                        "Skipping CoreML resource initialization because the backend override does not select CoreML"
+                    );
+                }
             }
 
             #[cfg(not(any(target_os = "macos", target_os = "linux")))]
             {
-                // On other platforms, try ONNX with CPU fallback
-                init_onnx_detector();
                 log::warn!("Running on unsupported platform - limited functionality");
+            }
+
+            match inference::production_runtime().initialize() {
+                Ok(backend) => {
+                    log::info!("Production inference runtime ready with {backend} backend");
+                }
+                Err(error) => {
+                    // The cached failed state makes subsequent frame requests fail closed
+                    // without repeating model or TensorRT engine initialization.
+                    log::error!("Production inference runtime is unavailable: {error}");
+                }
             }
 
             // Initialize sensor fusion with default config
@@ -973,10 +1032,59 @@ pub fn run() {
 mod tests {
     use super::*;
 
+    struct ResponseFakeDetector;
+
+    impl inference::Detector for ResponseFakeDetector {
+        fn backend(&self) -> inference::Backend {
+            inference::Backend::ONNX
+        }
+
+        fn detect(
+            &self,
+            _data: &[u8],
+            _width: u32,
+            _height: u32,
+        ) -> inference::Result<Vec<inference::Detection>> {
+            Ok(vec![inference::Detection {
+                bbox: [0.0, 0.0, 1.0, 1.0],
+                confidence: 0.9,
+                class_id: 7,
+                class_label: "truck".to_string(),
+            }])
+        }
+    }
+
     #[test]
     fn validate_rgba_input_len_accepts_exact_size() {
         let expected = validate_rgba_input_len(16, 2, 2).unwrap();
         assert_eq!(expected, 16);
+    }
+
+    #[test]
+    fn coreml_resource_initialization_only_runs_for_auto_or_coreml_selection() {
+        assert_eq!(
+            (
+                should_initialize_coreml(Ok(None)),
+                should_initialize_coreml(Ok(Some(inference::Backend::CoreML))),
+                should_initialize_coreml(Ok(Some(inference::Backend::ONNX))),
+                should_initialize_coreml(Err(inference::InferenceError::InvalidBackend(
+                    "invalid".to_string()
+                ))),
+            ),
+            (true, true, false, false)
+        );
+    }
+
+    #[test]
+    fn system_info_available_backends_only_reports_model_ready_runtime() {
+        let info = get_system_info();
+        let expected = if info["inferenceRuntime"]["status"] == "ready" {
+            serde_json::json!([info["inferenceRuntime"]["activeBackend"].clone()])
+        } else {
+            serde_json::json!([])
+        };
+
+        assert_eq!(info["availableBackends"], expected);
     }
 
     #[test]
@@ -1021,6 +1129,101 @@ mod tests {
         .unwrap_err();
 
         assert!(error.contains("Invalid RGBA data size"));
+    }
+
+    #[test]
+    fn detect_native_raw_rejects_nonportable_policy_before_backend_selection() {
+        let error = tauri::async_runtime::block_on(detect_native_raw(
+            vec![0, 0, 0, 255],
+            1,
+            1,
+            Some(0.24),
+            Some(0.45),
+            Some(100),
+        ))
+        .unwrap_err();
+
+        assert!(error.contains("common backend envelope starts at 0.25"));
+    }
+
+    #[test]
+    fn native_detection_response_serializes_the_stable_frontend_shape() {
+        let runtime = inference::DetectorRuntime::new(|| Ok(Box::new(ResponseFakeDetector)));
+        let response = execute_native_detection(
+            &runtime,
+            &[0, 0, 0, 255],
+            1,
+            1,
+            inference::DetectionPolicy::new(0.25, 0.45, 100).unwrap(),
+        );
+        let value = serde_json::to_value(response).unwrap();
+        let response_keys: std::collections::BTreeSet<_> = value
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect();
+        let detection_keys: std::collections::BTreeSet<_> = value["detections"][0]
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect();
+
+        assert_eq!(
+            (response_keys, detection_keys),
+            (
+                std::collections::BTreeSet::from([
+                    "backend",
+                    "detections",
+                    "error",
+                    "inferenceTimeMs",
+                    "postprocessTimeMs",
+                    "preprocessTimeMs",
+                    "success",
+                ]),
+                std::collections::BTreeSet::from([
+                    "bbox",
+                    "classIndex",
+                    "classLabel",
+                    "confidence",
+                    "id",
+                    "timestamp",
+                ]),
+            )
+        );
+    }
+
+    #[test]
+    fn native_detection_failure_is_structured_and_fail_closed() {
+        let runtime = inference::DetectorRuntime::new(|| {
+            Err(inference::InferenceError::ModelLoadError(
+                "model unavailable".to_string(),
+            ))
+        });
+
+        let response = execute_native_detection(
+            &runtime,
+            &[0, 0, 0, 255],
+            1,
+            1,
+            inference::DetectionPolicy::new(0.25, 0.45, 100).unwrap(),
+        );
+
+        assert_eq!(
+            (
+                response.success,
+                response.detections.len(),
+                response.backend.as_str(),
+                response.error.as_deref(),
+            ),
+            (
+                false,
+                0,
+                "Inference Runtime",
+                Some("Model load error: model unavailable"),
+            )
+        );
     }
 
     #[test]

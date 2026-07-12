@@ -894,6 +894,8 @@ fn postprocess_output(
         anchor_offset = end;
     }
 
+    crate::common::nms::validate_nms_candidate_count(detections.len())
+        .map_err(InferenceError::InferenceError)?;
     let detections = non_max_suppression(detections, IOU_THRESHOLD);
     Ok(detections)
 }

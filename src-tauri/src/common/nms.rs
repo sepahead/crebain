@@ -5,6 +5,20 @@
 
 use super::detection::{BBox, Detection};
 
+/// Maximum number of detector candidates accepted before quadratic NMS.
+pub const MAX_NMS_CANDIDATES: usize = 4_096;
+
+/// Reject an oversized candidate set before entering a quadratic NMS loop.
+pub fn validate_nms_candidate_count(candidate_count: usize) -> Result<(), String> {
+    if candidate_count > MAX_NMS_CANDIDATES {
+        return Err(format!(
+            "detector returned {candidate_count} NMS candidates; maximum is {MAX_NMS_CANDIDATES}"
+        ));
+    }
+
+    Ok(())
+}
+
 /// Compute Intersection over Union (IoU) between two bounding boxes.
 ///
 /// Returns a value between 0.0 (no overlap) and 1.0 (identical boxes).
@@ -250,5 +264,23 @@ mod tests {
         assert!((result[0].confidence - 0.9).abs() < 0.001);
         assert!((result[1].confidence - 0.7).abs() < 0.001);
         assert!((result[2].confidence - 0.5).abs() < 0.001);
+    }
+
+    #[test]
+    fn nms_candidate_limit_accepts_exact_boundary() {
+        assert!(validate_nms_candidate_count(MAX_NMS_CANDIDATES).is_ok());
+    }
+
+    #[test]
+    fn nms_candidate_limit_rejects_before_quadratic_work() {
+        let error = validate_nms_candidate_count(MAX_NMS_CANDIDATES + 1).unwrap_err();
+
+        assert_eq!(
+            error,
+            format!(
+                "detector returned {} NMS candidates; maximum is {MAX_NMS_CANDIDATES}",
+                MAX_NMS_CANDIDATES + 1
+            )
+        );
     }
 }

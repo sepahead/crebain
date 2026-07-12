@@ -1,8 +1,8 @@
 //! CUDA Backend (Linux with NVIDIA GPU)
 //!
 //! This module provides CUDA-accelerated inference by delegating to the ONNX
-//! Runtime with CUDA execution provider. For more optimized NVIDIA inference,
-//! use the TensorRT backend instead.
+//! Runtime with a strict CUDA execution provider. For more optimized NVIDIA
+//! inference, use the TensorRT backend instead.
 
 use super::{
     validate_rgba_input_len, Backend, Detection, Detector, InferenceError, InferenceStats, Result,
@@ -29,13 +29,16 @@ impl CudaDetector {
 
         let start = Instant::now();
 
-        // Initialize the global ONNX detector which uses CUDA on Linux
-        if !crate::onnx_detector::is_onnx_detector_ready() {
-            crate::onnx_detector::init_global_detector().map_err(InferenceError::ModelLoadError)?;
-        }
+        crate::onnx_detector::init_global_cuda_detector()
+            .map_err(InferenceError::ModelLoadError)?;
+        let actual_backend = crate::onnx_detector::strict_cuda_backend_name().ok_or_else(|| {
+            InferenceError::BackendError(
+                "strict CUDA detector initialized without the CUDA provider".to_string(),
+            )
+        })?;
 
         let model_load_ms = start.elapsed().as_secs_f64() * 1000.0;
-        log::info!("[CUDA] Initialized via ONNX Runtime with CUDA execution provider");
+        log::info!("[CUDA] Initialized with verified provider: {actual_backend}");
 
         Ok(Self {
             inference_count: AtomicU64::new(0),
@@ -61,7 +64,7 @@ impl Detector for CudaDetector {
         validate_rgba_input_len(data.len(), width, height)?;
 
         // Delegate to ONNX Runtime (which uses CUDA on Linux)
-        let result = crate::onnx_detector::detect_with_onnx(data, width, height)
+        let result = crate::onnx_detector::detect_with_cuda(data, width, height)
             .map(|res| {
                 res.detections
                     .into_iter()

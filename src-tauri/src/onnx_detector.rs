@@ -11,7 +11,7 @@
 
 #[cfg(target_os = "linux")]
 use crate::common::path;
-use crate::common::{coco, image, yolo};
+use crate::common::{coco, image, nms, yolo};
 use ort::{session::Session, value::Value};
 
 #[cfg(target_os = "linux")]
@@ -80,11 +80,22 @@ pub struct OnnxDetector {
 }
 
 static DETECTOR: OnceLock<OnnxDetector> = OnceLock::new();
+#[cfg(target_os = "linux")]
+static CUDA_DETECTOR: OnceLock<OnnxDetector> = OnceLock::new();
+#[cfg(any(target_os = "linux", test))]
+const STRICT_CUDA_BACKEND_NAME: &str = "ONNX Runtime (CUDA)";
+
+#[cfg(any(target_os = "linux", test))]
+fn is_strict_cuda_backend(backend_name: &str) -> bool {
+    backend_name == STRICT_CUDA_BACKEND_NAME
+}
 
 /// Last initialization failure, kept for diagnostics (`get_onnx_detector_info`).
 /// Unlike `DETECTOR`, failures are NOT cached as final: every
 /// `init_global_detector` call may retry until a detector is set.
 static LAST_INIT_ERROR: Mutex<Option<String>> = Mutex::new(None);
+#[cfg(target_os = "linux")]
+static LAST_CUDA_INIT_ERROR: Mutex<Option<String>> = Mutex::new(None);
 
 impl OnnxDetector {
     /// Create a new ONNX detector with the given model path
@@ -98,7 +109,21 @@ impl OnnxDetector {
         log::info!("ONNX: Model loaded successfully from {}", model_path);
         log::info!("ONNX: Backend: {}", backend_name);
 
-        Ok(Self {
+        Ok(Self::from_session(
+            session,
+            backend_name,
+            confidence_threshold,
+            iou_threshold,
+        ))
+    }
+
+    fn from_session(
+        session: Session,
+        backend_name: String,
+        confidence_threshold: f32,
+        iou_threshold: f32,
+    ) -> Self {
+        Self {
             session: Mutex::new(session),
             input_width: 640,
             input_height: 640,
@@ -107,7 +132,53 @@ impl OnnxDetector {
             iou_threshold,
             detection_counter: std::sync::atomic::AtomicU64::new(0),
             backend_name,
-        })
+        }
+    }
+
+    /// Create a detector whose CUDA provider registration must succeed.
+    #[cfg(target_os = "linux")]
+    fn new_cuda_strict(
+        model_path: &str,
+        confidence_threshold: f32,
+        iou_threshold: f32,
+    ) -> Result<Self, String> {
+        let session = Self::create_cuda_session_strict(model_path)?;
+        log::info!("ONNX: Strict CUDA model loaded from {model_path}");
+        Ok(Self::from_session(
+            session,
+            STRICT_CUDA_BACKEND_NAME.to_string(),
+            confidence_threshold,
+            iou_threshold,
+        ))
+    }
+
+    #[cfg(target_os = "linux")]
+    fn create_cuda_session_strict(model_path: &str) -> Result<Session, String> {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            if !CUDAExecutionProvider::default()
+                .is_available()
+                .unwrap_or(false)
+            {
+                return Err("CUDA execution provider is not available".to_string());
+            }
+
+            Session::builder()
+                .map_err(|error| format!("Failed to create CUDA session builder: {error}"))?
+                .with_execution_providers([CUDAExecutionProvider::default()
+                    .build()
+                    .error_on_failure()])
+                .map_err(|error| format!("Failed to register strict CUDA provider: {error}"))?
+                .commit_from_file(model_path)
+                .map_err(|error| format!("Failed to create strict CUDA session: {error}"))
+        }));
+
+        match result {
+            Ok(inner) => inner,
+            Err(_) => Err(
+                "ONNX Runtime panicked while initializing strict CUDA (check ORT_DYLIB_PATH/LD_LIBRARY_PATH and NVIDIA driver libraries)"
+                    .to_string(),
+            ),
+        }
     }
 
     /// Create ONNX session with platform-specific execution providers
@@ -386,6 +457,8 @@ impl OnnxDetector {
             });
         }
 
+        nms::validate_nms_candidate_count(detections.len())?;
+
         // Apply NMS
         detections = self.nms(detections);
 
@@ -550,6 +623,21 @@ fn last_init_error() -> Option<String> {
     LAST_INIT_ERROR.lock().ok().and_then(|slot| slot.clone())
 }
 
+#[cfg(target_os = "linux")]
+fn record_cuda_init_error(message: &str) {
+    if let Ok(mut slot) = LAST_CUDA_INIT_ERROR.lock() {
+        *slot = Some(message.to_string());
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn last_cuda_init_error() -> Option<String> {
+    LAST_CUDA_INIT_ERROR
+        .lock()
+        .ok()
+        .and_then(|slot| slot.clone())
+}
+
 /// Initialize the global ONNX detector.
 ///
 /// Only successful initialization is cached; failures (e.g. a missing model
@@ -592,6 +680,53 @@ pub fn init_global_detector() -> Result<(), String> {
     }
 }
 
+/// Initialize the CUDA-only detector used by the strict CUDA backend wrapper.
+#[cfg(target_os = "linux")]
+pub fn init_global_cuda_detector() -> Result<(), String> {
+    if let Some(detector) = CUDA_DETECTOR.get() {
+        if is_strict_cuda_backend(detector.get_backend_name()) {
+            return Ok(());
+        }
+        return Err(format!(
+            "strict CUDA detector has unexpected provider: {}",
+            detector.get_backend_name()
+        ));
+    }
+
+    let model_path = find_onnx_model_path().ok_or_else(|| {
+        let message = "CUDA model not found (set CREBAIN_ONNX_MODEL or place yolov8s.onnx in src-tauri/resources)"
+            .to_string();
+        record_cuda_init_error(&message);
+        message
+    })?;
+
+    log::info!("ONNX: Loading strict CUDA model from {model_path:?}");
+    match OnnxDetector::new_cuda_strict(&model_path.to_string_lossy(), 0.25, 0.45) {
+        Ok(detector) => {
+            if !is_strict_cuda_backend(detector.get_backend_name()) {
+                let message = format!(
+                    "strict CUDA initialization selected unexpected provider: {}",
+                    detector.get_backend_name()
+                );
+                record_cuda_init_error(&message);
+                return Err(message);
+            }
+
+            let _ = CUDA_DETECTOR.set(detector);
+            if let Ok(mut slot) = LAST_CUDA_INIT_ERROR.lock() {
+                *slot = None;
+            }
+            Ok(())
+        }
+        Err(error) => {
+            let message = format!("strict CUDA detector init failed: {error}");
+            log::error!("ONNX: {message}");
+            record_cuda_init_error(&message);
+            Err(message)
+        }
+    }
+}
+
 /// Get the global ONNX detector
 pub fn get_global_detector() -> Option<&'static OnnxDetector> {
     DETECTOR.get()
@@ -609,6 +744,35 @@ pub fn detect_with_onnx(
             Err(last_init_error().unwrap_or_else(|| "ONNX detector not initialized".to_string()))
         }
     }
+}
+
+/// Run detection through the CUDA-only detector.
+#[cfg(target_os = "linux")]
+pub fn detect_with_cuda(
+    pixels: &[u8],
+    width: u32,
+    height: u32,
+) -> Result<OnnxDetectionResult, String> {
+    match CUDA_DETECTOR.get() {
+        Some(detector) if is_strict_cuda_backend(detector.get_backend_name()) => {
+            detector.detect(pixels, width, height)
+        }
+        Some(detector) => Err(format!(
+            "strict CUDA detector has unexpected provider: {}",
+            detector.get_backend_name()
+        )),
+        None => Err(last_cuda_init_error()
+            .unwrap_or_else(|| "strict CUDA detector not initialized".to_string())),
+    }
+}
+
+/// Return the provider name only when the strict CUDA detector is ready.
+#[cfg(target_os = "linux")]
+pub fn strict_cuda_backend_name() -> Option<&'static str> {
+    CUDA_DETECTOR
+        .get()
+        .map(OnnxDetector::get_backend_name)
+        .filter(|backend| is_strict_cuda_backend(backend))
 }
 
 /// Check if ONNX detector is available
@@ -660,5 +824,22 @@ pub fn get_onnx_detector_info() -> serde_json::Value {
                 "providers": providers,
             }),
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn strict_cuda_provider_verification_rejects_auto_fallback_labels() {
+        assert_eq!(
+            (
+                is_strict_cuda_backend("ONNX Runtime (CUDA)"),
+                is_strict_cuda_backend("ONNX Runtime (TensorRT)"),
+                is_strict_cuda_backend("ONNX Runtime (CPU)"),
+            ),
+            (true, false, false)
+        );
     }
 }
