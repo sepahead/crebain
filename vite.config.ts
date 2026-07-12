@@ -1,9 +1,121 @@
 /// <reference types="vitest" />
+import { createHash } from 'node:crypto'
+import { readFileSync, writeFileSync } from 'node:fs'
+import { relative, resolve } from 'node:path'
 import { defineConfig } from 'vite'
+import type { Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
+import { fileURLToPath } from 'node:url'
 
-export default defineConfig({
-  plugins: [react()],
+const ROOT_DIRECTORY = fileURLToPath(new URL('.', import.meta.url))
+const DEVELOPMENT_ROSBRIDGE_MODULE = 'src/ros/ROSBridge.ts'
+const PRODUCTION_ROSBRIDGE_MODULE = 'src/ros/ROSBridgeDisabled.ts'
+
+function projectModuleId(moduleId: string): string | null {
+  const withoutQuery = moduleId.split('?', 1)[0]
+  if (!withoutQuery.startsWith(ROOT_DIRECTORY)) return null
+  const projectRelative = relative(ROOT_DIRECTORY, withoutQuery).replaceAll('\\', '/')
+  if (projectRelative.startsWith('../') || projectRelative.startsWith('node_modules/')) return null
+  return projectRelative
+}
+
+function authorityBoundaryManifestPlugin(mode: string): Plugin {
+  let report: {
+    schema_version: number
+    build_mode: string
+    development_module: string
+    production_replacement: string
+    chunks: Array<{
+      file: string
+      entry: boolean
+      facade_module: string | null
+      imports: string[]
+      dynamic_imports: string[]
+      project_modules: string[]
+      sha256: string
+    }>
+  } | null = null
+  return {
+    name: 'crebain-production-authority-boundary',
+    apply: 'build',
+    generateBundle(_options, bundle) {
+      const chunks = Object.entries(bundle)
+        .filter(
+          (entry): entry is [string, Extract<(typeof entry)[1], { type: 'chunk' }>] =>
+            entry[1].type === 'chunk'
+        )
+        .map(([fileName, chunk]) => ({
+          file: fileName,
+          entry: chunk.isEntry,
+          facade_module: chunk.facadeModuleId ? projectModuleId(chunk.facadeModuleId) : null,
+          imports: [...chunk.imports].sort(),
+          dynamic_imports: [...chunk.dynamicImports].sort(),
+          project_modules: Object.keys(chunk.modules)
+            .map(projectModuleId)
+            .filter((value): value is string => value !== null)
+            .sort(),
+          sha256: createHash('sha256').update(chunk.code).digest('hex'),
+        }))
+        .sort((left, right) => left.file.localeCompare(right.file))
+      const projectModules = new Set(chunks.flatMap((chunk) => chunk.project_modules))
+
+      if (projectModules.has(DEVELOPMENT_ROSBRIDGE_MODULE)) {
+        this.error(`Production bundle includes ${DEVELOPMENT_ROSBRIDGE_MODULE}`)
+      }
+      if (!projectModules.has(PRODUCTION_ROSBRIDGE_MODULE)) {
+        this.error(`Production bundle is missing ${PRODUCTION_ROSBRIDGE_MODULE}`)
+      }
+
+      report = {
+        schema_version: 1,
+        build_mode: mode,
+        development_module: DEVELOPMENT_ROSBRIDGE_MODULE,
+        production_replacement: PRODUCTION_ROSBRIDGE_MODULE,
+        chunks,
+      }
+      this.emitFile({
+        type: 'asset',
+        fileName: 'authority-boundary.json',
+        source: `${JSON.stringify(report, null, 2)}\n`,
+      })
+    },
+    writeBundle(options) {
+      if (!report) this.error('Production authority report was not generated')
+      const outputDirectory = resolve(ROOT_DIRECTORY, options.dir ?? 'dist')
+      const finalized = {
+        ...report,
+        chunks: report.chunks.map((chunk) => ({
+          ...chunk,
+          sha256: createHash('sha256')
+            .update(readFileSync(resolve(outputDirectory, chunk.file)))
+            .digest('hex'),
+        })),
+      }
+      writeFileSync(
+        resolve(outputDirectory, 'authority-boundary.json'),
+        `${JSON.stringify(finalized, null, 2)}\n`
+      )
+    },
+  }
+}
+
+export default defineConfig(({ command, mode }) => ({
+  plugins: [react(), authorityBoundaryManifestPlugin(mode)],
+
+  // The raw rosbridge WebSocket implementation exists only in the Vite
+  // development/test profile. Production resolves the same import to a
+  // network-free fail-closed implementation, so Rollup cannot include the
+  // rosbridge client in a desktop product bundle.
+  resolve: {
+    alias: {
+      '#renderer-rosbridge': fileURLToPath(
+        new URL(
+          command === 'serve' ? './src/ros/ROSBridge.ts' : './src/ros/ROSBridgeDisabled.ts',
+          import.meta.url
+        )
+      ),
+    },
+  },
 
   server: {
     port: 5173,
@@ -57,4 +169,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))

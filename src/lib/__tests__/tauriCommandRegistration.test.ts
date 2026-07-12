@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { TAURI_COMMANDS } from '../tauriCommands'
 
 const BACKEND = readFileSync(`${process.cwd()}/src-tauri/src/lib.rs`, 'utf8')
@@ -13,11 +13,16 @@ const FRONTEND_SOURCES = readSourceFiles(`${process.cwd()}/src`)
 
 function readSourceFiles(directory: string): string {
   return readdirSync(directory, { withFileTypes: true })
-    .filter((entry) => !entry.name.startsWith('.'))
+    .filter((entry) => !entry.name.startsWith('.') && entry.name !== '__tests__')
     .flatMap((entry) => {
       const path = `${directory}/${entry.name}`
       if (entry.isDirectory()) return [readSourceFiles(path)]
-      if (!entry.isFile() || !/\.(ts|tsx)$/.test(entry.name)) return []
+      if (
+        !entry.isFile() ||
+        !/\.(ts|tsx)$/.test(entry.name) ||
+        /\.(?:test|spec)\.(?:ts|tsx)$/.test(entry.name)
+      )
+        return []
       if (statSync(path).size === 0) return []
       return [readFileSync(path, 'utf8')]
     })
@@ -86,9 +91,6 @@ describe('Tauri command registration', () => {
       TAURI_COMMANDS.transport.subscribePose,
       TAURI_COMMANDS.transport.subscribeModelStates,
       TAURI_COMMANDS.transport.unsubscribe,
-      TAURI_COMMANDS.transport.publishVelocity,
-      TAURI_COMMANDS.transport.publishTwistStamped,
-      TAURI_COMMANDS.transport.publishPose,
     ]) {
       const block = commandBlock(TRANSPORT_COMMANDS, command)
       // The engine is acquired either via the current_bridge() helper or a
@@ -101,6 +103,40 @@ describe('Tauri command registration', () => {
       expect(block.indexOf('validate_topic(&topic)?;')).toBeGreaterThanOrEqual(0)
       expect(block.indexOf('validate_topic(&topic)?;')).toBeLessThan(Math.min(...engineIndexes))
     }
+  })
+
+  it('excludes direct inference and transport mutation bypass commands', () => {
+    const registered = new Set(invokeHandlerCommands(BACKEND))
+    const frontendCommands = new Set(commandValues(TAURI_COMMANDS))
+    const forbidden = [
+      'detect_coreml',
+      'detect_coreml_raw',
+      'detect_onnx',
+      'transport_publish_velocity',
+      'transport_publish_twist_stamped',
+      'transport_publish_pose',
+      'transport_spawn_gazebo_model',
+    ]
+
+    for (const command of forbidden) {
+      expect(registered.has(command), command).toBe(false)
+      expect(frontendCommands.has(command), command).toBe(false)
+      expect(COMMAND_SOURCES, command).not.toMatch(new RegExp(`(?:async\\s+)?fn\\s+${command}\\b`))
+    }
+  })
+
+  it('keeps the production renderer free of legacy authority routes', () => {
+    expect(FRONTEND_SOURCES).not.toMatch(
+      /getGazeboController|\b(?:GazeboController|WaypointManager)\b/
+    )
+    expect(FRONTEND_SOURCES).not.toMatch(
+      /\.callService\(|\.publishSetpoint|transport_(?:publish|spawn)_/
+    )
+    expect(FRONTEND_SOURCES).not.toMatch(
+      /mavros\/(?:setpoint|set_mode|cmd\/arming)|gazebo\/(?:pause|unpause|reset|spawn|delete|set_model)/
+    )
+    expect(existsSync(`${process.cwd()}/src/ros/GazeboController.ts`)).toBe(false)
+    expect(existsSync(`${process.cwd()}/src/ros/WaypointManager.ts`)).toBe(false)
   })
 
   it('keeps scene file commands guarded by path, size, and JSON validation', () => {

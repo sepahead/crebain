@@ -1,103 +1,94 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createGuidanceController } from '../GuidanceController'
-import type { ROSBridge } from '../ROSBridge'
 
-function createBridge(connected = true) {
-  return {
-    isConnected: vi.fn(() => connected),
-    advertise: vi.fn(),
-    publishSetpointVelocity: vi.fn(),
-  }
-}
-
-describe('GuidanceController', () => {
+describe('GuidanceController local preview', () => {
   afterEach(() => {
     vi.useRealTimers()
   })
 
-  it('normalizes namespaces and advertises velocity setpoints when started', () => {
-    const bridge = createBridge()
+  it('starts inactive and accepts no transport capability', () => {
     const controller = createGuidanceController()
 
-    controller.start(bridge as unknown as ROSBridge, '///drone1///')
+    expect(controller.isActive()).toBe(false)
+    controller.startPreview()
 
     expect(controller.isActive()).toBe(true)
-    expect(bridge.advertise).toHaveBeenCalledWith(
-      '/drone1/mavros/setpoint_velocity/cmd_vel',
-      'geometry_msgs/TwistStamped'
+    expect(controller.getState().lastProposedVelocity).toEqual({ x: 0, y: 0, z: 0 })
+    controller.stop()
+  })
+
+  it('ramps direct velocity proposals with explicit no-authority metadata', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(1_000)
+    const controller = createGuidanceController({
+      rateHz: 10,
+      maxAcceleration: 10,
+      maxVelocity: 5,
+    })
+    const callback = vi.fn()
+    controller.onProposal(callback)
+
+    controller.startPreview()
+    controller.setPreviewVelocity({ x: 10, y: 0, z: 0 })
+    await vi.advanceTimersByTimeAsync(100)
+    await vi.advanceTimersByTimeAsync(100)
+
+    expect(callback).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        authority: 'NoAuthority',
+        action: 'PreviewVelocity',
+        velocity: expect.objectContaining({ x: 1, y: 0, z: 0 }),
+      })
+    )
+    expect(callback).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        authority: 'NoAuthority',
+        action: 'PreviewVelocity',
+        velocity: expect.objectContaining({ x: 2, y: 0, z: 0 }),
+      })
     )
 
     controller.stop()
   })
 
-  it('ramps direct velocity commands and publishes stamped setpoints', async () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(1_000)
-    const bridge = createBridge()
-    const controller = createGuidanceController({ rateHz: 10, maxAcceleration: 10, maxVelocity: 5 })
-    const callback = vi.fn()
-    controller.onCommand(callback)
-
-    controller.start(bridge as unknown as ROSBridge, 'drone1')
-    controller.setDirectVelocity({ x: 10, y: 0, z: 0 })
-    await vi.advanceTimersByTimeAsync(100)
-    await vi.advanceTimersByTimeAsync(100)
-
-    const firstMessage = bridge.publishSetpointVelocity.mock.calls[0][1]
-    const secondMessage = bridge.publishSetpointVelocity.mock.calls[1][1]
-    expect(bridge.publishSetpointVelocity).toHaveBeenNthCalledWith(1, 'drone1', expect.any(Object))
-    expect(firstMessage.header).toEqual({ seq: 0, stamp: { secs: 1, nsecs: 100_000_000 }, frame_id: 'base_link' })
-    expect(firstMessage.twist.linear.x).toBeCloseTo(1)
-    expect(secondMessage.header.seq).toBe(1)
-    expect(secondMessage.twist.linear.x).toBeCloseTo(2)
-    expect(callback).toHaveBeenLastCalledWith(expect.objectContaining({
-      velocity: expect.objectContaining({ x: 2, y: 0, z: 0 }),
-      isEmergencyStop: false,
-    }))
-
-    controller.stop()
-  })
-
-  it('publishes zero velocity when the target is within the arrival threshold', async () => {
+  it('proposes Hold when the target is within the arrival threshold', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(2_000)
-    const bridge = createBridge()
     const controller = createGuidanceController({ rateHz: 10, arrivalThreshold: 0.5 })
     const callback = vi.fn()
-    controller.onCommand(callback)
+    controller.onProposal(callback)
 
-    controller.start(bridge as unknown as ROSBridge, '/drone1/')
+    controller.startPreview()
     controller.updateCurrentPosition({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 })
     controller.setTargetPosition({ x: 0.25, y: 0, z: 0 })
     await vi.advanceTimersByTimeAsync(100)
 
-    const message = bridge.publishSetpointVelocity.mock.calls[0][1]
-    expect(message.twist.linear).toEqual({ x: 0, y: 0, z: 0 })
-    expect(callback).toHaveBeenCalledWith(expect.objectContaining({
+    expect(callback).toHaveBeenCalledWith({
+      authority: 'NoAuthority',
+      action: 'Hold',
+      velocity: { x: 0, y: 0, z: 0 },
       distanceToTarget: 0.25,
       estimatedTimeToArrival: 0,
-      isEmergencyStop: false,
-    }))
+    })
 
     controller.stop()
   })
 
-  it('emergency stops immediately and notifies subscribers', () => {
-    const bridge = createBridge()
+  it('holds immediately and only notifies local subscribers', () => {
     const controller = createGuidanceController()
     const callback = vi.fn()
-    controller.onCommand(callback)
+    controller.onProposal(callback)
 
-    controller.start(bridge as unknown as ROSBridge, '/drone1')
+    controller.startPreview()
     controller.updateCurrentPosition({ x: 0, y: 0, z: 10 }, { x: 4, y: 0, z: 0 })
-    controller.setDirectVelocity({ x: 4, y: 0, z: 0 })
-    controller.emergencyStop()
+    controller.setPreviewVelocity({ x: 4, y: 0, z: 0 })
+    controller.hold()
 
-    const message = bridge.publishSetpointVelocity.mock.calls[0][1]
-    expect(message.twist.linear).toEqual({ x: 0, y: 0, z: 0 })
     expect(callback).toHaveBeenCalledWith({
+      authority: 'NoAuthority',
+      action: 'Hold',
       velocity: { x: 0, y: 0, z: 0 },
-      isEmergencyStop: true,
       distanceToTarget: 0,
       estimatedTimeToArrival: 0,
     })
@@ -105,22 +96,17 @@ describe('GuidanceController', () => {
     controller.stop()
   })
 
-  it('restarts the control loop when the configured rate changes', async () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(3_000)
-    const bridge = createBridge()
-    const controller = createGuidanceController({ rateHz: 10 })
+  it('exposes no transport write methods', () => {
+    const controller = createGuidanceController() as unknown as Record<string, unknown>
 
-    controller.start(bridge as unknown as ROSBridge, 'drone1')
-    controller.setConfig({ rateHz: 20 })
-    bridge.publishSetpointVelocity.mockClear()
-    controller.setDirectVelocity({ x: 1, y: 0, z: 0 })
-    await vi.advanceTimersByTimeAsync(50)
-
-    expect(controller.isActive()).toBe(true)
-    expect(bridge.advertise).toHaveBeenCalledTimes(1)
-    expect(bridge.publishSetpointVelocity).toHaveBeenCalledTimes(1)
-
-    controller.stop()
+    for (const method of [
+      'publish',
+      'callService',
+      'publishSetpointVelocity',
+      'setMode',
+      'arm',
+    ]) {
+      expect(controller[method], method).toBeUndefined()
+    }
   })
 })

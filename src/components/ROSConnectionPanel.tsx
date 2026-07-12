@@ -2,14 +2,14 @@
  * CREBAIN ROS Connection Panel
  * Adaptive Response & Awareness System (ARAS)
  *
- * UI panel for managing ROS-Gazebo connection
+ * Telemetry-only panel for managing ROS-Gazebo observation connections.
  */
 
 import { useState } from 'react'
 import { BasePanel } from './BasePanel'
+import { RENDERER_ROSBRIDGE_AVAILABLE } from '#renderer-rosbridge'
 import type { ConnectionState } from '../ros/ROSBridge'
 import type { DroneState } from '../hooks/useGazeboDrones'
-import type { InterceptionMission } from '../simulation/InterceptionSystem'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -25,9 +25,6 @@ export interface ROSConnectionPanelProps {
   onDisconnect: () => void
   error: string | null
   drones: DroneState[]
-  activeMissions: InterceptionMission[]
-  onInitiateIntercept: (targetId: string) => void
-  onAbortMission: (missionId: string) => void
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -44,13 +41,9 @@ export function ROSConnectionPanel({
   onDisconnect,
   error,
   drones,
-  activeMissions,
-  onInitiateIntercept,
-  onAbortMission,
 }: ROSConnectionPanelProps) {
   const [isExpanded, setIsExpanded] = useState(true)
   const [showDrones, setShowDrones] = useState(true)
-  const [showMissions, setShowMissions] = useState(true)
 
   const statusColor = {
     disconnected: 'bg-gray-500',
@@ -72,7 +65,7 @@ export function ROSConnectionPanel({
   return (
     <BasePanel
       panelId="rosConnection"
-      title="ROS-GAZEBO"
+      title="ROS-GAZEBO TELEMETRIE"
       theme="green"
       isExpanded={isExpanded}
       onToggleExpand={() => setIsExpanded((prev) => !prev)}
@@ -87,11 +80,20 @@ export function ROSConnectionPanel({
       collapsedContent={
         <div className="flex items-center gap-3">
           <div className={`w-3 h-3 rounded-full ${statusColor}`} />
-          <span className="text-green-400 font-mono text-sm font-bold">ROS-GAZEBO</span>
+          <span className="text-green-400 font-mono text-sm font-bold">ROS TELEMETRIE</span>
           <span className="text-green-400/60 font-mono text-xs">{statusText}</span>
         </div>
       }
     >
+      <div className="mb-3 rounded border border-amber-500/40 bg-amber-950/20 px-2 py-1.5">
+        <p className="font-mono text-[10px] font-bold text-amber-300">
+          NUR TELEMETRIE · NOAUTHORITY · HOLD
+        </p>
+        <p className="mt-0.5 font-mono text-[10px] text-amber-300/70">
+          Keine Flug-, Missions- oder Gazebo-Befehle verfügbar.
+        </p>
+      </div>
+
       {/* Connection Section */}
       <div className="mb-4 space-y-3">
         <div>
@@ -105,16 +107,25 @@ export function ROSConnectionPanel({
                      disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <option value="zenoh">ZENOH (TAURI)</option>
-            <option value="websocket">ROSBRIDGE (WEBSOCKET)</option>
+            {RENDERER_ROSBRIDGE_AVAILABLE && (
+              <option value="websocket">ROSBRIDGE (WEBSOCKET, DEV)</option>
+            )}
           </select>
           {transport === 'zenoh' && (
-            <p className="text-green-400/50 font-mono text-[10px] mt-1">
-              Zenoh uses the Tauri transport backend; no URL required.
-            </p>
+            <>
+              <p className="text-green-400/50 font-mono text-[10px] mt-1">
+                Zenoh uses the Tauri transport backend; no URL required.
+              </p>
+              {!RENDERER_ROSBRIDGE_AVAILABLE && (
+                <p className="text-amber-300/70 font-mono text-[10px] mt-1">
+                  Custom ROS sensor topics use the development-only rosbridge profile.
+                </p>
+              )}
+            </>
           )}
         </div>
 
-        {transport === 'websocket' && (
+        {RENDERER_ROSBRIDGE_AVAILABLE && transport === 'websocket' && (
           <div>
             <label className="text-green-400/80 font-mono text-xs block mb-1">ROSBRIDGE URL</label>
             <div className="flex gap-2">
@@ -222,72 +233,12 @@ export function ROSConnectionPanel({
                 <span className="text-red-400/60 font-mono text-xs">
                   {drone.altitude.toFixed(1)}m
                 </span>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onInitiateIntercept(drone.id)
-                  }}
-                  className="px-2 py-0.5 bg-red-600/30 border border-red-500/50 rounded
-                               text-red-400 font-mono text-xs hover:bg-red-600/50 transition-colors"
-                >
-                  ABFANGEN
-                </button>
               </div>
             ))}
 
             {drones.length === 0 && (
               <p className="text-green-400/40 font-mono text-xs text-center py-2">
                 Keine Drohnen erkannt
-              </p>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Active Missions Section */}
-      <div>
-        <div
-          className="flex items-center justify-between cursor-pointer mb-2"
-          onClick={() => setShowMissions(!showMissions)}
-        >
-          <span className="text-green-400 font-mono text-xs font-bold">
-            EINSÄTZE ({activeMissions.length})
-          </span>
-          <span className="text-green-400/40">{showMissions ? '▼' : '▶'}</span>
-        </div>
-
-        {showMissions && (
-          <div className="space-y-1 max-h-32 overflow-y-auto">
-            {activeMissions.map((mission) => (
-              <div
-                key={mission.id}
-                className="flex items-center gap-2 p-1.5 bg-purple-900/20 rounded border border-purple-500/20"
-              >
-                <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
-                <div className="flex-1">
-                  <div className="text-purple-400 font-mono text-xs">
-                    {mission.strategy} → {mission.targetId}
-                  </div>
-                  <div className="text-purple-400/60 font-mono text-xs">
-                    TTI: {mission.timeToIntercept?.toFixed(1) ?? '?'}s
-                  </div>
-                </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onAbortMission(mission.id)
-                  }}
-                  className="px-2 py-0.5 bg-red-600/30 border border-red-500/50 rounded
-                               text-red-400 font-mono text-xs hover:bg-red-600/50 transition-colors"
-                >
-                  ABBRUCH
-                </button>
-              </div>
-            ))}
-
-            {activeMissions.length === 0 && (
-              <p className="text-green-400/40 font-mono text-xs text-center py-2">
-                Keine aktiven Einsätze
               </p>
             )}
           </div>

@@ -7,7 +7,7 @@
 
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
 import { isTauri } from '@tauri-apps/api/core'
-import { ROSBridge, type ConnectionState } from './ROSBridge'
+import { ROSBridge } from '#renderer-rosbridge'
 import type {
   ThermalDetection,
   ThermalDetectionArray,
@@ -17,6 +17,7 @@ import type {
   RadarDetectionArray,
   LidarDetection,
   LidarDetectionArray,
+  ConnectionState,
 } from './types'
 import {
   type SensorMeasurement,

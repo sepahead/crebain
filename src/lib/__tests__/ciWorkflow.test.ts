@@ -79,7 +79,7 @@ describe('CI workflow', () => {
 
   it('keeps the stabilization roadmap aligned with completed validation work', () => {
     for (const item of [
-      'Guidance controller loop tests',
+      'Local no-authority guidance-preview tests and reset/hold checks',
       'End-to-end detection/fusion smoke tests',
       'CI backend alignment to package scripts',
       'Release acceptance matrix, model contracts, security threat model, and manual smoke checklist',
@@ -132,7 +132,8 @@ describe('CI workflow', () => {
       'Model loading',
       'Scene persistence',
       'Native detection IPC',
-      'ROS bridge',
+      'Renderer ROS telemetry',
+      'Native rosbridge telemetry fallback',
       'Zenoh transport',
       'Tauri commands/events',
     ]) {
@@ -142,7 +143,7 @@ describe('CI workflow', () => {
     for (const phrase of [
       'model path',
       'scene file',
-      'transport topic',
+      'telemetry topic',
       'structured error payloads',
     ]) {
       expect(RELEASE_ACCEPTANCE.toLowerCase()).toContain(phrase)

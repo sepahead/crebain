@@ -36,7 +36,7 @@ simulation. Built with Tauri 2, React 19, SparkJS/Three.js, and Rust.
 | **ML Detection** | Object detection pipeline with CoreML/ONNX paths and experimental backends | Prototype |
 | **Sensor Fusion** | 5 filter algorithms (KF/EKF/UKF/PF/IMM) for multi-modal tracking | Prototype |
 | **Drone Physics** | 120Hz quadcopter aerodynamics simulation | In Progress |
-| **ROS Integration** | rosbridge WebSocket + Zenoh-oriented transport paths | In Progress |
+| **ROS Integration** | Read-only Zenoh product telemetry + development/native rosbridge telemetry fallback | In Progress |
 | **Cross-Platform** | macOS (Apple Silicon) + NixOS (CUDA) | In Progress |
 
 ---
@@ -192,7 +192,7 @@ graph TB
         ThreeJS["SparkJS/Three.js<br/>(3D Scene)"]
         CameraFeeds["Camera Feeds<br/>(Overlays)"]
         FusionUI["Sensor Fusion UI<br/>(Tracks)"]
-        ROSControls["ROS Controls<br/>(Bridge)"]
+        ROSControls["ROS Telemetry<br/>(Bridge)"]
     end
 
     subgraph IPC["Tauri IPC"]
@@ -203,7 +203,7 @@ graph TB
         Inference["Inference<br/>Abstraction Layer"]
         SensorFusion["Sensor Fusion<br/>Engine"]
         Zenoh["Transport<br/>(Zenoh)"]
-        ROSBridge["ROS Bridge<br/>(WebSocket)"]
+        ROSBridge["ROS Telemetry Fallback<br/>(WebSocket, read-only)"]
     end
 
     subgraph External["External Systems"]
@@ -259,19 +259,34 @@ roslaunch crebain_msgs simulation.launch gui:=false
 #   gzserver your_world.sdf
 #   roslaunch rosbridge_server rosbridge_websocket.launch
 
-# Terminal 2: CREBAIN — connect the ROS panel to ws://localhost:9090
+# Terminal 2: CREBAIN development build — select the development-only
+# rosbridge telemetry adapter and connect to ws://localhost:9090
 bun run tauri:dev
 ```
 
-The shipped UI defaults to the TypeScript rosbridge WebSocket path, which
-supports the Gazebo Classic services and the custom fusion detection arrays.
-Selecting **Zenoh (Tauri)** switches to the native transport's fixed typed
-surface (camera, CameraInfo, IMU, PoseStamped, ModelStates, pose/twist
-publishing) — it does not implement ROS service calls or the custom fusion
-arrays. The native Zenoh transport speaks CREBAIN's own plain-key scheme;
-direct interop with an `rmw_zenoh_cpp` ROS 2 graph requires an explicit
-re-keying bridge. Topic templates, message/service definitions, launch files,
-and the camera wire contract are documented in [ros/README.md](ros/README.md).
+Packaged builds expose only the native read-only telemetry path and default to
+**Zenoh (Tauri)**. Vite development builds may additionally select a
+TypeScript rosbridge WebSocket adapter for telemetry experiments; production
+aliases that adapter to a network-free fail-closed stub and the packaged CSP
+does not permit rosbridge sockets. The native Rust rosbridge fallback selected
+with `CREBAIN_ZENOH=0` is also subscription-only. None of these product paths
+can publish pose/twist/setpoints, call ROS/Gazebo services, spawn models, or
+change MAVROS modes/missions. The remaining guidance/interception calculation
+is a disabled-by-default, local `NoAuthority` preview; disabling it,
+disconnecting, or toggling simulation off aborts and discards the preview
+generation.
+
+Every packaged frontend build verifies the resolved Vite module graph, excludes
+the development adapter, and content-hashes and scans every finalized JavaScript
+chunk before it can succeed. Bounded renderer asset downloads remain confined
+to the documented relative, HTTPS, and HTTP-loopback source policy; passive
+image URLs do not receive a general HTTPS CSP allowance.
+
+The native Zenoh transport speaks CREBAIN's own plain-key scheme; direct
+interop with an `rmw_zenoh_cpp` ROS 2 graph requires an explicit re-keying
+bridge. Topic templates, reference-only message/service definitions and launch
+files, and the camera wire contract are documented in
+[ros/README.md](ros/README.md).
 
 An optional, off-by-default NCP (Engram) bridge exists behind the Rust `ncp`
 feature; its Tauri commands are not registered in the product runtime and
@@ -328,12 +343,15 @@ bun run validate:all
 
 # Focused checks
 bun run check:ncp-coherence
+bun run check:phase0-baseline
 bun run check:rust
 bun run test:rust
 bun run clippy:rust
 ```
 
-`bun run validate:all` does not run the hosted bundle-size, coverage,
+`bun run build` includes the production module-graph/chunk boundary proof, and
+Tauri uses that same command before packaging. `bun run validate:all` does not
+run the hosted bundle-size, coverage,
 feature-gate (`cuda,tensorrt` and `--no-default-features`), CodeQL, or
 supply-chain-audit jobs; release candidates require those hosted gates as
 specified in [docs/RELEASE_ACCEPTANCE.md](docs/RELEASE_ACCEPTANCE.md). The
@@ -352,7 +370,7 @@ in [AGENTS.md](AGENTS.md).
 Verified engineering baseline (enforced by CI doc-sync tests; full history in
 [CHANGELOG.md](CHANGELOG.md)):
 
-- [x] Guidance controller loop tests and safety envelope checks
+- [x] Local no-authority guidance-preview tests and reset/hold checks
 - [x] End-to-end detection/fusion smoke tests with mocked model outputs
 - [x] CI backend alignment to package scripts
 - [x] Release acceptance matrix, model contracts, security threat model, and manual smoke checklist
@@ -380,9 +398,9 @@ Near-term engineering tasks are tracked in [docs/BACKLOG.md](docs/BACKLOG.md).
   availability, and confirm detection is toggled on (`Y`).
 - **ONNX Runtime load/version error on Linux** — point `ORT_DYLIB_PATH` at a
   compatible `libonnxruntime.so` (the Nix shells pre-set it).
-- **ROS panel won't connect** — verify rosbridge is listening on
-  `ws://localhost:9090` (`roslaunch crebain_msgs rosbridge.launch` or your own
-  rosbridge setup).
+- **ROS panel has no WebSocket option** — packaged builds intentionally expose
+  Zenoh telemetry only. In `bun run tauri:dev`, verify rosbridge is listening
+  on `ws://localhost:9090` before selecting the development-only adapter.
 - **Low FPS on large splats** — press `M` to toggle splat performance mode
   (1.5M splat cap).
 - **Labels are in German** — intentional; see the design note in

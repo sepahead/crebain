@@ -1,0 +1,916 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "unknown-classification",
+      "mutation": {
+        "type": "set",
+        "document": "inventory",
+        "path": ["surface_groups", 0, "classification"],
+        "value": "unreviewed-authority"
+      },
+      "expected_error": "unknown classification"
+    },
+    {
+      "id": "duplicate-surface-id",
+      "mutation": {
+        "type": "copy",
+        "document": "inventory",
+        "from": ["surface_groups", 0, "members", 0, "id"],
+        "to": ["surface_groups", 0, "members", 1, "id"]
+      },
+      "expected_error": "duplicate surface ID"
+    },
+    {
+      "id": "missing-owner",
+      "mutation": {
+        "type": "delete",
+        "document": "inventory",
+        "path": ["surface_groups", 0, "owner"]
+      },
+      "expected_error": "missing required field 'owner'"
+    },
+    {
+      "id": "registered-tauri-drift",
+      "mutation": {
+        "type": "append-tauri-handler",
+        "file": "src-tauri/src/lib.rs",
+        "value": "phase0_uninventoried"
+      },
+      "expected_error": "registered Tauri command inventory drift"
+    },
+    {
+      "id": "block-comment-shadow-tauri-drift",
+      "mutation": {
+        "type": "shadow-and-append-tauri-handler",
+        "file": "src-tauri/src/lib.rs",
+        "value": "phase0_uninventoried",
+        "comment_style": "block"
+      },
+      "expected_error": "registered Tauri command inventory drift"
+    },
+    {
+      "id": "line-comment-shadow-tauri-drift",
+      "mutation": {
+        "type": "shadow-and-append-tauri-handler",
+        "file": "src-tauri/src/lib.rs",
+        "value": "phase0_uninventoried",
+        "comment_style": "line"
+      },
+      "expected_error": "registered Tauri command inventory drift"
+    },
+    {
+      "id": "second-runtime-tauri-handler-list",
+      "mutation": {
+        "type": "append-source",
+        "file": "src-tauri/src/lib.rs",
+        "value": "\nfn phase0_second_handler_list() { let _ = tauri::generate_handler![get_system_info]; }\n"
+      },
+      "expected_error": "expected exactly one runtime Tauri generate_handler list"
+    },
+    {
+      "id": "known-actuator-route-drift",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridge.ts",
+        "value": "\nconst phase0UninventoriedRoute = '/mavros/cmd/disarm'\n"
+      },
+      "expected_error": "known actuator/telemetry route inventory drift"
+    },
+    {
+      "id": "new-unscanned-production-file",
+      "mutation": {
+        "type": "add-source",
+        "file": "src/security/unscannedCommandPath.ts",
+        "value": "export const harmlessLookingNewSurface = true\n"
+      },
+      "expected_error": "production source manifest drift"
+    },
+    {
+      "id": "split-actuator-route-drift",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridge.ts",
+        "value": "\nconst splitRoute = '/mav' + 'ros/cmd/disarm'\n"
+      },
+      "expected_error": "known actuator/telemetry route inventory drift"
+    },
+    {
+      "id": "dynamic-actuator-route-drift",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridge.ts",
+        "value": "\nconst dynamicRoute = '/mavros/' + namespace + '/cmd/arming'\n"
+      },
+      "expected_error": "known actuator/telemetry route inventory drift"
+    },
+    {
+      "id": "array-join-actuator-route-drift",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridgeDisabled.ts",
+        "value": "\nconst joinedRoute = ['', 'mavros', 'cmd', 'arming'].join('/')\n"
+      },
+      "expected_error": "known actuator/telemetry route inventory drift"
+    },
+    {
+      "id": "template-constant-actuator-route-drift",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridgeDisabled.ts",
+        "value": "\nconst routeRoot = 'mavros'; const routeGroup = 'cmd'; const routeAction = 'arming'; const templateRoute = `/${routeRoot}/${routeGroup}/${routeAction}`\n"
+      },
+      "expected_error": "known actuator/telemetry route inventory drift"
+    },
+    {
+      "id": "new-generic-vehicle-command-capability",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridge.ts",
+        "value": "\nfunction publishVehicleCommand(command) { return command }\n"
+      },
+      "expected_error": "forbidden generic command capability detected"
+    },
+    {
+      "id": "computed-generic-command-capability",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridgeDisabled.ts",
+        "value": "\nconst computedOperation = 'pub' + 'lish'; bridge[computedOperation]('telemetry', payload)\n"
+      },
+      "expected_error": "forbidden generic command capability detected"
+    },
+    {
+      "id": "computed-raw-websocket-capability",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridgeDisabled.ts",
+        "value": "\nconst socket = new globalThis['Web' + 'Socket']('ws://127.0.0.1:9090')\n"
+      },
+      "expected_error": "undeclared renderer WebSocket capability"
+    },
+    {
+      "id": "aliased-computed-raw-websocket-capability",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridgeDisabled.ts",
+        "value": "\nconst socketKey = ['Web', 'Socket'].join(''); const Socket = globalThis[socketKey]; const socket = new Socket('ws://127.0.0.1:9090')\n"
+      },
+      "expected_error": "undeclared renderer WebSocket capability"
+    },
+    {
+      "id": "object-descriptor-value-capability",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridgeDisabled.ts",
+        "value": "\nconst descriptorKey = ['Web', 'Socket'].join(''); const Socket = Object.getOwnPropertyDescriptor(globalThis, descriptorKey).value; new Socket(url)\n"
+      },
+      "expected_error": "global capability recovery is forbidden"
+    },
+    {
+      "id": "object-descriptor-getter-capability",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridgeDisabled.ts",
+        "value": "\nconst getter = Object.getOwnPropertyDescriptor(globalThis, ['fet', 'ch'].join('')).get; getter.call(globalThis)\n"
+      },
+      "expected_error": "global capability recovery is forbidden"
+    },
+    {
+      "id": "object-descriptors-computed-destructure-capability",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridgeDisabled.ts",
+        "value": "\nconst descriptorKey = ['Web', 'Socket'].join(''); const { [descriptorKey]: { value: Socket } } = Object.getOwnPropertyDescriptors(globalThis); new Socket(url)\n"
+      },
+      "expected_error": "global capability recovery is forbidden"
+    },
+    {
+      "id": "reflect-property-descriptor-capability",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridgeDisabled.ts",
+        "value": "\nconst Socket = Reflect.getOwnPropertyDescriptor(window, ['Web', 'Socket'].join('')).value; new Socket(url)\n"
+      },
+      "expected_error": "global capability recovery is forbidden"
+    },
+    {
+      "id": "bound-property-descriptor-capability",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridgeDisabled.ts",
+        "value": "\nconst descriptor = Object.getOwnPropertyDescriptor.bind(Object); descriptor(self, ['fet', 'ch'].join('')).value\n"
+      },
+      "expected_error": "global capability recovery is forbidden"
+    },
+    {
+      "id": "destructured-property-descriptor-method",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridgeDisabled.ts",
+        "value": "\nconst { ['getOwnProperty' + 'Descriptor']: descriptor } = Object; descriptor(globalThis, key)\n"
+      },
+      "expected_error": "global capability recovery is forbidden"
+    },
+    {
+      "id": "computed-global-websocket-destructure",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridgeDisabled.ts",
+        "value": "\nconst capabilityKey = ['Web', 'Socket'].join(''); const { [capabilityKey]: Socket } = globalThis; new Socket(url)\n"
+      },
+      "expected_error": "global capability recovery is forbidden"
+    },
+    {
+      "id": "computed-global-fetch-destructure",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridgeDisabled.ts",
+        "value": "\nconst capabilityKey = ['fet', 'ch'].join(''); const { [capabilityKey]: networkRead } = window; networkRead(url)\n"
+      },
+      "expected_error": "global capability recovery is forbidden"
+    },
+    {
+      "id": "unresolved-aliased-global-capability",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridgeDisabled.ts",
+        "value": "\nconst rootGlobal = globalThis; const Socket = rootGlobal[capabilityName]; new Socket(url)\n"
+      },
+      "expected_error": "global capability recovery is forbidden"
+    },
+    {
+      "id": "global-object-rest-destructure",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridgeDisabled.ts",
+        "value": "\nconst { ...allRuntimeCapabilities } = self\n"
+      },
+      "expected_error": "global capability recovery is forbidden"
+    },
+    {
+      "id": "global-computed-destructure-assignment",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridgeDisabled.ts",
+        "value": "\nlet Socket; ({ [['Web', 'Socket'].join('')]: Socket } = globalThis); new Socket(url)\n"
+      },
+      "expected_error": "global capability recovery is forbidden"
+    },
+    {
+      "id": "function-call-dynamic-capability",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridgeDisabled.ts",
+        "value": "\nFunction.call(null, ['return globalThis.', 'fetch'].join(''))()\n"
+      },
+      "expected_error": "dynamic code construction is forbidden"
+    },
+    {
+      "id": "bound-function-dynamic-capability",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridgeDisabled.ts",
+        "value": "\nconst DynamicFunction = Function.bind(null); DynamicFunction('return globalThis')\n"
+      },
+      "expected_error": "dynamic code construction is forbidden"
+    },
+    {
+      "id": "callable-constructor-dynamic-capability",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridgeDisabled.ts",
+        "value": "\n(() => {}).constructor(['return Web', 'Socket'].join(''))()\n"
+      },
+      "expected_error": "dynamic code construction is forbidden"
+    },
+    {
+      "id": "extracted-callable-constructor-dynamic-capability",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridgeDisabled.ts",
+        "value": "\nconst DynamicFunction = (() => {}).constructor; DynamicFunction('return fetch')()\n"
+      },
+      "expected_error": "dynamic code construction is forbidden"
+    },
+    {
+      "id": "computed-global-function-destructure",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridgeDisabled.ts",
+        "value": "\nconst { [['Func', 'tion'].join('')]: DynamicFunction } = globalThis; DynamicFunction(code)\n"
+      },
+      "expected_error": "global capability recovery is forbidden"
+    },
+    {
+      "id": "aliased-eval-dynamic-capability",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridgeDisabled.ts",
+        "value": "\nconst dynamicEval = eval; dynamicEval(code)\n"
+      },
+      "expected_error": "dynamic code construction is forbidden"
+    },
+    {
+      "id": "reflect-get-split-websocket-capability",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridgeDisabled.ts",
+        "value": "\nconst Socket = Reflect.get(globalThis, ['Web', 'Socket'].join('')); new Socket('ws://127.0.0.1:9090')\n"
+      },
+      "expected_error": "reflective capability lookup is forbidden"
+    },
+    {
+      "id": "aliased-reflect-get-capability",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridgeDisabled.ts",
+        "value": "\nconst capabilityGet = Reflect.get; capabilityGet(globalThis, ['Web', 'Socket'].join(''))\n"
+      },
+      "expected_error": "reflective capability lookup is forbidden"
+    },
+    {
+      "id": "reflect-get-call-capability",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridgeDisabled.ts",
+        "value": "\nReflect.get.call(Reflect, globalThis, ['Web', 'Socket'].join(''))\n"
+      },
+      "expected_error": "reflective capability lookup is forbidden"
+    },
+    {
+      "id": "reflect-get-bind-capability",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridgeDisabled.ts",
+        "value": "\nconst capabilityGet = Reflect.get.bind(Reflect); capabilityGet(globalThis, ['Web', 'Socket'].join(''))\n"
+      },
+      "expected_error": "reflective capability lookup is forbidden"
+    },
+    {
+      "id": "computed-reflect-get-capability",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridgeDisabled.ts",
+        "value": "\nReflect[['g', 'et'].join('')](globalThis, ['Web', 'Socket'].join(''))\n"
+      },
+      "expected_error": "reflective capability lookup is forbidden"
+    },
+    {
+      "id": "destructured-reflect-get-capability",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridgeDisabled.ts",
+        "value": "\nconst { get: capabilityGet } = Reflect; capabilityGet(globalThis, ['Web', 'Socket'].join(''))\n"
+      },
+      "expected_error": "reflective capability lookup is forbidden"
+    },
+    {
+      "id": "reflect-get-fetch-capability",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridgeDisabled.ts",
+        "value": "\nconst networkRead = Reflect.get(globalThis, ['fet', 'ch'].join('')); networkRead('/asset')\n"
+      },
+      "expected_error": "reflective capability lookup is forbidden"
+    },
+    {
+      "id": "reflect-get-publish-capability",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridgeDisabled.ts",
+        "value": "\nconst write = Reflect.get(bridge, ['pub', 'lish'].join('')); write(route, payload)\n"
+      },
+      "expected_error": "reflective capability lookup is forbidden"
+    },
+    {
+      "id": "computed-fetch-outside-bounded-adapter",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridgeDisabled.ts",
+        "value": "\nconst networkRead = globalThis['fet' + 'ch']('/asset')\n"
+      },
+      "expected_error": "undeclared renderer fetch capability"
+    },
+    {
+      "id": "direct-development-adapter-import",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/ros/ROSBridgeDisabled.ts",
+        "value": "\nimport { ROSBridge as DevelopmentBridge } from './ROSBridge'\n"
+      },
+      "expected_error": "direct runtime import of the development rosbridge module"
+    },
+    {
+      "id": "cargo-build-entrypoint-route-drift",
+      "mutation": {
+        "type": "append-source",
+        "file": "src-tauri/build.rs",
+        "value": "\nconst UNDECLARED_ROUTE: &str = \"/mavros/cmd/arming\";\n"
+      },
+      "expected_error": "known actuator/telemetry route inventory drift"
+    },
+    {
+      "id": "cargo-build-concat-route-construction",
+      "mutation": {
+        "type": "append-source",
+        "file": "src-tauri/build.rs",
+        "value": "\nconst UNDECLARED_ROUTE: &str = concat!(\"/mav\", \"ros/cmd/arming\");\n"
+      },
+      "expected_error": "Rust macro route construction is forbidden"
+    },
+    {
+      "id": "cargo-build-nested-concat-route-construction",
+      "mutation": {
+        "type": "append-source",
+        "file": "src-tauri/build.rs",
+        "value": "\nconst UNDECLARED_ROUTE: &str = concat!(\"/mav\", concat!(\"ros\", \"/cmd/arming\"));\n"
+      },
+      "expected_error": "Rust macro route construction is forbidden"
+    },
+    {
+      "id": "cargo-build-stringify-route-construction",
+      "mutation": {
+        "type": "append-source",
+        "file": "src-tauri/build.rs",
+        "value": "\nconst UNDECLARED_ROUTE: &str = concat!(\"/mav\", stringify!(ros/cmd/arming));\n"
+      },
+      "expected_error": "Rust macro route construction is forbidden"
+    },
+    {
+      "id": "cargo-build-reordered-positional-format-route",
+      "mutation": {
+        "type": "append-source",
+        "file": "src-tauri/build.rs",
+        "value": "\nfn hidden_route() -> String { format!(\"{1}{0}\", \"ros/cmd/arming\", \"/mav\") }\n"
+      },
+      "expected_error": "Rust macro route construction is forbidden"
+    },
+    {
+      "id": "cargo-build-reordered-named-format-route",
+      "mutation": {
+        "type": "append-source",
+        "file": "src-tauri/build.rs",
+        "value": "\nfn hidden_route() -> String { format!(\"{tail}{root}\", tail = \"ros/cmd/arming\", root = \"/mav\") }\n"
+      },
+      "expected_error": "Rust macro route construction is forbidden"
+    },
+    {
+      "id": "cargo-build-constant-format-route",
+      "mutation": {
+        "type": "append-source",
+        "file": "src-tauri/build.rs",
+        "value": "\nconst ROUTE_ROOT: &str = \"/mav\"; const ROUTE_TAIL: &str = \"ros/cmd/arming\"; fn hidden_route() -> String { format!(\"{ROUTE_ROOT}{ROUTE_TAIL}\") }\n"
+      },
+      "expected_error": "Rust macro route construction is forbidden"
+    },
+    {
+      "id": "cargo-build-constant-format-args-route",
+      "mutation": {
+        "type": "append-source",
+        "file": "src-tauri/build.rs",
+        "value": "\nconst ROUTE_ROOT: &str = \"/mav\"; const ROUTE_TAIL: &str = \"ros/cmd/arming\"; fn hidden_route() { let _ = format_args!(\"{ROUTE_TAIL}{ROUTE_ROOT}\"); }\n"
+      },
+      "expected_error": "Rust macro route construction is forbidden"
+    },
+    {
+      "id": "new-public-script-input",
+      "mutation": {
+        "type": "add-source",
+        "file": "public/untracked-runtime.js",
+        "value": "export const runtimeInput = true\n"
+      },
+      "expected_error": "production source manifest drift"
+    },
+    {
+      "id": "bogus-known-route-prefix",
+      "mutation": {
+        "type": "set",
+        "document": "inventory",
+        "path": ["scan_policy", "known_route_prefixes", 0],
+        "value": "reviewed-looking-but-unscanned/"
+      },
+      "expected_error": "scan_policy.known_route_prefixes mismatch"
+    },
+    {
+      "id": "root-cargo-config-toml-input",
+      "mutation": { "type": "add-source", "file": ".cargo/config.toml", "value": "[build]\n" },
+      "expected_error": "conditional executable input expected absent: .cargo/config.toml"
+    },
+    {
+      "id": "root-cargo-config-input",
+      "mutation": { "type": "add-source", "file": ".cargo/config", "value": "[build]\n" },
+      "expected_error": "conditional executable input expected absent: .cargo/config"
+    },
+    {
+      "id": "alternate-vite-js-config",
+      "mutation": {
+        "type": "add-source",
+        "file": "vite.config.js",
+        "value": "export default {}\n"
+      },
+      "expected_error": "conditional executable input expected absent: vite.config.js"
+    },
+    {
+      "id": "alternate-vite-mjs-config",
+      "mutation": {
+        "type": "add-source",
+        "file": "vite.config.mjs",
+        "value": "export default {}\n"
+      },
+      "expected_error": "conditional executable input expected absent: vite.config.mjs"
+    },
+    {
+      "id": "alternate-vite-cjs-config",
+      "mutation": {
+        "type": "add-source",
+        "file": "vite.config.cjs",
+        "value": "module.exports = {}\n"
+      },
+      "expected_error": "conditional executable input expected absent: vite.config.cjs"
+    },
+    {
+      "id": "alternate-vite-mts-config",
+      "mutation": {
+        "type": "add-source",
+        "file": "vite.config.mts",
+        "value": "export default {}\n"
+      },
+      "expected_error": "conditional executable input expected absent: vite.config.mts"
+    },
+    {
+      "id": "alternate-vite-cts-config",
+      "mutation": {
+        "type": "add-source",
+        "file": "vite.config.cts",
+        "value": "export default {}\n"
+      },
+      "expected_error": "conditional executable input expected absent: vite.config.cts"
+    },
+    {
+      "id": "alternate-vite-jsx-config",
+      "mutation": {
+        "type": "add-source",
+        "file": "vite.config.jsx",
+        "value": "export default {}\n"
+      },
+      "expected_error": "conditional executable input expected absent: vite.config.jsx"
+    },
+    {
+      "id": "alternate-vite-tsx-config",
+      "mutation": {
+        "type": "add-source",
+        "file": "vite.config.tsx",
+        "value": "export default {}\n"
+      },
+      "expected_error": "conditional executable input expected absent: vite.config.tsx"
+    },
+    {
+      "id": "undeclared-vite-config-variant",
+      "mutation": {
+        "type": "add-source",
+        "file": "vite.config.coffee",
+        "value": "module.exports = {}\n"
+      },
+      "expected_error": "undeclared root Vite configuration input: vite.config.coffee"
+    },
+    {
+      "id": "tauri-macos-platform-config",
+      "mutation": {
+        "type": "add-source",
+        "file": "src-tauri/tauri.macos.conf.json",
+        "value": "{}\n"
+      },
+      "expected_error": "conditional executable input expected absent: src-tauri/tauri.macos.conf.json"
+    },
+    {
+      "id": "tauri-linux-platform-config",
+      "mutation": {
+        "type": "add-source",
+        "file": "src-tauri/tauri.linux.conf.json",
+        "value": "{}\n"
+      },
+      "expected_error": "conditional executable input expected absent: src-tauri/tauri.linux.conf.json"
+    },
+    {
+      "id": "tauri-windows-platform-config",
+      "mutation": {
+        "type": "add-source",
+        "file": "src-tauri/tauri.windows.conf.json",
+        "value": "{}\n"
+      },
+      "expected_error": "conditional executable input expected absent: src-tauri/tauri.windows.conf.json"
+    },
+    {
+      "id": "tauri-android-platform-config",
+      "mutation": {
+        "type": "add-source",
+        "file": "src-tauri/tauri.android.conf.json",
+        "value": "{}\n"
+      },
+      "expected_error": "conditional executable input expected absent: src-tauri/tauri.android.conf.json"
+    },
+    {
+      "id": "tauri-ios-platform-config",
+      "mutation": {
+        "type": "add-source",
+        "file": "src-tauri/tauri.ios.conf.json",
+        "value": "{}\n"
+      },
+      "expected_error": "conditional executable input expected absent: src-tauri/tauri.ios.conf.json"
+    },
+    {
+      "id": "undeclared-tauri-platform-config",
+      "mutation": {
+        "type": "add-source",
+        "file": "src-tauri/tauri.freebsd.conf.json",
+        "value": "{}\n"
+      },
+      "expected_error": "undeclared Tauri platform configuration input: src-tauri/tauri.freebsd.conf.json"
+    },
+    {
+      "id": "root-vite-env-input",
+      "mutation": { "type": "add-source", "file": ".env", "value": "VITE_OVERRIDE=1\n" },
+      "expected_error": "conditional executable input expected absent: .env"
+    },
+    {
+      "id": "root-vite-env-local-input",
+      "mutation": { "type": "add-source", "file": ".env.local", "value": "VITE_OVERRIDE=1\n" },
+      "expected_error": "conditional executable input expected absent: .env.local"
+    },
+    {
+      "id": "root-vite-env-production-input",
+      "mutation": { "type": "add-source", "file": ".env.production", "value": "VITE_OVERRIDE=1\n" },
+      "expected_error": "conditional executable input expected absent: .env.production"
+    },
+    {
+      "id": "root-vite-env-production-local-input",
+      "mutation": {
+        "type": "add-source",
+        "file": ".env.production.local",
+        "value": "VITE_OVERRIDE=1\n"
+      },
+      "expected_error": "conditional executable input expected absent: .env.production.local"
+    },
+    {
+      "id": "root-vite-env-development-input",
+      "mutation": {
+        "type": "add-source",
+        "file": ".env.development",
+        "value": "VITE_OVERRIDE=1\n"
+      },
+      "expected_error": "conditional executable input expected absent: .env.development"
+    },
+    {
+      "id": "root-vite-env-development-local-input",
+      "mutation": {
+        "type": "add-source",
+        "file": ".env.development.local",
+        "value": "VITE_OVERRIDE=1\n"
+      },
+      "expected_error": "conditional executable input expected absent: .env.development.local"
+    },
+    {
+      "id": "root-vite-env-test-input",
+      "mutation": { "type": "add-source", "file": ".env.test", "value": "VITE_OVERRIDE=1\n" },
+      "expected_error": "conditional executable input expected absent: .env.test"
+    },
+    {
+      "id": "root-vite-env-test-local-input",
+      "mutation": { "type": "add-source", "file": ".env.test.local", "value": "VITE_OVERRIDE=1\n" },
+      "expected_error": "conditional executable input expected absent: .env.test.local"
+    },
+    {
+      "id": "undeclared-root-vite-mode-input",
+      "mutation": { "type": "add-source", "file": ".env.staging", "value": "VITE_OVERRIDE=1\n" },
+      "expected_error": "undeclared root Vite environment input: .env.staging"
+    },
+    {
+      "id": "package-tauri-explicit-config-override",
+      "mutation": {
+        "type": "replace-source",
+        "file": "package.json",
+        "needle": "\"tauri:build\": \"bunx tauri build\"",
+        "value": "\"tauri:build\": \"bunx tauri build --config src-tauri/alternate.json\""
+      },
+      "expected_error": "explicit configuration override is forbidden in tracked invocation file: package.json"
+    },
+    {
+      "id": "package-tauri-config-environment-override",
+      "mutation": {
+        "type": "replace-source",
+        "file": "package.json",
+        "needle": "\"tauri:build\": \"bunx tauri build\"",
+        "value": "\"tauri:build\": \"TAURI_CONFIG=src-tauri/alternate.json bunx tauri build\""
+      },
+      "expected_error": "explicit configuration override is forbidden in tracked invocation file: package.json"
+    },
+    {
+      "id": "release-action-explicit-config-override",
+      "mutation": {
+        "type": "replace-source",
+        "file": ".github/workflows/release.yml",
+        "needle": "args: ${{ matrix.args }}",
+        "value": "args: --config src-tauri/alternate.json"
+      },
+      "expected_error": "explicit configuration override is forbidden in tracked invocation file: .github/workflows/release.yml"
+    },
+    {
+      "id": "duplicate-hazard-id",
+      "mutation": {
+        "type": "copy",
+        "document": "hazards",
+        "from": ["hazards", 0, "id"],
+        "to": ["hazards", 1, "id"]
+      },
+      "expected_error": "duplicate hazard ID"
+    },
+    {
+      "id": "duplicate-control-id",
+      "mutation": {
+        "type": "copy",
+        "document": "hazards",
+        "from": ["controls", 0, "id"],
+        "to": ["controls", 1, "id"]
+      },
+      "expected_error": "duplicate control ID"
+    },
+    {
+      "id": "missing-hazard-evidence",
+      "mutation": {
+        "type": "delete",
+        "document": "hazards",
+        "path": ["hazards", 0, "evidence"]
+      },
+      "expected_error": "missing required field 'evidence'"
+    },
+    {
+      "id": "controlled-hazard-with-unverified-control",
+      "mutation": {
+        "type": "set",
+        "document": "hazards",
+        "path": ["hazards", 0, "status"],
+        "value": "controlled"
+      },
+      "expected_error": "is controlled but referenced control"
+    },
+    {
+      "id": "controlled-hazard-with-unverified-evidence",
+      "mutations": [
+        {
+          "type": "set",
+          "document": "hazards",
+          "path": ["hazards", 0, "status"],
+          "value": "controlled"
+        },
+        {
+          "type": "set",
+          "document": "hazards",
+          "path": ["controls", 0, "status"],
+          "value": "verified"
+        },
+        {
+          "type": "set",
+          "document": "hazards",
+          "path": ["controls", 1, "status"],
+          "value": "verified"
+        },
+        {
+          "type": "set",
+          "document": "hazards",
+          "path": ["controls", 8, "status"],
+          "value": "verified"
+        },
+        {
+          "type": "set",
+          "document": "hazards",
+          "path": ["controls", 19, "status"],
+          "value": "verified"
+        }
+      ],
+      "expected_error": "is controlled but not all evidence is verified"
+    },
+    {
+      "id": "verified-evidence-without-checked-source",
+      "mutation": {
+        "type": "set",
+        "document": "hazards",
+        "path": ["hazards", 0, "evidence", 0, "status"],
+        "value": "verified"
+      },
+      "expected_error": "verification is missing"
+    },
+    {
+      "id": "verified-evidence-with-missing-artifact",
+      "mutation": {
+        "type": "set",
+        "document": "hazards",
+        "path": ["hazards", 0, "evidence", 0],
+        "value": {
+          "test_id": "TEST-TAURI-REGISTRY",
+          "status": "verified",
+          "artifact": "missing typed fixture",
+          "verification": {
+            "hazard_id": "HAZ-001",
+            "control_ids": ["CTL-001"],
+            "command": "node scripts/test-phase0-baseline.mjs --fixture-evidence",
+            "result": { "outcome": "passed", "exit_code": 0 },
+            "candidate_commit": "1111111111111111111111111111111111111111",
+            "artifact_path": "evidence/missing-bypass-report.json",
+            "artifact_sha256": "4072dedaa841ef317163e311b0764878e8f370a24dc3bb3c4433c9e0734dce4e"
+          }
+        }
+      },
+      "expected_error": "verified evidence artifact is missing"
+    },
+    {
+      "id": "verified-evidence-with-wrong-hazard-binding",
+      "mutation": {
+        "type": "set",
+        "document": "hazards",
+        "path": ["hazards", 0, "evidence", 0],
+        "value": {
+          "test_id": "TEST-TAURI-REGISTRY",
+          "status": "verified",
+          "artifact": "wrong hazard binding",
+          "verification": {
+            "hazard_id": "HAZ-999",
+            "control_ids": ["CTL-001"],
+            "command": "node scripts/test-phase0-baseline.mjs --fixture-evidence",
+            "result": { "outcome": "passed", "exit_code": 0 },
+            "candidate_commit": "1111111111111111111111111111111111111111",
+            "artifact_path": "scripts/fixtures/phase0-evidence-artifact-valid.json",
+            "artifact_sha256": "4072dedaa841ef317163e311b0764878e8f370a24dc3bb3c4433c9e0734dce4e"
+          }
+        }
+      },
+      "expected_error": "is bound to hazard 'HAZ-999'"
+    },
+    {
+      "id": "verified-evidence-with-mutated-artifact",
+      "mutation": {
+        "type": "set",
+        "document": "hazards",
+        "path": ["hazards", 0, "evidence", 0],
+        "value": {
+          "test_id": "TEST-TAURI-REGISTRY",
+          "status": "verified",
+          "artifact": "wrong artifact hash",
+          "verification": {
+            "hazard_id": "HAZ-001",
+            "control_ids": ["CTL-001", "CTL-002", "CTL-009", "CTL-020"],
+            "command": "node scripts/test-phase0-baseline.mjs --fixture-evidence",
+            "result": { "outcome": "passed", "exit_code": 0 },
+            "candidate_commit": "1111111111111111111111111111111111111111",
+            "artifact_path": "scripts/fixtures/phase0-evidence-artifact-valid.json",
+            "artifact_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        }
+      },
+      "expected_error": "artifact hash mismatch"
+    },
+    {
+      "id": "verified-evidence-with-unrelated-test-selector",
+      "mutation": {
+        "type": "set",
+        "document": "hazards",
+        "path": ["hazards", 0, "evidence", 0],
+        "value": {
+          "test_id": "TEST-TAURI-REGISTRY",
+          "status": "verified",
+          "artifact": "typed fixture paired with unrelated test selector",
+          "verification": {
+            "hazard_id": "HAZ-001",
+            "control_ids": ["CTL-001", "CTL-002", "CTL-009", "CTL-020"],
+            "command": "node scripts/test-phase0-baseline.mjs --fixture-evidence",
+            "result": { "outcome": "passed", "exit_code": 0 },
+            "candidate_commit": "1111111111111111111111111111111111111111",
+            "artifact_path": "scripts/fixtures/phase0-evidence-artifact-valid.json",
+            "artifact_sha256": "4072dedaa841ef317163e311b0764878e8f370a24dc3bb3c4433c9e0734dce4e"
+          }
+        }
+      },
+      "expected_error": "test declaration is not bound to this hazard"
+    },
+    {
+      "id": "existing-test-with-bogus-selector",
+      "mutation": {
+        "type": "set",
+        "document": "inventory",
+        "path": ["test_evidence", 0, "locator", "selector"],
+        "value": "this selector does not exist in the checked test"
+      },
+      "expected_error": "selector not found"
+    },
+    {
+      "id": "crebain-configuration-hash-drift",
+      "mutation": {
+        "type": "set",
+        "document": "ecosystem",
+        "path": ["crebain_configuration_artifacts", 0, "sha256"],
+        "value": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "expected_error": "configuration digest drift"
+    }
+  ]
+}

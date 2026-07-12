@@ -20,15 +20,24 @@ the trust-sensitive variables in [../SECURITY.md](../SECURITY.md).
 | `CREBAIN_DISABLE_TRT_CACHE` | Disable TensorRT caching | `1` / `true` |
 | `TENSORRT_ROOT` | TensorRT installation root, probed for `bin/trtexec` (Linux) | Directory path |
 | `ORT_DYLIB_PATH` | ONNX Runtime library path (honored by `ort` only on Linux `load-dynamic` builds; the Nix shells pre-set it to the nixpkgs library) | Path to `libonnxruntime.so` |
-| `CREBAIN_ZENOH` | Select the native Rust transport: unset/true-like uses Zenoh; any other value uses its rosbridge fallback. This does not choose the product UI transport. | `1` / `0` |
-| `CREBAIN_ROSBRIDGE_URL` | URL used only by the native Rust rosbridge fallback (`CREBAIN_ZENOH=0`) | `ws://localhost:9090` (default) |
-| `CREBAIN_ALLOW_UNSAFE_GAZEBO_XML` | Native Rust trusted-development bypass for caller-supplied Gazebo XML containing plugin/include/URI/external-resource directives | `1` only in an isolated trusted environment |
+| `CREBAIN_ZENOH` | Select the native read-only Rust telemetry transport: unset/true-like uses Zenoh; any other value uses its read-only rosbridge fallback. This does not enable the development-only renderer client. | `1` / `0` |
+| `CREBAIN_ROSBRIDGE_URL` | URL used only by the native read-only Rust rosbridge fallback (`CREBAIN_ZENOH=0`) | `ws://localhost:9090` (default) |
 | `CREBAIN_PID_JSONL` | Native best-effort innovation-record append sink; the path is trusted operator configuration and may contain sensitive telemetry. Records are emitted per associated measurement that corrected a Kalman-family filter; Particle and IMM emit nothing (no single compatible innovation covariance). | Writable local path |
 
-The frontend ROS connection panel defaults separately to WebSocket and uses its
-own URL field. Frontend caller-supplied Gazebo XML always rejects privileged
-directives; only the audited bundled Maverick helper has a fixed privileged
-frontend path. The native environment bypass does not weaken that frontend rule.
+Packaged frontend builds default to Zenoh and do not contain a usable renderer
+rosbridge client; their CSP also omits rosbridge WebSocket origins. Vite
+development builds may select the read-only WebSocket adapter and use its URL
+field. No environment variable enables removed renderer/native Gazebo mutation
+or generic ROS publishing capabilities.
+
+Production `connect-src` permits Tauri IPC plus only the source classes already
+accepted by bounded scene-asset restoration: same-origin, HTTPS, and HTTP
+loopback. Static analysis permits renderer `fetch` only in
+`src/lib/boundedFetch.ts`; the production module graph must contain the disabled
+rosbridge replacement and omit the development client. `img-src` is limited to
+same-origin, `blob:`, and `data:` because downloaded textures are decoded from
+bounded bytes rather than loaded as arbitrary remote image URLs. Navigation,
+forms, embedded objects, and framing are denied by explicit CSP directives.
 
 ## Detection settings
 
@@ -45,13 +54,18 @@ M-of-N confirmation, covariance ceilings, particle count) is maintained in
 [SENSOR_FUSION.md](SENSOR_FUSION.md#configuration-and-tuning) — it is the
 single source of truth for fusion defaults and per-parameter guidance.
 
-## Guidance controller settings
+## Local guidance-preview settings
+
+These values configure disabled-by-default, renderer-local proposals only.
+They do not configure a flight controller or create vehicle authority. Every
+proposal is marked `NoAuthority`; the safe action is `Hold`, and boundary
+transitions discard the preview generation rather than resuming it.
 
 | Parameter | Default | Description |
 | --------- | ------- | ----------- |
-| Rate | 20Hz | Control loop frequency (browser timers permitting) |
-| Max Velocity | 15 m/s | Speed limit |
-| Max Acceleration | 5 m/s² | Velocity ramp limit |
+| Rate | 20Hz | Local proposal frequency (browser timers permitting) |
+| Max Velocity | 15 m/s | Preview-vector limit |
+| Max Acceleration | 5 m/s² | Preview ramp limit |
 | kP | 1.5 | Proportional gain |
 | kD | 0.5 | Derivative gain (on measured velocity) |
 | Approach Distance | 10 m | Deceleration radius |

@@ -2,28 +2,22 @@
  * CREBAIN ROS Module
  * Adaptive Response & Awareness System (ARAS)
  *
- * ROS-Gazebo integration exports
- * Exports ROS/Gazebo bridge, transport, and control utilities
+ * ROS-Gazebo telemetry and local analysis exports.
  */
 
 // Core types and messages
 export * from './types'
 
-// WebSocket bridge to rosbridge_suite
-export * from './ROSBridge'
+// Product telemetry transport. The raw renderer rosbridge client is available
+// only through the compile-time development profile and is not re-exported.
 export * from './ZenohBridge'
+export type { TelemetryBridge } from './TelemetryBridge'
 
-// Continuous guidance control (20Hz PD loop)
+// Local no-authority guidance previews
 export * from './GuidanceController'
 
 // TF2 transform tree management
 export * from './TransformManager'
-
-// Gazebo simulation control
-export * from './GazeboController'
-
-// MAVROS waypoint missions
-export * from './WaypointManager'
 
 // Performance monitoring and diagnostics
 export * from './ROSPerformanceMonitor'

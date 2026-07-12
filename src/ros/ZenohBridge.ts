@@ -10,8 +10,6 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import type {
   ROSMessageCallback,
   PoseStamped,
-  TwistStamped,
-  Twist,
   Image,
   CompressedImage,
   CameraInfo,
@@ -79,19 +77,8 @@ interface RustModelStates {
   twist: RustVelocityCmd[]
 }
 
-interface RustTwistStampedData {
-  twist: RustVelocityCmd
-  timestamp: number
-  frame_id: string
-}
-
-type UnknownRecord = Record<string, unknown>
 const ROS_TOPIC_PATTERN = /^\/[A-Za-z0-9_/]+$/
 const MAX_ROS_TOPIC_LENGTH = 256
-
-function isRecord(value: unknown): value is UnknownRecord {
-  return typeof value === 'object' && value !== null
-}
 
 function validateNativeTopic(topic: string): void {
   if (
@@ -372,63 +359,6 @@ export class ZenohBridge {
     return unlisten
   }
 
-  publish<T>(topic: string, msgOrType: T | string, msg?: T): void {
-    this.publishAsync(topic, msgOrType, msg).catch(e => {
-      log.error(`Failed to publish to ${topic}`, { error: e })
-    })
-  }
-
-  async publishAsync<T>(topic: string, msgOrType: T | string, msg?: T): Promise<void> {
-    // Support both old and new signatures for compatibility
-    // Old: publish(topic, message)
-    // New: publish(topic, type, message)
-    let type: string
-    let message: T
-    
-    if (typeof msgOrType === 'string') {
-      // New signature: (topic, type, message)
-      type = msgOrType
-      message = msg!
-    } else {
-      // Old signature: (topic, message) - infer type from message
-      message = msgOrType
-      type = this.inferMessageType(message)
-    }
-
-    if (type === 'geometry_msgs/Twist') {
-      const cmd = this.mapTwistToRust(message as unknown as Twist)
-      await invoke(TAURI_COMMANDS.transport.publishVelocity, { topic, cmd })
-    } else if (type === 'geometry_msgs/TwistStamped') {
-      const cmd = this.mapTwistStampedToRust(message as unknown as TwistStamped)
-      await invoke(TAURI_COMMANDS.transport.publishTwistStamped, { topic, cmd })
-    } else if (type === 'geometry_msgs/PoseStamped') {
-      const pose = this.mapPoseStampedToRust(message as unknown as PoseStamped)
-      await invoke(TAURI_COMMANDS.transport.publishPose, { topic, pose })
-    } else {
-      throw this.unsupported(`Publish message type ${type}`)
-    }
-  }
-
-  /**
-   * Infer message type from message structure (legacy support)
-   * Prefer explicit type parameter in publish(topic, type, msg)
-   */
-  private inferMessageType(msg: unknown): string {
-    if (!isRecord(msg)) {
-      return 'unknown'
-    }
-    if ('linear' in msg && 'angular' in msg && !('header' in msg)) {
-      return 'geometry_msgs/Twist'
-    }
-    if ('header' in msg && 'twist' in msg) {
-      return 'geometry_msgs/TwistStamped'
-    }
-    if ('pose' in msg && 'header' in msg) {
-      return 'geometry_msgs/PoseStamped'
-    }
-    return 'unknown'
-  }
-
   // ───────────────────────────────────────────────────────────────────────────
   // DATA MAPPERS
   // ───────────────────────────────────────────────────────────────────────────
@@ -502,30 +432,6 @@ export class ZenohBridge {
     }
   }
 
-  private mapTwistToRust(twist: Twist): RustVelocityCmd {
-    return {
-      linear: [twist.linear.x, twist.linear.y, twist.linear.z],
-      angular: [twist.angular.x, twist.angular.y, twist.angular.z]
-    }
-  }
-
-  private mapTwistStampedToRust(msg: TwistStamped): RustTwistStampedData {
-    return {
-      twist: this.mapTwistToRust(msg.twist),
-      timestamp: msg.header.stamp.secs + msg.header.stamp.nsecs * 1e-9,
-      frame_id: msg.header.frame_id,
-    }
-  }
-
-  private mapPoseStampedToRust(msg: PoseStamped): RustPoseData {
-    return {
-      position: [msg.pose.position.x, msg.pose.position.y, msg.pose.position.z],
-      orientation: [msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z, msg.pose.orientation.w],
-      timestamp: msg.header.stamp.secs + msg.header.stamp.nsecs * 1e-9,
-      frame_id: msg.header.frame_id
-    }
-  }
-
   // ───────────────────────────────────────────────────────────────────────────
   // HELPERS (Compatibility with ROSBridge)
   // ───────────────────────────────────────────────────────────────────────────
@@ -556,55 +462,6 @@ export class ZenohBridge {
     )
   }
 
-  callService<TRequest, TResponse>(
-    _service: string,
-    _request: TRequest,
-    _timeoutMs: number = 10000
-  ): Promise<TResponse> {
-    // Zenoh service calls require a proper request/response protocol implementation.
-    // The ROS2 service layer over Zenoh needs:
-    // 1. Service request CDR encoding with correlation IDs
-    // 2. Service response topic subscription
-    // 3. Request/response matching
-    //
-    // For Gazebo control (pause/unpause/reset), use direct topic publishing instead,
-    // or use ROSBridge which supports native ROS service calls.
-    return Promise.reject(
-      new Error(
-        '[ZenohBridge] Service calls are not supported over Zenoh transport. ' +
-          'Use ROSBridge for service calls, or implement direct topic-based control.'
-      )
-    )
-  }
-
   subscribeToOdometry(_ns: string, _cb: (msg: unknown) => void): () => void { throw this.unsupported('Odometry subscriptions') }
   subscribeToState(_ns: string, _cb: (msg: unknown) => void): () => void { throw this.unsupported('MAVROS state subscriptions') }
-  
-  publishSetpointPosition(ns: string, pose: PoseStamped): Promise<void> {
-    const n = normalizeRosNamespace(ns)
-    return this.publishAsync(`/${n}/mavros/setpoint_position/local`, 'geometry_msgs/PoseStamped', pose)
-  }
-
-  publishSetpointVelocity(ns: string, twist: TwistStamped): Promise<void> {
-    const n = normalizeRosNamespace(ns)
-    return this.publishAsync(`/${n}/mavros/setpoint_velocity/cmd_vel`, 'geometry_msgs/TwistStamped', twist)
-  }
-
-  setMode(_namespace: string, _mode: string): Promise<boolean> {
-    return Promise.reject(this.unsupported('MAVROS setMode'))
-  }
-  arm(_namespace: string, _value: boolean = true): Promise<boolean> {
-    return Promise.reject(this.unsupported('MAVROS arming'))
-  }
-  takeoff(
-    _namespace: string,
-    _altitude: number,
-    _latitude: number = 0,
-    _longitude: number = 0
-  ): Promise<boolean> {
-    return Promise.reject(this.unsupported('MAVROS takeoff'))
-  }
-  land(_namespace: string): Promise<boolean> {
-    return Promise.reject(this.unsupported('MAVROS landing'))
-  }
 }

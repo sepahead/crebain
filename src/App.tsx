@@ -24,8 +24,11 @@ import { TAURI_COMMANDS } from './lib/tauriCommands'
 import { getBackendHealth, normalizeSystemInfo, type SystemInfo } from './lib/diagnostics'
 import { logger } from './lib/logger'
 import type { FilterAlgorithm } from './detection/AdvancedSensorFusion'
+import { RENDERER_ROSBRIDGE_AVAILABLE } from '#renderer-rosbridge'
 
 const log = logger.scope('App')
+const PRODUCTION_CUSTOM_SENSOR_NOTICE =
+  'Custom ROS sensor topics are available only in the Vite development profile; packaged builds remain on native Zenoh telemetry.'
 
 export default function App() {
   const performanceTracker = usePerformanceTracker({ maxHistory: 100 })
@@ -52,7 +55,7 @@ export default function App() {
     autoConnect: false,
     algorithm: fusionAlgorithm,
     externalConnection:
-      gazebo.transport === 'websocket'
+      RENDERER_ROSBRIDGE_AVAILABLE && gazebo.transport === 'websocket'
         ? {
             bridge: gazebo.bridge,
             connectionState: gazebo.connectionState,
@@ -61,7 +64,9 @@ export default function App() {
         : {
             bridge: null,
             connectionState: 'disconnected',
-            unsupportedReason: ROS_SENSOR_WEBSOCKET_REQUIRED,
+            unsupportedReason: RENDERER_ROSBRIDGE_AVAILABLE
+              ? ROS_SENSOR_WEBSOCKET_REQUIRED
+              : PRODUCTION_CUSTOM_SENSOR_NOTICE,
           },
   })
   const { addVisualDetection, setAlgorithm } = sensors
@@ -208,9 +213,6 @@ export default function App() {
               onDisconnect={gazebo.disconnect}
               error={gazebo.connectionError}
               drones={gazebo.allDrones}
-              activeMissions={gazebo.activeMissions}
-              onInitiateIntercept={gazebo.initiateIntercept}
-              onAbortMission={gazebo.abortMission}
             />
           )}
           <SensorFusionPanel
@@ -224,7 +226,9 @@ export default function App() {
             connectionState={sensors.connectionState}
             connectionError={sensors.fusionError ?? sensors.connectionError}
             onOpenConnection={() => {
-              if (gazebo.transport !== 'websocket') gazebo.setTransport('websocket')
+              if (RENDERER_ROSBRIDGE_AVAILABLE && gazebo.transport !== 'websocket') {
+                gazebo.setTransport('websocket')
+              }
               setShowROSPanel(true)
             }}
             algorithm={fusionAlgorithm}

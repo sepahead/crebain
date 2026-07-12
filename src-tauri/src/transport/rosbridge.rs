@@ -1,7 +1,7 @@
 //! Rosbridge WebSocket Transport
 //!
 //! Fallback transport when Zenoh is unavailable. Connects to a
-//! rosbridge_server via WebSocket and provides pub/sub for ROS topics.
+//! rosbridge_server via WebSocket and provides subscriptions to ROS telemetry.
 //!
 //! # Protocol
 //! rosbridge v2.0 protocol using JSON messages over WebSocket.
@@ -9,7 +9,7 @@
 
 use super::{
     CameraFrame, CameraInfoData, CameraStreamKind, ImuData, ModelStates, PoseData, Result,
-    Transport, TransportError, TransportStats, TwistStampedData, VelocityCmd,
+    Transport, TransportError, TransportStats, VelocityCmd,
 };
 use base64::{engine::general_purpose, Engine as _};
 use futures_util::{SinkExt, StreamExt};
@@ -21,30 +21,21 @@ use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc;
 use tokio_tungstenite::connect_async_with_config;
 use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
 use tokio_tungstenite::tungstenite::Message;
 
 const MAX_TOPIC_LEN: usize = 256;
-const MAX_MESSAGE_TYPE_LEN: usize = 128;
 const DEFAULT_ROSBRIDGE_URL: &str = "ws://localhost:9090";
-/// Maximum queued outgoing messages before publishes fail fast instead of
+/// Maximum queued subscription-protocol messages before sends fail fast instead of
 /// buffering without bound against a slow/stalled server.
 const WRITE_QUEUE_CAPACITY: usize = 256;
-// Service requests can contain model XML and are much larger than ordinary
-// publishes. Keep their in-flight set small so the message-count queue cannot
-// retain hundreds of megabytes of request bodies.
-const MAX_PENDING_SERVICE_CALLS: usize = 16;
 /// How long disconnect() waits for the write task to flush a Close frame.
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(1);
-/// Shorter than the command-layer timeout so this transport can remove its
-/// pending responder before the outer command future is cancelled.
-const SERVICE_CALL_TIMEOUT: Duration = Duration::from_secs(8);
 /// Camera models use a variable number of distortion coefficients. Bound the
 /// sequence while still covering the standard ROS distortion models.
 const MAX_DISTORTION_COEFFICIENTS: usize = 32;
-const MAX_SERVICE_ERROR_LEN: usize = 512;
 const MAX_CAMERA_ENCODING_LEN: usize = 64;
 const MAX_FRAME_ID_LEN: usize = 256;
 const MAX_MODEL_STATES: usize = 10_000;
@@ -80,14 +71,6 @@ fn ros2_stamp_seconds(msg: &serde_json::Value) -> f64 {
         .and_then(|v| v.as_f64())
         .unwrap_or(0.0);
     sec + nanosec * 1e-9
-}
-
-/// Build the ROS 1 time shape used by the documented rosbridge fallback,
-/// preserving the sub-second component instead of hardcoding nanoseconds to 0.
-fn rosbridge_stamp_json(timestamp: f64) -> serde_json::Value {
-    let sec = timestamp.trunc();
-    let nanosec = ((timestamp - sec) * 1e9).round().clamp(0.0, 999_999_999.0) as u32;
-    serde_json::json!({ "secs": sec as i64, "nsecs": nanosec })
 }
 
 fn parse_ros_header(msg: &serde_json::Value) -> Result<(f64, String)> {
@@ -292,10 +275,6 @@ pub fn validate_topic_for_test(topic: &str) -> Result<()> {
     validate_topic(topic)
 }
 
-pub fn validate_message_type_for_test(msg_type: &str) -> Result<()> {
-    validate_message_type(msg_type)
-}
-
 fn validate_topic(topic: &str) -> Result<()> {
     if topic.is_empty() || topic.trim() != topic || topic.len() > MAX_TOPIC_LEN {
         return Err(TransportError::SubscriptionFailed(format!(
@@ -322,48 +301,9 @@ fn validate_topic(topic: &str) -> Result<()> {
     Ok(())
 }
 
-fn validate_message_type(msg_type: &str) -> Result<()> {
-    if msg_type.is_empty() || msg_type.trim() != msg_type || msg_type.len() > MAX_MESSAGE_TYPE_LEN {
-        return Err(TransportError::PublishFailed(format!(
-            "Invalid message type length: {}",
-            msg_type.len()
-        )));
-    }
-    let segments: Vec<_> = msg_type.split('/').collect();
-    let valid_segment = |segment: &&str| {
-        segment
-            .chars()
-            .next()
-            .is_some_and(|first| first.is_ascii_alphabetic())
-            && segment
-                .chars()
-                .all(|character| character.is_ascii_alphanumeric() || character == '_')
-    };
-    if !(segments.len() == 2 || segments.len() == 3) || !segments.iter().all(valid_segment) {
-        return Err(TransportError::PublishFailed(format!(
-            "Invalid message type: {}",
-            msg_type
-        )));
-    }
-    Ok(())
-}
-
 /// Shared so the read task can clone a callback out of the subscriptions map
 /// and invoke it without holding the map's lock across the call.
 type SubscriptionCallback = Arc<dyn Fn(serde_json::Value) + Send + Sync>;
-
-#[derive(Debug)]
-enum ServiceReply {
-    Response(serde_json::Value),
-    ProtocolError(String),
-}
-
-type ServiceResponder = oneshot::Sender<ServiceReply>;
-
-struct PendingServiceResponder {
-    service: String,
-    responder: ServiceResponder,
-}
 
 /// Lock a mutex, recovering the guard if the mutex was poisoned by a panic in
 /// another thread. The subscription map only holds callback handles, so a prior
@@ -373,100 +313,6 @@ fn lock_recover<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
-}
-
-fn bounded_error_message(message: &str) -> String {
-    let mut chars = message.chars();
-    let bounded: String = chars.by_ref().take(MAX_SERVICE_ERROR_LEN).collect();
-    if chars.next().is_some() {
-        format!("{bounded}…")
-    } else {
-        bounded
-    }
-}
-
-fn error_value_message(field: &serde_json::Value) -> Option<String> {
-    match field {
-        serde_json::Value::String(message) if !message.trim().is_empty() => {
-            Some(bounded_error_message(message))
-        }
-        serde_json::Value::Null | serde_json::Value::Bool(false) => None,
-        other => Some(bounded_error_message(&other.to_string())),
-    }
-}
-
-fn service_error_field(value: &serde_json::Value) -> Option<String> {
-    ["/error", "/msg", "/values/error", "/values/status_message"]
-        .iter()
-        .filter_map(|pointer| value.pointer(pointer))
-        .find_map(error_value_message)
-}
-
-fn validate_service_response_with_policy(
-    response: &serde_json::Value,
-    require_service_success: bool,
-) -> Result<()> {
-    if response.get("op").and_then(serde_json::Value::as_str) != Some("service_response") {
-        return Err(TransportError::DecodingError(
-            "Expected rosbridge service_response".to_string(),
-        ));
-    }
-
-    if let Some(detail) = response.get("error").and_then(error_value_message) {
-        return Err(TransportError::PublishFailed(format!(
-            "Service call failed: {detail}"
-        )));
-    }
-
-    let result = response
-        .get("result")
-        .and_then(serde_json::Value::as_bool)
-        .ok_or_else(|| {
-            TransportError::DecodingError(
-                "rosbridge service_response is missing boolean result".to_string(),
-            )
-        })?;
-
-    if !result {
-        let detail = service_error_field(response)
-            .unwrap_or_else(|| "rosbridge reported result=false".to_string());
-        return Err(TransportError::PublishFailed(format!(
-            "Service call failed: {detail}"
-        )));
-    }
-
-    if let Some(success) = response.pointer("/values/success") {
-        let success = success.as_bool().ok_or_else(|| {
-            TransportError::DecodingError(
-                "rosbridge service_response values.success must be boolean".to_string(),
-            )
-        })?;
-        if !success {
-            let detail = service_error_field(response)
-                .unwrap_or_else(|| "service reported success=false".to_string());
-            return Err(TransportError::PublishFailed(format!(
-                "Service call failed: {detail}"
-            )));
-        }
-    } else if require_service_success {
-        return Err(TransportError::DecodingError(
-            "rosbridge service response is missing values.success".to_string(),
-        ));
-    }
-
-    Ok(())
-}
-
-#[cfg(test)]
-fn validate_service_response(response: &serde_json::Value) -> Result<()> {
-    validate_service_response_with_policy(response, false)
-}
-
-fn service_type_requires_success(service_type: &str) -> bool {
-    matches!(
-        service_type.rsplit('/').next(),
-        Some("SpawnModel" | "SpawnEntity" | "DeleteModel")
-    )
 }
 
 fn normalize_camera_token(value: &str, field: &str, allow_empty: bool) -> Result<String> {
@@ -975,96 +821,14 @@ struct RosbridgeInner {
     messages_sent: AtomicU64,
     bytes_received: AtomicU64,
     bytes_sent: AtomicU64,
-    next_service_request_id: AtomicU64,
     connect_time: Instant,
     subscriptions: Mutex<HashMap<String, SubscriptionCallback>>,
-    pending_service_calls: Mutex<HashMap<String, PendingServiceResponder>>,
-    service_call_timeout: Duration,
 }
 
 impl RosbridgeInner {
-    fn next_service_request_id(&self) -> String {
-        let sequence = self.next_service_request_id.fetch_add(1, Ordering::Relaxed);
-        format!("crebain-service-{sequence}")
-    }
-
     fn mark_disconnected(&self) {
         self.connected.store(false, Ordering::Relaxed);
         lock_recover(&self.subscriptions).clear();
-        // Dropping the senders wakes every in-flight call immediately instead
-        // of making callers wait for their individual timeout.
-        lock_recover(&self.pending_service_calls).clear();
-    }
-
-    fn dispatch_service_message(&self, value: serde_json::Value) -> Option<serde_json::Value> {
-        let Some(operation) = value
-            .get("op")
-            .and_then(serde_json::Value::as_str)
-            .map(str::to_owned)
-        else {
-            return Some(value);
-        };
-        let id = value_id(&value).map(str::to_owned);
-
-        let Some(id) = id else {
-            log::warn!("[Rosbridge] Ignoring {operation} without an id");
-            return None;
-        };
-
-        let reply = match operation.as_str() {
-            "service_response" => {
-                let Some(service) = value.get("service").and_then(serde_json::Value::as_str) else {
-                    log::warn!("[Rosbridge] Ignoring service_response without a service");
-                    return None;
-                };
-                let pending = lock_recover(&self.pending_service_calls);
-                let Some(expected) = pending.get(&id) else {
-                    log::debug!("[Rosbridge] Ignoring response for unknown service call id");
-                    return None;
-                };
-                if service != expected.service.as_str() {
-                    log::warn!(
-                        "[Rosbridge] Ignoring service_response whose service does not match its id"
-                    );
-                    return None;
-                }
-                ServiceReply::Response(value)
-            }
-            "status"
-                if matches!(
-                    value.get("level").and_then(serde_json::Value::as_str),
-                    Some("error" | "fatal")
-                ) =>
-            {
-                let detail = service_error_field(&value)
-                    .unwrap_or_else(|| "rosbridge reported a protocol error".to_string());
-                ServiceReply::ProtocolError(detail)
-            }
-            _ => return Some(value),
-        };
-
-        let pending = lock_recover(&self.pending_service_calls).remove(&id);
-        if let Some(pending) = pending {
-            let _ = pending.responder.send(reply);
-        } else {
-            log::debug!("[Rosbridge] Ignoring response for unknown service call id");
-        }
-        None
-    }
-}
-
-fn value_id(value: &serde_json::Value) -> Option<&str> {
-    value.get("id").and_then(serde_json::Value::as_str)
-}
-
-struct PendingServiceCall {
-    inner: Arc<RosbridgeInner>,
-    id: String,
-}
-
-impl Drop for PendingServiceCall {
-    fn drop(&mut self) {
-        lock_recover(&self.inner.pending_service_calls).remove(&self.id);
     }
 }
 
@@ -1098,11 +862,8 @@ impl RosbridgeTransport {
             messages_sent: AtomicU64::new(0),
             bytes_received: AtomicU64::new(0),
             bytes_sent: AtomicU64::new(0),
-            next_service_request_id: AtomicU64::new(1),
             connect_time: Instant::now(),
             subscriptions: Mutex::new(HashMap::new()),
-            pending_service_calls: Mutex::new(HashMap::new()),
-            service_call_timeout: SERVICE_CALL_TIMEOUT,
         });
 
         // Weak: the write task must not keep `inner` (which owns the only
@@ -1153,10 +914,6 @@ impl RosbridgeTransport {
 
                         match parse_incoming_rosbridge_json(&text) {
                             Ok(value) => {
-                                let Some(value) = inner_clone.dispatch_service_message(value)
-                                else {
-                                    continue;
-                                };
                                 if let Some(topic) = value.get("topic").and_then(|v| v.as_str()) {
                                     // Clone the callback out so the subscriptions
                                     // lock is not held while the (potentially
@@ -1197,24 +954,24 @@ impl RosbridgeTransport {
 
     fn send_json(&self, msg: serde_json::Value) -> Result<()> {
         if !self.inner.connected.load(Ordering::Relaxed) {
-            return Err(TransportError::PublishFailed("Not connected".to_string()));
+            return Err(TransportError::SendFailed("Not connected".to_string()));
         }
         let text = serde_json::to_string(&msg)
-            .map_err(|e| TransportError::PublishFailed(format!("JSON encode: {}", e)))?;
+            .map_err(|e| TransportError::SendFailed(format!("JSON encode: {}", e)))?;
         let guard = lock_recover(&self.inner.write_tx);
         if !self.inner.connected.load(Ordering::Relaxed) {
-            return Err(TransportError::PublishFailed("Not connected".to_string()));
+            return Err(TransportError::SendFailed("Not connected".to_string()));
         }
         let Some(write_tx) = guard.as_ref() else {
-            return Err(TransportError::PublishFailed("Not connected".to_string()));
+            return Err(TransportError::SendFailed("Not connected".to_string()));
         };
         write_tx.try_send(text).map_err(|e| match e {
-            mpsc::error::TrySendError::Full(_) => TransportError::PublishFailed(format!(
+            mpsc::error::TrySendError::Full(_) => TransportError::SendFailed(format!(
                 "Write queue full ({} messages)",
                 WRITE_QUEUE_CAPACITY
             )),
             mpsc::error::TrySendError::Closed(_) => {
-                TransportError::PublishFailed("Not connected".to_string())
+                TransportError::SendFailed("Not connected".to_string())
             }
         })?;
         Ok(())
@@ -1467,149 +1224,6 @@ impl Transport for RosbridgeTransport {
         })
     }
 
-    fn publish_velocity(
-        &self,
-        topic: &str,
-        cmd: VelocityCmd,
-    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
-        let topic = topic.to_string();
-        Box::pin(async move {
-            validate_topic(&topic)?;
-            validate_message_type("geometry_msgs/Twist")?;
-            let publish_msg = serde_json::json!({
-                "op": "publish",
-                "topic": topic,
-                "msg": {
-                    "linear": { "x": cmd.linear[0], "y": cmd.linear[1], "z": cmd.linear[2] },
-                    "angular": { "x": cmd.angular[0], "y": cmd.angular[1], "z": cmd.angular[2] }
-                }
-            });
-            self.send_json(publish_msg)
-        })
-    }
-
-    fn publish_twist_stamped(
-        &self,
-        topic: &str,
-        cmd: TwistStampedData,
-    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
-        let topic = topic.to_string();
-        Box::pin(async move {
-            validate_topic(&topic)?;
-            validate_message_type("geometry_msgs/TwistStamped")?;
-            let publish_msg = serde_json::json!({
-                "op": "publish",
-                "topic": topic,
-                "msg": {
-                    "header": {
-                        "stamp": rosbridge_stamp_json(cmd.timestamp),
-                        "frame_id": cmd.frame_id
-                    },
-                    "twist": {
-                        "linear": { "x": cmd.twist.linear[0], "y": cmd.twist.linear[1], "z": cmd.twist.linear[2] },
-                        "angular": { "x": cmd.twist.angular[0], "y": cmd.twist.angular[1], "z": cmd.twist.angular[2] }
-                    }
-                }
-            });
-            self.send_json(publish_msg)
-        })
-    }
-
-    fn publish_pose(
-        &self,
-        topic: &str,
-        pose: PoseData,
-    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
-        let topic = topic.to_string();
-        Box::pin(async move {
-            validate_topic(&topic)?;
-            validate_message_type("geometry_msgs/PoseStamped")?;
-            let publish_msg = serde_json::json!({
-                "op": "publish",
-                "topic": topic,
-                "msg": {
-                    "header": {
-                        "stamp": rosbridge_stamp_json(pose.timestamp),
-                        "frame_id": pose.frame_id
-                    },
-                    "pose": {
-                        "position": { "x": pose.position[0], "y": pose.position[1], "z": pose.position[2] },
-                        "orientation": { "x": pose.orientation[0], "y": pose.orientation[1], "z": pose.orientation[2], "w": pose.orientation[3] }
-                    }
-                }
-            });
-            self.send_json(publish_msg)
-        })
-    }
-
-    fn call_service<'a>(
-        &'a self,
-        service: &'a str,
-        service_type: &'a str,
-        args: serde_json::Value,
-    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
-        let service = service.to_string();
-        let service_type = service_type.to_string();
-        Box::pin(async move {
-            validate_topic(&service)?;
-            validate_message_type(&service_type)?;
-            let id = self.inner.next_service_request_id();
-            let (responder, response) = oneshot::channel();
-            {
-                let mut pending = lock_recover(&self.inner.pending_service_calls);
-                if pending.len() >= MAX_PENDING_SERVICE_CALLS {
-                    return Err(TransportError::PublishFailed(format!(
-                        "Too many pending service calls (maximum {MAX_PENDING_SERVICE_CALLS})"
-                    )));
-                }
-                if pending.contains_key(&id) {
-                    return Err(TransportError::PublishFailed(
-                        "Service request id collision".to_string(),
-                    ));
-                }
-                pending.insert(
-                    id.clone(),
-                    PendingServiceResponder {
-                        service: service.clone(),
-                        responder,
-                    },
-                );
-            }
-            // The guard also handles cancellation by the command-layer timeout.
-            let _pending_call = PendingServiceCall {
-                inner: Arc::clone(&self.inner),
-                id: id.clone(),
-            };
-            let require_success = service_type_requires_success(&service_type);
-            let call_msg = serde_json::json!({
-                "op": "call_service",
-                "id": id,
-                "service": service,
-                "type": service_type,
-                "args": args
-            });
-            self.send_json(call_msg)?;
-
-            let reply = tokio::time::timeout(self.inner.service_call_timeout, response)
-                .await
-                .map_err(|_| TransportError::Timeout)?
-                .map_err(|_| {
-                    TransportError::ConnectionFailed(
-                        "Connection closed before service response".to_string(),
-                    )
-                })?;
-
-            match reply {
-                ServiceReply::Response(response) => {
-                    validate_service_response_with_policy(&response, require_success)
-                }
-                ServiceReply::ProtocolError(message) => Err(TransportError::PublishFailed(
-                    format!("Service call failed: {message}"),
-                )),
-            }
-        })
-    }
-
     fn stats(&self) -> TransportStats {
         TransportStats {
             messages_received: self.inner.messages_received.load(Ordering::Relaxed),
@@ -1625,12 +1239,9 @@ impl Transport for RosbridgeTransport {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures_util::future::join;
     use std::io::Cursor;
 
-    fn test_transport(
-        service_call_timeout: Duration,
-    ) -> (RosbridgeTransport, mpsc::Receiver<String>) {
+    fn test_transport() -> (RosbridgeTransport, mpsc::Receiver<String>) {
         let (write_tx, write_rx) = mpsc::channel(WRITE_QUEUE_CAPACITY);
         let inner = Arc::new(RosbridgeInner {
             write_tx: Mutex::new(Some(write_tx)),
@@ -1639,11 +1250,8 @@ mod tests {
             messages_sent: AtomicU64::new(0),
             bytes_received: AtomicU64::new(0),
             bytes_sent: AtomicU64::new(0),
-            next_service_request_id: AtomicU64::new(1),
             connect_time: Instant::now(),
             subscriptions: Mutex::new(HashMap::new()),
-            pending_service_calls: Mutex::new(HashMap::new()),
-            service_call_timeout,
         });
         (
             RosbridgeTransport {
@@ -1727,16 +1335,6 @@ mod tests {
     }
 
     #[test]
-    fn rosbridge_stamp_json_emits_ros1_secs_and_nsecs() {
-        let stamp = rosbridge_stamp_json(12.5);
-        assert_eq!(stamp["secs"], 12);
-        assert_eq!(stamp["nsecs"], 500_000_000u64);
-        // Round-trips back through the reader.
-        let msg = serde_json::json!({ "header": { "stamp": stamp } });
-        assert!((ros2_stamp_seconds(&msg) - 12.5).abs() < 1e-6);
-    }
-
-    #[test]
     fn validate_topic_rejects_empty() {
         assert!(validate_topic("").is_err());
     }
@@ -1762,33 +1360,6 @@ mod tests {
             assert!(
                 validate_topic(topic).is_err(),
                 "expected rejection for {topic}"
-            );
-        }
-    }
-
-    #[test]
-    fn validate_message_type_accepts_valid() {
-        assert!(validate_message_type("sensor_msgs/Image").is_ok());
-        assert!(validate_message_type("sensor_msgs/msg/Image").is_ok());
-    }
-
-    #[test]
-    fn validate_message_type_rejects_no_slash() {
-        assert!(validate_message_type("Image").is_err());
-    }
-
-    #[test]
-    fn validate_message_type_rejects_malformed_segments() {
-        for message_type in [
-            "/sensor_msgs/Image",
-            "sensor-msgs/Image",
-            "sensor_msgs//Image",
-            "sensor_msgs/msg/Image/Extra",
-            "sensor_msgs/1Image",
-        ] {
-            assert!(
-                validate_message_type(message_type).is_err(),
-                "expected rejection for {message_type}"
             );
         }
     }
@@ -1965,7 +1536,7 @@ mod tests {
 
     #[test]
     fn camera_subscription_declares_the_explicit_wire_schema() {
-        let (transport, mut write_rx) = test_transport(Duration::from_millis(20));
+        let (transport, mut write_rx) = test_transport();
 
         tauri::async_runtime::block_on(transport.subscribe_camera(
             "/camera/custom_feed",
@@ -1981,7 +1552,7 @@ mod tests {
 
     #[test]
     fn register_subscription_installs_callback_before_send() {
-        let (transport, _write_rx) = test_transport(Duration::from_millis(20));
+        let (transport, _write_rx) = test_transport();
         let topic = "/camera".to_string();
         let callback: SubscriptionCallback = Arc::new(|_| {});
 
@@ -1995,266 +1566,16 @@ mod tests {
 
     #[test]
     fn register_subscription_rolls_back_when_send_fails() {
-        let (transport, _write_rx) = test_transport(Duration::from_millis(20));
+        let (transport, _write_rx) = test_transport();
         let topic = "/camera".to_string();
         let callback: SubscriptionCallback = Arc::new(|_| {});
 
         let result = transport.register_subscription_before_send(topic.clone(), callback, |_| {
-            Err(TransportError::PublishFailed("send failed".to_string()))
+            Err(TransportError::SendFailed("send failed".to_string()))
         });
 
         assert!(
             result.is_err() && !lock_recover(&transport.inner.subscriptions).contains_key(&topic)
-        );
-    }
-
-    #[test]
-    fn service_request_ids_are_unique() {
-        let (transport, _write_rx) = test_transport(Duration::from_millis(20));
-
-        let first = transport.inner.next_service_request_id();
-        let second = transport.inner.next_service_request_id();
-
-        assert_ne!(first, second);
-    }
-
-    #[test]
-    fn validate_service_response_rejects_error_field() {
-        let response = serde_json::json!({
-            "op": "service_response",
-            "id": "crebain-service-1",
-            "result": true,
-            "error": "permission denied"
-        });
-
-        let error = validate_service_response(&response).unwrap_err();
-
-        assert!(error.to_string().contains("permission denied"), "{error}");
-    }
-
-    #[test]
-    fn validate_service_response_rejects_service_success_false() {
-        let response = serde_json::json!({
-            "op": "service_response",
-            "id": "crebain-service-1",
-            "result": true,
-            "values": {
-                "success": false,
-                "status_message": "entity rejected"
-            }
-        });
-
-        let error = validate_service_response(&response).unwrap_err();
-
-        assert!(error.to_string().contains("entity rejected"), "{error}");
-    }
-
-    #[test]
-    fn typed_mutating_service_requires_explicit_success_field() {
-        let response = serde_json::json!({
-            "op": "service_response",
-            "id": "crebain-service-1",
-            "result": true,
-            "values": { "status_message": "ambiguous response" }
-        });
-
-        assert!(validate_service_response(&response).is_ok());
-        let error = validate_service_response_with_policy(&response, true).unwrap_err();
-
-        assert!(
-            error.to_string().contains("missing values.success"),
-            "{error}"
-        );
-    }
-
-    #[test]
-    fn call_service_waits_for_matching_response() {
-        let (transport, mut write_rx) = test_transport(Duration::from_millis(100));
-        let inner = Arc::clone(&transport.inner);
-
-        let result = tauri::async_runtime::block_on(async {
-            let call = transport.call_service(
-                "/gazebo/spawn_entity",
-                "gazebo_msgs/SpawnEntity",
-                serde_json::json!({}),
-            );
-            let respond = async move {
-                let request: serde_json::Value =
-                    serde_json::from_str(&write_rx.recv().await.unwrap()).unwrap();
-                assert!(inner
-                    .dispatch_service_message(serde_json::json!({
-                        "op": "service_response",
-                        "id": "different-request",
-                        "service": "/gazebo/spawn_entity",
-                        "result": true
-                    }))
-                    .is_none());
-                let id = request["id"].as_str().unwrap();
-                assert!(inner
-                    .dispatch_service_message(serde_json::json!({
-                        "op": "service_response",
-                        "id": id,
-                        "service": "/gazebo/spawn_entity",
-                        "result": true,
-                        "values": { "success": true }
-                    }))
-                    .is_none());
-            };
-            join(call, respond).await.0
-        });
-
-        assert!(result.is_ok(), "{result:?}");
-    }
-
-    #[test]
-    fn call_service_ignores_matching_id_for_the_wrong_service() {
-        let (transport, mut write_rx) = test_transport(Duration::from_millis(100));
-        let inner = Arc::clone(&transport.inner);
-
-        let result = tauri::async_runtime::block_on(async {
-            let call = transport.call_service(
-                "/gazebo/spawn_entity",
-                "gazebo_msgs/SpawnEntity",
-                serde_json::json!({}),
-            );
-            let respond = async move {
-                let request: serde_json::Value =
-                    serde_json::from_str(&write_rx.recv().await.unwrap()).unwrap();
-                let id = request["id"].as_str().unwrap();
-                inner.dispatch_service_message(serde_json::json!({
-                    "op": "service_response",
-                    "id": id,
-                    "service": "/gazebo/delete_model",
-                    "result": true,
-                    "values": { "success": true }
-                }));
-                assert!(lock_recover(&inner.pending_service_calls).contains_key(id));
-                inner.dispatch_service_message(serde_json::json!({
-                    "op": "service_response",
-                    "id": id,
-                    "service": "/gazebo/spawn_entity",
-                    "result": true,
-                    "values": { "success": true }
-                }));
-            };
-            join(call, respond).await.0
-        });
-
-        assert!(result.is_ok(), "{result:?}");
-    }
-
-    #[test]
-    fn call_service_rejects_result_false() {
-        let (transport, mut write_rx) = test_transport(Duration::from_millis(100));
-        let inner = Arc::clone(&transport.inner);
-
-        let error = tauri::async_runtime::block_on(async {
-            let call = transport.call_service(
-                "/gazebo/spawn_entity",
-                "gazebo_msgs/SpawnEntity",
-                serde_json::json!({}),
-            );
-            let respond = async move {
-                let request: serde_json::Value =
-                    serde_json::from_str(&write_rx.recv().await.unwrap()).unwrap();
-                let id = request["id"].as_str().unwrap();
-                inner.dispatch_service_message(serde_json::json!({
-                    "op": "service_response",
-                    "id": id,
-                    "service": "/gazebo/spawn_entity",
-                    "result": false,
-                    "values": { "status_message": "model already exists" }
-                }));
-            };
-            join(call, respond).await.0.unwrap_err()
-        });
-
-        assert!(
-            error.to_string().contains("model already exists"),
-            "{error}"
-        );
-    }
-
-    #[test]
-    fn call_service_rejects_matching_protocol_error() {
-        let (transport, mut write_rx) = test_transport(Duration::from_millis(100));
-        let inner = Arc::clone(&transport.inner);
-
-        let error = tauri::async_runtime::block_on(async {
-            let call = transport.call_service(
-                "/gazebo/spawn_entity",
-                "gazebo_msgs/SpawnEntity",
-                serde_json::json!({}),
-            );
-            let respond = async move {
-                let request: serde_json::Value =
-                    serde_json::from_str(&write_rx.recv().await.unwrap()).unwrap();
-                let id = request["id"].as_str().unwrap();
-                inner.dispatch_service_message(serde_json::json!({
-                    "op": "status",
-                    "id": id,
-                    "level": "error",
-                    "msg": "service unavailable"
-                }));
-            };
-            join(call, respond).await.0.unwrap_err()
-        });
-
-        assert!(error.to_string().contains("service unavailable"), "{error}");
-    }
-
-    #[test]
-    fn call_service_removes_responder_after_timeout() {
-        let (transport, _write_rx) = test_transport(Duration::from_millis(5));
-
-        let error = tauri::async_runtime::block_on(transport.call_service(
-            "/gazebo/spawn_entity",
-            "gazebo_msgs/SpawnEntity",
-            serde_json::json!({}),
-        ))
-        .unwrap_err();
-
-        assert!(
-            matches!(error, TransportError::Timeout)
-                && lock_recover(&transport.inner.pending_service_calls).is_empty()
-        );
-    }
-
-    #[test]
-    fn call_service_removes_responder_when_send_fails() {
-        let (transport, write_rx) = test_transport(Duration::from_millis(20));
-        drop(write_rx);
-
-        let result = tauri::async_runtime::block_on(transport.call_service(
-            "/gazebo/spawn_entity",
-            "gazebo_msgs/SpawnEntity",
-            serde_json::json!({}),
-        ));
-
-        assert!(result.is_err() && lock_recover(&transport.inner.pending_service_calls).is_empty());
-    }
-
-    #[test]
-    fn disconnect_wakes_pending_service_call() {
-        let (transport, mut write_rx) = test_transport(Duration::from_secs(1));
-        let inner = Arc::clone(&transport.inner);
-
-        let error = tauri::async_runtime::block_on(async {
-            let call = transport.call_service(
-                "/gazebo/spawn_entity",
-                "gazebo_msgs/SpawnEntity",
-                serde_json::json!({}),
-            );
-            let disconnect = async move {
-                write_rx.recv().await.unwrap();
-                inner.mark_disconnected();
-            };
-            join(call, disconnect).await.0.unwrap_err()
-        });
-
-        assert!(
-            matches!(error, TransportError::ConnectionFailed(_))
-                && lock_recover(&transport.inner.pending_service_calls).is_empty()
         );
     }
 }

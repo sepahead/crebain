@@ -458,34 +458,10 @@ export interface ROSBridgeMessage {
   topic?: string
   type?: string
   msg?: unknown
-  service?: string
-  args?: unknown
-  result?: unknown
-  values?: unknown
   compression?: string
   throttle_rate?: number
   queue_length?: number
   fragment_size?: number
-}
-
-export interface ROSBridgeAdvertise {
-  op: 'advertise'
-  id?: string
-  topic: string
-  type: string
-}
-
-export interface ROSBridgeUnadvertise {
-  op: 'unadvertise'
-  id?: string
-  topic: string
-}
-
-export interface ROSBridgePublish {
-  op: 'publish'
-  id?: string
-  topic: string
-  msg: unknown
 }
 
 export interface ROSBridgeSubscribe {
@@ -505,21 +481,6 @@ export interface ROSBridgeUnsubscribe {
   topic: string
 }
 
-export interface ROSBridgeCallService {
-  op: 'call_service'
-  id?: string
-  service: string
-  args?: unknown
-}
-
-export interface ROSBridgeServiceResponse {
-  op: 'service_response'
-  id?: string
-  service: string
-  values?: unknown
-  result: boolean
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // UTILITY TYPES
 // ─────────────────────────────────────────────────────────────────────────────
@@ -532,12 +493,6 @@ export interface TopicSubscription<T = unknown> {
   topic: string
   type: string
   callback: ROSMessageCallback<T>
-}
-
-export interface ServiceCall<TRequest = unknown, TResponse = unknown> {
-  service: string
-  request: TRequest
-  response?: TResponse
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

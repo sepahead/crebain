@@ -7,8 +7,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import type { ROSBridge } from '../ros/ROSBridge'
-import type { ZenohBridge } from '../ros/ZenohBridge'
+import type { TelemetryBridge } from '../ros/TelemetryBridge'
 import type { Pose, Twist, ModelStates, Point } from '../ros/types'
 import { quaternionToEuler as quatToEuler } from '../ros/types'
 import { CircularBuffer } from '../lib/CircularBuffer'
@@ -66,7 +65,7 @@ export interface DroneState {
 }
 
 export interface UseGazeboDronesConfig {
-  bridge: ROSBridge | ZenohBridge | null
+  bridge: TelemetryBridge | null
   droneNamePatterns: string[]
   friendlyPatterns: string[]
   hostilePatterns: string[]
@@ -187,7 +186,7 @@ function toExternalState(internal: DroneStateInternal): DroneState {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function useGazeboDrones(
-  config: Partial<UseGazeboDronesConfig> & { bridge: ROSBridge | ZenohBridge | null }
+  config: Partial<UseGazeboDronesConfig> & { bridge: TelemetryBridge | null }
 ): UseGazeboDronesReturn {
   const mergedConfig = { ...DEFAULT_CONFIG, ...config }
   const { bridge } = mergedConfig

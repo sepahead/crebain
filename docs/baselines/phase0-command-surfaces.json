@@ -1,0 +1,1876 @@
+{
+  "schema_version": 1,
+  "baseline_id": "crebain-command-surfaces-2026-07-12",
+  "current_completion_level": "L0",
+  "target_completion_level": "L1",
+  "classifications": [
+    "production-authority",
+    "telemetry",
+    "evidence",
+    "simulation-only",
+    "maintenance-only",
+    "forbidden"
+  ],
+  "domains": [
+    "renderer",
+    "ros_mavros",
+    "zenoh_tauri",
+    "gazebo",
+    "local_sim",
+    "dev_ncp",
+    "native_ncp"
+  ],
+  "statuses": ["registered", "live", "declared", "dormant-unregistered", "removed"],
+  "secure_sitl_dispositions": [
+    "allowed",
+    "read-only",
+    "sole-authority",
+    "excluded",
+    "unregistered",
+    "replace-with-typed-intent",
+    "maintenance-only"
+  ],
+  "test_evidence": [
+    {
+      "id": "TEST-DEV-NCP-BOUNDARIES",
+      "locator": {
+        "file": "src/hooks/__tests__/useDroneController.ncp.test.ts",
+        "selector": "describe('dev NCP command ingress'"
+      }
+    },
+    {
+      "id": "TEST-FUSION-CONFIG-VALIDATION",
+      "locator": {
+        "file": "src-tauri/src/sensor_fusion.rs",
+        "selector": "fn fusion_init_rejects_window_smaller_than_confirm_hits()"
+      }
+    },
+    {
+      "id": "TEST-FUSION-CONTRACT",
+      "locator": {
+        "file": "src-tauri/src/sensor_fusion.rs",
+        "selector": "fn test_multi_sensor_fusion()"
+      }
+    },
+    {
+      "id": "TEST-GUIDANCE-NO-AUTHORITY",
+      "locator": {
+        "file": "src/ros/__tests__/GuidanceController.test.ts",
+        "selector": "describe('GuidanceController local preview'"
+      }
+    },
+    {
+      "id": "TEST-HAZARDOUS-ACTION-BYPASS",
+      "locator": {
+        "file": "src/lib/__tests__/tauriCommandRegistration.test.ts",
+        "selector": "keeps the production renderer free of legacy authority routes"
+      }
+    },
+    {
+      "id": "TEST-LEGACY-GUIDANCE-BYPASS",
+      "locator": {
+        "file": "src/lib/__tests__/tauriCommandRegistration.test.ts",
+        "selector": "keeps the production renderer free of legacy authority routes"
+      }
+    },
+    {
+      "id": "TEST-MAVROS-TOPIC-BYPASS",
+      "locator": {
+        "file": "src/lib/__tests__/tauriCommandRegistration.test.ts",
+        "selector": "keeps the production renderer free of legacy authority routes"
+      }
+    },
+    {
+      "id": "TEST-NCP-COMMAND-PLANT",
+      "locator": {
+        "file": "src-tauri/src/ncp/mod.rs",
+        "selector": "fn only_valid_active_commands_can_produce_nonzero_velocity()"
+      }
+    },
+    {
+      "id": "TEST-NCP-FEATURE-LIFECYCLE",
+      "locator": {
+        "file": "src-tauri/src/ncp/mod.rs",
+        "selector": "fn action_and_perception_with_crebain()"
+      }
+    },
+    {
+      "id": "TEST-NCP-SENSOR-FRAME",
+      "locator": {
+        "file": "src-tauri/src/ncp/mod.rs",
+        "selector": "fn pose_maps_to_sensor_frame_channels()"
+      }
+    },
+    {
+      "id": "TEST-NCP-UNREGISTERED-DEFAULT",
+      "locator": {
+        "file": "src/lib/__tests__/tauriCommandRegistration.test.ts",
+        "selector": "excludes direct inference and transport mutation bypass commands"
+      }
+    },
+    {
+      "id": "TEST-NO-RENDERER-ROTOR-PUBLISHER",
+      "locator": {
+        "file": "src/lib/__tests__/tauriCommandRegistration.test.ts",
+        "selector": "keeps the production renderer free of legacy authority routes"
+      }
+    },
+    {
+      "id": "TEST-PID-JSONL-LOCAL",
+      "locator": {
+        "file": "src-tauri/src/sensor_fusion.rs",
+        "selector": "fn emit_innovations_produces_contract_records_with_consistent_nis()"
+      }
+    },
+    {
+      "id": "TEST-RENDERER-NO-GENERIC-PUBLISH",
+      "locator": {
+        "file": "src/lib/__tests__/authorityNetworkBoundary.test.ts",
+        "selector": "keeps native product transports subscription-only"
+      }
+    },
+    {
+      "id": "TEST-PRODUCTION-NETWORK-BOUNDARY",
+      "locator": {
+        "file": "src/lib/__tests__/authorityNetworkBoundary.test.ts",
+        "selector": "resolves production builds to the network-free renderer bridge"
+      }
+    },
+    {
+      "id": "TEST-PRODUCTION-TRANSPORT-SELECTION",
+      "locator": {
+        "file": "src/__tests__/App.productionRosTransport.test.tsx",
+        "selector": "keeps Zenoh selected when the fusion panel opens the packaged connection UI"
+      }
+    },
+    {
+      "id": "TEST-RENDERER-TELEMETRY-FACADE",
+      "locator": {
+        "file": "src/hooks/__tests__/useRosBridge.test.tsx",
+        "selector": "delegates telemetry subscriptions only"
+      }
+    },
+    {
+      "id": "TEST-ROS-DEFINITION-VALIDATION",
+      "locator": {
+        "file": "src/ros/__tests__/MessageRegistry.test.ts",
+        "selector": "validates supported sensor payload shapes"
+      }
+    },
+    {
+      "id": "TEST-SCENE-BOUNDARIES",
+      "locator": {
+        "file": "src/lib/__tests__/tauriCommandRegistration.test.ts",
+        "selector": "keeps scene file commands guarded by path, size, and JSON validation"
+      }
+    },
+    {
+      "id": "TEST-TAURI-REGISTRY",
+      "locator": {
+        "file": "src/lib/__tests__/tauriCommandRegistration.test.ts",
+        "selector": "registers every frontend command constant in the backend invoke handler"
+      }
+    },
+    {
+      "id": "TEST-TRANSPORT-LIFECYCLE",
+      "locator": {
+        "file": "src/lib/__tests__/tauriCommands.test.ts",
+        "selector": "centralizes transport command names"
+      }
+    },
+    {
+      "id": "TEST-TRANSPORT-TYPED-SUBSCRIPTIONS",
+      "locator": {
+        "file": "src/ros/__tests__/MessageRegistry.test.ts",
+        "selector": "maps built-in message types to centralized transport commands"
+      }
+    }
+  ],
+  "scan_policy": {
+    "tauri_handler_file": "src-tauri/src/lib.rs",
+    "production_roots": ["src", "src-tauri/src", "src-tauri/capabilities", "ros", "public"],
+    "production_config_files": [
+      "index.html",
+      "package.json",
+      "bun.lock",
+      "postcss.config.ts",
+      "rust-toolchain.toml",
+      "flake.nix",
+      "flake.lock",
+      "src-tauri/Cargo.toml",
+      "src-tauri/Cargo.lock",
+      "src-tauri/build.rs",
+      "src-tauri/deny.toml",
+      "src-tauri/tauri.conf.json",
+      "tsconfig.json",
+      "vite.config.ts",
+      "scripts/check-bundle-size.mjs",
+      "scripts/check-production-authority-boundary.mjs",
+      "scripts/test-production-authority-boundary.mjs"
+    ],
+    "conditional_executable_inputs": [
+      { "path": ".cargo/config.toml", "state": "absent", "consumer": "cargo" },
+      { "path": ".cargo/config", "state": "absent", "consumer": "cargo" },
+      { "path": "vite.config.js", "state": "absent", "consumer": "vite" },
+      { "path": "vite.config.mjs", "state": "absent", "consumer": "vite" },
+      { "path": "vite.config.cjs", "state": "absent", "consumer": "vite" },
+      { "path": "vite.config.mts", "state": "absent", "consumer": "vite" },
+      { "path": "vite.config.cts", "state": "absent", "consumer": "vite" },
+      { "path": "vite.config.jsx", "state": "absent", "consumer": "vite" },
+      { "path": "vite.config.tsx", "state": "absent", "consumer": "vite" },
+      { "path": ".env", "state": "absent", "consumer": "vite" },
+      { "path": ".env.local", "state": "absent", "consumer": "vite" },
+      { "path": ".env.production", "state": "absent", "consumer": "vite" },
+      { "path": ".env.production.local", "state": "absent", "consumer": "vite" },
+      { "path": ".env.development", "state": "absent", "consumer": "vite" },
+      { "path": ".env.development.local", "state": "absent", "consumer": "vite" },
+      { "path": ".env.test", "state": "absent", "consumer": "vite" },
+      { "path": ".env.test.local", "state": "absent", "consumer": "vite" },
+      {
+        "path": "src-tauri/tauri.macos.conf.json",
+        "state": "absent",
+        "consumer": "tauri"
+      },
+      {
+        "path": "src-tauri/tauri.linux.conf.json",
+        "state": "absent",
+        "consumer": "tauri"
+      },
+      {
+        "path": "src-tauri/tauri.windows.conf.json",
+        "state": "absent",
+        "consumer": "tauri"
+      },
+      {
+        "path": "src-tauri/tauri.android.conf.json",
+        "state": "absent",
+        "consumer": "tauri"
+      },
+      {
+        "path": "src-tauri/tauri.ios.conf.json",
+        "state": "absent",
+        "consumer": "tauri"
+      }
+    ],
+    "production_extensions": [
+      ".action",
+      ".cjs",
+      ".css",
+      ".html",
+      ".js",
+      ".json",
+      ".launch",
+      ".lock",
+      ".mjs",
+      ".msg",
+      ".nix",
+      ".proto",
+      ".rs",
+      ".srv",
+      ".toml",
+      ".ts",
+      ".tsx",
+      ".urdf",
+      ".xml",
+      ".yaml",
+      ".yml"
+    ],
+    "production_file_manifest_sha256": "e7c64ac5f3e0f7e9a7d1a8e174972bc322736887fc6694c836d35d789919bdf3",
+    "known_route_prefixes": ["mavros/", "gazebo/", "cmd/motor_speed/"],
+    "development_network_modules": [
+      {
+        "path": "src/ros/ROSBridge.ts",
+        "production_replacement": "src/ros/ROSBridgeDisabled.ts",
+        "capability": "rosbridge-subscriptions-only"
+      }
+    ],
+    "production_fetch_modules": ["src/lib/boundedFetch.ts"],
+    "forbidden_command_capabilities": [
+      "callService",
+      "call_service",
+      "publish",
+      "publishVehicleCommand",
+      "publish_pose",
+      "publish_twist_stamped",
+      "publish_velocity",
+      "sendCommand",
+      "send_command",
+      "spawn_gazebo_model",
+      "transport_publish_pose",
+      "transport_publish_twist_stamped",
+      "transport_publish_velocity",
+      "transport_spawn_gazebo_model"
+    ]
+  },
+  "surface_groups": [
+    {
+      "group_id": "GROUP-TAURI-DETECTION",
+      "domain": "zenoh_tauri",
+      "kind": "tauri-command",
+      "classification": "telemetry",
+      "owner": "model-runtime",
+      "profiles": { "current": ["default", "dev-sim"], "secure_sitl": "read-only" },
+      "hazard_ids": ["HAZ-010", "HAZ-012"],
+      "tests": [
+        { "id": "TEST-TAURI-REGISTRY", "status": "existing" },
+        { "id": "TEST-MODEL-BOUNDARIES", "status": "partial" }
+      ],
+      "members": [
+        {
+          "id": "SURF-001",
+          "name": "CoreML base64 detection",
+          "route": "detect_coreml",
+          "locator": { "file": "src-tauri/src/lib.rs", "symbol": "detect_coreml" },
+          "status": "removed",
+          "source_assertion": { "type": "not-contains", "needle": "fn detect_coreml(" }
+        },
+        {
+          "id": "SURF-002",
+          "name": "CoreML raw detection",
+          "route": "detect_coreml_raw",
+          "locator": { "file": "src-tauri/src/lib.rs", "symbol": "detect_coreml_raw" },
+          "status": "removed",
+          "source_assertion": { "type": "not-contains", "needle": "fn detect_coreml_raw(" }
+        },
+        {
+          "id": "SURF-003",
+          "name": "Selected native detector",
+          "route": "detect_native_raw",
+          "locator": { "file": "src-tauri/src/lib.rs", "symbol": "detect_native_raw" },
+          "status": "registered",
+          "source_assertion": { "type": "tauri-handler" }
+        },
+        {
+          "id": "SURF-004",
+          "name": "Native ONNX detection",
+          "route": "detect_onnx",
+          "locator": { "file": "src-tauri/src/lib.rs", "symbol": "detect_onnx" },
+          "status": "removed",
+          "source_assertion": { "type": "not-contains", "needle": "fn detect_onnx(" }
+        },
+        {
+          "id": "SURF-005",
+          "name": "Native system and detector information",
+          "route": "get_system_info",
+          "locator": { "file": "src-tauri/src/lib.rs", "symbol": "get_system_info" },
+          "status": "registered",
+          "source_assertion": { "type": "tauri-handler" }
+        }
+      ]
+    },
+    {
+      "group_id": "GROUP-TAURI-SCENE",
+      "domain": "zenoh_tauri",
+      "kind": "tauri-command",
+      "classification": "maintenance-only",
+      "owner": "scene-persistence",
+      "profiles": { "current": ["default", "dev-sim"], "secure_sitl": "maintenance-only" },
+      "hazard_ids": ["HAZ-014", "HAZ-015"],
+      "tests": [{ "id": "TEST-SCENE-BOUNDARIES", "status": "existing" }],
+      "members": [
+        {
+          "id": "SURF-006",
+          "name": "Save scene file",
+          "route": "scene_save_file",
+          "locator": { "file": "src-tauri/src/lib.rs", "symbol": "scene_save_file" },
+          "status": "registered",
+          "source_assertion": { "type": "tauri-handler" }
+        },
+        {
+          "id": "SURF-007",
+          "name": "Load scene file",
+          "route": "scene_load_file",
+          "locator": { "file": "src-tauri/src/lib.rs", "symbol": "scene_load_file" },
+          "status": "registered",
+          "source_assertion": { "type": "tauri-handler" }
+        }
+      ]
+    },
+    {
+      "group_id": "GROUP-TAURI-FUSION-EVIDENCE",
+      "domain": "zenoh_tauri",
+      "kind": "tauri-command",
+      "classification": "evidence",
+      "owner": "fusion",
+      "profiles": { "current": ["default", "dev-sim"], "secure_sitl": "read-only" },
+      "hazard_ids": ["HAZ-009", "HAZ-011"],
+      "tests": [
+        { "id": "TEST-FUSION-CONTRACT", "status": "existing" },
+        { "id": "TEST-EVIDENCE-INSUFFICIENCY", "status": "planned" }
+      ],
+      "members": [
+        {
+          "id": "SURF-009",
+          "name": "Process sensor fusion batch",
+          "route": "fusion_process",
+          "locator": { "file": "src-tauri/src/lib.rs", "symbol": "fusion_process" },
+          "status": "registered",
+          "source_assertion": { "type": "tauri-handler" }
+        },
+        {
+          "id": "SURF-010",
+          "name": "Read fusion tracks",
+          "route": "fusion_get_tracks",
+          "locator": { "file": "src-tauri/src/lib.rs", "symbol": "fusion_get_tracks" },
+          "status": "registered",
+          "source_assertion": { "type": "tauri-handler" }
+        },
+        {
+          "id": "SURF-011",
+          "name": "Read fusion statistics",
+          "route": "fusion_get_stats",
+          "locator": { "file": "src-tauri/src/lib.rs", "symbol": "fusion_get_stats" },
+          "status": "registered",
+          "source_assertion": { "type": "tauri-handler" }
+        }
+      ]
+    },
+    {
+      "group_id": "GROUP-TAURI-FUSION-MAINTENANCE",
+      "domain": "zenoh_tauri",
+      "kind": "tauri-command",
+      "classification": "maintenance-only",
+      "owner": "fusion",
+      "profiles": { "current": ["default", "dev-sim"], "secure_sitl": "maintenance-only" },
+      "hazard_ids": ["HAZ-006", "HAZ-009"],
+      "tests": [{ "id": "TEST-FUSION-CONFIG-VALIDATION", "status": "existing" }],
+      "members": [
+        {
+          "id": "SURF-008",
+          "name": "Initialize fusion state",
+          "route": "fusion_init",
+          "locator": { "file": "src-tauri/src/lib.rs", "symbol": "fusion_init" },
+          "status": "registered",
+          "source_assertion": { "type": "tauri-handler" }
+        },
+        {
+          "id": "SURF-012",
+          "name": "Set fusion configuration",
+          "route": "fusion_set_config",
+          "locator": { "file": "src-tauri/src/lib.rs", "symbol": "fusion_set_config" },
+          "status": "registered",
+          "source_assertion": { "type": "tauri-handler" }
+        },
+        {
+          "id": "SURF-013",
+          "name": "Clear fusion state",
+          "route": "fusion_clear",
+          "locator": { "file": "src-tauri/src/lib.rs", "symbol": "fusion_clear" },
+          "status": "registered",
+          "source_assertion": { "type": "tauri-handler" }
+        }
+      ]
+    },
+    {
+      "group_id": "GROUP-TAURI-FUSION-METADATA",
+      "domain": "zenoh_tauri",
+      "kind": "tauri-command",
+      "classification": "telemetry",
+      "owner": "fusion",
+      "profiles": { "current": ["default", "dev-sim"], "secure_sitl": "read-only" },
+      "hazard_ids": ["HAZ-014"],
+      "tests": [{ "id": "TEST-TAURI-REGISTRY", "status": "existing" }],
+      "members": [
+        {
+          "id": "SURF-014",
+          "name": "List fusion algorithms",
+          "route": "fusion_get_algorithms",
+          "locator": { "file": "src-tauri/src/lib.rs", "symbol": "fusion_get_algorithms" },
+          "status": "registered",
+          "source_assertion": { "type": "tauri-handler" }
+        },
+        {
+          "id": "SURF-015",
+          "name": "List sensor modalities",
+          "route": "fusion_get_modalities",
+          "locator": { "file": "src-tauri/src/lib.rs", "symbol": "fusion_get_modalities" },
+          "status": "registered",
+          "source_assertion": { "type": "tauri-handler" }
+        }
+      ]
+    },
+    {
+      "group_id": "GROUP-TAURI-TRANSPORT-LIFECYCLE",
+      "domain": "zenoh_tauri",
+      "kind": "tauri-command",
+      "classification": "maintenance-only",
+      "owner": "native-transport",
+      "profiles": { "current": ["default", "dev-sim"], "secure_sitl": "maintenance-only" },
+      "hazard_ids": ["HAZ-008", "HAZ-013"],
+      "tests": [{ "id": "TEST-TRANSPORT-LIFECYCLE", "status": "existing" }],
+      "members": [
+        {
+          "id": "SURF-016",
+          "name": "Connect native transport",
+          "route": "transport_connect",
+          "locator": {
+            "file": "src-tauri/src/transport/commands.rs",
+            "symbol": "transport_connect"
+          },
+          "status": "registered",
+          "source_assertion": { "type": "tauri-handler" }
+        },
+        {
+          "id": "SURF-017",
+          "name": "Disconnect native transport",
+          "route": "transport_disconnect",
+          "locator": {
+            "file": "src-tauri/src/transport/commands.rs",
+            "symbol": "transport_disconnect"
+          },
+          "status": "registered",
+          "source_assertion": { "type": "tauri-handler" }
+        },
+        {
+          "id": "SURF-023",
+          "name": "Unsubscribe native transport topic",
+          "route": "transport_unsubscribe",
+          "locator": {
+            "file": "src-tauri/src/transport/commands.rs",
+            "symbol": "transport_unsubscribe"
+          },
+          "status": "registered",
+          "source_assertion": { "type": "tauri-handler" }
+        }
+      ]
+    },
+    {
+      "group_id": "GROUP-TAURI-TRANSPORT-TELEMETRY",
+      "domain": "zenoh_tauri",
+      "kind": "tauri-command",
+      "classification": "telemetry",
+      "owner": "native-transport",
+      "profiles": { "current": ["default", "dev-sim"], "secure_sitl": "read-only" },
+      "hazard_ids": ["HAZ-006", "HAZ-011", "HAZ-012"],
+      "tests": [{ "id": "TEST-TRANSPORT-TYPED-SUBSCRIPTIONS", "status": "existing" }],
+      "members": [
+        {
+          "id": "SURF-018",
+          "name": "Subscribe camera frames",
+          "route": "transport_subscribe_camera",
+          "locator": {
+            "file": "src-tauri/src/transport/commands.rs",
+            "symbol": "transport_subscribe_camera"
+          },
+          "status": "registered",
+          "source_assertion": { "type": "tauri-handler" }
+        },
+        {
+          "id": "SURF-019",
+          "name": "Subscribe camera information",
+          "route": "transport_subscribe_camera_info",
+          "locator": {
+            "file": "src-tauri/src/transport/commands.rs",
+            "symbol": "transport_subscribe_camera_info"
+          },
+          "status": "registered",
+          "source_assertion": { "type": "tauri-handler" }
+        },
+        {
+          "id": "SURF-020",
+          "name": "Subscribe IMU",
+          "route": "transport_subscribe_imu",
+          "locator": {
+            "file": "src-tauri/src/transport/commands.rs",
+            "symbol": "transport_subscribe_imu"
+          },
+          "status": "registered",
+          "source_assertion": { "type": "tauri-handler" }
+        },
+        {
+          "id": "SURF-021",
+          "name": "Subscribe pose",
+          "route": "transport_subscribe_pose",
+          "locator": {
+            "file": "src-tauri/src/transport/commands.rs",
+            "symbol": "transport_subscribe_pose"
+          },
+          "status": "registered",
+          "source_assertion": { "type": "tauri-handler" }
+        },
+        {
+          "id": "SURF-022",
+          "name": "Subscribe Gazebo model states",
+          "route": "transport_subscribe_model_states",
+          "locator": {
+            "file": "src-tauri/src/transport/commands.rs",
+            "symbol": "transport_subscribe_model_states"
+          },
+          "status": "registered",
+          "source_assertion": { "type": "tauri-handler" }
+        },
+        {
+          "id": "SURF-028",
+          "name": "Read native transport statistics",
+          "route": "transport_get_stats",
+          "locator": {
+            "file": "src-tauri/src/transport/commands.rs",
+            "symbol": "transport_get_stats"
+          },
+          "status": "registered",
+          "source_assertion": { "type": "tauri-handler" }
+        }
+      ]
+    },
+    {
+      "group_id": "GROUP-TAURI-GENERIC-PUBLISH",
+      "domain": "zenoh_tauri",
+      "kind": "tauri-command",
+      "classification": "forbidden",
+      "owner": "native-transport",
+      "profiles": { "current": ["default", "dev-sim"], "secure_sitl": "excluded" },
+      "hazard_ids": ["HAZ-001", "HAZ-005", "HAZ-016"],
+      "tests": [{ "id": "TEST-RENDERER-NO-GENERIC-PUBLISH", "status": "existing" }],
+      "members": [
+        {
+          "id": "SURF-024",
+          "name": "Publish arbitrary validated Twist",
+          "route": "transport_publish_velocity",
+          "locator": {
+            "file": "src-tauri/src/transport/commands.rs",
+            "symbol": "transport_publish_velocity"
+          },
+          "status": "removed",
+          "source_assertion": {
+            "type": "not-contains",
+            "needle": "pub async fn transport_publish_velocity"
+          }
+        },
+        {
+          "id": "SURF-025",
+          "name": "Publish arbitrary validated TwistStamped",
+          "route": "transport_publish_twist_stamped",
+          "locator": {
+            "file": "src-tauri/src/transport/commands.rs",
+            "symbol": "transport_publish_twist_stamped"
+          },
+          "status": "removed",
+          "source_assertion": {
+            "type": "not-contains",
+            "needle": "pub async fn transport_publish_twist_stamped"
+          }
+        },
+        {
+          "id": "SURF-026",
+          "name": "Publish arbitrary validated PoseStamped",
+          "route": "transport_publish_pose",
+          "locator": {
+            "file": "src-tauri/src/transport/commands.rs",
+            "symbol": "transport_publish_pose"
+          },
+          "status": "removed",
+          "source_assertion": {
+            "type": "not-contains",
+            "needle": "pub async fn transport_publish_pose"
+          }
+        },
+        {
+          "id": "SURF-122",
+          "name": "Native Transport generic velocity publisher",
+          "route": "native://Transport/publish_velocity",
+          "locator": {
+            "file": "src-tauri/src/transport/mod.rs",
+            "symbol": "Transport.publish_velocity"
+          },
+          "status": "removed",
+          "source_assertion": { "type": "not-contains", "needle": "fn publish_velocity(" }
+        },
+        {
+          "id": "SURF-123",
+          "name": "Native Transport generic stamped-velocity publisher",
+          "route": "native://Transport/publish_twist_stamped",
+          "locator": {
+            "file": "src-tauri/src/transport/mod.rs",
+            "symbol": "Transport.publish_twist_stamped"
+          },
+          "status": "removed",
+          "source_assertion": {
+            "type": "not-contains",
+            "needle": "fn publish_twist_stamped("
+          }
+        },
+        {
+          "id": "SURF-124",
+          "name": "Native Transport generic pose publisher",
+          "route": "native://Transport/publish_pose",
+          "locator": {
+            "file": "src-tauri/src/transport/mod.rs",
+            "symbol": "Transport.publish_pose"
+          },
+          "status": "removed",
+          "source_assertion": { "type": "not-contains", "needle": "fn publish_pose(" }
+        },
+        {
+          "id": "SURF-125",
+          "name": "Native Transport generic service caller",
+          "route": "native://Transport/call_service",
+          "locator": {
+            "file": "src-tauri/src/transport/mod.rs",
+            "symbol": "Transport.call_service"
+          },
+          "status": "removed",
+          "source_assertion": { "type": "not-contains", "needle": "fn call_service" }
+        }
+      ]
+    },
+    {
+      "group_id": "GROUP-TAURI-GAZEBO-SPAWN",
+      "domain": "zenoh_tauri",
+      "kind": "tauri-command",
+      "classification": "simulation-only",
+      "owner": "simulation",
+      "profiles": { "current": ["default", "dev-sim"], "secure_sitl": "excluded" },
+      "hazard_ids": ["HAZ-015"],
+      "tests": [{ "id": "TEST-SECURE-PROFILE-NO-SIM-MUTATION", "status": "planned" }],
+      "members": [
+        {
+          "id": "SURF-027",
+          "name": "Spawn Gazebo SDF through native transport",
+          "route": "transport_spawn_gazebo_model",
+          "locator": {
+            "file": "src-tauri/src/transport/commands.rs",
+            "symbol": "transport_spawn_gazebo_model"
+          },
+          "status": "removed",
+          "source_assertion": {
+            "type": "not-contains",
+            "needle": "pub async fn transport_spawn_gazebo_model"
+          }
+        }
+      ]
+    },
+    {
+      "group_id": "GROUP-GENERIC-RENDERER-BRIDGES",
+      "domain": "renderer",
+      "kind": "generic-bridge-api",
+      "classification": "forbidden",
+      "owner": "frontend-platform",
+      "profiles": { "current": ["default", "dev-sim"], "secure_sitl": "excluded" },
+      "hazard_ids": ["HAZ-001", "HAZ-016"],
+      "tests": [{ "id": "TEST-RENDERER-NO-GENERIC-PUBLISH", "status": "planned" }],
+      "members": [
+        {
+          "id": "SURF-029",
+          "name": "ROSBridge arbitrary topic publish",
+          "route": "ros://topic/*",
+          "locator": { "file": "src/ros/ROSBridge.ts", "symbol": "ROSBridge.publish" },
+          "status": "removed",
+          "source_assertion": {
+            "type": "not-contains",
+            "needle": "publish<T>(topic: string, msg: T): void"
+          }
+        },
+        {
+          "id": "SURF-030",
+          "name": "ROSBridge arbitrary service call",
+          "route": "ros://service/*",
+          "locator": { "file": "src/ros/ROSBridge.ts", "symbol": "ROSBridge.callService" },
+          "status": "removed",
+          "source_assertion": {
+            "type": "not-contains",
+            "needle": "callService<TRequest, TResponse>"
+          }
+        },
+        {
+          "id": "SURF-031",
+          "name": "React hook arbitrary publish wrapper",
+          "route": "renderer://ros/publish/*",
+          "locator": { "file": "src/hooks/useRosBridge.ts", "symbol": "publish" },
+          "status": "removed",
+          "source_assertion": { "type": "not-contains", "needle": "bridge.publish(topic, msg)" }
+        },
+        {
+          "id": "SURF-032",
+          "name": "React hook arbitrary service wrapper",
+          "route": "renderer://ros/service/*",
+          "locator": { "file": "src/hooks/useRosBridge.ts", "symbol": "callService" },
+          "status": "removed",
+          "source_assertion": {
+            "type": "not-contains",
+            "needle": "bridge.callService(service, request)"
+          }
+        },
+        {
+          "id": "SURF-033",
+          "name": "ZenohBridge arbitrary typed topic publish",
+          "route": "zenoh://ros-topic/*",
+          "locator": { "file": "src/ros/ZenohBridge.ts", "symbol": "ZenohBridge.publishAsync" },
+          "status": "removed",
+          "source_assertion": {
+            "type": "not-contains",
+            "needle": "async publishAsync<T>(topic: string"
+          }
+        }
+      ]
+    },
+    {
+      "group_id": "GROUP-RENDERER-TELEMETRY-FACADE",
+      "domain": "renderer",
+      "kind": "read-only-capability",
+      "classification": "telemetry",
+      "owner": "frontend-platform",
+      "profiles": { "current": ["default", "dev-sim"], "secure_sitl": "read-only" },
+      "hazard_ids": ["HAZ-001", "HAZ-006", "HAZ-011"],
+      "tests": [
+        { "id": "TEST-RENDERER-TELEMETRY-FACADE", "status": "existing" },
+        { "id": "TEST-PRODUCTION-NETWORK-BOUNDARY", "status": "existing" },
+        { "id": "TEST-PRODUCTION-TRANSPORT-SELECTION", "status": "existing" }
+      ],
+      "members": [
+        {
+          "id": "SURF-121",
+          "name": "Frozen renderer telemetry-only bridge facade",
+          "route": "renderer://telemetry/{state,subscribe}",
+          "locator": { "file": "src/ros/TelemetryBridge.ts", "symbol": "TelemetryBridge" },
+          "status": "live",
+          "source_assertion": {
+            "type": "contains",
+            "needle": "export interface TelemetryBridge"
+          }
+        }
+      ]
+    },
+    {
+      "group_id": "GROUP-DIRECT-GUIDANCE",
+      "domain": "renderer",
+      "kind": "guidance-command",
+      "classification": "forbidden",
+      "owner": "flight-controls",
+      "profiles": { "current": ["default", "dev-sim"], "secure_sitl": "replace-with-typed-intent" },
+      "hazard_ids": ["HAZ-001", "HAZ-002", "HAZ-003", "HAZ-005"],
+      "tests": [{ "id": "TEST-LEGACY-GUIDANCE-BYPASS", "status": "existing" }],
+      "members": [
+        {
+          "id": "SURF-035",
+          "name": "GuidanceController MAVROS velocity publication",
+          "route": "/mavros/setpoint_velocity/cmd_vel",
+          "locator": {
+            "file": "src/ros/GuidanceController.ts",
+            "symbol": "SETPOINT_VELOCITY_TOPIC_SUFFIX"
+          },
+          "status": "removed",
+          "source_assertion": {
+            "type": "not-contains",
+            "needle": "mavros/setpoint_velocity/cmd_vel"
+          }
+        }
+      ]
+    },
+    {
+      "group_id": "GROUP-LOCAL-GUIDANCE-PREVIEW",
+      "domain": "renderer",
+      "kind": "local-guidance-preview",
+      "classification": "simulation-only",
+      "owner": "flight-controls",
+      "profiles": { "current": ["default", "dev-sim"], "secure_sitl": "excluded" },
+      "hazard_ids": ["HAZ-014", "HAZ-015"],
+      "tests": [{ "id": "TEST-GUIDANCE-NO-AUTHORITY", "status": "existing" }],
+      "members": [
+        {
+          "id": "SURF-034",
+          "name": "Renderer computes a local preview velocity",
+          "route": "renderer://guidance/preview/velocity",
+          "locator": {
+            "file": "src/hooks/useGazeboSimulation.ts",
+            "symbol": "GuidanceController.setPreviewVelocity"
+          },
+          "status": "live",
+          "source_assertion": {
+            "type": "contains",
+            "needle": "controller.setPreviewVelocity(guidance)"
+          }
+        },
+        {
+          "id": "SURF-092",
+          "name": "Renderer initiates a local interception preview",
+          "route": "renderer://interception/preview/initiate",
+          "locator": { "file": "src/hooks/useGazeboSimulation.ts", "symbol": "initiateIntercept" },
+          "status": "live",
+          "source_assertion": {
+            "type": "contains",
+            "needle": "const initiateIntercept = useCallback"
+          }
+        },
+        {
+          "id": "SURF-093",
+          "name": "Renderer holds local guidance previews",
+          "route": "renderer://guidance/preview/hold",
+          "locator": { "file": "src/hooks/useGazeboSimulation.ts", "symbol": "holdAll" },
+          "status": "live",
+          "source_assertion": { "type": "contains", "needle": "controller.hold()" }
+        },
+        {
+          "id": "SURF-120",
+          "name": "NoAuthority guidance proposal contract",
+          "route": "renderer://guidance/preview/proposal",
+          "locator": { "file": "src/ros/GuidanceController.ts", "symbol": "GuidanceProposal" },
+          "status": "live",
+          "source_assertion": { "type": "contains", "needle": "authority: 'NoAuthority'" }
+        }
+      ]
+    },
+    {
+      "group_id": "GROUP-MAVROS-COMMAND-TOPICS",
+      "domain": "ros_mavros",
+      "kind": "ros-topic-publish",
+      "classification": "forbidden",
+      "owner": "flight-controls",
+      "profiles": { "current": ["default", "dev-sim"], "secure_sitl": "excluded" },
+      "hazard_ids": ["HAZ-001", "HAZ-003", "HAZ-005"],
+      "tests": [{ "id": "TEST-MAVROS-TOPIC-BYPASS", "status": "existing" }],
+      "members": [
+        {
+          "id": "SURF-036",
+          "name": "ROSBridge velocity setpoint helper",
+          "route": "/mavros/setpoint_velocity/cmd_vel",
+          "locator": { "file": "src/ros/ROSBridge.ts", "symbol": "publishSetpointVelocity" },
+          "status": "removed",
+          "source_assertion": {
+            "type": "not-contains",
+            "needle": "mavros/setpoint_velocity/cmd_vel"
+          }
+        },
+        {
+          "id": "SURF-037",
+          "name": "ZenohBridge velocity setpoint helper",
+          "route": "/mavros/setpoint_velocity/cmd_vel",
+          "locator": { "file": "src/ros/ZenohBridge.ts", "symbol": "publishSetpointVelocity" },
+          "status": "removed",
+          "source_assertion": {
+            "type": "not-contains",
+            "needle": "mavros/setpoint_velocity/cmd_vel"
+          }
+        },
+        {
+          "id": "SURF-038",
+          "name": "ROSBridge position setpoint helper",
+          "route": "/mavros/setpoint_position/local",
+          "locator": { "file": "src/ros/ROSBridge.ts", "symbol": "publishSetpointPosition" },
+          "status": "removed",
+          "source_assertion": {
+            "type": "not-contains",
+            "needle": "mavros/setpoint_position/local"
+          }
+        },
+        {
+          "id": "SURF-039",
+          "name": "ZenohBridge position setpoint helper",
+          "route": "/mavros/setpoint_position/local",
+          "locator": { "file": "src/ros/ZenohBridge.ts", "symbol": "publishSetpointPosition" },
+          "status": "removed",
+          "source_assertion": {
+            "type": "not-contains",
+            "needle": "mavros/setpoint_position/local"
+          }
+        }
+      ]
+    },
+    {
+      "group_id": "GROUP-MAVROS-HAZARDOUS-SERVICES",
+      "domain": "ros_mavros",
+      "kind": "ros-service-call",
+      "classification": "forbidden",
+      "owner": "mission-authority",
+      "profiles": { "current": ["default", "dev-sim"], "secure_sitl": "replace-with-typed-intent" },
+      "hazard_ids": ["HAZ-001", "HAZ-007", "HAZ-016"],
+      "tests": [{ "id": "TEST-HAZARDOUS-ACTION-BYPASS", "status": "existing" }],
+      "members": [
+        {
+          "id": "SURF-040",
+          "name": "ROSBridge set FCU mode",
+          "route": "/mavros/set_mode",
+          "locator": { "file": "src/ros/ROSBridge.ts", "symbol": "setMode" },
+          "status": "removed",
+          "source_assertion": { "type": "not-contains", "needle": "mavros/set_mode" }
+        },
+        {
+          "id": "SURF-041",
+          "name": "WaypointManager sets AUTO.MISSION",
+          "route": "/mavros/set_mode",
+          "locator": { "file": "src/ros/WaypointManager.ts", "symbol": "startMission" },
+          "status": "removed",
+          "source_assertion": { "type": "absent-file" }
+        },
+        {
+          "id": "SURF-042",
+          "name": "ROSBridge arm or disarm",
+          "route": "/mavros/cmd/arming",
+          "locator": { "file": "src/ros/ROSBridge.ts", "symbol": "arm" },
+          "status": "removed",
+          "source_assertion": { "type": "not-contains", "needle": "mavros/cmd/arming" }
+        },
+        {
+          "id": "SURF-043",
+          "name": "ROSBridge takeoff",
+          "route": "/mavros/cmd/takeoff",
+          "locator": { "file": "src/ros/ROSBridge.ts", "symbol": "takeoff" },
+          "status": "removed",
+          "source_assertion": { "type": "not-contains", "needle": "mavros/cmd/takeoff" }
+        },
+        {
+          "id": "SURF-044",
+          "name": "ROSBridge land",
+          "route": "/mavros/cmd/land",
+          "locator": { "file": "src/ros/ROSBridge.ts", "symbol": "land" },
+          "status": "removed",
+          "source_assertion": { "type": "not-contains", "needle": "mavros/cmd/land" }
+        },
+        {
+          "id": "SURF-045",
+          "name": "Upload mission",
+          "route": "/mavros/mission/push",
+          "locator": { "file": "src/ros/WaypointManager.ts", "symbol": "uploadMission" },
+          "status": "removed",
+          "source_assertion": { "type": "absent-file" }
+        },
+        {
+          "id": "SURF-047",
+          "name": "Clear FCU mission",
+          "route": "/mavros/mission/clear",
+          "locator": { "file": "src/ros/WaypointManager.ts", "symbol": "clearMission" },
+          "status": "removed",
+          "source_assertion": { "type": "absent-file" }
+        },
+        {
+          "id": "SURF-048",
+          "name": "Set current FCU waypoint",
+          "route": "/mavros/mission/set_current",
+          "locator": { "file": "src/ros/WaypointManager.ts", "symbol": "setCurrentWaypoint" },
+          "status": "removed",
+          "source_assertion": { "type": "absent-file" }
+        }
+      ]
+    },
+    {
+      "group_id": "GROUP-MAVROS-TELEMETRY",
+      "domain": "ros_mavros",
+      "kind": "ros-subscribe-or-read",
+      "classification": "telemetry",
+      "owner": "flight-telemetry",
+      "profiles": { "current": ["default", "dev-sim"], "secure_sitl": "read-only" },
+      "hazard_ids": ["HAZ-006", "HAZ-011"],
+      "tests": [{ "id": "TEST-TELEMETRY-STALENESS", "status": "partial" }],
+      "members": [
+        {
+          "id": "SURF-046",
+          "name": "Pull FCU mission",
+          "route": "/mavros/mission/pull",
+          "locator": { "file": "src/ros/WaypointManager.ts", "symbol": "downloadMission" },
+          "status": "removed",
+          "source_assertion": { "type": "absent-file" }
+        },
+        {
+          "id": "SURF-049",
+          "name": "Waypoint reached telemetry",
+          "route": "/mavros/mission/reached",
+          "locator": { "file": "src/ros/WaypointManager.ts", "symbol": "WP_REACHED" },
+          "status": "removed",
+          "source_assertion": { "type": "absent-file" }
+        },
+        {
+          "id": "SURF-050",
+          "name": "Waypoint list telemetry",
+          "route": "/mavros/mission/waypoints",
+          "locator": { "file": "src/ros/WaypointManager.ts", "symbol": "WP_WAYPOINTS" },
+          "status": "removed",
+          "source_assertion": { "type": "absent-file" }
+        },
+        {
+          "id": "SURF-051",
+          "name": "Current waypoint telemetry",
+          "route": "/mavros/mission/current",
+          "locator": { "file": "src/ros/WaypointManager.ts", "symbol": "CURRENT_WP" },
+          "status": "removed",
+          "source_assertion": { "type": "absent-file" }
+        },
+        {
+          "id": "SURF-052",
+          "name": "Global position telemetry",
+          "route": "/mavros/global_position/global",
+          "locator": { "file": "src/ros/WaypointManager.ts", "symbol": "GLOBAL_POS" },
+          "status": "removed",
+          "source_assertion": { "type": "absent-file" }
+        },
+        {
+          "id": "SURF-053",
+          "name": "Local odometry telemetry",
+          "route": "/mavros/local_position/odom",
+          "locator": { "file": "src/ros/ROSBridge.ts", "symbol": "subscribeToOdometry" },
+          "status": "live",
+          "source_assertion": { "type": "contains", "needle": "mavros/local_position/odom" }
+        },
+        {
+          "id": "SURF-054",
+          "name": "ROS local pose telemetry",
+          "route": "/mavros/local_position/pose",
+          "locator": { "file": "src/ros/ROSBridge.ts", "symbol": "subscribeToPose" },
+          "status": "live",
+          "source_assertion": { "type": "contains", "needle": "mavros/local_position/pose" }
+        },
+        {
+          "id": "SURF-055",
+          "name": "Zenoh local pose telemetry",
+          "route": "/mavros/local_position/pose",
+          "locator": { "file": "src/ros/ZenohBridge.ts", "symbol": "subscribeToPose" },
+          "status": "live",
+          "source_assertion": { "type": "contains", "needle": "mavros/local_position/pose" }
+        },
+        {
+          "id": "SURF-056",
+          "name": "MAVROS state telemetry",
+          "route": "/mavros/state",
+          "locator": { "file": "src/ros/ROSBridge.ts", "symbol": "subscribeToState" },
+          "status": "live",
+          "source_assertion": { "type": "contains", "needle": "mavros/state" }
+        }
+      ]
+    },
+    {
+      "group_id": "GROUP-SENSOR-TELEMETRY",
+      "domain": "ros_mavros",
+      "kind": "ros-topic-subscribe",
+      "classification": "telemetry",
+      "owner": "sensor-fusion",
+      "profiles": { "current": ["default", "dev-sim"], "secure_sitl": "read-only" },
+      "hazard_ids": ["HAZ-006", "HAZ-009", "HAZ-011"],
+      "tests": [{ "id": "TEST-SENSOR-SCHEMA-AND-STALENESS", "status": "partial" }],
+      "members": [
+        {
+          "id": "SURF-059",
+          "name": "Thermal detections",
+          "route": "/crebain/thermal/detections",
+          "locator": { "file": "src/ros/useROSSensors.ts", "symbol": "thermal topic" },
+          "status": "live",
+          "source_assertion": { "type": "contains", "needle": "/crebain/thermal/detections" }
+        },
+        {
+          "id": "SURF-060",
+          "name": "Acoustic detections",
+          "route": "/crebain/acoustic/detections",
+          "locator": { "file": "src/ros/useROSSensors.ts", "symbol": "acoustic topic" },
+          "status": "live",
+          "source_assertion": { "type": "contains", "needle": "/crebain/acoustic/detections" }
+        },
+        {
+          "id": "SURF-061",
+          "name": "Radar detections",
+          "route": "/crebain/radar/detections",
+          "locator": { "file": "src/ros/useROSSensors.ts", "symbol": "radar topic" },
+          "status": "live",
+          "source_assertion": { "type": "contains", "needle": "/crebain/radar/detections" }
+        },
+        {
+          "id": "SURF-062",
+          "name": "Lidar detections",
+          "route": "/crebain/lidar/detections",
+          "locator": { "file": "src/ros/useROSSensors.ts", "symbol": "lidar topic" },
+          "status": "live",
+          "source_assertion": { "type": "contains", "needle": "/crebain/lidar/detections" }
+        },
+        {
+          "id": "SURF-063",
+          "name": "Visual detections",
+          "route": "/crebain/visual/detections",
+          "locator": { "file": "src/ros/useROSSensors.ts", "symbol": "visual topic" },
+          "status": "declared",
+          "source_assertion": { "type": "contains", "needle": "/crebain/visual/detections" }
+        },
+        {
+          "id": "SURF-064",
+          "name": "Raw camera image template",
+          "route": "/camera/image_raw",
+          "locator": { "file": "ros/README.md", "symbol": "raw camera template" },
+          "status": "declared",
+          "source_assertion": { "type": "contains", "needle": "/<ns>/camera/image_raw`" }
+        },
+        {
+          "id": "SURF-065",
+          "name": "Compressed camera image template",
+          "route": "/camera/image_raw/compressed",
+          "locator": { "file": "ros/README.md", "symbol": "compressed camera template" },
+          "status": "declared",
+          "source_assertion": { "type": "contains", "needle": "/<ns>/camera/image_raw/compressed`" }
+        },
+        {
+          "id": "SURF-066",
+          "name": "Camera information template",
+          "route": "/camera/camera_info",
+          "locator": { "file": "ros/README.md", "symbol": "camera info template" },
+          "status": "declared",
+          "source_assertion": { "type": "contains", "needle": "/<ns>/camera/camera_info`" }
+        },
+        {
+          "id": "SURF-067",
+          "name": "Typed native IMU subscription",
+          "route": "zenoh://typed/sensor_msgs/Imu/*",
+          "locator": {
+            "file": "src-tauri/src/transport/commands.rs",
+            "symbol": "transport_subscribe_imu"
+          },
+          "status": "registered",
+          "source_assertion": {
+            "type": "contains",
+            "needle": "pub async fn transport_subscribe_imu"
+          }
+        }
+      ]
+    },
+    {
+      "group_id": "GROUP-REFERENCE-EVIDENCE-AND-SERVICES",
+      "domain": "ros_mavros",
+      "kind": "ros-reference-contract",
+      "classification": "evidence",
+      "owner": "sensor-fusion",
+      "profiles": { "current": ["dev-sim"], "secure_sitl": "read-only" },
+      "hazard_ids": ["HAZ-011", "HAZ-014"],
+      "tests": [{ "id": "TEST-ROS-DEFINITION-VALIDATION", "status": "existing" }],
+      "members": [
+        {
+          "id": "SURF-068",
+          "name": "Reference fused target output",
+          "route": "/crebain/targets",
+          "locator": { "file": "ros/README.md", "symbol": "target topic contract" },
+          "status": "declared",
+          "source_assertion": { "type": "contains", "needle": "/crebain/targets`" }
+        }
+      ]
+    },
+    {
+      "group_id": "GROUP-REFERENCE-INTERCEPTION-SERVICES",
+      "domain": "ros_mavros",
+      "kind": "ros-service-definition",
+      "classification": "simulation-only",
+      "owner": "simulation",
+      "profiles": { "current": ["dev-sim"], "secure_sitl": "excluded" },
+      "hazard_ids": ["HAZ-001", "HAZ-015", "HAZ-016"],
+      "tests": [{ "id": "TEST-SECURE-PROFILE-NO-REFERENCE-SERVICE", "status": "planned" }],
+      "members": [
+        {
+          "id": "SURF-069",
+          "name": "Reference initiate-intercept service",
+          "route": "/crebain/initiate_intercept",
+          "locator": { "file": "ros/srv/InitiateIntercept.srv", "symbol": "InitiateIntercept" },
+          "status": "declared",
+          "source_assertion": {
+            "type": "contains",
+            "needle": "Request interception of a target drone"
+          }
+        },
+        {
+          "id": "SURF-070",
+          "name": "Reference abort-mission service",
+          "route": "/crebain/abort_mission",
+          "locator": { "file": "ros/srv/AbortMission.srv", "symbol": "AbortMission" },
+          "status": "declared",
+          "source_assertion": {
+            "type": "contains",
+            "needle": "Abort an active interception mission"
+          }
+        }
+      ]
+    },
+    {
+      "group_id": "GROUP-GAZEBO-MUTATION",
+      "domain": "gazebo",
+      "kind": "ros-service-call",
+      "classification": "simulation-only",
+      "owner": "simulation",
+      "profiles": { "current": ["default", "dev-sim"], "secure_sitl": "excluded" },
+      "hazard_ids": ["HAZ-015"],
+      "tests": [{ "id": "TEST-SECURE-PROFILE-NO-SIM-MUTATION", "status": "planned" }],
+      "members": [
+        {
+          "id": "SURF-071",
+          "name": "Pause Gazebo physics",
+          "route": "/gazebo/pause_physics",
+          "locator": { "file": "src/ros/GazeboController.ts", "symbol": "pause" },
+          "status": "removed",
+          "source_assertion": { "type": "absent-file" }
+        },
+        {
+          "id": "SURF-072",
+          "name": "Unpause Gazebo physics",
+          "route": "/gazebo/unpause_physics",
+          "locator": { "file": "src/ros/GazeboController.ts", "symbol": "unpause" },
+          "status": "removed",
+          "source_assertion": { "type": "absent-file" }
+        },
+        {
+          "id": "SURF-073",
+          "name": "Reset Gazebo world",
+          "route": "/gazebo/reset_world",
+          "locator": { "file": "src/ros/GazeboController.ts", "symbol": "resetWorld" },
+          "status": "removed",
+          "source_assertion": { "type": "absent-file" }
+        },
+        {
+          "id": "SURF-074",
+          "name": "Reset Gazebo simulation and time",
+          "route": "/gazebo/reset_simulation",
+          "locator": { "file": "src/ros/GazeboController.ts", "symbol": "resetSimulation" },
+          "status": "removed",
+          "source_assertion": { "type": "absent-file" }
+        },
+        {
+          "id": "SURF-075",
+          "name": "Spawn caller-provided URDF",
+          "route": "/gazebo/spawn_urdf_model",
+          "locator": { "file": "src/ros/GazeboController.ts", "symbol": "spawnURDF" },
+          "status": "removed",
+          "source_assertion": { "type": "absent-file" }
+        },
+        {
+          "id": "SURF-076",
+          "name": "Spawn SDF",
+          "route": "/gazebo/spawn_sdf_model",
+          "locator": { "file": "src/ros/GazeboController.ts", "symbol": "spawnSDF" },
+          "status": "removed",
+          "source_assertion": { "type": "absent-file" }
+        },
+        {
+          "id": "SURF-077",
+          "name": "Delete Gazebo model",
+          "route": "/gazebo/delete_model",
+          "locator": { "file": "src/ros/GazeboController.ts", "symbol": "deleteModel" },
+          "status": "removed",
+          "source_assertion": { "type": "absent-file" }
+        },
+        {
+          "id": "SURF-079",
+          "name": "Set or teleport Gazebo model state",
+          "route": "/gazebo/set_model_state",
+          "locator": { "file": "src/ros/GazeboController.ts", "symbol": "setModelState" },
+          "status": "removed",
+          "source_assertion": { "type": "absent-file" }
+        },
+        {
+          "id": "SURF-081",
+          "name": "Set Gazebo physics properties",
+          "route": "/gazebo/set_physics_properties",
+          "locator": { "file": "src/ros/GazeboController.ts", "symbol": "SET_PHYSICS" },
+          "status": "removed",
+          "source_assertion": { "type": "absent-file" }
+        },
+        {
+          "id": "SURF-106",
+          "name": "Teleport Gazebo model helper",
+          "route": "/gazebo/set_model_state",
+          "locator": { "file": "src/ros/GazeboController.ts", "symbol": "teleportModel" },
+          "status": "removed",
+          "source_assertion": { "type": "absent-file" }
+        },
+        {
+          "id": "SURF-107",
+          "name": "Set Gazebo model velocity helper",
+          "route": "/gazebo/set_model_state",
+          "locator": { "file": "src/ros/GazeboController.ts", "symbol": "setModelVelocity" },
+          "status": "removed",
+          "source_assertion": { "type": "absent-file" }
+        },
+        {
+          "id": "SURF-108",
+          "name": "Spawn bundled privileged Maverick SDF",
+          "route": "/gazebo/spawn_sdf_model",
+          "locator": { "file": "src/ros/GazeboController.ts", "symbol": "spawnBundledMaverick" },
+          "status": "removed",
+          "source_assertion": { "type": "absent-file" }
+        }
+      ]
+    },
+    {
+      "group_id": "GROUP-GAZEBO-TELEMETRY",
+      "domain": "gazebo",
+      "kind": "ros-service-or-topic-read",
+      "classification": "telemetry",
+      "owner": "simulation",
+      "profiles": { "current": ["default", "dev-sim"], "secure_sitl": "read-only" },
+      "hazard_ids": ["HAZ-006", "HAZ-015"],
+      "tests": [{ "id": "TEST-GAZEBO-STATE-STALENESS", "status": "partial" }],
+      "members": [
+        {
+          "id": "SURF-057",
+          "name": "ROS Gazebo model states",
+          "route": "/gazebo/model_states",
+          "locator": { "file": "src/ros/ROSBridge.ts", "symbol": "subscribeToModelStates" },
+          "status": "live",
+          "source_assertion": { "type": "contains", "needle": "/gazebo/model_states" }
+        },
+        {
+          "id": "SURF-058",
+          "name": "Zenoh Gazebo model states",
+          "route": "/gazebo/model_states",
+          "locator": { "file": "src/ros/ZenohBridge.ts", "symbol": "subscribeToModelStates" },
+          "status": "live",
+          "source_assertion": { "type": "contains", "needle": "/gazebo/model_states" }
+        },
+        {
+          "id": "SURF-078",
+          "name": "Get Gazebo model state",
+          "route": "/gazebo/get_model_state",
+          "locator": { "file": "src/ros/GazeboController.ts", "symbol": "getModelState" },
+          "status": "removed",
+          "source_assertion": { "type": "absent-file" }
+        },
+        {
+          "id": "SURF-080",
+          "name": "Get Gazebo physics properties",
+          "route": "/gazebo/get_physics_properties",
+          "locator": { "file": "src/ros/GazeboController.ts", "symbol": "GET_PHYSICS" },
+          "status": "removed",
+          "source_assertion": { "type": "absent-file" }
+        },
+        {
+          "id": "SURF-082",
+          "name": "Gazebo simulation clock",
+          "route": "/clock",
+          "locator": { "file": "src/ros/GazeboController.ts", "symbol": "clock subscription" },
+          "status": "removed",
+          "source_assertion": { "type": "absent-file" }
+        }
+      ]
+    },
+    {
+      "group_id": "GROUP-GAZEBO-MOTOR-ENDPOINTS",
+      "domain": "gazebo",
+      "kind": "gazebo-plugin-topic",
+      "classification": "simulation-only",
+      "owner": "simulation",
+      "profiles": { "current": ["dev-sim"], "secure_sitl": "excluded" },
+      "hazard_ids": ["HAZ-001", "HAZ-015"],
+      "tests": [{ "id": "TEST-NO-RENDERER-ROTOR-PUBLISHER", "status": "existing" }],
+      "members": [
+        {
+          "id": "SURF-083",
+          "name": "Bundled Gazebo motor command subscriptions",
+          "route": "/cmd/motor_speed/*",
+          "locator": { "file": "src/ros/models.ts", "symbol": "commandSubTopic" },
+          "status": "declared",
+          "source_assertion": {
+            "type": "contains",
+            "needle": "<commandSubTopic>cmd/motor_speed/0</commandSubTopic>"
+          }
+        },
+        {
+          "id": "SURF-084",
+          "name": "Legacy renderer rotor publisher",
+          "route": "legacy://renderer-rotor-publisher",
+          "locator": { "file": "src/hooks/useRosActuatorLoop.ts", "symbol": "useRosActuatorLoop" },
+          "status": "removed",
+          "source_assertion": { "type": "absent-file" }
+        }
+      ]
+    },
+    {
+      "group_id": "GROUP-LOCAL-SIM-MUTATION",
+      "domain": "local_sim",
+      "kind": "local-state-mutation",
+      "classification": "simulation-only",
+      "owner": "simulation",
+      "profiles": { "current": ["default", "dev-sim"], "secure_sitl": "excluded" },
+      "hazard_ids": ["HAZ-015"],
+      "tests": [{ "id": "TEST-LOCAL-SIM-ISOLATION", "status": "planned" }],
+      "members": [
+        {
+          "id": "SURF-085",
+          "name": "Spawn local physics drone",
+          "route": "local-sim://drone/spawn",
+          "locator": { "file": "src/hooks/useDroneController.ts", "symbol": "spawnDrone" },
+          "status": "live",
+          "source_assertion": { "type": "contains", "needle": "const spawnDrone = useCallback" }
+        },
+        {
+          "id": "SURF-086",
+          "name": "Remove local physics drone",
+          "route": "local-sim://drone/remove",
+          "locator": { "file": "src/hooks/useDroneController.ts", "symbol": "removeDrone" },
+          "status": "live",
+          "source_assertion": { "type": "contains", "needle": "const removeDrone = useCallback" }
+        },
+        {
+          "id": "SURF-087",
+          "name": "Reset local physics simulation",
+          "route": "local-sim://world/reset",
+          "locator": { "file": "src/hooks/useDroneController.ts", "symbol": "resetSimulation" },
+          "status": "live",
+          "source_assertion": {
+            "type": "contains",
+            "needle": "const resetSimulation = useCallback"
+          }
+        },
+        {
+          "id": "SURF-088",
+          "name": "Pause or resume local physics",
+          "route": "local-sim://world/pause",
+          "locator": { "file": "src/hooks/useDroneController.ts", "symbol": "setSimulationPaused" },
+          "status": "live",
+          "source_assertion": {
+            "type": "contains",
+            "needle": "const setSimulationPaused = useCallback"
+          }
+        },
+        {
+          "id": "SURF-089",
+          "name": "Keyboard arm, disarm, and emergency",
+          "route": "local-sim://drone/armed",
+          "locator": {
+            "file": "src/hooks/useDroneController.ts",
+            "symbol": "useKeyboardControls callbacks"
+          },
+          "status": "live",
+          "source_assertion": { "type": "contains", "needle": "onEmergency: () =>" }
+        },
+        {
+          "id": "SURF-090",
+          "name": "Local flight controller motor commands",
+          "route": "local-sim://drone/motor-commands",
+          "locator": { "file": "src/hooks/useDroneController.ts", "symbol": "setMotorCommands" },
+          "status": "live",
+          "source_assertion": {
+            "type": "contains",
+            "needle": "drone.physicsBody.setMotorCommands(commands)"
+          }
+        },
+        {
+          "id": "SURF-091",
+          "name": "Replace local route",
+          "route": "local-sim://route/set",
+          "locator": { "file": "src/hooks/useDroneController.ts", "symbol": "setRoute" },
+          "status": "live",
+          "source_assertion": { "type": "contains", "needle": "const setRoute = useCallback" }
+        },
+        {
+          "id": "SURF-109",
+          "name": "Add local waypoint",
+          "route": "local-sim://route/add-waypoint",
+          "locator": { "file": "src/hooks/useDroneController.ts", "symbol": "addWaypoint" },
+          "status": "live",
+          "source_assertion": { "type": "contains", "needle": "const addWaypoint = useCallback" }
+        },
+        {
+          "id": "SURF-110",
+          "name": "Clear local route",
+          "route": "local-sim://route/clear",
+          "locator": { "file": "src/hooks/useDroneController.ts", "symbol": "clearRoute" },
+          "status": "live",
+          "source_assertion": { "type": "contains", "needle": "const clearRoute = useCallback" }
+        },
+        {
+          "id": "SURF-111",
+          "name": "Activate or stop local route",
+          "route": "local-sim://route/toggle",
+          "locator": { "file": "src/hooks/useDroneController.ts", "symbol": "toggleRoute" },
+          "status": "live",
+          "source_assertion": { "type": "contains", "needle": "const toggleRoute = useCallback" }
+        }
+      ]
+    },
+    {
+      "group_id": "GROUP-RENDERER-SCENE-MUTATION",
+      "domain": "renderer",
+      "kind": "local-scene-mutation",
+      "classification": "simulation-only",
+      "owner": "scene-runtime",
+      "profiles": { "current": ["default", "dev-sim"], "secure_sitl": "excluded" },
+      "hazard_ids": ["HAZ-014", "HAZ-015"],
+      "tests": [{ "id": "TEST-SCENE-MUTATION-ISOLATION", "status": "planned" }],
+      "members": [
+        {
+          "id": "SURF-114",
+          "name": "Drag selected object and synchronize local physics",
+          "route": "renderer://scene/object/drag",
+          "locator": {
+            "file": "src/components/CrebainViewer.tsx",
+            "symbol": "useDraggable3D onDragEnd"
+          },
+          "status": "live",
+          "source_assertion": { "type": "contains", "needle": "onDragEnd: (obj, position) =>" }
+        },
+        {
+          "id": "SURF-115",
+          "name": "Rotate, scale, or nudge selected object",
+          "route": "renderer://scene/object/transform",
+          "locator": {
+            "file": "src/components/ObjectTransformControls.tsx",
+            "symbol": "ObjectTransformControls"
+          },
+          "status": "live",
+          "source_assertion": { "type": "contains", "needle": "onTransform?.(object)" }
+        },
+        {
+          "id": "SURF-116",
+          "name": "Delete selected scene object",
+          "route": "renderer://scene/object/delete",
+          "locator": {
+            "file": "src/components/CrebainViewer.tsx",
+            "symbol": "handleDeleteSelectedObject"
+          },
+          "status": "live",
+          "source_assertion": {
+            "type": "contains",
+            "needle": "onDelete={handleDeleteSelectedObject}"
+          }
+        },
+        {
+          "id": "SURF-117",
+          "name": "Replace active scene from persisted state",
+          "route": "renderer://scene/restore",
+          "locator": { "file": "src/components/CrebainViewer.tsx", "symbol": "restoreScene" },
+          "status": "live",
+          "source_assertion": { "type": "contains", "needle": "const restoreScene = useCallback" }
+        },
+        {
+          "id": "SURF-118",
+          "name": "Place surveillance camera in local scene",
+          "route": "renderer://scene/camera/place",
+          "locator": { "file": "src/components/CrebainViewer.tsx", "symbol": "placeCamera" },
+          "status": "live",
+          "source_assertion": { "type": "contains", "needle": "const placeCamera = useCallback" }
+        },
+        {
+          "id": "SURF-119",
+          "name": "Import or replace local scene assets",
+          "route": "renderer://scene/assets/*",
+          "locator": { "file": "src/components/CrebainViewer.tsx", "symbol": "handleFileSelect" },
+          "status": "live",
+          "source_assertion": {
+            "type": "contains",
+            "needle": "const handleFileSelect = useCallback"
+          }
+        }
+      ]
+    },
+    {
+      "group_id": "GROUP-DEV-NCP-MUTATION",
+      "domain": "dev_ncp",
+      "kind": "browser-global",
+      "classification": "simulation-only",
+      "owner": "ncp-integration",
+      "profiles": { "current": ["dev-sim"], "secure_sitl": "excluded" },
+      "hazard_ids": ["HAZ-004", "HAZ-005", "HAZ-015"],
+      "tests": [
+        { "id": "TEST-DEV-NCP-BOUNDARIES", "status": "existing" },
+        { "id": "TEST-SECURE-PROFILE-NO-DEV-GLOBAL", "status": "planned" }
+      ],
+      "members": [
+        {
+          "id": "SURF-094",
+          "name": "Development NCP physics spawn",
+          "route": "window.__ncpDrone.spawn",
+          "locator": { "file": "src/hooks/useDroneController.ts", "symbol": "bridge.spawn" },
+          "status": "live",
+          "source_assertion": { "type": "contains", "needle": "w.__ncpDrone = bridge" }
+        },
+        {
+          "id": "SURF-095",
+          "name": "Development NCP kinematic spawn",
+          "route": "window.__ncpDrone.spawnKinematic",
+          "locator": {
+            "file": "src/hooks/useDroneController.ts",
+            "symbol": "bridge.spawnKinematic"
+          },
+          "status": "live",
+          "source_assertion": { "type": "contains", "needle": "spawnKinematic(x = 0" }
+        },
+        {
+          "id": "SURF-096",
+          "name": "Development NCP local command application",
+          "route": "window.__ncpDrone.applyCommand",
+          "locator": { "file": "src/hooks/useDroneController.ts", "symbol": "bridge.applyCommand" },
+          "status": "live",
+          "source_assertion": {
+            "type": "contains",
+            "needle": "applyCommand(id: string, frame: unknown)"
+          }
+        },
+        {
+          "id": "SURF-097",
+          "name": "Development NCP supervisor reset",
+          "route": "window.__ncpDrone.reset",
+          "locator": { "file": "src/hooks/useDroneController.ts", "symbol": "bridge.reset" },
+          "status": "live",
+          "source_assertion": { "type": "contains", "needle": "reset(id?: string)" }
+        }
+      ]
+    },
+    {
+      "group_id": "GROUP-DEV-NCP-TELEMETRY",
+      "domain": "dev_ncp",
+      "kind": "browser-global",
+      "classification": "telemetry",
+      "owner": "ncp-integration",
+      "profiles": { "current": ["dev-sim"], "secure_sitl": "excluded" },
+      "hazard_ids": ["HAZ-014", "HAZ-015"],
+      "tests": [{ "id": "TEST-DEV-NCP-BOUNDARIES", "status": "existing" }],
+      "members": [
+        {
+          "id": "SURF-112",
+          "name": "Development NCP drone list",
+          "route": "window.__ncpDrone.list",
+          "locator": { "file": "src/hooks/useDroneController.ts", "symbol": "bridge.list" },
+          "status": "live",
+          "source_assertion": { "type": "contains", "needle": "list(): string[]" }
+        },
+        {
+          "id": "SURF-113",
+          "name": "Development NCP local pose",
+          "route": "window.__ncpDrone.pose",
+          "locator": { "file": "src/hooks/useDroneController.ts", "symbol": "bridge.pose" },
+          "status": "live",
+          "source_assertion": { "type": "contains", "needle": "return posOf(id)" }
+        }
+      ]
+    },
+    {
+      "group_id": "GROUP-NATIVE-NCP-LIFECYCLE",
+      "domain": "native_ncp",
+      "kind": "tauri-command",
+      "classification": "maintenance-only",
+      "owner": "ncp-integration",
+      "profiles": { "current": ["ncp-feature"], "secure_sitl": "unregistered" },
+      "hazard_ids": ["HAZ-004", "HAZ-008", "HAZ-013"],
+      "tests": [
+        { "id": "TEST-NCP-FEATURE-LIFECYCLE", "status": "existing" },
+        { "id": "TEST-NCP-UNREGISTERED-DEFAULT", "status": "existing" }
+      ],
+      "members": [
+        {
+          "id": "SURF-098",
+          "name": "Native NCP connect",
+          "route": "ncp_connect",
+          "locator": { "file": "src-tauri/src/ncp/mod.rs", "symbol": "ncp_connect" },
+          "status": "dormant-unregistered",
+          "source_assertion": { "type": "contains", "needle": "pub async fn ncp_connect(" }
+        },
+        {
+          "id": "SURF-099",
+          "name": "Native NCP open feature-neuron session",
+          "route": "ncp_open_feature_neuron",
+          "locator": { "file": "src-tauri/src/ncp/mod.rs", "symbol": "ncp_open_feature_neuron" },
+          "status": "dormant-unregistered",
+          "source_assertion": {
+            "type": "contains",
+            "needle": "pub async fn ncp_open_feature_neuron("
+          }
+        },
+        {
+          "id": "SURF-101",
+          "name": "Native NCP close session",
+          "route": "ncp_close",
+          "locator": { "file": "src-tauri/src/ncp/mod.rs", "symbol": "ncp_close" },
+          "status": "dormant-unregistered",
+          "source_assertion": { "type": "contains", "needle": "pub async fn ncp_close(" }
+        }
+      ]
+    },
+    {
+      "group_id": "GROUP-NATIVE-NCP-EVIDENCE",
+      "domain": "native_ncp",
+      "kind": "tauri-command-or-library",
+      "classification": "evidence",
+      "owner": "ncp-integration",
+      "profiles": { "current": ["ncp-feature"], "secure_sitl": "read-only" },
+      "hazard_ids": ["HAZ-011", "HAZ-012"],
+      "tests": [{ "id": "TEST-NCP-FEATURE-LIFECYCLE", "status": "existing" }],
+      "members": [
+        {
+          "id": "SURF-100",
+          "name": "Native NCP feature-neuron step",
+          "route": "ncp_step_feature_neuron",
+          "locator": { "file": "src-tauri/src/ncp/mod.rs", "symbol": "ncp_step_feature_neuron" },
+          "status": "dormant-unregistered",
+          "source_assertion": {
+            "type": "contains",
+            "needle": "pub async fn ncp_step_feature_neuron("
+          }
+        }
+      ]
+    },
+    {
+      "group_id": "GROUP-NATIVE-NCP-PROPOSAL",
+      "domain": "native_ncp",
+      "kind": "native-command-ingress-and-local-proposal",
+      "classification": "maintenance-only",
+      "owner": "ncp-integration",
+      "profiles": { "current": ["ncp-feature-library"], "secure_sitl": "unregistered" },
+      "hazard_ids": [
+        "HAZ-001",
+        "HAZ-002",
+        "HAZ-003",
+        "HAZ-004",
+        "HAZ-005",
+        "HAZ-006",
+        "HAZ-007",
+        "HAZ-012",
+        "HAZ-013"
+      ],
+      "tests": [{ "id": "TEST-NCP-COMMAND-PLANT", "status": "existing-component" }],
+      "members": [
+        {
+          "id": "SURF-102",
+          "name": "Native NCP command subscription",
+          "route": "zenoh://{realm}/session/{session_id}/command",
+          "locator": {
+            "file": "src-tauri/src/ncp/mod.rs",
+            "symbol": "NcpBridge.subscribe_commands"
+          },
+          "status": "dormant-unregistered",
+          "source_assertion": { "type": "contains", "needle": "pub async fn subscribe_commands" }
+        },
+        {
+          "id": "SURF-103",
+          "name": "Native CommandPlant local proposal callback",
+          "route": "native://CommandPlant/VelocitySetpointProposal",
+          "locator": { "file": "src-tauri/src/ncp/mod.rs", "symbol": "ActionOutput" },
+          "status": "dormant-unregistered",
+          "source_assertion": {
+            "type": "contains",
+            "needle": "type ActionOutput = Arc<dyn Fn(VelocitySetpointProposal)"
+          }
+        }
+      ]
+    },
+    {
+      "group_id": "GROUP-NATIVE-NCP-TELEMETRY",
+      "domain": "native_ncp",
+      "kind": "native-publish",
+      "classification": "telemetry",
+      "owner": "ncp-integration",
+      "profiles": { "current": ["ncp-feature-library"], "secure_sitl": "read-only" },
+      "hazard_ids": ["HAZ-005", "HAZ-006", "HAZ-011"],
+      "tests": [{ "id": "TEST-NCP-SENSOR-FRAME", "status": "existing-component" }],
+      "members": [
+        {
+          "id": "SURF-104",
+          "name": "Native NCP sensor-frame publication",
+          "route": "ncp://{realm}/{session}/sensors",
+          "locator": { "file": "src-tauri/src/ncp/mod.rs", "symbol": "NcpBridge.publish_sensor" },
+          "status": "dormant-unregistered",
+          "source_assertion": { "type": "contains", "needle": "pub async fn publish_sensor(" }
+        }
+      ]
+    },
+    {
+      "group_id": "GROUP-PID-EVIDENCE-SINK",
+      "domain": "zenoh_tauri",
+      "kind": "local-file-evidence",
+      "classification": "evidence",
+      "owner": "fusion",
+      "profiles": { "current": ["default", "dev-sim"], "secure_sitl": "read-only" },
+      "hazard_ids": ["HAZ-009", "HAZ-011", "HAZ-012"],
+      "tests": [
+        { "id": "TEST-PID-JSONL-LOCAL", "status": "existing-component" },
+        { "id": "TEST-EVIDENCE-INSUFFICIENCY", "status": "planned" }
+      ],
+      "members": [
+        {
+          "id": "SURF-105",
+          "name": "Best-effort Galadriel-oriented PID JSONL",
+          "route": "file://CREBAIN_PID_JSONL",
+          "locator": { "file": "src-tauri/src/lib.rs", "symbol": "append_pid_observations" },
+          "status": "live",
+          "source_assertion": { "type": "contains", "needle": "fn append_pid_observations(" }
+        }
+      ]
+    }
+  ]
+}

@@ -40,8 +40,8 @@ as deployment evidence.
 - `sensor_frame_from_pose`: pose + body velocity to NCP `SensorFrame`.
   It returns `Result` and rejects a wire-invalid sequence.
 - `velocity_from_command`: strict one-frame conversion to
-  `TwistStampedData`; only a valid active `velocity_setpoint` in `m/s` can
-  actuate, while HOLD/ESTOP produce zero velocity.
+  `VelocitySetpointProposal`; only a valid active `velocity_setpoint` in `m/s`
+  can produce a nonzero local proposal, while HOLD/ESTOP produce zero velocity.
 - `CommandPlant`: wraps the SDK `ActionBuffer`, validates active commands, replays
   a bounded predictive horizon, enforces monotonic sequence and TTL, and returns
   zero velocity after expiry/drain/invalid state.
@@ -56,10 +56,10 @@ and latched before the receive-time/wire gate. Other invalid/incompatible frames
 are logged and dropped. Every action loop owns a dedicated subscriber container;
 stop, close, setup cancellation, and runtime drop release that container without
 closing the shared Zenoh session. Reconnect drains the previous runtime's action
-loops before replacement. Close requests a final zero-velocity HOLD before
-the remote RPC. A nonblocking, nonpanicking output callback is required; callback
-failure/timeout is surfaced because final HOLD cannot then be guaranteed. This is
-library behavior only until a deliberate integration calls it.
+loops before replacement. Close requests a final zero-velocity local HOLD
+proposal before the remote RPC. A nonblocking, nonpanicking proposal callback is
+required; callback failure/timeout is surfaced because final local notification
+cannot then be guaranteed. The callback has no transport or actuator capability.
 
 ## Connection posture
 
@@ -105,10 +105,10 @@ successful response.
 
 Exposing the four Tauri control commands requires managing `NcpHandle`, adding
 the commands to `generate_handler!`, updating the frontend command registry and
-contract tests, and adding an explicit opt-in UI/hook. Closed-loop action also
-requires a separate caller to subscribe to commands and publish the callback's
-validated `TwistStampedData` to the intended actuator path. Registration alone is
-not that loop.
+contract tests, and adding an explicit opt-in UI/hook. Closed-loop action would
+also require a separately reviewed narrow plant adapter, exclusive authority,
+fresh-state and expiry gates, and FCU evidence. The current callback only emits
+a `VelocitySetpointProposal`; registration alone is not a plant or actuator loop.
 
 Before a live deployment claim, also prove the target NCP realm/key ACL allows
 the CREBAIN participant. Repository unit tests do not validate an external

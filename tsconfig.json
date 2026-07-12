@@ -23,7 +23,10 @@
 
     "resolveJsonModule": true,
     "esModuleInterop": true,
-    "types": ["vitest/globals", "bun-types"]
+    "types": ["vitest/globals", "bun-types"],
+    "paths": {
+      "#renderer-rosbridge": ["./src/ros/ROSBridge.ts"]
+    }
   },
   "include": ["src"]
 }

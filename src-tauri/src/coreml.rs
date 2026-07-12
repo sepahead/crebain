@@ -9,7 +9,6 @@ use objc::{class, msg_send, runtime::Object, sel, sel_impl};
 #[cfg(target_os = "macos")]
 use std::ffi::CString;
 
-use base64::Engine;
 #[cfg(target_os = "macos")]
 use std::sync::OnceLock;
 use std::time::Instant;
@@ -588,58 +587,6 @@ struct CGSize {
 #[cfg(target_os = "macos")]
 pub fn init_detector(model_path: &str) -> Result<(), String> {
     NativeCoreMLDetector::init_global(model_path)
-}
-
-/// Run detection on base64-encoded image (convenience function)
-pub fn detect_base64(
-    image_base64: &str,
-    confidence_threshold: f64,
-    max_detections: usize,
-) -> Result<DetectionResult, String> {
-    crate::common::image::validate_base64_image_len(image_base64.len())?;
-    let start = Instant::now();
-
-    // Decode base64 using the Engine trait correctly
-    let image_data = base64::engine::general_purpose::STANDARD
-        .decode(image_base64)
-        .map_err(|e| format!("Base64 decode error: {}", e))?;
-
-    // Decode PNG/JPEG to raw RGBA with strict dimensions/allocation limits.
-    let img = crate::common::image::decode_image_with_limits(&image_data)?;
-
-    let rgba = img.to_rgba8();
-    let (width, height) = rgba.dimensions();
-    let raw_data = rgba.into_raw();
-    crate::common::image::validate_rgba_input_len(raw_data.len(), width, height)?;
-
-    let decode_time = start.elapsed();
-    log::debug!("Image decode took: {:?}", decode_time);
-
-    // Run detection
-    #[cfg(target_os = "macos")]
-    {
-        let detector =
-            NativeCoreMLDetector::get_global().ok_or("CoreML detector not initialized")?;
-        detector.detect_raw(
-            &raw_data,
-            width,
-            height,
-            confidence_threshold,
-            max_detections,
-        )
-    }
-
-    #[cfg(not(target_os = "macos"))]
-    {
-        let _ = (
-            raw_data,
-            width,
-            height,
-            confidence_threshold,
-            max_detections,
-        );
-        Err("CoreML is only available on macOS".to_string())
-    }
 }
 
 /// Run detection on raw RGBA data.

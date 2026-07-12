@@ -55,7 +55,7 @@ must not be reused as evidence for the current dependency or source tree.
 |------|-------------------|----------------|
 | Native launch | Packaged/dev Tauri launch and diagnostics on each target | Pending |
 | Scene save/restore | Valid save plus migrated/partial/oversized asset paths | Pending |
-| ROS 1 / Gazebo Classic | WebSocket custom messages and mutation services in recorded topology | Pending |
+| ROS 1 / Gazebo Classic | Read-only telemetry on the recorded Zenoh or development/native rosbridge topology; removed publish/service paths remain absent | Pending |
 | Native Zenoh | Typed message surface plus explicit unsupported-path behavior | Pending |
 | Model contract | Approved artifact digest, tensors, class mapping, fixtures, and rights | Pending external artifact |
 | Performance | Candidate-specific hardware/model/command evidence for every numeric claim | No numeric claim approved yet |

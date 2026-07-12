@@ -1,0 +1,588 @@
+{
+  "schema_version": 1,
+  "baseline_id": "crebain-phase0-hazards-2026-07-12",
+  "current_completion_level": "L0",
+  "target_completion_level": "L1",
+  "vocabularies": {
+    "completion_levels": ["L0", "L1", "L2", "L3", "L4"],
+    "severities": ["P0", "P1", "P2"],
+    "hazard_statuses": ["open", "partial", "controlled", "accepted"],
+    "control_statuses": ["planned", "partial", "implemented", "verified", "retired"],
+    "evidence_statuses": ["planned", "partial", "verified", "unavailable"],
+    "unsafe_control_actions": [
+      "provided-when-unsafe",
+      "omitted-when-required",
+      "provided-too-early-or-late",
+      "applied-too-long-or-stopped-too-soon"
+    ]
+  },
+  "status_policy": {
+    "allowed": ["open", "partial", "controlled", "accepted"],
+    "l1_blocking": ["open", "partial"],
+    "acceptance_requires": ["approver", "rationale", "scope", "expiry"]
+  },
+  "losses": [
+    { "id": "LOSS-001", "statement": "Unintended motion, collision, injury, or property damage" },
+    { "id": "LOSS-002", "statement": "Loss of timely vehicle control or safe containment" },
+    {
+      "id": "LOSS-003",
+      "statement": "False or non-reproducible safety, scientific, or operational evidence"
+    },
+    {
+      "id": "LOSS-004",
+      "statement": "Unauthorized command authority or security boundary compromise"
+    },
+    {
+      "id": "LOSS-005",
+      "statement": "Operator makes a hazardous decision from ambiguous or stale state"
+    }
+  ],
+  "controls": [
+    {
+      "id": "CTL-001",
+      "owner": "plant-authority",
+      "status": "planned",
+      "statement": "One native plant is the sole final FCU applier."
+    },
+    {
+      "id": "CTL-002",
+      "owner": "haldir-security",
+      "status": "planned",
+      "statement": "Only the authenticated Haldir Gate identity may publish the exact final route."
+    },
+    {
+      "id": "CTL-003",
+      "owner": "plant-authority",
+      "status": "planned",
+      "statement": "The plant checks command age with its monotonic clock immediately before every write."
+    },
+    {
+      "id": "CTL-004",
+      "owner": "ncp-integration",
+      "status": "partial",
+      "statement": "NCP wire, profile, session, generation, stream, source, sequence, and bounds fail closed."
+    },
+    {
+      "id": "CTL-005",
+      "owner": "plant-authority",
+      "status": "planned",
+      "statement": "One atomic fresh FCU health/state snapshot is checked at apply time."
+    },
+    {
+      "id": "CTL-006",
+      "owner": "flight-controls",
+      "status": "planned",
+      "statement": "Frames, units, axes, timestamps, and covariance conventions are typed and golden-vector tested."
+    },
+    {
+      "id": "CTL-007",
+      "owner": "flight-controls",
+      "status": "planned",
+      "statement": "The ODD safe-action matrix selects Hold, Land, RTL, inhibit, or disarm from authoritative state."
+    },
+    {
+      "id": "CTL-008",
+      "owner": "fcu-adapter",
+      "status": "planned",
+      "statement": "FCU estimator, fence, data-link, offboard, battery, and emergency failsafes are independently configured and attested."
+    },
+    {
+      "id": "CTL-009",
+      "owner": "security",
+      "status": "planned",
+      "statement": "Renderer, controller, observer, and simulator identities have no generic FCU command capability."
+    },
+    {
+      "id": "CTL-010",
+      "owner": "reliability",
+      "status": "planned",
+      "statement": "Every boot/reset creates a new epoch/session and cannot resume retained authority."
+    },
+    {
+      "id": "CTL-011",
+      "owner": "runtime",
+      "status": "partial",
+      "statement": "Payloads, queues, sessions, rates, logs, and evidence spools are bounded with reserved safe capacity."
+    },
+    {
+      "id": "CTL-012",
+      "owner": "evidence",
+      "status": "planned",
+      "statement": "Missing, late, rejected, expired, and dropped inputs are explicit and never interpreted as nominal."
+    },
+    {
+      "id": "CTL-013",
+      "owner": "evidence",
+      "status": "planned",
+      "statement": "Accepted, authorized, attempted, FCU-accepted, observed, expired, and safe-state stages are joined by stable identity."
+    },
+    {
+      "id": "CTL-014",
+      "owner": "fusion",
+      "status": "partial",
+      "statement": "Estimator consistency, divergence, staleness, and numerical failure are explicit degraded states."
+    },
+    {
+      "id": "CTL-015",
+      "owner": "model-assurance",
+      "status": "planned",
+      "statement": "Models use immutable signed contracts, calibration evidence, supported ODD, and golden fixtures."
+    },
+    {
+      "id": "CTL-016",
+      "owner": "operator-ux",
+      "status": "planned",
+      "statement": "UI vocabulary distinguishes connection, delivery, acceptance, authorization, FCU acceptance, and observation."
+    },
+    {
+      "id": "CTL-017",
+      "owner": "simulation",
+      "status": "partial",
+      "statement": "Simulation mutation runs under a separate profile/identity and is labeled non-flight evidence."
+    },
+    {
+      "id": "CTL-018",
+      "owner": "mission-authority",
+      "status": "planned",
+      "statement": "Mission, mode, arm, takeoff, land, disarm, and reset are typed policy/plant transactions or absent from L1."
+    },
+    {
+      "id": "CTL-019",
+      "owner": "flight-controls",
+      "status": "planned",
+      "statement": "Plant braking envelope and independently configured FCU geofence jointly contain boundary approach."
+    },
+    {
+      "id": "CTL-020",
+      "owner": "verification",
+      "status": "planned",
+      "statement": "Static inventory and active bypass campaigns fail on any undeclared actuator route."
+    }
+  ],
+  "hazards": [
+    {
+      "id": "HAZ-001",
+      "title": "Motion through an authority bypass",
+      "severity": "P0",
+      "status": "open",
+      "owner": "plant-authority",
+      "unsafe_control_actions": ["provided-when-unsafe"],
+      "loss_ids": ["LOSS-001", "LOSS-004"],
+      "cause_categories": [
+        "generic renderer ROS/Zenoh publish",
+        "direct guidance or mission route",
+        "ACL or identity error",
+        "parallel final applier"
+      ],
+      "control_ids": ["CTL-001", "CTL-002", "CTL-009", "CTL-020"],
+      "odd_clauses": ["ODD-05", "ODD-10", "ODD-13"],
+      "evidence": [
+        {
+          "test_id": "TEST-BYPASS-ALL-SURFACES",
+          "status": "planned",
+          "artifact": "signed bypass-campaign report"
+        }
+      ],
+      "residual_risk": "Any unclassified or reachable command surface blocks L1."
+    },
+    {
+      "id": "HAZ-002",
+      "title": "Required safe action is lost or omitted",
+      "severity": "P0",
+      "status": "open",
+      "owner": "plant-authority",
+      "unsafe_control_actions": ["omitted-when-required", "applied-too-long-or-stopped-too-soon"],
+      "loss_ids": ["LOSS-001", "LOSS-002"],
+      "cause_categories": [
+        "renderer freeze",
+        "plant crash",
+        "blocked callback",
+        "queue or disk saturation"
+      ],
+      "control_ids": ["CTL-003", "CTL-007", "CTL-008", "CTL-011"],
+      "odd_clauses": ["ODD-06", "ODD-15"],
+      "evidence": [
+        {
+          "test_id": "TEST-SAFE-ACTION-KILL-MATRIX",
+          "status": "planned",
+          "artifact": "watchdog and FCU-failsafe trace"
+        }
+      ],
+      "residual_risk": "A single zero message is not sufficient evidence."
+    },
+    {
+      "id": "HAZ-003",
+      "title": "Delayed or expired command remains active",
+      "severity": "P0",
+      "status": "partial",
+      "owner": "plant-authority",
+      "unsafe_control_actions": [
+        "provided-too-early-or-late",
+        "applied-too-long-or-stopped-too-soon"
+      ],
+      "loss_ids": ["LOSS-001", "LOSS-002"],
+      "cause_categories": ["network delay", "event-loop pause", "clock misuse", "oversized TTL"],
+      "control_ids": ["CTL-003", "CTL-004", "CTL-008"],
+      "odd_clauses": ["ODD-06", "ODD-10"],
+      "evidence": [
+        {
+          "test_id": "TEST-PLANT-LOCAL-TTL",
+          "status": "planned",
+          "artifact": "monotonic expiry latency distribution"
+        }
+      ],
+      "residual_risk": "Component ActionBuffer tests do not prove apply-time plant expiry."
+    },
+    {
+      "id": "HAZ-004",
+      "title": "Replay, duplicate, or cross-session command is accepted",
+      "severity": "P0",
+      "status": "partial",
+      "owner": "ncp-integration",
+      "unsafe_control_actions": ["provided-when-unsafe", "provided-too-early-or-late"],
+      "loss_ids": ["LOSS-001", "LOSS-004"],
+      "cause_categories": [
+        "retained frame",
+        "stream regression",
+        "session confusion",
+        "storage rollback"
+      ],
+      "control_ids": ["CTL-004", "CTL-010"],
+      "odd_clauses": ["ODD-13", "ODD-15"],
+      "evidence": [
+        {
+          "test_id": "TEST-NCP-REPLAY-RESTART",
+          "status": "planned",
+          "artifact": "wire/session/restart rejection corpus"
+        }
+      ],
+      "residual_risk": "Current wire guards do not establish durable anti-rollback for the live topology."
+    },
+    {
+      "id": "HAZ-005",
+      "title": "Command is interpreted in the wrong frame or unit",
+      "severity": "P0",
+      "status": "open",
+      "owner": "flight-controls",
+      "unsafe_control_actions": ["provided-when-unsafe"],
+      "loss_ids": ["LOSS-001", "LOSS-003"],
+      "cause_categories": [
+        "Three.js Y-up vs ENU Z-up",
+        "ENU/NED",
+        "FLU/FRD",
+        "degrees/radians",
+        "milliseconds/seconds"
+      ],
+      "control_ids": ["CTL-006"],
+      "odd_clauses": ["ODD-04", "ODD-07"],
+      "evidence": [
+        {
+          "test_id": "TEST-FRAME-GOLDEN-VECTORS",
+          "status": "planned",
+          "artifact": "cross-language transform corpus"
+        }
+      ],
+      "residual_risk": "Free arrays and implicit path-specific conventions block L1."
+    },
+    {
+      "id": "HAZ-006",
+      "title": "Stale or inconsistent vehicle state authorizes motion",
+      "severity": "P0",
+      "status": "open",
+      "owner": "plant-authority",
+      "unsafe_control_actions": ["provided-when-unsafe"],
+      "loss_ids": ["LOSS-001", "LOSS-005"],
+      "cause_categories": [
+        "stale pose",
+        "split health reads",
+        "UI cache",
+        "mode or arm transition race"
+      ],
+      "control_ids": ["CTL-005", "CTL-008"],
+      "odd_clauses": ["ODD-07", "ODD-08"],
+      "evidence": [
+        {
+          "test_id": "TEST-ATOMIC-STATE-STALENESS",
+          "status": "planned",
+          "artifact": "apply-time race and staleness trace"
+        }
+      ],
+      "residual_risk": "No native atomic plant snapshot exists."
+    },
+    {
+      "id": "HAZ-007",
+      "title": "Generic Hold or ESTOP selects an unsafe physical action",
+      "severity": "P0",
+      "status": "open",
+      "owner": "flight-controls",
+      "unsafe_control_actions": ["provided-when-unsafe", "omitted-when-required"],
+      "loss_ids": ["LOSS-001", "LOSS-002"],
+      "cause_categories": [
+        "zero velocity while fixed-wing",
+        "airborne disarm",
+        "hover on critical battery",
+        "unauthorized reset"
+      ],
+      "control_ids": ["CTL-007", "CTL-008", "CTL-018"],
+      "odd_clauses": ["ODD-01", "ODD-05", "ODD-08"],
+      "evidence": [
+        {
+          "test_id": "TEST-SAFE-ACTION-STATE-MATRIX",
+          "status": "planned",
+          "artifact": "state/trigger/action/observation matrix"
+        }
+      ],
+      "residual_risk": "Protocol hold remains distinct from physical safety."
+    },
+    {
+      "id": "HAZ-008",
+      "title": "Router, MAVROS, FCU, or data-link loss leaves unsafe output",
+      "severity": "P0",
+      "status": "open",
+      "owner": "reliability",
+      "unsafe_control_actions": ["applied-too-long-or-stopped-too-soon", "omitted-when-required"],
+      "loss_ids": ["LOSS-001", "LOSS-002"],
+      "cause_categories": ["partition", "process exit", "FCU reboot", "MAVROS reconnect"],
+      "control_ids": ["CTL-003", "CTL-008", "CTL-010"],
+      "odd_clauses": ["ODD-02", "ODD-10", "ODD-15"],
+      "evidence": [
+        {
+          "test_id": "TEST-LINK-FCU-LOSS-MATRIX",
+          "status": "planned",
+          "artifact": "partition/reboot/failsafe trace"
+        }
+      ],
+      "residual_risk": "Fallback behavior is not pinned to an FCU parameter manifest."
+    },
+    {
+      "id": "HAZ-009",
+      "title": "Estimator or fusion divergence appears nominal",
+      "severity": "P1",
+      "status": "partial",
+      "owner": "fusion",
+      "unsafe_control_actions": ["provided-when-unsafe", "omitted-when-required"],
+      "loss_ids": ["LOSS-001", "LOSS-003", "LOSS-005"],
+      "cause_categories": [
+        "association error",
+        "covariance inconsistency",
+        "numerical failure",
+        "stale sensor"
+      ],
+      "control_ids": ["CTL-014", "CTL-012"],
+      "odd_clauses": ["ODD-09", "ODD-14"],
+      "evidence": [
+        {
+          "test_id": "TEST-FUSION-NIS-DIVERGENCE",
+          "status": "partial",
+          "artifact": "scenario NIS/NEES and degradation results"
+        }
+      ],
+      "residual_risk": "Component regression tests are not calibrated system evidence."
+    },
+    {
+      "id": "HAZ-010",
+      "title": "Model failure or miscalibration creates an unsafe decision",
+      "severity": "P1",
+      "status": "open",
+      "owner": "model-assurance",
+      "unsafe_control_actions": ["provided-when-unsafe", "omitted-when-required"],
+      "loss_ids": ["LOSS-001", "LOSS-003"],
+      "cause_categories": [
+        "wrong weights",
+        "preprocessing drift",
+        "OOD scene",
+        "uncalibrated threshold"
+      ],
+      "control_ids": ["CTL-015", "CTL-012"],
+      "odd_clauses": ["ODD-09", "ODD-12"],
+      "evidence": [
+        {
+          "test_id": "TEST-MODEL-SIGNED-GOLDEN-CORPUS",
+          "status": "planned",
+          "artifact": "model manifest and calibration report"
+        }
+      ],
+      "residual_risk": "No approved immutable model currently supports an L1 decision."
+    },
+    {
+      "id": "HAZ-011",
+      "title": "Missing, censored, stale, or dropped evidence appears nominal",
+      "severity": "P0",
+      "status": "open",
+      "owner": "evidence",
+      "unsafe_control_actions": ["omitted-when-required", "provided-when-unsafe"],
+      "loss_ids": ["LOSS-003", "LOSS-005"],
+      "cause_categories": [
+        "sidecar filter",
+        "queue drop",
+        "observer outage",
+        "heartbeat loss",
+        "clock skew"
+      ],
+      "control_ids": ["CTL-012", "CTL-013"],
+      "odd_clauses": ["ODD-09", "ODD-14"],
+      "evidence": [
+        {
+          "test_id": "TEST-EVIDENCE-INSUFFICIENCY",
+          "status": "planned",
+          "artifact": "drop/late/missing/rejected replay bundle"
+        }
+      ],
+      "residual_risk": "Local PID JSONL is not joined live authority evidence."
+    },
+    {
+      "id": "HAZ-012",
+      "title": "Resource exhaustion starves watchdog or emergency handling",
+      "severity": "P0",
+      "status": "partial",
+      "owner": "runtime",
+      "unsafe_control_actions": ["omitted-when-required", "provided-too-early-or-late"],
+      "loss_ids": ["LOSS-001", "LOSS-002", "LOSS-003"],
+      "cause_categories": [
+        "payload amplification",
+        "queue saturation",
+        "session exhaustion",
+        "disk full",
+        "log storm"
+      ],
+      "control_ids": ["CTL-011", "CTL-007", "CTL-008"],
+      "odd_clauses": ["ODD-06", "ODD-10", "ODD-14"],
+      "evidence": [
+        {
+          "test_id": "TEST-RESOURCE-RESERVED-SAFE-CAPACITY",
+          "status": "planned",
+          "artifact": "rate/session/disk overload timing trace"
+        }
+      ],
+      "residual_risk": "Existing bounds do not prove watchdog scheduling under combined load."
+    },
+    {
+      "id": "HAZ-013",
+      "title": "Restart or reconnect resurrects stale authority",
+      "severity": "P0",
+      "status": "open",
+      "owner": "reliability",
+      "unsafe_control_actions": ["provided-when-unsafe", "provided-too-early-or-late"],
+      "loss_ids": ["LOSS-001", "LOSS-004"],
+      "cause_categories": [
+        "retained target",
+        "sequence reset",
+        "same identity reuse",
+        "store rollback",
+        "simulation rewind"
+      ],
+      "control_ids": ["CTL-004", "CTL-010"],
+      "odd_clauses": ["ODD-15"],
+      "evidence": [
+        {
+          "test_id": "TEST-COMPONENT-RESTART-MATRIX",
+          "status": "planned",
+          "artifact": "controller/Gate/router/plant/MAVROS/FCU restart report"
+        }
+      ],
+      "residual_risk": "No complete live restart topology exists."
+    },
+    {
+      "id": "HAZ-014",
+      "title": "Operator confuses connection or delivery with applied state",
+      "severity": "P1",
+      "status": "open",
+      "owner": "operator-ux",
+      "unsafe_control_actions": ["provided-when-unsafe", "omitted-when-required"],
+      "loss_ids": ["LOSS-001", "LOSS-005"],
+      "cause_categories": [
+        "ambiguous status",
+        "stale UI",
+        "publish-equals-applied wording",
+        "confirmation fatigue"
+      ],
+      "control_ids": ["CTL-013", "CTL-016"],
+      "odd_clauses": ["ODD-11", "ODD-14"],
+      "evidence": [
+        {
+          "test_id": "TEST-OPERATOR-AUTHORITY-COMPREHENSION",
+          "status": "planned",
+          "artifact": "scenario usability and error-rate report"
+        }
+      ],
+      "residual_risk": "No staged command/effect UI currently exists."
+    },
+    {
+      "id": "HAZ-015",
+      "title": "Gazebo or local mutation contaminates flight evidence",
+      "severity": "P1",
+      "status": "partial",
+      "owner": "simulation",
+      "unsafe_control_actions": ["provided-when-unsafe"],
+      "loss_ids": ["LOSS-003", "LOSS-005"],
+      "cause_categories": [
+        "teleport",
+        "set velocity",
+        "spawn/reset",
+        "local kinematic NCP",
+        "shared credential"
+      ],
+      "control_ids": ["CTL-017", "CTL-009", "CTL-020"],
+      "odd_clauses": ["ODD-12"],
+      "evidence": [
+        {
+          "test_id": "TEST-SECURE-PROFILE-NO-SIM-MUTATION",
+          "status": "planned",
+          "artifact": "binary/identity/route disposition report"
+        }
+      ],
+      "residual_risk": "Simulation capabilities remain present in the current application."
+    },
+    {
+      "id": "HAZ-016",
+      "title": "Mission, mode, arm, takeoff, land, or disarm bypasses policy",
+      "severity": "P0",
+      "status": "open",
+      "owner": "mission-authority",
+      "unsafe_control_actions": ["provided-when-unsafe"],
+      "loss_ids": ["LOSS-001", "LOSS-004"],
+      "cause_categories": [
+        "direct MAVROS service",
+        "generic call_service",
+        "mission cache",
+        "missing FCU acknowledgment"
+      ],
+      "control_ids": ["CTL-001", "CTL-009", "CTL-018", "CTL-020"],
+      "odd_clauses": ["ODD-05", "ODD-13"],
+      "evidence": [
+        {
+          "test_id": "TEST-HAZARDOUS-ACTION-BYPASS",
+          "status": "planned",
+          "artifact": "service/mode/mission negative campaign"
+        }
+      ],
+      "residual_risk": "Current renderer-side helpers expose these operations."
+    },
+    {
+      "id": "HAZ-017",
+      "title": "Geofence is crossed despite a numeric clamp",
+      "severity": "P0",
+      "status": "open",
+      "owner": "flight-controls",
+      "unsafe_control_actions": ["provided-when-unsafe", "omitted-when-required"],
+      "loss_ids": ["LOSS-001", "LOSS-002"],
+      "cause_categories": [
+        "inertia",
+        "wind",
+        "state uncertainty",
+        "estimator lag",
+        "FCU fence mismatch"
+      ],
+      "control_ids": ["CTL-005", "CTL-008", "CTL-019"],
+      "odd_clauses": ["ODD-03", "ODD-04", "ODD-07"],
+      "evidence": [
+        {
+          "test_id": "TEST-GEOFENCE-BRAKING-ENVELOPE",
+          "status": "planned",
+          "artifact": "worst-case boundary approach suite"
+        }
+      ],
+      "residual_risk": "No vehicle-specific braking model or FCU fence attestation exists."
+    }
+  ]
+}
