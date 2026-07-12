@@ -518,10 +518,10 @@ crashing the engine.
 
 ### Remaining work
 
-Rows 1–4, 6, and 7 are implemented; the implementation-ready specs (code sketches,
-exact parameters, test lists) for the whole roadmap remain in
-[`SENSOR_FUSION_AGENT_SPECS.md`](SENSOR_FUSION_AGENT_SPECS.md) for reference. Two items
-are deliberately deferred:
+Rows 1–4, 6, and 7 are implemented. The recovered agent transcript has been moved to
+[`docs/archive/SENSOR_FUSION_AGENT_SPECS.md`](archive/SENSOR_FUSION_AGENT_SPECS.md)
+for provenance only; it is historical, contains superseded and unsafe instructions,
+and must not be used as an implementation plan. Two items are deliberately deferred:
 
 1. **Per-measurement timestamps / OOSM** (row 5). Predict each track to each
    measurement's own time within a batch; full out-of-sequence-measurement (OOSM)

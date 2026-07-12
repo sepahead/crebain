@@ -1,20 +1,30 @@
-# Sensor Fusion — Roadmap Implementation Specs
+# Historical Sensor-Fusion Agent Transcript (Do Not Implement)
+
+> [!CAUTION]
+> **Historical and superseded. Do not use this file as an implementation plan.**
+> It preserves recovered agent output for provenance only. Several snippets encode
+> pre-fix behavior, including an incorrect Mahalanobis-distance interpretation and
+> obsolete assignment sentinels. The shipped code, tests, and
+> [current sensor-fusion documentation](../SENSOR_FUSION.md) are authoritative.
+> Reintroducing any recommendation from this transcript requires a new design review
+> against the current implementation and regression suite.
 
 > **Provenance.** These are the verbatim final structured outputs of the spec-research
 > agents from workflow `wf_10b1c47f-d0a`, recovered from their transcripts after the run's
-> aggregated return was lost to an interruption. Each agent READ the code and grounded its
-> recommendation in cited literature. These are the implementation-ready specs behind the
-> roadmap in **[SENSOR_FUSION.md → Known limitations and roadmap](SENSOR_FUSION.md#known-limitations-and-roadmap)**
-> (see its "Resuming this work" subsection for the recommended order).
+> aggregated return was lost to an interruption. They were proposals against an older
+> code snapshot, not current specifications. See
+> **[SENSOR_FUSION.md → Known limitations and roadmap](../SENSOR_FUSION.md#known-limitations-and-roadmap)**
+> for current status and constraints.
 >
-> **STATUS (current).** Items #2 and #3 (threat unification, χ²-calibrated gating),
+> **STATUS AT ARCHIVAL.** Items #2 and #3 (threat unification, χ²-calibrated gating),
 > #4 (sequential per-sensor / information-form update), #5 (sliding-window M-of-N
 > confirmation + covariance-volume deletion), #6 (global nearest-neighbour /
 > Hungarian assignment), #7 (CV + Coordinated-Turn IMM) and #8 (geometric cross-camera
-> gate) are now **implemented** — these specs are retained as cross-checks. Only
+> gate) had been implemented. These transcript sections are not valid cross-checks. At
+> archival time, only
 > per-measurement timestamps / out-of-sequence-measurement (OOSM) handling and full
 > 3×3 measurement covariances remain open; see the
-> **[SENSOR_FUSION.md roadmap](SENSOR_FUSION.md#known-limitations-and-roadmap)** for
+> **[SENSOR_FUSION.md roadmap](../SENSOR_FUSION.md#known-limitations-and-roadmap)** for
 > the authoritative status table.
 > **Item #9 (OOSM) is absent** — that agent was still researching when the run was
 > interrupted (`[Request interrupted by user]`) and never emitted a structured spec; see
