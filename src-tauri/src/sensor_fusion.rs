@@ -2188,6 +2188,16 @@ impl MultiSensorFusion {
         // reports success separately. Missing per-track state is a failed update,
         // never evidence for the lifecycle hit window.
         let mut any_applied = false;
+        // The galadriel sidecar contract keys per-channel streams by (track,
+        // modality) with strictly increasing `seq`, and `seq` is stamped with the
+        // fusion frame count — so at most ONE record per modality may be emitted
+        // per frame. Association clusters by class label and gate (not modality),
+        // so one cluster can carry several same-modality returns; emit only the
+        // first (lowest-noise, best-linearized, measured against the frame's
+        // incoming prior) and keep applying the rest to the filter without
+        // emitting — a second record would carry a duplicate (track, modality,
+        // seq) identity that galadriel rejects as a replay.
+        let mut emitted_modalities: Vec<SensorModality> = Vec::new();
         for &idx in &ordered {
             let meas = &measurements[idx];
             let pos = measurement_position_cartesian(meas);
@@ -2259,11 +2269,12 @@ impl MultiSensorFusion {
             // The galadriel sidecar record: one per associated measurement that
             // actually corrected the filter. Singular-S skips emit nothing (the
             // Option conveys it) — never a fabricated NIS.
-            if self.config.emit_innovations {
+            if self.config.emit_innovations && !emitted_modalities.contains(&meas.modality) {
                 if let (Some(st), Some(numeric_id)) =
                     (stats, crate::pid_observation::track_numeric_id(track_id))
                 {
                     if let Some(nis) = st.nis() {
+                        emitted_modalities.push(meas.modality);
                         let research = self.config.emit_innovation_research;
                         // nalgebra is column-major: serialize S row-major by
                         // explicit (row, col) indexing (symmetry would mask a
@@ -4341,6 +4352,66 @@ mod tests {
             1000,
         );
         assert!(silent.drain_pid_observations().is_empty());
+    }
+
+    /// The sidecar stamps `seq` with the fusion frame count, and galadriel keys
+    /// per-channel streams by (track, modality) with strictly increasing `seq`.
+    /// Association clusters by class label + gate (not modality), so one cluster
+    /// can carry several same-modality returns in one frame — only the FIRST may
+    /// emit; a second record would be a duplicate (track, modality, seq) identity
+    /// that galadriel rejects as a replay and that poisons JSONL parsing.
+    #[test]
+    fn emit_innovations_dedupes_same_modality_within_a_frame() {
+        let config = FusionConfig {
+            emit_innovations: true,
+            ..FusionConfig::default()
+        };
+        let mut fusion = MultiSensorFusion::new(config);
+        let meas = |sensor: &str, modality, x: f64, t: u64| SensorMeasurement {
+            sensor_id: sensor.to_string(),
+            modality,
+            timestamp_ms: t,
+            position: [x, 0.0, 5.0],
+            velocity: None,
+            covariance: [1.0, 1.0, 1.0],
+            confidence: 0.9,
+            class_label: "drone".to_string(),
+            metadata: HashMap::new(),
+        };
+
+        // Frame 1 births the track (no record — an innovation needs a prior).
+        fusion.process_measurements(vec![meas("cam1", SensorModality::Visual, 10.0, 1000)], 1000);
+        // Frame 2: TWO visual returns (different cameras) plus one thermal
+        // return, all inside one association cluster for the same track.
+        fusion.process_measurements(
+            vec![
+                meas("cam1", SensorModality::Visual, 10.4, 1100),
+                meas("cam2", SensorModality::Visual, 10.5, 1100),
+                meas("ir1", SensorModality::Thermal, 10.45, 1100),
+            ],
+            1100,
+        );
+
+        let records = fusion.drain_pid_observations();
+        let visual = records
+            .iter()
+            .filter(|r| r.modality == SensorModality::Visual)
+            .count();
+        let thermal = records
+            .iter()
+            .filter(|r| r.modality == SensorModality::Thermal)
+            .count();
+        assert_eq!(
+            visual, 1,
+            "a second same-modality return in one frame must not emit a \
+             duplicate (track, modality, seq) record"
+        );
+        assert_eq!(thermal, 1, "distinct modalities in one frame each emit");
+        assert_eq!(records.len(), 2);
+        assert_eq!(
+            records[0].seq, records[1].seq,
+            "one fusion frame stamps one seq across modalities"
+        );
     }
 
     #[test]
