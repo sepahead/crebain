@@ -56,6 +56,10 @@ interface DetectionLoopOptions {
   onError?: (error: string, cameraId?: string) => void
 }
 
+export const CAMERA_CAPTURE_UNAVAILABLE_ERROR =
+  'Camera capture unavailable; detection cycle skipped'
+export const CAMERA_CAPTURE_DROP_REPORT_INTERVAL_MS = 5_000
+
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
@@ -117,6 +121,9 @@ export function useDetectionLoop(options: DetectionLoopOptions): void {
   // Track current camera index for round-robin processing
   const currentCameraIndexRef = useRef(0)
   const loopGenerationRef = useRef(0)
+  const captureDropReportsRef = useRef<Map<string, { camera: CameraInfo; reportedAt: number }>>(
+    new Map()
+  )
 
   // Detection inputs can change independently of the scheduler. Keeping their
   // latest values in refs prevents ordinary parent renders from cancelling and
@@ -160,7 +167,21 @@ export function useDetectionLoop(options: DetectionLoopOptions): void {
       // Export camera feed
       const imageData = await exportCameraFeedRef.current(camera.id)
       if (!isCurrent() || !cameraIsStillActive()) return
-      if (!imageData) return
+      if (!imageData) {
+        const now = Date.now()
+        const previousReport = captureDropReportsRef.current.get(camera.id)
+        if (
+          previousReport?.camera !== camera ||
+          now < previousReport.reportedAt ||
+          now - previousReport.reportedAt >= CAMERA_CAPTURE_DROP_REPORT_INTERVAL_MS
+        ) {
+          captureDropReportsRef.current.set(camera.id, { camera, reportedAt: now })
+          onErrorRef.current?.(CAMERA_CAPTURE_UNAVAILABLE_ERROR, camera.id)
+        }
+        return
+      }
+      // A recovered feed starts a new outage window if capture later drops again.
+      captureDropReportsRef.current.delete(camera.id)
 
       // Use the raw RGBA path to avoid PNG encode/decode overhead.
       // Uint8Array is serializable by Tauri 2.x to Vec<u8>.

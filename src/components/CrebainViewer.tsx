@@ -25,6 +25,7 @@ import ObjectTransformControls from './ObjectTransformControls'
 import { createTacticalGrid, createGridLabels } from './viewer/TacticalGrid'
 import DetectionPanel from './viewer/DetectionPanel'
 import HeaderBar from './viewer/HeaderBar'
+import { captureCameraPixels, withCameraRenderTarget } from './viewer/cameraCapture'
 import { disposeObject3D, forEachMesh, objectLabel } from '../lib/three/sceneObjects'
 import { fetchAssetWithLimit } from '../lib/boundedFetch'
 import { inspectPngJpegDimensions, validateSelfContainedGlb } from '../lib/glbValidation'
@@ -34,7 +35,6 @@ import {
   type FloorStyle,
 } from './viewer/ProceduralTerrain'
 import { getGazeboController } from '../ros/GazeboController'
-import { getROSBridge } from '../ros/ROSBridge'
 import { calculateLatencyStats, normalizeSystemInfo, type SystemInfo } from '../lib/diagnostics'
 import { isTextInputTarget, VIEWER_SHORTCUTS } from '../lib/shortcuts'
 import { TAURI_COMMANDS } from '../lib/tauriCommands'
@@ -290,8 +290,8 @@ export default function CrebainViewer({
   const feedBuffersRef = useRef<Map<string, Uint8Array>>(new Map())
   // Reusable ImageData per camera (avoids ~1MB createImageData alloc each feed tick)
   const feedImageDataRef = useRef<Map<string, ImageData>>(new Map())
-  // Timestamp (performance.now) of each camera's last render-to-target, so
-  // exportCameraFeed can skip targets the round-robin/governor left stale.
+  // Timestamp (performance.now) of each camera's last render-to-target, so a
+  // detection can reuse a fresh target or refresh only its selected stale target.
   const feedLastRenderAtRef = useRef<Map<string, number>>(new Map())
   // Round-robin cursor: feed render + pixel readback process ONE camera per tick
   // so per-frame GPU cost stays bounded regardless of how many cameras are placed.
@@ -369,9 +369,9 @@ export default function CrebainViewer({
   // an 83 ms interval, a worst-case feed still refreshes ~every 0.5 s.
   const FEED_FRAME_BUDGET_MS = 6
   const MAX_FEED_STRIDE = 6
-  // Max age (ms) of a camera's render target for detection exports: the
-  // round-robin + governor may leave a target unrefreshed for seconds, and
-  // pairing those stale pixels with current camera poses corrupts fusion.
+  // Fresh-cache window (ms) for detection exports. Once exceeded, the one
+  // camera selected by the detection scheduler is rendered on demand before
+  // readback so stale pixels are never paired with current poses.
   const FEED_EXPORT_MAX_AGE_MS = 500
   // Default patrol camera speed
   const DEFAULT_PATROL_SPEED = 0.015
@@ -807,13 +807,10 @@ export default function CrebainViewer({
   const exportCameraFeed = useCallback(
     (cameraId: string, maxAgeMs: number = FEED_EXPORT_MAX_AGE_MS): Promise<ImageData | null> => {
       const cam = cameras.find((c) => c.id === cameraId)
-      if (!cam || !rendererRef.current) return Promise.resolve(null)
-      // Skip targets the round-robin/governor hasn't refreshed recently so
-      // stale pixels never get paired with current camera poses downstream.
+      const renderer = rendererRef.current
+      const scene = sceneRef.current
+      if (!cam || !renderer || !scene) return Promise.resolve(null)
       const renderedAt = feedLastRenderAtRef.current.get(cameraId)
-      if (renderedAt === undefined || performance.now() - renderedAt > maxAgeMs) {
-        return Promise.resolve(null)
-      }
       const width = cam.renderTarget.width
       const height = cam.renderTarget.height
       const bufferSize = width * height * 4
@@ -822,7 +819,18 @@ export default function CrebainViewer({
         buffer = new Uint8Array(bufferSize)
         feedBuffersRef.current.set(cameraId, buffer)
       }
-      rendererRef.current.readRenderTargetPixels(cam.renderTarget, 0, 0, width, height, buffer)
+      const capture = captureCameraPixels({
+        renderer,
+        scene,
+        camera: cam.camera,
+        renderTarget: cam.renderTarget,
+        buffer,
+        renderedAt,
+        maxAgeMs,
+      })
+      if (capture.refreshed) {
+        feedLastRenderAtRef.current.set(cameraId, capture.renderedAt)
+      }
       let imageData = feedImageDataRef.current.get(cameraId)
       if (!imageData || imageData.width !== width || imageData.height !== height) {
         imageData = new ImageData(width, height)
@@ -1132,30 +1140,9 @@ export default function CrebainViewer({
     confidenceThreshold: 0.25,
     onDetection: handleDetection,
     onPerformance: handlePerformance,
-    onError: (error) => addMessage('error', `DETEKTION: ${error}`),
+    onError: (error, cameraId) =>
+      addMessage('error', `DETEKTION${cameraId ? ` [${cameraId}]` : ''}: ${error}`),
   })
-
-  useEffect(() => {
-    let animationFrameId: number
-
-    const updateActuators = () => {
-      const bridge = getROSBridge()
-      if (bridge && bridge.isConnected() && physicsWorld) {
-        physicsWorld.getAllDrones().forEach((drone) => {
-          const cmds = drone.targetCommands
-          const maxRPM = 1100
-          bridge.publish(`${drone.id}/cmd/motor_speed/0`, { data: cmds.front_right * maxRPM })
-          bridge.publish(`${drone.id}/cmd/motor_speed/1`, { data: cmds.rear_left * maxRPM })
-          bridge.publish(`${drone.id}/cmd/motor_speed/2`, { data: cmds.front_left * maxRPM })
-          bridge.publish(`${drone.id}/cmd/motor_speed/3`, { data: cmds.rear_right * maxRPM })
-        })
-      }
-      animationFrameId = requestAnimationFrame(updateActuators)
-    }
-
-    updateActuators()
-    return () => cancelAnimationFrame(animationFrameId)
-  }, [physicsWorld])
 
   const selectableObjects = useMemo(() => {
     const objects: THREE.Object3D[] = []
@@ -2413,8 +2400,6 @@ export default function CrebainViewer({
         const activeCameras = cameras.filter((c) => c.isActive)
         if (activeCameras.length === 0) return
 
-        const currentRT = renderer.getRenderTarget()
-
         for (const cam of activeCameras) {
           if (cam.type === 'patrol' && cam.patrolPoints && cam.patrolPoints.length >= 2) {
             const patrolIndex = cam.patrolIndex ?? 0
@@ -2463,9 +2448,9 @@ export default function CrebainViewer({
         const rrIdx = feedRoundRobinRef.current % activeCameras.length
         feedRoundRobinRef.current = rrIdx + 1
         const rrCam = activeCameras[rrIdx]
-        renderer.setRenderTarget(rrCam.renderTarget)
-        renderer.render(scene, rrCam.camera)
-        renderer.setRenderTarget(currentRT)
+        withCameraRenderTarget(renderer, rrCam.renderTarget, () => {
+          renderer.render(scene, rrCam.camera)
+        })
         feedLastRenderAtRef.current.set(rrCam.id, performance.now())
 
         if (!showCameraFeeds) {

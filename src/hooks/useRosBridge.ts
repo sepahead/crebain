@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { ROSBridge, setROSBridge, getROSBridge, type ConnectionState } from '../ros/ROSBridge'
+import { ROSBridge, type ConnectionState } from '../ros/ROSBridge'
 import { ZenohBridge } from '../ros/ZenohBridge'
 import {
   ROSPerformanceMonitor,
@@ -168,12 +168,6 @@ export function useRosBridge(config: Partial<UseRosBridgeConfig> = {}): UseRosBr
     setState(bridge.getState())
     setError(null)
 
-    if (bridge instanceof ROSBridge) {
-      // Expose the WebSocket ROS bridge as the process-wide default so
-      // non-React consumers (the render-loop actuator publisher) can reach it.
-      setROSBridge(bridge)
-    }
-
     // Initialize performance monitor if enabled
     let statsInterval: ReturnType<typeof setInterval> | null = null
     if (enablePerformanceMonitoring) {
@@ -207,10 +201,6 @@ export function useRosBridge(config: Partial<UseRosBridgeConfig> = {}): UseRosBr
       if (statsInterval) clearInterval(statsInterval)
       if (bridgeSnapshotRef.current.bridge === bridge) {
         bridgeSnapshotRef.current = { transport, bridge: null }
-      }
-      // Only clear the default singleton if it still points at this bridge.
-      if (getROSBridge() === bridge) {
-        setROSBridge(null)
       }
       void bridge.disconnect()
       if (performanceMonitorRef.current === monitor) {
