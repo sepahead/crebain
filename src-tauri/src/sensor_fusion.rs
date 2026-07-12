@@ -3759,6 +3759,39 @@ mod tests {
     }
 
     #[test]
+    fn association_gate_compares_squared_distance_to_chi_square_threshold() {
+        // Regression for the historical d-vs-d² bug: d²=12 lies just outside the
+        // χ²(3) threshold 11.345 but far inside 11.345². Comparing sqrt(d²) to the
+        // threshold would incorrectly accept it.
+        let fusion = MultiSensorFusion::new(FusionConfig::default());
+        let track = TrackState {
+            id: "TRK-GATE".to_string(),
+            state: Vector6::zeros(),
+            covariance: Matrix6::zeros(),
+            class_label: "drone".to_string(),
+            confidence: 0.9,
+            sensor_sources: vec![SensorModality::Visual],
+            last_update_ms: 1_000,
+            age: 1,
+            missed_detections: 0,
+            hit_history: 1,
+            opportunities: 1,
+            state_label: TrackStateLabel::Tentative,
+        };
+        let unit_noise = Matrix3::identity();
+        let just_inside = Vector3::new(11.0_f64.sqrt(), 0.0, 0.0);
+        let squared_distance_bug_window = Vector3::new(12.0_f64.sqrt(), 0.0, 0.0);
+
+        assert!(11.345 < 12.0 && 12.0 < 11.345_f64.powi(2));
+        assert!(fusion
+            .gated_sq_mahalanobis(&track, &just_inside, &unit_noise)
+            .is_some());
+        assert!(fusion
+            .gated_sq_mahalanobis(&track, &squared_distance_bug_window, &unit_noise)
+            .is_none());
+    }
+
+    #[test]
     fn radar_association_noise_is_converted_to_cartesian() {
         // Radar reports polar noise [m², rad², rad²]. In the Cartesian association
         // gate it must be transformed by the polar→Cartesian Jacobian, so an angular
