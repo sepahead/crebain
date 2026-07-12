@@ -56,13 +56,14 @@ Use the smallest check that is honest for the change:
 # Frontend typecheck + lint + format check + tests
 bun run validate
 
-# Frontend validation + Rust fmt/default check/test/clippy + NCP clippy/tests
+# NCP pin coherence + frontend validation + Rust default/NCP gates
 bun run validate:all
 ```
 
 | Change Type | Required Check |
 |-------------|----------------|
 | Markdown-only, no command/status changes | `git diff --check` |
+| NCP manifest, lockfile, or normative-doc changes | `bun run check:ncp-coherence` |
 | Frontend-only source/test changes | `bun run validate` |
 | Rust, Tauri IPC, model loading, scene persistence, ROS, Zenoh, transport, or sensor fusion changes | `bun run validate:all` |
 | Release-candidate claims | `bun run validate:all` plus `docs/MANUAL_SMOKE_TEST.md` |

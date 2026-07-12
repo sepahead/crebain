@@ -9,7 +9,7 @@ target environment.
 
 | Area | Acceptance evidence | Blocking conditions |
 |------|---------------------|---------------------|
-| Local cross-language gate | `bun run validate:all` passes: frontend typecheck/lint/format/tests; Rust fmt/default check/test/clippy; NCP-feature clippy/tests | Any error, test failure, or clippy warning |
+| Local cross-language gate | `bun run validate:all` passes: NCP manifest/lock/doc coherence; frontend typecheck/lint/format/tests; Rust fmt/default check/test/clippy; NCP-feature clippy/tests | Any error, pin drift, stale normative NCP version, test failure, or clippy warning |
 | Hosted frontend gates | CI `bun run validate`, `bun run check:bundle`, and `bun run test:coverage` pass | Bundle budget or coverage threshold fails, even if `validate:all` passed locally |
 | Hosted Rust feature gates | Linux checks pass for `--features cuda,tensorrt` and `--no-default-features`; default and NCP jobs pass on Linux/macOS | Feature-gated code does not compile or NCP tests are skipped |
 | Supply chain and static analysis | cargo-deny, `bun audit`, pinned-action policy, and CodeQL workflows pass for the candidate/dependency change | Advisory/policy failure or unresolved high-confidence finding |

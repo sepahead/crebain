@@ -1,5 +1,7 @@
 # `src/neuro` — dormant TypeScript NCP glue
 
+<!-- ncp-pin: v0.8.0 -->
+
 This directory re-exports the pinned `@sepahead/ncp` package and adds
 `guardReplyVersion`, CREBAIN's strict transport wrapper for compatible reply
 versions, success kind/session attribution, explicit success status, typed-error
@@ -18,8 +20,8 @@ NCP wire types, enums, `NeuroSimClient`, and `WebSocketNeuroSim` are owned by
 `ncp-zenoh` to the same tag in `src-tauri/Cargo.toml`.
 
 Keep `package.json`, `bun.lock`, `src-tauri/Cargo.toml`, and
-`src-tauri/Cargo.lock` coherent when upgrading. Do not use stale external Engram
-wire-0.6 examples as the version source; the current CREBAIN pin is `v0.7.1`.
+`src-tauri/Cargo.lock` coherent when upgrading. Do not use incompatible older
+external Engram examples as the version source; the current CREBAIN pin is `v0.8.0`.
 
 ## Guarded example
 
@@ -51,7 +53,7 @@ await engram.close('uav3-percept')
 
 The guard always throws when a success reply lacks a compatible `ncp_version`,
 the expected kind/session, an explicit successful boolean `ok` where applicable,
-or valid carried scientific-boundary fields. Wire-0.7 typed errors are versioned;
+or valid carried scientific-boundary fields. Wire-0.8 typed errors are versioned;
 their optional `request_kind` and `session_id` must match the originating request
 when present, and the SDK then surfaces the denial. There is no permissive or
 warning-only mode.

@@ -1,5 +1,7 @@
 # CREBAIN ↔ NCP bridge handoff
 
+<!-- ncp-pin: v0.8.0 -->
+
 This is the current implementation handoff for CREBAIN's optional
 Neuro-Cybernetic Protocol integration. It replaces the former extraction plan;
 the sibling-path dependency problem is historical and already fixed.
@@ -24,15 +26,15 @@ the NCP feature; “no sibling checkout” does not mean “no dependency resolu
 ## Current dependency contract
 
 The canonical NCP SDK lives at `github.com/sepahead/NCP`. CREBAIN pins tag
-`v0.7.1` in:
+`v0.8.0` in:
 
 - `ncp-core` and `ncp-zenoh` in `src-tauri/Cargo.toml` / `Cargo.lock`; and
 - `@sepahead/ncp` in `package.json` / `bun.lock`.
 
 All four files must move together. Wire compatibility is validated by the SDK;
 CREBAIN does not coerce incompatible or missing versions into success. External
-Engram examples that still show wire `0.6` or older, old package scopes, or `std_msgs`
-profiles are stale integration material and must be corrected in their owning
+Engram examples that show an older incompatible wire contract, old package scopes,
+or `std_msgs` profiles are stale integration material and must be corrected in their owning
 repository rather than copied here.
 
 The audited external ACL/profile set also does not currently establish an
@@ -68,7 +70,7 @@ Action reservations and persistent close tombstones are cardinality-bounded;
 tombstone saturation fails closed until reconnect rather than evicting safety
 state.
 
-Lifecycle RPCs use the pinned SDK's `ZenohNcpClient` typed gates. Wire 0.7 checks
+Lifecycle RPCs use the pinned SDK's `ZenohNcpClient` typed gates. Wire 0.8 checks
 the raw envelope before deserialization, requires explicit lifecycle result
 fields, binds reply kind/session to the originating request, and validates
 versioned typed-error attribution. CREBAIN accepts no local permissive reply
@@ -83,6 +85,9 @@ default.
 ```bash
 # Default product and full local gate
 bun run validate:all
+
+# Read-only Cargo/npm pin, lockfile, and normative-doc guard
+bun run check:ncp-coherence
 
 # Focused optional bridge gates
 bun run check:rust:ncp

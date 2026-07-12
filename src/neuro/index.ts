@@ -17,5 +17,5 @@ export * from '@sepahead/ncp'
 // CREBAIN-specific TS glue (the one thing this module adds over the package): a
 // thin, transport-agnostic reply gate. It validates complete success/error
 // messages, binds successes to the originating request/session, and checks typed
-// error attribution when wire 0.7 carries it. See `versionGuard.ts` and README.md.
+// error attribution when wire 0.8 carries it. See `versionGuard.ts` and README.md.
 export { guardReplyVersion, assertReplyVersion, NcpVersionMismatchError } from './versionGuard'

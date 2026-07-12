@@ -32,6 +32,8 @@ jobs:
       # tag's version matches the in-tree version.
       - name: Internal version coherence (HEAD)
         run: scripts/check-version-coherence.sh
+      - name: NCP consumer coherence (HEAD)
+        run: scripts/check-ncp-coherence.sh
       - name: Version coherence (tag)
         if: startsWith(github.ref, 'refs/tags/')
         run: scripts/check-version-coherence.sh "${GITHUB_REF_NAME}"

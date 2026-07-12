@@ -192,7 +192,7 @@ describe('reply ncp_version guard', () => {
     expect(() => assertReplyVersion(honest)).not.toThrow()
   })
 
-  it('accepts a complete typed wire-0.7 error frame', () => {
+  it('accepts a complete typed wire-0.8 error frame', () => {
     const errorFrame = {
       kind: 'error',
       ncp_version: NCP_VERSION,
