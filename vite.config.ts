@@ -14,7 +14,7 @@ export default defineConfig({
     target: 'esnext',
     minify: 'esbuild',
     // Emit dist/.vite/manifest.json so scripts/check-bundle-size.mjs can measure
-    // the initial (eager) load and exclude lazy chunks (rapier, the worker).
+    // the initial (eager) load and exclude the lazy Rapier chunk.
     manifest: true,
     rollupOptions: {
       output: {

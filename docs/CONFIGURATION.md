@@ -35,11 +35,8 @@ frontend path. The native environment bypass does not weaken that frontend rule.
 | Parameter | Default | Notes |
 | --------- | ------- | ----- |
 | Confidence Threshold | 0.25 | Clamped to 0.0–1.0 at the IPC boundary |
-| IOU Threshold | 0.45 | Hardcoded on the native path (the IPC parameter is accepted but ignored); configurable in the browser `YOLODetector` and `CoreMLDetector` (RF-DETR/Moondream accept the option but ignore it) |
+| IOU Threshold | 0.45 | Hardcoded on the native path (the IPC parameter is accepted but ignored) |
 | Max Detections | 100 | Clamped to 1–1000 at the IPC boundary |
-
-Individual browser backends override the confidence default (CoreML 0.3,
-RF-DETR 0.35, Moondream 0.3); see `src/detection/*Detector.ts`.
 
 ## Sensor fusion settings
 

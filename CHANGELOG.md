@@ -21,6 +21,13 @@ Open-source readiness and quality hardening.
   interoperability. Track birth and skipped updates emit nothing; Particle and
   IMM are excluded because they have no single compatible innovation covariance.
 
+### Removed
+- **Production-unreachable inference prototypes.** Removed the unrendered browser
+  camera-feed/worker detector chain, its browser ONNX and placeholder Moondream
+  implementations, exclusive tests and benchmark workflow, unused React hooks,
+  `comlink`/`onnxruntime-web`, and unbuilt Swift CoreML packages. The active
+  Tauri `useDetectionLoop` path and native CoreML/ONNX backends remain.
+
 ### Fixed
 - **Unit-correct "lowest-noise" selection across modalities.** The birth-representative
   and first-update orderings summed each measurement's raw covariance triple, comparing
@@ -69,7 +76,7 @@ Open-source readiness and quality hardening.
   unit, and speed failures HOLD at zero, and stop/close emits a final HOLD. The
   feature and Tauri commands remain off/unregistered, so this is not a live
   product loop.
-- **Optional NCP boundaries now fail closed on the published wire-0.7 contract.**
+- **Optional NCP boundaries now fail closed on the published wire-0.8 contract.**
   The native bridge caps command payloads, retains only bounded actuator data,
   latches a minimal raw ESTOP, serializes start/open/close per session, drops
   dedicated subscriber handles, and delegates lifecycle reply validation to the
@@ -79,7 +86,13 @@ Open-source readiness and quality hardening.
   time, applies HOLD on malformed calls, and clears buffered freshness on reset.
 
 ### Changed
-- **Re-pinned NCP to `v0.7.1` and adopted the complete typed reply contract.**
+- **Re-pinned NCP to `v0.8.0` and adopted stream/source identity plus session
+  fencing.** Cargo and npm manifests and lockfiles resolve the immutable release;
+  post-open frames carry their own stream position, correlation-only source
+  identity, session ID, and server-issued generation. The development ingress and
+  native adapter validate those wire-0.8 identities through the canonical SDK.
+- **Historical NCP 0.7 repin:** re-pinned to `v0.7.1` and adopted the complete
+  typed reply contract.
   The `v0.7.1` SDK is a wire-identical patch over `v0.7.0`; Cargo and npm
   manifests plus both lockfiles now resolve the immutable patch release
   commit. Native lifecycle RPCs use `ZenohNcpClient`, typed/versioned error frames

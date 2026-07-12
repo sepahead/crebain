@@ -45,12 +45,10 @@ from both paths using the YOLOv8 name.
 
 | Backend | Contract notes |
 |---------|----------------|
-| Browser ONNX (`YOLODetector`, `RFDETRDetector`, `CoreMLDetector`) | Record the ONNX Runtime Web provider, input/output tensor names, preprocessing, and whether output tensors are raw or already postprocessed. Do not assume the native 84-feature parser is used. |
 | Native CoreML | Use a validated `.mlmodelc` directory. Confirm Vision/CoreML input handling, model labels, coordinate conversion, and fixture results. |
 | ONNX Runtime Native | Validate `CREBAIN_ONNX_MODEL` or `CREBAIN_MODEL_PATH`, the `.onnx` extension, execution provider, 84-feature COCO contract, and structured failure path. |
 | CUDA / TensorRT | Record hardware, driver/runtime versions, cache settings, ONNX input, engine output, and benchmark command. INT8 engine building needs calibration data and is not supported by the current build command. |
 | MLX | Experimental opt-in path. `CREBAIN_MLX_MODEL` must be a validated `.safetensors` file; `CREBAIN_MLX_MODEL_SHA256` may pin its digest. No release evidence without artifact provenance, tensor/class fixtures, and target-hardware benchmarks. |
-| Moondream | Prompts and parsed text output are heuristic; bounding boxes and confidence remain approximate until fixture-validated. |
 
 ## Minimum acceptance before trusting detections
 
@@ -59,4 +57,4 @@ from both paths using the YOLOv8 name.
 3. Golden target frames produce expected labels and boxes within a documented tolerance.
 4. Empty/no-target frames do not produce systematic false positives at the chosen thresholds.
 5. Threshold and maximum-detection behavior agree across every runtime path used by the scenario.
-6. Benchmarks record hardware, model digest, backend, command, thresholds, and whether benchmark tests were explicitly enabled.
+6. Benchmarks record hardware, model digest, backend, invocation, thresholds, and fixture inputs.

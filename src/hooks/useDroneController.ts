@@ -140,7 +140,7 @@ function requireVelocitySetpoint(channels: WireChannels, label: string): void {
   }
 }
 
-/** Normalize and validate the dev-only NCP action ingress against published wire 0.7. */
+/** Normalize and validate the dev-only NCP action ingress against published wire 0.8. */
 export function normalizeDevNcpCommand(input: unknown): CommandLike {
   if (!isRecord(input)) throw new Error('NCP command must be an object')
   const mode = input.mode === undefined ? 'hold' : input.mode
