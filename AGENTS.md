@@ -19,8 +19,9 @@ bun run test             # Run tests in watch mode
 bun run test:run         # Run tests once
 bun run test:coverage    # Run tests with coverage (enforces thresholds)
 bun run check:bundle     # Build + initial-bundle size budget
+bun run check:ncp-coherence # Verify NCP manifests, locks, and normative docs agree
 bun run validate         # typecheck + lint + format:check + frontend tests
-bun run validate:all     # Frontend + Rust default fmt/check/test/clippy + NCP clippy/tests
+bun run validate:all     # NCP coherence + frontend + Rust default/NCP gates
 
 # Rust backend
 bun run check:rust       # cargo check --manifest-path src-tauri/Cargo.toml

@@ -327,6 +327,7 @@ bun run validate
 bun run validate:all
 
 # Focused checks
+bun run check:ncp-coherence
 bun run check:rust
 bun run test:rust
 bun run clippy:rust

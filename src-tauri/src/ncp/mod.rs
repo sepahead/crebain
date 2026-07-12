@@ -761,7 +761,7 @@ fn ingest_command_payload(
         .map_err(|error| format!("invalid NCP command JSON: {error}"))?;
     if envelope.get("mode").and_then(serde_json::Value::as_str) == Some("estop") {
         // A recognizable ESTOP is fail-safe even when a peer omitted or skewed
-        // any other typed field. Every other mode must pass the full wire-0.7 gate.
+        // any other typed field. Every other mode must pass the full wire-0.8 gate.
         return lock_unpoisoned(plant).on_command(now_s, minimal_estop_command());
     }
 

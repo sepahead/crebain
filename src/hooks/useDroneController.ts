@@ -171,7 +171,7 @@ export function normalizeDevNcpCommand(input: unknown): CommandLike {
 
   // Fail-safe modes never need to retain attacker-controlled channel/horizon
   // payloads. Normalize them to the smallest safe command after the envelope
-  // gate; omitted mode/channels follow the wire-0.7 HOLD/empty-map defaults.
+  // gate; omitted mode/channels follow the wire-0.8 HOLD/empty-map defaults.
   if (mode !== 'active') {
     return {
       kind: 'command_frame',
@@ -258,7 +258,7 @@ export function normalizeDevNcpCommand(input: unknown): CommandLike {
   return command
 }
 
-/** Latch raw ESTOP first, then admit only a fully validated wire-0.7 command. */
+/** Latch raw ESTOP first, then admit only a fully validated wire-0.8 command. */
 export function ingestDevNcpCommand(
   buffer: ActionBuffer,
   nowS: number,

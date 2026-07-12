@@ -31,7 +31,7 @@ function activeCommand(seq = 1) {
 }
 
 describe('dev NCP command ingress', () => {
-  it('accepts a complete published wire-0.7 command', () => {
+  it('accepts a complete published wire-0.8 command', () => {
     const command = normalizeDevNcpCommand(activeCommand())
     expect(command.mode).toBe('active')
     expect(command.channels.velocity_setpoint?.data).toEqual([1, 2, 3])

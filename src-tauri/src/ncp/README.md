@@ -1,5 +1,7 @@
 # `src-tauri/src/ncp` — optional native NCP adapter
 
+<!-- ncp-pin: v0.8.0 -->
+
 This module is CREBAIN's Rust + Zenoh adapter for the Neuro-Cybernetic Protocol
 (NCP). Project-specific pose/velocity/channel mapping stays here; the canonical
 wire types and key construction come from pinned `ncp-core` and `ncp-zenoh`
@@ -17,7 +19,7 @@ Compiling this module does not make CREBAIN an always-on Engram body.
 
 ## Build and test
 
-The SDK is pinned to tag `v0.7.1` in both Cargo and npm manifests. A sibling
+The SDK is pinned to tag `v0.8.0` in both Cargo and npm manifests. A sibling
 checkout is not required, but the pinned Git dependency must be resolvable when
 Cargo resolves/builds the feature.
 
@@ -29,8 +31,8 @@ bun run test:rust:ncp
 
 Keep `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `package.json`, and `bun.lock`
 on one compatible NCP release. Do not copy a wire version from an external
-example: Engram examples/profiles describing wire `0.6` or older, or `std_msgs`
-conventions, must be updated in their owning repository before use
+example: Engram examples/profiles describing an older incompatible contract or
+`std_msgs` conventions must be updated in their owning repository before use
 as deployment evidence.
 
 ## Available library surface
