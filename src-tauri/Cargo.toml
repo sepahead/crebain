@@ -87,10 +87,9 @@ zenoh = { version = "1.9", default-features = false, features = [
 # (canonical home: https://github.com/sepahead/NCP). Resolves standalone on a fresh
 # checkout, so the default (ncp-off) build no longer needs a sibling on disk. Optional,
 # pulled in only by the `ncp` feature; bump the tag to adopt a newer NCP wire.
-# TEMPORARY: branch-pinned to the wire-0.8 migration branch for build verification.
-# Re-pin to the immutable `v0.8.0` tag once it is cut (maintainer post-release step).
-ncp-core = { git = "https://github.com/sepahead/NCP", branch = "wire-0.8-stream-identity", optional = true }
-ncp-zenoh = { git = "https://github.com/sepahead/NCP", branch = "wire-0.8-stream-identity", optional = true }
+# Pinned to the immutable wire-0.8 release tag.
+ncp-core = { git = "https://github.com/sepahead/NCP", tag = "v0.8.0", optional = true }
+ncp-zenoh = { git = "https://github.com/sepahead/NCP", tag = "v0.8.0", optional = true }
 
 # TypeScript type generation from Rust types (serde-compat for existing Serialize derives)
 ts-rs = { version = "12", features = ["serde-compat"], optional = true }
