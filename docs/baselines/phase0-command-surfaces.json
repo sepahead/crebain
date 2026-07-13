@@ -223,6 +223,13 @@
       "control_ids": ["CTL-011"]
     },
     {
+      "id": "TEST-PLANT-RETAINED-SNAPSHOT",
+      "locator": {
+        "file": "src-tauri/crates/plant-authority/tests/channel_stress.rs",
+        "selector": "fn snapshot_register_should_never_expose_a_torn_concurrent_commit()"
+      }
+    },
+    {
       "id": "TEST-PLANT-MONOTONIC-EXPIRY",
       "locator": {
         "file": "src-tauri/crates/plant-authority/src/expiry.rs",
@@ -1928,6 +1935,7 @@
         { "id": "TEST-PLANT-SHUTDOWN-GENERATION", "status": "existing-component" },
         { "id": "TEST-PLANT-MAX-SHUTDOWN-TERMINAL", "status": "existing-component" },
         { "id": "TEST-PLANT-BOUNDED-CHANNELS", "status": "existing-component" },
+        { "id": "TEST-PLANT-RETAINED-SNAPSHOT", "status": "existing-component" },
         { "id": "TEST-PLANT-MONOTONIC-EXPIRY", "status": "existing-component" },
         { "id": "TEST-PLANT-HEADLESS-SELF-CHECK", "status": "existing-component" }
       ],

@@ -16,10 +16,11 @@ mod runtime;
 
 pub use adapter::{AdapterError, AdapterState, InertAdapter};
 pub use channels::{
-    bounded_queue, latest_value, BoundedReceiver, BoundedSender, ChannelConfigurationError,
-    ChannelError, ChannelReadError, DropAccounting, FullPolicy, KernelChannels, LatestChannel,
-    LatestReceiver, LatestSender, LatestSnapshot, QueueChannel, SafetyCause, SafetyLatch,
-    SafetyNotice, MAX_BOUNDED_QUEUE_CAPACITY,
+    bounded_queue, latest_value, snapshot_value, BoundedReceiver, BoundedSender,
+    ChannelConfigurationError, ChannelError, ChannelReadError, DropAccounting, FullPolicy,
+    KernelChannels, LatestChannel, LatestReceiver, LatestSender, LatestSnapshot, QueueChannel,
+    SafetyCause, SafetyLatch, SafetyNotice, SnapshotChannel, SnapshotCommit, SnapshotReceiver,
+    SnapshotSender, MAX_BOUNDED_QUEUE_CAPACITY,
 };
 pub use expiry::{ExpiryConfigurationError, ExpiryStatus, MonotonicExpiryGuard};
 pub use lifecycle::{
