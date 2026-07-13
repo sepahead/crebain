@@ -147,10 +147,13 @@ Open-source readiness and quality hardening.
   safe-action selection, adapter hook, or I/O and is not an active watchdog.
 - **Opt-in Galadriel live evidence producer.** A binary compiled with the
   off-by-default `ncp` feature can, only when
-  `CREBAIN_GALADRIEL_ENABLE=1`, start a managed producer that writes frozen
+  `CREBAIN_GALADRIEL_ENABLE=1` and an explicit key-safe
+  `CREBAIN_GALADRIEL_EPOCH` is supplied, start a managed producer that writes frozen
   sidecar and producer-monitor envelopes to the exact `galadriel-pid` and
   `galadriel-monitor` named-perception keys. Enabled startup fails closed on a
-  strict canonical registry mismatch, selected frame/context mismatch, actual
+  missing/malformed epoch, strict canonical registry mismatch, conflicting
+  immutable content-identifier or projection-algorithm-version digests,
+  selected frame/context mismatch, actual
   effective-fusion-config digest mismatch, actual running-executable digest
   mismatch, malformed queue/heartbeat policy, or secure-mode Zenoh open error.
   Fusion processing now builds one deterministic frozen-prior ledger with

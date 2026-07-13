@@ -31,6 +31,8 @@ pub const ENABLE_ENV: &str = "CREBAIN_GALADRIEL_ENABLE";
 pub const REALM_ENV: &str = "CREBAIN_GALADRIEL_REALM";
 /// Concrete authenticated producer identity carried by every envelope.
 pub const PRODUCER_ID_ENV: &str = "CREBAIN_GALADRIEL_PRODUCER_ID";
+/// Operator-provisioned UTF-8 NCP session segment carried by both evidence keys.
+pub const EPOCH_ENV: &str = "CREBAIN_GALADRIEL_EPOCH";
 /// Path to the immutable deployment-registry JSON document.
 pub const REGISTRY_PATH_ENV: &str = "CREBAIN_GALADRIEL_REGISTRY_PATH";
 /// Expected lowercase SHA-256 digest of the canonical deployment registry.
@@ -276,7 +278,7 @@ impl ProducerCounters {
 /// Immutable view of runtime health and bounded queue state.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProducerStatus {
-    /// Fresh producer epoch used as the NCP session id.
+    /// Configured producer epoch used as the NCP session id.
     pub epoch: String,
     /// Last fusion sequence reported by frame admission or status update.
     pub last_fusion_seq: Option<u64>,
@@ -615,12 +617,11 @@ impl BytePublisher for ZenohPublisher {
 /// malformed enabled configuration, registry/pin mismatches, a secure transport
 /// open failure, or startup outside an active Tokio runtime.
 pub async fn start_from_env() -> Result<Option<GaladrielRuntime>, ProducerRuntimeError> {
-    let Some((settings, registry)) = settings_from_lookup(environment_value)? else {
+    let Some((settings, registry, epoch)) = settings_from_lookup(environment_value)? else {
         return Ok(None);
     };
     let keys = Keys::try_new(settings.realm.clone())
         .map_err(|error| ProducerRuntimeError::Configuration(error.to_string()))?;
-    let epoch = fresh_process_epoch();
     validate_settings(&settings, &registry, &epoch)?;
     let bus = ZenohBus::open_secure(keys)
         .await
@@ -677,7 +678,7 @@ fn environment_value(name: &str) -> Result<Option<String>, String> {
 
 fn settings_from_lookup<F>(
     lookup: F,
-) -> Result<Option<(RuntimeSettings, DeploymentRegistry)>, ProducerRuntimeError>
+) -> Result<Option<(RuntimeSettings, DeploymentRegistry, String)>, ProducerRuntimeError>
 where
     F: Fn(&str) -> Result<Option<String>, String>,
 {
@@ -702,6 +703,8 @@ where
                 ))
             })
     };
+    let epoch = required(EPOCH_ENV)?;
+    validate_identity(EPOCH_ENV, &epoch)?;
     let registry_path = required(REGISTRY_PATH_ENV)?;
     let expected_registry_digest = required(REGISTRY_DIGEST_ENV)?;
     let registry_bytes = read_registry_bounded(std::path::Path::new(&registry_path))?;
@@ -734,8 +737,8 @@ where
         )?,
         capacities,
     };
-    validate_settings(&settings, &registry, "configuration-validation-epoch")?;
-    Ok(Some((settings, registry)))
+    validate_settings(&settings, &registry, &epoch)?;
+    Ok(Some((settings, registry, epoch)))
 }
 
 fn optional_u32<F>(lookup: &F, name: &str, default: u32) -> Result<u32, ProducerRuntimeError>
@@ -804,7 +807,7 @@ fn validate_settings(
     Keys::try_new(settings.realm.clone())
         .map_err(|error| ProducerRuntimeError::Configuration(error.to_string()))?;
     validate_identity("producer_id", &settings.producer_id)?;
-    validate_identity("process epoch", epoch)?;
+    validate_identity(EPOCH_ENV, epoch)?;
     validate_sha256(SOFTWARE_DIGEST_ENV, &settings.software_digest)?;
     validate_sha256(CONFIGURATION_DIGEST_ENV, &settings.configuration_digest)?;
     settings.capacities.validate(registry)?;
@@ -878,15 +881,6 @@ fn validate_sha256(name: &str, value: &str) -> Result<(), ProducerRuntimeError> 
         )));
     }
     Ok(())
-}
-
-fn fresh_process_epoch() -> String {
-    let timestamp_ms = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis();
-    let random: u128 = rand::random();
-    format!("crebain-{timestamp_ms:x}-{random:032x}")
 }
 
 fn admit_frame(
@@ -2042,6 +2036,7 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     use serde_json::{json, Value};
+    use tempfile::NamedTempFile;
 
     use super::*;
     use crate::pid_observation::ConsistencyProjection;
@@ -2234,6 +2229,36 @@ mod tests {
             heartbeat_deadline_ms: MAX_HEARTBEAT_DURATION_MS,
             capacities,
         }
+    }
+
+    fn enabled_environment(epoch: &str) -> (NamedTempFile, HashMap<String, String>) {
+        let registry = test_registry();
+        let registry_file = NamedTempFile::new().expect("registry fixture file opens");
+        std::fs::write(registry_file.path(), registry.canonical_json())
+            .expect("registry fixture writes");
+        let variables = HashMap::from([
+            (ENABLE_ENV.to_string(), "1".to_string()),
+            (EPOCH_ENV.to_string(), epoch.to_string()),
+            (REALM_ENV.to_string(), "ncp".to_string()),
+            (PRODUCER_ID_ENV.to_string(), "crebain-test".to_string()),
+            (
+                REGISTRY_PATH_ENV.to_string(),
+                registry_file.path().to_string_lossy().into_owned(),
+            ),
+            (
+                REGISTRY_DIGEST_ENV.to_string(),
+                registry.digest().to_string(),
+            ),
+            (FRAME_ID_ENV.to_string(), FRAME_ID.to_string()),
+            (CONTEXT_ID_ENV.to_string(), CONTEXT_ID.to_string()),
+            (SOFTWARE_DIGEST_ENV.to_string(), SOFTWARE_DIGEST.to_string()),
+            (
+                CONFIGURATION_DIGEST_ENV.to_string(),
+                CONFIGURATION_DIGEST.to_string(),
+            ),
+            (OUTCOME_CAPACITY_ENV.to_string(), "8".to_string()),
+        ]);
+        (registry_file, variables)
     }
 
     fn capacities(
@@ -2437,6 +2462,108 @@ mod tests {
         let error = settings_from_lookup(|name| Ok(invalid.get(name).cloned()))
             .expect_err("ambiguous switch must fail");
         assert!(matches!(error, ProducerRuntimeError::Configuration(_)));
+    }
+
+    #[test]
+    fn enabled_configuration_requires_an_explicit_epoch() {
+        let (_registry_file, mut variables) = enabled_environment("deployment-epoch");
+        variables.remove(EPOCH_ENV);
+
+        let error = settings_from_lookup(|name| Ok(variables.get(name).cloned()))
+            .expect_err("missing epoch must fail enabled startup");
+
+        assert!(matches!(
+            error,
+            ProducerRuntimeError::Configuration(message) if message.contains(EPOCH_ENV)
+        ));
+    }
+
+    #[test]
+    fn enabled_configuration_rejects_an_empty_epoch() {
+        let (_registry_file, mut variables) = enabled_environment("deployment-epoch");
+        variables.insert(EPOCH_ENV.to_string(), String::new());
+
+        let error = settings_from_lookup(|name| Ok(variables.get(name).cloned()))
+            .expect_err("empty epoch must fail enabled startup");
+
+        assert!(matches!(
+            error,
+            ProducerRuntimeError::Configuration(message) if message.contains(EPOCH_ENV)
+        ));
+    }
+
+    #[test]
+    fn enabled_configuration_rejects_an_epoch_key_path() {
+        let (_registry_file, variables) = enabled_environment("epoch/child");
+
+        let error = settings_from_lookup(|name| Ok(variables.get(name).cloned()))
+            .expect_err("epoch must be one key-safe segment");
+
+        assert!(matches!(
+            error,
+            ProducerRuntimeError::Configuration(message) if message.contains(EPOCH_ENV)
+        ));
+    }
+
+    #[test]
+    fn enabled_configuration_rejects_unsafe_epoch_segments() {
+        for epoch in [
+            "epoch*wildcard",
+            "epoch?query",
+            "epoch\ncontrol",
+            "\u{feff}epoch",
+            "epoch\u{00a0}space",
+        ] {
+            let (_registry_file, variables) = enabled_environment(epoch);
+
+            let error = settings_from_lookup(|name| Ok(variables.get(name).cloned()))
+                .expect_err("unsafe epoch must fail enabled startup");
+
+            assert!(
+                matches!(
+                    error,
+                    ProducerRuntimeError::Configuration(message) if message.contains(EPOCH_ENV)
+                ),
+                "unexpected result for {epoch:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn enabled_configuration_accepts_a_one_byte_epoch() {
+        let (_registry_file, variables) = enabled_environment("a");
+
+        let (_, _, epoch) = settings_from_lookup(|name| Ok(variables.get(name).cloned()))
+            .expect("one-byte epoch validates")
+            .expect("enabled producer configuration is present");
+
+        assert_eq!(epoch, "a");
+    }
+
+    #[test]
+    fn enabled_configuration_accepts_a_sixty_four_byte_multibyte_epoch() {
+        let epoch = "é".repeat(IDENTITY_MAX_BYTES / 2);
+        let (_registry_file, variables) = enabled_environment(&epoch);
+
+        let (_, _, actual_epoch) = settings_from_lookup(|name| Ok(variables.get(name).cloned()))
+            .expect("64-byte epoch validates")
+            .expect("enabled producer configuration is present");
+
+        assert_eq!(actual_epoch, epoch);
+    }
+
+    #[test]
+    fn enabled_configuration_rejects_a_sixty_five_byte_multibyte_epoch() {
+        let epoch = format!("{}a", "é".repeat(IDENTITY_MAX_BYTES / 2));
+        let (_registry_file, variables) = enabled_environment(&epoch);
+
+        let error = settings_from_lookup(|name| Ok(variables.get(name).cloned()))
+            .expect_err("65-byte epoch must fail enabled startup");
+
+        assert!(matches!(
+            error,
+            ProducerRuntimeError::Configuration(message) if message.contains(EPOCH_ENV)
+        ));
     }
 
     #[test]

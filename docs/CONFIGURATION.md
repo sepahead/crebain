@@ -26,6 +26,7 @@ the trust-sensitive variables in [../SECURITY.md](../SECURITY.md).
 | `CREBAIN_GALADRIEL_ENABLE` | Exact runtime opt-in for the Galadriel evidence producer in a binary compiled with Cargo feature `ncp`; a non-feature binary fails startup when set to `1` | Absent/`0` off; exactly `1` on |
 | `CREBAIN_GALADRIEL_REALM` | Required enabled NCP realm for both evidence routes | Key-safe NCP realm |
 | `CREBAIN_GALADRIEL_PRODUCER_ID` | Required declared producer identity in each envelope; this string is not by itself a TLS-principal binding | Key-safe identity segment |
+| `CREBAIN_GALADRIEL_EPOCH` | Required operator-provisioned session identity used in both evidence keys; syntax validation does not prove uniqueness or anti-rollback | One key-safe UTF-8 segment, `1..=64` bytes; provision a new unique value for each process lifetime |
 | `CREBAIN_GALADRIEL_REGISTRY_PATH` | Required enabled path to the strict, bounded deployment registry | Readable JSON file, at most 1 MiB |
 | `CREBAIN_GALADRIEL_REGISTRY_DIGEST` | Required expected canonical registry digest | 64 lowercase SHA-256 hex characters |
 | `CREBAIN_GALADRIEL_FRAME_ID` | Required selected frame in the registry | Decimal JSON-safe positive integer |
@@ -66,14 +67,21 @@ The standard release workflow currently omits that feature. An absent/`0` switch
 opens no producer session; an ambiguous value or `1` in a non-feature binary
 fails startup.
 
-Enabled startup validates the registry, selected identities, effective fusion
-configuration, and running executable before opening the secure-mode NCP Zenoh
-session. The effective configuration is the parsed/default `FusionConfig` after
+Enabled startup validates the explicit process epoch, registry, selected
+identities, effective fusion configuration, and running executable before
+opening the secure-mode NCP Zenoh session. The effective configuration is the
+parsed/default `FusionConfig` after
 the `CREBAIN_PID_JSONL` innovation-emission override. Its fully materialized
 compact JSON SHA-256 must equal both the environment pin and selected registry
 context. The actual running executable file SHA-256 must likewise equal the
 environment and context software pins. Provision the latter from the final
 post-signing/post-packaging executable.
+
+CREBAIN does not mint the process epoch. Deployment orchestration must set
+`CREBAIN_GALADRIEL_EPOCH` to a new unique value for every process lifetime and
+must prevent reuse across restarts. The producer validates only that the value
+is one key-safe `1..=64` byte segment; it cannot prove freshness, durable
+uniqueness, or anti-rollback.
 
 Once active, the startup-loaded fusion engine is immutable for the producer
 epoch. Renderer `fusion_init` calls are readiness checks and their supplied
