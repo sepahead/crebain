@@ -28,6 +28,10 @@ timing depends on severity.
   authentication, policy, and transport encryption.
 - Run the desktop app and simulator with least privilege.
 - Verify model provenance, rights, immutable digest, tensor contract, and fixtures.
+- Keep native benchmark reports in an approved evidence location and review
+  their hardware label, content digests, ONNX Runtime loading record, raw
+  timings, and first-frame detections before sharing. Only an explicitly
+  configured Linux `ORT_DYLIB_PATH` carries a runtime-library digest.
 - Treat scene JSON, GLB/splat/image assets, ROS graph names, CDR, and IPC
   payloads as untrusted.
 - Point `CREBAIN_PID_JSONL` only at an operator-approved local path. It is a
@@ -41,6 +45,7 @@ timing depends on severity.
 | Boundary | Untrusted inputs | Current controls | Required review before release claims |
 |----------|------------------|------------------|---------------------------------------|
 | Model loading | Backend environment paths, model files, TensorRT build/cache inputs | Allowed-path/extension checks, MLX `.safetensors` checks and optional SHA-256 pin, missing-model errors, unsupported build-mode rejection | Provenance, rights, exact tensor/class contract, golden fixtures, and target-hardware evidence |
+| Native detector benchmark | Model/fixture/baseline/output paths; policy/count inputs; operator source/hardware declarations | Bounded validated inputs; no-overwrite atomic report; model/fixture pre/post digests; recorded ONNX Runtime loading mode plus a pre/post digest only for configured Linux `ORT_DYLIB_PATH`; trusted baseline-digest check; forced profiling/cache controls; local paths/environment values redacted | Report remains sensitive; declarations are not executable/hardware attestation; crate-linked or search-loaded runtime bytes are not attested; provider label is not per-operation placement proof; pre/post hashes are not hostile-filesystem attestation |
 | Scene persistence (native) | Scene path and JSON | Allowed-root `.json` path checks; open-once bounded 10 MiB read; parse then migration; atomic same-directory temp-file save and sync | Serialized production-handler IPC negatives for traversal, outside-root, extension, absence, malformed JSON, invalid UTF-8, and size; valid save/load remains a manual smoke |
 | Browser scene state | File/blob/localStorage JSON and referenced state | 10 MiB pre-read/UTF-8 bounds; migration before strict schema; unique/referential IDs; finite values; 64 cameras, 256 drones, 128 assets, 10,000 detections, route and render-target caps | Restore cancellation, partial failure, and representative older-version fixtures |
 | Browser assets | Splat, GLB, embedded images, floor PNG/JPEG, remote URLs | Renderer `fetch` is statically confined to the bounded adapter; CSP connect sources match relative/HTTPS/HTTP-loopback restoration; passive images are self/blob/data only; streamed byte ceilings despite absent/dishonest `Content-Length`; timeout/source/content/aggregate checks | Decode/render smoke with malformed/truncated/oversized fixtures and packaged CSP behavior |

@@ -83,6 +83,22 @@ impl fmt::Display for Backend {
     }
 }
 
+impl std::str::FromStr for Backend {
+    type Err = InferenceError;
+
+    fn from_str(value: &str) -> Result<Self> {
+        let trimmed = value.trim();
+        match trimmed.to_ascii_lowercase().as_str() {
+            "coreml" => Ok(Self::CoreML),
+            "mlx" => Ok(Self::MLX),
+            "cuda" => Ok(Self::CUDA),
+            "tensorrt" => Ok(Self::TensorRT),
+            "onnx" => Ok(Self::ONNX),
+            _ => Err(InferenceError::InvalidBackend(trimmed.to_string())),
+        }
+    }
+}
+
 /// Inference error
 #[derive(Debug, Clone)]
 pub enum InferenceError {
@@ -699,15 +715,7 @@ fn configured_backend_from_value(value: Option<&str>) -> Result<Option<Backend>>
 }
 
 fn parse_backend_name(value: &str) -> Result<Backend> {
-    let trimmed = value.trim();
-    match trimmed.to_ascii_lowercase().as_str() {
-        "coreml" => Ok(Backend::CoreML),
-        "mlx" => Ok(Backend::MLX),
-        "cuda" => Ok(Backend::CUDA),
-        "tensorrt" => Ok(Backend::TensorRT),
-        "onnx" => Ok(Backend::ONNX),
-        _ => Err(InferenceError::InvalidBackend(trimmed.to_string())),
-    }
+    value.parse()
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

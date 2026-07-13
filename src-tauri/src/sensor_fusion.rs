@@ -225,7 +225,7 @@ fn measurement_r_cartesian(meas: &SensorMeasurement, meas_pos: &Vector3<f64>) ->
 
 /// Thermal-specific measurement for IR camera integration.
 /// Roadmap: v0.6.0 - Hardware-in-the-loop testing with FLIR cameras
-#[expect(dead_code)]
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ThermalMeasurement {
     pub base: SensorMeasurement,
@@ -239,7 +239,7 @@ pub struct ThermalMeasurement {
 
 /// Acoustic-specific measurement for audio sensor arrays.
 /// Roadmap: v0.6.0 - Multi-sensor hardware integration
-#[expect(dead_code)]
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AcousticMeasurement {
     pub base: SensorMeasurement,

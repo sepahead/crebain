@@ -19,6 +19,48 @@ pub struct CoreMlDetector {
 }
 
 impl CoreMlDetector {
+    /// Create a CoreML detector from exactly one validated compiled-model path.
+    ///
+    /// This constructor is intended for isolated evidence tools. It rejects an
+    /// already initialized process-global detector because that detector does
+    /// not expose enough identity to prove it was loaded from the requested
+    /// path, and it never searches fallback locations.
+    pub fn new_with_model_path(model_path: &std::path::Path) -> Result<Self> {
+        #[cfg(target_os = "macos")]
+        {
+            let model_path = model_path.to_str().ok_or_else(|| {
+                InferenceError::ModelLoadError(
+                    "CoreML model path must be valid UTF-8 for native loading".to_string(),
+                )
+            })?;
+            let validated =
+                crate::common::path::validate_model_path(model_path, Some(&["mlmodelc"]))
+                    .map_err(InferenceError::ModelLoadError)?;
+            let validated = validated.to_str().ok_or_else(|| {
+                InferenceError::ModelLoadError(
+                    "validated CoreML model path must be valid UTF-8 for native loading"
+                        .to_string(),
+                )
+            })?;
+
+            let start = Instant::now();
+            crate::coreml::init_detector_exact(validated)
+                .map_err(InferenceError::ModelLoadError)?;
+
+            Ok(Self {
+                inference_count: AtomicU64::new(0),
+                total_inference_ms: AtomicU64::new(0),
+                model_load_ms: start.elapsed().as_secs_f64() * 1000.0,
+            })
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            let _ = model_path;
+            Err(InferenceError::BackendNotAvailable(Backend::CoreML))
+        }
+    }
+
     /// Create a new CoreML detector
     pub fn new() -> Result<Self> {
         let start = Instant::now();

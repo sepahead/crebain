@@ -37,7 +37,7 @@ and independently attested FCU failsafe behavior.
 | - | --------- | --------------- |
 | 1 | Validate the experimental MLX YOLOv8 safetensors path with an approved model contract, fixture detections, class mapping, and target-hardware benchmarks | Trustworthy Apple Silicon model evidence |
 | 3 | Run ROS/Gazebo/Zenoh multi-frame smoke tests against a target topology | Deployment-specific transport confidence |
-| 4 | Add a native detector regression benchmark harness, then extend it to sensor fusion, transport event routing, and position history | Better latency visibility |
+| 4 | Establish approved native-detector target baselines/thresholds, then extend the harness to sensor fusion, transport event routing, and position history | Harness mechanics exist; target evidence and wider coverage remain open |
 | 5 | Execute and archive manual smoke-test results for native launch, diagnostics, scene save/load, and ROS/Zenoh modes | Repeatable release checks |
 | 6 | Validate at least one full model contract with fixture frames, class mapping, thresholds, and benchmark context | Trustworthy demo/model evidence |
 | 7 | Extract reusable hook-test harness utilities for React root setup, `act`, IPC mocks, and cleanup | Less duplicated test code |
@@ -45,6 +45,11 @@ and independently attested FCU failsafe behavior.
 
 ## Recently completed
 
+- Native detector benchmark mechanics: bounded release-command inputs,
+  content-identified model/fixture/runtime context, raw sequential call samples,
+  trusted-baseline digest binding, p95 comparison, atomic no-overwrite reports,
+  and all-target logic tests. No approved model, target run, baseline, threshold,
+  or numeric claim exists.
 - Backlog item 2: the production Tauri handler list is reused by a serialized
   mock-runtime IPC harness. Negative invoke requests now cover scene save/load
   payload, path, UTF-8, parse, absence, and size failures; detector/fusion

@@ -16,6 +16,7 @@ pub struct OnnxDetector {
     inference_count: AtomicU64,
     total_inference_ms: AtomicU64,
     model_load_ms: f64,
+    backend_name: String,
 }
 
 impl OnnxDetector {
@@ -27,6 +28,13 @@ impl OnnxDetector {
         if !crate::onnx_detector::is_onnx_detector_ready() {
             crate::onnx_detector::init_global_detector().map_err(InferenceError::ModelLoadError)?;
         }
+        let backend_name = crate::onnx_detector::initialized_onnx_backend_name()
+            .ok_or_else(|| {
+                InferenceError::BackendError(
+                    "ONNX detector initialized without an execution-provider identity".to_string(),
+                )
+            })?
+            .to_string();
 
         let model_load_ms = start.elapsed().as_secs_f64() * 1000.0;
 
@@ -34,6 +42,7 @@ impl OnnxDetector {
             inference_count: AtomicU64::new(0),
             total_inference_ms: AtomicU64::new(0),
             model_load_ms,
+            backend_name,
         })
     }
 }
@@ -92,7 +101,7 @@ impl Detector for OnnxDetector {
             avg_inference_ms: avg_ms,
             total_inferences: count,
             model_load_ms: self.model_load_ms,
-            backend: "ONNX".to_string(),
+            backend: self.backend_name.clone(),
         }
     }
 }

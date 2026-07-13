@@ -58,3 +58,14 @@ from both paths using the YOLOv8 name.
 4. Empty/no-target frames do not produce systematic false positives at the chosen thresholds.
 5. Threshold and maximum-detection behavior agree across every runtime path used by the scenario.
 6. Benchmarks record hardware, model digest, backend, invocation, thresholds, and fixture inputs.
+
+## Native latency artifact
+
+The release-command harness in
+[NATIVE_DETECTOR_BENCHMARK.md](NATIVE_DETECTOR_BENCHMARK.md) records
+content-identified model/fixture inputs, raw sequential detector-call samples,
+policy, provider label, and an operator-declared target profile. That artifact
+supplies latency context only. It does not establish provenance or rights,
+validate tensor/class mapping, compare detections with golden truth, measure
+false positives, attest accelerator graph placement, or prove end-to-end camera
+throughput. Those model-contract gates remain required independently.

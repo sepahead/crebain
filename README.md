@@ -318,6 +318,7 @@ and asset limits, and the platform matrix are in
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Design principles, transport trade-offs, backend selection, directory map |
 | [docs/SENSOR_FUSION.md](docs/SENSOR_FUSION.md) | Fusion math, coordinate contracts, tuning, known limitations |
 | [docs/MODEL_CONTRACTS.md](docs/MODEL_CONTRACTS.md) | What a model must prove before its detections are trusted |
+| [docs/NATIVE_DETECTOR_BENCHMARK.md](docs/NATIVE_DETECTOR_BENCHMARK.md) | Release-command native detector latency artifact and evidence limits |
 | [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | Environment variables, settings, scene/asset limits |
 | [docs/CONTROLS.md](docs/CONTROLS.md) | Full keyboard reference |
 | [ros/README.md](ros/README.md) | ROS package, topics, launch files, camera wire contract |
@@ -351,6 +352,10 @@ bun run self-check:plant
 bun run check:rust
 bun run test:rust
 bun run clippy:rust
+
+# Show the native detector benchmark contract; a real run needs an approved
+# model, fixture, target profile, and private output path
+bun run benchmark:native-detector -- --help
 ```
 
 `bun run build` includes the production module-graph/chunk boundary proof, and
@@ -361,6 +366,11 @@ supply-chain-audit jobs; release candidates require those hosted gates as
 specified in [docs/RELEASE_ACCEPTANCE.md](docs/RELEASE_ACCEPTANCE.md). The
 authoritative pass/fail status lives in the
 [CI runs](https://github.com/sepahead/crebain/actions/workflows/ci.yml).
+
+The benchmark command creates no repository-approved latency claim by itself.
+Its artifact scope, trusted-baseline requirements, declaration limits, and
+sharing precautions are defined in
+[docs/NATIVE_DETECTOR_BENCHMARK.md](docs/NATIVE_DETECTOR_BENCHMARK.md).
 
 Contributions follow [CONTRIBUTING.md](CONTRIBUTING.md) (workflow, branch
 naming, per-change validation matrix) and

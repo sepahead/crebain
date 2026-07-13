@@ -2,7 +2,7 @@
 //! Adaptive Response & Awareness System (ARAS)
 //!
 //! Cross-platform native backend with multiple ML inference backends:
-//! - macOS: CoreML via direct FFI (Neural Engine/Metal/GPU)
+//! - macOS: CoreML via direct FFI (framework-managed device placement)
 //! - Linux/Windows: ONNX Runtime with CUDA/TensorRT/CPU
 
 // Core modules

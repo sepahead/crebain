@@ -12,6 +12,17 @@ README and treated as unverified until measured on target hardware.
 Open-source readiness and quality hardening.
 
 ### Added
+- **Content-identified native detector microbenchmark.** A release-command Rust
+  example records bounded single-fixture `DetectorRuntime::detect` samples,
+  nearest-rank latency summaries, a separately scoped evidence-loop wall time,
+  model/fixture digests, the recorded ONNX Runtime loading mode, a digest for an
+  explicitly configured Linux `ORT_DYLIB_PATH`, forced
+  MLX-profiling/TensorRT-cache controls, and an optional p95 gate bound to a
+  caller-supplied trusted baseline digest. Reports redact local paths and
+  environment values, refuse overwrite, preserve a failing comparison, and
+  carry their claim/sensitivity limits. The harness has logic tests but no
+  repository-approved model, target run, baseline, threshold, or numeric
+  result.
 - **Serialized Tauri IPC negative-boundary coverage.** The production command
   handler is now reusable with Tauri's mock runtime, so tests pass JSON invoke
   requests through the real handler dispatch and argument deserializer instead
@@ -54,6 +65,17 @@ Open-source readiness and quality hardening.
   Tauri `useDetectionLoop` path and native CoreML/ONNX backends remain.
 
 ### Fixed
+- **Declared Rust MSRV matches the locked graph.** The manifest and contributor
+  guide now require Rust 1.89 because the existing locked `nalgebra`/`wide`
+  dependency path no longer compiles on 1.88; development and CI remain pinned
+  to 1.91.1.
+- **Native provider identities no longer survive failed registration.** Generic
+  ONNX TensorRT/CUDA/CoreML attempts now require execution-provider
+  registration to succeed before assigning that provider label, while retaining
+  ordered fallback to the next provider or CPU. The label records selected
+  session configuration, not exclusive accelerator graph placement. Exact
+  CoreML benchmark initialization is serialized against normal singleton
+  initialization so a concurrent different model cannot win unnoticed.
 - **Passive inference diagnostics no longer wait behind backend initialization.**
   Runtime snapshots use a nonblocking lock attempt and report an explicit
   `busy` state while provider discovery, model loading, or warmup owns the
