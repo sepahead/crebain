@@ -43,9 +43,13 @@ forms, embedded objects, and framing are denied by explicit CSP directives.
 
 | Parameter | Default | Notes |
 | --------- | ------- | ----- |
-| Confidence Threshold | 0.25 | Clamped to 0.0–1.0 at the IPC boundary |
-| IOU Threshold | 0.45 | Hardcoded on the native path (the IPC parameter is accepted but ignored) |
-| Max Detections | 100 | Clamped to 1–1000 at the IPC boundary |
+| Confidence Threshold | 0.25 | Must be finite and between 0.25 and 1.0, inclusive |
+| IoU Threshold | 0.45 | Must be finite and between 0.0 and 0.45, inclusive; applied by the runtime's class-aware NMS |
+| Max Detections | 100 | Must be an integer between 1 and 100, inclusive |
+
+These limits are the common portable backend envelope. The runtime policy can
+tighten confidence, IoU, and result-count limits, but it cannot recover a
+candidate that a selected backend already discarded.
 
 ## Sensor fusion settings
 
