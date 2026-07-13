@@ -208,7 +208,7 @@
           "artifact": "watchdog and FCU-failsafe trace"
         }
       ],
-      "residual_risk": "A component safety latch cannot select or apply an ODD-specific physical safe action; watchdog, FCU failsafe, and kill/freeze evidence remain absent."
+      "residual_risk": "A component safety latch and deadline detector cannot select or apply an ODD-specific physical safe action; output inhibition, FCU failsafe, and kill/freeze evidence remain absent."
     },
     {
       "id": "HAZ-003",
@@ -234,9 +234,14 @@
           "test_id": "TEST-PLANT-MONOTONIC-EXPIRY",
           "status": "partial",
           "artifact": "component tests proving half-open local expiry, immutable deadline, generation fencing, invalid-TTL rejection, and clock-regression failure"
+        },
+        {
+          "test_id": "TEST-PLANT-ACTIVE-DEADLINE-MONITOR-V1",
+          "status": "partial",
+          "artifact": "component tests proving receipt-derived immutable tickets, expected-generation equality, exact profile/session/generation binding, public-path strictly increasing one-slot replacement, terminal receipt regression, exact-deadline precedence, timestamped lateness, caller-reported generation mismatch, start-error context, and fail-closed worker, poison-without-exact-key, panic, and shutdown behavior"
         }
       ],
-      "residual_risk": "Passive local expiry mechanics exist, but there is no command admission, active watchdog scheduling, suspend qualification, immediately-before-write check, safe action, or latency evidence."
+      "residual_risk": "The fixed-state component detects and timestamps an absolute receipt-anchored deadline when its worker is scheduled, but no trusted admission/runtime wiring, autonomous lifecycle observation, apply-time output invalidation, approved TTL policy, safe action, suspend qualification, scheduler reservation, combined-load timing, or wake-to-effect latency evidence exists."
     },
     {
       "id": "HAZ-004",
@@ -600,7 +605,7 @@
           "artifact": "active archive saturation, regular-file policy, slow/special-path behavior, archive-specific health, and finite-exit trace"
         }
       ],
-      "residual_risk": "The inert kernel, fusion batch/live-track/numeric domains, sparse/all-infinite assignment cases, Galadriel NCP lanes, and active PID JSONL admission have component bounds; the configured ncp sink is preflighted, batches are validated/serialized before writing, and worker write/flush failure degrades the epoch and stops that worker. The writer may still block beyond its two-second exit wait, archive loss lacks a dedicated counter, the no-producer fusion job waits for synchronous append/flush, router/receiver receive-size limits are unproven, and no watchdog task, reserved scheduler capacity, receiver heartbeat-deadline proof, or combined-load timing evidence exists."
+      "residual_risk": "The inert kernel, fusion batch/live-track/numeric domains, sparse/all-infinite assignment cases, Galadriel NCP lanes, and active PID JSONL admission have component bounds; the configured ncp sink is preflighted, batches are validated/serialized before writing, and worker write/flush failure degrades the epoch and stops that worker. One unwired monitor instance owns one worker and one active slot, but monitor-instance count is not globally bounded and no scheduler capacity is reserved. The writer may still block beyond its two-second exit wait, archive loss lacks a dedicated counter, the no-producer fusion job waits for synchronous append/flush, router/receiver receive-size limits are unproven, and no receiver heartbeat-deadline proof or combined-load timing evidence exists."
     },
     {
       "id": "HAZ-013",
@@ -641,7 +646,7 @@
           "artifact": "component lifecycle test showing maximum-generation shutdown remains terminal without wrapping or later mutation"
         }
       ],
-      "residual_risk": "Process-local lifecycle generations reject stale queued events and the producer creates a fresh randomized process epoch, but durable boot anti-rollback, authenticated principal binding, retained transport behavior, and the complete live restart topology do not exist."
+      "residual_risk": "Process-local lifecycle generations reject stale queued events, the deadline monitor checks caller-supplied expected generation and can terminalize on a caller-reported different generation, and the producer creates a fresh randomized process epoch. Neither monitor input establishes authoritative currentness. The monitor does not autonomously observe lifecycle rotation; durable boot anti-rollback, authenticated principal binding, retained transport behavior, and the complete live restart topology do not exist."
     },
     {
       "id": "HAZ-014",

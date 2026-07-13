@@ -14,6 +14,7 @@ const EXPECTED_BINARY = 'crebain-plantd'
 const HEALTH_SOURCE = resolve(PLANT_ROOT, 'src/health.rs')
 const FRESHNESS_SOURCE = resolve(PLANT_ROOT, 'src/freshness.rs')
 const SAFE_ACTION_SOURCE = resolve(PLANT_ROOT, 'src/safe_action.rs')
+const DEADLINE_MONITOR_SOURCE = resolve(PLANT_ROOT, 'src/deadline_monitor.rs')
 const CONTRACT_SOURCE = resolve(PLANT_ROOT, 'src/contract.rs')
 const LIFECYCLE_SOURCE = resolve(PLANT_ROOT, 'src/lifecycle.rs')
 const EXPECTED_TARGETS = [
@@ -278,6 +279,22 @@ function assertExactMethods(item, expected, label) {
   const actual = methodNames(item)
   if (actual.length !== expected.length || actual.some((name, index) => name !== expected[index]))
     fail(`${label} method surface drift; expected ${expected.join(',')}, got ${actual.join(',')}`)
+}
+
+function allMethodNames(item) {
+  return [
+    ...item.body.matchAll(
+      /\b(?:pub(?:\s*\([^)]*\))?\s+)?(?:(?:const|async|unsafe|extern)\s+)*fn\s+(\w+)\b/g
+    ),
+  ].map((match) => match[1])
+}
+
+function assertExactAllMethods(item, expected, label) {
+  const actual = allMethodNames(item)
+  if (actual.length !== expected.length || actual.some((name, index) => name !== expected[index]))
+    fail(
+      `${label} complete method surface drift; expected ${expected.join(',')}, got ${actual.join(',')}`
+    )
 }
 
 function topLevelMacroInvocations(code) {
@@ -1778,6 +1795,1088 @@ function verifySafeActionBoundary(overrides = {}) {
   }
 }
 
+function verifyDeadlineMonitorBoundary(overrides = {}) {
+  assertCanonicalPathWithin(DEADLINE_MONITOR_SOURCE, PLANT_ROOT, 'deadline-monitor source')
+  const deadlineSource = overrides.deadlineMonitor ?? readFileSync(DEADLINE_MONITOR_SOURCE, 'utf8')
+  const deadlineCode = rustBoundaryCode(deadlineSource)
+  const contractCode = rustBoundaryCode(overrides.contract ?? readFileSync(CONTRACT_SOURCE, 'utf8'))
+  const libraryCode = rustBoundaryCode(
+    overrides.library ?? readFileSync(resolve(PLANT_ROOT, 'src/lib.rs'), 'utf8')
+  )
+
+  const moduleDeclarations = [
+    ...libraryCode.matchAll(/\b(?:pub(?:\s*\([^)]*\))?\s+)?mod\s+deadline_monitor\s*;/g),
+  ]
+  if (
+    moduleDeclarations.length !== 1 ||
+    normalizedRustBody(moduleDeclarations[0][0]) !== 'moddeadline_monitor;' ||
+    leadingAttributes(libraryCode, moduleDeclarations[0].index) !== ''
+  ) {
+    fail('deadline-monitor module must have one private unconditional crate-root declaration')
+  }
+  const reexports = oneBracedItem(
+    libraryCode,
+    '\\bpub\\s+use\\s+deadline_monitor\\s*::',
+    'deadline-monitor crate-root re-export'
+  )
+  assertExactLeadingAttributes(libraryCode, reexports, '', 'deadline-monitor crate-root re-export')
+  assertExactBody(
+    reexports,
+    `
+      ActiveCommandDeadlineMonitorV1, CommandDeadlineKeyV1, CommandDeadlineTicketErrorV1,
+      CommandDeadlineTicketV1, DeadlineAdvanceErrorV1, DeadlineAdvanceReceiptV1,
+      DeadlineControlErrorV1, DeadlineDetectionEvidenceV1, DeadlineMonitorStartErrorV1,
+      DeadlineMonitorTerminalKindV1, DeadlineMonitorTerminalV1,
+    `,
+    'deadline-monitor crate-root re-export'
+  )
+
+  const submodules = [
+    ...deadlineCode.matchAll(/\b(?:pub(?:\s*\([^)]*\))?\s+)?mod\s+(\w+)\s*(?:;|\{)/g),
+  ]
+  if (submodules.length !== 1 || submodules[0][1] !== 'tests')
+    fail('deadline-monitor implementation must not gain child modules')
+  const tests = oneBracedItem(
+    deadlineCode,
+    '#\\s*\\[\\s*cfg\\s*\\(\\s*test\\s*\\)\\s*\\]\\s*mod\\s+tests',
+    'deadline-monitor test module'
+  )
+  const productionCode =
+    deadlineCode.slice(0, tests.start) +
+    blankRustSegment(deadlineCode, tests.start, tests.end) +
+    deadlineCode.slice(tests.end)
+  assertNoTopLevelMacroInvocations(productionCode, 'deadline-monitor module')
+  assertNoLocalMacroDefinitions(productionCode, 'deadline-monitor module')
+
+  const expectedTypes = [
+    'visible:struct:CommandDeadlineKeyV1',
+    'visible:enum:CommandDeadlineTicketErrorV1',
+    'visible:struct:CommandDeadlineTicketV1',
+    'visible:enum:DeadlineMonitorTerminalKindV1',
+    'visible:struct:DeadlineDetectionEvidenceV1',
+    'visible:struct:DeadlineMonitorTerminalV1',
+    'visible:struct:DeadlineMonitorStartErrorV1',
+    'visible:enum:DeadlineAdvanceErrorV1',
+    'visible:struct:DeadlineAdvanceReceiptV1',
+    'visible:enum:DeadlineControlErrorV1',
+    'private:struct:ActiveDeadline',
+    'private:enum:MonitorPhase',
+    'private:struct:MonitorState',
+    'private:struct:SharedMonitor',
+    'visible:struct:ActiveCommandDeadlineMonitorV1',
+  ]
+  const actualTypes = topLevelTypeDeclarations(productionCode)
+  if (
+    actualTypes.length !== expectedTypes.length ||
+    actualTypes.some((declaration, index) => declaration !== expectedTypes[index])
+  ) {
+    fail(`deadline-monitor type surface drift; got ${actualTypes.join(',')}`)
+  }
+  const aliases = topLevelAliasDeclarations(productionCode)
+  if (aliases.length !== 0) fail(`deadline-monitor aliases are forbidden; got ${aliases.join(',')}`)
+  const functions = topLevelFunctions(productionCode)
+  const expectedFunctions = [
+    'private:lock_recovering_synchronization_failure',
+    'private:publish_worker_panicked',
+    'private:panic_injected_worker',
+    'private:run_worker',
+  ]
+  if (
+    functions.length !== expectedFunctions.length ||
+    functions.some((declaration, index) => declaration !== expectedFunctions[index])
+  ) {
+    fail(`deadline-monitor top-level function surface drift; got ${functions.join(',')}`)
+  }
+  const panicHelperMatches = [
+    ...productionCode.matchAll(
+      /#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]\s*#\s*\[\s*cold\s*\]\s*fn\s+panic_injected_worker\s*\(\s*\)\s*->\s*!\s*\{\s*panic\s*!\s*\([^)]*\)\s*\}/g
+    ),
+  ]
+  if (panicHelperMatches.length !== 1)
+    fail('deadline-monitor injected worker panic helper must remain cfg(test), cold, and private')
+  const panicHelper = panicHelperMatches[0]
+  const productionCodeWithoutPanicHelper =
+    productionCode.slice(0, panicHelper.index) +
+    blankRustSegment(productionCode, panicHelper.index, panicHelper.index + panicHelper[0].length) +
+    productionCode.slice(panicHelper.index + panicHelper[0].length)
+  const constants = topLevelConstantDeclarations(productionCode)
+  if (
+    constants.length !== 1 ||
+    constants[0] !== 'private:DEADLINE_WORKER_NAME' ||
+    !/\bconst\s+DEADLINE_WORKER_NAME\s*:\s*&\s*str\s*=\s*"crebain-command-deadline-v1"\s*;/.test(
+      deadlineSource
+    )
+  ) {
+    fail('deadline-monitor worker name must remain one private exact constant')
+  }
+
+  const key = structItem(productionCode, 'CommandDeadlineKeyV1')
+  const ticketError = enumItem(productionCode, 'CommandDeadlineTicketErrorV1')
+  const ticket = structItem(productionCode, 'CommandDeadlineTicketV1')
+  const terminalKind = enumItem(productionCode, 'DeadlineMonitorTerminalKindV1')
+  const detection = structItem(productionCode, 'DeadlineDetectionEvidenceV1')
+  const terminal = structItem(productionCode, 'DeadlineMonitorTerminalV1')
+  const startError = structItem(productionCode, 'DeadlineMonitorStartErrorV1')
+  const advanceError = enumItem(productionCode, 'DeadlineAdvanceErrorV1')
+  const advanceReceipt = structItem(productionCode, 'DeadlineAdvanceReceiptV1')
+  const controlError = enumItem(productionCode, 'DeadlineControlErrorV1')
+  const activeDeadline = oneBracedItem(
+    productionCode,
+    '\\bstruct\\s+ActiveDeadline\\b',
+    "struct 'ActiveDeadline'"
+  )
+  const monitorPhase = oneBracedItem(
+    productionCode,
+    '\\benum\\s+MonitorPhase\\b',
+    "enum 'MonitorPhase'"
+  )
+  const monitorState = oneBracedItem(
+    productionCode,
+    '\\bstruct\\s+MonitorState\\b',
+    "struct 'MonitorState'"
+  )
+  const sharedMonitor = oneBracedItem(
+    productionCode,
+    '\\bstruct\\s+SharedMonitor\\b',
+    "struct 'SharedMonitor'"
+  )
+  const monitor = structItem(productionCode, 'ActiveCommandDeadlineMonitorV1')
+
+  for (const [item, expected, label] of [
+    [
+      key,
+      'profile:ProfileIdentity,session:CommandSessionIdentity,stream_sequence:CommandStreamSequence,generation:RuntimeGeneration,',
+      'CommandDeadlineKeyV1',
+    ],
+    [
+      ticket,
+      'key:CommandDeadlineKeyV1,received_at:PlantReceiptTime,scheduled_ttl:Duration,deadline:Instant,',
+      'CommandDeadlineTicketV1',
+    ],
+    [
+      detection,
+      'key:CommandDeadlineKeyV1,scheduled_ttl:Duration,admission_age:Duration,detected_age:Duration,late_by:Duration,',
+      'DeadlineDetectionEvidenceV1',
+    ],
+    [
+      terminal,
+      'kind:DeadlineMonitorTerminalKindV1,active_key:Option<CommandDeadlineKeyV1>,deadline_detection:Option<DeadlineDetectionEvidenceV1>,reported_generation:Option<RuntimeGeneration>,superseding_key:Option<CommandDeadlineKeyV1>,',
+      'DeadlineMonitorTerminalV1',
+    ],
+    [
+      startError,
+      'initial_key:CommandDeadlineKeyV1,initial_terminal_kind:Option<DeadlineMonitorTerminalKindV1>,',
+      'DeadlineMonitorStartErrorV1',
+    ],
+    [
+      advanceReceipt,
+      'previous_key:CommandDeadlineKeyV1,accepted_key:CommandDeadlineKeyV1,skipped_sequences:u64,admission_age:Duration,',
+      'DeadlineAdvanceReceiptV1',
+    ],
+    [activeDeadline, 'ticket:CommandDeadlineTicketV1,admission_age:Duration,', 'ActiveDeadline'],
+    [
+      monitorPhase,
+      'Armed(ActiveDeadline),Terminal(Option<DeadlineMonitorTerminalV1>),',
+      'MonitorPhase',
+    ],
+    [
+      monitorState,
+      'fixed_profile:ProfileIdentity,fixed_session:CommandSessionIdentity,fixed_generation:RuntimeGeneration,last_active_key:CommandDeadlineKeyV1,last_observed:Instant,phase:MonitorPhase,',
+      'MonitorState',
+    ],
+    [
+      sharedMonitor,
+      'state:Mutex<MonitorState>,wake:Condvar,#[cfg(test)]panic_worker:AtomicBool,',
+      'SharedMonitor',
+    ],
+    [
+      monitor,
+      'shared:Arc<SharedMonitor>,worker:Option<JoinHandle<()>>,',
+      'ActiveCommandDeadlineMonitorV1',
+    ],
+  ]) {
+    assertExactBody(item, expected, label)
+  }
+  for (const [item, expected, label] of [
+    [
+      ticketError,
+      'GenerationMismatch{candidate:RuntimeGeneration,expected:RuntimeGeneration,},ZeroLocalTtlProposal,LocalTtlExceedsRequested{requested:Duration,proposed:Duration,},UnrepresentableDeadline,',
+      'CommandDeadlineTicketErrorV1',
+    ],
+    [
+      terminalKind,
+      'DeadlineDetected,ReportedGenerationMismatch,ShutdownAcknowledged,ClockRegressed,SynchronizationFailed,WorkerPanicked,SupersedingReceiptRegressed,SupersedingDeadlineAlreadyExpired,',
+      'DeadlineMonitorTerminalKindV1',
+    ],
+    [
+      advanceError,
+      'MonitorTerminal,ProfileMismatch{expected:ProfileIdentity,received:ProfileIdentity,},SessionMismatch{expected:CommandSessionIdentity,received:CommandSessionIdentity,},GenerationMismatch{expected:RuntimeGeneration,received:RuntimeGeneration,},SequenceNotAdvanced{current:CommandStreamSequence,received:CommandStreamSequence,},',
+      'DeadlineAdvanceErrorV1',
+    ],
+    [
+      controlError,
+      'MonitorTerminal,SameGeneration{generation:RuntimeGeneration,},',
+      'DeadlineControlErrorV1',
+    ],
+  ]) {
+    assertExactBody(item, expected, label)
+  }
+  const expectedDerives = new Map([
+    ['CommandDeadlineKeyV1', [key, '#[derive(Clone,Copy,Debug,Eq,PartialEq)]']],
+    ['CommandDeadlineTicketErrorV1', [ticketError, '#[derive(Clone,Copy,Debug,Eq,PartialEq)]']],
+    ['CommandDeadlineTicketV1', [ticket, '']],
+    ['DeadlineMonitorTerminalKindV1', [terminalKind, '#[derive(Clone,Copy,Debug,Eq,PartialEq)]']],
+    ['DeadlineDetectionEvidenceV1', [detection, '#[derive(Debug,Eq,PartialEq)]']],
+    ['DeadlineMonitorTerminalV1', [terminal, '#[derive(Debug,Eq,PartialEq)]']],
+    ['DeadlineMonitorStartErrorV1', [startError, '#[derive(Clone,Copy,Debug,Eq,PartialEq)]']],
+    ['DeadlineAdvanceErrorV1', [advanceError, '#[derive(Clone,Copy,Debug,Eq,PartialEq)]']],
+    ['DeadlineAdvanceReceiptV1', [advanceReceipt, '#[derive(Debug,Eq,PartialEq)]']],
+    ['DeadlineControlErrorV1', [controlError, '#[derive(Clone,Copy,Debug,Eq,PartialEq)]']],
+    ['ActiveDeadline', [activeDeadline, '#[derive(Debug)]']],
+    ['MonitorPhase', [monitorPhase, '#[derive(Debug)]']],
+    ['MonitorState', [monitorState, '#[derive(Debug)]']],
+    ['SharedMonitor', [sharedMonitor, '#[derive(Debug)]']],
+    ['ActiveCommandDeadlineMonitorV1', [monitor, '']],
+  ])
+  for (const [name, [item, expected]] of expectedDerives)
+    assertExactLeadingAttributes(productionCode, item, expected, name)
+
+  const keyImpl = implItem(productionCode, 'CommandDeadlineKeyV1')
+  const ticketImpl = implItem(productionCode, 'CommandDeadlineTicketV1')
+  const detectionImpl = implItem(productionCode, 'DeadlineDetectionEvidenceV1')
+  const terminalImpl = implItem(productionCode, 'DeadlineMonitorTerminalV1')
+  const startErrorImpl = implItem(productionCode, 'DeadlineMonitorStartErrorV1')
+  const receiptImpl = implItem(productionCode, 'DeadlineAdvanceReceiptV1')
+  const stateImpl = implItem(productionCode, 'MonitorState')
+  const sharedImpl = inherentImplItems(productionCode).find(
+    (item) => item.target === 'SharedMonitor'
+  )
+  if (!sharedImpl) fail("inherent impl 'SharedMonitor' is missing")
+  const monitorImpl = implItem(productionCode, 'ActiveCommandDeadlineMonitorV1')
+  assertExactAllMethods(
+    keyImpl,
+    ['profile', 'session', 'stream_sequence', 'generation'],
+    'CommandDeadlineKeyV1'
+  )
+  assertExactAllMethods(
+    ticketImpl,
+    ['try_from_candidate', 'key', 'scheduled_ttl'],
+    'CommandDeadlineTicketV1'
+  )
+  assertExactAllMethods(
+    detectionImpl,
+    ['key', 'scheduled_ttl', 'admission_age', 'detected_age', 'late_by'],
+    'DeadlineDetectionEvidenceV1'
+  )
+  assertExactAllMethods(
+    terminalImpl,
+    [
+      'kind',
+      'active_key',
+      'deadline_detection',
+      'reported_generation',
+      'superseding_key',
+      'simple',
+      'deadline',
+      'reported_generation_mismatch',
+      'superseding_fault',
+      'synchronization_failed',
+    ],
+    'DeadlineMonitorTerminalV1'
+  )
+  assertExactAllMethods(
+    startErrorImpl,
+    ['initial_key', 'initial_terminal_kind'],
+    'DeadlineMonitorStartErrorV1'
+  )
+  assertExactAllMethods(
+    receiptImpl,
+    ['previous_key', 'accepted_key', 'skipped_sequences', 'admission_age'],
+    'DeadlineAdvanceReceiptV1'
+  )
+  assertExactAllMethods(
+    stateImpl,
+    [
+      'from_initial_at',
+      'observe_at',
+      'advance_at',
+      'report_generation_mismatch_at',
+      'shutdown_at',
+      'terminalize_worker_panicked',
+      'terminalize_synchronization_failure',
+      'terminalize',
+      'take_terminal',
+      'terminal_kind',
+    ],
+    'MonitorState'
+  )
+  assertExactAllMethods(sharedImpl, ['new'], 'SharedMonitor')
+  assertExactAllMethods(
+    monitorImpl,
+    [
+      'start',
+      'submit_next',
+      'report_generation_mismatch',
+      'wait',
+      'shutdown',
+      'request_shutdown',
+      'join_worker',
+      'take_terminal_or_fault',
+      'inject_worker_panic',
+    ],
+    'ActiveCommandDeadlineMonitorV1'
+  )
+  assertExactMethods(
+    monitorImpl,
+    ['start', 'submit_next', 'report_generation_mismatch', 'wait', 'shutdown'],
+    'ActiveCommandDeadlineMonitorV1'
+  )
+  if (
+    !/#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]\s*fn\s+inject_worker_panic\s*\(\s*&\s*self\s*\)/.test(
+      monitorImpl.body
+    )
+  ) {
+    fail('deadline-monitor worker-panic injection must remain private and cfg(test)')
+  }
+
+  const expectedImplCounts = new Map([
+    ['CommandDeadlineKeyV1', 1],
+    ['CommandDeadlineTicketErrorV1', 0],
+    ['CommandDeadlineTicketV1', 1],
+    ['DeadlineMonitorTerminalKindV1', 0],
+    ['DeadlineDetectionEvidenceV1', 1],
+    ['DeadlineMonitorTerminalV1', 1],
+    ['DeadlineMonitorStartErrorV1', 1],
+    ['DeadlineAdvanceErrorV1', 0],
+    ['DeadlineAdvanceReceiptV1', 1],
+    ['DeadlineControlErrorV1', 0],
+    ['ActiveDeadline', 0],
+    ['MonitorPhase', 0],
+    ['MonitorState', 1],
+    ['SharedMonitor', 1],
+    ['ActiveCommandDeadlineMonitorV1', 1],
+  ])
+  const actualImplCounts = new Map([...expectedImplCounts.keys()].map((name) => [name, 0]))
+  for (const item of inherentImplItems(productionCode)) {
+    for (const name of expectedImplCounts.keys()) {
+      const protectedTarget = new RegExp(`(?:^|::)${name}(?:\\s*<[^>{}]*>)?(?:\\s+where\\b|\\s*$)`)
+      if (protectedTarget.test(item.target))
+        actualImplCounts.set(name, actualImplCounts.get(name) + 1)
+    }
+  }
+  for (const [name, expected] of expectedImplCounts) {
+    const actual = actualImplCounts.get(name)
+    if (actual !== expected)
+      fail(`${name} inherent impl count drift; expected ${expected}, got ${actual}`)
+  }
+
+  const expectedTraits = [
+    'implDropforActiveCommandDeadlineMonitorV1{',
+    'implfmt::DebugforCommandDeadlineTicketV1{',
+    'implfmt::DisplayforCommandDeadlineTicketErrorV1{',
+    'implfmt::DisplayforDeadlineAdvanceErrorV1{',
+    'implfmt::DisplayforDeadlineControlErrorV1{',
+    'implfmt::DisplayforDeadlineMonitorStartErrorV1{',
+    'implstd::error::ErrorforCommandDeadlineTicketErrorV1{',
+    'implstd::error::ErrorforDeadlineAdvanceErrorV1{',
+    'implstd::error::ErrorforDeadlineControlErrorV1{',
+    'implstd::error::ErrorforDeadlineMonitorStartErrorV1{',
+  ].sort()
+  const actualTraits = traitImplItems(productionCode)
+    .map((item) => normalizedRustBody(item.header))
+    .sort()
+  if (
+    actualTraits.length !== expectedTraits.length ||
+    actualTraits.some((header, index) => header !== expectedTraits[index])
+  ) {
+    fail(`deadline-monitor trait surface drift; got ${actualTraits.join(',')}`)
+  }
+
+  for (const [method, signature, expected] of [
+    [
+      'active_key',
+      '\\bpub\\s+const\\s+fn\\s+active_key\\s*\\(\\s*&\\s*self\\s*\\)\\s*->\\s*Option\\s*<\\s*CommandDeadlineKeyV1\\s*>',
+      'self.active_key',
+    ],
+    [
+      'reported_generation',
+      '\\bpub\\s+const\\s+fn\\s+reported_generation\\s*\\(\\s*&\\s*self\\s*\\)\\s*->\\s*Option\\s*<\\s*RuntimeGeneration\\s*>',
+      'self.reported_generation',
+    ],
+    [
+      'simple',
+      '\\bfn\\s+simple\\s*\\(\\s*kind\\s*:\\s*DeadlineMonitorTerminalKindV1\\s*,\\s*active_key\\s*:\\s*CommandDeadlineKeyV1\\s*,?\\s*\\)\\s*->\\s*Self',
+      `
+        Self {
+          kind,
+          active_key: Some(active_key),
+          deadline_detection: None,
+          reported_generation: None,
+          superseding_key: None,
+        }
+      `,
+    ],
+    [
+      'deadline',
+      '\\bfn\\s+deadline\\s*\\(\\s*kind\\s*:\\s*DeadlineMonitorTerminalKindV1\\s*,\\s*active_key\\s*:\\s*CommandDeadlineKeyV1\\s*,\\s*ticket\\s*:\\s*&\\s*CommandDeadlineTicketV1\\s*,\\s*admission_age\\s*:\\s*Duration\\s*,\\s*detected_age\\s*:\\s*Duration\\s*,\\s*superseding_key\\s*:\\s*Option\\s*<\\s*CommandDeadlineKeyV1\\s*>\\s*,?\\s*\\)\\s*->\\s*Self',
+      `
+        Self {
+          kind,
+          active_key: Some(active_key),
+          deadline_detection: Some(DeadlineDetectionEvidenceV1 {
+            key: ticket.key,
+            scheduled_ttl: ticket.scheduled_ttl,
+            admission_age,
+            detected_age,
+            late_by: detected_age.saturating_sub(ticket.scheduled_ttl),
+          }),
+          reported_generation: None,
+          superseding_key,
+        }
+      `,
+    ],
+    [
+      'reported_generation_mismatch',
+      '\\bfn\\s+reported_generation_mismatch\\s*\\(\\s*active_key\\s*:\\s*CommandDeadlineKeyV1\\s*,\\s*reported_generation\\s*:\\s*RuntimeGeneration\\s*,?\\s*\\)\\s*->\\s*Self',
+      `
+        Self {
+          kind: DeadlineMonitorTerminalKindV1::ReportedGenerationMismatch,
+          active_key: Some(active_key),
+          deadline_detection: None,
+          reported_generation: Some(reported_generation),
+          superseding_key: None,
+        }
+      `,
+    ],
+    [
+      'superseding_fault',
+      '\\bfn\\s+superseding_fault\\s*\\(\\s*kind\\s*:\\s*DeadlineMonitorTerminalKindV1\\s*,\\s*active_key\\s*:\\s*CommandDeadlineKeyV1\\s*,\\s*superseding_key\\s*:\\s*CommandDeadlineKeyV1\\s*,?\\s*\\)\\s*->\\s*Self',
+      `
+        Self {
+          kind,
+          active_key: Some(active_key),
+          deadline_detection: None,
+          reported_generation: None,
+          superseding_key: Some(superseding_key),
+        }
+      `,
+    ],
+    [
+      'synchronization_failed',
+      '\\bfn\\s+synchronization_failed\\s*\\(\\s*\\)\\s*->\\s*Self',
+      `
+        Self {
+          kind: DeadlineMonitorTerminalKindV1::SynchronizationFailed,
+          active_key: None,
+          deadline_detection: None,
+          reported_generation: None,
+          superseding_key: None,
+        }
+      `,
+    ],
+  ]) {
+    const item = oneBracedItem(terminalImpl.body, signature, `DeadlineMonitorTerminalV1::${method}`)
+    assertExactBody(item, expected, `DeadlineMonitorTerminalV1::${method}`)
+  }
+
+  for (const [method, signature, expected] of [
+    [
+      'initial_key',
+      '\\bpub\\s+const\\s+fn\\s+initial_key\\s*\\(\\s*&\\s*self\\s*\\)\\s*->\\s*CommandDeadlineKeyV1',
+      'self.initial_key',
+    ],
+    [
+      'initial_terminal_kind',
+      '\\bpub\\s+const\\s+fn\\s+initial_terminal_kind\\s*\\(\\s*&\\s*self\\s*\\)\\s*->\\s*Option\\s*<\\s*DeadlineMonitorTerminalKindV1\\s*>',
+      'self.initial_terminal_kind',
+    ],
+  ]) {
+    const item = oneBracedItem(
+      startErrorImpl.body,
+      signature,
+      `DeadlineMonitorStartErrorV1::${method}`
+    )
+    assertExactBody(item, expected, `DeadlineMonitorStartErrorV1::${method}`)
+  }
+
+  const ticketConstructor = oneBracedItem(
+    ticketImpl.body,
+    '\\bpub\\s+fn\\s+try_from_candidate\\s*\\(\\s*candidate\\s*:\\s*&\\s*VelocityCommandCandidateV1\\s*,\\s*expected_generation\\s*:\\s*RuntimeGeneration\\s*,\\s*local_ttl_proposal\\s*:\\s*Duration\\s*,?\\s*\\)\\s*->\\s*Result\\s*<\\s*Self\\s*,\\s*CommandDeadlineTicketErrorV1\\s*>',
+    'CommandDeadlineTicketV1::try_from_candidate'
+  )
+  assertExactBody(
+    ticketConstructor,
+    `
+      let candidate_generation = candidate.generation();
+      if expected_generation != candidate_generation {
+        return Err(CommandDeadlineTicketErrorV1::GenerationMismatch {
+          candidate: candidate_generation,
+          expected: expected_generation,
+        });
+      }
+      if local_ttl_proposal.is_zero() {
+        return Err(CommandDeadlineTicketErrorV1::ZeroLocalTtlProposal);
+      }
+      let requested = candidate.requested_ttl().get();
+      if local_ttl_proposal > requested {
+        return Err(CommandDeadlineTicketErrorV1::LocalTtlExceedsRequested {
+          requested,
+          proposed: local_ttl_proposal,
+        });
+      }
+      let received_at = candidate.received_at();
+      let deadline = received_at
+        .checked_deadline(local_ttl_proposal)
+        .ok_or(CommandDeadlineTicketErrorV1::UnrepresentableDeadline)?;
+      Ok(Self {
+        key: CommandDeadlineKeyV1 {
+          profile: candidate.profile().identity(),
+          session: candidate.session(),
+          stream_sequence: candidate.stream_sequence(),
+          generation: candidate_generation,
+        },
+        received_at,
+        scheduled_ttl: local_ttl_proposal,
+        deadline,
+      })
+    `,
+    'CommandDeadlineTicketV1::try_from_candidate'
+  )
+
+  const receiptTimeImpl = implItem(contractCode, 'PlantReceiptTime')
+  assertExactAllMethods(
+    receiptTimeImpl,
+    ['checked_deadline', 'elapsed_at', 'is_before', 'from_monotonic_test_instant'],
+    'PlantReceiptTime deadline-monitor helper'
+  )
+  for (const [method, signature, expected] of [
+    [
+      'checked_deadline',
+      '\\bpub\\s*\\(\\s*crate\\s*\\)\\s+fn\\s+checked_deadline\\s*\\(\\s*self\\s*,\\s*ttl\\s*:\\s*Duration\\s*\\)\\s*->\\s*Option\\s*<\\s*Instant\\s*>',
+      'self.0.checked_add(ttl)',
+    ],
+    [
+      'elapsed_at',
+      '\\bpub\\s*\\(\\s*crate\\s*\\)\\s+fn\\s+elapsed_at\\s*\\(\\s*self\\s*,\\s*observed_at\\s*:\\s*Instant\\s*\\)\\s*->\\s*Option\\s*<\\s*Duration\\s*>',
+      'observed_at.checked_duration_since(self.0)',
+    ],
+    [
+      'is_before',
+      '\\bpub\\s*\\(\\s*crate\\s*\\)\\s+fn\\s+is_before\\s*\\(\\s*self\\s*,\\s*other\\s*:\\s*Self\\s*\\)\\s*->\\s*bool',
+      'self.0 < other.0',
+    ],
+  ]) {
+    const helper = oneBracedItem(receiptTimeImpl.body, signature, `PlantReceiptTime::${method}`)
+    assertExactBody(helper, expected, `PlantReceiptTime::${method}`)
+  }
+  if (
+    !/#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]\s*pub\s*\(\s*crate\s*\)\s+const\s+fn\s+from_monotonic_test_instant\s*\(\s*instant\s*:\s*Instant\s*\)\s*->\s*Self\s*\{\s*Self\s*\(\s*instant\s*\)\s*\}/.test(
+      receiptTimeImpl.body
+    )
+  ) {
+    fail('PlantReceiptTime controlled construction hook must remain cfg(test) and crate-private')
+  }
+
+  const observeAt = oneBracedItem(
+    stateImpl.body,
+    '\\bfn\\s+observe_at\\s*\\(\\s*&\\s*mut\\s+self\\s*,\\s*observed_at\\s*:\\s*Instant\\s*\\)\\s*->\\s*Option\\s*<\\s*Duration\\s*>',
+    'MonitorState::observe_at'
+  )
+  assertExactBody(
+    observeAt,
+    `
+      if matches!(self.phase, MonitorPhase::Terminal(_)) {
+        return None;
+      }
+      if observed_at < self.last_observed {
+        self.terminalize(DeadlineMonitorTerminalV1::simple(
+          DeadlineMonitorTerminalKindV1::ClockRegressed,
+          self.last_active_key,
+        ));
+        return None;
+      }
+      self.last_observed = observed_at;
+      let due_evidence = match &self.phase {
+        MonitorPhase::Armed(active) if observed_at >= active.ticket.deadline => {
+          let detected_age = active
+            .ticket
+            .received_at
+            .elapsed_at(observed_at)
+            .unwrap_or(Duration::ZERO);
+          Some(DeadlineMonitorTerminalV1::deadline(
+            DeadlineMonitorTerminalKindV1::DeadlineDetected,
+            active.ticket.key,
+            &active.ticket,
+            active.admission_age,
+            detected_age,
+            None,
+          ))
+        }
+        MonitorPhase::Armed(_) | MonitorPhase::Terminal(_) => None,
+      };
+      if let Some(terminal) = due_evidence {
+        self.terminalize(terminal);
+        return None;
+      }
+      match &self.phase {
+        MonitorPhase::Armed(active) => Some(active.ticket.deadline.duration_since(observed_at)),
+        MonitorPhase::Terminal(_) => None,
+      }
+    `,
+    'MonitorState::observe_at'
+  )
+
+  const advanceAt = oneBracedItem(
+    stateImpl.body,
+    '\\bfn\\s+advance_at\\s*\\(\\s*&\\s*mut\\s+self\\s*,\\s*next\\s*:\\s*CommandDeadlineTicketV1\\s*,\\s*observed_at\\s*:\\s*Instant\\s*,?\\s*\\)\\s*->\\s*Result\\s*<\\s*DeadlineAdvanceReceiptV1\\s*,\\s*DeadlineAdvanceErrorV1\\s*>',
+    'MonitorState::advance_at'
+  )
+  assertExactBody(
+    advanceAt,
+    `
+      if self.observe_at(observed_at).is_none() {
+        return Err(DeadlineAdvanceErrorV1::MonitorTerminal);
+      }
+      let next_key = next.key;
+      if next_key.profile != self.fixed_profile {
+        return Err(DeadlineAdvanceErrorV1::ProfileMismatch {
+          expected: self.fixed_profile,
+          received: next_key.profile,
+        });
+      }
+      if next_key.session != self.fixed_session {
+        return Err(DeadlineAdvanceErrorV1::SessionMismatch {
+          expected: self.fixed_session,
+          received: next_key.session,
+        });
+      }
+      if next_key.generation != self.fixed_generation {
+        return Err(DeadlineAdvanceErrorV1::GenerationMismatch {
+          expected: self.fixed_generation,
+          received: next_key.generation,
+        });
+      }
+      let (current_key, current_receipt) = match &self.phase {
+        MonitorPhase::Armed(active) => (active.ticket.key, active.ticket.received_at),
+        MonitorPhase::Terminal(_) => return Err(DeadlineAdvanceErrorV1::MonitorTerminal),
+      };
+      if next_key.stream_sequence <= current_key.stream_sequence {
+        return Err(DeadlineAdvanceErrorV1::SequenceNotAdvanced {
+          current: current_key.stream_sequence,
+          received: next_key.stream_sequence,
+        });
+      }
+      if next.received_at.is_before(current_receipt) {
+        self.terminalize(DeadlineMonitorTerminalV1::superseding_fault(
+          DeadlineMonitorTerminalKindV1::SupersedingReceiptRegressed,
+          current_key,
+          next_key,
+        ));
+        return Err(DeadlineAdvanceErrorV1::MonitorTerminal);
+      }
+      let Some(admission_age) = next.received_at.elapsed_at(observed_at) else {
+        self.terminalize(DeadlineMonitorTerminalV1::simple(
+          DeadlineMonitorTerminalKindV1::ClockRegressed,
+          current_key,
+        ));
+        return Err(DeadlineAdvanceErrorV1::MonitorTerminal);
+      };
+      if observed_at >= next.deadline {
+        let terminal = DeadlineMonitorTerminalV1::deadline(
+          DeadlineMonitorTerminalKindV1::SupersedingDeadlineAlreadyExpired,
+          current_key,
+          &next,
+          admission_age,
+          admission_age,
+          Some(next_key),
+        );
+        self.terminalize(terminal);
+        return Err(DeadlineAdvanceErrorV1::MonitorTerminal);
+      }
+      let skipped_sequences =
+        next_key.stream_sequence.get() - current_key.stream_sequence.get() - 1;
+      self.phase = MonitorPhase::Armed(ActiveDeadline {
+        ticket: next,
+        admission_age,
+      });
+      self.last_active_key = next_key;
+      Ok(DeadlineAdvanceReceiptV1 {
+        previous_key: current_key,
+        accepted_key: next_key,
+        skipped_sequences,
+        admission_age,
+      })
+    `,
+    'MonitorState::advance_at'
+  )
+
+  for (const [method, signature, expected] of [
+    [
+      'report_generation_mismatch_at',
+      '\\bfn\\s+report_generation_mismatch_at\\s*\\(\\s*&\\s*mut\\s+self\\s*,\\s*reported_generation\\s*:\\s*RuntimeGeneration\\s*,\\s*observed_at\\s*:\\s*Instant\\s*,?\\s*\\)\\s*->\\s*Result\\s*<\\s*\\(\\s*\\)\\s*,\\s*DeadlineControlErrorV1\\s*>',
+      `
+        if self.observe_at(observed_at).is_none() {
+          return Err(DeadlineControlErrorV1::MonitorTerminal);
+        }
+        if reported_generation == self.fixed_generation {
+          return Err(DeadlineControlErrorV1::SameGeneration {
+            generation: reported_generation,
+          });
+        }
+        self.terminalize(DeadlineMonitorTerminalV1::reported_generation_mismatch(
+          self.last_active_key,
+          reported_generation,
+        ));
+        Ok(())
+      `,
+    ],
+    [
+      'shutdown_at',
+      '\\bfn\\s+shutdown_at\\s*\\(\\s*&\\s*mut\\s+self\\s*,\\s*observed_at\\s*:\\s*Instant\\s*\\)',
+      `
+        if self.observe_at(observed_at).is_some() {
+          self.terminalize(DeadlineMonitorTerminalV1::simple(
+            DeadlineMonitorTerminalKindV1::ShutdownAcknowledged,
+            self.last_active_key,
+          ));
+        }
+      `,
+    ],
+    [
+      'terminalize_worker_panicked',
+      '\\bfn\\s+terminalize_worker_panicked\\s*\\(\\s*&\\s*mut\\s+self\\s*\\)',
+      `
+        self.terminalize(DeadlineMonitorTerminalV1::simple(
+          DeadlineMonitorTerminalKindV1::WorkerPanicked,
+          self.last_active_key,
+        ));
+      `,
+    ],
+    [
+      'terminalize_synchronization_failure',
+      '\\bfn\\s+terminalize_synchronization_failure\\s*\\(\\s*&\\s*mut\\s+self\\s*\\)',
+      'self.terminalize(DeadlineMonitorTerminalV1::synchronization_failed());',
+    ],
+    [
+      'terminalize',
+      '\\bfn\\s+terminalize\\s*\\(\\s*&\\s*mut\\s+self\\s*,\\s*terminal\\s*:\\s*DeadlineMonitorTerminalV1\\s*\\)',
+      `
+        if matches!(self.phase, MonitorPhase::Armed(_)) {
+          self.phase = MonitorPhase::Terminal(Some(terminal));
+        }
+      `,
+    ],
+    [
+      'take_terminal',
+      '\\bfn\\s+take_terminal\\s*\\(\\s*&\\s*mut\\s+self\\s*\\)\\s*->\\s*Option\\s*<\\s*DeadlineMonitorTerminalV1\\s*>',
+      `
+        match &mut self.phase {
+          MonitorPhase::Armed(_) => None,
+          MonitorPhase::Terminal(terminal) => terminal.take(),
+        }
+      `,
+    ],
+    [
+      'terminal_kind',
+      '\\bfn\\s+terminal_kind\\s*\\(\\s*&\\s*self\\s*\\)\\s*->\\s*Option\\s*<\\s*DeadlineMonitorTerminalKindV1\\s*>',
+      `
+        match &self.phase {
+          MonitorPhase::Armed(_) | MonitorPhase::Terminal(None) => None,
+          MonitorPhase::Terminal(Some(terminal)) => Some(terminal.kind),
+        }
+      `,
+    ],
+  ]) {
+    const item = oneBracedItem(stateImpl.body, signature, `MonitorState::${method}`)
+    assertExactBody(item, expected, `MonitorState::${method}`)
+  }
+
+  const productionCodeWithoutTestAttributes = productionCode.replace(
+    /#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]/g,
+    (attribute) => blankRustSegment(attribute, 0, attribute.length)
+  )
+  const lockRecovering = oneBracedItem(
+    productionCodeWithoutTestAttributes,
+    "\\bfn\\s+lock_recovering_synchronization_failure\\s*\\(\\s*shared\\s*:\\s*&\\s*SharedMonitor\\s*,?\\s*\\)\\s*->\\s*\\(\\s*MutexGuard\\s*<\\s*'_\\s*,\\s*MonitorState\\s*>\\s*,\\s*bool\\s*\\)",
+    'lock_recovering_synchronization_failure'
+  )
+  assertExactBody(
+    lockRecovering,
+    `
+      match shared.state.lock() {
+        Ok(state) => (state, false),
+        Err(poisoned) => {
+          let mut state = poisoned.into_inner();
+          state.terminalize_synchronization_failure();
+          (state, true)
+        }
+      }
+    `,
+    'lock_recovering_synchronization_failure'
+  )
+  const publishWorkerPanicked = oneBracedItem(
+    productionCodeWithoutTestAttributes,
+    '\\bfn\\s+publish_worker_panicked\\s*\\(\\s*shared\\s*:\\s*&\\s*SharedMonitor\\s*\\)',
+    'publish_worker_panicked'
+  )
+  assertExactBody(
+    publishWorkerPanicked,
+    `
+      let mut state = match shared.state.lock() {
+        Ok(state) => state,
+        Err(poisoned) => {
+          let mut state = poisoned.into_inner();
+          state.terminalize_synchronization_failure();
+          drop(state);
+          shared.wake.notify_all();
+          return;
+        }
+      };
+      state.terminalize_worker_panicked();
+      drop(state);
+      shared.wake.notify_all();
+    `,
+    'publish_worker_panicked'
+  )
+
+  const runWorker = oneBracedItem(
+    productionCodeWithoutPanicHelper,
+    '\\bfn\\s+run_worker\\s*\\(\\s*shared\\s*:\\s*&\\s*SharedMonitor\\s*\\)',
+    'run_worker'
+  )
+  assertExactBody(
+    runWorker,
+    `
+      let (mut state, poisoned) = lock_recovering_synchronization_failure(shared);
+      if poisoned {
+        drop(state);
+        shared.wake.notify_all();
+        return;
+      }
+      loop {
+        #[cfg(test)]
+        if shared.panic_worker.swap(false, Ordering::SeqCst) {
+          drop(state);
+          panic_injected_worker();
+        }
+        let Some(wait_for) = state.observe_at(Instant::now()) else {
+          drop(state);
+          shared.wake.notify_all();
+          return;
+        };
+        match shared.wake.wait_timeout(state, wait_for) {
+          Ok((next_state, _wait_result)) => state = next_state,
+          Err(poisoned_wait) => {
+            let (mut poisoned_state, _wait_result) = poisoned_wait.into_inner();
+            poisoned_state.terminalize_synchronization_failure();
+            drop(poisoned_state);
+            shared.wake.notify_all();
+            return;
+          }
+        }
+      }
+    `,
+    'run_worker'
+  )
+
+  const start = oneBracedItem(
+    monitorImpl.body,
+    '\\bpub\\s+fn\\s+start\\s*\\(\\s*initial\\s*:\\s*CommandDeadlineTicketV1\\s*\\)\\s*->\\s*Result\\s*<\\s*Self\\s*,\\s*DeadlineMonitorStartErrorV1\\s*>',
+    'ActiveCommandDeadlineMonitorV1::start'
+  )
+  assertExactBody(
+    start,
+    `
+      let latest_key = initial.key;
+      let state = MonitorState::from_initial_at(initial, Instant::now());
+      let initial_terminal_kind = state.terminal_kind();
+      let shared = Arc::new(SharedMonitor::new(state));
+      let worker_shared = Arc::clone(&shared);
+      let worker = thread::Builder::new()
+        .name(DEADLINE_WORKER_NAME.to_owned())
+        .spawn(move || {
+          let outcome = panic::catch_unwind(AssertUnwindSafe(|| run_worker(&worker_shared)));
+          if outcome.is_err() {
+            publish_worker_panicked(&worker_shared);
+          }
+        })
+        .map_err(|_| DeadlineMonitorStartErrorV1 {
+          initial_key: latest_key,
+          initial_terminal_kind,
+        })?;
+      Ok(Self {
+        shared,
+        worker: Some(worker),
+      })
+    `,
+    'ActiveCommandDeadlineMonitorV1::start'
+  )
+  for (const [method, signature, expected] of [
+    [
+      'submit_next',
+      '\\bpub\\s+fn\\s+submit_next\\s*\\(\\s*&\\s*mut\\s+self\\s*,\\s*next\\s*:\\s*CommandDeadlineTicketV1\\s*,?\\s*\\)\\s*->\\s*Result\\s*<\\s*DeadlineAdvanceReceiptV1\\s*,\\s*DeadlineAdvanceErrorV1\\s*>',
+      `
+        let (mut state, _poisoned) = lock_recovering_synchronization_failure(&self.shared);
+        let result = state.advance_at(next, Instant::now());
+        drop(state);
+        self.shared.wake.notify_all();
+        result
+      `,
+    ],
+    [
+      'report_generation_mismatch',
+      '\\bpub\\s+fn\\s+report_generation_mismatch\\s*\\(\\s*&\\s*mut\\s+self\\s*,\\s*reported_generation\\s*:\\s*RuntimeGeneration\\s*,?\\s*\\)\\s*->\\s*Result\\s*<\\s*\\(\\s*\\)\\s*,\\s*DeadlineControlErrorV1\\s*>',
+      `
+        let (mut state, _poisoned) = lock_recovering_synchronization_failure(&self.shared);
+        let result = state.report_generation_mismatch_at(reported_generation, Instant::now());
+        drop(state);
+        self.shared.wake.notify_all();
+        result
+      `,
+    ],
+    [
+      'wait',
+      '\\bpub\\s+fn\\s+wait\\s*\\(\\s*mut\\s+self\\s*\\)\\s*->\\s*DeadlineMonitorTerminalV1',
+      'self.join_worker(); self.take_terminal_or_fault()',
+    ],
+    [
+      'shutdown',
+      '\\bpub\\s+fn\\s+shutdown\\s*\\(\\s*mut\\s+self\\s*\\)\\s*->\\s*DeadlineMonitorTerminalV1',
+      'self.request_shutdown(); self.join_worker(); self.take_terminal_or_fault()',
+    ],
+    [
+      'request_shutdown',
+      '\\bfn\\s+request_shutdown\\s*\\(\\s*&\\s*self\\s*\\)',
+      `
+        let (mut state, _poisoned) = lock_recovering_synchronization_failure(&self.shared);
+        state.shutdown_at(Instant::now());
+        drop(state);
+        self.shared.wake.notify_all();
+      `,
+    ],
+    [
+      'join_worker',
+      '\\bfn\\s+join_worker\\s*\\(\\s*&\\s*mut\\s+self\\s*\\)',
+      `
+        if let Some(worker) = self.worker.take() {
+          if worker.join().is_err() {
+            publish_worker_panicked(&self.shared);
+          }
+        }
+      `,
+    ],
+    [
+      'take_terminal_or_fault',
+      '\\bfn\\s+take_terminal_or_fault\\s*\\(\\s*&\\s*self\\s*\\)\\s*->\\s*DeadlineMonitorTerminalV1',
+      `
+        let (mut state, _poisoned) = lock_recovering_synchronization_failure(&self.shared);
+        let terminal = state.take_terminal();
+        drop(state);
+        terminal.unwrap_or_else(DeadlineMonitorTerminalV1::synchronization_failed)
+      `,
+    ],
+  ]) {
+    const item = oneBracedItem(
+      monitorImpl.body,
+      signature,
+      `ActiveCommandDeadlineMonitorV1::${method}`
+    )
+    assertExactBody(item, expected, `ActiveCommandDeadlineMonitorV1::${method}`)
+  }
+  if (
+    !/#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]\s*fn\s+inject_worker_panic\s*\(\s*&\s*self\s*\)\s*\{\s*let\s*\(\s*state\s*,\s*_poisoned\s*\)\s*=\s*lock_recovering_synchronization_failure\s*\(\s*&\s*self\.shared\s*\)\s*;\s*self\.shared\.panic_worker\.store\s*\(\s*true\s*,\s*Ordering::SeqCst\s*\)\s*;\s*drop\s*\(\s*state\s*\)\s*;\s*self\.shared\.wake\.notify_all\s*\(\s*\)\s*;\s*\}/.test(
+      monitorImpl.body
+    )
+  ) {
+    fail('deadline-monitor panic injection must set its predicate while holding the state lock')
+  }
+
+  const dropImpl = traitImplItems(productionCode).find(
+    (item) => normalizedRustBody(item.header) === 'implDropforActiveCommandDeadlineMonitorV1{'
+  )
+  if (!dropImpl) fail('ActiveCommandDeadlineMonitorV1 Drop impl is missing')
+  assertExactBody(
+    dropImpl,
+    `
+      fn drop(&mut self) {
+        if self.worker.is_some() {
+          self.request_shutdown();
+          self.join_worker();
+        }
+      }
+    `,
+    'ActiveCommandDeadlineMonitorV1 Drop impl'
+  )
+
+  if (
+    /\b(?:Vec|VecDeque|LinkedList|BinaryHeap|HashMap|BTreeMap|mpsc|sync_channel|Sender|Receiver)\b/.test(
+      productionCode
+    )
+  ) {
+    fail('deadline monitor must remain one fixed active slot with no queue or mailbox')
+  }
+  if (/\b(?:sleep|park|park_timeout|yield_now|spin_loop|spawn_blocking)\b/.test(productionCode)) {
+    fail('deadline-monitor worker must not poll, sleep, park, spin, or detach')
+  }
+  if (/\b(?:callback|dyn\s+Fn|FnMut|FnOnce)\b/.test(productionCode))
+    fail('deadline monitor must not invoke caller callbacks')
+  if (/\.\s*notify_one\s*\(/.test(productionCode))
+    fail('deadline monitor must wake its worker and terminal waiter with notify_all')
+  if ((productionCode.match(/\.\s*spawn\s*\(/g) ?? []).length !== 1)
+    fail('deadline monitor must own exactly one worker spawn site')
+  if ((productionCode.match(/\.\s*wait_timeout\s*\(/g) ?? []).length !== 1)
+    fail('deadline monitor must retain one condition-variable deadline wait')
+  const forbiddenDomainSurface =
+    /\b(?:safe_action|SafeAction\w*|ProposedAction\w*|SafetyNotice|InertAdapter|AdapterState|AdapterError|KernelChannels|MonotonicExpiryGuard|ExpiryStatus|VehicleHealth\w*|LifecycleMachine|LifecycleEvent|GuardedEvent|PlantState|Transition|run_self_check|SelfCheckReport|RawVelocityV1|FramedVelocityMetresPerSecond)\b/
+  if (forbiddenDomainSurface.test(productionCode))
+    fail(
+      'deadline monitor must not couple deadline evidence to policy, lifecycle, channels, runtime, or adapters'
+    )
+
+  const deadlineUse =
+    /\b(?:deadline_monitor|ActiveCommandDeadlineMonitorV1|CommandDeadline(?:Key|Ticket|TicketError)V1|DeadlineAdvance(?:Error|Receipt)V1|DeadlineControlErrorV1|DeadlineDetectionEvidenceV1|DeadlineMonitor(?:StartError|TerminalKind|Terminal)V1)\b/
+  let libraryWithoutDeadlineSurface = libraryCode
+  for (const [startOffset, endOffset] of [
+    [moduleDeclarations[0].index, moduleDeclarations[0].index + moduleDeclarations[0][0].length],
+    [reexports.start, reexports.end],
+  ]) {
+    libraryWithoutDeadlineSurface =
+      libraryWithoutDeadlineSurface.slice(0, startOffset) +
+      blankRustSegment(libraryWithoutDeadlineSurface, startOffset, endOffset) +
+      libraryWithoutDeadlineSurface.slice(endOffset)
+  }
+  if (deadlineUse.test(libraryWithoutDeadlineSurface))
+    fail('deadline monitor must remain unwired in the plant crate root')
+
+  const sourceRoot = resolve(PLANT_ROOT, 'src')
+  for (const path of walkRustFiles(sourceRoot)) {
+    const canonical = realpathSync(path)
+    if (
+      canonical === realpathSync(DEADLINE_MONITOR_SOURCE) ||
+      canonical === realpathSync(resolve(PLANT_ROOT, 'src/lib.rs'))
+    ) {
+      continue
+    }
+    let source = readFileSync(path, 'utf8')
+    if (canonical === realpathSync(CONTRACT_SOURCE)) source = overrides.contract ?? source
+    else if (canonical === realpathSync(resolve(PLANT_ROOT, 'src/runtime.rs')))
+      source = overrides.runtime ?? source
+    else if (canonical === realpathSync(resolve(PLANT_ROOT, 'src/adapter.rs')))
+      source = overrides.adapter ?? source
+    else if (canonical === realpathSync(resolve(PLANT_ROOT, 'src/channels.rs')))
+      source = overrides.channels ?? source
+    else if (canonical === realpathSync(resolve(PLANT_ROOT, 'src/expiry.rs')))
+      source = overrides.expiry ?? source
+    else if (canonical === realpathSync(HEALTH_SOURCE)) source = overrides.health ?? source
+    else if (canonical === realpathSync(FRESHNESS_SOURCE)) source = overrides.freshness ?? source
+    else if (canonical === realpathSync(SAFE_ACTION_SOURCE)) source = overrides.safeAction ?? source
+    else if (canonical === realpathSync(LIFECYCLE_SOURCE)) source = overrides.lifecycle ?? source
+    const code = rustBoundaryCode(source)
+    if (deadlineUse.test(code))
+      fail(`deadline monitor must remain unwired in ${relative(ROOT, path)}`)
+  }
+}
+
 function replaced(source, before, after, label) {
   if (!source.includes(before)) fail(`vehicle-health boundary self-test fixture drift: ${label}`)
   return source.replace(before, after)
@@ -3019,6 +4118,840 @@ function verifySafeActionBoundaryMutations() {
   return cases.length
 }
 
+function verifyDeadlineMonitorBoundaryMutations() {
+  const deadlineMonitor = readFileSync(DEADLINE_MONITOR_SOURCE, 'utf8')
+  const library = readFileSync(resolve(PLANT_ROOT, 'src/lib.rs'), 'utf8')
+  const contract = readFileSync(CONTRACT_SOURCE, 'utf8')
+  const runtime = readFileSync(resolve(PLANT_ROOT, 'src/runtime.rs'), 'utf8')
+  const channels = readFileSync(resolve(PLANT_ROOT, 'src/channels.rs'), 'utf8')
+  const adapter = readFileSync(resolve(PLANT_ROOT, 'src/adapter.rs'), 'utf8')
+  const expiry = readFileSync(resolve(PLANT_ROOT, 'src/expiry.rs'), 'utf8')
+  const safeAction = readFileSync(SAFE_ACTION_SOURCE, 'utf8')
+  const cases = [
+    {
+      label: 'public deadline-monitor module',
+      expectedError: 'deadline-monitor module must have one private',
+      overrides: {
+        library: replacedExactlyOnce(
+          library,
+          'mod deadline_monitor;',
+          'pub mod deadline_monitor;',
+          'public deadline-monitor module'
+        ),
+      },
+    },
+    {
+      label: 'conditionally disabled deadline-monitor module',
+      expectedError: 'deadline-monitor module must have one private',
+      overrides: {
+        library: replacedExactlyOnce(
+          library,
+          'mod deadline_monitor;',
+          '#[cfg(any())]\nmod deadline_monitor;',
+          'conditionally disabled deadline-monitor module'
+        ),
+      },
+    },
+    {
+      label: 'wildcard deadline-monitor re-export',
+      expectedError: 'deadline-monitor crate-root re-export',
+      overrides: {
+        library: replacedExactlyOnce(
+          library,
+          'pub use deadline_monitor::{',
+          'pub use deadline_monitor::*;\npub use deadline_monitor::{',
+          'wildcard deadline-monitor re-export'
+        ),
+      },
+    },
+    {
+      label: 'conditionally disabled deadline-monitor re-export',
+      expectedError: 'deadline-monitor crate-root re-export',
+      overrides: {
+        library: replacedExactlyOnce(
+          library,
+          'pub use deadline_monitor::{',
+          '#[cfg(any())]\npub use deadline_monitor::{',
+          'conditionally disabled deadline-monitor re-export'
+        ),
+      },
+    },
+    {
+      label: 'expanded deadline-monitor re-export',
+      expectedError: 'deadline-monitor crate-root re-export',
+      overrides: {
+        library: replacedExactlyOnce(
+          library,
+          '    DeadlineMonitorTerminalKindV1, DeadlineMonitorTerminalV1,\n};',
+          '    DeadlineMonitorTerminalKindV1, DeadlineMonitorTerminalV1, ProfileIdentity,\n};',
+          'expanded deadline-monitor re-export'
+        ),
+      },
+    },
+    {
+      label: 'deadline-monitor child module',
+      expectedError: 'deadline-monitor implementation must not gain child modules',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '#[cfg(test)]\nmod tests {',
+          'mod escape {}\n\n#[cfg(test)]\nmod tests {',
+          'deadline-monitor child module'
+        ),
+      },
+    },
+    {
+      label: 'deadline-monitor local macro definition',
+      expectedError: 'must not define source-invisible',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '#[cfg(test)]\nmod tests {',
+          'macro_rules! hidden_worker { () => {}; }\n\n#[cfg(test)]\nmod tests {',
+          'deadline-monitor local macro definition'
+        ),
+      },
+    },
+    {
+      label: 'deadline-monitor top-level macro invocation',
+      expectedError: 'must not hide its item surface behind macros',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '#[cfg(test)]\nmod tests {',
+          'hidden_worker!();\n\n#[cfg(test)]\nmod tests {',
+          'deadline-monitor top-level macro invocation'
+        ),
+      },
+    },
+    {
+      label: 'synchronization failure claims an active key',
+      expectedError: 'DeadlineMonitorTerminalV1::synchronization_failed closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '            kind: DeadlineMonitorTerminalKindV1::SynchronizationFailed,\n            active_key: None,',
+          '            kind: DeadlineMonitorTerminalKindV1::SynchronizationFailed,\n            active_key: Some(unimplemented!()),',
+          'synchronization failure claims an active key'
+        ),
+      },
+    },
+    {
+      label: 'poisoned deadline state remains active',
+      expectedError: 'lock_recovering_synchronization_failure closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '        Err(poisoned) => {\n            let mut state = poisoned.into_inner();\n            state.terminalize_synchronization_failure();\n            (state, true)\n        }',
+          '        Err(poisoned) => {\n            let state = poisoned.into_inner();\n            (state, true)\n        }',
+          'poisoned deadline state remains active'
+        ),
+      },
+    },
+    {
+      label: 'deadline-monitor top-level visible function',
+      expectedError: 'deadline-monitor top-level function surface drift',
+      overrides: {
+        deadlineMonitor: `${deadlineMonitor}\npub fn raw_deadline_monitor_entry() {}\n`,
+      },
+    },
+    {
+      label: 'public deadline key fields',
+      expectedError: 'CommandDeadlineKeyV1 closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '    profile: ProfileIdentity,\n    session: CommandSessionIdentity,',
+          '    pub profile: ProfileIdentity,\n    pub session: CommandSessionIdentity,',
+          'public deadline key fields'
+        ),
+      },
+    },
+    {
+      label: 'public deadline ticket receipt',
+      expectedError: 'CommandDeadlineTicketV1 closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '    received_at: PlantReceiptTime,',
+          '    pub received_at: PlantReceiptTime,',
+          'public deadline ticket receipt'
+        ),
+      },
+    },
+    {
+      label: 'public deadline detection fields',
+      expectedError: 'DeadlineDetectionEvidenceV1 closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '    detected_age: Duration,\n    late_by: Duration,',
+          '    pub detected_age: Duration,\n    pub late_by: Duration,',
+          'public deadline detection fields'
+        ),
+      },
+    },
+    {
+      label: 'public terminal evidence fields',
+      expectedError: 'DeadlineMonitorTerminalV1 closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '    active_key: Option<CommandDeadlineKeyV1>,\n    deadline_detection: Option<DeadlineDetectionEvidenceV1>,',
+          '    pub active_key: Option<CommandDeadlineKeyV1>,\n    pub deadline_detection: Option<DeadlineDetectionEvidenceV1>,',
+          'public terminal evidence fields'
+        ),
+      },
+    },
+    {
+      label: 'public deadline-monitor internals',
+      expectedError: 'ActiveCommandDeadlineMonitorV1 closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '    shared: Arc<SharedMonitor>,\n    worker: Option<JoinHandle<()>>,',
+          '    pub shared: Arc<SharedMonitor>,\n    pub worker: Option<JoinHandle<()>>,',
+          'public deadline-monitor internals'
+        ),
+      },
+    },
+    {
+      label: 'resizable active deadline phase',
+      expectedError: 'MonitorPhase closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '    Armed(ActiveDeadline),',
+          '    Armed(Vec<ActiveDeadline>),',
+          'resizable active deadline phase'
+        ),
+      },
+    },
+    {
+      label: 'second active deadline phase',
+      expectedError: 'MonitorPhase closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '    Armed(ActiveDeadline),\n    Terminal(Option<DeadlineMonitorTerminalV1>),',
+          '    Armed(ActiveDeadline),\n    Pending(ActiveDeadline),\n    Terminal(Option<DeadlineMonitorTerminalV1>),',
+          'second active deadline phase'
+        ),
+      },
+    },
+    {
+      label: 'second deadline worker handle',
+      expectedError: 'ActiveCommandDeadlineMonitorV1 closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '    worker: Option<JoinHandle<()>>,\n}',
+          '    worker: Option<JoinHandle<()>>,\n    backup_worker: Option<JoinHandle<()>>,\n}',
+          'second deadline worker handle'
+        ),
+      },
+    },
+    {
+      label: 'cloneable command deadline ticket',
+      expectedError: 'CommandDeadlineTicketV1 attributes drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          'pub struct CommandDeadlineTicketV1 {',
+          '#[derive(Clone)]\npub struct CommandDeadlineTicketV1 {',
+          'cloneable command deadline ticket'
+        ),
+      },
+    },
+    {
+      label: 'poisoned panic publication misreports worker panic',
+      expectedError: 'publish_worker_panicked closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '        Err(poisoned) => {\n            let mut state = poisoned.into_inner();\n            state.terminalize_synchronization_failure();\n            drop(state);\n            shared.wake.notify_all();\n            return;\n        }',
+          '        Err(poisoned) => {\n            let mut state = poisoned.into_inner();\n            state.terminalize_worker_panicked();\n            drop(state);\n            shared.wake.notify_all();\n            return;\n        }',
+          'poisoned panic publication misreports worker panic'
+        ),
+      },
+    },
+    {
+      label: 'explicit cloneable command deadline ticket',
+      expectedError: 'deadline-monitor trait surface drift',
+      overrides: {
+        deadlineMonitor: `${deadlineMonitor}\nimpl Clone for CommandDeadlineTicketV1 {\n    fn clone(&self) -> Self { unimplemented!() }\n}\n`,
+      },
+    },
+    {
+      label: 'cloneable active deadline monitor',
+      expectedError: 'ActiveCommandDeadlineMonitorV1 attributes drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          'pub struct ActiveCommandDeadlineMonitorV1 {',
+          '#[derive(Clone)]\npub struct ActiveCommandDeadlineMonitorV1 {',
+          'cloneable active deadline monitor'
+        ),
+      },
+    },
+    {
+      label: 'explicit cloneable active deadline monitor',
+      expectedError: 'deadline-monitor trait surface drift',
+      overrides: {
+        deadlineMonitor: `${deadlineMonitor}\nimpl Clone for ActiveCommandDeadlineMonitorV1 {\n    fn clone(&self) -> Self { unimplemented!() }\n}\n`,
+      },
+    },
+    {
+      label: 'worker-start error drops initial terminal reason',
+      expectedError: 'ActiveCommandDeadlineMonitorV1::start closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '        let initial_terminal_kind = state.terminal_kind();',
+          '        let initial_terminal_kind = None;',
+          'worker-start error drops initial terminal reason'
+        ),
+      },
+    },
+    {
+      label: 'raw deadline getter',
+      expectedError: 'CommandDeadlineTicketV1 complete method surface drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          'impl CommandDeadlineTicketV1 {',
+          'impl CommandDeadlineTicketV1 {\n    pub fn raw_deadline(&self) -> Instant { self.deadline }',
+          'raw deadline getter'
+        ),
+      },
+    },
+    {
+      label: 'worker panic predicate set without state lock',
+      expectedError: 'panic injection must set its predicate while holding the state lock',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '        let (state, _poisoned) = lock_recovering_synchronization_failure(&self.shared);\n        self.shared.panic_worker.store(true, Ordering::SeqCst);\n        drop(state);\n        self.shared.wake.notify_all();',
+          '        self.shared.panic_worker.store(true, Ordering::SeqCst);\n        self.shared.wake.notify_all();',
+          'worker panic predicate set without state lock'
+        ),
+      },
+    },
+    {
+      label: 'secondary command deadline ticket impl',
+      expectedError: 'CommandDeadlineTicketV1 inherent impl count drift',
+      overrides: {
+        deadlineMonitor: `${deadlineMonitor}\nimpl crate::deadline_monitor::CommandDeadlineTicketV1 {\n    fn unchecked() -> Self { unimplemented!() }\n}\n`,
+      },
+    },
+    {
+      label: 'secondary active deadline monitor impl',
+      expectedError: 'ActiveCommandDeadlineMonitorV1 inherent impl count drift',
+      overrides: {
+        deadlineMonitor: `${deadlineMonitor}\nimpl crate::deadline_monitor::ActiveCommandDeadlineMonitorV1 {\n    fn rearm(&mut self) {}\n}\n`,
+      },
+    },
+    {
+      label: 'ticket constructor takes candidate ownership',
+      expectedError: 'CommandDeadlineTicketV1::try_from_candidate must have exactly one',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '        candidate: &VelocityCommandCandidateV1,',
+          '        candidate: VelocityCommandCandidateV1,',
+          'ticket constructor takes candidate ownership'
+        ),
+      },
+    },
+    {
+      label: 'raw-clock ticket constructor',
+      expectedError: 'CommandDeadlineTicketV1 complete method surface drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          'impl CommandDeadlineTicketV1 {',
+          'impl CommandDeadlineTicketV1 {\n    pub fn from_raw_clock(_: Instant, _: Duration) -> Self { unimplemented!() }',
+          'raw-clock ticket constructor'
+        ),
+      },
+    },
+    {
+      label: 'ticket generation equality omitted',
+      expectedError: 'CommandDeadlineTicketV1::try_from_candidate closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '        if expected_generation != candidate_generation {\n            return Err(CommandDeadlineTicketErrorV1::GenerationMismatch {\n                candidate: candidate_generation,\n                expected: expected_generation,\n            });\n        }',
+          '',
+          'ticket generation equality omitted'
+        ),
+      },
+    },
+    {
+      label: 'ticket generation check moved after TTL',
+      expectedError: 'CommandDeadlineTicketV1::try_from_candidate closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '        if expected_generation != candidate_generation {\n            return Err(CommandDeadlineTicketErrorV1::GenerationMismatch {\n                candidate: candidate_generation,\n                expected: expected_generation,\n            });\n        }\n        if local_ttl_proposal.is_zero() {\n            return Err(CommandDeadlineTicketErrorV1::ZeroLocalTtlProposal);\n        }',
+          '        if local_ttl_proposal.is_zero() {\n            return Err(CommandDeadlineTicketErrorV1::ZeroLocalTtlProposal);\n        }\n        if expected_generation != candidate_generation {\n            return Err(CommandDeadlineTicketErrorV1::GenerationMismatch {\n                candidate: candidate_generation,\n                expected: expected_generation,\n            });\n        }',
+          'ticket generation check moved after TTL'
+        ),
+      },
+    },
+    {
+      label: 'zero local deadline TTL accepted',
+      expectedError: 'CommandDeadlineTicketV1::try_from_candidate closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '        if local_ttl_proposal.is_zero() {\n            return Err(CommandDeadlineTicketErrorV1::ZeroLocalTtlProposal);\n        }',
+          '',
+          'zero local deadline TTL accepted'
+        ),
+      },
+    },
+    {
+      label: 'equal local deadline TTL rejected',
+      expectedError: 'CommandDeadlineTicketV1::try_from_candidate closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '        if local_ttl_proposal > requested {',
+          '        if local_ttl_proposal >= requested {',
+          'equal local deadline TTL rejected'
+        ),
+      },
+    },
+    {
+      label: 'draft maximum replaces candidate TTL',
+      expectedError: 'CommandDeadlineTicketV1::try_from_candidate closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '        let requested = candidate.requested_ttl().get();',
+          '        let requested = crate::contract::DRAFT_L1_MAX_COMMAND_TTL;',
+          'draft maximum replaces candidate TTL'
+        ),
+      },
+    },
+    {
+      label: 'requested TTL replaces local scheduled TTL',
+      expectedError: 'CommandDeadlineTicketV1::try_from_candidate closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '            .checked_deadline(local_ttl_proposal)',
+          '            .checked_deadline(requested)',
+          'requested TTL replaces local scheduled TTL'
+        ),
+      },
+    },
+    {
+      label: 'monitor-start clock anchors ticket deadline',
+      expectedError: 'CommandDeadlineTicketV1::try_from_candidate closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '        let deadline = received_at\n            .checked_deadline(local_ttl_proposal)',
+          '        let deadline = PlantReceiptTime::from_monotonic_test_instant(Instant::now())\n            .checked_deadline(local_ttl_proposal)',
+          'monitor-start clock anchors ticket deadline'
+        ),
+      },
+    },
+    {
+      label: 'unchecked receipt deadline arithmetic',
+      expectedError: 'CommandDeadlineTicketV1::try_from_candidate closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '            .ok_or(CommandDeadlineTicketErrorV1::UnrepresentableDeadline)?;',
+          '            .unwrap();',
+          'unchecked receipt deadline arithmetic'
+        ),
+      },
+    },
+    {
+      label: 'profile kind replaces full deadline profile',
+      expectedError: 'CommandDeadlineTicketV1::try_from_candidate closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '                profile: candidate.profile().identity(),',
+          '                profile: candidate.profile().kind(),',
+          'profile kind replaces full deadline profile'
+        ),
+      },
+    },
+    {
+      label: 'deadline ticket session synthesized',
+      expectedError: 'CommandDeadlineTicketV1::try_from_candidate closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '                session: candidate.session(),',
+          '                session: CommandSessionIdentity::new([1; 16]).unwrap(),',
+          'deadline ticket session synthesized'
+        ),
+      },
+    },
+    {
+      label: 'deadline ticket sequence synthesized',
+      expectedError: 'CommandDeadlineTicketV1::try_from_candidate closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '                stream_sequence: candidate.stream_sequence(),',
+          '                stream_sequence: CommandStreamSequence::new(1).unwrap(),',
+          'deadline ticket sequence synthesized'
+        ),
+      },
+    },
+    {
+      label: 'expected generation replaces candidate generation',
+      expectedError: 'CommandDeadlineTicketV1::try_from_candidate closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '                generation: candidate_generation,',
+          '                generation: expected_generation,',
+          'expected generation replaces candidate generation'
+        ),
+      },
+    },
+    {
+      label: 'ticket receipt replaced by current clock',
+      expectedError: 'CommandDeadlineTicketV1::try_from_candidate closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '        let received_at = candidate.received_at();',
+          '        let received_at = PlantReceiptTime::from_monotonic_test_instant(Instant::now());',
+          'ticket receipt replaced by current clock'
+        ),
+      },
+    },
+    {
+      label: 'requested TTL stored as scheduled TTL',
+      expectedError: 'CommandDeadlineTicketV1::try_from_candidate closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '            scheduled_ttl: local_ttl_proposal,',
+          '            scheduled_ttl: requested,',
+          'requested TTL stored as scheduled TTL'
+        ),
+      },
+    },
+    {
+      label: 'public raw plant receipt helper',
+      expectedError: 'PlantReceiptTime deadline-monitor helper complete method surface drift',
+      overrides: {
+        contract: replacedExactlyOnce(
+          contract,
+          'impl PlantReceiptTime {',
+          'impl PlantReceiptTime {\n    pub const fn raw_instant(self) -> Instant { self.0 }',
+          'public raw plant receipt helper'
+        ),
+      },
+    },
+    {
+      label: 'terminal phase bypassed before deadline observation',
+      expectedError: 'MonitorState::observe_at closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '        if matches!(self.phase, MonitorPhase::Terminal(_)) {\n            return None;\n        }',
+          '',
+          'terminal phase bypassed before deadline observation'
+        ),
+      },
+    },
+    {
+      label: 'deadline observation clock regression omitted',
+      expectedError: 'MonitorState::observe_at closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '        if observed_at < self.last_observed {\n            self.terminalize(DeadlineMonitorTerminalV1::simple(\n                DeadlineMonitorTerminalKindV1::ClockRegressed,\n                self.last_active_key,\n            ));\n            return None;\n        }',
+          '',
+          'deadline observation clock regression omitted'
+        ),
+      },
+    },
+    {
+      label: 'exact active deadline remains fresh',
+      expectedError: 'MonitorState::observe_at closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '            MonitorPhase::Armed(active) if observed_at >= active.ticket.deadline => {',
+          '            MonitorPhase::Armed(active) if observed_at > active.ticket.deadline => {',
+          'exact active deadline remains fresh'
+        ),
+      },
+    },
+    {
+      label: 'active deadline checked after replacement validation',
+      expectedError: 'MonitorState::advance_at closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '        if self.observe_at(observed_at).is_none() {\n            return Err(DeadlineAdvanceErrorV1::MonitorTerminal);\n        }\n        let next_key = next.key;',
+          '        let next_key = next.key;',
+          'active deadline checked after replacement validation'
+        ),
+      },
+    },
+    {
+      label: 'deadline replacement ignores exact profile',
+      expectedError: 'MonitorState::advance_at closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '        if next_key.profile != self.fixed_profile {\n            return Err(DeadlineAdvanceErrorV1::ProfileMismatch {\n                expected: self.fixed_profile,\n                received: next_key.profile,\n            });\n        }',
+          '',
+          'deadline replacement ignores exact profile'
+        ),
+      },
+    },
+    {
+      label: 'deadline replacement ignores exact session',
+      expectedError: 'MonitorState::advance_at closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '        if next_key.session != self.fixed_session {\n            return Err(DeadlineAdvanceErrorV1::SessionMismatch {\n                expected: self.fixed_session,\n                received: next_key.session,\n            });\n        }',
+          '',
+          'deadline replacement ignores exact session'
+        ),
+      },
+    },
+    {
+      label: 'deadline replacement ignores exact generation',
+      expectedError: 'MonitorState::advance_at closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '        if next_key.generation != self.fixed_generation {\n            return Err(DeadlineAdvanceErrorV1::GenerationMismatch {\n                expected: self.fixed_generation,\n                received: next_key.generation,\n            });\n        }',
+          '',
+          'deadline replacement ignores exact generation'
+        ),
+      },
+    },
+    {
+      label: 'duplicate deadline sequence accepted',
+      expectedError: 'MonitorState::advance_at closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '        if next_key.stream_sequence <= current_key.stream_sequence {',
+          '        if next_key.stream_sequence < current_key.stream_sequence {',
+          'duplicate deadline sequence accepted'
+        ),
+      },
+    },
+    {
+      label: 'lower deadline sequence accepted',
+      expectedError: 'MonitorState::advance_at closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '        if next_key.stream_sequence <= current_key.stream_sequence {',
+          '        if next_key.stream_sequence == current_key.stream_sequence {',
+          'lower deadline sequence accepted'
+        ),
+      },
+    },
+    {
+      label: 'superseding receipt regression accepted',
+      expectedError: 'MonitorState::advance_at closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '        if next.received_at.is_before(current_receipt) {\n            self.terminalize(DeadlineMonitorTerminalV1::superseding_fault(\n                DeadlineMonitorTerminalKindV1::SupersedingReceiptRegressed,\n                current_key,\n                next_key,\n            ));\n            return Err(DeadlineAdvanceErrorV1::MonitorTerminal);\n        }',
+          '',
+          'superseding receipt regression accepted'
+        ),
+      },
+    },
+    {
+      label: 'exact superseding deadline remains fresh',
+      expectedError: 'MonitorState::advance_at closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '        if observed_at >= next.deadline {',
+          '        if observed_at > next.deadline {',
+          'exact superseding deadline remains fresh'
+        ),
+      },
+    },
+    {
+      label: 'generation report bypasses current deadline',
+      expectedError: 'MonitorState::report_generation_mismatch_at closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '        if self.observe_at(observed_at).is_none() {\n            return Err(DeadlineControlErrorV1::MonitorTerminal);\n        }\n        if reported_generation == self.fixed_generation {',
+          '        if reported_generation == self.fixed_generation {',
+          'generation report bypasses current deadline'
+        ),
+      },
+    },
+    {
+      label: 'shutdown bypasses current deadline',
+      expectedError: 'MonitorState::shutdown_at closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '        if self.observe_at(observed_at).is_some() {',
+          '        if true {',
+          'shutdown bypasses current deadline'
+        ),
+      },
+    },
+    {
+      label: 'terminal deadline evidence overwritten',
+      expectedError: 'MonitorState::terminalize closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '        if matches!(self.phase, MonitorPhase::Armed(_)) {\n            self.phase = MonitorPhase::Terminal(Some(terminal));\n        }',
+          '        self.phase = MonitorPhase::Terminal(Some(terminal));',
+          'terminal deadline evidence overwritten'
+        ),
+      },
+    },
+    {
+      label: 'unnamed deadline worker',
+      expectedError: 'worker name must remain one private exact constant',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          'const DEADLINE_WORKER_NAME: &str = "crebain-command-deadline-v1";',
+          'const DEADLINE_WORKER_NAME: &str = "deadline-worker";',
+          'unnamed deadline worker'
+        ),
+      },
+    },
+    {
+      label: 'deadline worker uses non-timeout wait',
+      expectedError: 'run_worker closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '        match shared.wake.wait_timeout(state, wait_for) {',
+          '        match shared.wake.wait(state).map(|state| (state, ())) {',
+          'deadline worker uses non-timeout wait'
+        ),
+      },
+    },
+    {
+      label: 'deadline worker panic escapes ownership',
+      expectedError: 'ActiveCommandDeadlineMonitorV1::start closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '                let outcome = panic::catch_unwind(AssertUnwindSafe(|| run_worker(&worker_shared)));\n                if outcome.is_err() {\n                    publish_worker_panicked(&worker_shared);\n                }',
+          '                run_worker(&worker_shared);',
+          'deadline worker panic escapes ownership'
+        ),
+      },
+    },
+    {
+      label: 'deadline worker detached at join',
+      expectedError: 'ActiveCommandDeadlineMonitorV1::join_worker closed value shape drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          '        if let Some(worker) = self.worker.take() {\n            if worker.join().is_err() {\n                publish_worker_panicked(&self.shared);\n            }\n        }',
+          '        let _detached = self.worker.take();',
+          'deadline worker detached at join'
+        ),
+      },
+    },
+    {
+      label: 'deadline terminal converts to safe action',
+      expectedError: 'deadline-monitor trait surface drift',
+      overrides: {
+        deadlineMonitor: `${deadlineMonitor}\nimpl From<DeadlineMonitorTerminalV1> for crate::safe_action::SafeActionIntentV1 {\n    fn from(_: DeadlineMonitorTerminalV1) -> Self { unimplemented!() }\n}\n`,
+      },
+    },
+    {
+      label: 'deadline monitor interprets lifecycle state',
+      expectedError: 'ActiveCommandDeadlineMonitorV1 complete method surface drift',
+      overrides: {
+        deadlineMonitor: replacedExactlyOnce(
+          deadlineMonitor,
+          'impl ActiveCommandDeadlineMonitorV1 {',
+          'impl ActiveCommandDeadlineMonitorV1 {\n    fn transition(_: crate::lifecycle::PlantState) {}',
+          'deadline monitor interprets lifecycle state'
+        ),
+      },
+    },
+    {
+      label: 'deadline monitor contract wiring',
+      expectedError: 'deadline monitor must remain unwired',
+      overrides: {
+        contract: `${contract}\nfn start_deadline_monitor(_: crate::ActiveCommandDeadlineMonitorV1) {}\n`,
+      },
+    },
+    {
+      label: 'deadline monitor runtime wiring',
+      expectedError: 'deadline monitor must remain unwired',
+      overrides: {
+        runtime: `${runtime}\nfn run_deadline_monitor(_: crate::ActiveCommandDeadlineMonitorV1) {}\n`,
+      },
+    },
+    {
+      label: 'deadline monitor channel wiring',
+      expectedError: 'deadline monitor must remain unwired',
+      overrides: {
+        channels: `${channels}\nfn publish_deadline(_: crate::DeadlineMonitorTerminalV1) {}\n`,
+      },
+    },
+    {
+      label: 'deadline monitor adapter wiring',
+      expectedError: 'deadline monitor must remain unwired',
+      overrides: {
+        adapter: `${adapter}\nfn apply_deadline(_: crate::DeadlineMonitorTerminalV1) {}\n`,
+      },
+    },
+    {
+      label: 'deadline monitor safe-action wiring',
+      expectedError: 'deadline monitor must remain unwired',
+      overrides: {
+        safeAction: `${safeAction}\nfn select_for_deadline(_: crate::DeadlineMonitorTerminalV1) {}\n`,
+      },
+    },
+    {
+      label: 'deadline monitor passive-expiry wiring',
+      expectedError: 'deadline monitor must remain unwired',
+      overrides: {
+        expiry: `${expiry}\nfn arm_from_deadline(_: crate::CommandDeadlineTicketV1) {}\n`,
+      },
+    },
+  ]
+  for (const fixture of cases) {
+    let rejection = null
+    try {
+      verifyDeadlineMonitorBoundary(fixture.overrides)
+    } catch (error) {
+      rejection = error instanceof Error ? error.message : String(error)
+    }
+    if (rejection === null) fail(`deadline-monitor boundary accepted mutation: ${fixture.label}`)
+    if (fixture.expectedError && !rejection.includes(fixture.expectedError)) {
+      fail(
+        `deadline-monitor boundary mutation '${fixture.label}' rejected for the wrong reason: ${rejection}`
+      )
+    }
+  }
+  if (cases.length !== 72)
+    fail(`deadline-monitor boundary mutation inventory drift; expected 72, got ${cases.length}`)
+  return cases.length
+}
+
 function verify() {
   if (!existsSync(PLANT_MANIFEST)) fail('plant package manifest is missing')
   if (lstatSync(PLANT_ROOT).isSymbolicLink()) fail('plant package root must not be a symbolic link')
@@ -3074,6 +5007,8 @@ function verify() {
   const healthNegativeMutations = verifyVehicleHealthBoundaryMutations()
   verifySafeActionBoundary()
   const safeActionNegativeMutations = verifySafeActionBoundaryMutations()
+  verifyDeadlineMonitorBoundary()
+  const deadlineMonitorNegativeMutations = verifyDeadlineMonitorBoundaryMutations()
 
   const rustFiles = walkRustFiles(PLANT_ROOT)
   const runtimeSourceRoot = `${realpathSync(resolve(PLANT_ROOT, 'src'))}${process.platform === 'win32' ? '\\' : '/'}`
@@ -3119,14 +5054,16 @@ function verify() {
     packages: metadata.workspace_members.length,
     healthNegativeMutations,
     safeActionNegativeMutations,
-    boundaryNegativeMutations: healthNegativeMutations + safeActionNegativeMutations,
+    deadlineMonitorNegativeMutations,
+    boundaryNegativeMutations:
+      healthNegativeMutations + safeActionNegativeMutations + deadlineMonitorNegativeMutations,
   }
 }
 
 try {
   const result = verify()
   console.log(
-    `OK: inert plant boundary verified (${result.files} Rust files, ${result.packages} workspace packages, zero dependencies, ${result.boundaryNegativeMutations} plant-authority boundary mutations rejected: ${result.healthNegativeMutations} health/freshness and ${result.safeActionNegativeMutations} safe-action)`
+    `OK: inert plant boundary verified (${result.files} Rust files, ${result.packages} workspace packages, zero dependencies, ${result.boundaryNegativeMutations} plant-authority boundary mutations rejected: ${result.healthNegativeMutations} health/freshness, ${result.safeActionNegativeMutations} safe-action, and ${result.deadlineMonitorNegativeMutations} deadline-monitor)`
   )
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error))

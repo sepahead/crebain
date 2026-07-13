@@ -9,10 +9,10 @@ change CREBAIN's L0 claim.
 `crebain-plant-authority::contract` removes stringly typed and unit-ambiguous
 inputs from the dependency path toward the native plant. It validates an
 in-memory proposal into an immutable `VelocityCommandCandidateV1`. Possession of
-that candidate proves only structural validation. Authentication, anti-replay,
-fresh vehicle health, authorization, active expiry, safe-action selection,
-apply-time checks, adapter acceptance, and observed vehicle effect remain
-separate required gates. Here, “safe-action selection” means authoritative
+that candidate proves only structural validation. Authentication, authoritative
+anti-replay, fresh vehicle health, authorization, integrated active expiry,
+safe-action selection, apply-time checks, adapter acceptance, and observed
+vehicle effect remain separate required gates. Here, “safe-action selection” means authoritative
 state/trigger classification plus an approved content-bound policy; the inert
 opaque-code dispatch candidate does not satisfy that gate.
 
@@ -27,16 +27,16 @@ still accepts only `--self-check`.
 | Version | Numeric version must equal `1` | No wire encoding is defined |
 | Profile | Compound identity (closed ENU/NED semantic kind plus nonzero 256-bit artifact digest) must equal the locally selected profile | The profile artifact and approver are not yet pinned |
 | Session | Nonzero 128-bit identity must equal the authenticated local session | No authenticator or live session exists |
-| Sequence | Nonzero `u64` carried unchanged | Stateful monotonic/replay admission is not implemented |
+| Sequence | Nonzero `u64` carried unchanged | The unwired deadline monitor rejects a non-advancing replacement in its single local slot, but trusted ingress and durable replay admission are not implemented |
 | General action | Velocity only | Hold/Land/RTL remain reserved for a future approved state-dependent plant policy; a separate inert candidate can return closed safe-action intents from opaque caller-supplied situation codes but cannot admit or convert them here; arm/disarm/takeoff/mission/mode/raw-motor proposals are rejected |
 | Frame | Exactly the local frame inseparably bound to the compound profile identity: `LocalNed` or `LocalEnu` | The deployment's canonical profile is not approved; wrong-frame proposals still fail instead of being converted automatically |
 | Unit | Metres per second only | The v1 corpus covers velocity axes in m/s only, not other physical quantities or time units |
 | Horizontal speed | Finite magnitude at most 5 m/s | Draft ODD constraint, not measured capability |
 | Vertical speed | Finite absolute value at most 2 m/s | Draft ODD constraint, not measured capability |
-| Requested lifetime | Greater than zero and at most 150 ms | Structural bound only; no active watchdog or immediately-before-write check |
+| Requested lifetime | Greater than zero and at most 150 ms | An unwired ticket may use a nonzero local TTL no greater than this request; the local proposal and draft maximum are unapproved, and there is no immediately-before-write check |
 | Producer time | Epoch-qualified duration retained only for correlation | Never used as plant command age |
-| Plant receipt time | Opaque local monotonic `Instant` minted inside validation, not by its caller | Validation must eventually be the trusted ingress boundary; no scheduler, deadline, or suspend qualification exists |
-| Lifecycle | Candidate is bound to the current process-local generation | Durable boot/session anti-rollback remains pending |
+| Plant receipt time | Opaque local monotonic `Instant` minted inside validation, not by its caller | The unwired monitor derives a private absolute deadline from this receipt rather than its start time; trusted ingress, suspend, and scheduler qualification remain absent |
+| Lifecycle | Candidate is bound to the current process-local generation | Ticket construction checks equality with a caller-supplied expected generation and the fixed monitor can terminalize on a caller-reported different generation; neither input establishes authoritative currentness, and autonomous lifecycle observation plus durable restart anti-rollback remain pending |
 
 The closed profile kind binds the local frame into `ProfileIdentity`, so the
 same identity value cannot mean ENU in one plant and NED in another. There is no
@@ -78,6 +78,32 @@ identity, session identity, action, requested lifetime, frame, unit, finite
 components, horizontal envelope, and vertical envelope. Rejection values are
 closed Rust variants so later evidence does not depend on free-form strings.
 
+## Unwired deadline-monitor prerequisite
+
+The separate `deadline_monitor` component can derive a non-cloneable
+`CommandDeadlineTicketV1` only from a validated candidate, a caller-supplied
+expected generation, and a nonzero local TTL proposal no greater than the
+candidate request. Expected-generation equality is structural and does not
+prove currentness. Its private absolute deadline is the candidate's plant
+receipt instant plus that local proposal; starting the monitor later never
+creates a new interval. Because the candidate is copyable, another ticket can
+be minted from it; ownership proves only one active slot within each monitor.
+
+One `ActiveCommandDeadlineMonitorV1` owns one worker and one active slot. A
+replacement must be another validated ticket with the same exact profile,
+session, and generation, a strictly greater sequence, and a non-regressing
+receipt time. It installs the replacement ticket's own receipt-derived
+deadline and records sequence gaps and admission age. There is no queue, reset,
+refresh, extension, or rearm operation. A strictly newer sequence with a receipt
+preceding the active receipt terminalizes the monitor.
+
+The fixed-state component detects/timestamps an absolute receipt-anchored
+deadline when its worker is scheduled. Its terminal evidence cannot invalidate
+an output, classify state, choose a safe action, or call an adapter. It does
+not autonomously observe lifecycle rotation and provides no scheduler, suspend,
+WCET, deadline-to-effect, or process-loss proof. See
+[`PLANT_WATCHDOG_V1.md`](PLANT_WATCHDOG_V1.md).
+
 ## Required next decisions
 
 Before this candidate can be called an approved profile, the project must name
@@ -94,12 +120,14 @@ apply-time race. A separate safe-action candidate now proves only fixed,
 no-default, exact-profile dispatch mechanics over caller-proposed opaque
 situation codes. Its rows are not profile-content-bound, it does not classify
 authoritative state/triggers, and it cannot convert an intent into an action.
-Command ingress and FCU I/O remain out of order until the profile, active
-watchdog, approved safe-action classifier/policy, governor, and adapter gates
+Command ingress and FCU I/O remain out of order until the profile, trusted
+deadline-monitor integration, approved safe-action classifier/policy,
+immediately-before-write governor, and adapter gates
 exist. See
 [`PLANT_HEALTH_V1.md`](PLANT_HEALTH_V1.md) and
 [`PLANT_FRESHNESS_V1.md`](PLANT_FRESHNESS_V1.md), and
-[`PLANT_SAFE_ACTION_V1.md`](PLANT_SAFE_ACTION_V1.md).
+[`PLANT_SAFE_ACTION_V1.md`](PLANT_SAFE_ACTION_V1.md), plus
+[`PLANT_WATCHDOG_V1.md`](PLANT_WATCHDOG_V1.md).
 
 ## Component verification
 

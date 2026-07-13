@@ -198,6 +198,28 @@ impl ProducerTime {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct PlantReceiptTime(Instant);
 
+impl PlantReceiptTime {
+    /// Derives a private absolute deadline without exposing the receipt instant.
+    pub(crate) fn checked_deadline(self, ttl: Duration) -> Option<Instant> {
+        self.0.checked_add(ttl)
+    }
+
+    /// Computes private process-local command age for the deadline monitor.
+    pub(crate) fn elapsed_at(self, observed_at: Instant) -> Option<Duration> {
+        observed_at.checked_duration_since(self.0)
+    }
+
+    /// Compares two private receipt instants without exposing either value.
+    pub(crate) fn is_before(self, other: Self) -> bool {
+        self.0 < other.0
+    }
+
+    #[cfg(test)]
+    pub(crate) const fn from_monotonic_test_instant(instant: Instant) -> Self {
+        Self(instant)
+    }
+}
+
 /// Exact monotonic sequence within one authenticated command session.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct CommandStreamSequence(NonZeroU64);
