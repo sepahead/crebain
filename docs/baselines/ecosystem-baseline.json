@@ -166,11 +166,11 @@
     },
     {
       "path": "docs/baselines/phase0-command-surfaces.json",
-      "sha256": "a6363caffc5bfc4587a29f769355238fb03f9edd8310cc03fe820f461649ae15"
+      "sha256": "7ba31dbbe1cb7a0227d0481ae02c042809f713126b75967a527aaf425f8e28c2"
     },
     {
       "path": "docs/baselines/phase0-hazards.json",
-      "sha256": "c64034f8047ba16bb0d835fcef41637b142c68553ceb19a2cc5f9c52b8de8cac"
+      "sha256": "5468f8f620ca7ad97f48103828936f4bdcd78d9babf9562bfbd49cefa1e0d23f"
     },
     {
       "path": "scripts/verify-phase0-baseline.mjs",
@@ -178,7 +178,7 @@
     },
     {
       "path": "scripts/check-plant-authority-boundary.mjs",
-      "sha256": "c28b0ee9b2d4bc8ba838ad358431a774c991473e2f2f9ac6cc2eac66b7452623"
+      "sha256": "bbbda820f217e96f30d4386e3d08fbaad705c385aa26b4fb28d2c392f5ec9797"
     },
     {
       "path": "scripts/lib/plant-frame-conventions.mjs",

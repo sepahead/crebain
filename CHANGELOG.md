@@ -12,6 +12,32 @@ README and treated as unverified until measured on target hardware.
 Open-source readiness and quality hardening.
 
 ### Added
+- **Unwired single-reference-instant apply-check observation candidate.** One
+  generation-checked coherent health snapshot is loaded first. Only then is a
+  private plant-monotonic reference instant minted, with health ages computed
+  before command receipt age relative to that same instant. The retained
+  observation records the command's strict requested-lifetime relation
+  (equality is outside), neutral lifecycle state/generation, and all eight
+  profile-bound health-age relations from one check. Exact profile or
+  command/lifecycle generation mismatch precedes the health load;
+  missing/poisoned/wrong-generation health and health clock regression precede
+  command clock regression, followed by health-policy mismatch.
+  Success is evidence only and can still contain an expired command, any
+  `PlantState` including `Emergency` or `Shutdown`, stale ages, and
+  unknown/unavailable health. The result has no direct boolean accessor or
+  `From` conversion to `bool` and supplies no aggregate/authorizing verdict,
+  permit, authorization token, command content, velocity, action, output
+  revocation, safe action, adapter operation, I/O, or runtime wiring, although
+  callers can compare its facts. It can become stale immediately and is not a
+  write-adjacent atomic transaction. The command carries no `VehicleIdentity`
+  or `LocalFrameInstanceIdentity`, so profile/generation equality can compose
+  it with health from another declared vehicle/frame instance and supplies no
+  HAZ-005/HAZ-013 evidence. The observation is remintable and not content-bound:
+  the same retained IDs/TTL can describe copyable commands with different
+  velocity, so IDs must never pair it to a command as a checked token. This is
+  partial CB-029/CTL-005/HAZ-003/HAZ-006 component evidence only. CTL-003,
+  `TEST-PLANT-LOCAL-TTL`, and `TEST-ATOMIC-STATE-STALENESS` remain planned, and
+  CREBAIN remains L0.
 - **Profile-neutral plant frame conventions.** The dependency-free plant
   package and JavaScript verifier independently evaluate one digest-bound
   32-case m/s corpus for identity, ENU↔NED, and FLU↔FRD velocity-axis
@@ -70,8 +96,8 @@ Open-source readiness and quality hardening.
   bounded battery fraction. Its sealed channel retains coherent state and
   exposes exact ages without a healthy/safe verdict. Source identities are
   declared rather than authenticated; no FCU collector, approved freshness
-  policy, durable exclusive epoch/channel ownership, apply-time consumer,
-  governor, failsafe, or adapter exists. This is
+  policy, durable exclusive epoch/channel ownership, authorizing
+  immediately-before-write consumer/governor, failsafe, or adapter exists. This is
   partial CB-030/CTL-005/HAZ-006 component evidence only.
 - **Inactive profile-bound captured-read health-age classifier.** A separate
   dependency-free component consumes one coherent observed health commit,
@@ -82,8 +108,9 @@ Open-source readiness and quality hardening.
   fresh/healthy/safe/eligible/authorized result. Limits are caller-proposed and
   unapproved, recent unknown/unavailable state remains non-nominal, the draft
   ODD's inclusive `<=200 ms` position/velocity condition is not implemented,
-  and no clock read, apply-time consumer, active-monitor integration, governor,
-  or adapter exists.
+  and the classifier itself reads no clock. The separate apply-check observation
+  still provides no active-monitor integration, authorizing
+  immediately-before-write governor, or adapter.
   HAZ-006 and CTL-005 remain partial and CREBAIN remains L0.
 - **Inactive safe-action situation-dispatch candidate.** A separate plant-side
   vocabulary distinguishes output inhibit, profile-defined physical Hold,

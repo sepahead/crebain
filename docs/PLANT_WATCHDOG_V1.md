@@ -21,6 +21,17 @@ It does not admit, authorize, apply, or revoke a command. A terminal event is
 evidence only: it does not classify vehicle state, choose a safe action, call
 an adapter, or cause I/O or a physical effect.
 
+A separate inactive apply-check observation can load one coherent health
+snapshot first, then measure its health ages and a command's receipt age
+relative to one later private plant-monotonic reference instant;
+see [`PLANT_APPLY_OBSERVATION_V1.md`](PLANT_APPLY_OBSERVATION_V1.md). It does
+not consume a monitor ticket or terminal event, and the monitor does not consume
+the observation. Neither component supplies the missing write-adjacent atomic
+transaction. Matching profile/session/sequence/generation and TTL values must
+not be used to pair a remintable observation to a ticket or command as a checked
+token: the observation is not command-content-bound, and copyable candidates
+with those retained values can carry different velocity.
+
 ## Receipt-anchored ticket
 
 `CommandDeadlineTicketV1::try_from_candidate` accepts only:
@@ -122,17 +133,20 @@ The following remain separate required work:
 - autonomous lifecycle observation and integration with current vehicle
   health, freshness, situation classification, and safe-action policy;
 - immediately-before-write command-age checking, output revocation, an
-  apply-time governor, typed FCU transaction, acknowledgement, and observed
-  effect;
+  apply-time governor that atomically integrates or rechecks command,
+  lifecycle, health, and monitor evidence, typed FCU transaction,
+  acknowledgement, and observed effect;
 - reserved scheduler capacity, target WCET/jitter, overload and combined-load
   timing, and deadline-to-safe-action latency;
 - suspend-inclusive monotonic-clock qualification, durable restart semantics,
   process-loss containment, and independently configured FCU failsafes; and
 - SITL, HIL, target-platform, or physical-flight evidence.
 
-This is partial CB-027/HAZ-003 component evidence only. HAZ-003 remains
-partial, CTL-003 and `TEST-PLANT-LOCAL-TTL` remain planned, HAZ-002 remains
-open, and CREBAIN remains L0.
+This monitor and the separate observation are partial
+CB-027/CB-029/CTL-005/HAZ-003/HAZ-006 component evidence only. HAZ-003 and
+HAZ-006 remain partial, CTL-003, `TEST-PLANT-LOCAL-TTL`, and
+`TEST-ATOMIC-STATE-STALENESS` remain planned, HAZ-002 remains open, and
+CREBAIN remains L0.
 
 ## Verification
 
@@ -153,4 +167,7 @@ synchronization without an exact-key claim, and worker panic. Public-path tests
 also compose two validated candidates through ticket construction and strict
 replacement. The one
 real worker wake test is functional smoke, not a latency distribution or
-target-scheduler qualification.
+target-scheduler qualification. The complete plant suite has 123
+unit/integration tests and 24 compile-fail doctests; the static checker has 231
+fail-closed fixtures, including 72 deadline-monitor and 44 apply-observation
+mutations.

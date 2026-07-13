@@ -23,17 +23,17 @@ No hazard in this baseline is controlled or accepted. Every P0 entry blocks L1.
 |---|---|---|---|---|
 | HAZ-001 | Motion through an authority bypass | P0 | open | Sole native applier; exact Gate identity/route; bypass campaign |
 | HAZ-002 | Required safe action is lost or omitted | P0 | open | Plant watchdog plus independent FCU failsafe |
-| HAZ-003 | Delayed command remains active | P0 | partial | Passive expiry plus an unwired receipt-anchored one-worker/one-slot active deadline monitor exist; trusted admission, output invalidation, approved TTL policy, apply-time check, scheduler/latency evidence, and safe action remain absent |
+| HAZ-003 | Delayed command remains active | P0 | partial | Passive expiry, an unwired receipt-anchored one-worker/one-slot active deadline monitor, and a post-health-load single-reference-instant requested-lifetime observation exist; trusted admission, command-content binding, output invalidation, approved TTL policy, an immediately-before-write check, scheduler/latency evidence, and safe action remain absent |
 | HAZ-004 | Replay, duplicate, or cross-session command is accepted | P0 | partial | Boot/session/stream fencing and anti-rollback |
-| HAZ-005 | Correct vector is applied in the wrong frame or unit | P0 | partial | Profile-neutral same-frame-instance ENU/NED and FLU/FRD velocity-axis corpus exists; frame-instance proof, approved profile, remaining semantics, and live interpretation are absent |
-| HAZ-006 | Stale or inconsistent vehicle state authorizes motion | P0 | partial | Closed immutable context-bound snapshot plus profile-bound captured-read exclusive age comparisons exist; authenticated collection, approved limits/state policy, current/apply-time checking, and an aggregate verdict remain absent |
+| HAZ-005 | Correct vector is applied in the wrong frame or unit | P0 | partial | Profile-neutral same-frame-instance ENU/NED and FLU/FRD velocity-axis corpus exists; the apply observation adds no evidence because its command has no local-frame-instance identity; frame-instance proof, approved profile, remaining semantics, and live interpretation are absent |
+| HAZ-006 | Stale or inconsistent vehicle state authorizes motion | P0 | partial | Closed immutable context-bound snapshot, profile-bound captured-read exclusive age comparisons, and an unwired post-health-load single-reference-instant command/health age observation exist; authenticated collection, same-vehicle/frame and command-content binding, approved limits/state policy, an immediately-before-write check, and an aggregate/authorizing verdict remain absent |
 | HAZ-007 | Generic Hold/ESTOP causes an unsafe physical action | P0 | open | ODD/vehicle safe-action matrix and guarded reset; an opaque no-default dispatch candidate exists but does not classify state or approve a physical response |
 | HAZ-008 | Router, MAVROS, FCU, or data-link loss leaves unsafe output | P0 | open | Bounded loss detection and independent FCU fallback |
 | HAZ-009 | Estimator/fusion divergence appears nominal | P1 | partial | Immutable effective config, exact-time frozen-prior ledger, bounded inputs, invalid-gate refusal, divergence state, conservative invalidation |
 | HAZ-010 | Model failure or miscalibration creates an unsafe decision | P1 | open | Signed model contract; calibrated advisory use only |
 | HAZ-011 | Missing, censored, stale, or dropped evidence appears nominal | P0 | partial | Producer outcomes/misses/summaries, strict time eligibility, upstream/track-cap loss degradation, sequence gaps, lane counters, and heartbeat semantics exist; wire numeric attribution and receiver enforcement remain absent |
 | HAZ-012 | Resource exhaustion starves watchdog or emergency handling | P0 | partial | One monitor owns one worker/slot, and other kernel/data bounds exist; global monitor count, JSONL blocking, scheduler reservation, and combined-load/deadline timing remain unresolved |
-| HAZ-013 | Restart or reconnect resurrects stale authority | P0 | partial | Process-local generation guards, caller-reported monitor generation mismatch, and fresh producer epochs exist; the report is not authoritative currentness, while autonomous rotation observation, durable boot/session anti-rollback, and topology restart tests remain absent |
+| HAZ-013 | Restart or reconnect resurrects stale authority | P0 | partial | Process-local generation guards, caller-reported monitor generation mismatch, and fresh producer epochs exist; the apply observation adds no evidence because generation equality neither binds its command to the health vehicle/frame instance nor proves durable currentness; autonomous rotation observation, durable boot/session anti-rollback, and topology restart tests remain absent |
 | HAZ-014 | Operator confuses connected/delivered with applied/observed | P1 | open | Controlled vocabulary and distinct authority/effect UX |
 | HAZ-015 | Gazebo/local mutation contaminates flight evidence | P1 | partial | Separate binaries, identities, profiles, and evidence labels |
 | HAZ-016 | Mission, mode, arm, takeoff, land, or disarm bypasses policy | P0 | open | Typed hazardous-action transaction or exclusion from L1 |
@@ -100,10 +100,41 @@ Source identity remains
 a caller-supplied structural assertion rather than authenticated provenance;
 real FCU sampling and aggregation coherence are unproved; channel/epoch
 uniqueness across recreation is not enforced; and no approved age/state
-policy, current/apply-time freshness, healthy/safe verdict, apply-time consumer, governor, adapter, or FCU
-failsafe evidence exists. HAZ-006 and CTL-005 are therefore partial, while
+policy, healthy/safe verdict, authorizing immediately-before-write
+consumer/governor, adapter, or FCU failsafe evidence exists. HAZ-006 and
+CTL-005 are therefore partial, while
 `TEST-PLANT-HEALTH-FRESHNESS-V1` is partial component evidence and
 `TEST-ATOMIC-STATE-STALENESS` remains planned.
+
+The unwired apply-check observation candidate advances only the composition
+prerequisite shared by HAZ-003 and HAZ-006. After the profile and generation
+prechecks it loads one generation-checked coherent health snapshot, then mints
+one private plant-monotonic reference instant. Health ages and command receipt
+age are evaluated relative to that same instant, in that order. The evidence
+retains a strict requested-lifetime relation with equality outside, lifecycle
+state/generation without interpreting that state, and all eight health-age
+relations. Exact profile or command/lifecycle
+generation mismatch precedes the health load; missing/poisoned/wrong-generation
+health and health clock regression precede command clock regression, followed
+by health-policy mismatch. An
+`Ok` observation is deliberately not a safety result: it may contain an expired
+command, any `PlantState` including `Emergency` or `Shutdown`, stale ages, and
+unknown/unavailable health. It has no direct boolean accessor or `From`
+conversion to `bool` and supplies no aggregate/authorizing verdict, permit,
+authorization token, command content, velocity, action, output revocation, safe
+action, adapter operation, I/O, or runtime wiring, although callers can compare
+its facts. The command carries no `VehicleIdentity` or
+`LocalFrameInstanceIdentity`; matching profile/generation can therefore compose
+with health from another declared vehicle/frame instance and supplies no
+HAZ-005/HAZ-013 evidence. The observation is remintable, and matching retained
+IDs/TTL do not content-bind it to a command because copyable candidates can
+carry different velocity. It must never be paired by those fields as a checked
+token. Because it can stale immediately and is not a write-adjacent atomic
+transaction, it does not satisfy CTL-003 or either planned end-to-end test.
+CB-029, CTL-005, HAZ-003, and HAZ-006 remain partial;
+`TEST-PLANT-APPLY-OBSERVATION-V1` is prerequisite/component evidence for the
+declared CTL-003/CTL-005 links, but CTL-003 remains planned and unsatisfied;
+`TEST-PLANT-LOCAL-TTL` and `TEST-ATOMIC-STATE-STALENESS` remain planned.
 
 The separate safe-action situation-dispatch candidate narrows only part of the
 CB-028 representation mechanics. It owns a fixed table copied from

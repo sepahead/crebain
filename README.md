@@ -40,7 +40,7 @@ SparkJS/Three.js, and Rust.
 | **Drone Physics** | 120Hz quadcopter aerodynamics simulation | In Progress |
 | **ROS Integration** | Read-only Zenoh product telemetry + development/native rosbridge telemetry fallback | In Progress |
 | **Galadriel Evidence** | Feature-gated, exact-runtime-opt-in producer with immutable pinned registry/config/executable, two bounded NCP evidence routes, strict time/projection eligibility, upstream/capacity loss degradation, and heartbeat accounting; deployed receiver/security evidence remains pending | Component-tested |
-| **Plant Authority** | Dependency-free headless lifecycle/channel/passive-expiry foundation, inactive draft command contract with no command ingress, profile-neutral same-frame-instance ENU/NED + FLU/FRD velocity-axis corpus, closed context-bound health and captured-read age candidates, an unapproved exact-profile safe-action dispatch candidate, and an unwired receipt-anchored active deadline-monitor candidate with one worker, one slot, strict same-stream advancement, and sticky terminal evidence; self-check only—the monitor neither observes lifecycle autonomously nor invalidates output, selects/applies a safe action, proves wake latency, or makes this an operational watchdog/FCU adapter | L0 Foundation |
+| **Plant Authority** | Dependency-free headless lifecycle/channel/passive-expiry foundation, inactive draft command contract with no command ingress, profile-neutral same-frame-instance ENU/NED + FLU/FRD velocity-axis corpus, closed context-bound health and captured-read age candidates, an unapproved exact-profile safe-action dispatch candidate, an unwired receipt-anchored active deadline-monitor candidate with one worker, one slot, strict same-stream advancement, and sticky terminal evidence, plus an unwired apply-check observation that loads coherent health before minting one shared age-reference instant; self-check only—the monitor neither observes lifecycle autonomously nor invalidates output, selects/applies a safe action, or proves wake latency, while the remintable observation lacks command-content and command-to-health vehicle/frame-instance binding and is neither a write-adjacent atomic transaction nor an aggregate/authorizing verdict, permit, output revocation, safe action, write-time governor, or FCU adapter | L0 Foundation |
 | **Cross-Platform** | macOS (Apple Silicon) + NixOS (CUDA) | In Progress |
 
 ---
@@ -344,6 +344,7 @@ and asset limits, and the platform matrix are in
 | [docs/PLANT_FRESHNESS_V1.md](docs/PLANT_FRESHNESS_V1.md) | Inactive profile-bound captured-read health-age classifier |
 | [docs/PLANT_SAFE_ACTION_V1.md](docs/PLANT_SAFE_ACTION_V1.md) | Inactive exact-profile safe-action situation-dispatch candidate |
 | [docs/PLANT_WATCHDOG_V1.md](docs/PLANT_WATCHDOG_V1.md) | Unwired receipt-anchored active command deadline-monitor candidate |
+| [docs/PLANT_APPLY_OBSERVATION_V1.md](docs/PLANT_APPLY_OBSERVATION_V1.md) | Unwired post-health-load single-reference-instant apply-check observation and association limits |
 | [docs/RELEASE_ACCEPTANCE.md](docs/RELEASE_ACCEPTANCE.md) | Release-candidate evidence gates |
 | [docs/MANUAL_SMOKE_TEST.md](docs/MANUAL_SMOKE_TEST.md) | Manual smoke checklist |
 | [docs/RELEASE_EVIDENCE.md](docs/RELEASE_EVIDENCE.md) | Release evidence log |

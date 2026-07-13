@@ -16,6 +16,15 @@ inactive component can compare ages already
 captured by its checked reader; see
 [`PLANT_FRESHNESS_V1.md`](PLANT_FRESHNESS_V1.md).
 
+The separate inactive apply-check observation uses crate-private hooks to load
+one generation-checked coherent health snapshot first and only then mint one
+private plant-monotonic reference instant for health-age and command-age
+evaluation; see
+[`PLANT_APPLY_OBSERVATION_V1.md`](PLANT_APPLY_OBSERVATION_V1.md). It retains
+neutral lifecycle state/generation and temporal relations only. It does not
+interpret this report, produce a verdict, authorize a write, or close the race
+after capture.
+
 A separate safe-action component can look up a caller-proposed opaque situation
 code under an exact profile identity; see
 [`PLANT_SAFE_ACTION_V1.md`](PLANT_SAFE_ACTION_V1.md). It does not consume this
@@ -103,8 +112,12 @@ state, poisoned storage, generation rotation, and monotonic-clock regression
 are explicit errors. Loads never refresh an observation. The separate
 captured-read classifier consumes that coherent result and can compare all
 eight ages without rereading a clock, but it never establishes current or
-apply-time freshness. Platform suspend behavior for the selected monotonic
-clock is not yet qualified.
+apply-time freshness. The apply-check observation first loads one coherent
+snapshot, then supplies the same later private reference instant to health-age
+and command-age calculation, removing intra-component clock skew between those
+ages without making the load and command an atomic capture. Those hooks are
+crate-private and do not expose a raw instant or create a runtime consumer. Platform suspend
+behavior for the selected monotonic clock is not yet qualified.
 
 ## Captured-read age comparison
 
@@ -135,12 +148,22 @@ but the canonical `KernelChannels` health path is the specialized contract and
 does not expose its raw sender or receiver. A separately-created generic
 register is not the canonical vehicle-health path.
 
-A lifecycle change can still occur after a reader load or captured-age
-assessment. Only a future governor that reloads health and checks generation,
-approved age/state limits, profile policy, and state
+A lifecycle change can still occur after a reader load, captured-age
+assessment, or successful apply-check observation. Health can also be replaced
+and the observation can stale before any later write. The command side of the
+observation carries neither `VehicleIdentity` nor
+`LocalFrameInstanceIdentity`; profile/generation equality can therefore compose
+it with health from another declared vehicle/frame instance and supplies no
+HAZ-005/HAZ-013 evidence. The observation is remintable and is not content-bound
+to a command: matching retained IDs/TTL can describe copyable candidates with
+different velocity and must never pair the observation as a checked token.
+Only a future governor
+that cannot be bypassed and reloads or atomically consumes health while
+checking generation, approved age/state limits, profile policy, and state
 immediately before every FCU write can close that race. Consequently this slice
-is partial CB-030/CTL-005/HAZ-006 component evidence; it is not
-`TEST-ATOMIC-STATE-STALENESS`, active authority, or L1 completion.
+and the observation are partial CB-029/CB-030/CTL-005/HAZ-006 component
+evidence; they are not `TEST-ATOMIC-STATE-STALENESS`, active authority, or L1
+completion.
 
 ## Deliberately deferred semantics
 
@@ -160,8 +183,8 @@ evidence:
 - current/apply-time generation, age, and state enforcement plus physical safe
   action;
 - suspend-inclusive clock qualification and durable restart anti-rollback; and
-- ingress, wire schema, evidence pipeline, integration of the active deadline
-  monitor, governor, and FCU I/O.
+- ingress, wire schema, evidence pipeline, atomic integration of the active
+  deadline monitor and apply observation with a governor, and FCU I/O.
 
 ## Verification
 
@@ -175,3 +198,6 @@ bun run self-check:plant
 
 These commands prove component behavior and package isolation only. They do not
 exercise SITL, HIL, an authenticated deployment, or a physical vehicle.
+The complete plant suite has 123 unit/integration tests and 24 compile-fail
+doctests; its static boundary checker has 231 fail-closed fixtures, including
+44 that seal the apply-observation boundary.

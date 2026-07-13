@@ -34,6 +34,14 @@ receipt-anchored deadline when its worker is scheduled, but it does not reload
 health, interpret these relations, revoke output, or close the apply-time race;
 see [`PLANT_WATCHDOG_V1.md`](PLANT_WATCHDOG_V1.md).
 
+The separate apply-check observation first loads one generation-checked
+coherent health snapshot and only then privately mints one plant-monotonic
+reference instant for health-age and command receipt-age evaluation. It
+preserves all eight relations from this classifier, plus a strict command
+requested-lifetime relation and neutral lifecycle state/generation;
+see [`PLANT_APPLY_OBSERVATION_V1.md`](PLANT_APPLY_OBSERVATION_V1.md). It does
+not aggregate those facts or authorize an action.
+
 ## Structurally bound policy
 
 `VehicleHealthCapturedAgePolicyV1` retains one exact `ProfileIdentity` and one
@@ -84,11 +92,20 @@ within an age limit while remaining semantically unusable. Conversely, this
 component does not interpret armed/landed/mode, estimator flags, battery,
 fence, failsafe, link, position, or velocity state.
 
-The comparison describes only the instant previously used by the checked
-health reader. It can cease to describe current time immediately. Lifecycle
-can also rotate after that read. A future governor must load health, validate
-the current generation, apply an approved profile policy, and enforce the
-result immediately before every FCU write.
+The comparison describes only its health-age reference instant. The apply-check
+observation loads the coherent health snapshot before minting that reference,
+then evaluates health ages and command age relative to it. This removes age-
+reference skew but is not a write-adjacent atomic transaction; both sets of
+facts can cease to describe current time immediately after the candidate is
+returned. Lifecycle can also rotate and health can be replaced. The command
+carries no `VehicleIdentity` or `LocalFrameInstanceIdentity`, so exact profile/
+generation equality can compose it with health from another declared vehicle
+or frame instance and adds no HAZ-005/HAZ-013 evidence. The observation is
+remintable and not command-content-bound; matching retained IDs/TTL can describe
+copyable candidates with different velocity and must never pair it to a command
+as a checked token. A future governor must load or atomically consume health,
+validate the current generation, apply an approved profile policy, and enforce
+the result immediately before every FCU write.
 
 ## Deliberately deferred semantics
 
@@ -100,14 +117,16 @@ The following remain separate work:
 - local-frame reset issuance, suspend-clock qualification, and durable epoch
   anti-rollback;
 - state interpretation and an aggregate health/safety policy;
-- command admission, integration of the active deadline monitor with
-  apply-time enforcement,
+- command admission, integration of the active deadline monitor with apply
+  observation and apply-time enforcement,
   authoritative safe-action classification and approved/content-bound policy,
   governor, adapter, and independently attested FCU failsafes; and
 - SITL, HIL, target-timing, and physical evidence.
 
-This slice is partial CB-030/CTL-005/HAZ-006 component evidence only.
-`TEST-ATOMIC-STATE-STALENESS` remains planned, and CREBAIN remains L0.
+This slice and its use by the inert observation are partial
+CB-029/CB-030/CTL-005/HAZ-003/HAZ-006 component evidence only. CTL-003,
+`TEST-PLANT-LOCAL-TTL`, and `TEST-ATOMIC-STATE-STALENESS` remain planned, and
+CREBAIN remains L0.
 
 ## Verification
 
@@ -123,4 +142,10 @@ bun run self-check:plant
 zero-limit rejection, exact profile mismatch, all eight age mappings,
 below/equal/above exclusive boundaries, captured observation ownership, and
 the separation of temporal relation from unknown/unavailable health state.
-These checks are not deployed, apply-time, SITL, HIL, or flight evidence.
+`TEST-PLANT-APPLY-OBSERVATION-V1` separately proves that a coherent health
+snapshot is loaded before the same later private reference instant supplies
+command age and all eight captured health ages without creating an aggregate or
+authorizing verdict. The complete plant suite has 123 unit/integration tests and
+24 compile-fail doctests; the static checker has 231 fail-closed fixtures,
+including 44 apply-observation mutations. These checks are not deployed,
+apply-time, SITL, HIL, or flight evidence.

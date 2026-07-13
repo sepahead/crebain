@@ -16,11 +16,12 @@ scope; it does not promote CREBAIN beyond L0.
 | External source/toolchain/config baseline | Remote `main` identities and exact commit-object configuration digests recorded; dirty sibling working-tree bytes were excluded; CREBAIN commit is intentionally resolved by later release evidence |
 | Tracked P0/P1 issues, owners, and dependencies | Pending project-governance work |
 | Hermetic clean builds and signed release manifest | Pending |
-| Headless plant-authority foundation | Inactive draft command validation, profile-neutral digest-bound ENU/NED + FLU/FRD velocity-axis conventions, closed context-bound vehicle-health/captured-age mechanics, exact-profile opaque-situation safe-action dispatch, lifecycle, bounded channels, passive expiry, and an unwired receipt-anchored active deadline monitor are component-tested in an inert package. One monitor owns one worker/slot and accepts only exact-stream strictly increasing tickets, but does not authenticate admission, observe lifecycle autonomously, invalidate output, select/apply a safe action, or prove scheduler/latency behavior; approved profile/age/state/safe-action/TTL policy, authenticated FCU collection, current/apply-time enforcement, attitude-dependent transforms, and live plant controls remain absent |
+| Headless plant-authority foundation | Inactive draft command validation, profile-neutral digest-bound ENU/NED + FLU/FRD velocity-axis conventions, closed context-bound vehicle-health/captured-age mechanics, exact-profile opaque-situation safe-action dispatch, lifecycle, bounded channels, passive expiry, an unwired receipt-anchored active deadline monitor, and a non-authorizing apply-check observation are component-tested in an inert package. The observation first loads one generation-checked coherent health snapshot, then mints one private monotonic reference instant and computes health ages followed by command receipt age relative to it while retaining neutral lifecycle state/generation. It is remintable, lacks command-content and command-to-health vehicle/frame-instance binding, is not a write-adjacent atomic transaction, and can stale immediately. One monitor owns one worker/slot and accepts only exact-stream strictly increasing tickets, but does not authenticate admission, observe lifecycle autonomously, invalidate output, select/apply a safe action, or prove scheduler/latency behavior; approved profile/age/state/safe-action/TTL policy, authenticated FCU collection, current/apply-time enforcement, attitude-dependent transforms, and live plant controls remain absent |
 | Inactive vehicle-health contract | [`PLANT_HEALTH_V1.md`](PLANT_HEALTH_V1.md) defines the closed in-memory schema, per-channel sequence and plant-local age mechanics, atomic boundary, and explicit limits; it is not authenticated FCU state, an approved health policy, or authority evidence |
 | Inactive captured-read age classifier | [`PLANT_FRESHNESS_V1.md`](PLANT_FRESHNESS_V1.md) defines exact-profile binding, eight named nonzero exclusive limits, and per-point exclusive relations tested below, at, and above each boundary while retaining the coherent observed commit; it does not read current time, implement the draft ODD's inclusive `<=200 ms` condition, aggregate health, or enforce anything at apply time |
 | Inactive safe-action dispatch candidate | [`PLANT_SAFE_ACTION_V1.md`](PLANT_SAFE_ACTION_V1.md) defines an owned fixed table from nonzero opaque situation codes to a closed intent vocabulary, exact full-profile matching, duplicate rejection, and no fallback/default. It is caller-proposed, not content-bound or approved, and has no health/state/trigger classifier, precedence, lifecycle/time input, action conversion, adapter call, or physical-effect evidence |
 | Active deadline-monitor candidate | [`PLANT_WATCHDOG_V1.md`](PLANT_WATCHDOG_V1.md) defines receipt-derived immutable tickets, one named worker, one active slot/no queue, strict same-profile/session/generation sequence advancement, due-before-control precedence, caller-reported generation mismatch, sticky terminal evidence, and fail-closed poison/panic/shutdown handling. Poisoned synchronization carries no exact active key, and start failure retains its initial context. It is unwired and is not an operational watchdog, apply-time output invalidator, safe action, suspend qualification, or latency proof |
+| Inactive apply-check observation candidate | [`PLANT_APPLY_OBSERVATION_V1.md`](PLANT_APPLY_OBSERVATION_V1.md) defines one coherent health snapshot loaded before one private plant-monotonic reference instant is minted for health-age and command receipt-age evaluation, strict requested-lifetime equality-outside relation, neutral lifecycle state/generation, and all eight existing health-age relations. `Ok` can retain an expired command, any lifecycle state, stale ages, and unknown/unavailable health; it has no direct boolean accessor or `From` conversion to `bool` and supplies no aggregate/authorizing verdict, permit, command content, action, adapter conversion, I/O, or runtime consumer, although callers can compare facts. Its command has no vehicle/frame-instance identity, it is remintable rather than command-content-bound, retained IDs/TTL must never pair it as a checked token, and it is not a write-adjacent atomic transaction |
 | Galadriel evidence producer | Feature/runtime-gated component integrated with immutable strict registry and actual config/executable pins, readiness-only active initialization, two exact evidence routes, exact-time/projection eligibility, bounded measurement/live-track/assignment behavior, upstream/capacity/NCP loss degradation, heartbeat generation, and finite owned-task shutdown; numeric upstream loss is not wire-visible, receiver/TLS/ACL/receive-size/deadline/combined-load/calibration evidence is absent, and an optional JSONL writer blocked beyond its separate two-second wait is not forcibly abortable |
 
 Phase 0 exit has therefore **not** been reached. L1 remains blocked until every
@@ -38,6 +39,7 @@ bypass, restart, timing, and resource tests.
 - [`PLANT_FRESHNESS_V1.md`](PLANT_FRESHNESS_V1.md)
 - [`PLANT_SAFE_ACTION_V1.md`](PLANT_SAFE_ACTION_V1.md)
 - [`PLANT_WATCHDOG_V1.md`](PLANT_WATCHDOG_V1.md)
+- [`PLANT_APPLY_OBSERVATION_V1.md`](PLANT_APPLY_OBSERVATION_V1.md)
 - [`baselines/phase0-hazards.json`](baselines/phase0-hazards.json)
 - [`baselines/phase0-command-surfaces.json`](baselines/phase0-command-surfaces.json)
 - [`baselines/ecosystem-baseline.json`](baselines/ecosystem-baseline.json)
@@ -125,10 +127,28 @@ deadline through opaque receipt operations; one named worker owns one active
 slot/no queue; replacement requires the exact profile/session/generation and a
 strictly greater sequence; regression/due checks precede replacement/control;
 terminal evidence is sticky; and polling, detach, callbacks, action conversion,
-or runtime wiring remain forbidden. These are source-boundary and component properties, not
-authenticated FCU state, an approved freshness/health/safe-action policy,
-content binding of caller-proposed rows, current/apply-time enforcement, live
-authority, scheduler/latency qualification, or safety.
+or runtime wiring remain forbidden. The checker also seals one private
+apply-observation module. Exact profile and generation checks precede one
+coherent health snapshot load; only then is one private plant-monotonic
+reference instant minted, with health ages computed before command receipt age
+relative to it. Requested-lifetime equality is outside; lifecycle remains
+neutral; and the observation retains all eight existing captured health-age
+relations. It has no direct boolean accessor or `From` conversion to `bool` and
+supplies no aggregate/authorizing verdict, permit, command content,
+velocity/action/adapter conversion, output revocation, safe action, I/O, or
+runtime wiring, although callers can compare facts. It is remintable and lacks
+command-content and command-to-health vehicle/frame-instance binding; retained
+IDs/TTL must never pair it as a checked token, and it supplies no HAZ-005 or
+HAZ-013 evidence. The 123 plant unit/integration tests, 24
+compile-fail doctests, and 231 static fixtures (64 health/freshness, 51 safe
+action, 72 deadline monitor, and 44 apply observation) remain component/source
+evidence only. The apply matrix is prerequisite/component evidence for its
+declared CTL-003/CTL-005 links; CB-029, CTL-005, HAZ-003, and HAZ-006 are
+partial, while CTL-003 and the planned write-adjacent tests remain unmet. These are source-boundary and
+component properties, not authenticated FCU state, an approved freshness/
+health/safe-action policy, content binding of caller-proposed rows,
+current/apply-time enforcement, live authority, scheduler/latency
+qualification, or safety.
 The frame checker independently evaluates the same digest-bound finite m/s TSV
 with JavaScript and Rust. It proves exact ENU/NED and FLU/FRD velocity-axis
 conventions for one unchanged local origin/datum or rigid-body reference point,

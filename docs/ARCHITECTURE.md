@@ -35,7 +35,7 @@ graph TB
     end
 
     subgraph PlantFoundation["Separate headless package (L0, inert)"]
-        Plantd["crebain-plantd<br/>Inactive command/health/captured-age/situation-dispatch candidates + receipt-anchored active deadline monitor + frame/lifecycle/channels/passive expiry<br/>Self-check only"]
+        Plantd["crebain-plantd<br/>Inactive command/health/captured-age/apply-observation/situation-dispatch candidates + receipt-anchored active deadline monitor + frame/lifecycle/channels/passive expiry<br/>Self-check only"]
     end
 
     subgraph External["External Systems"]
@@ -71,9 +71,10 @@ Galadriel producer, or the generic telemetry transports. Its only executable
 mode is `--self-check`.
 
 The package establishes inactive command-contract, vehicle-health,
-profile-bound captured-read age-classifier, and exact-profile safe-action
-situation-dispatch candidates, plus an unwired receipt-anchored active command
-deadline-monitor candidate,
+profile-bound captured-read age-classifier, post-health-load single-reference-
+instant apply-check observation,
+and exact-profile safe-action situation-dispatch candidates, plus an unwired
+receipt-anchored active command deadline-monitor candidate,
 the nine explicit lifecycle states, generation-guarded events, capacity-one
 latest-value paths, a non-consuming retained whole-snapshot register, bounded
 reject-new lifecycle ingress, bounded drop-oldest evidence
@@ -106,6 +107,33 @@ mode/estimator flags, or apply state policy. The captured-read classifier does
 not read a clock, approve its profile/limits, implement the draft ODD's inclusive
 `<=200 ms` position/velocity condition, interpret unknown/unavailable state, or
 establish current or apply-time freshness.
+
+The apply-check observation candidate performs a narrower composition without
+granting authority. After exact-profile and command/lifecycle-generation
+prechecks it first loads one generation-checked coherent health snapshot, then
+privately mints one plant-monotonic reference instant. It computes health ages
+and then command receipt age relative to that same instant. Equality is outside
+the requested lifetime. The retained evidence includes the command
+profile/session/sequence/generation, lifecycle state/generation observed at the
+check, the command-age relation, and all eight health-age relations. Exact
+profile or command/lifecycle generation mismatch precedes the health load;
+missing/poisoned/wrong-generation health and health clock regression precede
+command clock regression, followed by health-policy mismatch. Lifecycle state
+is deliberately neutral: a successful observation can
+contain `Emergency`, `Shutdown`, or any other `PlantState`, just as it can
+contain an expired command, stale ages, or unknown/unavailable health. It has no
+direct boolean accessor or `From` conversion to `bool` and supplies no aggregate
+or authorizing verdict, permit, authorization token, command content, velocity,
+action, output revocation, safe action, adapter conversion, I/O, or runtime call,
+although callers can compare its facts. The command carries no
+`VehicleIdentity` or `LocalFrameInstanceIdentity`, so exact profile/generation
+equality can compose with health from another declared vehicle/frame instance;
+this adds no HAZ-005/HAZ-013 evidence. The observation is remintable and not
+command-content-bound: matching retained IDs/TTL can describe copyable
+candidates with different velocity and must never pair it to a command as a
+checked token. The evidence can stale immediately after capture and is not a
+write-adjacent atomic transaction, so it is not the CTL-003 immediately-before-
+write check.
 
 The safe-action candidate keeps five plant intent labels separate from
 untrusted ingress actions. It pairs a nonzero opaque situation code with the
@@ -144,8 +172,8 @@ This is a component foundation, not an authority chain. It has no approved or
 authenticated ingress/UAV profile or FCU health collector, approved age/state
 policy, authoritative situation classifier and content-bound ODD safe-action
 table, integrated command admission and apply-time output invalidation,
-operational watchdog timing, apply-time governor, PX4/FCU adapter, or staged
-live evidence. CREBAIN therefore remains L0.
+operational watchdog timing, authorizing immediately-before-write governor,
+PX4/FCU adapter, or staged live evidence. CREBAIN therefore remains L0.
 
 ## Design principles
 

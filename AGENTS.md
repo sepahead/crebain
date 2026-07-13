@@ -24,7 +24,7 @@ bun run check:ncp-coherence # Verify NCP manifests, locks, and normative docs ag
 bun run check:plant-boundary # Verify the inert plant package/process dependency boundary
 bun run check:plant-frames # Verify the digest-bound JS/Rust frame-convention corpus
 bun run check:plant      # Check the headless plant-authority package
-bun run test:plant       # Test command/health/captured-age/safe-action/deadline-monitor contracts plus frame/lifecycle/channel/passive-expiry/headless foundations
+bun run test:plant       # Test command/health/captured-age/safe-action/deadline-monitor/apply-observation contracts plus frame/lifecycle/channel/passive-expiry/headless foundations
 bun run clippy:plant     # Strict Clippy for all plant targets
 bun run fmt:plant:check  # Rustfmt check scoped to the plant package
 bun run self-check:plant # Run crebain-plantd in inert self-check mode
@@ -78,7 +78,7 @@ cargo build --locked --manifest-path src-tauri/Cargo.toml
 - `common/` - Shared detection, NMS, YOLO, error, and path validation utilities
 - `inference/` - ML abstraction layer with CoreML default on macOS, experimental MLX YOLOv8 safetensors path, CUDA/TensorRT on Linux, and ONNX fallback
 - `transport/` - Zenoh-oriented transport, CDR validation, and Tauri transport commands
-- `crates/plant-authority/` - Separate zero-dependency inert plant foundation, including an unwired receipt-anchored one-worker/one-slot active deadline-monitor candidate; it is not linked into Tauri and does not revoke output or apply a safe action
+- `crates/plant-authority/` - Separate zero-dependency inert plant foundation, including an unwired receipt-anchored one-worker/one-slot active deadline-monitor candidate and an unwired post-health-load single-reference-instant apply-check observation candidate; it is not linked into Tauri, tied to a write, or able to authorize, revoke, or apply output
 - `ncp/` - Dormant NCP Engram action/control adapter behind the off-by-default `ncp` feature; its Tauri commands remain unregistered. The feature also compiles the separately exact-runtime-gated `galadriel_producer.rs`, strict `galadriel_registry.rs`, and frozen `producer_monitor.rs` evidence path. Do not describe secure config loading as TLS/ACL proof or local puts as receiver delivery. See `src-tauri/src/ncp/README.md` and `docs/GALADRIEL_PRODUCER.md`. (The dormant TypeScript peer is `src/neuro/`; Vite dev separately exposes the transport-free `window.__ncpDrone` harness.)
 - `sensor_fusion.rs` - Kalman/EKF/UKF/Particle/IMM filters plus the feature-gated exact-time frozen-prior Galadriel ledger, bounded upstream/capacity accounting, and sparse assignment; registry transforms are not executed and component load tests are not deployment deadline evidence
 - `lib.rs` - Tauri IPC commands and app setup
