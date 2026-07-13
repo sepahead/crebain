@@ -37,7 +37,7 @@ simulation. Built with Tauri 2, React 19, SparkJS/Three.js, and Rust.
 | **Sensor Fusion** | 5 filter algorithms (KF/EKF/UKF/PF/IMM) for multi-modal tracking | Prototype |
 | **Drone Physics** | 120Hz quadcopter aerodynamics simulation | In Progress |
 | **ROS Integration** | Read-only Zenoh product telemetry + development/native rosbridge telemetry fallback | In Progress |
-| **Plant Authority** | Dependency-free headless lifecycle/channel foundation; inert self-check only, with no command ingress or FCU adapter | L0 Foundation |
+| **Plant Authority** | Dependency-free headless lifecycle/channel/passive-expiry foundation; inert self-check only, with no command ingress, active watchdog, or FCU adapter | L0 Foundation |
 | **Cross-Platform** | macOS (Apple Silicon) + NixOS (CUDA) | In Progress |
 
 ---

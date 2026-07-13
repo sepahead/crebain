@@ -12,6 +12,11 @@ README and treated as unverified until measured on target hardware.
 Open-source readiness and quality hardening.
 
 ### Added
+- **Passive plant-local monotonic expiry mechanics.** The isolated zero-dependency
+  plant foundation can classify one immutable, generation-bound local interval;
+  zero TTL or an unrepresentable deadline, clock regression, generation rotation, and the
+  exact deadline fail closed. It has no command payload, refresh, timer,
+  safe-action selection, adapter hook, or I/O and is not an active watchdog.
 - **Galadriel-oriented local innovation JSONL.** `update_track` can emit a minimal
   observation after an associated measurement actually corrects a Kalman-family
   filter (`FusionConfig.emit_innovations`). `CREBAIN_PID_JSONL=<trusted-path>`
@@ -29,6 +34,12 @@ Open-source readiness and quality hardening.
   Tauri `useDetectionLoop` path and native CoreML/ONNX backends remain.
 
 ### Fixed
+- **Local lateral control now follows the documented +Z-forward/+X-right body
+  frame.** Positive logical roll is a right bank, the FL/FR/RL/RR motor fields
+  now match their physical rotor positions and diagonal spin pairs, and attitude
+  feedback uses the same sign convention. Motion-level regressions prove that a
+  right-bank target accelerates toward local +X and that hands-off lateral
+  braking reduces +X drift instead of reinforcing it.
 - **Unit-correct "lowest-noise" selection across modalities.** The birth-representative
   and first-update orderings summed each measurement's raw covariance triple, comparing
   radar's `[m², rad², rad²]` against Cartesian `[m², m², m²]` — radar's tiny rad² terms

@@ -2,14 +2,15 @@
 //!
 //! This crate deliberately has no renderer, Tauri, transport, inference,
 //! simulation, or vehicle-adapter dependency. It supplies only lifecycle and
-//! bounded-channel primitives plus an inert kernel self-check. It does not
-//! accept a command or cause a physical action.
+//! bounded-channel and passive monotonic-expiry primitives plus an inert kernel
+//! self-check. It does not accept a command or cause a physical action.
 
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
 
 mod adapter;
 mod channels;
+mod expiry;
 mod lifecycle;
 mod runtime;
 
@@ -20,6 +21,7 @@ pub use channels::{
     LatestReceiver, LatestSender, LatestSnapshot, QueueChannel, SafetyCause, SafetyLatch,
     SafetyNotice, MAX_BOUNDED_QUEUE_CAPACITY,
 };
+pub use expiry::{ExpiryConfigurationError, ExpiryStatus, MonotonicExpiryGuard};
 pub use lifecycle::{
     GuardedEvent, LifecycleError, LifecycleEvent, LifecycleMachine, PlantState, RuntimeGeneration,
     Transition,

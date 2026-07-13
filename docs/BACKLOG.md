@@ -12,16 +12,26 @@ The first component slice is present, but the system remains L0. â€œImplementedâ
 below means source plus local component tests, not integrated authority or
 hazard closure.
 
+The remaining rows are dependency-ordered by safety semantics, not by ticket
+number: define versioned command/frame/unit/time/profile types first; add a
+typed non-consuming atomic health snapshot (CB-030); then monotonic receipt and
+deadline primitives (CB-027), the profile-driven safe-action selector (CB-028),
+and the apply-time governor (CB-029). CB-032 can follow only as a bounded,
+observable mock transaction. A process cannot guarantee a final action after
+`SIGKILL`, power loss, or total scheduler starvation; the eventual live claim
+must combine repeated bounded attempts while alive, immediate output cessation,
+and independently attested FCU failsafe behavior.
+
 | ID | Scope | Current disposition |
 |---|---|---|
 | CB-025 | Small native Rust plant-authority crate/process independent of renderer lifecycle | Implemented and component-tested for this inert slice: separate dependency-free package, typed generic channel/status boundary, and headless self-check; a real command schema and integration topology remain pending later phases |
 | CB-026 | Explicit Boot, NoAuthority, Standby, Preflight, AuthorizedHold, Active, Degraded, Emergency, Shutdown state machine | Implemented and transition-tested with process-local generation guards and fail-closed invalid transitions; restart epoch sourcing and ODD/FCU transition preconditions remain pending |
-| CB-027 | Plant-local monotonic command-expiry watchdog | Pending; no command clock, apply-time write, deadline, or kill/freeze evidence exists |
+| CB-027 | Plant-local monotonic command-expiry watchdog | Partial component mechanics only: an immutable generation-bound local `Instant` guard rejects zero TTL, an unrepresentable deadline, clock regression, stale generation, and the exact deadline. The ticket remains pending behind versioned command/time/profile types and CB-030; no command admission, active scheduling, apply-time write coupling, suspend qualification, scheduler-jitter, or kill/freeze evidence exists |
 | CB-028 | Vehicle/ODD/state-specific safe-action table | Pending; the first-cause latch records a component safety cause but selects no physical response |
 | CB-029 | Apply-time profile/frame/unit/envelope/health safety governor | Pending |
-| CB-030 | Atomic typed vehicle-health snapshot | Pending; the typed latest-health channel is storage plumbing only |
+| CB-030 | Atomic typed vehicle-health snapshot | Pending; the generic latest-health channel is consumptive storage plumbing, not a non-consuming coherent snapshot suitable for repeated apply-time checks |
 | CB-031 | Bounded ingress/latest-command/health/output/evidence paths and overflow policies | Implemented and component-tested: validated non-eager capacities, latest-value, reject-new lifecycle, drop-oldest evidence, exact loss accounting, poison/counter fail-closed behavior, post-unlock destruction, and a separate non-overwritable safety path; this does not prove future watchdog scheduling under integrated load |
-| CB-032 | Cancellation-safe, deadline-bounded callbacks/shutdown/final safe action | Pending; inert adapter stop is idempotent but there is no external call, repeated safe transaction, FCU observation, or process-loss fallback |
+| CB-032 | Cancellation-safe, deadline-bounded callbacks/shutdown/final safe action | Pending; inert adapter stop is idempotent but there is no external call, repeated bounded safe transaction, FCU observation, or independent process-loss fallback; do not claim an in-process final action after process death |
 
 | # | Next Step | Primary Outcome |
 | - | --------- | --------------- |

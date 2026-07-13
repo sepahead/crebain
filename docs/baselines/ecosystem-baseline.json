@@ -164,11 +164,11 @@
     },
     {
       "path": "docs/baselines/phase0-command-surfaces.json",
-      "sha256": "2b76127195ab806775b6558900fd1942fbdbed76bed06a9b440c2bd32de5a9f4"
+      "sha256": "c9217697a3ad331d54098c2ea18442471e2844e3ad1a6ca5589a8c8433d3037a"
     },
     {
       "path": "docs/baselines/phase0-hazards.json",
-      "sha256": "945fc8cfe91b3c68f563d9c579c7484a7eeb1d12c504129c7cd605edd6c754a2"
+      "sha256": "245abb47d2f35a4cf92544a8b45d9224c31d67864fba79a0cdd967e038e8e750"
     },
     {
       "path": "scripts/verify-phase0-baseline.mjs",

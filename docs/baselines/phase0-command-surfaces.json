@@ -223,6 +223,14 @@
       "control_ids": ["CTL-011"]
     },
     {
+      "id": "TEST-PLANT-MONOTONIC-EXPIRY",
+      "locator": {
+        "file": "src-tauri/crates/plant-authority/src/expiry.rs",
+        "selector": "fn expiry_guard_should_treat_exact_deadline_as_expired()"
+      },
+      "hazard_ids": ["HAZ-003"]
+    },
+    {
       "id": "TEST-PLANT-HEADLESS-SELF-CHECK",
       "locator": {
         "file": "src-tauri/crates/plant-authority/tests/headless.rs",
@@ -333,7 +341,7 @@
       ".yaml",
       ".yml"
     ],
-    "production_file_manifest_sha256": "8644404539e9e5f9f4357ba4091a009cac8ee917f10c2c5e8b60cdb649843466",
+    "production_file_manifest_sha256": "0e6229ae1fbc4b24f8e150d379fff61fe642083ce9256cbd4e3081f7339d92dc",
     "known_route_prefixes": ["mavros/", "gazebo/", "cmd/motor_speed/"],
     "development_network_modules": [
       {
@@ -1914,12 +1922,13 @@
       "classification": "production-authority",
       "owner": "plant-authority",
       "profiles": { "current": ["headless-inert"], "secure_sitl": "sole-authority" },
-      "hazard_ids": ["HAZ-001", "HAZ-002", "HAZ-012", "HAZ-013"],
+      "hazard_ids": ["HAZ-001", "HAZ-002", "HAZ-003", "HAZ-012", "HAZ-013"],
       "tests": [
         { "id": "TEST-PLANT-LIFECYCLE-GENERATIONS", "status": "existing-component" },
         { "id": "TEST-PLANT-SHUTDOWN-GENERATION", "status": "existing-component" },
         { "id": "TEST-PLANT-MAX-SHUTDOWN-TERMINAL", "status": "existing-component" },
         { "id": "TEST-PLANT-BOUNDED-CHANNELS", "status": "existing-component" },
+        { "id": "TEST-PLANT-MONOTONIC-EXPIRY", "status": "existing-component" },
         { "id": "TEST-PLANT-HEADLESS-SELF-CHECK", "status": "existing-component" }
       ],
       "members": [
