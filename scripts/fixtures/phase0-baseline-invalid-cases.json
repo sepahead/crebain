@@ -1048,6 +1048,26 @@
       "expected_error": "plant authority unexpected Cargo target is forbidden"
     },
     {
+      "id": "excluded-repository-migration-commit-not-immutable",
+      "mutation": {
+        "type": "set",
+        "document": "ecosystem",
+        "path": ["excluded_repositories", 0, "migration_commit"],
+        "value": "not-a-commit"
+      },
+      "expected_error": "Engram.migration_commit is not 40-hex"
+    },
+    {
+      "id": "unchecked-script-test-evidence-locator",
+      "mutation": {
+        "type": "set",
+        "document": "inventory",
+        "path": ["test_evidence", 0, "locator", "file"],
+        "value": "scripts/verify-plant-frame-conventions.mjs"
+      },
+      "expected_error": "locator is not a checked test source"
+    },
+    {
       "id": "crebain-configuration-hash-drift",
       "mutation": {
         "type": "set",

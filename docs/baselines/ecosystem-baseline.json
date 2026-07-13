@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "baseline_id": "crebain-ecosystem-phase0-2026-07-12",
-  "captured_at": "2026-07-12T22:50:00+02:00",
-  "purpose": "Exact local source, toolchain, protocol, and CREBAIN configuration baseline for Phase 0; not L1 runtime evidence",
+  "baseline_id": "crebain-ecosystem-phase0-2026-07-13",
+  "captured_at": "2026-07-13T09:53:43+02:00",
+  "purpose": "Exact remote-main source identities, local toolchain, protocol, and CREBAIN configuration baseline for Phase 0; not L1 runtime evidence",
   "crebain_source": {
     "repository": "https://github.com/sepahead/crebain",
     "branch": "main",
@@ -17,8 +17,8 @@
       "repository": "https://github.com/sepahead/NCP",
       "verified_remote": "git@github.com:sepahead/NCP.git",
       "branch": "main",
-      "commit": "205384508d619923e05aef192bedaeb57cf665fc",
-      "remote_main_at_capture": "205384508d619923e05aef192bedaeb57cf665fc",
+      "commit": "db3fddc170b5235098f540134340ffaa8d9c2d2c",
+      "remote_main_at_capture": "db3fddc170b5235098f540134340ffaa8d9c2d2c",
       "tag": null,
       "availability": "remote-verified",
       "role": "Canonical protocol, typed safety primitives, and Zenoh transport",
@@ -29,46 +29,48 @@
       "repository": "https://github.com/sepahead/haldir",
       "verified_remote": "git@github.com:sepahead/haldir.git",
       "branch": "main",
-      "commit": "2a55f3dc8f78fa3b5c8d11dd02a2de5f4ef8d721",
-      "remote_main_at_capture": "2a55f3dc8f78fa3b5c8d11dd02a2de5f4ef8d721",
+      "commit": "8c370230f2e0b9792549c0e46983baabc94605c3",
+      "remote_main_at_capture": "8c370230f2e0b9792549c0e46983baabc94605c3",
       "tag": null,
       "availability": "remote-verified",
       "role": "Admission, policy, final-route Gate, and authority evidence",
-      "l1_status": "Reference/offline implementation; live authenticated Gate not established"
+      "l1_status": "Exact NCP adapter and internal durable/publication foundations exist; this baseline does not establish a runnable authenticated Haldir-to-CREBAIN service, complete mediation, credential custody, delivery, or application"
     },
     {
       "name": "Galadriel",
       "repository": "https://github.com/sepahead/galadriel",
       "verified_remote": "git@github.com:sepahead/galadriel.git",
       "branch": "main",
-      "commit": "9bd2cb0756009986d1a1a0e429614a1cbbe42ed5",
-      "remote_main_at_capture": "9bd2cb0756009986d1a1a0e429614a1cbbe42ed5",
+      "commit": "ff272dc814080c6766a53c872ca4d0e24bcd5132",
+      "remote_main_at_capture": "ff272dc814080c6766a53c872ca4d0e24bcd5132",
       "tag": null,
       "availability": "remote-verified",
       "role": "Read-only advisory common-projection observer",
-      "l1_status": "NCP 0.8 consumer pin declared; live CREBAIN correlation and pid-rs 1.0 migration pending"
+      "l1_status": "NCP 0.8 pin, pid-rs 1.0 migration, and producer lifecycle contract landed; monitor publisher/assembler and live CREBAIN common-projection deployment remain absent"
     },
     {
       "name": "pid-rs",
       "repository": "https://github.com/sepahead/pid-rs",
       "verified_remote": "git@github.com:sepahead/pid-rs.git",
       "branch": "main",
-      "commit": "1cd2424f7967e1752dcc8e53859e8fdad3566f51",
-      "remote_main_at_capture": "1cd2424f7967e1752dcc8e53859e8fdad3566f51",
+      "commit": "7cc59022d01ca136b17c915da623fc3a33696f25",
+      "remote_main_at_capture": "7cc59022d01ca136b17c915da623fc3a33696f25",
       "tag": null,
       "availability": "remote-verified",
       "role": "Scientific PID estimator and status surface",
-      "l1_status": "Source declares 1.0.0 but no v1.0.0 tag/release exists; Galadriel remains pinned to v0.4.0"
+      "l1_status": "Source declares 1.0.0 and Galadriel pins exact revision 1cd2424; no v1.0.0 tag/release exists"
     }
   ],
   "excluded_repositories": [
     {
       "name": "Engram",
       "base_commit": "a6f2c5f973783373db9d90769d981b1d549a5b6b",
+      "migration_commit": "3275bfb197b80857da58420f43f4ec3b154a7c7f",
+      "remote_main_at_capture": "b8b167d0324eac3d40ab75e2bea809cb509c1fc9",
       "target_mirror_ref": "v0.8.0",
       "target_wire_version": "0.8",
-      "reason": "The NCP v0.8.0 consumer checker, ncp/.mirror-ref, and Python runtime wire were validated only in a working-tree migration layered on this base commit; that dirty intermediate tree is not a durable source pin.",
-      "required_follow_up": "Record the migration's final clean commit, preserving ncp/.mirror-ref v0.8.0 and wire 0.8, before claiming an Engram-backed L1 controller."
+      "reason": "The NCP v0.8.0 migration is durable at migration_commit, but Engram is outside the required four-repository baseline and no live realm/ACL/session/Haldir-intent/CREBAIN integration evidence exists. The dirty local working tree was not sampled.",
+      "required_follow_up": "Review and pin an exact clean Engram deployment source plus live realm/ACL/session/Haldir-intent/CREBAIN evidence before claiming an Engram-backed L1 controller."
     }
   ],
   "ncp_release_contract": {
@@ -110,7 +112,7 @@
     },
     {
       "name": "galadriel-rust",
-      "version": "1.88.0",
+      "version": "1.89.0",
       "scope": "Galadriel",
       "source": "Galadriel rust-toolchain.toml"
     },
@@ -128,7 +130,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "09d47bcc696de735a34a3247479558a7027a08fb64f6aad3bcdfa8a76d6c8ea8"
+      "sha256": "f2170b79f743aadb85920efd54ed0a2f852832cabad563b83aded84a87762391"
     },
     {
       "path": "bun.lock",
@@ -164,19 +166,39 @@
     },
     {
       "path": "docs/baselines/phase0-command-surfaces.json",
-      "sha256": "070c173cfccde89058af55f96e65ea3d6ff9193ca8fe1b3b5744aedd724819fd"
+      "sha256": "9e21d699da1ae2f9985fd43294d4817459f1cbd65faa69654f7c20bf4a0146b5"
     },
     {
       "path": "docs/baselines/phase0-hazards.json",
-      "sha256": "5d51f20f8c76d8437d170ac08bef50f4a89fa44015b9a7e61626339163599d6f"
+      "sha256": "f08f86f980283411489a676e4db3d666806b92311c74e4e5d12854a98c127551"
     },
     {
       "path": "scripts/verify-phase0-baseline.mjs",
-      "sha256": "3aa25e6b8e97c976fe54006d3fd8841d890c57ec6a059df86d0dda9ed0c10274"
+      "sha256": "f78917c70e8afe168bb8524cc3c678d377aa7db6ab767f64194f5cfdf40e5643"
     },
     {
       "path": "scripts/check-plant-authority-boundary.mjs",
-      "sha256": "fadfeb96d0971061bde30c12a42e31757ef583da2cf7b8c05ec0079097d99366"
+      "sha256": "da8ac077524d75640d117e6665c9f18446633712952997e7c516ba7f2bde44c0"
+    },
+    {
+      "path": "scripts/lib/plant-frame-conventions.mjs",
+      "sha256": "7a39773a49f12c041da5fa709882a20c30ad540ed4c3faed1083ac6b014bd417"
+    },
+    {
+      "path": "scripts/verify-plant-frame-conventions.mjs",
+      "sha256": "f211af4b39d0dcccbfa21ab576c6c9f22974f5966a2db988bd469189d869a9e4"
+    },
+    {
+      "path": "scripts/test-plant-frame-conventions.mjs",
+      "sha256": "b0adc40251f3c17805ae0b77e27bf39a6ecd6bd207d4e9c46325275378d764dd"
+    },
+    {
+      "path": "docs/baselines/plant-frame-conventions-v1.json",
+      "sha256": "1ceb7cc5c131451f1d790b7efc42e10052a00b65b068d685c864c3176731a62b"
+    },
+    {
+      "path": "docs/baselines/plant-frame-golden-v1.tsv",
+      "sha256": "4ebe6e287f8d094716065292b2c7614c807c19a7573c47b655f70e7e853cd578"
     },
     {
       "path": "scripts/test-phase0-baseline.mjs",
@@ -192,11 +214,15 @@
     },
     {
       "path": "scripts/fixtures/phase0-baseline-invalid-cases.json",
-      "sha256": "055d040c6c8faf7ab34bfa4a85fd3a908182fee66396d3793db2af3ca3a19188"
+      "sha256": "49818d6d96918d16e6ed81b9fc4f8fdff3961173fe78606823477f13d640e67c"
     },
     {
       "path": "scripts/fixtures/production-boundary-invalid-cases.json",
       "sha256": "b8b4052bd8f60c9acae8321db4327d4e18a6197ea7bb0c92fe89b11578952027"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "058cc368ebfb918d6d97df2345ae6f41b6db233ae3166f704c71aa4ffe2528ef"
     },
     {
       "path": ".github/workflows/release.yml",
@@ -234,7 +260,7 @@
     {
       "repository": "Haldir",
       "path": "Cargo.lock",
-      "sha256": "30c133639412a7b7f8a53b0b44b7dbf9841c72efdcfe9002c44ff881a1592dae"
+      "sha256": "c37ab9d280a1a9778a3007ffe4d32fff69bb406909b0c7898f33fa0190d0cd63"
     },
     {
       "repository": "Haldir",
@@ -242,9 +268,14 @@
       "sha256": "61d97acc9676fd1b6348a44dee3c372804b9a1e984385c7d73a2620b322d4927"
     },
     {
+      "repository": "Haldir",
+      "path": ".ncp-consumer",
+      "sha256": "fbd91d004c490c04138ebf2e479b59205464f0cb2bcd37434c4e75d0c40c7fa2"
+    },
+    {
       "repository": "Galadriel",
       "path": "Cargo.lock",
-      "sha256": "858eab9513bbc9c8d8201ac0b37a5b15e4c4bd244c80920c7b190750c7430468"
+      "sha256": "181a4bdc79478e623e23950c66b5d13fcd5543131507bf219065cc1e22f38161"
     },
     {
       "repository": "Galadriel",
@@ -254,7 +285,7 @@
     {
       "repository": "Galadriel",
       "path": "rust-toolchain.toml",
-      "sha256": "3f479e33a1e17ce0eea3222042e418022130c883c486ca00629dd16f823ddc91"
+      "sha256": "3e3727651b8a0c0d727b68740cc5769fb40d548dc05a5ea07277fec27765c79d"
     },
     {
       "repository": "pid-rs",

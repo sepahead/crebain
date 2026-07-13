@@ -15,7 +15,11 @@ hazard closure.
 The remaining rows are dependency-ordered by safety semantics, not by ticket
 number. An inactive contract-v1 candidate now defines closed command/frame/unit/time/profile
 types and draft instantaneous-speed/TTL rejection, but the profile artifact and canonical
-local frame remain unapproved. Approve and pin that profile first; add a typed
+local frame remain unapproved. A profile-neutral digest-bound corpus now covers
+the exact same-frame-instance ENU/NED and FLU/FRD velocity-axis prerequisite
+but carries no origin/datum/body-point identity and deliberately omits profile
+selection and attitude-dependent conversion. Approve and pin the full
+profile first; add a typed
 non-consuming atomic health snapshot (CB-030); then monotonic receipt and
 deadline primitives (CB-027), the profile-driven safe-action selector (CB-028),
 and the apply-time governor (CB-029). CB-032 can follow only as a bounded,
@@ -47,6 +51,13 @@ and independently attested FCU failsafe behavior.
 
 ## Recently completed
 
+- Profile-neutral frame-conventions v1: dependency-free Rust and JavaScript
+  independently evaluate one digest-bound 32-case m/s corpus for identity,
+  ENU↔NED, and FLU↔FRD velocity axes; all local↔body routes reject without
+  attitude. Exact permutations require the same local origin/datum or body
+  point, which the values do not carry or prove. This is partial HAZ-005
+  component evidence, not profile approval, complete CTL-006 coverage,
+  admission, or live FCU interpretation.
 - Inactive plant contract-v1 candidate: closed profile/action/frame/unit types,
   distinct producer/local time, draft TTL and instantaneous-speed validation, and
   stable negative reasons. It has no parser, ingress, approval, health gate,

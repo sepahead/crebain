@@ -33,7 +33,7 @@ graph TB
     end
 
     subgraph PlantFoundation["Separate headless package (L0, inert)"]
-        Plantd["crebain-plantd<br/>Inactive contract v1 + lifecycle + bounded channels + retained snapshot + passive expiry<br/>Self-check only"]
+        Plantd["crebain-plantd<br/>Inactive contract v1 + frame conventions + lifecycle + bounded channels + retained snapshot + passive expiry<br/>Self-check only"]
     end
 
     subgraph External["External Systems"]
@@ -75,7 +75,13 @@ but neither prevents interior mutation exposed by the generic value type nor
 validates generation order. The contract candidate gives velocity proposals
 closed action/frame/unit semantics, distinct producer and plant-local time, and
 draft instantaneous-speed/TTL validation, but defines no wire format or command ingress and
-its profile/frame/limits are unapproved. It defines no trusted health fields,
+its profile/frame/limits are unapproved. A separate finite m/s component and
+digest-bound JavaScript/Rust corpus cover exact ENU↔NED and FLU↔FRD
+velocity-axis conventions only for the same local origin/datum or rigid-body
+reference point, while rejecting local↔body conversion without attitude. The
+component carries no frame-instance identity, is not called by admission, and
+does not select a profile or cover attitude, yaw/quaternions, points,
+covariance, Three.js, time, or live FCU semantics. It defines no trusted health fields,
 provenance, freshness, or apply-time policy.
 
 This is a component foundation, not an authority chain. It has no approved or

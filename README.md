@@ -37,7 +37,7 @@ simulation. Built with Tauri 2, React 19, SparkJS/Three.js, and Rust.
 | **Sensor Fusion** | 5 filter algorithms (KF/EKF/UKF/PF/IMM) for multi-modal tracking | Prototype |
 | **Drone Physics** | 120Hz quadcopter aerodynamics simulation | In Progress |
 | **ROS Integration** | Read-only Zenoh product telemetry + development/native rosbridge telemetry fallback | In Progress |
-| **Plant Authority** | Dependency-free headless lifecycle/channel/retained-snapshot/passive-expiry foundation plus an inactive draft contract-v1 validator; self-check only, with no approved profile, trusted health schema, command ingress, active watchdog, or FCU adapter | L0 Foundation |
+| **Plant Authority** | Dependency-free headless lifecycle/channel/retained-snapshot/passive-expiry foundation, inactive draft contract-v1 validator, and profile-neutral same-frame-instance ENU/NED + FLU/FRD velocity-axis corpus; self-check only, with no frame-instance proof, approved profile, trusted health schema, command ingress, active watchdog, attitude transform, or FCU adapter | L0 Foundation |
 | **Cross-Platform** | macOS (Apple Silicon) + NixOS (CUDA) | In Progress |
 
 ---
@@ -339,7 +339,7 @@ and asset limits, and the platform matrix are in
 # Frontend typecheck + lint + format check + Vitest
 bun run validate
 
-# Frontend validation + inert plant boundary/fmt/check/test/clippy/self-check +
+# Frontend validation + inert plant boundary/frame-corpus/fmt/check/test/clippy/self-check +
 # Rust fmt/check/test/clippy, plus clippy and tests with the off-by-default `ncp` feature
 bun run validate:all
 
@@ -347,6 +347,7 @@ bun run validate:all
 bun run check:ncp-coherence
 bun run check:phase0-baseline
 bun run check:plant-boundary
+bun run check:plant-frames
 bun run test:plant
 bun run self-check:plant
 bun run check:rust

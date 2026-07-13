@@ -20,6 +20,12 @@ const EXPECTED_TARGETS = [
   },
   { name: EXPECTED_BINARY, kind: 'bin', crateType: 'bin', source: 'src/main.rs' },
   { name: 'channel_stress', kind: 'test', crateType: 'bin', source: 'tests/channel_stress.rs' },
+  {
+    name: 'frame_golden_vectors',
+    kind: 'test',
+    crateType: 'bin',
+    source: 'tests/frame_golden_vectors.rs',
+  },
   { name: 'headless', kind: 'test', crateType: 'bin', source: 'tests/headless.rs' },
   {
     name: 'lifecycle_properties',

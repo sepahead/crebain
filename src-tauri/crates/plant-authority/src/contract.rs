@@ -254,13 +254,13 @@ impl CandidateProfileKind {
 /// Explicit linear-velocity reference frame.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum VelocityFrame {
-    /// Local North-East-Down frame.
+    /// Local North-East-Down frame: X north, Y east, Z down.
     LocalNed,
-    /// Local East-North-Up frame.
+    /// Local East-North-Up frame: X east, Y north, Z up.
     LocalEnu,
-    /// Body-forward-right-down frame.
+    /// Body-forward-right-down frame: X forward, Y right, Z down.
     BodyFrd,
-    /// Body-forward-left-up frame.
+    /// Body-forward-left-up frame: X forward, Y left, Z up.
     BodyFlu,
 }
 

@@ -27,8 +27,8 @@ still accepts only `--self-check`.
 | Session | Nonzero 128-bit identity must equal the authenticated local session | No authenticator or live session exists |
 | Sequence | Nonzero `u64` carried unchanged | Stateful monotonic/replay admission is not implemented |
 | General action | Velocity only | Hold/Land/RTL are reserved for a future state-dependent plant selector; arm/disarm/takeoff/mission/mode/raw-motor proposals are rejected |
-| Frame | Exactly the local frame inseparably bound to the compound profile identity: `LocalNed` or `LocalEnu` | The deployment's canonical profile is not approved; body frames are rejected and transforms are absent |
-| Unit | Metres per second only | Cross-system golden transforms remain pending |
+| Frame | Exactly the local frame inseparably bound to the compound profile identity: `LocalNed` or `LocalEnu` | The deployment's canonical profile is not approved; wrong-frame proposals still fail instead of being converted automatically |
+| Unit | Metres per second only | The v1 corpus covers velocity axes in m/s only, not other physical quantities or time units |
 | Horizontal speed | Finite magnitude at most 5 m/s | Draft ODD constraint, not measured capability |
 | Vertical speed | Finite absolute value at most 2 m/s | Draft ODD constraint, not measured capability |
 | Requested lifetime | Greater than zero and at most 150 ms | Structural bound only; no active watchdog or immediately-before-write check |
@@ -41,6 +41,34 @@ same identity value cannot mean ENU in one plant and NED in another. There is no
 default guess between them. The nonzero artifact digest must bind all other
 reviewed limits before later integration work.
 
+## Profile-neutral frame prerequisite
+
+`frame_conventions` is a separate, non-authoritative component prerequisite.
+It maps ENU↔NED velocity axes as `[x, y, z] → [y, x, -z]` and FLU↔FRD as
+`[x, y, z] → [x, -y, -z]`. Identity routes preserve the value, and every
+signed zero is canonicalized to positive zero. Every
+local↔body route returns `AttitudeRequired`; the component accepts no attitude
+and is not called by contract admission. `FiniteFramedVelocityMpsV1` proves
+only finite m/s components and an explicit frame—not a profile match, command
+envelope, session, freshness, authorization, or authority. Its exact
+permutation is valid only when ENU/NED share one tangent origin and datum, or
+FLU/FRD share one rigid-body reference point. The value carries no frame-instance
+identity, so its caller must prove that precondition separately.
+
+The exact shared corpus is
+[`baselines/plant-frame-golden-v1.tsv`](baselines/plant-frame-golden-v1.tsv),
+bound by SHA-256
+`4ebe6e287f8d094716065292b2c7614c807c19a7573c47b655f70e7e853cd578`
+in
+[`baselines/plant-frame-conventions-v1.json`](baselines/plant-frame-conventions-v1.json).
+JavaScript and dependency-free Rust evaluate the same 32 vectors. This does
+so from canonical shortest-round-trip plain decimals with at most three integer
+and six fractional digits. Exponents, noncanonical leading or fractional
+trailing zeros, negative zero, and underflow/rounding aliases fail closed. This does
+not cover frame-instance identity/coincidence proof, attitude, yaw/quaternions,
+points/translation, covariance, Three.js, degrees/radians, time, profile
+selection, or live FCU interpretation.
+
 ## Rejection order
 
 Validation fails closed in this deterministic order: contract version, profile
@@ -51,8 +79,9 @@ closed Rust variants so later evidence does not depend on free-form strings.
 ## Required next decisions
 
 Before this candidate can be called an approved profile, the project must name
-the exact PX4 SITL image/parameters, canonical local frame, transform corpus,
-profile artifact digest, owner, approver, approval scope, and expiry/review
+the exact PX4 SITL image/parameters and canonical local frame; review and bind
+the exact v1 corpus digest plus remaining transform semantics into the profile
+artifact; and record its owner, approver, approval scope, and expiry/review
 condition. The next implementation dependency remains a typed immutable
 vehicle-health snapshot with provenance and freshness; command ingress and FCU
 I/O remain out of order until the later watchdog, safe-action, governor, and
@@ -65,10 +94,13 @@ cargo test --locked --manifest-path src-tauri/Cargo.toml -p crebain-plant-author
 cargo clippy --locked --manifest-path src-tauri/Cargo.toml \
   -p crebain-plant-authority --all-targets -- -D warnings
 node scripts/check-plant-authority-boundary.mjs
+bun run check:plant-frames
 ```
 
 The tests cover exact draft boundaries, version/profile/session mismatch, zero
 and oversized lifetime, wrong local frame, non-SI units, every excluded action,
 nonfinite components, vectors outside the instantaneous speed limits, all-zero identities, zero
-sequence, and body-frame profile rejection. These are component tests, not
-live-topology or flight evidence.
+sequence, body-frame profile rejection, exact ENU/NED and FLU/FRD axes,
+round trips, finite-value rejection, and every local/body no-attitude route.
+These are component tests, not profile approval, live-topology, or flight
+evidence.

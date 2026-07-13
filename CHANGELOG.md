@@ -12,6 +12,16 @@ README and treated as unverified until measured on target hardware.
 Open-source readiness and quality hardening.
 
 ### Added
+- **Profile-neutral plant frame conventions.** The dependency-free plant
+  package and JavaScript verifier independently evaluate one digest-bound
+  32-case m/s corpus for identity, ENU↔NED, and FLU↔FRD velocity-axis
+  conventions. Every local↔body route fails with `AttitudeRequired`. The
+  shared number encoding is a restricted canonical shortest-round-trip decimal;
+  matching-hash underflow/rounding aliases fail closed. The
+  component is not connected to admission and does not select a profile or
+  prove same frame-instance/origin/datum/body-point identity, or cover attitude,
+  yaw/quaternions, points/translation, covariance, Three.js, time, apply-time
+  enforcement, or live FCU interpretation.
 - **Inactive plant contract-v1 candidate.** The isolated zero-dependency plant
   package now has closed profile/action/frame/unit types, fixed-width nonzero
   identities, distinct producer and plant-local time domains, and fail-closed

@@ -267,7 +267,7 @@
       "id": "HAZ-005",
       "title": "Command is interpreted in the wrong frame or unit",
       "severity": "P0",
-      "status": "open",
+      "status": "partial",
       "owner": "flight-controls",
       "unsafe_control_actions": ["provided-when-unsafe"],
       "loss_ids": ["LOSS-001", "LOSS-003"],
@@ -282,12 +282,22 @@
       "odd_clauses": ["ODD-04", "ODD-07"],
       "evidence": [
         {
-          "test_id": "TEST-FRAME-GOLDEN-VECTORS",
-          "status": "planned",
-          "artifact": "cross-language transform corpus"
+          "test_id": "TEST-FRAME-CORPUS-JS",
+          "status": "partial",
+          "artifact": "repository CLI invokes the JavaScript manifest, digest, canonical-number, and transform verifier over the shared 32-row velocity-axis corpus"
+        },
+        {
+          "test_id": "TEST-FRAME-RUST-GOLDEN-VECTORS",
+          "status": "partial",
+          "artifact": "Rust integration parses the same TSV with its canonical-number parser and matches all 32 expected outputs bit-exactly"
+        },
+        {
+          "test_id": "TEST-FRAME-LOCAL-BODY-REJECTION",
+          "status": "partial",
+          "artifact": "Rust integration enumerates and rejects all eight directed local/body frame-family pairs without attitude"
         }
       ],
-      "residual_risk": "Free arrays and implicit path-specific conventions block L1."
+      "residual_risk": "The profile-neutral velocity-axis kernel does not carry or prove frame-instance identity, same local origin/datum, or same body reference point; select a canonical deployment frame; or cover attitude, yaw/quaternions, points/translation, covariance, Three.js, degrees/radians, time units, authenticated ingress, apply-time enforcement, or live FCU interpretation."
     },
     {
       "id": "HAZ-006",

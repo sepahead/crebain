@@ -22,6 +22,27 @@ has no serialization, transport, stateful replay admission, timer, health gate,
 safe-action selection, adapter operation, or lifecycle transition. See
 [`docs/PLANT_CONTRACT_V1.md`](../../../docs/PLANT_CONTRACT_V1.md).
 
+## Profile-neutral frame conventions
+
+`frame_conventions` provides a finite m/s value type and exact ENU↔NED and
+FLU↔FRD velocity-axis permutations. It rejects every local↔body route because
+that conversion requires authoritative attitude and canonicalizes every signed
+zero to positive zero. The digest-bound TSV corpus is
+evaluated independently by JavaScript and Rust from a restricted canonical
+shortest-round-trip decimal encoding. Underflow/rounding aliases and other
+noncanonical numeric lexemes fail closed. The corpus is checked by
+`bun run check:plant-frames`.
+
+The exact permutations require one unchanged physical frame instance: the same
+local tangent origin/datum or the same rigid-body reference point. The value
+does not carry or prove that identity; a future caller must do so separately.
+
+The component is not connected to contract admission and does not select a
+canonical profile, convert a wrong-frame proposal, accept attitude, or prove
+frame-instance coincidence, Three.js, quaternion/yaw, point/translation,
+covariance, degree/radian, time, or FCU semantics. It is partial HAZ-005
+evidence only; CTL-006 remains planned.
+
 ## Channel policy
 
 | Path | Capacity policy | Saturation behavior |
@@ -73,4 +94,5 @@ Future adapter I/O requires an explicit boundary-policy change and review.
 cargo test --locked --manifest-path src-tauri/Cargo.toml -p crebain-plant-authority
 cargo run --locked --manifest-path src-tauri/Cargo.toml -p crebain-plant-authority \
   --bin crebain-plantd -- --self-check
+bun run check:plant-frames
 ```
