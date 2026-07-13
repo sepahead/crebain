@@ -8,6 +8,11 @@ repository = "https://github.com/sepahead/crebain"
 edition = "2021"
 rust-version = "1.88.0"
 
+[workspace]
+members = [".", "crates/plant-authority"]
+default-members = ["."]
+resolver = "2"
+
 [lib]
 name = "crebain_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]

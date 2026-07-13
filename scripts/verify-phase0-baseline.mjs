@@ -29,6 +29,7 @@ const KNOWN_DOMAINS = new Set([
   'local_sim',
   'dev_ncp',
   'native_ncp',
+  'plant_authority',
 ])
 const KNOWN_STATUSES = new Set([
   'registered',
@@ -79,6 +80,7 @@ const REQUIRED_ROUTE_PREFIXES = new Set(['mavros/', 'gazebo/', 'cmd/motor_speed/
 const REQUIRED_PRODUCTION_ROOTS = new Set([
   'src',
   'src-tauri/src',
+  'src-tauri/crates/plant-authority/src',
   'src-tauri/capabilities',
   'ros',
   'public',
@@ -93,12 +95,14 @@ const REQUIRED_PRODUCTION_CONFIGS = new Set([
   'flake.lock',
   'src-tauri/Cargo.toml',
   'src-tauri/Cargo.lock',
+  'src-tauri/crates/plant-authority/Cargo.toml',
   'src-tauri/build.rs',
   'src-tauri/deny.toml',
   'src-tauri/tauri.conf.json',
   'tsconfig.json',
   'vite.config.ts',
   'scripts/check-bundle-size.mjs',
+  'scripts/check-plant-authority-boundary.mjs',
   'scripts/check-production-authority-boundary.mjs',
   'scripts/test-production-authority-boundary.mjs',
 ])
@@ -129,9 +133,12 @@ const REQUIRED_DEVELOPMENT_NETWORK_MODULES = new Map([
   ['src/ros/ROSBridge.ts', 'src/ros/ROSBridgeDisabled.ts'],
 ])
 const REQUIRED_PRODUCTION_FETCH_MODULES = new Set(['src/lib/boundedFetch.ts'])
+const PLANT_AUTHORITY_SOURCE_ROOT = 'src-tauri/crates/plant-authority/src/'
+const PLANT_AUTHORITY_MANIFEST = 'src-tauri/crates/plant-authority/Cargo.toml'
 const REQUIRED_CONDITIONAL_EXECUTABLE_INPUTS = new Map([
   ['.cargo/config.toml', 'cargo'],
   ['.cargo/config', 'cargo'],
+  ['src-tauri/crates/plant-authority/build.rs', 'cargo'],
   ['vite.config.js', 'vite'],
   ['vite.config.mjs', 'vite'],
   ['vite.config.cjs', 'vite'],
@@ -506,6 +513,143 @@ function stripComments(source, rustSource = false) {
 function productionSource(path, source) {
   const withoutTests = path.endsWith('.rs') ? stripRustTestItems(source) : source
   return stripComments(withoutTests, path.endsWith('.rs'))
+}
+
+function rustBoundaryRawStringEnd(source, index) {
+  if (index > 0 && /[A-Za-z0-9_]/.test(source[index - 1])) return null
+  let cursor
+  if (source.startsWith('br', index) || source.startsWith('cr', index)) cursor = index + 2
+  else if (source[index] === 'r') cursor = index + 1
+  else return null
+  let hashes = 0
+  while (source[cursor + hashes] === '#') hashes += 1
+  if (source[cursor + hashes] !== '"') return null
+  const terminator = `"${'#'.repeat(hashes)}`
+  const closing = source.indexOf(terminator, cursor + hashes + 1)
+  if (closing === -1) fail('unterminated Rust raw string in plant authority source')
+  return closing + terminator.length
+}
+
+function blankRustBoundarySegment(source, start, end) {
+  return source.slice(start, end).replace(/[^\n]/g, ' ')
+}
+
+function rustBoundaryCharLiteralEnd(source, index) {
+  if (source[index] !== "'") return null
+  let cursor = index + 1
+  if (source[cursor] === '\\') {
+    const escape = source[cursor + 1]
+    if (escape === 'u' && source[cursor + 2] === '{') {
+      const brace = source.indexOf('}', cursor + 3)
+      if (brace === -1) return null
+      cursor = brace + 1
+    } else if (escape === 'x') cursor += 4
+    else cursor += 2
+  } else {
+    const codePoint = source.codePointAt(cursor)
+    if (codePoint === undefined || source[cursor] === '\n') return null
+    cursor += String.fromCodePoint(codePoint).length
+  }
+  return source[cursor] === "'" ? cursor + 1 : null
+}
+
+function rustBoundaryCode(source) {
+  let output = ''
+  let index = 0
+  while (index < source.length) {
+    const rawEnd = rustBoundaryRawStringEnd(source, index)
+    if (rawEnd !== null) {
+      output += blankRustBoundarySegment(source, index, rawEnd)
+      index = rawEnd
+      continue
+    }
+    const charEnd = rustBoundaryCharLiteralEnd(source, index)
+    if (charEnd !== null) {
+      output += blankRustBoundarySegment(source, index, charEnd)
+      index = charEnd
+      continue
+    }
+    if (source.startsWith('//', index)) {
+      const end = source.indexOf('\n', index + 2)
+      const next = end === -1 ? source.length : end
+      output += blankRustBoundarySegment(source, index, next)
+      index = next
+      continue
+    }
+    if (source.startsWith('/*', index)) {
+      const start = index
+      let depth = 1
+      index += 2
+      while (index < source.length && depth > 0) {
+        if (source.startsWith('/*', index)) {
+          depth += 1
+          index += 2
+        } else if (source.startsWith('*/', index)) {
+          depth -= 1
+          index += 2
+        } else index += 1
+      }
+      if (depth !== 0) fail('unterminated Rust block comment in plant authority source')
+      output += blankRustBoundarySegment(source, start, index)
+      continue
+    }
+    if (source[index] === '"') {
+      const start = index
+      index += 1
+      let escaped = false
+      while (index < source.length) {
+        const char = source[index]
+        index += 1
+        if (escaped) escaped = false
+        else if (char === '\\') escaped = true
+        else if (char === '"') break
+      }
+      if (source[index - 1] !== '"') fail('unterminated Rust string in plant authority source')
+      output += blankRustBoundarySegment(source, start, index)
+      continue
+    }
+    output += source[index]
+    index += 1
+  }
+  return output
+}
+
+function verifyPlantAuthorityRustBoundary(path, source) {
+  const code = rustBoundaryCode(source)
+  if (/\b(?:r#)?path\s*=/.test(code))
+    fail(`plant authority external #[path] module is forbidden in ${path}`)
+  if (/\b(?:include|include_str|include_bytes)\b/.test(code))
+    fail(`plant authority include macro is forbidden in ${path}`)
+
+  const runtimeBoundarySource = code.replace(
+    /^\s*use\s+std\s*::\s*process\s*::\s*ExitCode\s*;\s*$/gm,
+    ''
+  )
+  if (
+    /\b(?:process|Command|Stdio|Child|net|TcpStream|TcpListener|UdpSocket|UnixStream|UnixListener|UnixDatagram|ToSocketAddrs)\b/.test(
+      runtimeBoundarySource
+    ) ||
+    /\b(?:fs|File|OpenOptions|io|Write|write_all|os|AsRawFd|OwnedFd|RawFd|AsFd|BorrowedFd)\b/.test(
+      runtimeBoundarySource
+    )
+  ) {
+    fail(`plant authority process, network, or device I/O capability is forbidden in ${path}`)
+  }
+}
+
+function verifyPlantAuthorityManifestBoundary(source) {
+  if (/^\s*build\s*=\s*(?!false\b)/m.test(source))
+    fail('plant authority custom build target is forbidden')
+  if (/^\s*\[(?:dev-|build-)?dependencies\s*\]/m.test(source))
+    fail('plant authority dependency section is forbidden')
+  if (/^\s*\[features\s*\]/m.test(source)) fail('plant authority feature section is forbidden')
+  if (/^\s*\[\[(?:example|bench)\s*\]\]/m.test(source))
+    fail('plant authority unexpected Cargo target is forbidden')
+  for (const match of source.matchAll(/^\s*path\s*=\s*["']([^"']+)["']/gm)) {
+    const targetPath = match[1]
+    if (targetPath.startsWith('/') || targetPath.split(/[\\/]/).includes('..'))
+      fail(`plant authority Cargo target path escapes package root: ${targetPath}`)
+  }
 }
 
 const SCRIPT_EXTENSIONS = new Set(['.cjs', '.js', '.mjs', '.ts', '.tsx'])
@@ -1781,7 +1925,11 @@ function verifyInventory(root, inventory, hazardIds, getSource, sourceOverrides,
   const forbiddenCapabilities = new Set()
   const productionFetchModules = new Set(inventory.scan_policy.production_fetch_modules)
   for (const relativePath of productionFiles) {
-    const source = productionSource(relativePath, getSource(relativePath))
+    const rawSource = getSource(relativePath)
+    const source = productionSource(relativePath, rawSource)
+    if (relativePath.startsWith(PLANT_AUTHORITY_SOURCE_ROOT) && relativePath.endsWith('.rs'))
+      verifyPlantAuthorityRustBoundary(relativePath, rawSource)
+    if (relativePath === PLANT_AUTHORITY_MANIFEST) verifyPlantAuthorityManifestBoundary(source)
     for (const route of extractKnownRoutes(source, knownRoutePrefixes)) actualRoutes.add(route)
     if (relativePath.endsWith('.rs')) {
       const macroRoutes = extractRustMacroRoutes(source, knownRoutePrefixes)
@@ -1836,8 +1984,11 @@ function verifyInventory(root, inventory, hazardIds, getSource, sourceOverrides,
         )
       }
     } else {
+      const capabilitySource = relativePath.endsWith('Cargo.toml')
+        ? source.replace(/^\s*publish\s*=.*$/gm, '')
+        : source
       for (const capability of inventory.scan_policy.forbidden_command_capabilities) {
-        if (new RegExp(`\\b${escapeRegex(capability)}\\b`).test(source)) {
+        if (new RegExp(`\\b${escapeRegex(capability)}\\b`).test(capabilitySource)) {
           forbiddenCapabilities.add(`${relativePath}:${capability}`)
         }
       }

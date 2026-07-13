@@ -16,6 +16,7 @@ promote CREBAIN beyond L0.
 | External source/toolchain/config baseline | Exact local observations recorded; CREBAIN commit intentionally resolved by later release evidence |
 | Tracked P0/P1 issues, owners, and dependencies | Pending project-governance work |
 | Hermetic clean builds and signed release manifest | Pending |
+| Headless plant-authority foundation | Inert package, lifecycle, and bounded channels component-tested; live plant controls absent |
 
 Phase 0 exit has therefore **not** been reached. L1 remains blocked until every
 P0 hazard is controlled with evidence and the live topology passes its negative
@@ -36,6 +37,7 @@ bypass, restart, timing, and resource tests.
 ```bash
 node scripts/verify-phase0-baseline.mjs
 node scripts/test-phase0-baseline.mjs
+node scripts/check-plant-authority-boundary.mjs
 ```
 
 The verifier validates schemas and cross-references and refuses a `controlled`
@@ -78,3 +80,9 @@ Spark/Rapier dependency-only chunks are an explicit vendor exception; project-
 bearing chunks and the artifact fixtures reject them, callable `.constructor()`
 remains forbidden, and Tauri CSP omits `unsafe-eval`. `bun run check:bundle`
 adds the initial-load size budget to that build.
+
+The plant boundary check uses locked Cargo metadata and source inspection to
+require a separate dependency-free `crebain-plant-authority` package, a single
+`crebain-plantd` binary, no build script or feature-hidden dependency, no link
+from the Tauri application, and no reference to renderer/model/simulation/
+transport domains. It proves package isolation, not live authority or safety.

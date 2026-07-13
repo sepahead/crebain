@@ -32,6 +32,10 @@ graph TB
         end
     end
 
+    subgraph PlantFoundation["Separate headless package (L0, inert)"]
+        Plantd["crebain-plantd<br/>Lifecycle + bounded channels<br/>Self-check only"]
+    end
+
     subgraph External["External Systems"]
         Gazebo["Gazebo (Headless)<br/>Physics Engine<br/>Sensor Plugins"]
         Hardware["Real Hardware<br/>PX4/ArduPilot<br/>Cameras & Sensors"]
@@ -52,6 +56,24 @@ graph TB
     Zenoh --> External
     ROSBridge --> External
 ```
+
+### Inert headless plant foundation
+
+`src-tauri/crates/plant-authority` is a separate dependency-free workspace
+package with the `crebain-plantd` binary. It does not link `crebain_lib`, Tauri,
+the renderer, inference, fusion, simulation, the dormant NCP module, or the
+generic telemetry transports. Its only executable mode is `--self-check`.
+
+The package establishes the nine explicit lifecycle states, generation-guarded
+events, capacity-one latest-value paths, bounded reject-new lifecycle ingress,
+bounded drop-oldest evidence with loss accounting, and a separate sticky
+first-cause safety latch. The current adapter is deliberately inert and exposes
+no action operation.
+
+This is a component foundation, not an authority chain. It has no authenticated
+ingress, NCP UAV profile, trusted vehicle-health snapshot, monotonic command
+watchdog, apply-time governor, ODD safe-action table, PX4/FCU adapter, deadline
+measurement, or staged live evidence. CREBAIN therefore remains L0.
 
 ## Design principles
 

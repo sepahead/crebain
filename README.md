@@ -37,6 +37,7 @@ simulation. Built with Tauri 2, React 19, SparkJS/Three.js, and Rust.
 | **Sensor Fusion** | 5 filter algorithms (KF/EKF/UKF/PF/IMM) for multi-modal tracking | Prototype |
 | **Drone Physics** | 120Hz quadcopter aerodynamics simulation | In Progress |
 | **ROS Integration** | Read-only Zenoh product telemetry + development/native rosbridge telemetry fallback | In Progress |
+| **Plant Authority** | Dependency-free headless lifecycle/channel foundation; inert self-check only, with no command ingress or FCU adapter | L0 Foundation |
 | **Cross-Platform** | macOS (Apple Silicon) + NixOS (CUDA) | In Progress |
 
 ---
@@ -337,13 +338,16 @@ and asset limits, and the platform matrix are in
 # Frontend typecheck + lint + format check + Vitest
 bun run validate
 
-# Frontend validation + Rust fmt/check/test/clippy, plus clippy and tests
-# with the off-by-default `ncp` feature
+# Frontend validation + inert plant boundary/fmt/check/test/clippy/self-check +
+# Rust fmt/check/test/clippy, plus clippy and tests with the off-by-default `ncp` feature
 bun run validate:all
 
 # Focused checks
 bun run check:ncp-coherence
 bun run check:phase0-baseline
+bun run check:plant-boundary
+bun run test:plant
+bun run self-check:plant
 bun run check:rust
 bun run test:rust
 bun run clippy:rust

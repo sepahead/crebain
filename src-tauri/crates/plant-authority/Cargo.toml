@@ -1,0 +1,25 @@
+[package]
+name = "crebain-plant-authority"
+version = "0.1.0"
+description = "Inert headless authority-kernel foundation for CREBAIN"
+authors = ["CREBAIN Contributors"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/sepahead/crebain"
+edition = "2021"
+rust-version = "1.88.0"
+publish = false
+
+[lib]
+name = "crebain_plant_authority"
+path = "src/lib.rs"
+
+[[bin]]
+name = "crebain-plantd"
+path = "src/main.rs"
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
