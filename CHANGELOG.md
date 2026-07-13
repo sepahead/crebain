@@ -213,7 +213,7 @@ Open-source readiness and quality hardening.
 - CI hardening (least-privilege permissions, concurrency, rust-cache, bundle and
   coverage gates) plus new workflows: CodeQL, OpenSSF Scorecard, supply-chain
   audit (cargo-deny + bun audit), tag-triggered Tauri release, Nix flake check,
-  ROS-definition validation, and scheduled benchmarks.
+  and ROS-definition validation.
 - Supply-chain policy via `src-tauri/deny.toml` (advisories/licenses/bans/
   sources), enforced in CI. Dependencies are reviewed and updated periodically
   rather than via automated Dependabot PRs.
