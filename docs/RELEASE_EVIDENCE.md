@@ -15,18 +15,18 @@ Later evidence-log-only commits do not change the executable candidate source.
 
 | Field | Evidence |
 |-------|----------|
-| Candidate source commit | `3a1f8f306bcbf4007a57cc871c1f0ed5cd4f4442` |
+| Candidate source commit | `8c2a04d30efd006522ce0f568f31c26a8bbc4d6b` |
 | Branch/tag | `main`; tag pending |
-| GitHub Actions run | [CI 29220153953](https://github.com/sepahead/crebain/actions/runs/29220153953) passed on the exact candidate source |
+| GitHub Actions run | [CI 29224462291](https://github.com/sepahead/crebain/actions/runs/29224462291) passed on the exact candidate source |
 | Hosted supply-chain audit | [Audit 29215667661](https://github.com/sepahead/crebain/actions/runs/29215667661) passed on `d2f169f59694a32e3536d2fbe27ad938b66fc341`, the last dependency-manifest change; later candidate commits did not change dependency manifests or lockfiles |
-| Hosted CodeQL | [CodeQL 29220153950](https://github.com/sepahead/crebain/actions/runs/29220153950) passed for Rust and JavaScript/TypeScript on the exact candidate source |
-| Additional hosted policy | [OpenSSF Scorecard 29220153968](https://github.com/sepahead/crebain/actions/runs/29220153968) passed on the exact candidate source |
-| Local `bun run validate:all` | Passed with the exact executable candidate source: 297 frontend tests; 249 default Rust tests plus one ignored fixture generator; 287 NCP-feature Rust tests plus one ignored fixture generator; 40 plant tests; strict default/NCP/plant Clippy and Rustfmt; 145 production files; 110 Phase-0 negative fixtures |
-| Frontend test/coverage/bundle result | Local tests and `bun run check:bundle` passed; hosted validation, coverage thresholds, artifact scanner, and bundle budget passed in CI 29220153953; initial bundle 431.8/700 KiB |
-| Rust default/NCP/feature result | Local default and NCP-feature suites passed; hosted Linux/macOS default and NCP jobs plus Linux `cuda,tensorrt` and `--no-default-features` checks passed in CI 29220153953 |
+| Hosted CodeQL | [CodeQL 29224462197](https://github.com/sepahead/crebain/actions/runs/29224462197) passed for Rust and JavaScript/TypeScript on the exact candidate source |
+| Additional hosted policy | [OpenSSF Scorecard 29224462185](https://github.com/sepahead/crebain/actions/runs/29224462185) passed on the exact candidate source |
+| Local `bun run validate:all` | Passed with the exact executable candidate source: 297 frontend tests; 251 default Rust tests plus one ignored fixture generator; 289 NCP-feature Rust tests plus one ignored fixture generator; 40 plant tests; strict default/NCP/plant Clippy and Rustfmt; 145 production files; 110 Phase-0 negative fixtures |
+| Frontend test/coverage/bundle result | Local tests and `bun run check:bundle` passed; hosted validation, coverage thresholds, artifact scanner, and bundle budget passed in CI 29224462291; initial bundle 431.8/700 KiB |
+| Rust default/NCP/feature result | Local default and NCP-feature suites passed; hosted Linux/macOS default and NCP jobs plus Linux `cuda,tensorrt` and `--no-default-features` checks passed in CI 29224462291 |
 | Hardware-WebGL performance smoke | Prior measurement is not candidate evidence; rerun if a numeric performance claim is proposed |
 | Manual smoke | Pending target-platform execution |
-| Boundary focus | Pinned NCP wire 0.8; complete renderer command mediation; passive inference diagnostics now return a truthful busy state instead of waiting on initialization; inert headless plant package isolation, bounded command/output channels, retained whole-value health snapshot mechanics, and passive generation-bound monotonic expiry. The generic snapshot does not prevent interior mutation exposed by its value type or validate caller-supplied generation freshness/order. A trusted health schema, provenance/freshness validation, active watchdog, apply-time governor, and per-session action ownership remain pending; secure-by-default Zenoh posture; isolated development harness state |
+| Boundary focus | Pinned NCP wire 0.8; complete renderer command mediation; passive inference diagnostics now return a truthful busy state instead of waiting on initialization; the one production Tauri handler list is reused by mock-runtime negative IPC tests that exercise structured invoke dispatch, command-argument deserialization, execution, and response serialization for scene, detector, fusion, and topic validation; inert headless plant package isolation, bounded command/output channels, retained whole-value health snapshot mechanics, and passive generation-bound monotonic expiry. The IPC harness starts after platform webview conversion with a structured `InvokeRequest` and is not packaged-origin/CSP/capability or positive manual-smoke evidence. The generic snapshot does not prevent interior mutation exposed by its value type or validate caller-supplied generation freshness/order. A trusted health schema, provenance/freshness validation, active watchdog, apply-time governor, and per-session action ownership remain pending; secure-by-default Zenoh posture; isolated development harness state |
 
 ## Historical Snapshot (`e89de5a`, not current evidence)
 
@@ -42,14 +42,15 @@ must not be reused as evidence for the current dependency or source tree.
 | Area | Required evidence | Current status |
 |------|-------------------|----------------|
 | Version coherence | Metadata/tag guard on candidate | HEAD and NCP consumer coherence passed; release-tag guard remains pending until a tag exists |
-| Frontend validation | Typecheck, lint, format, and tests | Passed locally and in CI 29220153953 |
-| Bundle and coverage | Hosted bundle budget and coverage thresholds | Passed in CI 29220153953 |
-| Rust default | fmt, check, tests, and clippy on Linux/macOS | Passed locally and in CI 29220153953 |
-| NCP feature | NCP clippy and tests on Linux/macOS | Passed locally and in CI 29220153953 |
-| Inert plant foundation | Dependency boundary, strict Clippy, property/stress/headless/retained-snapshot/expiry tests, self-check | Passed locally and in CI 29220153953; retained snapshots and passive expiry remain component mechanics, not a trusted health contract, active watchdog, or live authority |
-| Rust feature gates | `cuda,tensorrt` and `--no-default-features` checks | Passed on Linux in CI 29220153953 |
+| Frontend validation | Typecheck, lint, format, and tests | Passed locally and in CI 29224462291 |
+| Bundle and coverage | Hosted bundle budget and coverage thresholds | Passed in CI 29224462291 |
+| Rust default | fmt, check, tests, and clippy on Linux/macOS | Passed locally and in CI 29224462291 |
+| NCP feature | NCP clippy and tests on Linux/macOS | Passed locally and in CI 29224462291 |
+| Inert plant foundation | Dependency boundary, strict Clippy, property/stress/headless/retained-snapshot/expiry tests, self-check | Passed locally and in CI 29224462291; retained snapshots and passive expiry remain component mechanics, not a trusted health contract, active watchdog, or live authority |
+| Serialized native IPC | Same production handler list plus negative structured invokes for scene, detector, fusion, and transport input boundaries | Passed locally and in CI 29224462291; starts with `InvokeRequest` under the mock runtime and does not replace raw webview-conversion, packaged-origin/CSP/capability, positive path, or target-platform smoke evidence |
+| Rust feature gates | `cuda,tensorrt` and `--no-default-features` checks | Passed on Linux in CI 29224462291 |
 | Supply chain | cargo-deny and `bun audit` | Passed in Audit 29215667661 on the last dependency-manifest change; no later dependency drift |
-| Static analysis | CodeQL JavaScript/TypeScript and Rust | Passed in CodeQL 29220153950 |
+| Static analysis | CodeQL JavaScript/TypeScript and Rust | Passed in CodeQL 29224462197 |
 | Diff hygiene | `git diff --check` before commit and cached diff check | Passed for the hardening commits; must be rerun for any later evidence-only update |
 
 ## Manual evidence required
@@ -57,7 +58,7 @@ must not be reused as evidence for the current dependency or source tree.
 | Area | Required evidence | Current status |
 |------|-------------------|----------------|
 | Native launch | Packaged/dev Tauri launch and diagnostics on each target | Pending |
-| Scene save/restore | Valid save plus migrated/partial/oversized asset paths | Pending |
+| Scene save/restore | Valid save plus migrated/partial/oversized asset paths | Serialized negative IPC cases passed; positive target-platform smoke remains pending |
 | ROS 1 / Gazebo Classic | Read-only telemetry on the recorded Zenoh or development/native rosbridge topology; removed publish/service paths remain absent | Pending |
 | Native Zenoh | Typed message surface plus explicit unsupported-path behavior | Pending |
 | Model contract | Approved artifact digest, tensors, class mapping, fixtures, and rights | Pending external artifact |
