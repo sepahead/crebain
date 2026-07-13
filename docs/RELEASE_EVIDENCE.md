@@ -6,25 +6,27 @@ smoke record.
 
 ## Current Candidate
 
-No release candidate is currently sealed. The hardening work on `main` changes
-source, dependency manifests, and lockfiles, so previous hosted runs are
-historical context only. A new candidate commit and its hosted gates must be
-recorded here after the working tree is committed and pushed.
+No release candidate is currently sealed. The final hardening tree is committed,
+pushed, and has current automated evidence, but the target-platform manual smoke,
+approved model artifact, live transport topology, and release tag remain pending.
+The evidence below supports the named source tree only; it does not promote the
+system beyond L0 or substitute component CI for SITL, HIL, or field evidence.
+Later evidence-log-only commits do not change the executable candidate source.
 
 | Field | Evidence |
 |-------|----------|
-| Candidate commit | Pending final hardening commit |
+| Candidate source commit | `2b46b926c3b15345733c5645a3acd02c684af03e` |
 | Branch/tag | `main`; tag pending |
-| GitHub Actions run | Pending for the new candidate |
-| Hosted supply-chain audit | Required: `package.json` and `bun.lock` changed |
-| Hosted CodeQL | Pending for the new candidate |
-| Additional hosted policy | Pending for the new candidate |
-| Local `bun run validate:all` | Pending final combined-tree run |
-| Frontend test/coverage/bundle result | Pending final combined-tree and hosted runs |
-| Rust default/NCP/feature result | Pending final combined-tree and hosted runs |
+| GitHub Actions run | [CI 29218466701](https://github.com/sepahead/crebain/actions/runs/29218466701) passed on the exact candidate source |
+| Hosted supply-chain audit | [Audit 29215667661](https://github.com/sepahead/crebain/actions/runs/29215667661) passed on `d2f169f59694a32e3536d2fbe27ad938b66fc341`, the last dependency-manifest change; later candidate commits did not change dependency manifests or lockfiles |
+| Hosted CodeQL | [CodeQL 29218466715](https://github.com/sepahead/crebain/actions/runs/29218466715) passed for Rust and JavaScript/TypeScript on the exact candidate source |
+| Additional hosted policy | [OpenSSF Scorecard 29218466748](https://github.com/sepahead/crebain/actions/runs/29218466748) passed on the exact candidate source |
+| Local `bun run validate:all` | Passed with the exact executable candidate source: 297 frontend tests; 248 default Rust tests plus one ignored fixture generator; 286 NCP-feature Rust tests plus one ignored fixture generator; 34 plant tests; strict default/NCP/plant Clippy and Rustfmt; 145 production files; 110 Phase-0 negative fixtures |
+| Frontend test/coverage/bundle result | Local tests and `bun run check:bundle` passed; hosted validation, coverage thresholds, artifact scanner, and bundle budget passed in CI 29218466701; initial bundle 431.8/700 KiB |
+| Rust default/NCP/feature result | Local default and NCP-feature suites passed; hosted Linux/macOS default and NCP jobs plus Linux `cuda,tensorrt` and `--no-default-features` checks passed in CI 29218466701 |
 | Hardware-WebGL performance smoke | Prior measurement is not candidate evidence; rerun if a numeric performance claim is proposed |
 | Manual smoke | Pending target-platform execution |
-| Boundary focus | Pinned NCP wire 0.8; complete command mediation; inert headless plant package isolation and bounded channel foundation; per-session lifecycle/action ownership remains pending; secure-by-default Zenoh posture; isolated development harness state |
+| Boundary focus | Pinned NCP wire 0.8; complete renderer command mediation; inert headless plant package isolation, bounded channels, and passive generation-bound monotonic expiry; active watchdog, apply-time governor, and per-session action ownership remain pending; secure-by-default Zenoh posture; isolated development harness state |
 
 ## Historical Snapshot (`e89de5a`, not current evidence)
 
@@ -39,16 +41,16 @@ must not be reused as evidence for the current dependency or source tree.
 
 | Area | Required evidence | Current status |
 |------|-------------------|----------------|
-| Version coherence | Metadata/tag guard on candidate | Pending new candidate |
-| Frontend validation | Typecheck, lint, format, and tests | Pending final combined-tree run |
-| Bundle and coverage | Hosted bundle budget and coverage thresholds | Pending new candidate |
-| Rust default | fmt, check, tests, and clippy on Linux/macOS | Pending final combined-tree and hosted runs |
-| NCP feature | NCP clippy and tests on Linux/macOS | Pending final combined-tree and hosted runs |
-| Inert plant foundation | Dependency boundary, strict Clippy, property/stress/headless tests, self-check | Pending final combined-tree and hosted runs |
-| Rust feature gates | `cuda,tensorrt` and `--no-default-features` checks | Pending new candidate |
-| Supply chain | cargo-deny and `bun audit` | Pending because dependency manifests changed |
-| Static analysis | CodeQL JavaScript/TypeScript and Rust | Pending new candidate |
-| Diff hygiene | `git diff --check` before commit and cached diff check | Pending final commit |
+| Version coherence | Metadata/tag guard on candidate | HEAD and NCP consumer coherence passed; release-tag guard remains pending until a tag exists |
+| Frontend validation | Typecheck, lint, format, and tests | Passed locally and in CI 29218466701 |
+| Bundle and coverage | Hosted bundle budget and coverage thresholds | Passed in CI 29218466701 |
+| Rust default | fmt, check, tests, and clippy on Linux/macOS | Passed locally and in CI 29218466701 |
+| NCP feature | NCP clippy and tests on Linux/macOS | Passed locally and in CI 29218466701 |
+| Inert plant foundation | Dependency boundary, strict Clippy, property/stress/headless/expiry tests, self-check | Passed locally and in CI 29218466701; passive expiry remains component mechanics, not an active watchdog or live authority |
+| Rust feature gates | `cuda,tensorrt` and `--no-default-features` checks | Passed on Linux in CI 29218466701 |
+| Supply chain | cargo-deny and `bun audit` | Passed in Audit 29215667661 on the last dependency-manifest change; no later dependency drift |
+| Static analysis | CodeQL JavaScript/TypeScript and Rust | Passed in CodeQL 29218466715 |
+| Diff hygiene | `git diff --check` before commit and cached diff check | Passed for the hardening commits; must be rerun for any later evidence-only update |
 
 ## Manual evidence required
 
