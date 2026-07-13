@@ -255,6 +255,7 @@ pub struct InferenceOutput {
 #[serde(rename_all = "lowercase")]
 pub enum RuntimeStatus {
     Uninitialized,
+    Busy,
     Ready,
     Failed,
 }
@@ -334,15 +335,30 @@ impl DetectorRuntime {
         })
     }
 
-    /// Return the current runtime state without triggering model loading.
+    /// Return the current runtime state without triggering or waiting for model loading.
+    ///
+    /// A contended state lock is reported as [`RuntimeStatus::Busy`]. Passive
+    /// diagnostics therefore cannot stall behind provider discovery, model
+    /// loading, or backend warmup.
     pub fn snapshot(&self) -> RuntimeSnapshot {
-        let Ok(state) = self.state.lock() else {
-            return RuntimeSnapshot {
-                status: RuntimeStatus::Failed,
-                active_backend: None,
-                initialization_error: Some("inference runtime state lock poisoned".to_string()),
-                stats: None,
-            };
+        let state = match self.state.try_lock() {
+            Ok(state) => state,
+            Err(std::sync::TryLockError::WouldBlock) => {
+                return RuntimeSnapshot {
+                    status: RuntimeStatus::Busy,
+                    active_backend: None,
+                    initialization_error: None,
+                    stats: None,
+                };
+            }
+            Err(std::sync::TryLockError::Poisoned(_)) => {
+                return RuntimeSnapshot {
+                    status: RuntimeStatus::Failed,
+                    active_backend: None,
+                    initialization_error: Some("inference runtime state lock poisoned".to_string()),
+                    stats: None,
+                };
+            }
         };
 
         match &*state {
@@ -702,7 +718,8 @@ fn parse_backend_name(value: &str) -> Result<Backend> {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::sync::Barrier;
+    use std::sync::{mpsc, Barrier};
+    use std::time::Duration;
 
     struct FakeDetector {
         backend: Backend,
@@ -1268,6 +1285,51 @@ mod tests {
                 snapshot.stats.map(|stats| stats.total_inferences),
             ),
             (RuntimeStatus::Ready, Some(Backend::ONNX), Some(1))
+        );
+    }
+
+    #[test]
+    fn runtime_snapshot_should_report_busy_during_initialization() {
+        let initialization_entered = Arc::new(Barrier::new(2));
+        let initialization_release = Arc::new(Barrier::new(2));
+        let entered_for_factory = Arc::clone(&initialization_entered);
+        let release_for_factory = Arc::clone(&initialization_release);
+        let runtime = Arc::new(DetectorRuntime::new(move || {
+            entered_for_factory.wait();
+            release_for_factory.wait();
+            Ok(Box::new(FakeDetector {
+                backend: Backend::ONNX,
+                detections: Vec::new(),
+                warmup_count: Arc::new(AtomicUsize::new(0)),
+                detect_count: Arc::new(AtomicUsize::new(0)),
+                detection_error: None,
+            }))
+        }));
+        let runtime_for_worker = Arc::clone(&runtime);
+        let worker = std::thread::spawn(move || runtime_for_worker.initialize());
+        initialization_entered.wait();
+        let (snapshot_sender, snapshot_receiver) = mpsc::sync_channel(1);
+        let runtime_for_snapshot = Arc::clone(&runtime);
+        let snapshot_worker = std::thread::spawn(move || {
+            snapshot_sender
+                .send(runtime_for_snapshot.snapshot())
+                .expect("snapshot receiver should remain available");
+        });
+        let snapshot = snapshot_receiver.recv_timeout(Duration::from_secs(1));
+
+        initialization_release.wait();
+        worker
+            .join()
+            .expect("initialization worker should not panic")
+            .expect("fake detector should initialize");
+        snapshot_worker
+            .join()
+            .expect("snapshot worker should not panic");
+        assert_eq!(
+            snapshot
+                .expect("passive snapshot should return before initialization completes")
+                .status,
+            RuntimeStatus::Busy
         );
     }
 
