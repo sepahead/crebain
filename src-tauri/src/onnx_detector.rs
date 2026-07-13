@@ -780,29 +780,22 @@ pub fn is_onnx_detector_ready() -> bool {
     get_global_detector().is_some()
 }
 
+fn initialized_provider_info(backend: Option<&str>) -> serde_json::Value {
+    serde_json::json!({
+        // Execution-provider discovery may load driver libraries and is therefore
+        // part of model initialization, never a passive diagnostics operation.
+        // `null` means no detector has completed initialization yet.
+        "probePolicy": "model-initialization-only",
+        "activeBackend": backend,
+    })
+}
+
 /// Get info about the ONNX detector
 pub fn get_onnx_detector_info() -> serde_json::Value {
-    #[cfg(target_os = "linux")]
-    let providers = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        serde_json::json!({
-            "cuda": CUDAExecutionProvider::default().is_available().unwrap_or(false),
-            "tensorrt": TensorRTExecutionProvider::default().is_available().unwrap_or(false),
-        })
-    }))
-    .unwrap_or_else(|_| serde_json::json!({ "error": "ORT panic while probing providers" }));
+    let detector = DETECTOR.get();
+    let providers = initialized_provider_info(detector.map(OnnxDetector::get_backend_name));
 
-    #[cfg(target_os = "macos")]
-    let providers = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        serde_json::json!({
-            "coreml": CoreMLExecutionProvider::default().is_available().unwrap_or(false),
-        })
-    }))
-    .unwrap_or_else(|_| serde_json::json!({ "error": "ORT panic while probing providers" }));
-
-    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
-    let providers = serde_json::json!({});
-
-    match DETECTOR.get() {
+    match detector {
         Some(detector) => serde_json::json!({
             "available": true,
             "ready": true,
@@ -830,6 +823,21 @@ pub fn get_onnx_detector_info() -> serde_json::Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn passive_provider_info_never_performs_driver_discovery() {
+        assert_eq!(
+            initialized_provider_info(None),
+            serde_json::json!({
+                "probePolicy": "model-initialization-only",
+                "activeBackend": null,
+            })
+        );
+        assert_eq!(
+            initialized_provider_info(Some("ONNX Runtime (CUDA)"))["activeBackend"],
+            "ONNX Runtime (CUDA)"
+        );
+    }
 
     #[test]
     fn strict_cuda_provider_verification_rejects_auto_fallback_labels() {

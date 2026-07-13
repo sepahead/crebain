@@ -632,9 +632,10 @@ pub fn create_detector_with_backend(backend: Backend) -> Result<Box<dyn Detector
 
 /// Get backend candidates compiled for the current platform.
 ///
-/// This reports software/hardware selection candidates, not model readiness.
-/// Use [`DetectorRuntime::snapshot`] for the backend that is initialized and
-/// safe to serve frames.
+/// This intentionally does not probe hardware or load driver libraries. Provider
+/// availability is checked during model initialization; use
+/// [`DetectorRuntime::snapshot`] for the backend that is initialized and safe to
+/// serve frames.
 // The pushes are conditionally compiled per platform/target, so the vec![] macro
 // clippy suggests does not apply across the cfg branches.
 #[allow(clippy::vec_init_then_push)]
@@ -643,22 +644,16 @@ pub fn available_backends() -> Vec<Backend> {
 
     #[cfg(target_os = "macos")]
     {
-        if coreml::is_available() {
-            backends.push(Backend::CoreML);
-        }
-        if experimental_mlx_enabled() && mlx::is_available() {
+        backends.push(Backend::CoreML);
+        if experimental_mlx_enabled() && cfg!(target_arch = "aarch64") {
             backends.push(Backend::MLX);
         }
     }
 
-    #[cfg(all(target_os = "linux", not(test)))]
+    #[cfg(target_os = "linux")]
     {
-        if tensorrt::is_available() {
-            backends.push(Backend::TensorRT);
-        }
-        if cuda::is_available() {
-            backends.push(Backend::CUDA);
-        }
+        backends.push(Backend::TensorRT);
+        backends.push(Backend::CUDA);
     }
 
     // The ONNX wrapper is compiled on every supported platform.
@@ -792,6 +787,12 @@ mod tests {
         let backends = available_backends();
         assert!(!backends.is_empty());
         assert!(backends.contains(&Backend::ONNX)); // ONNX always available
+
+        #[cfg(target_os = "linux")]
+        {
+            assert!(backends.contains(&Backend::TensorRT));
+            assert!(backends.contains(&Backend::CUDA));
+        }
     }
 
     #[test]
