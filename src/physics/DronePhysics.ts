@@ -80,9 +80,11 @@ function clampMotorCommand(value: number): number {
 }
 
 /**
- * Canonical mixer for the local rotor order/geometry:
- * FL (+x,+z), FR (+x,-z), RL (-x,-z), RR (-x,+z), with +Y thrust.
- * Positive roll, pitch, and yaw therefore request +Z, +X, and +Y torque.
+ * Canonical mixer for the local +Z-forward, +X-right rotor geometry:
+ * FL (-x,+z), FR (+x,+z), RL (-x,-z), RR (+x,-z), with +Y thrust.
+ * The vehicle faces local +Z, so local +X is right. Positive logical roll is
+ * a right bank and therefore requests -Z torque; positive pitch and yaw
+ * request +X and +Y torque.
  */
 export function mixQuadMotorCommands(
   baseThrottle: number,
@@ -91,10 +93,10 @@ export function mixQuadMotorCommands(
   yaw: number
 ): MotorCommands {
   return {
-    front_left: clampMotorCommand(baseThrottle + roll - pitch + yaw),
-    front_right: clampMotorCommand(baseThrottle + roll + pitch - yaw),
-    rear_left: clampMotorCommand(baseThrottle - roll + pitch + yaw),
-    rear_right: clampMotorCommand(baseThrottle - roll - pitch - yaw),
+    front_left: clampMotorCommand(baseThrottle + roll - pitch - yaw),
+    front_right: clampMotorCommand(baseThrottle - roll - pitch + yaw),
+    rear_left: clampMotorCommand(baseThrottle + roll + pitch + yaw),
+    rear_right: clampMotorCommand(baseThrottle - roll + pitch - yaw),
   }
 }
 
@@ -152,11 +154,11 @@ export class DronePhysicsBody {
     this.params = params
 
     const arm = params.armLength
-    const rotorPositions = [
-      new THREE.Vector3(arm, 0, arm),
-      new THREE.Vector3(arm, 0, -arm),
-      new THREE.Vector3(-arm, 0, -arm),
-      new THREE.Vector3(-arm, 0, arm),
+    const rotorLayout = [
+      { position: new THREE.Vector3(-arm, 0, arm), direction: -1 as const },
+      { position: new THREE.Vector3(arm, 0, arm), direction: 1 as const },
+      { position: new THREE.Vector3(-arm, 0, -arm), direction: 1 as const },
+      { position: new THREE.Vector3(arm, 0, -arm), direction: -1 as const },
     ]
 
     this.state = {
@@ -165,12 +167,12 @@ export class DronePhysicsBody {
       acceleration: new THREE.Vector3(),
       orientation: new THREE.Quaternion(),
       angularVelocity: new THREE.Vector3(),
-      rotors: rotorPositions.map((pos, i) => ({
+      rotors: rotorLayout.map(({ position, direction }) => ({
         rpm: 0,
         thrust: 0,
         torque: 0,
-        position: pos,
-        direction: i % 2 === 0 ? 1 : -1,
+        position,
+        direction,
       })),
       battery: 1.0,
       armed: false,
@@ -614,7 +616,10 @@ export class FlightController {
     }
 
     const euler = new THREE.Euler().setFromQuaternion(state.orientation, 'YXZ')
-    const currentRoll = euler.z
+    // Three.js +Z rotation banks local +Y thrust toward -X (vehicle-left).
+    // Logical positive roll means a right bank, so its attitude coordinate is
+    // the negated Three.js Z Euler component.
+    const currentRoll = -euler.z
     const currentPitch = euler.x
 
     targetRoll = Math.max(-this.config.maxAngle, Math.min(this.config.maxAngle, targetRoll))
