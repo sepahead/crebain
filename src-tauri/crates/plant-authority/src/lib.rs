@@ -5,8 +5,9 @@
 //! command validator, closed immutable in-memory vehicle-health candidate,
 //! inert profile-bound captured-read age classifier, unapproved profile-bound
 //! safe-action lookup candidate, unwired receipt-anchored active deadline
-//! monitor, lifecycle, bounded-channel, and passive monotonic-expiry primitives
-//! plus an inert kernel self-check. It does not parse or accept a command,
+//! monitor, same-instant apply observation, lifecycle, bounded-channel, and
+//! passive monotonic-expiry primitives plus an inert kernel self-check. It does
+//! not parse or accept a command,
 //! authenticate FCU state, establish current freshness, revoke output,
 //! transition authority, or cause a physical action.
 
@@ -14,6 +15,7 @@
 #![forbid(unsafe_code)]
 
 mod adapter;
+mod apply_observation;
 mod channels;
 mod contract;
 mod deadline_monitor;
@@ -26,6 +28,10 @@ mod runtime;
 mod safe_action;
 
 pub use adapter::{AdapterError, AdapterState, InertAdapter};
+pub use apply_observation::{
+    ApplyCheckObservationCandidateV1, ApplyCheckObservationErrorV1,
+    CommandRequestedLifetimeRelationAtCheckV1, LifecycleObservationAtCheckV1,
+};
 pub use channels::{
     bounded_queue, latest_value, snapshot_value, BoundedReceiver, BoundedSender,
     ChannelConfigurationError, ChannelError, ChannelReadError, DropAccounting, FullPolicy,

@@ -35,6 +35,13 @@ receipt-anchored deadline when its worker is scheduled, but no conversion from
 that terminal event to a situation code or safe-action intent exists; see
 [`PLANT_WATCHDOG_V1.md`](PLANT_WATCHDOG_V1.md).
 
+The separate apply-check observation first loads one coherent health snapshot,
+then records its health ages, command receipt age, and neutral lifecycle state/
+generation relative to one later private age-reference instant; see
+[`PLANT_APPLY_OBSERVATION_V1.md`](PLANT_APPLY_OBSERVATION_V1.md). It does not
+classify a situation, consume this table, return a safe-action intent, or turn
+an observation into output revocation or an adapter call.
+
 ## Opaque situation vocabulary
 
 `SafeActionSituationCodeV1` is a nonzero `u8`. Zero is rejected as unset, so
@@ -89,9 +96,10 @@ The following remain outside this component:
   ground disarm is available and permitted;
 - current/apply-time health, generation, freshness, and command checks;
 - integration of the active deadline monitor with authoritative trigger
-  classification, an apply-time governor, typed hazardous-action transaction,
-  FCU adapter, acknowledgement/observation evidence, and independently
-  attested FCU failsafes; and
+  classification and the apply-check observation inside a non-bypassable
+  immediately-before-write governor, typed hazardous-action transaction, FCU
+  adapter, acknowledgement/observation evidence, and independently attested
+  FCU failsafes; and
 - SITL, HIL, target-timing, process-loss, or physical evidence.
 
 Accordingly, this is only partial structural CB-028 component mechanics.
@@ -110,5 +118,8 @@ bun run fmt:plant:check
 ```
 
 These commands prove only type, lookup, ownership, error-order, and package
-isolation mechanics. They do not classify authoritative state or establish a
-safe physical response.
+isolation mechanics. The complete plant suite has 123 unit/integration tests
+and 24 compile-fail doctests; the static boundary checker has 231 fail-closed
+fixtures (51 safe-action and 44 apply-observation mutations among them). These
+checks do not classify authoritative state or establish a safe physical
+response.

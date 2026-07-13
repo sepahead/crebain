@@ -24,9 +24,10 @@ an inert lifecycle/channel foundation, a non-consuming retained whole-snapshot
 register, a closed immutable in-memory vehicle-health candidate, a
 profile-bound classifier for eight ages captured at one checked read, and a
 passive generation-bound monotonic expiry guard. It also provides an unwired
-receipt-anchored active command deadline-monitor candidate and an inert
-exact-profile safe-action situation-dispatch candidate over a closed intent
-vocabulary. Contract v1
+post-health-load single-reference-instant apply-check observation candidate, an
+unwired receipt-anchored active command deadline-monitor candidate, and an inert
+exact-profile safe-action situation-dispatch candidate over a closed intent vocabulary.
+Contract v1
 uses closed action/frame/unit types, distinct producer and plant-local time,
 and draft instantaneous-speed/TTL bounds, but has no wire format and its profile/frame are
 unapproved. A separate profile-neutral finite-m/s kernel and digest-bound
@@ -44,7 +45,28 @@ below or at/beyond its limit. It does not read a clock, aggregate health,
 interpret unknown/unavailable state, implement the draft ODD's inclusive
 `<=200 ms` condition, or establish current/apply-time freshness. Its structural
 profile/source binding is not approval or authentication, and it proves no real
-FCU sampling or aggregation coherence. The
+FCU sampling or aggregation coherence. The apply-check observation candidate
+loads one generation-checked coherent health snapshot first, then mints one
+private plant-monotonic reference instant and computes health ages followed by
+command receipt age relative to it. It retains the command's strict
+requested-lifetime relation (equality outside), lifecycle state/generation
+without interpreting that state, and all eight health-age relations. Exact
+profile or command/lifecycle generation mismatch precedes the health load;
+missing/poisoned/wrong-generation health and health clock regression precede
+command clock regression, followed by health-policy mismatch. A successful
+observation remains non-authorizing evidence: it can contain
+an expired command, any `PlantState` including `Emergency` or `Shutdown`, stale
+health, and unknown/unavailable values. It has no direct boolean accessor or
+`From` conversion to `bool` and supplies no aggregate/authorizing verdict,
+permit, authorization token, command content, velocity, action, output
+revocation, safe action, adapter operation, I/O, or runtime wiring, although
+callers can compare its facts. Its command carries no `VehicleIdentity` or
+`LocalFrameInstanceIdentity`, so profile/generation equality can compose with
+health from another declared vehicle/frame instance and supplies no
+HAZ-005/HAZ-013 evidence. It is remintable and not content-bound to a command;
+matching retained IDs/TTL can describe copyable candidates with different
+velocity and must never pair the observation as a checked token. It can stale
+immediately and is not a write-adjacent atomic transaction. The
 safe-action candidate copies caller-proposed opaque nonzero situation codes
 into an owned fixed 255-slot table, rejects an empty, oversized, or duplicate
 proposal, requires an exact full profile match, and has no default row. It does
@@ -52,8 +74,9 @@ not bind the supplied rows into the profile digest, classify plant state or trig
 resolve precedence, consume health/lifecycle/time, or convert an intent into an
 action or adapter call. The binary can only self-check; it has no command
 ingress, authenticated health collector, approved age/state policy, active
-operational watchdog integration, governor, approved and content-bound safe-action policy with an
-authoritative classifier, NCP link, apply-time consumer, or FCU adapter.
+operational watchdog integration, approved and content-bound safe-action policy
+with an authoritative classifier, NCP link, authorizing immediately-before-write
+governor, or FCU adapter.
 Generic snapshot storage remains disconnected
 mechanics. The expiry guard has no timer, callback, refresh, command payload,
 or adapter hook. The separate active monitor derives tickets only from validated

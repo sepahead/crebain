@@ -16,6 +16,12 @@ vehicle effect remain separate required gates. Here, “safe-action selection”
 state/trigger classification plus an approved content-bound policy; the inert
 opaque-code dispatch candidate does not satisfy that gate.
 
+A separate apply-check observation candidate can load one coherent vehicle-
+health snapshot first and then compare its health ages and this command's
+receipt age relative to one private plant-monotonic reference instant. It
+retains neutral lifecycle state/generation and strict temporal relations only;
+it is not an authorization decision or a write-adjacent atomic transaction.
+
 The module has no serializer, parser, transport, timer, filesystem/network I/O,
 adapter operation, or lifecycle transition. The `crebain-plantd` executable
 still accepts only `--self-check`.
@@ -33,10 +39,10 @@ still accepts only `--self-check`.
 | Unit | Metres per second only | The v1 corpus covers velocity axes in m/s only, not other physical quantities or time units |
 | Horizontal speed | Finite magnitude at most 5 m/s | Draft ODD constraint, not measured capability |
 | Vertical speed | Finite absolute value at most 2 m/s | Draft ODD constraint, not measured capability |
-| Requested lifetime | Greater than zero and at most 150 ms | An unwired ticket may use a nonzero local TTL no greater than this request; the local proposal and draft maximum are unapproved, and there is no immediately-before-write check |
+| Requested lifetime | Greater than zero and at most 150 ms | An unwired ticket may use a nonzero local TTL no greater than this request. The apply-check observation reports strict age relation to the request, with equality outside. Neither value is approved, and there is no immediately-before-write check |
 | Producer time | Epoch-qualified duration retained only for correlation | Never used as plant command age |
 | Plant receipt time | Opaque local monotonic `Instant` minted inside validation, not by its caller | The unwired monitor derives a private absolute deadline from this receipt rather than its start time; trusted ingress, suspend, and scheduler qualification remain absent |
-| Lifecycle | Candidate is bound to the current process-local generation | Ticket construction checks equality with a caller-supplied expected generation and the fixed monitor can terminalize on a caller-reported different generation; neither input establishes authoritative currentness, and autonomous lifecycle observation plus durable restart anti-rollback remain pending |
+| Lifecycle | Candidate is bound to the current process-local generation | Ticket construction checks equality with a caller-supplied expected generation and the fixed monitor can terminalize on a caller-reported different generation. The apply-check observation checks the command against an immutably borrowed lifecycle machine and retains its neutral state/generation. None establishes authoritative currentness, and durable restart anti-rollback remains pending |
 
 The closed profile kind binds the local frame into `ProfileIdentity`, so the
 same identity value cannot mean ENU in one plant and NED in another. There is no
@@ -104,6 +110,41 @@ not autonomously observe lifecycle rotation and provides no scheduler, suspend,
 WCET, deadline-to-effect, or process-loss proof. See
 [`PLANT_WATCHDOG_V1.md`](PLANT_WATCHDOG_V1.md).
 
+## Unwired apply-check observation prerequisite
+
+`ApplyCheckObservationCandidateV1::capture` borrows a validated command, the
+lifecycle machine, the canonical health reader, and an exact-profile captured-
+age policy. It first rejects command/policy profile mismatch and command/
+lifecycle generation mismatch. It then loads one generation-checked coherent
+health snapshot. Only after that load succeeds does it privately mint one
+plant-monotonic reference instant, compute all health ages, and compute command
+receipt age relative to that same instant. Missing/poisoned/wrong-generation
+health and health clock regression therefore precede command clock regression;
+health/policy profile mismatch follows.
+
+The result retains command profile/session/sequence/generation, command age,
+the requested lifetime, neutral lifecycle state/generation, and all eight
+existing health-age relations. Command age strictly below the request is
+`WithinRequestedLifetimeAtCheck`; equality or greater age is
+`AtOrBeyondRequestedLifetimeAtCheck`. `Ok` can therefore contain an expired
+command, `Emergency` or `Shutdown`, stale health, and `Unknown` or `Unavailable`
+state.
+
+The candidate has no direct boolean accessor or `From` conversion to `bool` and
+supplies no aggregate or authorizing verdict, permit, authorization token,
+command content, velocity, action, safe-action conversion, output revocation,
+adapter, I/O, or runtime wiring, although callers can compare retained facts.
+The command carries neither `VehicleIdentity` nor
+`LocalFrameInstanceIdentity`, so exact profile/generation equality can compose
+it with health from another declared vehicle/frame instance; this adds no
+HAZ-005/HAZ-013 evidence. The observation is remintable and not content-bound to
+one command: the same retained profile/session/sequence/generation and TTL can
+describe copyable candidates with different velocity. Those fields must never
+pair it to a command as a checked token. It can stale immediately after return
+and is not a write-adjacent atomic transaction across command, lifecycle,
+health, monitor, and write. See
+[`PLANT_APPLY_OBSERVATION_V1.md`](PLANT_APPLY_OBSERVATION_V1.md).
+
 ## Required next decisions
 
 Before this candidate can be called an approved profile, the project must name
@@ -127,7 +168,8 @@ exist. See
 [`PLANT_HEALTH_V1.md`](PLANT_HEALTH_V1.md) and
 [`PLANT_FRESHNESS_V1.md`](PLANT_FRESHNESS_V1.md), and
 [`PLANT_SAFE_ACTION_V1.md`](PLANT_SAFE_ACTION_V1.md), plus
-[`PLANT_WATCHDOG_V1.md`](PLANT_WATCHDOG_V1.md).
+[`PLANT_WATCHDOG_V1.md`](PLANT_WATCHDOG_V1.md) and
+[`PLANT_APPLY_OBSERVATION_V1.md`](PLANT_APPLY_OBSERVATION_V1.md).
 
 ## Component verification
 
@@ -144,5 +186,12 @@ and oversized lifetime, wrong local frame, non-SI units, every excluded action,
 nonfinite components, vectors outside the instantaneous speed limits, all-zero identities, zero
 sequence, body-frame profile rejection, exact ENU/NED and FLU/FRD axes,
 round trips, finite-value rejection, and every local/body no-attitude route.
-These are component tests, not profile approval, live-topology, or flight
-evidence.
+The apply-observation matrix additionally checks one coherent health load
+before one exact reference instant is minted for health and command ages,
+requested-lifetime equality outside, every neutral
+lifecycle state, stale and unknown/unavailable health, explicit error order,
+and forbidden verdict/action/adapter conversions. The complete plant suite has
+123 unit/integration tests and 24 compile-fail doctests; the static checker has
+231 fail-closed fixtures, including 44 apply-observation mutations. These are
+component tests, not profile approval, immediately-before-write enforcement,
+live-topology, or flight evidence.

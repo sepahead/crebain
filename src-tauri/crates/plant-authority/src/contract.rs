@@ -204,7 +204,7 @@ impl PlantReceiptTime {
         self.0.checked_add(ttl)
     }
 
-    /// Computes private process-local command age for the deadline monitor.
+    /// Computes private process-local command age for deadline/apply observation.
     pub(crate) fn elapsed_at(self, observed_at: Instant) -> Option<Duration> {
         observed_at.checked_duration_since(self.0)
     }
@@ -744,6 +744,12 @@ pub struct VelocityCommandCandidateV1 {
 }
 
 impl VelocityCommandCandidateV1 {
+    #[cfg(test)]
+    pub(crate) fn with_received_at_for_test(mut self, received_at: Instant) -> Self {
+        self.received_at = PlantReceiptTime::from_monotonic_test_instant(received_at);
+        self
+    }
+
     /// Returns the validated contract version.
     #[must_use]
     pub const fn contract_version(self) -> ContractVersion {

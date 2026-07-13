@@ -239,9 +239,14 @@
           "test_id": "TEST-PLANT-ACTIVE-DEADLINE-MONITOR-V1",
           "status": "partial",
           "artifact": "component tests proving receipt-derived immutable tickets, expected-generation equality, exact profile/session/generation binding, public-path strictly increasing one-slot replacement, terminal receipt regression, exact-deadline precedence, timestamped lateness, caller-reported generation mismatch, start-error context, and fail-closed worker, poison-without-exact-key, panic, and shutdown behavior"
+        },
+        {
+          "test_id": "TEST-PLANT-APPLY-OBSERVATION-V1",
+          "status": "partial",
+          "artifact": "component-suite matrix proving a coherent health snapshot is loaded before one private reference instant supplies receipt-derived command age and health ages, strict before/equal/after requested-lifetime relation with equality outside, exact command-policy profile and command-lifecycle generation ordering, and explicit clock/read/profile failure without expiry enforcement or an authorization verdict"
         }
       ],
-      "residual_risk": "The fixed-state component detects and timestamps an absolute receipt-anchored deadline when its worker is scheduled, but no trusted admission/runtime wiring, autonomous lifecycle observation, apply-time output invalidation, approved TTL policy, safe action, suspend qualification, scheduler reservation, combined-load timing, or wake-to-effect latency evidence exists."
+      "residual_risk": "The fixed-state component detects and timestamps an absolute receipt-anchored deadline when its worker is scheduled, and a separate unwired candidate records the command's requested-lifetime relation with coherent health ages at one private reference instant after loading a snapshot. The observation is neither uniquely nor content-bound to the copyable command and must not be paired by retained IDs as a checked token. Neither component establishes trusted admission, an approved TTL, a verdict or permit, immediately-before-write adjacency, autonomous output invalidation, safe action, runtime wiring, suspend qualification, scheduler reservation, combined-load timing, or wake-to-effect latency evidence."
     },
     {
       "id": "HAZ-004",
@@ -342,12 +347,17 @@
           "artifact": "component matrix proving nonzero profile-bound exclusive limits, below/equal/above classification for receipt and all seven observation groups, exact-profile mismatch refusal before classification, ownership of the coherent observed commit, and separation of temporal currency from unknown/unavailable health semantics"
         },
         {
+          "test_id": "TEST-PLANT-APPLY-OBSERVATION-V1",
+          "status": "partial",
+          "artifact": "component-suite matrix proving that a coherent health snapshot is loaded before command age and all eight health ages use one private reference instant, lifecycle state/generation is retained neutrally for every PlantState, recent Unknown or Unavailable health remains nonnominal, and exact-profile/generation composition does not prove vehicle or local-frame-instance binding"
+        },
+        {
           "test_id": "TEST-ATOMIC-STATE-STALENESS",
           "status": "planned",
           "artifact": "apply-time race and staleness trace"
         }
       ],
-      "residual_risk": "A closed immutable in-memory snapshot, context-bound retained channel, strict sequence admission within one publisher/channel instance, coherent plant-monotonic age mechanics, and an exact-profile-bound exclusive captured-read age classifier exist. Source/profile/frame identities and proposed limits remain caller-supplied structural assertions, not authenticated provenance or approval; a caller can recreate another channel with the same epoch and reset its in-memory high-water; real FCU sampling and multi-message coherence are unproved; no approved freshness/health policy or aggregate verdict exists; lifecycle can rotate and time can advance after load; and no immediately-before-write governor, adapter, or independently attested FCU failsafe consumes the assessment."
+      "residual_risk": "A closed immutable in-memory snapshot, context-bound retained channel, strict sequence admission within one publisher/channel instance, coherent plant-monotonic age mechanics, an exact-profile-bound exclusive captured-read age classifier, and one unwired single-reference-instant command/lifecycle/health observation candidate exist. Its Ok result may still contain an expired command, any lifecycle state, stale ages, and Unknown or Unavailable health. The command carries no vehicle or local-frame-instance identity, so exact profile and generation do not prove that command and health share a declared vehicle/frame domain. Source/profile/frame identities and proposed limits remain caller-supplied structural assertions, not authenticated provenance or approval; a caller can recreate another channel with the same epoch and reset its in-memory high-water; real FCU sampling and multi-message coherence are unproved; no approved freshness/health/state policy, aggregate verdict, permit, or output action exists; lifecycle can rotate and time can advance immediately after capture; and no write-adjacent governor, adapter, or independently attested FCU failsafe consumes the assessment."
     },
     {
       "id": "HAZ-007",

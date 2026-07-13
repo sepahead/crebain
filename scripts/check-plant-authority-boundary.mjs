@@ -15,6 +15,7 @@ const HEALTH_SOURCE = resolve(PLANT_ROOT, 'src/health.rs')
 const FRESHNESS_SOURCE = resolve(PLANT_ROOT, 'src/freshness.rs')
 const SAFE_ACTION_SOURCE = resolve(PLANT_ROOT, 'src/safe_action.rs')
 const DEADLINE_MONITOR_SOURCE = resolve(PLANT_ROOT, 'src/deadline_monitor.rs')
+const APPLY_OBSERVATION_SOURCE = resolve(PLANT_ROOT, 'src/apply_observation.rs')
 const CONTRACT_SOURCE = resolve(PLANT_ROOT, 'src/contract.rs')
 const LIFECYCLE_SOURCE = resolve(PLANT_ROOT, 'src/lifecycle.rs')
 const EXPECTED_TARGETS = [
@@ -466,6 +467,47 @@ function topLevelConstantDeclarations(code) {
   return declarations
 }
 
+function topLevelStaticDeclarations(code) {
+  const declarations = []
+  let depth = 0
+  for (let index = 0; index < code.length; index += 1) {
+    if (code[index] === '{') {
+      depth += 1
+      continue
+    }
+    if (code[index] === '}') {
+      depth -= 1
+      continue
+    }
+    if (depth !== 0) continue
+    const match = code
+      .slice(index)
+      .match(/^(pub(?:\s*\([^)]*\))?\s+)?static(?:\s+mut)?\s+(\w+)\s*:/)
+    if (!match) continue
+    declarations.push(`${match[1] ? 'visible' : 'private'}:${match[2]}`)
+    index += match[0].length - 1
+  }
+  return declarations
+}
+
+function assertNoAssociatedConstantsOrStatics(item, label) {
+  const constants = topLevelConstantDeclarations(item.body)
+  const statics = topLevelStaticDeclarations(item.body)
+  const declarations = [
+    ...constants.map((declaration) => `const:${declaration}`),
+    ...statics.map((declaration) => `static:${declaration}`),
+  ]
+  if (declarations.length !== 0) {
+    fail(`${label} associated constants/statics are forbidden; got ${declarations.join(',')}`)
+  }
+}
+
+function externallyPublicInstantFunctions(code) {
+  return [...code.matchAll(/\bpub\s+(?:(?:const|async|unsafe|extern)\s+)*fn\s+(\w+)\b[^;{}]*\{/g)]
+    .filter((match) => /\bInstant\b/.test(match[0]))
+    .map((match) => match[1])
+}
+
 function traitImplItems(code) {
   const items = []
   const pattern = /\bimpl(?:\s*<[^>{}]*>)?\s+([^{};]+?)\s+for\s+([^{};]+?)\s*\{/g
@@ -625,6 +667,97 @@ function verifyVehicleHealthBoundary(overrides = {}) {
   assertNoLocalMacroDefinitions(channelsCode, 'plant channel module')
   assertNoLocalMacroDefinitions(runtimeCode, 'headless runtime module')
   assertNoLocalMacroDefinitions(libraryCode, 'plant crate root')
+  const snapshotSenderImpl = oneBracedItem(
+    channelsCode,
+    '\\bimpl\\s*<\\s*T\\s*>\\s*SnapshotSender\\s*<\\s*T\\s*>(?=\\s*\\{)',
+    'SnapshotSender<T> inherent impl'
+  )
+  if (
+    !/#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]\s*pub\s*\(\s*crate\s*\)\s+fn\s+set_sequence_for_test\s*\(/.test(
+      snapshotSenderImpl.body
+    )
+  ) {
+    fail('SnapshotSender<T>::set_sequence_for_test must remain cfg(test) and crate-private')
+  }
+  const setSequenceForTest = oneBracedItem(
+    snapshotSenderImpl.body,
+    '#\\s*\\[\\s*cfg\\s*\\(\\s*test\\s*\\)\\s*\\]\\s*pub\\s*\\(\\s*crate\\s*\\)\\s+fn\\s+set_sequence_for_test\\s*\\(\\s*&\\s*self\\s*,\\s*sequence\\s*:\\s*u64\\s*\\)(?=\\s*\\{)',
+    'SnapshotSender<T>::set_sequence_for_test'
+  )
+  assertExactLeadingAttributes(
+    snapshotSenderImpl.body,
+    setSequenceForTest,
+    '',
+    'SnapshotSender<T>::set_sequence_for_test'
+  )
+  assertExactBody(
+    setSequenceForTest,
+    `
+      self.shared
+        .lock()
+        .expect()
+        .sequence = sequence;
+    `,
+    'SnapshotSender<T>::set_sequence_for_test'
+  )
+  if (
+    !/#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]\s*pub\s*\(\s*crate\s*\)\s+fn\s+set_receiver_open_for_test\s*\(/.test(
+      snapshotSenderImpl.body
+    )
+  ) {
+    fail('SnapshotSender<T>::set_receiver_open_for_test must remain cfg(test) and crate-private')
+  }
+  const setReceiverOpenForTest = oneBracedItem(
+    snapshotSenderImpl.body,
+    '#\\s*\\[\\s*cfg\\s*\\(\\s*test\\s*\\)\\s*\\]\\s*pub\\s*\\(\\s*crate\\s*\\)\\s+fn\\s+set_receiver_open_for_test\\s*\\(\\s*&\\s*self\\s*,\\s*receiver_open\\s*:\\s*bool\\s*\\)(?=\\s*\\{)',
+    'SnapshotSender<T>::set_receiver_open_for_test'
+  )
+  assertExactLeadingAttributes(
+    snapshotSenderImpl.body,
+    setReceiverOpenForTest,
+    '',
+    'SnapshotSender<T>::set_receiver_open_for_test'
+  )
+  assertExactBody(
+    setReceiverOpenForTest,
+    `
+      self.shared
+        .lock()
+        .expect()
+        .receiver_open = receiver_open;
+    `,
+    'SnapshotSender<T>::set_receiver_open_for_test'
+  )
+  if (
+    !/#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]\s*pub\s*\(\s*crate\s*\)\s+fn\s+poison_for_test\s*\(/.test(
+      snapshotSenderImpl.body
+    )
+  ) {
+    fail('SnapshotSender<T>::poison_for_test must remain cfg(test) and crate-private')
+  }
+  const snapshotPoisonForTest = oneBracedItem(
+    snapshotSenderImpl.body,
+    "#\\s*\\[\\s*cfg\\s*\\(\\s*test\\s*\\)\\s*\\]\\s*pub\\s*\\(\\s*crate\\s*\\)\\s+fn\\s+poison_for_test\\s*\\(\\s*&\\s*self\\s*\\)\\s*where\\s*T\\s*:\\s*Send\\s*\\+\\s*Sync\\s*\\+\\s*'static\\s*,(?=\\s*\\{)",
+    'SnapshotSender<T>::poison_for_test'
+  )
+  assertExactLeadingAttributes(
+    snapshotSenderImpl.body,
+    snapshotPoisonForTest,
+    '',
+    'SnapshotSender<T>::poison_for_test'
+  )
+  assertExactBody(
+    snapshotPoisonForTest,
+    `
+      let shared = Arc::clone(&self.shared);
+      let _ = std::thread::spawn(move || {
+        let _guard = shared.lock().expect();
+        panic!();
+      })
+      .join();
+    `,
+    'SnapshotSender<T>::poison_for_test'
+  )
   if (
     !/\bpub\s+struct\s+KernelChannels\s*<\s*CommandValue\s*,\s*AdapterOutput\s*,\s*Evidence\s*>/.test(
       channelsCode
@@ -820,7 +953,34 @@ function verifyVehicleHealthBoundary(overrides = {}) {
   }
   const publisherImpl = implItem(healthCode, 'VehicleHealthPublisherV1')
   assertNoTopLevelMacroInvocations(publisherImpl.body, 'VehicleHealthPublisherV1 impl')
-  assertExactMethods(publisherImpl, ['commit', 'commit_for_test_at'], 'VehicleHealthPublisherV1')
+  assertExactMethods(
+    publisherImpl,
+    ['poison_for_test', 'commit', 'commit_for_test_at'],
+    'VehicleHealthPublisherV1'
+  )
+  if (
+    !/#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]\s*pub\s*\(\s*crate\s*\)\s+fn\s+poison_for_test\s*\(/.test(
+      publisherImpl.body
+    )
+  ) {
+    fail('vehicle-health publisher poison hook must remain cfg(test) and crate-private')
+  }
+  const poisonForTest = oneBracedItem(
+    publisherImpl.body,
+    '#\\s*\\[\\s*cfg\\s*\\(\\s*test\\s*\\)\\s*\\]\\s*pub\\s*\\(\\s*crate\\s*\\)\\s+fn\\s+poison_for_test\\s*\\(\\s*&\\s*self\\s*\\)(?=\\s*\\{)',
+    'VehicleHealthPublisherV1::poison_for_test'
+  )
+  assertExactLeadingAttributes(
+    publisherImpl.body,
+    poisonForTest,
+    '',
+    'VehicleHealthPublisherV1::poison_for_test'
+  )
+  assertExactBody(
+    poisonForTest,
+    'self.sender.poison_for_test();',
+    'VehicleHealthPublisherV1::poison_for_test'
+  )
   if (!/\bpub\s+fn\s+commit\s*\(\s*&\s*mut\s+self\s*,/.test(publisherImpl.body))
     fail('vehicle-health publication must require mutable access to the sole writer')
   if (
@@ -832,13 +992,91 @@ function verifyVehicleHealthBoundary(overrides = {}) {
   }
   const readerImpl = implItem(healthCode, 'VehicleHealthReaderV1')
   assertNoTopLevelMacroInvocations(readerImpl.body, 'VehicleHealthReaderV1 impl')
-  assertExactMethods(readerImpl, ['load', 'load_at'], 'VehicleHealthReaderV1')
+  assertExactMethods(
+    readerImpl,
+    ['load', 'load_for_apply_observation', 'load_at'],
+    'VehicleHealthReaderV1'
+  )
+  assertExactAllMethods(
+    readerImpl,
+    ['load', 'load_for_apply_observation', 'load_at', 'load_commit'],
+    'VehicleHealthReaderV1'
+  )
+  const publicLoad = oneBracedItem(
+    readerImpl.body,
+    '\\bpub\\s+fn\\s+load\\s*\\(\\s*&\\s*self\\s*,\\s*current_generation\\s*:\\s*RuntimeGeneration\\s*,?\\s*\\)\\s*->\\s*Result\\s*<\\s*ObservedVehicleHealthV1\\s*,\\s*VehicleHealthReadError\\s*>(?=\\s*\\{)',
+    'VehicleHealthReaderV1::load'
+  )
+  assertExactLeadingAttributes(readerImpl.body, publicLoad, '', 'VehicleHealthReaderV1::load')
+  assertExactBody(
+    publicLoad,
+    `
+      let commit = self.load_commit(current_generation)?;
+      observe_commit(commit, Instant::now())
+    `,
+    'VehicleHealthReaderV1::load'
+  )
+  const applyObservationLoad = oneBracedItem(
+    readerImpl.body,
+    '\\bpub\\s*\\(\\s*crate\\s*\\)\\s+fn\\s+load_for_apply_observation\\s*\\(\\s*&\\s*self\\s*,\\s*current_generation\\s*:\\s*RuntimeGeneration\\s*,?\\s*\\)\\s*->\\s*Result\\s*<\\s*\\(\\s*ObservedVehicleHealthV1\\s*,\\s*Instant\\s*\\)\\s*,\\s*VehicleHealthReadError\\s*>(?=\\s*\\{)',
+    'VehicleHealthReaderV1::load_for_apply_observation'
+  )
+  assertExactLeadingAttributes(
+    readerImpl.body,
+    applyObservationLoad,
+    '',
+    'VehicleHealthReaderV1::load_for_apply_observation'
+  )
+  assertExactBody(
+    applyObservationLoad,
+    `
+      let commit = self.load_commit(current_generation)?;
+      let observed_at = Instant::now();
+      let observed = observe_commit(commit, observed_at)?;
+      Ok((observed, observed_at))
+    `,
+    'VehicleHealthReaderV1::load_for_apply_observation'
+  )
   if (
-    !/#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]\s*pub\s*\(\s*crate\s*\)\s+fn\s+load_at\s*\(\s*&\s*self\s*,\s*current_generation\s*:\s*RuntimeGeneration\s*,\s*now\s*:\s*Instant\s*,?\s*\)/.test(
+    !/#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]\s*pub\s*\(\s*crate\s*\)\s+fn\s+load_at\s*\(/.test(
       readerImpl.body
     )
   ) {
     fail('vehicle-health controlled read hook must remain cfg(test) and crate-private')
+  }
+  const controlledLoad = oneBracedItem(
+    readerImpl.body,
+    '#\\s*\\[\\s*cfg\\s*\\(\\s*test\\s*\\)\\s*\\]\\s*pub\\s*\\(\\s*crate\\s*\\)\\s+fn\\s+load_at\\s*\\(\\s*&\\s*self\\s*,\\s*current_generation\\s*:\\s*RuntimeGeneration\\s*,\\s*now\\s*:\\s*Instant\\s*,?\\s*\\)\\s*->\\s*Result\\s*<\\s*ObservedVehicleHealthV1\\s*,\\s*VehicleHealthReadError\\s*>(?=\\s*\\{)',
+    'VehicleHealthReaderV1::load_at'
+  )
+  assertExactLeadingAttributes(
+    readerImpl.body,
+    controlledLoad,
+    '',
+    'VehicleHealthReaderV1::load_at'
+  )
+  assertExactBody(
+    controlledLoad,
+    `
+      let commit = self.load_commit(current_generation)?;
+      observe_commit(commit, now)
+    `,
+    'VehicleHealthReaderV1::load_at'
+  )
+  for (const item of inherentImplItems(healthCode)) {
+    if (
+      /(?:^|::)(?:VehicleHealthPublisherV1|VehicleHealthReaderV1)(?:\\s+where\\b|\\s*$)/.test(
+        item.target
+      )
+    ) {
+      assertNoAssociatedConstantsOrStatics(item, item.target)
+    }
+  }
+  const rawInstantFunctions = externallyPublicInstantFunctions(healthCode)
+  if (rawInstantFunctions.length !== 0) {
+    fail(
+      `vehicle-health externally public API must not accept or return raw Instant; got ${rawInstantFunctions.join(',')}`
+    )
   }
   const observationTimeImpl = implItem(healthCode, 'PlantObservationTime')
   assertExactMethods(observationTimeImpl, ['now', 'generation', 'at'], 'PlantObservationTime')
@@ -1325,6 +1563,7 @@ function verifyVehicleHealthBoundary(overrides = {}) {
     const canonical = realpathSync(path)
     if (
       canonical === realpathSync(FRESHNESS_SOURCE) ||
+      canonical === realpathSync(APPLY_OBSERVATION_SOURCE) ||
       canonical === realpathSync(resolve(PLANT_ROOT, 'src/lib.rs'))
     ) {
       continue
@@ -1340,6 +1579,743 @@ function verifyVehicleHealthBoundary(overrides = {}) {
     const code = rustBoundaryCode(source)
     if (freshnessUse.test(code))
       fail(`captured-read age policy must remain unwired in ${relative(ROOT, path)}`)
+  }
+}
+
+function verifyApplyObservationBoundary(overrides = {}) {
+  assertCanonicalPathWithin(APPLY_OBSERVATION_SOURCE, PLANT_ROOT, 'apply-observation source')
+  const applySource = overrides.applyObservation ?? readFileSync(APPLY_OBSERVATION_SOURCE, 'utf8')
+  const applyCode = rustBoundaryCode(applySource)
+  const healthCode = rustBoundaryCode(overrides.health ?? readFileSync(HEALTH_SOURCE, 'utf8'))
+  const contractCode = rustBoundaryCode(overrides.contract ?? readFileSync(CONTRACT_SOURCE, 'utf8'))
+  const libraryCode = rustBoundaryCode(
+    overrides.library ?? readFileSync(resolve(PLANT_ROOT, 'src/lib.rs'), 'utf8')
+  )
+
+  const moduleDeclarations = [
+    ...libraryCode.matchAll(/\b(?:pub(?:\s*\([^)]*\))?\s+)?mod\s+apply_observation\s*;/g),
+  ]
+  if (
+    moduleDeclarations.length !== 1 ||
+    normalizedRustBody(moduleDeclarations[0][0]) !== 'modapply_observation;' ||
+    leadingAttributes(libraryCode, moduleDeclarations[0].index) !== ''
+  ) {
+    fail('apply-observation module must have one private unconditional crate-root declaration')
+  }
+  const reexports = oneBracedItem(
+    libraryCode,
+    '\\bpub\\s+use\\s+apply_observation\\s*::',
+    'apply-observation crate-root re-export'
+  )
+  assertExactLeadingAttributes(libraryCode, reexports, '', 'apply-observation crate-root re-export')
+  assertExactBody(
+    reexports,
+    `
+      ApplyCheckObservationCandidateV1, ApplyCheckObservationErrorV1,
+      CommandRequestedLifetimeRelationAtCheckV1, LifecycleObservationAtCheckV1,
+    `,
+    'apply-observation crate-root re-export'
+  )
+
+  const submodules = [
+    ...applyCode.matchAll(/\b(?:pub(?:\s*\([^)]*\))?\s+)?mod\s+(\w+)\s*(?:;|\{)/g),
+  ]
+  if (submodules.length !== 1 || submodules[0][1] !== 'tests')
+    fail('apply-observation implementation must not gain child modules')
+  const tests = oneBracedItem(
+    applyCode,
+    '#\\s*\\[\\s*cfg\\s*\\(\\s*test\\s*\\)\\s*\\]\\s*mod\\s+tests',
+    'apply-observation test module'
+  )
+  const productionCode =
+    applyCode.slice(0, tests.start) +
+    blankRustSegment(applyCode, tests.start, tests.end) +
+    applyCode.slice(tests.end)
+  assertNoTopLevelMacroInvocations(productionCode, 'apply-observation module')
+  assertNoLocalMacroDefinitions(productionCode, 'apply-observation module')
+
+  const expectedTypes = [
+    'visible:enum:CommandRequestedLifetimeRelationAtCheckV1',
+    'visible:struct:LifecycleObservationAtCheckV1',
+    'visible:enum:ApplyCheckObservationErrorV1',
+    'visible:struct:ApplyCheckObservationCandidateV1',
+  ]
+  const actualTypes = topLevelTypeDeclarations(productionCode)
+  if (
+    actualTypes.length !== expectedTypes.length ||
+    actualTypes.some((declaration, index) => declaration !== expectedTypes[index])
+  ) {
+    fail(`apply-observation type surface drift; got ${actualTypes.join(',')}`)
+  }
+  const aliases = topLevelAliasDeclarations(productionCode)
+  if (aliases.length !== 0)
+    fail(`apply-observation aliases are forbidden; got ${aliases.join(',')}`)
+  const constants = topLevelConstantDeclarations(productionCode)
+  if (constants.length !== 0)
+    fail(`apply-observation constants are forbidden; got ${constants.join(',')}`)
+  const statics = topLevelStaticDeclarations(productionCode)
+  if (statics.length !== 0)
+    fail(`apply-observation statics are forbidden; got ${statics.join(',')}`)
+  const functions = topLevelFunctions(productionCode)
+  const expectedFunctions = ['private:precheck', 'private:map_assessment_error']
+  if (
+    functions.length !== expectedFunctions.length ||
+    functions.some((declaration, index) => declaration !== expectedFunctions[index])
+  ) {
+    fail(`apply-observation top-level function surface drift; got ${functions.join(',')}`)
+  }
+  const visibleFunctions = topLevelVisibleFunctions(productionCode)
+  if (visibleFunctions.length !== 0)
+    fail(`apply-observation top-level visible functions are forbidden; got ${visibleFunctions}`)
+  if (/\bpub\s+use\b/.test(productionCode))
+    fail('apply-observation module-local public re-exports are forbidden')
+
+  const relation = enumItem(productionCode, 'CommandRequestedLifetimeRelationAtCheckV1')
+  assertExactBody(
+    relation,
+    'WithinRequestedLifetimeAtCheck,AtOrBeyondRequestedLifetimeAtCheck,',
+    'CommandRequestedLifetimeRelationAtCheckV1'
+  )
+  const lifecycleObservation = structItem(productionCode, 'LifecycleObservationAtCheckV1')
+  assertExactBody(
+    lifecycleObservation,
+    'state:PlantState,generation:RuntimeGeneration,',
+    'LifecycleObservationAtCheckV1'
+  )
+  const error = enumItem(productionCode, 'ApplyCheckObservationErrorV1')
+  assertExactBody(
+    error,
+    `
+      CommandPolicyProfileMismatch {
+        command_profile: ProfileIdentity,
+        policy_profile: ProfileIdentity,
+      },
+      CommandLifecycleGenerationMismatch {
+        command_generation: RuntimeGeneration,
+        lifecycle_generation: RuntimeGeneration,
+      },
+      CommandClockRegression,
+      VehicleHealthRead(VehicleHealthReadError),
+      HealthPolicyProfileMismatch {
+        policy_profile: ProfileIdentity,
+        observed_profile: ProfileIdentity,
+      },
+    `,
+    'ApplyCheckObservationErrorV1'
+  )
+  const candidate = structItem(productionCode, 'ApplyCheckObservationCandidateV1')
+  assertExactBody(
+    candidate,
+    `
+      profile: ProfileIdentity,
+      session: CommandSessionIdentity,
+      stream_sequence: CommandStreamSequence,
+      generation: RuntimeGeneration,
+      lifecycle: LifecycleObservationAtCheckV1,
+      command_age: Duration,
+      requested_ttl: RequestedCommandTtl,
+      health: VehicleHealthCapturedAgeAssessmentV1<'policy>,
+    `,
+    'ApplyCheckObservationCandidateV1'
+  )
+  for (const [name, item, expected] of [
+    [
+      'CommandRequestedLifetimeRelationAtCheckV1',
+      relation,
+      '#[derive(Clone,Copy,Debug,Eq,PartialEq)]',
+    ],
+    [
+      'LifecycleObservationAtCheckV1',
+      lifecycleObservation,
+      '#[derive(Clone,Copy,Debug,Eq,PartialEq)]',
+    ],
+    ['ApplyCheckObservationErrorV1', error, '#[derive(Clone,Copy,Debug,Eq,PartialEq)]'],
+    ['ApplyCheckObservationCandidateV1', candidate, '#[derive(Debug)]'],
+  ]) {
+    assertExactLeadingAttributes(productionCode, item, expected, name)
+  }
+  for (const field of [
+    'profile',
+    'session',
+    'stream_sequence',
+    'generation',
+    'lifecycle',
+    'command_age',
+    'requested_ttl',
+    'health',
+  ]) {
+    if (visibleField(candidate.body, field))
+      fail(`apply-observation candidate field '${field}' must remain private`)
+  }
+
+  const lifecycleImpl = implItem(productionCode, 'LifecycleObservationAtCheckV1')
+  assertExactMethods(lifecycleImpl, ['state', 'generation'], 'LifecycleObservationAtCheckV1')
+  assertNoAssociatedConstantsOrStatics(lifecycleImpl, 'LifecycleObservationAtCheckV1')
+  const lifecycleState = oneBracedItem(
+    lifecycleImpl.body,
+    '\\bpub\\s+const\\s+fn\\s+state\\s*\\(\\s*self\\s*\\)\\s*->\\s*PlantState(?=\\s*\\{)',
+    'LifecycleObservationAtCheckV1::state'
+  )
+  assertExactBody(lifecycleState, 'self.state', 'LifecycleObservationAtCheckV1::state')
+  const lifecycleGeneration = oneBracedItem(
+    lifecycleImpl.body,
+    '\\bpub\\s+const\\s+fn\\s+generation\\s*\\(\\s*self\\s*\\)\\s*->\\s*RuntimeGeneration(?=\\s*\\{)',
+    'LifecycleObservationAtCheckV1::generation'
+  )
+  assertExactBody(
+    lifecycleGeneration,
+    'self.generation',
+    'LifecycleObservationAtCheckV1::generation'
+  )
+
+  const candidateImpl = oneBracedItem(
+    productionCode,
+    "\\bimpl\\s*<\\s*'policy\\s*>\\s*ApplyCheckObservationCandidateV1\\s*<\\s*'policy\\s*>",
+    'ApplyCheckObservationCandidateV1 inherent impl'
+  )
+  assertNoTopLevelMacroInvocations(candidateImpl.body, 'ApplyCheckObservationCandidateV1 impl')
+  assertExactMethods(
+    candidateImpl,
+    [
+      'capture',
+      'profile',
+      'session',
+      'stream_sequence',
+      'generation',
+      'lifecycle',
+      'command_age',
+      'requested_ttl',
+      'requested_lifetime_relation',
+      'health',
+    ],
+    'ApplyCheckObservationCandidateV1'
+  )
+  assertExactAllMethods(
+    candidateImpl,
+    [
+      'capture',
+      'profile',
+      'session',
+      'stream_sequence',
+      'generation',
+      'lifecycle',
+      'command_age',
+      'requested_ttl',
+      'requested_lifetime_relation',
+      'health',
+      'capture_at_for_test',
+      'capture_prechecked_observation',
+    ],
+    'ApplyCheckObservationCandidateV1'
+  )
+  assertNoAssociatedConstantsOrStatics(candidateImpl, 'ApplyCheckObservationCandidateV1')
+
+  const capture = oneBracedItem(
+    candidateImpl.body,
+    "\\bpub\\s+fn\\s+capture\\s*\\(\\s*command\\s*:\\s*&\\s*VelocityCommandCandidateV1\\s*,\\s*lifecycle\\s*:\\s*&\\s*LifecycleMachine\\s*,\\s*health_reader\\s*:\\s*&\\s*VehicleHealthReaderV1\\s*,\\s*age_policy\\s*:\\s*&'policy\\s+VehicleHealthCapturedAgePolicyV1\\s*,?\\s*\\)\\s*->\\s*Result\\s*<\\s*Self\\s*,\\s*ApplyCheckObservationErrorV1\\s*>(?=\\s*\\{)",
+    'ApplyCheckObservationCandidateV1::capture'
+  )
+  assertExactLeadingAttributes(
+    candidateImpl.body,
+    capture,
+    '',
+    'ApplyCheckObservationCandidateV1::capture'
+  )
+  assertExactBody(
+    capture,
+    `
+      let lifecycle_observation = precheck(command, lifecycle, age_policy)?;
+      let (observed, checked_at) = health_reader
+        .load_for_apply_observation(lifecycle_observation.generation)
+        .map_err(ApplyCheckObservationErrorV1::VehicleHealthRead)?;
+      Self::capture_prechecked_observation(
+        command,
+        lifecycle_observation,
+        observed,
+        age_policy,
+        checked_at,
+      )
+    `,
+    'ApplyCheckObservationCandidateV1::capture'
+  )
+  const captureAt = oneBracedItem(
+    candidateImpl.body,
+    "#\\s*\\[\\s*cfg\\s*\\(\\s*test\\s*\\)\\s*\\]\\s*fn\\s+capture_at_for_test\\s*\\(\\s*command\\s*:\\s*&\\s*VelocityCommandCandidateV1\\s*,\\s*lifecycle\\s*:\\s*&\\s*LifecycleMachine\\s*,\\s*health_reader\\s*:\\s*&\\s*VehicleHealthReaderV1\\s*,\\s*age_policy\\s*:\\s*&'policy\\s+VehicleHealthCapturedAgePolicyV1\\s*,\\s*checked_at\\s*:\\s*Instant\\s*,?\\s*\\)\\s*->\\s*Result\\s*<\\s*Self\\s*,\\s*ApplyCheckObservationErrorV1\\s*>(?=\\s*\\{)",
+    'ApplyCheckObservationCandidateV1::capture_at_for_test'
+  )
+  assertExactLeadingAttributes(
+    candidateImpl.body,
+    captureAt,
+    '',
+    'ApplyCheckObservationCandidateV1::capture_at_for_test'
+  )
+  assertExactBody(
+    captureAt,
+    `
+      let lifecycle_observation = precheck(command, lifecycle, age_policy)?;
+      let observed = health_reader
+        .load_at(lifecycle_observation.generation, checked_at)
+        .map_err(ApplyCheckObservationErrorV1::VehicleHealthRead)?;
+      Self::capture_prechecked_observation(
+        command,
+        lifecycle_observation,
+        observed,
+        age_policy,
+        checked_at,
+      )
+    `,
+    'ApplyCheckObservationCandidateV1::capture_at_for_test'
+  )
+  const capturePrechecked = oneBracedItem(
+    candidateImpl.body,
+    "\\bfn\\s+capture_prechecked_observation\\s*\\(\\s*command\\s*:\\s*&\\s*VelocityCommandCandidateV1\\s*,\\s*lifecycle\\s*:\\s*LifecycleObservationAtCheckV1\\s*,\\s*observed\\s*:\\s*ObservedVehicleHealthV1\\s*,\\s*age_policy\\s*:\\s*&'policy\\s+VehicleHealthCapturedAgePolicyV1\\s*,\\s*checked_at\\s*:\\s*Instant\\s*,?\\s*\\)\\s*->\\s*Result\\s*<\\s*Self\\s*,\\s*ApplyCheckObservationErrorV1\\s*>(?=\\s*\\{)",
+    'ApplyCheckObservationCandidateV1::capture_prechecked_observation'
+  )
+  assertExactLeadingAttributes(
+    candidateImpl.body,
+    capturePrechecked,
+    '',
+    'ApplyCheckObservationCandidateV1::capture_prechecked_observation'
+  )
+  assertExactBody(
+    capturePrechecked,
+    `
+      let command_age = command
+        .received_at()
+        .elapsed_at(checked_at)
+        .ok_or(ApplyCheckObservationErrorV1::CommandClockRegression)?;
+      let health = age_policy.assess(observed).map_err(map_assessment_error)?;
+
+      Ok(Self {
+        profile: command.profile().identity(),
+        session: command.session(),
+        stream_sequence: command.stream_sequence(),
+        generation: command.generation(),
+        lifecycle,
+        command_age,
+        requested_ttl: command.requested_ttl(),
+        health,
+      })
+    `,
+    'ApplyCheckObservationCandidateV1::capture_prechecked_observation'
+  )
+  const relationMethod = oneBracedItem(
+    candidateImpl.body,
+    '\\bpub\\s+fn\\s+requested_lifetime_relation\\s*\\(\\s*&\\s*self\\s*\\)\\s*->\\s*CommandRequestedLifetimeRelationAtCheckV1(?=\\s*\\{)',
+    'ApplyCheckObservationCandidateV1::requested_lifetime_relation'
+  )
+  assertExactLeadingAttributes(
+    candidateImpl.body,
+    relationMethod,
+    '#[must_use]',
+    'ApplyCheckObservationCandidateV1::requested_lifetime_relation'
+  )
+  assertExactBody(
+    relationMethod,
+    `
+      if self.command_age < self.requested_ttl.get() {
+        CommandRequestedLifetimeRelationAtCheckV1::WithinRequestedLifetimeAtCheck
+      } else {
+        CommandRequestedLifetimeRelationAtCheckV1::AtOrBeyondRequestedLifetimeAtCheck
+      }
+    `,
+    'ApplyCheckObservationCandidateV1::requested_lifetime_relation'
+  )
+  for (const [method, returnType, expected] of [
+    ['profile', 'ProfileIdentity', 'self.profile'],
+    ['session', 'CommandSessionIdentity', 'self.session'],
+    ['stream_sequence', 'CommandStreamSequence', 'self.stream_sequence'],
+    ['generation', 'RuntimeGeneration', 'self.generation'],
+    ['lifecycle', 'LifecycleObservationAtCheckV1', 'self.lifecycle'],
+    ['command_age', 'Duration', 'self.command_age'],
+    ['requested_ttl', 'RequestedCommandTtl', 'self.requested_ttl'],
+  ]) {
+    const accessor = oneBracedItem(
+      candidateImpl.body,
+      `\\bpub\\s+const\\s+fn\\s+${method}\\s*\\(\\s*&\\s*self\\s*\\)\\s*->\\s*${returnType}(?=\\s*\\{)`,
+      `ApplyCheckObservationCandidateV1::${method}`
+    )
+    assertExactLeadingAttributes(
+      candidateImpl.body,
+      accessor,
+      '#[must_use]',
+      `ApplyCheckObservationCandidateV1::${method}`
+    )
+    assertExactBody(accessor, expected, `ApplyCheckObservationCandidateV1::${method}`)
+  }
+  const healthAccessor = oneBracedItem(
+    candidateImpl.body,
+    "\\bpub\\s+const\\s+fn\\s+health\\s*\\(\\s*&\\s*self\\s*\\)\\s*->\\s*&\\s*VehicleHealthCapturedAgeAssessmentV1\\s*<\\s*'policy\\s*>(?=\\s*\\{)",
+    'ApplyCheckObservationCandidateV1::health'
+  )
+  assertExactLeadingAttributes(
+    candidateImpl.body,
+    healthAccessor,
+    '#[must_use]',
+    'ApplyCheckObservationCandidateV1::health'
+  )
+  assertExactBody(healthAccessor, '&self.health', 'ApplyCheckObservationCandidateV1::health')
+
+  const precheck = oneBracedItem(productionCode, '\\bfn\\s+precheck\\b', 'apply precheck')
+  assertExactBody(
+    precheck,
+    `
+      let command_profile = command.profile().identity();
+      let policy_profile = age_policy.profile();
+      if command_profile != policy_profile {
+        return Err(ApplyCheckObservationErrorV1::CommandPolicyProfileMismatch {
+          command_profile,
+          policy_profile,
+        });
+      }
+
+      let lifecycle_observation = LifecycleObservationAtCheckV1 {
+        state: lifecycle.state(),
+        generation: lifecycle.generation(),
+      };
+      let command_generation = command.generation();
+      if command_generation != lifecycle_observation.generation {
+        return Err(
+          ApplyCheckObservationErrorV1::CommandLifecycleGenerationMismatch {
+            command_generation,
+            lifecycle_generation: lifecycle_observation.generation,
+          },
+        );
+      }
+      Ok(lifecycle_observation)
+    `,
+    'apply precheck'
+  )
+  const mapAssessment = oneBracedItem(
+    productionCode,
+    '\\bfn\\s+map_assessment_error\\b',
+    'apply assessment-error mapping'
+  )
+  assertExactBody(
+    mapAssessment,
+    `
+      ApplyCheckObservationErrorV1::HealthPolicyProfileMismatch {
+        policy_profile: error.policy_profile(),
+        observed_profile: error.observed_profile(),
+      }
+    `,
+    'apply assessment-error mapping'
+  )
+
+  const expectedInherentImplCounts = new Map([
+    ['CommandRequestedLifetimeRelationAtCheckV1', 0],
+    ['LifecycleObservationAtCheckV1', 1],
+    ['ApplyCheckObservationErrorV1', 0],
+    ['ApplyCheckObservationCandidateV1', 1],
+  ])
+  const actualInherentImplCounts = new Map(
+    [...expectedInherentImplCounts.keys()].map((name) => [name, 0])
+  )
+  for (const item of inherentImplItems(productionCode)) {
+    for (const name of expectedInherentImplCounts.keys()) {
+      const protectedTarget = new RegExp(`(?:^|::)${name}(?:\\s*<[^>{}]*>)?(?:\\s+where\\b|\\s*$)`)
+      if (protectedTarget.test(item.target))
+        actualInherentImplCounts.set(name, actualInherentImplCounts.get(name) + 1)
+    }
+  }
+  for (const [name, expected] of expectedInherentImplCounts) {
+    const actual = actualInherentImplCounts.get(name)
+    if (actual !== expected)
+      fail(`${name} inherent impl count drift; expected ${expected}, got ${actual}`)
+  }
+  const displayImpl = oneBracedItem(
+    productionCode,
+    '\\bimpl\\s+fmt\\s*::\\s*Display\\s+for\\s+ApplyCheckObservationErrorV1',
+    'ApplyCheckObservationErrorV1 Display impl'
+  )
+  assertExactBody(
+    displayImpl,
+    `
+      fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+          Self::CommandPolicyProfileMismatch { .. } => {
+            formatter.write_str()
+          }
+          Self::CommandLifecycleGenerationMismatch { .. } => {
+            formatter.write_str()
+          }
+          Self::CommandClockRegression => {
+            formatter.write_str()
+          }
+          Self::VehicleHealthRead(error) => {
+            write!(formatter,)
+          }
+          Self::HealthPolicyProfileMismatch { .. } => formatter.write_str(),
+        }
+      }
+    `,
+    'ApplyCheckObservationErrorV1 Display impl'
+  )
+  const rawDisplayImpl = oneBracedItem(
+    applySource,
+    '\\bimpl\\s+fmt\\s*::\\s*Display\\s+for\\s+ApplyCheckObservationErrorV1',
+    'raw ApplyCheckObservationErrorV1 Display impl'
+  )
+  assertExactBody(
+    rawDisplayImpl,
+    `
+      fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+          Self::CommandPolicyProfileMismatch { .. } => {
+            formatter.write_str("command profile does not match captured-age policy profile")
+          }
+          Self::CommandLifecycleGenerationMismatch { .. } => {
+            formatter.write_str("command generation does not match lifecycle generation")
+          }
+          Self::CommandClockRegression => {
+            formatter.write_str("plant monotonic clock regressed before command receipt")
+          }
+          Self::VehicleHealthRead(error) => {
+            write!(formatter, "vehicle-health read failed: {error}")
+          }
+          Self::HealthPolicyProfileMismatch { .. } => formatter
+            .write_str("captured vehicle-health profile does not match age policy profile"),
+        }
+      }
+    `,
+    'raw ApplyCheckObservationErrorV1 Display impl'
+  )
+  const standardErrorImpl = oneBracedItem(
+    productionCode,
+    '\\bimpl\\s+std\\s*::\\s*error\\s*::\\s*Error\\s+for\\s+ApplyCheckObservationErrorV1',
+    'ApplyCheckObservationErrorV1 Error impl'
+  )
+  assertExactBody(standardErrorImpl, '', 'ApplyCheckObservationErrorV1 Error impl')
+  const rawStandardErrorImpl = oneBracedItem(
+    applySource,
+    '\\bimpl\\s+std\\s*::\\s*error\\s*::\\s*Error\\s+for\\s+ApplyCheckObservationErrorV1',
+    'raw ApplyCheckObservationErrorV1 Error impl'
+  )
+  assertExactBody(rawStandardErrorImpl, '', 'raw ApplyCheckObservationErrorV1 Error impl')
+  const expectedTraits = [
+    'implfmt::DisplayforApplyCheckObservationErrorV1{',
+    'implstd::error::ErrorforApplyCheckObservationErrorV1{',
+  ].sort()
+  const actualTraits = traitImplItems(productionCode)
+    .map((item) => normalizedRustBody(item.header))
+    .sort()
+  if (
+    actualTraits.length !== expectedTraits.length ||
+    actualTraits.some((header, index) => header !== expectedTraits[index])
+  ) {
+    fail(`apply-observation trait surface drift; got ${actualTraits.join(',')}`)
+  }
+
+  if ((productionCode.match(/\bInstant\s*::\s*now\s*\(/g) ?? []).length !== 0)
+    fail('apply-observation module must delegate its sole monotonic instant to the checked load')
+  if (
+    /\bpub(?:\s*\([^)]*\))?\s+(?:(?:const|async|unsafe|extern)\s+)*fn\s+\w+[^{};]*\bInstant\b/.test(
+      productionCode
+    )
+  ) {
+    fail('apply-observation public API must not accept or return a raw monotonic instant')
+  }
+  if (/\bPlantState\s*::/.test(productionCode))
+    fail('apply-observation must record lifecycle state without interpreting variants')
+  if (
+    /&\s*mut\s+LifecycleMachine|\.\s*apply\s*\(|\b(?:LifecycleEvent|GuardedEvent|Transition)\b/.test(
+      productionCode
+    )
+  ) {
+    fail('apply-observation must not mutate or drive lifecycle')
+  }
+  if (
+    /\.\s*velocity\s*\(|\b(?:RawVelocityV1|FramedVelocityMetresPerSecond|ProposedActionV1|SafeAction\w*|InertAdapter|AdapterState|AdapterError|KernelChannels|SnapshotSender|SnapshotReceiver|SnapshotChannel|MonotonicExpiryGuard|CommandDeadline\w*|DeadlineMonitor\w*|ActiveCommandDeadlineMonitorV1)\b/.test(
+      productionCode
+    )
+  ) {
+    fail(
+      'apply-observation must not retain or convert commands, actions, adapters, channels, expiry, or deadlines'
+    )
+  }
+  if (
+    /\b(?:thread|spawn|Mutex|RwLock|Condvar|Atomic\w*|process|Command|Stdio|Child|net|TcpStream|TcpListener|UdpSocket|UnixStream|UnixListener|fs|File|OpenOptions|io|Write|write_all|AsRawFd|OwnedFd|RawFd)\b/.test(
+      productionCode
+    )
+  ) {
+    fail(
+      'apply-observation must not gain thread, synchronization, process, network, filesystem, or device I/O'
+    )
+  }
+  if (
+    /\)\s*->\s*bool\b|\b(?:permit|eligible|eligibility|authorization|authorized|approval|verdict)\b/i.test(
+      productionCode
+    )
+  )
+    fail(
+      'apply-observation must not expose a boolean, permit, eligibility, authorization, approval, or verdict'
+    )
+
+  const readerImpl = implItem(healthCode, 'VehicleHealthReaderV1')
+  assertNoAssociatedConstantsOrStatics(readerImpl, 'VehicleHealthReaderV1')
+  const publicHealthLoad = oneBracedItem(
+    readerImpl.body,
+    '\\bpub\\s+fn\\s+load\\s*\\(\\s*&\\s*self\\s*,\\s*current_generation\\s*:\\s*RuntimeGeneration\\s*,?\\s*\\)\\s*->\\s*Result\\s*<\\s*ObservedVehicleHealthV1\\s*,\\s*VehicleHealthReadError\\s*>(?=\\s*\\{)',
+    'VehicleHealthReaderV1::load'
+  )
+  assertExactLeadingAttributes(readerImpl.body, publicHealthLoad, '', 'VehicleHealthReaderV1::load')
+  assertExactBody(
+    publicHealthLoad,
+    `
+      let commit = self.load_commit(current_generation)?;
+      observe_commit(commit, Instant::now())
+    `,
+    'VehicleHealthReaderV1::load'
+  )
+  const hook = oneBracedItem(
+    readerImpl.body,
+    '\\bpub\\s*\\(\\s*crate\\s*\\)\\s+fn\\s+load_for_apply_observation\\s*\\(\\s*&\\s*self\\s*,\\s*current_generation\\s*:\\s*RuntimeGeneration\\s*,?\\s*\\)\\s*->\\s*Result\\s*<\\s*\\(\\s*ObservedVehicleHealthV1\\s*,\\s*Instant\\s*\\)\\s*,\\s*VehicleHealthReadError\\s*>(?=\\s*\\{)',
+    'VehicleHealthReaderV1::load_for_apply_observation'
+  )
+  assertExactLeadingAttributes(
+    readerImpl.body,
+    hook,
+    '',
+    'VehicleHealthReaderV1::load_for_apply_observation'
+  )
+  assertExactBody(
+    hook,
+    `
+      let commit = self.load_commit(current_generation)?;
+      let observed_at = Instant::now();
+      let observed = observe_commit(commit, observed_at)?;
+      Ok((observed, observed_at))
+    `,
+    'VehicleHealthReaderV1::load_for_apply_observation'
+  )
+  if (
+    !/#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]\s*pub\s*\(\s*crate\s*\)\s+fn\s+load_at\s*\(/.test(
+      readerImpl.body
+    )
+  ) {
+    fail('vehicle-health controlled read hook must remain cfg(test) and crate-private')
+  }
+  const loadAt = oneBracedItem(
+    readerImpl.body,
+    '#\\s*\\[\\s*cfg\\s*\\(\\s*test\\s*\\)\\s*\\]\\s*pub\\s*\\(\\s*crate\\s*\\)\\s+fn\\s+load_at\\s*\\(\\s*&\\s*self\\s*,\\s*current_generation\\s*:\\s*RuntimeGeneration\\s*,\\s*now\\s*:\\s*Instant\\s*,?\\s*\\)\\s*->\\s*Result\\s*<\\s*ObservedVehicleHealthV1\\s*,\\s*VehicleHealthReadError\\s*>(?=\\s*\\{)',
+    'VehicleHealthReaderV1::load_at'
+  )
+  assertExactLeadingAttributes(readerImpl.body, loadAt, '', 'VehicleHealthReaderV1::load_at')
+  assertExactBody(
+    loadAt,
+    `
+      let commit = self.load_commit(current_generation)?;
+      observe_commit(commit, now)
+    `,
+    'VehicleHealthReaderV1::load_at'
+  )
+  if ((productionCode.match(/\.\s*load_for_apply_observation\s*\(/g) ?? []).length !== 1)
+    fail('apply-observation must call the shared-instant health hook exactly once')
+  if ((healthCode.match(/\bfn\s+load_for_apply_observation\b/g) ?? []).length !== 1)
+    fail('vehicle-health apply-observation hook must have exactly one definition')
+
+  const publisherImpl = implItem(healthCode, 'VehicleHealthPublisherV1')
+  assertNoAssociatedConstantsOrStatics(publisherImpl, 'VehicleHealthPublisherV1')
+  if (
+    !/#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]\s*pub\s*\(\s*crate\s*\)\s+fn\s+poison_for_test\s*\(/.test(
+      publisherImpl.body
+    )
+  ) {
+    fail('vehicle-health publisher poison hook must remain cfg(test) and crate-private')
+  }
+  const poisonForTest = oneBracedItem(
+    publisherImpl.body,
+    '#\\s*\\[\\s*cfg\\s*\\(\\s*test\\s*\\)\\s*\\]\\s*pub\\s*\\(\\s*crate\\s*\\)\\s+fn\\s+poison_for_test\\s*\\(\\s*&\\s*self\\s*\\)(?=\\s*\\{)',
+    'VehicleHealthPublisherV1::poison_for_test'
+  )
+  assertExactLeadingAttributes(
+    publisherImpl.body,
+    poisonForTest,
+    '',
+    'VehicleHealthPublisherV1::poison_for_test'
+  )
+  assertExactBody(
+    poisonForTest,
+    'self.sender.poison_for_test();',
+    'VehicleHealthPublisherV1::poison_for_test'
+  )
+
+  const commandCandidateImpl = implItem(contractCode, 'VelocityCommandCandidateV1')
+  for (const item of inherentImplItems(contractCode)) {
+    if (/(?:^|::)VelocityCommandCandidateV1(?:\\s+where\\b|\\s*$)/.test(item.target)) {
+      assertNoAssociatedConstantsOrStatics(item, item.target)
+    }
+  }
+  if (
+    !/#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]\s*pub\s*\(\s*crate\s*\)\s+fn\s+with_received_at_for_test\s*\(/.test(
+      commandCandidateImpl.body
+    )
+  ) {
+    fail('command receipt-time mutator must remain cfg(test) and crate-private')
+  }
+  const receivedAtForTest = oneBracedItem(
+    commandCandidateImpl.body,
+    '#\\s*\\[\\s*cfg\\s*\\(\\s*test\\s*\\)\\s*\\]\\s*pub\\s*\\(\\s*crate\\s*\\)\\s+fn\\s+with_received_at_for_test\\s*\\(\\s*mut\\s+self\\s*,\\s*received_at\\s*:\\s*Instant\\s*\\)\\s*->\\s*Self(?=\\s*\\{)',
+    'VelocityCommandCandidateV1::with_received_at_for_test'
+  )
+  assertExactLeadingAttributes(
+    commandCandidateImpl.body,
+    receivedAtForTest,
+    '',
+    'VelocityCommandCandidateV1::with_received_at_for_test'
+  )
+  assertExactBody(
+    receivedAtForTest,
+    `
+      self.received_at = PlantReceiptTime::from_monotonic_test_instant(received_at);
+      self
+    `,
+    'VelocityCommandCandidateV1::with_received_at_for_test'
+  )
+
+  const applyTypeOrModuleUse =
+    /\b(?:apply_observation|ApplyCheckObservationCandidateV1|ApplyCheckObservationErrorV1|CommandRequestedLifetimeRelationAtCheckV1|LifecycleObservationAtCheckV1)\b/
+  const applyHookUse = /\bload_for_apply_observation\b/
+  let libraryWithoutApplySurface = libraryCode
+  for (const [start, end] of [
+    [moduleDeclarations[0].index, moduleDeclarations[0].index + moduleDeclarations[0][0].length],
+    [reexports.start, reexports.end],
+  ]) {
+    libraryWithoutApplySurface =
+      libraryWithoutApplySurface.slice(0, start) +
+      blankRustSegment(libraryWithoutApplySurface, start, end) +
+      libraryWithoutApplySurface.slice(end)
+  }
+  if (
+    applyTypeOrModuleUse.test(libraryWithoutApplySurface) ||
+    applyHookUse.test(libraryWithoutApplySurface)
+  ) {
+    fail('apply-observation candidate and hook must remain unwired in the plant crate root')
+  }
+
+  for (const path of walkRustFiles(resolve(PLANT_ROOT, 'src'))) {
+    const canonical = realpathSync(path)
+    if (
+      canonical === realpathSync(APPLY_OBSERVATION_SOURCE) ||
+      canonical === realpathSync(resolve(PLANT_ROOT, 'src/lib.rs'))
+    ) {
+      continue
+    }
+    let source = readFileSync(path, 'utf8')
+    if (canonical === realpathSync(HEALTH_SOURCE)) source = overrides.health ?? source
+    else if (canonical === realpathSync(resolve(PLANT_ROOT, 'src/runtime.rs')))
+      source = overrides.runtime ?? source
+    else if (canonical === realpathSync(resolve(PLANT_ROOT, 'src/adapter.rs')))
+      source = overrides.adapter ?? source
+    else if (canonical === realpathSync(resolve(PLANT_ROOT, 'src/channels.rs')))
+      source = overrides.channels ?? source
+    else if (canonical === realpathSync(CONTRACT_SOURCE)) source = overrides.contract ?? source
+    const code = rustBoundaryCode(source)
+    if (applyTypeOrModuleUse.test(code))
+      fail(`apply-observation candidate must remain unwired in ${relative(ROOT, path)}`)
+    if (canonical !== realpathSync(HEALTH_SOURCE) && applyHookUse.test(code)) {
+      fail(`vehicle-health apply-observation hook escaped into ${relative(ROOT, path)}`)
+    }
   }
 }
 
@@ -3055,13 +4031,15 @@ function verifyVehicleHealthBoundaryMutations() {
       },
     },
     {
-      label: 'separately derived cloneable publisher',
+      label: 'ungated snapshot receiver-open test helper',
+      expectedError:
+        'SnapshotSender<T>::set_receiver_open_for_test must remain cfg(test) and crate-private',
       overrides: {
-        health: replaced(
-          health,
-          '#[derive(Debug)]\npub struct VehicleHealthPublisherV1 {',
-          '#[derive(Clone)]\n#[derive(Debug)]\npub struct VehicleHealthPublisherV1 {',
-          'separate publisher Clone derive'
+        channels: replacedExactlyOnce(
+          channels,
+          '    #[cfg(test)]\n    pub(crate) fn set_receiver_open_for_test(',
+          '    pub(crate) fn set_receiver_open_for_test(',
+          'snapshot receiver-open helper test gate'
         ),
       },
     },
@@ -3072,15 +4050,28 @@ function verifyVehicleHealthBoundaryMutations() {
       },
     },
     {
-      label: 'type-aliased raw-reader conversion',
+      label: 'ungated snapshot sequence test helper',
+      expectedError:
+        'SnapshotSender<T>::set_sequence_for_test must remain cfg(test) and crate-private',
       overrides: {
-        health: `${health}\ntype ReaderAlias = VehicleHealthReaderV1;\ntype RawAlias = SnapshotReceiver<VehicleHealthSnapshotV1>;\nimpl From<ReaderAlias> for RawAlias {\n    fn from(reader: ReaderAlias) -> Self {\n        reader.receiver\n    }\n}\n`,
+        channels: replacedExactlyOnce(
+          channels,
+          '    #[cfg(test)]\n    pub(crate) fn set_sequence_for_test(',
+          '    pub(crate) fn set_sequence_for_test(',
+          'snapshot sequence helper test gate'
+        ),
       },
     },
     {
-      label: 'import-aliased raw-reader conversion',
+      label: 'ungated snapshot poison test helper',
+      expectedError: 'SnapshotSender<T>::poison_for_test must remain cfg(test) and crate-private',
       overrides: {
-        health: `${health}\nuse self::VehicleHealthReaderV1 as ReaderAlias;\nuse self::VehicleHealthSnapshotV1 as SnapshotAlias;\nuse crate::channels::SnapshotReceiver as RawAlias;\nimpl From<ReaderAlias> for RawAlias<SnapshotAlias> {\n    fn from(reader: ReaderAlias) -> Self {\n        reader.receiver\n    }\n}\n`,
+        channels: replacedExactlyOnce(
+          channels,
+          '    #[cfg(test)]\n    pub(crate) fn poison_for_test(&self)',
+          '    pub(crate) fn poison_for_test(&self)',
+          'snapshot poison helper test gate'
+        ),
       },
     },
     {
@@ -4952,6 +5943,457 @@ function verifyDeadlineMonitorBoundaryMutations() {
   return cases.length
 }
 
+function verifyApplyObservationBoundaryMutations() {
+  const applyObservation = readFileSync(APPLY_OBSERVATION_SOURCE, 'utf8')
+  const health = readFileSync(HEALTH_SOURCE, 'utf8')
+  const contract = readFileSync(CONTRACT_SOURCE, 'utf8')
+  const library = readFileSync(resolve(PLANT_ROOT, 'src/lib.rs'), 'utf8')
+  const runtime = readFileSync(resolve(PLANT_ROOT, 'src/runtime.rs'), 'utf8')
+  const cases = [
+    {
+      label: 'public apply-observation module',
+      overrides: {
+        library: replacedExactlyOnce(
+          library,
+          'mod apply_observation;',
+          'pub mod apply_observation;',
+          'public apply-observation module'
+        ),
+      },
+    },
+    {
+      label: 'conditional apply-observation module',
+      overrides: {
+        library: replacedExactlyOnce(
+          library,
+          'mod apply_observation;',
+          '#[cfg(unix)]\nmod apply_observation;',
+          'conditional apply-observation module'
+        ),
+      },
+    },
+    {
+      label: 'wildcard apply-observation re-export',
+      overrides: {
+        library: replacedExactlyOnce(
+          library,
+          `pub use apply_observation::{
+    ApplyCheckObservationCandidateV1, ApplyCheckObservationErrorV1,
+    CommandRequestedLifetimeRelationAtCheckV1, LifecycleObservationAtCheckV1,
+};`,
+          'pub use apply_observation::*;',
+          'wildcard apply-observation re-export'
+        ),
+      },
+    },
+    {
+      label: 'conditional apply-observation re-export',
+      overrides: {
+        library: replacedExactlyOnce(
+          library,
+          'pub use apply_observation::{',
+          '#[cfg(unix)]\npub use apply_observation::{',
+          'conditional apply-observation re-export'
+        ),
+      },
+    },
+    {
+      label: 'extra apply-observation child module',
+      overrides: { applyObservation: `${applyObservation}\nmod escape {}\n` },
+    },
+    {
+      label: 'top-level apply-observation macro invocation',
+      overrides: { applyObservation: `${applyObservation}\nescape!();\n` },
+    },
+    {
+      label: 'local apply-observation macro definition',
+      overrides: {
+        applyObservation: `${applyObservation}\nmacro_rules! escape { () => {}; }\n`,
+      },
+    },
+    {
+      label: 'extra apply-observation type',
+      overrides: { applyObservation: `${applyObservation}\npub struct ApplyPermit;\n` },
+    },
+    {
+      label: 'apply-observation type alias',
+      overrides: {
+        applyObservation: `${applyObservation}\npub type ApplyPermitAlias<'a> = ApplyCheckObservationCandidateV1<'a>;\n`,
+      },
+    },
+    {
+      label: 'apply-observation top-level function',
+      overrides: { applyObservation: `${applyObservation}\npub fn authorize_observation() {}\n` },
+    },
+    {
+      label: 'apply-observation top-level constant',
+      overrides: {
+        applyObservation: `${applyObservation}\npub const APPLY_ALLOWED: bool = true;\n`,
+      },
+    },
+    {
+      label: 'public apply-observation candidate field',
+      overrides: {
+        applyObservation: replacedExactlyOnce(
+          applyObservation,
+          `pub struct ApplyCheckObservationCandidateV1<'policy> {
+    profile: ProfileIdentity,`,
+          `pub struct ApplyCheckObservationCandidateV1<'policy> {
+    pub profile: ProfileIdentity,`,
+          'public apply-observation candidate field'
+        ),
+      },
+    },
+    {
+      label: 'candidate retains complete command',
+      overrides: {
+        applyObservation: replacedExactlyOnce(
+          applyObservation,
+          `pub struct ApplyCheckObservationCandidateV1<'policy> {
+    profile: ProfileIdentity,`,
+          `pub struct ApplyCheckObservationCandidateV1<'policy> {
+    command: VelocityCommandCandidateV1,
+    profile: ProfileIdentity,`,
+          'candidate retains complete command'
+        ),
+      },
+    },
+    {
+      label: 'cloneable apply-observation candidate derive',
+      overrides: {
+        applyObservation: replacedExactlyOnce(
+          applyObservation,
+          `#[derive(Debug)]
+pub struct ApplyCheckObservationCandidateV1`,
+          `#[derive(Clone, Debug)]
+pub struct ApplyCheckObservationCandidateV1`,
+          'cloneable apply-observation candidate derive'
+        ),
+      },
+    },
+    {
+      label: 'manual apply-observation candidate clone',
+      overrides: {
+        applyObservation: `${applyObservation}\nimpl Clone for ApplyCheckObservationCandidateV1<'_> { fn clone(&self) -> Self { todo!() } }\n`,
+      },
+    },
+    {
+      label: 'eligible requested-lifetime relation variant',
+      overrides: {
+        applyObservation: replacedExactlyOnce(
+          applyObservation,
+          '    AtOrBeyondRequestedLifetimeAtCheck,\n}',
+          '    AtOrBeyondRequestedLifetimeAtCheck,\n    EligibleToApply,\n}',
+          'eligible requested-lifetime relation variant'
+        ),
+      },
+    },
+    {
+      label: 'lifecycle-state rejection error',
+      overrides: {
+        applyObservation: replacedExactlyOnce(
+          applyObservation,
+          '    CommandClockRegression,',
+          '    LifecycleStateRejected(PlantState),\n    CommandClockRegression,',
+          'lifecycle-state rejection error'
+        ),
+      },
+    },
+    {
+      label: 'secondary qualified candidate impl',
+      overrides: {
+        applyObservation: `${applyObservation}\nimpl crate::ApplyCheckObservationCandidateV1<'_> { fn escape(&self) {} }\n`,
+      },
+    },
+    {
+      label: 'aggregate apply-observation boolean method',
+      overrides: {
+        applyObservation: `${applyObservation}\nimpl ApplyCheckObservationCandidateV1<'_> { pub fn eligible(&self) -> bool { true } }\n`,
+      },
+    },
+    {
+      label: 'public deterministic apply clock hook',
+      overrides: {
+        applyObservation: replacedExactlyOnce(
+          applyObservation,
+          '    fn capture_at_for_test(',
+          '    pub fn capture_at_for_test(',
+          'public deterministic apply clock hook'
+        ),
+      },
+    },
+    {
+      label: 'mutable lifecycle capture parameter',
+      overrides: {
+        applyObservation: replacedExactlyOnce(
+          applyObservation,
+          `    pub fn capture(
+        command: &VelocityCommandCandidateV1,
+        lifecycle: &LifecycleMachine,`,
+          `    pub fn capture(
+        command: &VelocityCommandCandidateV1,
+        lifecycle: &mut LifecycleMachine,`,
+          'mutable lifecycle capture parameter'
+        ),
+      },
+    },
+    {
+      label: 'removed command-policy profile check',
+      overrides: {
+        applyObservation: replacedExactlyOnce(
+          applyObservation,
+          '    if command_profile != policy_profile {',
+          '    if false {',
+          'removed command-policy profile check'
+        ),
+      },
+    },
+    {
+      label: 'generation inspected before profile',
+      overrides: {
+        applyObservation: replacedExactlyOnce(
+          applyObservation,
+          '    let command_profile = command.profile().identity();',
+          '    let _early_generation = command.generation();\n    let command_profile = command.profile().identity();',
+          'generation inspected before profile'
+        ),
+      },
+    },
+    {
+      label: 'clock minted before identity checks',
+      overrides: {
+        applyObservation: replaced(
+          applyObservation,
+          '        let lifecycle_observation = precheck(command, lifecycle, age_policy)?;',
+          '        let _early_clock = Instant::now();\n        let lifecycle_observation = precheck(command, lifecycle, age_policy)?;',
+          'clock minted before identity checks'
+        ),
+      },
+    },
+    {
+      label: 'non-active lifecycle rejection',
+      overrides: {
+        applyObservation: replacedExactlyOnce(
+          applyObservation,
+          '    let lifecycle_observation = LifecycleObservationAtCheckV1 {',
+          '    if lifecycle.state() != PlantState::Active { return Err(ApplyCheckObservationErrorV1::CommandClockRegression); }\n    let lifecycle_observation = LifecycleObservationAtCheckV1 {',
+          'non-active lifecycle rejection'
+        ),
+      },
+    },
+    {
+      label: 'lifecycle mutation from apply observation',
+      overrides: {
+        applyObservation: replacedExactlyOnce(
+          applyObservation,
+          '    let lifecycle_observation = LifecycleObservationAtCheckV1 {',
+          '    lifecycle.apply(todo!());\n    let lifecycle_observation = LifecycleObservationAtCheckV1 {',
+          'lifecycle mutation from apply observation'
+        ),
+      },
+    },
+    {
+      label: 'command clock regression defaulted to zero',
+      overrides: {
+        applyObservation: replacedExactlyOnce(
+          applyObservation,
+          `            .elapsed_at(checked_at)
+            .ok_or(ApplyCheckObservationErrorV1::CommandClockRegression)?;`,
+          `            .elapsed_at(checked_at)
+            .unwrap_or(Duration::ZERO);`,
+          'command clock regression defaulted to zero'
+        ),
+      },
+    },
+    {
+      label: 'apply-observation top-level static',
+      expectedError: 'apply-observation statics are forbidden',
+      overrides: {
+        applyObservation: `${applyObservation}\npub static APPLY_ALLOWED: bool = true;\n`,
+      },
+    },
+    {
+      label: 'command age recaptures monotonic instant',
+      overrides: {
+        applyObservation: replacedExactlyOnce(
+          applyObservation,
+          '.elapsed_at(checked_at)',
+          '.elapsed_at(Instant::now())',
+          'command age recaptures monotonic instant'
+        ),
+      },
+    },
+    {
+      label: 'candidate associated function-pointer constant',
+      expectedError: 'ApplyCheckObservationCandidateV1 associated constants/statics are forbidden',
+      overrides: {
+        applyObservation: replacedExactlyOnce(
+          applyObservation,
+          "impl<'policy> ApplyCheckObservationCandidateV1<'policy> {",
+          `impl<'policy> ApplyCheckObservationCandidateV1<'policy> {
+    pub const LOAD_HEALTH: fn(
+        &VehicleHealthReaderV1,
+        RuntimeGeneration,
+    ) -> Result<(ObservedVehicleHealthV1, Instant), VehicleHealthReadError> =
+        VehicleHealthReaderV1::load_for_apply_observation;`,
+          'candidate associated function-pointer constant'
+        ),
+      },
+    },
+    {
+      label: 'requested lifetime equality accepted within',
+      overrides: {
+        applyObservation: replacedExactlyOnce(
+          applyObservation,
+          '        if self.command_age < self.requested_ttl.get() {',
+          '        if self.command_age <= self.requested_ttl.get() {',
+          'requested lifetime equality accepted within'
+        ),
+      },
+    },
+    {
+      label: 'health policy assessment skipped',
+      overrides: {
+        applyObservation: replacedExactlyOnce(
+          applyObservation,
+          '        let health = age_policy.assess(observed).map_err(map_assessment_error)?;',
+          '        let health = observed;',
+          'health policy assessment skipped'
+        ),
+      },
+    },
+    {
+      label: 'command velocity inspected',
+      overrides: {
+        applyObservation: replacedExactlyOnce(
+          applyObservation,
+          '        let command_age = command',
+          '        let _velocity = command.velocity();\n        let command_age = command',
+          'command velocity inspected'
+        ),
+      },
+    },
+    {
+      label: 'ungated command receipt-time mutator',
+      expectedError: 'command receipt-time mutator must remain cfg(test) and crate-private',
+      overrides: {
+        contract: replacedExactlyOnce(
+          contract,
+          '    #[cfg(test)]\n    pub(crate) fn with_received_at_for_test(',
+          '    pub(crate) fn with_received_at_for_test(',
+          'ungated command receipt-time mutator'
+        ),
+      },
+    },
+    {
+      label: 'ungated publisher poison hook',
+      expectedError: 'vehicle-health publisher poison hook must remain cfg(test) and crate-private',
+      overrides: {
+        health: replacedExactlyOnce(
+          health,
+          '    #[cfg(test)]\n    pub(crate) fn poison_for_test(&self)',
+          '    pub(crate) fn poison_for_test(&self)',
+          'ungated publisher poison hook'
+        ),
+      },
+    },
+    {
+      label: 'crate-root raw health-hook escape',
+      expectedError:
+        'apply-observation candidate and hook must remain unwired in the plant crate root',
+      overrides: {
+        library: `${library}\npub fn raw_apply_observation_health_load(
+    reader: &VehicleHealthReaderV1,
+    generation: RuntimeGeneration,
+) -> Result<(ObservedVehicleHealthV1, std::time::Instant), VehicleHealthReadError> {
+    reader.load_for_apply_observation(generation)
+}\n`,
+      },
+    },
+    {
+      label: 'thread capability',
+      overrides: {
+        applyObservation: `${applyObservation}\nfn spawn_apply() { std::thread::spawn(|| {}); }\n`,
+      },
+    },
+    {
+      label: 'candidate boolean conversion',
+      overrides: {
+        applyObservation: `${applyObservation}\nimpl From<ApplyCheckObservationCandidateV1<'_>> for bool { fn from(_: ApplyCheckObservationCandidateV1<'_>) -> Self { true } }\n`,
+      },
+    },
+    {
+      label: 'crate-root apply wiring',
+      overrides: {
+        library: `${library}\nfn consume_apply(_: ApplyCheckObservationCandidateV1<'_>) {}\n`,
+      },
+    },
+    {
+      label: 'runtime apply-observation consumption',
+      overrides: {
+        runtime: `${runtime}\nfn consume_apply(_: crate::ApplyCheckObservationCandidateV1<'_>) {}\n`,
+      },
+    },
+    {
+      label: 'public health apply-observation hook',
+      overrides: {
+        health: replacedExactlyOnce(
+          health,
+          '    pub(crate) fn load_for_apply_observation(',
+          '    pub fn load_for_apply_observation(',
+          'public health apply-observation hook'
+        ),
+      },
+    },
+    {
+      label: 'test-only health apply-observation hook',
+      overrides: {
+        health: replacedExactlyOnce(
+          health,
+          '    pub(crate) fn load_for_apply_observation(',
+          '    #[cfg(test)]\n    pub(crate) fn load_for_apply_observation(',
+          'test-only health apply-observation hook'
+        ),
+      },
+    },
+    {
+      label: 'health hook recaptures monotonic instant',
+      overrides: {
+        health: replacedExactlyOnce(
+          health,
+          '        let observed = observe_commit(commit, observed_at)?;',
+          '        let observed = observe_commit(commit, Instant::now())?;',
+          'health hook recaptures monotonic instant'
+        ),
+      },
+    },
+    {
+      label: 'health hook called from runtime module',
+      overrides: {
+        runtime: `${runtime}\nfn bypass(reader: &crate::VehicleHealthReaderV1, generation: crate::RuntimeGeneration) { let _ = reader.load_for_apply_observation(generation); }\n`,
+      },
+    },
+  ]
+
+  for (const fixture of cases) {
+    let rejection = null
+    try {
+      verifyApplyObservationBoundary(fixture.overrides)
+    } catch (error) {
+      rejection = error instanceof Error ? error.message : String(error)
+    }
+    if (rejection === null) fail(`apply-observation boundary accepted mutation: ${fixture.label}`)
+    if (fixture.expectedError && !rejection.includes(fixture.expectedError)) {
+      fail(
+        `apply-observation boundary mutation '${fixture.label}' rejected for the wrong reason: ${rejection}`
+      )
+    }
+  }
+  if (cases.length !== 44)
+    fail(`apply-observation boundary mutation inventory drift; expected 44, got ${cases.length}`)
+  return cases.length
+}
+
 function verify() {
   if (!existsSync(PLANT_MANIFEST)) fail('plant package manifest is missing')
   if (lstatSync(PLANT_ROOT).isSymbolicLink()) fail('plant package root must not be a symbolic link')
@@ -5005,6 +6447,8 @@ function verify() {
 
   verifyVehicleHealthBoundary()
   const healthNegativeMutations = verifyVehicleHealthBoundaryMutations()
+  verifyApplyObservationBoundary()
+  const applyObservationNegativeMutations = verifyApplyObservationBoundaryMutations()
   verifySafeActionBoundary()
   const safeActionNegativeMutations = verifySafeActionBoundaryMutations()
   verifyDeadlineMonitorBoundary()
@@ -5053,17 +6497,21 @@ function verify() {
     files: rustFiles.length,
     packages: metadata.workspace_members.length,
     healthNegativeMutations,
+    applyObservationNegativeMutations,
     safeActionNegativeMutations,
     deadlineMonitorNegativeMutations,
     boundaryNegativeMutations:
-      healthNegativeMutations + safeActionNegativeMutations + deadlineMonitorNegativeMutations,
+      healthNegativeMutations +
+      applyObservationNegativeMutations +
+      safeActionNegativeMutations +
+      deadlineMonitorNegativeMutations,
   }
 }
 
 try {
   const result = verify()
   console.log(
-    `OK: inert plant boundary verified (${result.files} Rust files, ${result.packages} workspace packages, zero dependencies, ${result.boundaryNegativeMutations} plant-authority boundary mutations rejected: ${result.healthNegativeMutations} health/freshness, ${result.safeActionNegativeMutations} safe-action, and ${result.deadlineMonitorNegativeMutations} deadline-monitor)`
+    `OK: inert plant boundary verified (${result.files} Rust files, ${result.packages} workspace packages, zero dependencies, ${result.boundaryNegativeMutations} plant-authority boundary mutations rejected: ${result.healthNegativeMutations} health/freshness, ${result.safeActionNegativeMutations} safe-action, ${result.deadlineMonitorNegativeMutations} deadline-monitor, and ${result.applyObservationNegativeMutations} apply-observation)`
   )
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error))

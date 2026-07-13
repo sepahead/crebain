@@ -1261,6 +1261,11 @@ pub struct VehicleHealthPublisherV1 {
 }
 
 impl VehicleHealthPublisherV1 {
+    #[cfg(test)]
+    pub(crate) fn poison_for_test(&self) {
+        self.sender.poison_for_test();
+    }
+
     /// Validates and atomically commits one complete report.
     ///
     /// The structural source identity is compared but not authenticated. Failed
@@ -1648,6 +1653,23 @@ impl VehicleHealthReaderV1 {
     ) -> Result<ObservedVehicleHealthV1, VehicleHealthReadError> {
         let commit = self.load_commit(current_generation)?;
         observe_commit(commit, Instant::now())
+    }
+
+    /// Loads one coherent snapshot, then mints the private apply-observation
+    /// instant used to compute every returned age.
+    ///
+    /// Loading before timestamp capture prevents a concurrently published
+    /// snapshot from carrying a receipt time later than the observation
+    /// reference merely because it won the retained-register lock after an
+    /// earlier timestamp was captured. The raw instant remains crate-private.
+    pub(crate) fn load_for_apply_observation(
+        &self,
+        current_generation: RuntimeGeneration,
+    ) -> Result<(ObservedVehicleHealthV1, Instant), VehicleHealthReadError> {
+        let commit = self.load_commit(current_generation)?;
+        let observed_at = Instant::now();
+        let observed = observe_commit(commit, observed_at)?;
+        Ok((observed, observed_at))
     }
 
     #[cfg(test)]

@@ -630,6 +630,15 @@
       "control_ids": ["CTL-005"]
     },
     {
+      "id": "TEST-PLANT-APPLY-OBSERVATION-V1",
+      "locator": {
+        "file": "src-tauri/crates/plant-authority/src/apply_observation.rs",
+        "selector": "const fn test_plant_apply_observation_v1_matrix_anchor()"
+      },
+      "hazard_ids": ["HAZ-003", "HAZ-006"],
+      "control_ids": ["CTL-003", "CTL-005"]
+    },
+    {
       "id": "TEST-PLANT-SAFE-ACTION-POLICY-V1",
       "locator": {
         "file": "src-tauri/crates/plant-authority/src/safe_action.rs",
@@ -797,7 +806,7 @@
       ".yaml",
       ".yml"
     ],
-    "production_file_manifest_sha256": "a3d4420822f04feed541a11156dc48ceb7e63ebfdb83bb34dbc1050d4ca99579",
+    "production_file_manifest_sha256": "25278b83781380a7e836239cf4fee9502a3ba5d4b983e159c0eaf7bdbd01ff74",
     "known_route_prefixes": ["mavros/", "gazebo/", "cmd/motor_speed/"],
     "development_network_modules": [
       {
@@ -2434,6 +2443,7 @@
         { "id": "TEST-PLANT-HEALTH-ADMISSION-V1", "status": "existing-component" },
         { "id": "TEST-PLANT-HEALTH-AGES-V1", "status": "existing-component" },
         { "id": "TEST-PLANT-HEALTH-FRESHNESS-V1", "status": "existing-component" },
+        { "id": "TEST-PLANT-APPLY-OBSERVATION-V1", "status": "existing-component" },
         { "id": "TEST-PLANT-SAFE-ACTION-POLICY-V1", "status": "existing-component" },
         { "id": "TEST-PLANT-MONOTONIC-EXPIRY", "status": "existing-component" },
         {

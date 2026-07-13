@@ -63,7 +63,7 @@ mode/failsafe state, estimator validity, position, velocity, battery, fence,
 links, and all group times. Checked readers expose exact ages computed from one
 monotonic instant. The source identity is not
 authenticated; real FCU sampling and multi-message coherence, exclusive epoch
-construction, approved age/state policy, apply-time checking, watchdog,
+construction, approved age/state policy, apply-time checking, operational watchdog,
 governor, authoritative safe-action classification and approved policy, and
 adapter remain absent. See
 [`docs/PLANT_HEALTH_V1.md`](../../../docs/PLANT_HEALTH_V1.md).
@@ -86,6 +86,46 @@ non-nominal. The limits and profile are not approved or authenticated, and the
 exclusive relation does not implement the draft ODD's inclusive `<=200 ms`
 position/velocity condition. See
 [`docs/PLANT_FRESHNESS_V1.md`](../../../docs/PLANT_FRESHNESS_V1.md).
+
+## Inactive apply-check observation candidate v1
+
+`apply_observation` borrows a structurally validated command, lifecycle
+machine, canonical health reader, and exact-profile age policy. It checks
+command/policy profile and command/lifecycle generation first, then loads one
+generation-checked coherent health snapshot. Only after that load succeeds does
+it privately mint one plant-monotonic reference instant. It computes all eight
+health ages first and then command receipt age relative to that same instant;
+health read/clock failures therefore precede command clock regression, followed
+by health/policy profile mismatch.
+
+The result retains command profile/session/sequence/generation, neutral
+lifecycle state/generation, command age and requested lifetime, and the owned
+health assessment. Command age strictly below the request is
+`WithinRequestedLifetimeAtCheck`; equality or greater age is
+`AtOrBeyondRequestedLifetimeAtCheck`. `Ok` can contain an expired command,
+every `PlantState` including `Emergency` and `Shutdown`, stale ages, and recent
+`Unknown` or `Unavailable` health.
+
+The candidate is not cloneable or directly constructible and exposes no raw
+instant or direct boolean accessor, has no `From` conversion to `bool`, and
+supplies no aggregate or authorizing verdict, permit, authorization token,
+command content, velocity, action, output revocation, safe action, adapter
+conversion, I/O, or runtime wiring. Callers can compare its retained facts. It
+can stale immediately and is not a write-adjacent atomic transaction across
+command, lifecycle, health, monitor, and adapter.
+
+The command carries neither `VehicleIdentity` nor
+`LocalFrameInstanceIdentity`, so exact profile and generation equality can
+compose it with health declared for another vehicle or frame instance. The
+observation supplies no HAZ-005 or HAZ-013 evidence. It is also remintable and
+not content-bound to one command: copyable command candidates with the same
+retained profile/session/sequence/generation and TTL can carry different
+velocity. An observation can therefore be misassociated and must never be
+paired to a command by those identifiers or TTL as though it were a checked
+token. It is partial CB-029/CTL-005/HAZ-003/HAZ-006 component evidence and a
+prerequisite link to CTL-003; CTL-003, `TEST-PLANT-LOCAL-TTL`, and
+`TEST-ATOMIC-STATE-STALENESS` remain planned. See
+[`docs/PLANT_APPLY_OBSERVATION_V1.md`](../../../docs/PLANT_APPLY_OBSERVATION_V1.md).
 
 ## Inactive safe-action situation dispatch candidate v1
 
@@ -115,6 +155,7 @@ velocity, adapter, or FCU action exists. See
 | Generic snapshot mechanics | One retained `Arc`-backed commit | Disconnected low-level register; loads are non-consuming and replacement atomically associates one generic value, caller-supplied generation, and register sequence |
 | Canonical health snapshot | One sealed typed publisher/reader pair | Validates the closed immutable context-bound report and per-channel source sequence before coherent replacement; checked loads expose ages without a freshness verdict |
 | Captured-read age assessment | One owned coherent observation plus one borrowed exact policy | Compares eight captured ages with named nonzero exclusive limits; does not refresh time, aggregate health, or authorize action |
+| Apply-check observation candidate | One validated command reference, one immutable lifecycle borrow, one coherent health snapshot loaded before the reference instant, and one borrowed exact age policy | Evaluates command receipt age and all health ages relative to one later private monotonic instant; records strict relations and neutral lifecycle facts without an aggregate/authorizing verdict, command-content or vehicle/frame-instance binding, permit, command/action conversion, I/O, or write |
 | Safe-action situation dispatch candidate | Fixed 255-slot owned table plus one borrowed exact policy per selection | Rejects zero codes, empty/oversized/duplicate proposals, exact-profile mismatch, and missing rows; does not classify state, default an intent, or produce an adapter action |
 | Active command deadline monitor candidate | One owned worker, one fixed profile/session/generation, one active ticket slot, and one sticky terminal outcome | Accepts only a separately validated higher-sequence ticket with non-regressing receipt time; has no queue, reset, refresh, extension, rearm, output revocation, safe-action conversion, or adapter effect |
 | Lifecycle | Fixed bounded FIFO | Reject new work; the runtime must latch a safety cause |
@@ -135,10 +176,14 @@ and does not validate the freshness or order of a caller-supplied generation.
 The canonical `KernelChannels` path no longer accepts a substitutable generic
 health type or exposes raw snapshot endpoints; it uses the concrete health
 candidate above. The separate age classifier does not change that endpoint or
-create a runtime consumer. CB-030 remains partial because the component still
-lacks authenticated/attested FCU provenance, real aggregation coherence,
-approved age/state semantics, durable epoch ownership, and an apply-time
-consumer.
+create a runtime consumer. The apply-check observation uses only crate-private
+hooks to load one coherent health snapshot first and then evaluate its health
+ages and command age relative to one later instant; it does not publish to the
+channel or become a runtime consumer. CB-029/CB-030 and CTL-005 remain partial
+because the components still lack authenticated/attested FCU provenance, real
+aggregation coherence, approved age/state semantics, durable epoch ownership,
+command-to-health vehicle/frame-instance and content binding, and a
+non-bypassable immediately-before-write consumer.
 
 ## Passive expiry mechanics
 
@@ -194,6 +239,13 @@ partial CB-027/HAZ-003 component evidence only; CTL-003 and
 `TEST-PLANT-LOCAL-TTL` remain planned. See
 [`docs/PLANT_WATCHDOG_V1.md`](../../../docs/PLANT_WATCHDOG_V1.md).
 
+The separate apply-check observation does not consume a deadline ticket or
+terminal event, and the monitor does not consume the observation. Sharing a
+command identity between inert components does not create an atomic
+monitor-to-write path. Nor do matching retained command identifiers and TTL
+bind a remintable observation to command content; they must not be used to pair
+an observation to a command as a checked token.
+
 The package has no dependencies and the boundary checker rejects links or
 source references to the application library, Tauri, NCP/Zenoh, transport,
 inference, fusion, simulation, ROS, Gazebo, or MAVROS. An operational watchdog, trusted
@@ -211,9 +263,19 @@ publisher, captured-read observation/policy ownership, strict exclusive
 comparison, safe-action profile/code binding, fixed no-default dispatch table,
 non-cloneable selection, validated-candidate-only deadline tickets, fixed
 single-slot monitor identity and strict replacement, terminal evidence
-separation, absence of a boolean/aggregate verdict, and absence of raw retained
-endpoints, implicit conversions, or runtime consumption. Future
+separation, a coherent health snapshot loaded before one private reference
+instant shared by command and health age calculation, neutral lifecycle
+capture, strict requested-lifetime equality outside, non-cloneable but
+remintable apply observation, no direct boolean accessor or `From` conversion
+to `bool`, no aggregate/authorizing verdict, no command-content or
+vehicle/frame-instance binding, and absence of raw retained endpoints,
+command/action/adapter conversions, or runtime consumption. Future
 adapter I/O requires an explicit boundary-policy change and review.
+
+The plant suite contains 123 unit/integration tests and 24 compile-fail
+doctests. The static boundary checker exercises 231 fail-closed fixtures: 64
+health/freshness, 51 safe action, 72 deadline monitor, and 44 apply observation.
+Those counts are component/source evidence only.
 
 ```bash
 cargo test --locked --manifest-path src-tauri/Cargo.toml -p crebain-plant-authority
