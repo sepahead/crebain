@@ -127,9 +127,10 @@ The three paths and when to use them:
 - **Galadriel evidence producer (native NCP, optional)** — absent from default
   binaries and disabled unless an `ncp` build also receives exact runtime opt-in
   plus valid registry/config/executable pins. It can put frozen evidence only to
-  `galadriel-pid` and `galadriel-monitor` named-perception keys. Its secure-mode
-  request, local queue accounting, and codec tests are not deployed
-  TLS/ACL/receiver proof.
+  `galadriel-pid` and `galadriel-monitor` named-perception keys. Startup owns an
+  immutable effective fusion engine; active initialization is readiness-only and
+  a config update cannot replace it. Its secure-mode request, local queue/input
+  accounting, and codec tests are not deployed TLS/ACL/receiver proof.
 - **Tauri commands/events** — small frontend/backend notifications only.
   Tauri's own documentation notes that events are JSON and are not intended for
   low-latency or high-throughput streaming.
@@ -385,7 +386,20 @@ The producer does not execute registry transform chains. It attaches a common
 projection only when the incoming `source_frame_id` already names the selected
 canonical ENU frame and the modality's transform chain is empty; otherwise the
 evidence is explicitly incomparable. Frame-name equality is not authenticated
-sensor provenance. Queue lanes are bounded and report drops/degradation, but
+sensor provenance. V1 also requires an advancing fusion/frame timestamp and a
+strictly newer equal timestamp for that track/modality channel. The renderer
+keeps one sensor-clock high-water, reuses it for empty frames, and commits it only
+after native success. Duplicate, out-of-order, or mixed-old measurements can
+still use baseline fusion but cannot claim v1.
+
+Renderer/native input admission keeps the newest bounded measurements and turns
+malformed, buffer-overflow, registry-trim, or track-capacity loss into sticky
+degraded/truncated frame state. Native work is capped at 512 measurements and
+1,024 live tracks with explicit numeric/string/metadata envelopes. Track-capacity
+overflow drops whole birth clusters before the final ledger; numeric upstream
+loss is not present on the frozen wire summary. Sparse finite-component
+assignment and an all-infinite short circuit are component-tested, not deployed
+combined-load/deadline evidence. Queue lanes are bounded and report drops/degradation, but
 single-worker monitor ordering can delay heartbeats behind older events. Those
 limits are part of the architectural boundary, not end-to-end liveness proof.
 The optional JSONL archive is another boundary: active admission uses a separate

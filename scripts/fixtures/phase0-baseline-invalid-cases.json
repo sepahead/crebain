@@ -1078,14 +1078,14 @@
       "expected_error": "locator is not a checked test source"
     },
     {
-      "id": "external-main-pin-drift",
+      "id": "external-main-branch-pin-drift",
       "mutation": {
         "type": "set",
         "document": "ecosystem",
         "path": ["external_repositories", 2, "remote_main_at_capture"],
         "value": "0000000000000000000000000000000000000000"
       },
-      "expected_error": "Galadriel commit does not match remote_main_at_capture"
+      "expected_error": "Galadriel main commit does not match remote_main_at_capture"
     },
     {
       "id": "crebain-configuration-hash-drift",

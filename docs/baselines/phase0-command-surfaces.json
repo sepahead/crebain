@@ -264,6 +264,146 @@
       }
     },
     {
+      "id": "TEST-GALADRIEL-FUSION-CONFIG-FILE",
+      "locator": {
+        "file": "src-tauri/src/lib.rs",
+        "selector": "fn galadriel_fusion_config_file_is_bounded_and_unknown_fields_fail()"
+      }
+    },
+    {
+      "id": "TEST-FUSION-NONFINITE-INPUT",
+      "locator": {
+        "file": "src-tauri/src/lib.rs",
+        "selector": "fn fusion_process_rejects_non_finite_measurement_before_locking_engine()"
+      }
+    },
+    {
+      "id": "TEST-FUSION-MAX-BATCH",
+      "locator": {
+        "file": "src-tauri/src/lib.rs",
+        "selector": "fn fusion_process_rejects_oversized_measurement_batch()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-UPSTREAM-COUNT-BOUND",
+      "locator": {
+        "file": "src-tauri/src/lib.rs",
+        "selector": "fn fusion_process_rejects_non_wire_safe_upstream_drop_count()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-REGISTRY-TRIM-LOSS",
+      "locator": {
+        "file": "src-tauri/src/lib.rs",
+        "selector": "fn registry_input_limit_keeps_newest_measurements_and_counts_loss()"
+      }
+    },
+    {
+      "id": "TEST-FUSION-OOSM-CLOCK",
+      "locator": {
+        "file": "src-tauri/src/sensor_fusion.rs",
+        "selector": "fn out_of_order_timestamp_does_not_phantom_predict_or_rewind_clock()"
+      }
+    },
+    {
+      "id": "TEST-FUSION-ZERO-CLOCK-INIT",
+      "locator": {
+        "file": "src-tauri/src/sensor_fusion.rs",
+        "selector": "fn zero_timestamp_initializes_prediction_clock_without_losing_next_gap()"
+      }
+    },
+    {
+      "id": "TEST-FUSION-SPARSE-ASSIGNMENT",
+      "locator": {
+        "file": "src-tauri/src/sensor_fusion.rs",
+        "selector": "fn solve_assignment_decomposes_disconnected_finite_components()"
+      }
+    },
+    {
+      "id": "TEST-FUSION-ALL-INF-ASSIGNMENT",
+      "locator": {
+        "file": "src-tauri/src/sensor_fusion.rs",
+        "selector": "fn solve_assignment_short_circuits_maximum_all_inf_matrix()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-EXACT-TIME-V1",
+      "locator": {
+        "file": "src-tauri/src/sensor_fusion.rs",
+        "selector": "fn unsynchronized_or_nonmonotonic_inputs_never_claim_v1()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-DUPLICATE-ZERO-TIME",
+      "locator": {
+        "file": "src-tauri/src/sensor_fusion.rs",
+        "selector": "fn duplicate_zero_epoch_timestamp_never_claims_v1()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-TRACK-CAPACITY",
+      "locator": {
+        "file": "src-tauri/src/sensor_fusion.rs",
+        "selector": "fn track_capacity_rejection_closes_a_truncated_frame_and_recovers()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-PID-HIGHWATER-PURGE",
+      "locator": {
+        "file": "src-tauri/src/sensor_fusion.rs",
+        "selector": "fn deleted_updated_track_does_not_leak_pid_timestamp_highwater()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-EXTREME-FINITE-INPUT",
+      "locator": {
+        "file": "src-tauri/src/sensor_fusion.rs",
+        "selector": "fn extreme_finite_input_fails_before_evidence_state_mutation()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-INVALID-GATE",
+      "locator": {
+        "file": "src-tauri/src/sensor_fusion.rs",
+        "selector": "fn invalid_internal_gate_score_emits_no_fabricated_numeric_evidence()"
+      }
+    },
+    {
+      "id": "TEST-ROS-SINGLE-MESSAGE-LOSS",
+      "locator": {
+        "file": "src/ros/__tests__/useROSSensors.bridge.test.tsx",
+        "selector": "reports single-message detection truncation to native frame admission"
+      }
+    },
+    {
+      "id": "TEST-ROS-BUFFER-LOSS",
+      "locator": {
+        "file": "src/ros/__tests__/useROSSensors.bridge.test.tsx",
+        "selector": "reports accumulated buffer overflow instead of nominal survivor-only fusion"
+      }
+    },
+    {
+      "id": "TEST-ROS-VISUAL-FRAME-TIME",
+      "locator": {
+        "file": "src/ros/__tests__/useROSSensors.bridge.test.tsx",
+        "selector": "preserves one timestamp for visual tracks emitted from the same detector frame"
+      }
+    },
+    {
+      "id": "TEST-ROS-SENSOR-CLOCK",
+      "locator": {
+        "file": "src/ros/__tests__/useROSSensors.bridge.test.tsx",
+        "selector": "keeps data, empty, and mixed cycles on one monotonic sensor clock"
+      }
+    },
+    {
+      "id": "TEST-ROS-CLOCK-COMMIT",
+      "locator": {
+        "file": "src/ros/__tests__/useROSSensors.bridge.test.tsx",
+        "selector": "does not let a rejected future batch poison the renderer clock"
+      }
+    },
+    {
       "id": "TEST-GUIDANCE-NO-AUTHORITY",
       "locator": {
         "file": "src/ros/__tests__/GuidanceController.test.ts",
@@ -604,7 +744,7 @@
       ".yaml",
       ".yml"
     ],
-    "production_file_manifest_sha256": "6507ce06ba214de4e9a94ffaa9d32aeba398c69d3d55f79db7ce83376fc0804f",
+    "production_file_manifest_sha256": "61883db529652dcc550ab682ba89e1c64c01946f6d9c1622c2148e484e639f0e",
     "known_route_prefixes": ["mavros/", "gazebo/", "cmd/motor_speed/"],
     "development_network_modules": [
       {
@@ -733,12 +873,31 @@
         { "id": "TEST-FUSION-CONTRACT", "status": "existing" },
         { "id": "TEST-GALADRIEL-FUSION-LEDGER", "status": "existing-component" },
         { "id": "TEST-GALADRIEL-PROJECTION-REFUSAL", "status": "existing-component" },
+        { "id": "TEST-FUSION-NONFINITE-INPUT", "status": "existing-component" },
+        { "id": "TEST-FUSION-MAX-BATCH", "status": "existing-component" },
+        { "id": "TEST-GALADRIEL-UPSTREAM-COUNT-BOUND", "status": "existing-component" },
+        { "id": "TEST-GALADRIEL-REGISTRY-TRIM-LOSS", "status": "existing-component" },
+        { "id": "TEST-FUSION-OOSM-CLOCK", "status": "existing-component" },
+        { "id": "TEST-FUSION-ZERO-CLOCK-INIT", "status": "existing-component" },
+        { "id": "TEST-FUSION-SPARSE-ASSIGNMENT", "status": "existing-component" },
+        { "id": "TEST-FUSION-ALL-INF-ASSIGNMENT", "status": "existing-component" },
+        { "id": "TEST-GALADRIEL-EXACT-TIME-V1", "status": "existing-component" },
+        { "id": "TEST-GALADRIEL-DUPLICATE-ZERO-TIME", "status": "existing-component" },
+        { "id": "TEST-GALADRIEL-TRACK-CAPACITY", "status": "existing-component" },
+        { "id": "TEST-GALADRIEL-PID-HIGHWATER-PURGE", "status": "existing-component" },
+        { "id": "TEST-GALADRIEL-EXTREME-FINITE-INPUT", "status": "existing-component" },
+        { "id": "TEST-GALADRIEL-INVALID-GATE", "status": "existing-component" },
+        { "id": "TEST-ROS-SINGLE-MESSAGE-LOSS", "status": "existing-component" },
+        { "id": "TEST-ROS-BUFFER-LOSS", "status": "existing-component" },
+        { "id": "TEST-ROS-VISUAL-FRAME-TIME", "status": "existing-component" },
+        { "id": "TEST-ROS-SENSOR-CLOCK", "status": "existing-component" },
+        { "id": "TEST-ROS-CLOCK-COMMIT", "status": "existing-component" },
         { "id": "TEST-EVIDENCE-INSUFFICIENCY", "status": "planned" }
       ],
       "members": [
         {
           "id": "SURF-009",
-          "name": "Process sensor fusion batch; conditionally admit exact-route Galadriel evidence",
+          "name": "Process a bounded sensor fusion batch; account upstream/capacity loss and conditionally admit exact-time, exact-route Galadriel evidence",
           "route": "fusion_process",
           "locator": { "file": "src-tauri/src/lib.rs", "symbol": "fusion_process" },
           "status": "registered",
@@ -776,12 +935,13 @@
       "tests": [
         { "id": "TEST-FUSION-CONFIG-VALIDATION", "status": "existing" },
         { "id": "TEST-GALADRIEL-ACTUAL-PINS", "status": "existing-component" },
-        { "id": "TEST-GALADRIEL-DEFAULT-CONFIG-PIN", "status": "existing-component" }
+        { "id": "TEST-GALADRIEL-DEFAULT-CONFIG-PIN", "status": "existing-component" },
+        { "id": "TEST-GALADRIEL-FUSION-CONFIG-FILE", "status": "existing-component" }
       ],
       "members": [
         {
           "id": "SURF-008",
-          "name": "Initialize fusion state; active producer requires the pinned config and pre-evidence epoch",
+          "name": "Initialize fusion state; active producer treats this as readiness-only and retains the startup-loaded immutable config",
           "route": "fusion_init",
           "locator": { "file": "src-tauri/src/lib.rs", "symbol": "fusion_init" },
           "status": "registered",
@@ -2285,7 +2445,12 @@
       "tests": [
         { "id": "TEST-GALADRIEL-OPT-IN", "status": "existing-component" },
         { "id": "TEST-GALADRIEL-REGISTRY-PIN", "status": "existing-component" },
-        { "id": "TEST-GALADRIEL-ACTUAL-PINS", "status": "existing-component" }
+        { "id": "TEST-GALADRIEL-ACTUAL-PINS", "status": "existing-component" },
+        { "id": "TEST-GALADRIEL-FUSION-CONFIG-FILE", "status": "existing-component" },
+        { "id": "TEST-FUSION-NONFINITE-INPUT", "status": "existing-component" },
+        { "id": "TEST-FUSION-MAX-BATCH", "status": "existing-component" },
+        { "id": "TEST-GALADRIEL-UPSTREAM-COUNT-BOUND", "status": "existing-component" },
+        { "id": "TEST-GALADRIEL-REGISTRY-TRIM-LOSS", "status": "existing-component" }
       ],
       "members": [
         {
@@ -2405,6 +2570,21 @@
           "id": "TEST-GALADRIEL-PROJECTION-OUTCOME-MATCH",
           "status": "existing-component"
         },
+        { "id": "TEST-GALADRIEL-EXACT-TIME-V1", "status": "existing-component" },
+        { "id": "TEST-GALADRIEL-DUPLICATE-ZERO-TIME", "status": "existing-component" },
+        { "id": "TEST-GALADRIEL-TRACK-CAPACITY", "status": "existing-component" },
+        {
+          "id": "TEST-GALADRIEL-PID-HIGHWATER-PURGE",
+          "status": "existing-component"
+        },
+        {
+          "id": "TEST-GALADRIEL-EXTREME-FINITE-INPUT",
+          "status": "existing-component"
+        },
+        { "id": "TEST-GALADRIEL-INVALID-GATE", "status": "existing-component" },
+        { "id": "TEST-FUSION-SPARSE-ASSIGNMENT", "status": "existing-component" },
+        { "id": "TEST-FUSION-ALL-INF-ASSIGNMENT", "status": "existing-component" },
+        { "id": "TEST-GALADRIEL-REGISTRY-TRIM-LOSS", "status": "existing-component" },
         { "id": "TEST-GALADRIEL-RECEIVER-DELIVERY", "status": "planned" }
       ],
       "members": [

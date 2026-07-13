@@ -102,8 +102,8 @@ flowchart TD
 
 1. **Predict** — every existing track is advanced from its last update to the
    current frame time using the constant-velocity motion model. `dt` is computed
-   from the actual frame timestamps (clamped to ≤ 1 s) so the prediction stays
-   correct under a variable frame rate.
+   from a monotonic frame clock, integrated in ≤1 s substeps, and capped at 60 s
+   of work so variable-rate gaps do not create one huge linearization step.
 2. **Associate** — see [Data association and gating](#data-association-and-gating).
 3. **Update** — associated measurements correct the track's state and shrink its
    covariance through the selected filter.
@@ -157,6 +157,22 @@ already equals the selected registry frame's canonical ENU identity and the
 modality's registry transform chain is empty. Missing/different identity or any
 transform step yields explicitly incomparable evidence. String equality is not
 cryptographic sensor authentication or proof that calibration was applied.
+
+Input validation bounds both representation and computation before filter work:
+one batch contains at most 512 measurements; Cartesian coordinates and radar
+range are bounded to 10,000,000 m; each optional Cartesian velocity component to
+100,000 m/s; diagonal variances to `(0, 1e12]`; metadata to 64 entries with each
+numeric magnitude at most `1e12`; and measurement strings to 256 bytes. Radar
+angles retain their documented polar-domain limits. These are safety/computation
+ceilings, not statements that values near them are physically meaningful.
+
+The renderer supplies a monotonic sensor/header-domain frame clock. Tracks from
+one visual detector pass share one captured timestamp. A nonempty cycle advances
+to the maximum prior/input stamp, an empty cycle reuses the prior stamp, and the
+pre-data neutral value is zero. The active native path clamps only an empty
+neutral frame to the registry applicability floor. Renderer high-water state is
+committed only after native success. Baseline fusion still uses one frame time;
+it does not retrodict mixed or out-of-order measurements.
 
 > **Historical note.** Radar/lidar measurements were previously converted
 > spherical→Cartesian on the TypeScript side *and* re-interpreted as polar in Rust,
@@ -474,8 +490,10 @@ The native engine is configured through `FusionConfig`
 Galadriel deployment, the effective fully materialized compact JSON is SHA-256
 pinned to both the environment and selected registry context. Presence of
 `CREBAIN_PID_JSONL` forces `emit_innovations=true` before hashing. Runtime
-`fusion_init`/`fusion_set_config` cannot replace an active pinned deployment with
-a different digest. See [GALADRIEL_PRODUCER.md](GALADRIEL_PRODUCER.md).
+`fusion_init` becomes a readiness-only call that ignores UI defaults, while
+`fusion_set_config` accepts only the already pinned digest; neither replaces the
+active startup-loaded engine. See
+[GALADRIEL_PRODUCER.md](GALADRIEL_PRODUCER.md).
 
 Per-modality measurement covariances are set by the producers in `useROSSensors.ts`
 and reflect realistic sensor characteristics: lidar tightest (`[0.1, 0.1, 0.1]` m²),
@@ -484,20 +502,30 @@ radar good in range / coarse in angle (`[0.5 m², (1°)², (1.5°)²]`), thermal
 
 The **fusion rate** (`fusionRateHz`, default 10 Hz, clamped to 1–60 Hz) is set on the
 ROS hook; measurements are buffered between cycles, with a backpressure guard that
-drops the oldest measurements if a topic floods.
+drops the oldest measurements if a topic floods. Malformed detections and buffer
+loss are counted and passed to native admission. If the registry limit is below
+the 512-item renderer/native ceiling, native admission additionally removes the
+oldest inputs. The active producer retains the newest bounded set, permanently
+degrades the epoch, and marks the frame summary degraded/truncated. At the active
+track limit it drops complete deterministic overflow birth clusters before the
+final association plan and closes the frame with the same flags.
 
 ---
 
 ## Validation and metrics
 
 The engine ships with Rust unit and multi-frame scenario tests
-(`cargo test sensor_fusion`) covering the predict/update math, the track lifecycle,
+(`cargo test --locked --manifest-path src-tauri/Cargo.toml sensor_fusion`) covering the
+predict/update math, the track lifecycle,
 polar radar integration, the lidar Cartesian contract, algorithm switching, and
 Joseph-form covariance stability. NCP-feature tests additionally cover the
 frozen-prior ledger, deterministic outcome/miss ordering, one-per-track/modality
-v1 selection, source-frame projection refusal, registry bounds, queue loss, and
-monitor summaries. These remain component tests. The browser engine and ROS
-bridge have Vitest coverage (`bun run test:run`).
+v1 selection, strict per-channel timestamps, source-frame projection refusal,
+numeric/registry/track-cap bounds, invalid-gate refusal, sparse/all-infinite
+assignment, queue and upstream loss, and monitor summaries. These remain
+component tests. The browser engine and ROS bridge have Vitest coverage for
+malformed/buffer loss, same-frame visual stamps, monotonic empty/data cycles, and
+commit-on-success (`bun run test:run`).
 
 For deeper tracker validation — recommended before any accuracy claim against real
 hardware — the standard tools are:
@@ -522,9 +550,8 @@ targets — not single happy-path runs.
 
 ## Known limitations and roadmap
 
-Most of this roadmap has now been implemented; the table records each item's status.
-The two remaining open items are deliberate simplifications that bound accuracy without
-crashing the engine.
+Most of this roadmap has now been implemented; the table records each item's
+status and preserves the remaining scientific and deployment gaps.
 
 | # | Item | Status |
 |---|------|--------|
@@ -532,17 +559,20 @@ crashing the engine.
 | 2 | Information-form / covariance-weighted sequential per-sensor fusion (each modality its own `R`) | ✅ Implemented |
 | 3 | Sliding-window **M-of-N** confirmation + covariance-volume deletion | ✅ Implemented |
 | 4 | Per-measurement `R` threaded into every filter update (KF / EKF / UKF / PF / IMM) | ✅ Implemented |
-| 5 | **Per-measurement timestamps / OOSM** — one global `dt` per frame; asynchronous sensors mis-timed, no out-of-sequence handling | ⬜ **Open** — predict each track to its own measurement time; OOSM buffering/retrodiction (deferred; no recovered spec) |
+| 5 | **Per-measurement timestamps / OOSM** — baseline filter uses one monotonic frame time | ⬜ **Open** — live v1/projection now requires exact advancing same-time stamps and rejects duplicate/OOSM evidence, but per-measurement prediction and retrodiction remain deferred |
 | 6 | CV + **Coordinated-Turn** IMM (two-model bank) | ✅ Implemented (CT added; a constant-acceleration mode is still deferred) |
 | 7 | Geometric (skew-ray closest-approach + cheirality) cross-camera gate in the browser engine | ✅ Implemented |
 | 8 | **Diagonal-only measurement covariances** at the TS↔Rust boundary | ⬜ **Open** — full 3×3 covariances (incl. the polar→Cartesian Jacobian cross-terms and Doppler) |
 | 9 | Registry-driven calibration and transform-chain execution | ⬜ **Open** — the producer supports identity-only already-canonical ENU projection; referenced artifacts are not loaded or hashed |
 | 10 | Deployed Galadriel receiver/assembler, heartbeat deadline, loss/reorder/restart/saturation evidence | ⬜ **Open** — producer queues/codecs are component-tested only |
+| 11 | Wire-visible numeric upstream/track-cap loss accounting | ⬜ **Open** — producer logs the count and latches degraded/truncated, but the frozen frame-summary schema carries flags rather than the loss count |
+| 12 | Target combined-load bounds for maximum sparse/dense association | ⬜ **Open** — component tests bound and short-circuit the 512×1,024 mechanics; deployed latency/deadline evidence is absent |
 
 ### Remaining work
 
-Rows 1–4, 6, and 7 are implemented. Rows 9–10 deliberately preserve the live
-producer's current deployment and projection limits. The recovered agent transcript has been moved to
+Rows 1–4, 6, and 7 are implemented. Rows 9–12 deliberately preserve the live
+producer's current deployment, projection, loss-accounting, and timing limits.
+The recovered agent transcript has been moved to
 [`docs/archive/SENSOR_FUSION_AGENT_SPECS.md`](archive/SENSOR_FUSION_AGENT_SPECS.md)
 for provenance only; it is historical, contains superseded and unsafe instructions,
 and must not be used as an implementation plan. Two items are deliberately deferred:

@@ -75,6 +75,11 @@ context. The actual running executable file SHA-256 must likewise equal the
 environment and context software pins. Provision the latter from the final
 post-signing/post-packaging executable.
 
+Once active, the startup-loaded fusion engine is immutable for the producer
+epoch. Renderer `fusion_init` calls are readiness checks and their supplied
+defaults are ignored; `fusion_set_config` accepts only the already pinned
+canonical digest and does not replace the engine.
+
 The registry is strict and canonically hashed, but its calibration, transform,
 and projection-algorithm content references are not fetched or verified. Digest
 matching also does not authenticate the operator-supplied environment or prove
@@ -123,6 +128,16 @@ The full tuning table (algorithm choice, process/measurement noise, gating,
 M-of-N confirmation, covariance ceilings, particle count) is maintained in
 [SENSOR_FUSION.md](SENSOR_FUSION.md#configuration-and-tuning) — it is the
 single source of truth for fusion defaults and per-parameter guidance.
+
+The native input envelope is at most 512 measurements per call, 1,024 live
+tracks, 256-byte measurement strings, and 64 metadata entries. Cartesian
+position/radar range is bounded at 10,000,000 m, velocity components at
+100,000 m/s, covariance diagonals at `(0, 1e12]`, and metadata magnitude at
+`1e12`. A selected Galadriel registry may tighten the input/active-track limits.
+Upstream and registry trimming keep the newest inputs and make the active frame
+degraded/truncated; active-track overflow drops whole deterministic birth
+clusters. See [GALADRIEL_PRODUCER.md](GALADRIEL_PRODUCER.md) for exact-time and
+loss semantics.
 
 ## Local guidance-preview settings
 

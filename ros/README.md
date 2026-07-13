@@ -151,6 +151,14 @@ provenance. In the optional Galadriel producer, matching the configured
 canonical ENU frame plus an empty registry transform chain is necessary for a
 common projection. CREBAIN does not evaluate a transform chain, and a matching
 frame-name string is not authenticated sensor origin or calibration evidence.
+Header/detector timestamps remain in the sensor domain: one visual detector pass
+uses one captured stamp for all of its tracks, nonempty fusion frames advance to
+the newest successfully admitted input stamp, and empty frames reuse that
+high-water (zero before the first data). Duplicate, out-of-order, or mixed-old
+measurements cannot claim Galadriel v1 evidence. Malformed detections and
+renderer-buffer or native registry trimming keep the newest bounded inputs and
+mark the resulting producer frame degraded/truncated; the current frozen summary
+does not carry the numeric upstream-loss count.
 
 ## Removed mutation boundary
 

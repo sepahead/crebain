@@ -32,13 +32,13 @@ bun run validate         # typecheck + lint + format:check + frontend tests
 bun run validate:all     # NCP + frontend + inert plant + Rust default/NCP gates
 
 # Rust backend
-bun run check:rust       # cargo check --manifest-path src-tauri/Cargo.toml
-bun run test:rust        # cargo test --manifest-path src-tauri/Cargo.toml --all-targets
-bun run clippy:rust      # cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
-bun run check:rust:ncp   # check dormant NCP bridge + opt-in Galadriel producer
-bun run clippy:rust:ncp  # clippy bridge/producer, all targets, warnings denied
-bun run test:rust:ncp    # test bridge/producer feature surface, including all targets
-cargo build --manifest-path src-tauri/Cargo.toml
+bun run check:rust       # locked cargo check for src-tauri/Cargo.toml
+bun run test:rust        # locked cargo test for all default targets
+bun run clippy:rust      # locked cargo clippy for all default targets; warnings denied
+bun run check:rust:ncp   # locked check of dormant NCP bridge + opt-in Galadriel producer
+bun run clippy:rust:ncp  # locked clippy bridge/producer, all targets, warnings denied
+bun run test:rust:ncp    # locked tests for bridge/producer feature, including all targets
+cargo build --locked --manifest-path src-tauri/Cargo.toml
 ```
 
 ## Code Style
@@ -79,7 +79,7 @@ cargo build --manifest-path src-tauri/Cargo.toml
 - `inference/` - ML abstraction layer with CoreML default on macOS, experimental MLX YOLOv8 safetensors path, CUDA/TensorRT on Linux, and ONNX fallback
 - `transport/` - Zenoh-oriented transport, CDR validation, and Tauri transport commands
 - `ncp/` - Dormant NCP Engram action/control adapter behind the off-by-default `ncp` feature; its Tauri commands remain unregistered. The feature also compiles the separately exact-runtime-gated `galadriel_producer.rs`, strict `galadriel_registry.rs`, and frozen `producer_monitor.rs` evidence path. Do not describe secure config loading as TLS/ACL proof or local puts as receiver delivery. See `src-tauri/src/ncp/README.md` and `docs/GALADRIEL_PRODUCER.md`. (The dormant TypeScript peer is `src/neuro/`; Vite dev separately exposes the transport-free `window.__ncpDrone` harness.)
-- `sensor_fusion.rs` - Kalman/EKF/UKF/Particle/IMM filters plus the feature-gated frozen-prior Galadriel ledger; registry transforms are not executed
+- `sensor_fusion.rs` - Kalman/EKF/UKF/Particle/IMM filters plus the feature-gated exact-time frozen-prior Galadriel ledger, bounded upstream/capacity accounting, and sparse assignment; registry transforms are not executed and component load tests are not deployment deadline evidence
 - `lib.rs` - Tauri IPC commands and app setup
 
 ## Performance Guidelines

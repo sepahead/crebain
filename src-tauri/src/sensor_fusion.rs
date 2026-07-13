@@ -30,6 +30,13 @@ const MAX_FUSION_STRING_LEN: usize = 256;
 const MAX_FUSION_METADATA_ENTRIES: usize = 64;
 const MAX_FUSION_NOISE: f64 = 10_000.0;
 const MAX_ASSOCIATION_THRESHOLD: f64 = 100_000.0;
+/// Generous computational envelopes for untrusted measurements. These are not
+/// target-detection claims; they keep subtraction, squaring, Jacobians, and
+/// prediction comfortably inside finite `f64` arithmetic.
+const MAX_MEASUREMENT_POSITION_ABS_M: f64 = 10_000_000.0;
+const MAX_MEASUREMENT_VELOCITY_ABS_MPS: f64 = 100_000.0;
+const MAX_MEASUREMENT_VARIANCE: f64 = 1_000_000_000_000.0;
+const MAX_MEASUREMENT_METADATA_ABS: f64 = 1_000_000_000_000.0;
 /// Radar azimuth validation bound (rad): accepts both atan2-style [-π, π] and
 /// unwrapped [0, 2π) producers, i.e. anything within ±2π.
 const MAX_RADAR_AZIMUTH_RAD: f64 = 2.0 * PI;
@@ -1533,6 +1540,8 @@ struct GateDecision {
     d2: f64,
     #[cfg_attr(not(feature = "ncp"), allow(dead_code))]
     method: GateDecisionMethod,
+    #[cfg_attr(not(feature = "ncp"), allow(dead_code))]
+    valid: bool,
     accepted: bool,
 }
 
@@ -1548,6 +1557,11 @@ struct AssociationPlan {
     gate_decisions: Vec<Vec<GateDecision>>,
     associations: Vec<(String, Vec<usize>)>,
     unassociated: Vec<usize>,
+    /// Complete membership of each deterministic unassigned cluster. Births use
+    /// one representative, while bounded evidence admission must discard an
+    /// overflow cluster atomically so its other members cannot re-form it.
+    #[cfg(feature = "ncp")]
+    unassociated_clusters: Vec<Vec<usize>>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1817,10 +1831,10 @@ pub fn validate_sensor_measurements(measurements: &[SensorMeasurement]) -> Resul
         // Zero/negative variances are not physical and break the PSD guarantee
         // of the Joseph-form update (R must be positive-definite).
         for (axis, &variance) in measurement.covariance.iter().enumerate() {
-            if variance <= 0.0 {
+            if variance <= 0.0 || variance > MAX_MEASUREMENT_VARIANCE {
                 return Err(format!(
-                    "measurements[{}].covariance[{}] must be > 0, got {}",
-                    index, axis, variance
+                    "measurements[{}].covariance[{}] must be within (0, {}], got {}",
+                    index, axis, MAX_MEASUREMENT_VARIANCE, variance
                 ));
             }
         }
@@ -1831,7 +1845,7 @@ pub fn validate_sensor_measurements(measurements: &[SensorMeasurement]) -> Resul
                 &format!("measurements[{}].position[0] (radar range)", index),
                 measurement.position[0],
                 0.0,
-                f64::MAX,
+                MAX_MEASUREMENT_POSITION_ABS_M,
             )?;
             validate_finite_range(
                 &format!("measurements[{}].position[1] (radar azimuth)", index),
@@ -1845,9 +1859,26 @@ pub fn validate_sensor_measurements(measurements: &[SensorMeasurement]) -> Resul
                 -MAX_RADAR_ELEVATION_RAD,
                 MAX_RADAR_ELEVATION_RAD,
             )?;
+        } else {
+            for (axis, &position) in measurement.position.iter().enumerate() {
+                validate_finite_range(
+                    &format!("measurements[{index}].position[{axis}]"),
+                    position,
+                    -MAX_MEASUREMENT_POSITION_ABS_M,
+                    MAX_MEASUREMENT_POSITION_ABS_M,
+                )?;
+            }
         }
         if let Some(velocity) = &measurement.velocity {
             validate_finite_array(&format!("measurements[{}].velocity", index), velocity)?;
+            for (axis, &component) in velocity.iter().enumerate() {
+                validate_finite_range(
+                    &format!("measurements[{index}].velocity[{axis}]"),
+                    component,
+                    -MAX_MEASUREMENT_VELOCITY_ABS_MPS,
+                    MAX_MEASUREMENT_VELOCITY_ABS_MPS,
+                )?;
+            }
         }
         validate_finite_range(
             &format!("measurements[{}].confidence", index),
@@ -1865,10 +1896,10 @@ pub fn validate_sensor_measurements(measurements: &[SensorMeasurement]) -> Resul
         }
         for (key, value) in &measurement.metadata {
             validate_bounded_text(&format!("measurements[{}].metadata key", index), key)?;
-            if !value.is_finite() {
+            if !value.is_finite() || value.abs() > MAX_MEASUREMENT_METADATA_ABS {
                 return Err(format!(
-                    "measurements[{}].metadata['{}'] must be finite",
-                    index, key
+                    "measurements[{}].metadata['{}'] must be finite with magnitude <= {}",
+                    index, key, MAX_MEASUREMENT_METADATA_ABS
                 ));
             }
         }
@@ -1889,6 +1920,8 @@ pub struct MultiSensorFusion {
     next_track_id: u64,
     frame_count: u64,
     last_predict_ms: u64,
+    /// Distinguishes the valid epoch timestamp `0` from an uninitialized clock.
+    prediction_clock_initialized: bool,
     /// Per-measurement innovation records pending collection
     /// (`config.emit_innovations`); drained by `drain_pid_observations`.
     pid_buffer: Vec<crate::pid_observation::PidObservation>,
@@ -1896,6 +1929,10 @@ pub struct MultiSensorFusion {
     /// Ordinary compatibility frames do not advance this producer identity.
     #[cfg(feature = "ncp")]
     last_evidence_prior_id: u64,
+    /// Highest emitted v1 timestamp for each live track/modality channel.
+    /// Galadriel rejects duplicates and regressions even when fusion seq grows.
+    #[cfg(feature = "ncp")]
+    last_pid_timestamp_by_channel: HashMap<(u64, SensorModality), u64>,
 }
 
 impl MultiSensorFusion {
@@ -1911,9 +1948,12 @@ impl MultiSensorFusion {
             next_track_id: 1,
             frame_count: 0,
             last_predict_ms: 0,
+            prediction_clock_initialized: false,
             pid_buffer: Vec::new(),
             #[cfg(feature = "ncp")]
             last_evidence_prior_id: 0,
+            #[cfg(feature = "ncp")]
+            last_pid_timestamp_by_channel: HashMap::new(),
         }
     }
 
@@ -2036,12 +2076,13 @@ impl MultiSensorFusion {
         // longer than MAX_PREDICT_GAP_S has Q-inflated toward the
         // covariance-volume divergence gate anyway, and the cap bounds work on
         // wall-clock jumps (suspend/resume).
-        let gap_s = if self.last_predict_ms > 0 && timestamp_ms > self.last_predict_ms {
+        let gap_s = if self.prediction_clock_initialized && timestamp_ms > self.last_predict_ms {
             ((timestamp_ms - self.last_predict_ms) as f64 / 1000.0).min(MAX_PREDICT_GAP_S)
         } else {
             0.0
         };
         self.last_predict_ms = self.last_predict_ms.max(timestamp_ms);
+        self.prediction_clock_initialized = true;
         let mut remaining_s = gap_s;
         while remaining_s > 0.0 {
             let dt = remaining_s.min(1.0);
@@ -2067,7 +2108,7 @@ impl MultiSensorFusion {
     #[cfg(feature = "ncp")]
     pub fn process_frame(
         &mut self,
-        measurements: Vec<SensorMeasurement>,
+        mut measurements: Vec<SensorMeasurement>,
         timestamp_ms: u64,
         registry: &crate::galadriel_registry::DeploymentRegistry,
         frame_id: u64,
@@ -2180,6 +2221,12 @@ impl MultiSensorFusion {
             policy.max_outcomes_per_frame(),
         )?;
 
+        // A projection is comparable only when this frame advances the actual
+        // prior clock. Duplicate or out-of-order frame timestamps leave the
+        // state at a later/already-conditioned time and therefore cannot attest
+        // a same-time residual even when an input repeats that timestamp.
+        let prior_time_aligned =
+            !self.prediction_clock_initialized || timestamp_ms > self.last_predict_ms;
         let fusion_seq = self.begin_frame(timestamp_ms)?;
         // `begin_frame` is the mutation boundary (sequence + prediction). From
         // this point onward the frozen-prior identity is consumed even if later
@@ -2214,6 +2261,41 @@ impl MultiSensorFusion {
                 class: map_to_detection_class(&track.class_label),
             })
             .collect();
+        let birth_capacity = (policy.max_active_tracks() as usize)
+            .min(MAX_FUSION_TRACKS)
+            .saturating_sub(frozen_tracks.len());
+        let initial_plan = self.association_plan(&measurements, &frozen_tracks);
+        let (plan, capacity_dropped_input_count) =
+            if initial_plan.unassociated_clusters.len() <= birth_capacity {
+                (initial_plan, 0)
+            } else {
+                // Normalize the accepted frame before updates in one bounded
+                // pass. Keep the first deterministic birth-capacity clusters,
+                // discard every member of later unassigned clusters, then make
+                // exactly one final plan for the canonical ledger. Replanning
+                // once per representative would amplify a 512-input saturated
+                // frame into hundreds of O(T*N + N² + assignment) passes.
+                let mut drop_input = vec![false; measurements.len()];
+                for cluster in initial_plan
+                    .unassociated_clusters
+                    .iter()
+                    .skip(birth_capacity)
+                {
+                    for &measurement_index in cluster {
+                        drop_input[measurement_index] = true;
+                    }
+                }
+                let dropped = drop_input.iter().filter(|&&drop| drop).count();
+                let mut measurement_index = 0_usize;
+                measurements.retain(|_| {
+                    let keep = !drop_input[measurement_index];
+                    measurement_index += 1;
+                    keep
+                });
+                let normalized = self.association_plan(&measurements, &frozen_tracks);
+                debug_assert!(normalized.unassociated.len() <= birth_capacity);
+                (normalized, dropped)
+            };
         let opportunity_inputs = measurements
             .iter()
             .enumerate()
@@ -2226,16 +2308,12 @@ impl MultiSensorFusion {
                 })
             })
             .collect::<Result<Vec<_>, String>>()?;
-
-        let plan = self.association_plan(&measurements, &frozen_tracks);
-        let projected_track_count = frozen_tracks.len() + plan.unassociated.len();
-        if projected_track_count > policy.max_active_tracks() as usize
-            || projected_track_count > MAX_FUSION_TRACKS
-        {
-            return Err(format!(
-                "post-birth active track count {projected_track_count} exceeds the configured bound"
-            ));
+        if capacity_dropped_input_count > 0 {
+            log::warn!(
+                "[fusion] rejected {capacity_dropped_input_count} unassociated inputs at the active-track bound"
+            );
         }
+
         let pid_buffer_start = self.pid_buffer.len();
         let mut hit_this_frame = std::collections::HashSet::new();
         let mut update_reports = HashMap::new();
@@ -2274,6 +2352,8 @@ impl MultiSensorFusion {
             frame_id,
             context_id,
             prior_id,
+            timestamp_ms,
+            prior_time_aligned,
         )?;
         // Explicit evidence processing is itself the opt-in. Replace any legacy
         // auto-emission from this frame with the frozen-prior records so draining
@@ -2296,7 +2376,20 @@ impl MultiSensorFusion {
                 frame_id,
                 context_id,
                 prior_id,
+                prior_time_aligned,
             )?;
+
+        // Lifecycle pruning occurs before evidence assembly. An updated track
+        // can be removed by the covariance-volume guard and then have a v1
+        // timestamp inserted from its frozen ledger; retain only final live IDs
+        // so churn cannot leak per-channel high-water entries indefinitely.
+        let live_track_ids = self
+            .tracks
+            .keys()
+            .filter_map(|track_id| crate::pid_observation::track_numeric_id(track_id))
+            .collect::<std::collections::HashSet<_>>();
+        self.last_pid_timestamp_by_channel
+            .retain(|(track_id, _), _| live_track_ids.contains(track_id));
 
         let outcome_count = u32::try_from(monitor_events.len())
             .map_err(|_| "frame outcome count exceeds u32".to_string())?;
@@ -2324,8 +2417,8 @@ impl MultiSensorFusion {
             input_count,
             outcome_count,
             v1_expected_count,
-            degraded: false,
-            truncated: false,
+            degraded: capacity_dropped_input_count > 0,
+            truncated: capacity_dropped_input_count > 0,
         };
         frame_summary
             .validate()
@@ -2397,7 +2490,7 @@ impl MultiSensorFusion {
         reason = "the frozen projection provenance is explicit"
     )]
     fn build_frame_pid_observations(
-        &self,
+        &mut self,
         measurements: &[SensorMeasurement],
         frozen_tracks: &[(String, TrackState)],
         update_reports: &HashMap<String, TrackUpdateReport>,
@@ -2405,6 +2498,8 @@ impl MultiSensorFusion {
         frame_id: u64,
         context_id: u64,
         prior_id: u64,
+        fusion_timestamp_ms: u64,
+        prior_time_aligned: bool,
     ) -> Result<FramePidSelection, String> {
         let mut observations = Vec::new();
         let mut selected = HashMap::new();
@@ -2421,6 +2516,17 @@ impl MultiSensorFusion {
                 let measurement = &measurements[attempt.measurement_index];
                 let key = (track_id.clone(), measurement.modality);
                 if !attempt.applied || selected.contains_key(&key) {
+                    continue;
+                }
+                if !prior_time_aligned || measurement.timestamp_ms != fusion_timestamp_ms {
+                    continue;
+                }
+                let timestamp_key = (numeric_track_id, measurement.modality);
+                if self
+                    .last_pid_timestamp_by_channel
+                    .get(&timestamp_key)
+                    .is_some_and(|previous| measurement.timestamp_ms <= *previous)
+                {
                     continue;
                 }
                 let Some(stats) = attempt.stats else {
@@ -2458,11 +2564,15 @@ impl MultiSensorFusion {
                         frame_id,
                         context_id,
                         prior_id,
+                        fusion_timestamp_ms,
+                        prior_time_aligned,
                         measurement,
                         frozen_track,
                     ),
                 };
                 observation.validate()?;
+                self.last_pid_timestamp_by_channel
+                    .insert(timestamp_key, measurement.timestamp_ms);
                 selected.insert(key, attempt.measurement_index);
                 observations.push(observation);
             }
@@ -2477,14 +2587,23 @@ impl MultiSensorFusion {
     }
 
     #[cfg(feature = "ncp")]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the frozen projection provenance and time basis are explicit"
+    )]
     fn frozen_consistency_projection(
         registry: &crate::galadriel_registry::DeploymentRegistry,
         frame_id: u64,
         context_id: u64,
         prior_id: u64,
+        fusion_timestamp_ms: u64,
+        prior_time_aligned: bool,
         measurement: &SensorMeasurement,
         frozen_track: &TrackState,
     ) -> Option<crate::pid_observation::ConsistencyProjection> {
+        if !prior_time_aligned || measurement.timestamp_ms != fusion_timestamp_ms {
+            return None;
+        }
         let source_frame = measurement.source_frame_id.as_deref()?;
         let binding = registry
             .projection_binding(crate::galadriel_registry::ProjectionIdentity {
@@ -2535,6 +2654,7 @@ impl MultiSensorFusion {
         frame_id: u64,
         context_id: u64,
         prior_id: u64,
+        prior_time_aligned: bool,
     ) -> Result<FrameMonitorLedger, String> {
         use crate::producer_monitor::{
             GateEvidence, GateMethod, ModalityMiss, ModalityMissReason, ModalityOutcome,
@@ -2595,7 +2715,7 @@ impl MultiSensorFusion {
 
                 for (attempt_index, &measurement_index) in candidates.iter().enumerate() {
                     let decision = plan.gate_decisions[track_row][measurement_index];
-                    let gate_evidence = GateEvidence {
+                    let gate_evidence = decision.valid.then_some(GateEvidence {
                         method: match decision.method {
                             GateDecisionMethod::Mahalanobis => GateMethod::Mahalanobis,
                             GateDecisionMethod::NormalizedEuclideanFallback => {
@@ -2604,9 +2724,12 @@ impl MultiSensorFusion {
                         },
                         d2: decision.d2,
                         threshold: self.config.association_threshold,
-                    };
+                    });
                     let is_assigned = assigned.contains(&measurement_index);
-                    let (outcome, consistency_projection, v1_expected) = if is_assigned {
+                    let (outcome, consistency_projection, v1_expected) = if !decision.valid {
+                        terminal_reached = true;
+                        (ModalityOutcomeKind::UnsupportedFilter, None, false)
+                    } else if is_assigned {
                         terminal_reached = true;
                         let update = attempt_results.get(&measurement_index).ok_or_else(|| {
                             format!(
@@ -2619,6 +2742,8 @@ impl MultiSensorFusion {
                                 frame_id,
                                 context_id,
                                 prior_id,
+                                fusion_timestamp_ms,
+                                prior_time_aligned,
                                 &measurements[measurement_index],
                                 frozen_track,
                             );
@@ -2659,7 +2784,7 @@ impl MultiSensorFusion {
                         // the row's own gate evidence carries its disposition.
                         candidate_count: total_candidate_count,
                         in_gate_count: total_in_gate_count,
-                        gate_evidence: Some(gate_evidence),
+                        gate_evidence,
                         consistency_projection,
                     };
                     outcome
@@ -2806,7 +2931,7 @@ impl MultiSensorFusion {
             track.covariance[(2, 2)],
         );
         let s = pos_cov + r_cart;
-        let (d2, method) = match s.cholesky() {
+        let (raw_d2, method) = match s.cholesky() {
             Some(chol) => (
                 diff.dot(&chol.solve(&diff)),
                 GateDecisionMethod::Mahalanobis,
@@ -2816,10 +2941,15 @@ impl MultiSensorFusion {
                 GateDecisionMethod::NormalizedEuclideanFallback,
             ),
         };
+        let valid = raw_d2.is_finite() && raw_d2 >= 0.0;
         GateDecision {
-            d2,
+            // Invalid scores are never transmitted as evidence. A zero internal
+            // placeholder keeps the decision type total while the ledger emits
+            // `unsupported_filter` with no GateEvidence.
+            d2: if valid { raw_d2 } else { 0.0 },
             method,
-            accepted: d2.is_finite() && d2 < self.config.association_threshold,
+            valid,
+            accepted: valid && raw_d2 < self.config.association_threshold,
         }
     }
 
@@ -2934,6 +3064,8 @@ impl MultiSensorFusion {
                 gate_decisions,
                 associations,
                 unassociated,
+                #[cfg(feature = "ncp")]
+                unassociated_clusters: Vec::new(),
             };
         }
 
@@ -2975,6 +3107,8 @@ impl MultiSensorFusion {
                 gate_decisions,
                 associations,
                 unassociated,
+                #[cfg(feature = "ncp")]
+                unassociated_clusters: clusters,
             };
         }
 
@@ -3033,9 +3167,13 @@ impl MultiSensorFusion {
                 }
             }
         }
+        #[cfg(feature = "ncp")]
+        let mut unassociated_clusters = Vec::new();
         for (c, cl) in clusters.iter().enumerate() {
             if !cluster_used[c] {
                 unassociated.push(cluster_representative(cl));
+                #[cfg(feature = "ncp")]
+                unassociated_clusters.push(cl.clone());
             }
         }
 
@@ -3043,6 +3181,8 @@ impl MultiSensorFusion {
             gate_decisions,
             associations,
             unassociated,
+            #[cfg(feature = "ncp")]
+            unassociated_clusters,
         }
     }
 
@@ -3549,6 +3689,11 @@ impl MultiSensorFusion {
             self.tracks.remove(&track_id);
             self.particle_filters.remove(&track_id);
             self.imm_filters.remove(&track_id);
+            #[cfg(feature = "ncp")]
+            if let Some(numeric_track_id) = crate::pid_observation::track_numeric_id(&track_id) {
+                self.last_pid_timestamp_by_channel
+                    .retain(|(candidate, _), _| *candidate != numeric_track_id);
+            }
         }
     }
 
@@ -3596,7 +3741,10 @@ impl MultiSensorFusion {
         // association gates sized off frozen covariances — silently, until
         // wall-clock timestamps catch up.
         self.last_predict_ms = 0;
+        self.prediction_clock_initialized = false;
         self.pid_buffer.clear();
+        #[cfg(feature = "ncp")]
+        self.last_pid_timestamp_by_channel.clear();
     }
 
     /// Take the per-measurement innovation records accumulated since the last
@@ -3698,6 +3846,89 @@ pub struct FusionStats {
 /// when there are more rows than columns the matrix is transposed and the result
 /// mapped back, so callers may pass any rectangular matrix.
 fn solve_assignment(cost: &[Vec<i64>], inf: i64) -> Vec<Option<usize>> {
+    let rows = cost.len();
+    let cols = cost.first().map_or(0, Vec::len);
+    let mut result = vec![None; rows];
+    if rows == 0 || cols == 0 {
+        return result;
+    }
+
+    // INF-only rows/columns are common at saturation (different tactical
+    // classes or wholly out-of-gate returns). Feeding a 1024×512 all-INF matrix
+    // to dense Hungarian needlessly performs O(min²*max) work while holding the
+    // fusion pipeline. Split the finite-edge bipartite graph into independent
+    // connected components; solving each dense component is exactly equivalent
+    // and an entirely incompatible frame becomes one O(rows*cols) scan.
+    let row_edges = cost
+        .iter()
+        .map(|row| {
+            row.iter()
+                .enumerate()
+                .filter_map(|(column, &value)| (value < inf).then_some(column))
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    let mut column_edges = vec![Vec::new(); cols];
+    for (row, edges) in row_edges.iter().enumerate() {
+        for &column in edges {
+            column_edges[column].push(row);
+        }
+    }
+
+    let mut seen_rows = vec![false; rows];
+    let mut seen_columns = vec![false; cols];
+    for start_row in 0..rows {
+        if seen_rows[start_row] || row_edges[start_row].is_empty() {
+            continue;
+        }
+        let mut component_rows = Vec::new();
+        let mut component_columns = Vec::new();
+        let mut queue = std::collections::VecDeque::from([(true, start_row)]);
+        seen_rows[start_row] = true;
+        while let Some((is_row, index)) = queue.pop_front() {
+            if is_row {
+                component_rows.push(index);
+                for &column in &row_edges[index] {
+                    if !seen_columns[column] {
+                        seen_columns[column] = true;
+                        queue.push_back((false, column));
+                    }
+                }
+            } else {
+                component_columns.push(index);
+                for &row in &column_edges[index] {
+                    if !seen_rows[row] {
+                        seen_rows[row] = true;
+                        queue.push_back((true, row));
+                    }
+                }
+            }
+        }
+        component_rows.sort_unstable();
+        component_columns.sort_unstable();
+        let component_cost = component_rows
+            .iter()
+            .map(|&row| {
+                component_columns
+                    .iter()
+                    .map(|&column| cost[row][column])
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        for (component_row, assignment) in solve_dense_assignment(&component_cost, inf)
+            .into_iter()
+            .enumerate()
+        {
+            if let Some(component_column) = assignment {
+                result[component_rows[component_row]] = Some(component_columns[component_column]);
+            }
+        }
+    }
+    result
+}
+
+/// Dense Hungarian kernel for one finite-edge connected component.
+fn solve_dense_assignment(cost: &[Vec<i64>], inf: i64) -> Vec<Option<usize>> {
     let rows = cost.len();
     let cols = if rows == 0 { 0 } else { cost[0].len() };
     if rows == 0 || cols == 0 {
@@ -5595,6 +5826,32 @@ mod tests {
     }
 
     #[test]
+    fn solve_assignment_decomposes_disconnected_finite_components() {
+        let inf = ASSIGNMENT_INF;
+        let cost = vec![
+            vec![1, inf, inf, inf],
+            vec![2, inf, inf, inf],
+            vec![inf, inf, 1, 5],
+            vec![inf, inf, 5, 1],
+        ];
+
+        assert_eq!(
+            solve_assignment(&cost, inf),
+            vec![Some(0), None, Some(2), Some(3)]
+        );
+    }
+
+    #[test]
+    fn solve_assignment_short_circuits_maximum_all_inf_matrix() {
+        let cost = vec![vec![ASSIGNMENT_INF; MAX_FUSION_MEASUREMENTS_PER_BATCH]; MAX_FUSION_TRACKS];
+
+        assert_eq!(
+            solve_assignment(&cost, ASSIGNMENT_INF),
+            vec![None; MAX_FUSION_TRACKS]
+        );
+    }
+
+    #[test]
     fn gnn_assigns_each_separated_target_its_own_measurement() {
         // Two well-separated tracks; a frame with one return near each. Global
         // assignment updates BOTH (count stays 2) — no stealing, no duplicates.
@@ -5869,6 +6126,36 @@ mod tests {
         assert_eq!(before, after, "no phantom predict on duplicate timestamp");
     }
 
+    #[test]
+    fn zero_timestamp_initializes_prediction_clock_without_losing_next_gap() {
+        let mut fusion = MultiSensorFusion::new(FusionConfig::default());
+        fusion.process_measurements(
+            vec![SensorMeasurement {
+                sensor_id: "cam1".to_string(),
+                modality: SensorModality::Visual,
+                timestamp_ms: 0,
+                source_frame_id: None,
+                position: [10.0, 0.0, 5.0],
+                velocity: Some([10.0, 0.0, 0.0]),
+                covariance: [1.0, 1.0, 1.0],
+                confidence: 0.9,
+                class_label: "drone".to_string(),
+                metadata: HashMap::new(),
+            }],
+            0,
+        );
+        assert!(fusion.prediction_clock_initialized);
+
+        fusion.process_measurements(Vec::new(), 100);
+
+        let state = fusion.tracks.values().next().expect("track remains").state;
+        assert!(
+            (state[0] - 11.0).abs() < 1e-9,
+            "the full 100 ms gap predicts"
+        );
+        assert_eq!(fusion.last_predict_ms, 100);
+    }
+
     /// Base valid visual measurement for validation tests.
     fn valid_meas() -> SensorMeasurement {
         SensorMeasurement {
@@ -5897,6 +6184,27 @@ mod tests {
         let err =
             validate_sensor_measurements(&[negative]).expect_err("negative variance must fail");
         assert!(err.contains("covariance"), "got: {err}");
+    }
+
+    #[test]
+    fn validation_rejects_finite_values_outside_computational_envelopes() {
+        let mut position = valid_meas();
+        position.position[0] = f64::MAX;
+        assert!(validate_sensor_measurements(&[position]).is_err());
+
+        let mut velocity = valid_meas();
+        velocity.velocity = Some([MAX_MEASUREMENT_VELOCITY_ABS_MPS * 2.0, 0.0, 0.0]);
+        assert!(validate_sensor_measurements(&[velocity]).is_err());
+
+        let mut covariance = valid_meas();
+        covariance.covariance[0] = MAX_MEASUREMENT_VARIANCE * 2.0;
+        assert!(validate_sensor_measurements(&[covariance]).is_err());
+
+        let mut metadata = valid_meas();
+        metadata
+            .metadata
+            .insert("extreme".to_string(), MAX_MEASUREMENT_METADATA_ABS * 2.0);
+        assert!(validate_sensor_measurements(&[metadata]).is_err());
     }
 
     #[test]
@@ -6239,14 +6547,16 @@ mod tests {
             })
         }
 
-        fn registry() -> crate::galadriel_registry::DeploymentRegistry {
+        fn registry_with_max_active(
+            max_active_tracks: u32,
+        ) -> crate::galadriel_registry::DeploymentRegistry {
             let extrinsic = content("map_identity_v1", '4');
             let value = serde_json::json!({
                 "schema_version": "1.0",
                 "registry_version": "fusion-evidence-tests-v1",
                 "opportunity_policy": {
                     "rule": "frozen_active_track_modality_input_order_v1",
-                    "max_active_tracks": 1024,
+                    "max_active_tracks": max_active_tracks,
                     "max_frame_inputs": 8192,
                     "max_attempts_per_track_modality": 8,
                     "max_outcomes_per_frame": 8192,
@@ -6304,6 +6614,10 @@ mod tests {
                 &serde_json::to_vec(&value).expect("registry encodes"),
             )
             .expect("registry validates")
+        }
+
+        fn registry() -> crate::galadriel_registry::DeploymentRegistry {
+            registry_with_max_active(1024)
         }
 
         fn measurement(
@@ -6405,10 +6719,11 @@ mod tests {
             birth_visual_track(&mut fusion, &registry);
 
             for (prior_id, source_frame) in [(2, None), (3, Some("camera_optical"))] {
+                let timestamp_ms = 900 + prior_id * 100;
                 let evidence = fusion
                     .process_frame(
-                        vec![visual(1_000, 10.0, source_frame)],
-                        1_000,
+                        vec![visual(timestamp_ms, 10.0, source_frame)],
+                        timestamp_ms,
                         &registry,
                         7,
                         11,
@@ -6428,6 +6743,217 @@ mod tests {
                     .consistency_projection
                     .is_none());
             }
+        }
+
+        #[test]
+        fn unsynchronized_or_nonmonotonic_inputs_never_claim_v1() {
+            let registry = registry();
+            let mut fusion = MultiSensorFusion::new(FusionConfig::default());
+            birth_visual_track(&mut fusion, &registry);
+
+            for (prior_id, measurement_timestamp_ms, frame_timestamp_ms) in [
+                (2, 1_099, 1_100),
+                (3, 1_201, 1_200),
+                (4, 1_300, 1_300),
+                (5, 1_300, 1_300),
+                (6, 1_250, 1_250),
+            ] {
+                let evidence = fusion
+                    .process_frame(
+                        vec![visual(measurement_timestamp_ms, 10.0, Some("map_enu"))],
+                        frame_timestamp_ms,
+                        &registry,
+                        7,
+                        11,
+                        prior_id,
+                    )
+                    .expect("time-misaligned baseline frame remains processable");
+                let outcome = evidence
+                    .modality_outcomes
+                    .iter()
+                    .find(|outcome| outcome.modality == SensorModality::Visual)
+                    .expect("visual outcome exists");
+                let should_emit = prior_id == 4;
+                assert_eq!(outcome.v1_expected, should_emit);
+                assert_eq!(evidence.pid_observations.len(), usize::from(should_emit));
+                assert_eq!(outcome.consistency_projection.is_some(), should_emit);
+            }
+        }
+
+        #[test]
+        fn duplicate_zero_epoch_timestamp_never_claims_v1() {
+            let registry = registry();
+            let mut fusion = MultiSensorFusion::new(FusionConfig::default());
+            fusion
+                .process_frame(
+                    vec![visual(0, 10.0, Some("map_enu"))],
+                    0,
+                    &registry,
+                    7,
+                    11,
+                    1,
+                )
+                .expect("zero-epoch birth succeeds");
+
+            let evidence = fusion
+                .process_frame(
+                    vec![visual(0, 10.0, Some("map_enu"))],
+                    0,
+                    &registry,
+                    7,
+                    11,
+                    2,
+                )
+                .expect("duplicate zero-epoch frame remains processable");
+            let outcome = evidence
+                .modality_outcomes
+                .iter()
+                .find(|outcome| outcome.modality == SensorModality::Visual)
+                .expect("visual outcome exists");
+            assert!(!outcome.v1_expected);
+            assert!(evidence.pid_observations.is_empty());
+            assert!(outcome.consistency_projection.is_none());
+        }
+
+        #[test]
+        fn track_capacity_rejection_closes_a_truncated_frame_and_recovers() {
+            let registry = registry_with_max_active(1);
+            let mut fusion = MultiSensorFusion::new(FusionConfig::default());
+            birth_visual_track(&mut fusion, &registry);
+
+            let saturated = fusion
+                .process_frame(
+                    vec![visual(1_100, 100.0, Some("map_enu"))],
+                    1_100,
+                    &registry,
+                    7,
+                    11,
+                    2,
+                )
+                .expect("track-cap frame closes instead of wedging");
+            assert_eq!(saturated.frame_summary.fusion_seq, 2);
+            assert_eq!(saturated.frame_summary.input_count, 0);
+            assert!(saturated.frame_summary.degraded);
+            assert!(saturated.frame_summary.truncated);
+            assert_eq!(saturated.tracks.len(), 1);
+            assert!(saturated
+                .modality_outcomes
+                .iter()
+                .all(|outcome| outcome.outcome != ModalityOutcomeKind::TrackBirth));
+
+            let recovery = fusion
+                .process_frame(Vec::new(), 1_200, &registry, 7, 11, 3)
+                .expect("next bounded frame closes");
+            assert_eq!(recovery.frame_summary.fusion_seq, 3);
+            assert!(!recovery.frame_summary.truncated);
+        }
+
+        #[test]
+        fn saturated_maximum_batch_is_normalized_in_two_association_plans() {
+            let registry = registry_with_max_active(1);
+            let mut fusion = MultiSensorFusion::new(FusionConfig::default());
+            birth_visual_track(&mut fusion, &registry);
+            let measurements = (0..MAX_FUSION_MEASUREMENTS_PER_BATCH)
+                .map(|index| {
+                    let mut measurement = visual(1_100, 1_000.0 + index as f64 * 100.0, None);
+                    measurement.class_label = "bird".to_string();
+                    measurement
+                })
+                .collect();
+
+            let evidence = fusion
+                .process_frame(measurements, 1_100, &registry, 7, 11, 2)
+                .expect("bounded maximum batch closes without repeated replanning");
+
+            assert_eq!(evidence.frame_summary.input_count, 0);
+            assert!(evidence.frame_summary.degraded);
+            assert!(evidence.frame_summary.truncated);
+            assert_eq!(evidence.tracks.len(), 1);
+        }
+
+        #[test]
+        fn deleted_updated_track_does_not_leak_pid_timestamp_highwater() {
+            let registry = registry();
+            let mut fusion = MultiSensorFusion::new(FusionConfig::default());
+            birth_visual_track(&mut fusion, &registry);
+            fusion.config.max_position_cov_volume = f64::EPSILON;
+
+            let evidence = fusion
+                .process_frame(
+                    vec![visual(1_100, 10.0, Some("map_enu"))],
+                    1_100,
+                    &registry,
+                    7,
+                    11,
+                    2,
+                )
+                .expect("divergence frame still closes");
+
+            assert!(evidence.tracks.is_empty());
+            assert!(evidence
+                .pid_observations
+                .iter()
+                .any(|observation| { observation.modality == SensorModality::Visual }));
+            assert!(fusion.last_pid_timestamp_by_channel.is_empty());
+        }
+
+        #[test]
+        fn extreme_finite_input_fails_before_evidence_state_mutation() {
+            let registry = registry();
+            let mut fusion = MultiSensorFusion::new(FusionConfig::default());
+            birth_visual_track(&mut fusion, &registry);
+            let before_track = fusion.tracks.values().next().expect("track exists").clone();
+            let before_frame_count = fusion.frame_count;
+            let before_predict_ms = fusion.last_predict_ms;
+            let before_prior_id = fusion.last_evidence_prior_id;
+            let mut extreme = visual(1_100, 10.0, Some("map_enu"));
+            extreme.position[0] = f64::MAX;
+
+            let error = fusion
+                .process_frame(vec![extreme], 1_100, &registry, 7, 11, 2)
+                .expect_err("extreme finite input must fail preflight");
+
+            assert!(error.contains("position[0]"));
+            assert_eq!(fusion.frame_count, before_frame_count);
+            assert_eq!(fusion.last_predict_ms, before_predict_ms);
+            assert_eq!(fusion.last_evidence_prior_id, before_prior_id);
+            let after_track = fusion.tracks.values().next().expect("track remains");
+            assert_eq!(after_track.state, before_track.state);
+            assert_eq!(after_track.covariance, before_track.covariance);
+        }
+
+        #[test]
+        fn invalid_internal_gate_score_emits_no_fabricated_numeric_evidence() {
+            let registry = registry();
+            let mut fusion = MultiSensorFusion::new(FusionConfig::default());
+            birth_visual_track(&mut fusion, &registry);
+            fusion
+                .tracks
+                .values_mut()
+                .next()
+                .expect("track exists")
+                .state[0] = f64::MAX;
+
+            let evidence = fusion
+                .process_frame(
+                    vec![visual(1_100, 10.0, Some("map_enu"))],
+                    1_100,
+                    &registry,
+                    7,
+                    11,
+                    2,
+                )
+                .expect("invalid internal score is represented explicitly");
+            let outcome = evidence
+                .modality_outcomes
+                .iter()
+                .find(|outcome| outcome.track_id == 1 && outcome.modality == SensorModality::Visual)
+                .expect("original track has a terminal outcome");
+
+            assert_eq!(outcome.outcome, ModalityOutcomeKind::UnsupportedFilter);
+            assert!(outcome.gate_evidence.is_none());
+            assert!(!outcome.v1_expected);
+            assert!(evidence.pid_observations.is_empty());
         }
 
         #[test]
@@ -6610,8 +7136,8 @@ mod tests {
                 birth_visual_track(&mut fusion, &registry);
                 let evidence = fusion
                     .process_frame(
-                        vec![visual(1_000, 10.0, Some("map_enu"))],
-                        1_000,
+                        vec![visual(1_100, 10.0, Some("map_enu"))],
+                        1_100,
                         &registry,
                         7,
                         11,

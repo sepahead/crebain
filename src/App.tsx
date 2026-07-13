@@ -84,8 +84,15 @@ export default function App() {
       position: [number, number, number]
       confidence: number
       classLabel: string
+      timestampMs: number
     }) => {
-      addVisualDetection(`visual:${track.id}`, track.position, track.confidence, track.classLabel)
+      addVisualDetection(
+        `visual:${track.id}`,
+        track.position,
+        track.confidence,
+        track.classLabel,
+        track.timestampMs
+      )
     },
     [addVisualDetection]
   )

@@ -27,7 +27,7 @@ TLS/ACL/receiver, SITL, HIL, or field evidence.
 | Rust default/NCP/feature result | Pending exact-commit default and bridge/producer results |
 | Hardware-WebGL performance smoke | Prior measurement is not candidate evidence; rerun if a numeric performance claim is proposed |
 | Manual smoke | Pending target-platform execution |
-| Boundary focus | Pinned NCP wire 0.8; complete renderer command mediation and serialized negative IPC mechanics remain in source; native benchmark mechanics retain bounded inputs, exact metric scope, content identity, trusted-baseline binding, and explicit report limits; generic renderer/ROS publish remains forbidden; exact opt-in Galadriel evidence routes and deployment pins are inventoried. The inert plant package retains inactive contract-v1 structural validation, bounded command/output channels, retained whole-value snapshot mechanics, and passive generation-bound monotonic expiry, but has no parser, transport, stateful replay gate, active expiry, trusted health gate, safe-action selector, governor, adapter, or action path, and its profile/limits remain unapproved. The IPC harness is not packaged-origin/CSP/capability or positive smoke evidence; benchmark provider labels are not accelerator/per-operation attestation; and no approved model, target run, numeric claim, receiver/TLS/ACL/deadline evidence, trusted health schema, active watchdog, apply-time governor, or per-session action ownership exists. |
+| Boundary focus | Pinned NCP wire 0.8; complete renderer command mediation and serialized negative IPC mechanics remain in source; native benchmark mechanics retain bounded inputs, exact metric scope, content identity, trusted-baseline binding, and explicit report limits; generic renderer/ROS publish remains forbidden; exact opt-in Galadriel evidence routes, immutable configuration, exact-time/projection eligibility, computational envelopes, and upstream/capacity degradation are inventoried. The wire summary still lacks numeric upstream/cluster-loss detail. The inert plant package retains inactive contract-v1 structural validation, bounded command/output channels, retained whole-value snapshot mechanics, and passive generation-bound monotonic expiry, but has no parser, transport, stateful replay gate, active expiry, trusted health gate, safe-action selector, governor, adapter, or action path, and its profile/limits remain unapproved. The IPC harness is not packaged-origin/CSP/capability or positive smoke evidence; benchmark provider labels are not accelerator/per-operation attestation; and no approved model, target run, numeric claim, receiver/TLS/ACL/receive-size/deadline/combined-load evidence, trusted health schema, active watchdog, apply-time governor, or per-session action ownership exists. |
 
 ## Pre-producer frame-convention snapshot (`49d7b36`, not current evidence)
 
@@ -99,7 +99,7 @@ must not be reused as evidence for the current dependency or source tree.
 | Frontend validation | Typecheck, lint, format, and tests | Pending recapture |
 | Bundle and coverage | Hosted bundle budget and coverage thresholds | Pending recapture |
 | Rust default | fmt, check, all-target tests, and clippy on Linux/macOS | Pending recapture |
-| NCP bridge/producer feature | NCP clippy and all-target tests on Linux/macOS, including registry/config/executable pins, codecs, queues, heartbeat, lifecycle, and JSONL archive failure semantics | Pending recapture |
+| NCP bridge/producer feature | Locked NCP clippy and all-target tests on Linux/macOS, including registry/config/executable pins, readiness-only config immutability, exact-time/channel state, bounded measurement/track admission, invalid-gate refusal, sparse/all-infinite assignment, codecs, upstream/queue degradation, heartbeat, lifecycle, and JSONL archive failure semantics | Pending recapture; component complexity tests are not target deadline evidence |
 | Inert plant foundation | Dependency boundary, strict Clippy, property/stress/headless/retained-snapshot/expiry/contract tests, self-check | Pending exact-commit rerun; the inactive contract passed in the `33e5ef3a` snapshot but validates structural semantics only, while retained snapshots and passive expiry remain component mechanics, not a trusted health contract, active watchdog, or live authority |
 | Serialized native IPC | Same production handler list plus negative structured invokes for scene, detector, fusion, and transport input boundaries | Pending exact-commit rerun; the pre-producer snapshot passed, but its `InvokeRequest` mock-runtime evidence does not replace raw webview conversion, packaged-origin/CSP/capability, positive-path, or target-platform smoke evidence |
 | Native detector benchmark mechanics | All-target/focused tests cover bounds, failure propagation, model/fixture identity, ONNX Runtime loading records and configured-Linux-library identity, raw-sample summaries, exact millisecond-to-FPS conversion, trusted-baseline digest binding/comparability, and no-overwrite report persistence | Pending exact-commit rerun; 22 focused logic tests and release `--help` passed only in the pre-producer snapshot, and no approved model, target-hardware run, baseline, threshold, or numeric result exists |
@@ -116,7 +116,7 @@ must not be reused as evidence for the current dependency or source tree.
 | Scene save/restore | Valid save plus migrated/partial/oversized asset paths | Serialized negative IPC cases passed; positive target-platform smoke remains pending |
 | ROS 1 / Gazebo Classic | Read-only telemetry on the recorded Zenoh or development/native rosbridge topology; removed publish/service paths remain absent | Pending |
 | Native Zenoh | Typed message surface plus explicit unsupported-path behavior | Pending |
-| Galadriel producer deployment | Exact post-package executable/config/registry; two-key TLS principal/ACL allow+deny; receiver decode/join; heartbeat/loss/reorder/restart/saturation/shutdown traces | Pending external topology |
+| Galadriel producer deployment | Exact post-package executable/config/registry; two-key TLS principal/ACL allow+deny and CN→`producer_id` binding; router/receiver receive-size allow+oversize-deny; receiver decode/join; heartbeat/loss/reorder/restart/saturation/clock/combined-load/shutdown traces; producer logs for numeric upstream/track-cap loss | Pending external topology |
 | Model contract | Approved artifact digest, tensors, class mapping, fixtures, and rights | Pending external artifact |
 | Performance | Candidate-specific hardware/model/command evidence for every numeric claim | No numeric claim approved yet |
 
@@ -128,8 +128,11 @@ must not be reused as evidence for the current dependency or source tree.
 - NCP's action bridge remains dormant and needs explicit runtime wiring plus a
   compatible Engram/realm/ACL deployment before any live action-loop claim.
 - The Galadriel producer runtime is wired only under its two gates. It still
-  needs an authenticated exact-route topology and compatible receiver-side
-  assembler/registry/deadline evidence before a live ecosystem claim.
+  needs an authenticated exact-route topology, verified receive-size policy, and
+  compatible receiver-side assembler/registry/deadline/loss evidence before a
+  live ecosystem claim. Sparse-assignment and bounded-admission component tests
+  do not prove combined-process timing, and numeric upstream/cluster loss remains
+  producer-log-only in the current wire contract.
 - PID JSONL proves only local append/parser/basic NIS behavior; it is not evidence
   of Galadriel correlation, PID control, ACL, versioned streaming, or live NCP.
   Its active capacity-16 archive/drop/degradation behavior and blocked-writer

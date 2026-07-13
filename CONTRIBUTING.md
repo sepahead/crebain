@@ -56,7 +56,7 @@ Use the smallest check that is honest for the change:
 # Frontend typecheck + lint + format check + tests
 bun run validate
 
-# NCP pin coherence + frontend + plant boundary/frame corpus + Rust default/NCP bridge/producer gates
+# NCP pin coherence + frontend + plant boundary/frame corpus + locked Rust default/NCP bridge/producer gates
 bun run validate:all
 ```
 
@@ -76,7 +76,8 @@ For documentation-only changes, keep Markdown files aligned on validation comman
 `bun run validate:all` includes the inert plant boundary, digest-bound
 JavaScript/Rust frame corpus, scoped Rustfmt, check, all-target tests (including
 the native benchmark's logic tests), strict Clippy, and headless self-check
-gates. It does not run a real model benchmark, the
+gates. Every default/NCP Rust package acceptance script uses the checked-in
+Cargo lockfile (`--locked`). It does not run a real model benchmark, the
 bundle budget, coverage thresholds,
 `cuda,tensorrt` / `--no-default-features` feature checks, CodeQL, or supply-chain
 audits. Release candidates require those hosted workflows as defined in

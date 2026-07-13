@@ -277,12 +277,14 @@ export async function initFusion(config?: Partial<FusionConfig>): Promise<void> 
  */
 export async function processMeasurements(
   measurements: SensorMeasurement[],
-  timestampMs?: number
+  timestampMs?: number,
+  upstreamDroppedMeasurements = 0
 ): Promise<FusedTrack[]> {
   const ts = timestampMs ?? Date.now()
   const response = await invoke<unknown>(TAURI_COMMANDS.fusion.process, {
     measurements,
     timestampMs: ts,
+    upstreamDroppedMeasurements,
   })
   return normalizeTracks(response)
 }

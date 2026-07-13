@@ -76,9 +76,17 @@ Open-source readiness and quality hardening.
   effective-fusion-config digest mismatch, actual running-executable digest
   mismatch, malformed queue/heartbeat policy, or secure-mode Zenoh open error.
   Fusion processing now builds one deterministic frozen-prior ledger with
-  explicit outcomes/misses/frame summaries; four bounded drop-new lanes expose
-  loss, sticky degradation, periodic heartbeats, five-second put bounds, and
-  finite task shutdown. Active JSONL copies use a separate capacity-16 drop-new
+  explicit outcomes/misses/frame summaries. Active initialization is a
+  readiness-only check over the startup-loaded immutable config; later config
+  calls cannot replace that engine. Strict exact-time/channel-monotonic rules
+  prevent duplicate, out-of-order, or mixed-old inputs from claiming v1, while
+  bounded renderer/native admission preserves the newest inputs and reports
+  malformed, buffer, registry-trim, and active-track-capacity loss as sticky
+  degraded/truncated frame state. Position, velocity, covariance, metadata,
+  string, batch, and live-track limits bound filter work; sparse finite-edge
+  assignment and an all-infinite short circuit bound component behavior. Four
+  bounded drop-new lanes expose loss, sticky degradation, periodic heartbeats,
+  five-second put bounds, and finite task shutdown. Active JSONL copies use a separate capacity-16 drop-new
   archive worker; configured sinks are startup-preflighted, batches are
   validated/serialized before writing, and admission or writer failure degrades
   the epoch (writer failure also stops that worker). A blocked writer can outlive
@@ -88,8 +96,11 @@ Open-source readiness and quality hardening.
   must be empty. Component tests pin codecs/routes, ordering, drops, degradation,
   heartbeat admission, sequence exhaustion, and task ownership. They do not
   prove TLS/mTLS identities, ACLs, a deployed Galadriel tap/assembler, receiver
-  delivery/deadlines, calibration, PID actuation, or authority. Default release
-  artifacts still omit the `ncp` feature.
+  delivery/deadlines, router/receiver payload limits, combined-load timing,
+  calibration, PID actuation, or authority. Numeric upstream/cluster loss is not
+  yet carried by the frozen wire summary. Default release artifacts still omit
+  the `ncp` feature. All default and NCP Rust package acceptance scripts now use
+  the locked dependency graph.
 - **Galadriel-oriented local innovation JSONL.** `update_track` can emit a minimal
   observation after an associated measurement actually corrects a Kalman-family
   filter (`FusionConfig.emit_innovations`). `CREBAIN_PID_JSONL=<trusted-path>`

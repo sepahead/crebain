@@ -39,7 +39,7 @@ SparkJS/Three.js, and Rust.
 | **Sensor Fusion** | 5 filter algorithms (KF/EKF/UKF/PF/IMM) for multi-modal tracking | Prototype |
 | **Drone Physics** | 120Hz quadcopter aerodynamics simulation | In Progress |
 | **ROS Integration** | Read-only Zenoh product telemetry + development/native rosbridge telemetry fallback | In Progress |
-| **Galadriel Evidence** | Feature-gated, exact-runtime-opt-in producer with pinned registry/config/executable, two bounded NCP evidence routes, drops/degradation, and heartbeat accounting; deployed receiver/security evidence remains pending | Component-tested |
+| **Galadriel Evidence** | Feature-gated, exact-runtime-opt-in producer with immutable pinned registry/config/executable, two bounded NCP evidence routes, strict time/projection eligibility, upstream/capacity loss degradation, and heartbeat accounting; deployed receiver/security evidence remains pending | Component-tested |
 | **Plant Authority** | Dependency-free headless lifecycle/channel/retained-snapshot/passive-expiry foundation, inactive draft contract-v1 validator, and profile-neutral same-frame-instance ENU/NED + FLU/FRD velocity-axis corpus; self-check only, with no frame-instance proof, approved profile, trusted health schema, command ingress, active watchdog, attitude transform, or FCU adapter | L0 Foundation |
 | **Cross-Platform** | macOS (Apple Silicon) + NixOS (CUDA) | In Progress |
 
@@ -62,7 +62,7 @@ git clone https://github.com/sepahead/crebain.git
 bun install
 
 # Build backend (CoreML is used automatically on macOS)
-cargo build --manifest-path src-tauri/Cargo.toml --release
+cargo build --locked --manifest-path src-tauri/Cargo.toml --release
 
 # Run
 bun run tauri:dev
@@ -406,7 +406,7 @@ Verified engineering baseline (enforced by CI doc-sync tests; full history in
 - [x] CI backend alignment to package scripts
 - [x] Release acceptance matrix, model contracts, security threat model, and manual smoke checklist
 - [x] Executable negative guard tests for native detection, model path, scene path, and transport topic boundaries, including TensorRT build inputs, fusion, Zenoh CDR, and transport payloads
-- [x] Component-tested Galadriel producer mechanics: exact opt-in/default-off behavior, strict registry and actual config/executable pins, frozen envelope routes/codecs, deterministic fusion ledger, bounded lanes, explicit drops/degradation, heartbeat generation, and finite task shutdown
+- [x] Component-tested Galadriel producer mechanics: exact opt-in/default-off behavior, immutable registry and actual config/executable pins, readiness-only active initialization, frozen envelope routes/codecs, deterministic exact-time fusion ledger, bounded measurement/track domains, upstream/capacity loss degradation, sparse assignment, heartbeat generation, and finite owned-task shutdown
 
 Planned capability work:
 
@@ -414,7 +414,7 @@ Planned capability work:
 - [ ] Real PX4/ArduPilot integration
 - [ ] Multi-drone coordination
 - [ ] Deployed Zenoh TLS/mTLS identities, certificate policy, exact-route ACLs, and negative topology evidence (secure-mode config loading alone is insufficient)
-- [ ] Live Galadriel receiver tap/assembler, registry agreement, heartbeat-deadline enforcement, restart/loss/reorder/saturation campaigns, and receiver-side correlation evidence
+- [ ] Live Galadriel receiver tap/assembler, registry agreement, payload-size limits, heartbeat-deadline enforcement, restart/loss/reorder/saturation/clock campaigns, wire-visible upstream-loss detail, and receiver-side correlation evidence
 - [ ] PID JSONL regular-file enforcement, active archive saturation/drop health, and blocked-writer cleanup beyond the current two-second exit wait
 - [ ] Edge deployment (Jetson, Apple Silicon Mac Mini)
 - [ ] Recorded flight replay

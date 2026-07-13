@@ -884,7 +884,6 @@ fn reject_galadriel_enable_without_feature() -> Result<(), String> {
 /// Initialize the sensor fusion engine with configuration
 #[tauri::command]
 fn fusion_init(config: Option<FusionConfig>) -> Result<(), String> {
-    let cfg = prepared_fusion_config(config.unwrap_or_default())?;
     #[cfg(feature = "ncp")]
     let handle = galadriel_handle()?;
     #[cfg(feature = "ncp")]
@@ -894,13 +893,6 @@ fn fusion_init(config: Option<FusionConfig>) -> Result<(), String> {
         .transpose()?;
     #[cfg(feature = "ncp")]
     if let Some(handle) = handle.as_ref() {
-        let actual = cfg.canonical_digest()?;
-        if actual != handle.configuration_digest() {
-            return Err(format!(
-                "fusion configuration digest {actual} does not match the active Galadriel deployment pin {}",
-                handle.configuration_digest()
-            ));
-        }
         let initialized = FUSION_ENGINE
             .lock()
             .map_err(|error| error.to_string())?
@@ -910,11 +902,15 @@ fn fusion_init(config: Option<FusionConfig>) -> Result<(), String> {
             return Err("active Galadriel deployment lost its fusion engine".to_string());
         }
         // Setup owns the epoch's one engine. Frontend initialization is an
-        // idempotent pin check only: replacing the engine could reuse frame,
-        // prior, and track identities after a partially processed failed frame.
-        log::info!("Pinned Galadriel fusion engine already initialized");
+        // idempotent readiness check only. The effective config was loaded and
+        // hash-pinned before the runtime opened; UI defaults are intentionally
+        // ignored because replacing the engine could both reject a valid custom
+        // deployment and reuse frame/prior/track identities.
+        let _ignored_ui_config = config;
+        log::info!("Pinned Galadriel fusion engine is ready");
         return Ok(());
     }
+    let cfg = prepared_fusion_config(config.unwrap_or_default())?;
     let fusion = MultiSensorFusion::new(cfg);
 
     let mut guard = FUSION_ENGINE.lock().map_err(|e| e.to_string())?;
@@ -1114,9 +1110,32 @@ fn shutdown_pid_jsonl_archive() {
     }
 }
 
+#[cfg(any(feature = "ncp", test))]
+fn retain_newest_measurements_for_limit(
+    measurements: &mut Vec<SensorMeasurement>,
+    limit: usize,
+) -> Result<u64, String> {
+    if measurements.len() <= limit {
+        return Ok(0);
+    }
+    let dropped = measurements.len() - limit;
+    *measurements = measurements.split_off(dropped);
+    u64::try_from(dropped).map_err(|_| "registry input-drop count exceeds u64".to_string())
+}
+
+#[cfg(feature = "ncp")]
+fn normalize_neutral_empty_frame_timestamp(timestamp_ms: u64, applicability_floor_ms: u64) -> u64 {
+    if timestamp_ms == 0 {
+        applicability_floor_ms
+    } else {
+        timestamp_ms
+    }
+}
+
 fn process_fusion_batch_with_sink<F>(
     measurements: Vec<SensorMeasurement>,
     timestamp_ms: u64,
+    upstream_dropped_measurements: u64,
     sink: F,
 ) -> Result<Vec<TrackOutput>, String>
 where
@@ -1124,7 +1143,53 @@ where
 {
     #[cfg(feature = "ncp")]
     if let Some(handle) = galadriel_handle()? {
+        let mut measurements = measurements;
+        let mut upstream_dropped_measurements = upstream_dropped_measurements;
         let _pipeline_guard = lock_galadriel_frame_pipeline(&handle)?;
+        // Before the first sensor stamp, the renderer sends the neutral sensor
+        // epoch (0) for explicit empty closure frames. Clamp only those empty
+        // frames to the selected deployment's applicability floor; inventing a
+        // wall-clock stamp would strand simulation/header timestamps behind the
+        // predictor high-water mark.
+        let timestamp_ms = if measurements.is_empty() {
+            let frame = handle
+                .registry()
+                .frame(handle.frame_id())
+                .unwrap_or_else(|| unreachable!("startup validated selected frame"));
+            let context = handle
+                .registry()
+                .context(handle.context_id())
+                .unwrap_or_else(|| unreachable!("startup validated selected context"));
+            normalize_neutral_empty_frame_timestamp(
+                timestamp_ms,
+                frame
+                    .applicability()
+                    .valid_from_timestamp_ms()
+                    .max(context.applicability().valid_from_timestamp_ms()),
+            )
+        } else {
+            timestamp_ms
+        };
+        let registry_limit = handle.registry().opportunity_policy().max_frame_inputs() as usize;
+        let dropped_for_registry =
+            retain_newest_measurements_for_limit(&mut measurements, registry_limit)?;
+        if dropped_for_registry > 0 {
+            upstream_dropped_measurements = upstream_dropped_measurements
+                .checked_add(dropped_for_registry)
+                .ok_or_else(|| "upstream input-drop count overflow".to_string())?;
+        }
+        if upstream_dropped_measurements > pid_observation::JSON_SAFE_INTEGER_MAX {
+            handle.mark_degraded();
+            return Err(
+                "upstream input-drop count exceeds the exact JSON integer range".to_string(),
+            );
+        }
+        if upstream_dropped_measurements > 0 {
+            handle.mark_degraded();
+            log::warn!(
+                "Galadriel frame lost {upstream_dropped_measurements} upstream measurements; keeping the newest bounded inputs"
+            );
+        }
         let assembled = (|| -> Result<_, String> {
             let mut guard = FUSION_ENGINE.lock().map_err(|error| error.to_string())?;
             let fusion = guard.as_mut().ok_or("Fusion engine not initialized")?;
@@ -1175,7 +1240,7 @@ where
             opportunity_inputs,
             observations,
             events,
-            summary,
+            mut summary,
         ) = match assembled {
             Ok(assembled) => assembled,
             Err(error) => {
@@ -1183,6 +1248,10 @@ where
                 return Err(error);
             }
         };
+        if upstream_dropped_measurements > 0 {
+            summary.degraded = true;
+            summary.truncated = true;
+        }
         if let Err(error) = enqueue_pid_jsonl_archive(observations.clone(), &handle) {
             handle.mark_degraded();
             log::warn!("[pid-jsonl] {error}");
@@ -1211,6 +1280,12 @@ where
         return Ok(tracks);
     }
 
+    if upstream_dropped_measurements > 0 {
+        log::warn!(
+            "Dropped {upstream_dropped_measurements} ROS measurements before non-Galadriel fusion"
+        );
+    }
+
     let (tracks, records) = {
         let mut guard = FUSION_ENGINE.lock().map_err(|e| e.to_string())?;
         let fusion = guard.as_mut().ok_or("Fusion engine not initialized")?;
@@ -1229,12 +1304,22 @@ where
 async fn fusion_process(
     measurements: Vec<SensorMeasurement>,
     timestamp_ms: u64,
+    upstream_dropped_measurements: Option<u64>,
 ) -> Result<Vec<TrackOutput>, String> {
     validate_sensor_measurements(&measurements)?;
+    let upstream_dropped_measurements = upstream_dropped_measurements.unwrap_or(0);
+    if upstream_dropped_measurements > pid_observation::JSON_SAFE_INTEGER_MAX {
+        #[cfg(feature = "ncp")]
+        if let Ok(Some(handle)) = galadriel_handle() {
+            handle.mark_degraded();
+        }
+        return Err("upstream input-drop count exceeds the exact JSON integer range".to_string());
+    }
     let task = tauri::async_runtime::spawn_blocking(move || {
         process_fusion_batch_with_sink(
             measurements,
             timestamp_ms,
+            upstream_dropped_measurements,
             append_pid_observations_best_effort,
         )
     })
@@ -1885,8 +1970,8 @@ mod tests {
         let mut measurement = test_sensor_measurement();
         measurement.position[1] = f64::NAN;
 
-        let error =
-            tauri::async_runtime::block_on(fusion_process(vec![measurement], 1000)).unwrap_err();
+        let error = tauri::async_runtime::block_on(fusion_process(vec![measurement], 1000, None))
+            .unwrap_err();
 
         assert!(error.contains("position[1] must be finite"));
     }
@@ -1896,16 +1981,59 @@ mod tests {
         let measurements =
             vec![test_sensor_measurement(); sensor_fusion::MAX_FUSION_MEASUREMENTS_PER_BATCH + 1];
 
-        let error = tauri::async_runtime::block_on(fusion_process(measurements, 1000)).unwrap_err();
+        let error =
+            tauri::async_runtime::block_on(fusion_process(measurements, 1000, None)).unwrap_err();
 
         assert!(error.contains("Too many sensor measurements"));
+    }
+
+    #[test]
+    fn fusion_process_rejects_non_wire_safe_upstream_drop_count() {
+        let error = tauri::async_runtime::block_on(fusion_process(
+            Vec::new(),
+            1000,
+            Some(pid_observation::JSON_SAFE_INTEGER_MAX + 1),
+        ))
+        .unwrap_err();
+
+        assert!(error.contains("upstream input-drop count"));
+    }
+
+    #[test]
+    fn registry_input_limit_keeps_newest_measurements_and_counts_loss() {
+        let mut measurements = (0..3)
+            .map(|index| {
+                let mut measurement = test_sensor_measurement();
+                measurement.sensor_id = format!("sensor-{index}");
+                measurement
+            })
+            .collect::<Vec<_>>();
+
+        let dropped = retain_newest_measurements_for_limit(&mut measurements, 2).unwrap();
+
+        assert_eq!(dropped, 1);
+        assert_eq!(
+            measurements
+                .iter()
+                .map(|measurement| measurement.sensor_id.as_str())
+                .collect::<Vec<_>>(),
+            ["sensor-1", "sensor-2"]
+        );
+    }
+
+    #[cfg(feature = "ncp")]
+    #[test]
+    fn only_neutral_empty_frame_timestamp_is_normalized_to_registry_floor() {
+        assert_eq!(normalize_neutral_empty_frame_timestamp(0, 1_000), 1_000);
+        assert_eq!(normalize_neutral_empty_frame_timestamp(1, 1_000), 1);
+        assert_eq!(normalize_neutral_empty_frame_timestamp(1_001, 1_000), 1_001);
     }
 
     #[test]
     fn process_fusion_batch_releases_engine_lock_before_invoking_sink() {
         fusion_init(Some(test_fusion_config())).unwrap();
 
-        process_fusion_batch_with_sink(vec![test_sensor_measurement()], 1000, |_| {
+        process_fusion_batch_with_sink(vec![test_sensor_measurement()], 1000, 0, |_| {
             assert!(
                 FUSION_ENGINE.try_lock().is_ok(),
                 "fusion engine lock remained held while invoking the PID sink"
@@ -2455,12 +2583,21 @@ mod tests {
                 "measurements": [invalid_measurement],
                 "timestampMs": 1000,
             }),
-            "covariance[1] must be > 0",
+            "covariance[1] must be within",
         );
         app.assert_error_contains(
             "fusion_process",
             serde_json::json!({ "measurements": [], "timestampMs": "not-a-number" }),
             "invalid args `timestampMs`",
+        );
+        app.assert_error_contains(
+            "fusion_process",
+            serde_json::json!({
+                "measurements": [],
+                "timestampMs": 1000,
+                "upstreamDroppedMeasurements": pid_observation::JSON_SAFE_INTEGER_MAX + 1,
+            }),
+            "upstream input-drop count",
         );
     }
 

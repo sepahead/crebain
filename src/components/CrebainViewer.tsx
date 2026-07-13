@@ -118,6 +118,7 @@ interface CrebainViewerProps {
     position: [number, number, number]
     confidence: number
     classLabel: string
+    timestampMs: number
   }) => void
   performancePanelVisible?: boolean
   onPerformancePanelVisibleChange?: (visible: boolean) => void
@@ -544,6 +545,10 @@ export default function CrebainViewer({
       const tracks = sensorFusionRef.current.processFrame(cameraDetections, cameraParams)
       setFusedTracks(tracks)
       setFusionStats(sensorFusionRef.current.getStats())
+      // All tracks emitted by one visual fusion pass are one synchronized
+      // observation frame. Capture the clock once so a millisecond rollover in
+      // this loop cannot make an otherwise coherent batch look asynchronous.
+      const timestampMs = Date.now()
       for (const track of tracks) {
         const position = track.triangulatedPosition
         if (
@@ -556,6 +561,7 @@ export default function CrebainViewer({
             position: [position.x, position.y, position.z],
             confidence: track.fusedConfidence,
             classLabel: track.class,
+            timestampMs,
           })
         }
       }

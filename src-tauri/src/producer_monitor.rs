@@ -184,7 +184,7 @@ pub enum ModalityOutcomeKind {
     UpdateRejected,
     /// An unassigned measurement created this track.
     TrackBirth,
-    /// The track/filter combination cannot consume this modality.
+    /// The track/filter combination cannot safely gate or consume this modality.
     UnsupportedFilter,
     /// The baseline path updated, but no registered common-frame projection exists.
     IncomparableProjection,

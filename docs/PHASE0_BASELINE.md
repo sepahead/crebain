@@ -17,7 +17,7 @@ scope; it does not promote CREBAIN beyond L0.
 | Tracked P0/P1 issues, owners, and dependencies | Pending project-governance work |
 | Hermetic clean builds and signed release manifest | Pending |
 | Headless plant-authority foundation | Inactive draft contract-v1 validation, profile-neutral digest-bound ENU/NED + FLU/FRD velocity-axis conventions, lifecycle, bounded channels, retained snapshot storage, and passive monotonic expiry are component-tested in an inert package; approved profile, attitude-dependent transforms, trusted health schema, active watchdog, and live plant controls are absent |
-| Galadriel evidence producer | Feature/runtime-gated component integrated with strict registry and actual config/executable pins, two exact evidence routes, bounded NCP loss/degradation, heartbeat generation, and finite owned-task shutdown; receiver/TLS/ACL/deadline/calibration evidence is absent, and an optional JSONL writer blocked beyond its separate two-second wait is not forcibly abortable |
+| Galadriel evidence producer | Feature/runtime-gated component integrated with immutable strict registry and actual config/executable pins, readiness-only active initialization, two exact evidence routes, exact-time/projection eligibility, bounded measurement/live-track/assignment behavior, upstream/capacity/NCP loss degradation, heartbeat generation, and finite owned-task shutdown; numeric upstream loss is not wire-visible, receiver/TLS/ACL/receive-size/deadline/combined-load/calibration evidence is absent, and an optional JSONL writer blocked beyond its separate two-second wait is not forcibly abortable |
 
 Phase 0 exit has therefore **not** been reached. L1 remains blocked until every
 P0 hazard is controlled with evidence and the live topology passes its negative
@@ -77,8 +77,8 @@ when their literals, captured constants, separators, or unresolved segments can
 construct a route; positional or named format reordering is not treated as a
 trusted evaluator. The generic `publish` capability remains forbidden. The
 inventory separately requires the two exact feature/runtime-gated Galadriel NCP
-evidence routes and their pin/queue/heartbeat tests; it does not create a generic
-publisher exception. The fail-closed
+evidence routes and their pin/config-immutability/time/input/capacity/queue/
+heartbeat tests; it does not create a generic publisher exception. The fail-closed
 self-test contains source, comment-shadow, manifest, conditional-input,
 computed-route/capability, network, hazard, evidence, and digest mutations.
 

@@ -19,8 +19,10 @@ Use this workflow after automated validation passes and before tagging, demoing,
 7. For ROS/Zenoh checks, record whether the run used rosbridge WebSocket mode,
    telemetry Zenoh mode, or Galadriel NCP mode. For the producer also record the
    exact two keys, producer epoch/identity, registry and effective-config digests,
-   queue/drop/degraded counters, heartbeat observations, receiver/topology, and
-   positive/negative ACL result. A local put is not receiver delivery.
+   sensor-clock behavior, upstream/track-cap and queue/drop/degraded state,
+   heartbeat observations, receiver/topology receive-size limits, and
+   positive/negative ACL and oversize results. A local put is not receiver
+   delivery, and numeric upstream loss is currently log-only.
 8. Classify each finding as release-blocking, needs measurement, documentation follow-up, or non-blocking observation.
 9. Stop the app and confirm no dev server, transport subscription, Galadriel
    producer task, PID JSONL archive writer, or simulator process remains

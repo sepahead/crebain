@@ -46,8 +46,10 @@ and is then serialized as compact struct-ordered JSON for SHA-256. When the path
 is absent, `FusionConfig::default()` is the effective input. If
 `CREBAIN_PID_JSONL` is present, CREBAIN enables `emit_innovations` before
 validating and hashing, so changing the JSONL setting changes the configuration
-pin. No later `fusion_init` or `fusion_set_config` call may install a configuration
-with a different canonical digest while the producer is active.
+pin. While the producer is active, `fusion_init` is an idempotent readiness check:
+it deliberately ignores renderer-supplied defaults because startup already
+loaded the immutable pinned engine. `fusion_set_config` accepts only the same
+canonical digest and does not replace that engine.
 
 For this source baseline, the literal default configuration with no JSONL
 override has canonical digest
@@ -132,6 +134,39 @@ incomparable. A matching frame-name string is provenance supplied through the
 fusion input; it is not cryptographic sensor authentication or evidence that a
 calibration was applied.
 
+Time eligibility is equally strict. A frozen-v1 observation or common projection
+is possible only when the frame timestamp advances the fusion prior, the
+measurement timestamp exactly equals that frame timestamp, and that timestamp is
+strictly newer for the same track/modality channel. Duplicate, out-of-order, or
+mixed older inputs can still take the bounded baseline fusion path, but they emit
+no v1 and remain incomparable. Timestamp zero explicitly initializes the fusion
+clock; it is not confused with an uninitialized clock. Per-channel high-water
+state is removed when its track leaves the live set.
+
+Renderer ingestion stays in the sensor/header clock domain. One visual detector
+pass stamps all of its tracks once. Each fusion frame uses the maximum of the
+previous successfully admitted clock and its newest input stamp; an empty frame
+reuses that high-water. Before any data, an empty frame uses neutral zero, which
+the active native path clamps to the selected frame/context applicability floor.
+The renderer commits its high-water only after native success, so a rejected
+future input cannot poison later valid sensor time. Wall time is not substituted
+for empty or mixed-stamp frames.
+
+Native validation also bounds the computational domain before filter work:
+
+| Input | Bound |
+|---|---|
+| Frame batch | At most 512 measurements before the stricter registry limit |
+| Cartesian position / radar range | Magnitude at most 10,000,000 m (radar range is non-negative) |
+| Cartesian velocity component | Magnitude at most 100,000 m/s |
+| Covariance diagonal | Finite and within `(0, 1e12]` |
+| Metadata | At most 64 entries; each finite value has magnitude at most `1e12` |
+| IDs, labels, source frames, metadata keys | At most 256 bytes plus their existing nonempty/control-character rules |
+
+If internal gate math is not finite/valid despite those boundaries, the monitor
+ledger emits `unsupported_filter` without fabricated numeric gate evidence or a
+v1 observation.
+
 `FusionConfig::default()` has `emit_innovations=false`. That flag controls the
 legacy automatic innovation buffer/local JSONL path; it does not suppress the
 explicit live `process_frame` evidence API. An enabled producer using the literal
@@ -149,6 +184,21 @@ and permanently latches the producer epoch degraded; affected frame summaries
 are marked degraded/truncated when they can be admitted. Ordered monitor sequence
 numbers are reserved before lane admission, so a dropped event leaves an
 observable sequence gap rather than being silently renumbered.
+
+Loss before those four lanes is explicit but has different accounting. The
+renderer counts malformed detections and buffer trimming; native admission adds
+any trimming required by the registry's `max_frame_inputs`. Both retain the
+newest bounded inputs. A nonzero upstream count permanently degrades the epoch
+and marks the admitted frame summary degraded/truncated. At the active-track cap,
+fusion deterministically discards whole overflow birth clusters before mutation,
+builds one final bounded association plan, and likewise closes a
+degraded/truncated frame instead of wedging the epoch. The current wire summary
+does not carry the numeric upstream/cluster-drop count; deployments must retain
+producer logs as well as receiver evidence.
+
+The assignment solver decomposes sparse finite components and short-circuits a
+maximum-size all-infinite matrix. Component tests bound the 512-input/1,024-track
+case, but this is not deployed combined-load or deadline evidence.
 
 Each Zenoh `put` is bounded by five seconds. A failed or timed-out put is counted
 as a drop and permanently degrades the epoch. Heartbeats have a separate
@@ -190,6 +240,8 @@ configuration, registry, and topology:
 - a live Galadriel tap/monitor/cross-route assembler that pins the same registry,
   observes sequence gaps, enforces heartbeat deadlines, and reports decode and
   identity mismatches;
+- verified router and receiver payload-size limits at least as large as every
+  permitted sidecar/monitor envelope, with oversize negative tests;
 - loss, reorder, duplicate, restart, partition, queue-saturation, clock, and
   shutdown campaigns with receiver-side artifacts; and
 - scientific calibration/accuracy evidence if any claim goes beyond advisory raw
