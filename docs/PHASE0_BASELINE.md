@@ -16,7 +16,7 @@ promote CREBAIN beyond L0.
 | External source/toolchain/config baseline | Exact local observations recorded; CREBAIN commit intentionally resolved by later release evidence |
 | Tracked P0/P1 issues, owners, and dependencies | Pending project-governance work |
 | Hermetic clean builds and signed release manifest | Pending |
-| Headless plant-authority foundation | Inert package, lifecycle, bounded channels, retained snapshot storage, and passive monotonic expiry component-tested; trusted health schema, active watchdog, and live plant controls absent |
+| Headless plant-authority foundation | Inactive draft contract-v1 validation, lifecycle, bounded channels, retained snapshot storage, and passive monotonic expiry are component-tested in an inert package; approved profile, trusted health schema, active watchdog, and live plant controls are absent |
 
 Phase 0 exit has therefore **not** been reached. L1 remains blocked until every
 P0 hazard is controlled with evidence and the live topology passes its negative

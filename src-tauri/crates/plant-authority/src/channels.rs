@@ -678,7 +678,8 @@ impl SafetyLatch {
 /// cannot be displaced by saturation of any normal path.
 #[derive(Debug)]
 pub struct KernelChannels<CommandValue, Health, AdapterOutput, Evidence> {
-    /// Latest validated-command foundation. No command schema exists yet.
+    /// Latest validated-command foundation. The inactive contract-v1 candidate
+    /// is not wired to this channel and defines no wire schema.
     pub latest_command: LatestChannel<CommandValue>,
     /// Non-consuming retained health-snapshot foundation.
     /// No trusted vehicle-health schema or freshness policy exists yet.

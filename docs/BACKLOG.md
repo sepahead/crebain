@@ -13,8 +13,10 @@ below means source plus local component tests, not integrated authority or
 hazard closure.
 
 The remaining rows are dependency-ordered by safety semantics, not by ticket
-number: define versioned command/frame/unit/time/profile types first; add a
-typed non-consuming atomic health snapshot (CB-030); then monotonic receipt and
+number. An inactive contract-v1 candidate now defines closed command/frame/unit/time/profile
+types and draft instantaneous-speed/TTL rejection, but the profile artifact and canonical
+local frame remain unapproved. Approve and pin that profile first; add a typed
+non-consuming atomic health snapshot (CB-030); then monotonic receipt and
 deadline primitives (CB-027), the profile-driven safe-action selector (CB-028),
 and the apply-time governor (CB-029). CB-032 can follow only as a bounded,
 observable mock transaction. A process cannot guarantee a final action after
@@ -24,9 +26,9 @@ and independently attested FCU failsafe behavior.
 
 | ID | Scope | Current disposition |
 |---|---|---|
-| CB-025 | Small native Rust plant-authority crate/process independent of renderer lifecycle | Implemented and component-tested for this inert slice: separate dependency-free package, typed generic channel/status boundary, and headless self-check; a real command schema and integration topology remain pending later phases |
+| CB-025 | Small native Rust plant-authority crate/process independent of renderer lifecycle | Implemented and component-tested for this inert slice: separate dependency-free package, inactive contract-v1 candidate, typed generic channel/status boundary, and headless self-check; profile approval, a wire schema, and integration topology remain pending later phases |
 | CB-026 | Explicit Boot, NoAuthority, Standby, Preflight, AuthorizedHold, Active, Degraded, Emergency, Shutdown state machine | Implemented and transition-tested with process-local generation guards and fail-closed invalid transitions; restart epoch sourcing and ODD/FCU transition preconditions remain pending |
-| CB-027 | Plant-local monotonic command-expiry watchdog | Partial component mechanics only: an immutable generation-bound local `Instant` guard rejects zero TTL, an unrepresentable deadline, clock regression, stale generation, and the exact deadline. The ticket remains pending behind versioned command/time/profile types and CB-030; no command admission, active scheduling, apply-time write coupling, suspend qualification, scheduler-jitter, or kill/freeze evidence exists |
+| CB-027 | Plant-local monotonic command-expiry watchdog | Partial component mechanics only: contract v1 structurally bounds requested TTL and separates producer from local receipt time; an immutable generation-bound local `Instant` guard rejects zero TTL, an unrepresentable deadline, clock regression, stale generation, and the exact deadline. The ticket remains pending behind profile approval and CB-030; no command admission, active scheduling, apply-time write coupling, suspend qualification, scheduler-jitter, or kill/freeze evidence exists |
 | CB-028 | Vehicle/ODD/state-specific safe-action table | Pending; the first-cause latch records a component safety cause but selects no physical response |
 | CB-029 | Apply-time profile/frame/unit/envelope/health safety governor | Pending |
 | CB-030 | Atomic typed vehicle-health snapshot | Partial component mechanics only: a generic non-consuming retained register atomically associates one whole `Arc`-backed value with caller-supplied lifecycle generation and exact sequence; repeated loads preserve prior allocations, concurrent replacements stay coherent for the tested plain-data value, and poison/closure/counter exhaustion fail closed. The generic API neither prevents interior mutation exposed by `T` nor validates generation order. The ticket remains pending because no authoritative FCU health schema, provenance, frame/unit/time contract, freshness policy, or apply-time check exists |
@@ -45,6 +47,10 @@ and independently attested FCU failsafe behavior.
 
 ## Recently completed
 
+- Inactive plant contract-v1 candidate: closed profile/action/frame/unit types,
+  distinct producer/local time, draft TTL and instantaneous-speed validation, and
+  stable negative reasons. It has no parser, ingress, approval, health gate,
+  watchdog, adapter, or action authority.
 - Native detector benchmark mechanics: bounded release-command inputs,
   content-identified model/fixture/runtime context, raw sequential call samples,
   trusted-baseline digest binding, p95 comparison, atomic no-overwrite reports,

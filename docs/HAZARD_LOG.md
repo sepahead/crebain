@@ -53,6 +53,13 @@ not an active watchdog and does not prove platform suspend behavior,
 immediately-before-write coupling, scheduler jitter, or expiry-to-safe-action
 latency.
 
+The inactive contract-v1 candidate narrows input ambiguity only. It rejects a
+profile/session/version mismatch, non-velocity actions, wrong frame or unit,
+invalid requested lifetime, nonfinite components, and draft speed-limit excess.
+The canonical local frame and profile remain unapproved, there is no wire
+decoder or authenticated ingress, and no ENU/NED or FLU/FRD transform corpus
+exists. HAZ-005 and HAZ-016 therefore remain open.
+
 The retained snapshot register is generic CB-030 storage mechanics only. It
 proves non-consuming whole-value replacement and atomic association with
 caller-supplied generation/sequence metadata for a plain-data test type. It does

@@ -21,9 +21,9 @@ evidence bundle. Its success cannot be inferred from PX4.
 | ODD-01 | Vehicle | One quadrotor SITL model; simulated mass 1.5–2.5 kg; no payload | Provisional; exact model/image digest pending |
 | ODD-02 | FCU | PX4 SITL with named image, parameters, estimator, geofence, data-link and offboard failsafes | Exact version and parameter attestation pending |
 | ODD-03 | Flight volume | Cylinder centered at launch: 100 m radius, 2–50 m AGL, with 15 m braking buffer | Plant and FCU fence tests pending |
-| ODD-04 | Motion envelope | Horizontal speed ≤5 m/s; vertical speed ≤2 m/s; acceleration ≤2 m/s²; jerk ≤4 m/s³ | Provisional dynamics/fault verification pending |
-| ODD-05 | Commands | Velocity plus state-dependent Hold/Land/RTL only; no mission upload, set-current, `AUTO.MISSION`, arbitrary mode, raw motor, or in-air disarm | Typed profile and bypass proof pending |
-| ODD-06 | Timing | Nominal command rate 20 Hz; command age ≤150 ms at apply; plant watchdog safe transition ≤250 ms | WCET/jitter/fault evidence pending |
+| ODD-04 | Motion envelope | Horizontal speed ≤5 m/s; vertical speed ≤2 m/s; acceleration ≤2 m/s²; jerk ≤4 m/s³ | Inactive contract v1 checks finite velocity bounds; profile approval, acceleration/jerk state, and dynamics/fault verification remain pending |
+| ODD-05 | Commands | Velocity plus state-dependent Hold/Land/RTL only; no mission upload, set-current, `AUTO.MISSION`, arbitrary mode, raw motor, or in-air disarm | General contract-v1 candidate admits velocity only and rejects the other named proposals; state-dependent safe-action selection and bypass proof remain pending |
+| ODD-06 | Timing | Nominal command rate 20 Hz; command age ≤150 ms at apply; plant watchdog safe transition ≤250 ms | Contract v1 structurally bounds requested TTL and separates producer/local time; apply-time, WCET/jitter/fault evidence remains pending |
 | ODD-07 | Localization | FCU estimator healthy; local pose/velocity age ≤200 ms; consistent ENU↔NED/FLU↔FRD transforms; simulation epoch monotonic | Golden vectors, reset and staleness tests pending |
 | ODD-08 | Required state | Armed/landed/mode, estimator health, battery, fence, link, position and velocity are one atomic plant snapshot | Native plant not yet implemented |
 | ODD-09 | Sensors/models | FCU state and pose are mandatory; perception/fusion/ML may inform intent but cannot alone authorize motion | Advisory isolation tests pending |

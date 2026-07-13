@@ -12,6 +12,15 @@ README and treated as unverified until measured on target hardware.
 Open-source readiness and quality hardening.
 
 ### Added
+- **Inactive plant contract-v1 candidate.** The isolated zero-dependency plant
+  package now has closed profile/action/frame/unit types, fixed-width nonzero
+  identities, distinct producer and plant-local time domains, and fail-closed
+  validation for the draft L1 instantaneous velocity and TTL limits. Non-velocity actions,
+  wrong version/profile/session/frame/unit, zero or oversized lifetime,
+  nonfinite values, and vectors outside the instantaneous speed limits are rejected by stable typed
+  reasons. The profile and canonical local frame remain unapproved; there is no
+  serializer, ingress, anti-replay state, watchdog, health gate, adapter, or
+  action path.
 - **Content-identified native detector microbenchmark.** A release-command Rust
   example records bounded single-fixture `DetectorRuntime::detect` samples,
   nearest-rank latency summaries, a separately scoped evidence-loop wall time,

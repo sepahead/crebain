@@ -581,7 +581,7 @@
           "artifact": "service/mode/mission negative campaign"
         }
       ],
-      "residual_risk": "Current renderer-side helpers expose these operations."
+      "residual_risk": "Current production renderer/native surfaces no longer expose these operations, but the future L1 adapter/topology and adversarial bypass campaign do not yet exist."
     },
     {
       "id": "HAZ-017",

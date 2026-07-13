@@ -15,10 +15,13 @@ authority. The Rust NCP adapter remains feature-gated with unregistered Tauri
 commands. There is still no live Haldir→NCP→native-plant→FCU authority chain.
 
 A separate dependency-free `crebain-plant-authority` workspace package and
-`crebain-plantd` process now provide an inert lifecycle/channel foundation, a
-non-consuming retained whole-snapshot register, and a passive
-generation-bound monotonic expiry guard. The binary can only self-check; it has
-no command ingress, vehicle-health source/schema/provenance/freshness policy,
+`crebain-plantd` process now provide an inactive draft contract-v1 validator,
+an inert lifecycle/channel foundation, a non-consuming retained whole-snapshot
+register, and a passive generation-bound monotonic expiry guard. Contract v1
+uses closed action/frame/unit types, distinct producer and plant-local time,
+and draft instantaneous-speed/TTL bounds, but has no wire format and its profile/frame are
+unapproved. The binary can only self-check; it has no command ingress,
+vehicle-health source/schema/provenance/freshness policy,
 active watchdog, governor, safe-action profile, NCP link, or FCU adapter. The
 snapshot register is storage mechanics only: it neither prevents interior
 mutation exposed by its generic value type nor validates its caller-supplied

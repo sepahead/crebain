@@ -5,6 +5,23 @@ process and dependency boundary for the future L1 plant without enabling a
 command route or vehicle adapter. The `crebain-plantd` binary currently accepts
 only `--self-check` and exits.
 
+## Inactive contract-v1 candidate
+
+The dependency-free `contract` module makes the draft L1 velocity semantics
+explicit without creating an ingress path. It uses closed action/frame/unit
+types, nonzero profile/session/producer-epoch identities, distinct producer and
+plant-local time domains, a nonzero stream sequence, and an immutable validated
+candidate bound to the current lifecycle generation. Validation rejects a
+version/profile/session mismatch, every non-velocity action, zero or greater-
+than-150-ms requested lifetime, a frame other than the exact identity-bound
+local ENU or NED frame, non-SI units, nonfinite components, horizontal magnitude
+above 5 m/s, or absolute vertical speed above 2 m/s.
+
+The profile, limits, and canonical local frame remain unapproved. The module
+has no serialization, transport, stateful replay admission, timer, health gate,
+safe-action selection, adapter operation, or lifecycle transition. See
+[`docs/PLANT_CONTRACT_V1.md`](../../../docs/PLANT_CONTRACT_V1.md).
+
 ## Channel policy
 
 | Path | Capacity policy | Saturation behavior |
@@ -44,8 +61,8 @@ FCU-safe-action timing.
 The package has no dependencies and the boundary checker rejects links or
 source references to the application library, Tauri, NCP/Zenoh, transport,
 inference, fusion, simulation, ROS, Gazebo, or MAVROS. A real watchdog, trusted
-vehicle-health schema, safety governor, safe-action profile, authenticated ingress,
-and FCU adapter remain intentionally absent.
+vehicle-health schema, safety governor, approved safe-action profile,
+authenticated ingress, and FCU adapter remain intentionally absent.
 
 Production sources also reject subprocess, network, filesystem/device I/O,
 external `#[path]`/`include!` reachability, symlinks, custom builds, and any
