@@ -605,6 +605,7 @@ mod tests {
         let policy = SafeActionPolicyCandidateV1::try_from_rows(profile, &rows)
             .expect("test policy is structurally valid");
         rows[0] = row(1, SafeActionIntentV1::InhibitPlantOutput);
+        assert_eq!(rows[0].intent(), SafeActionIntentV1::InhibitPlantOutput);
 
         let first = policy
             .select(SafeActionSituationCandidateV1::new(profile, code(1)))

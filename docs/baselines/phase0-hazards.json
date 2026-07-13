@@ -656,7 +656,7 @@
           "artifact": "component lifecycle test showing maximum-generation shutdown remains terminal without wrapping or later mutation"
         }
       ],
-      "residual_risk": "Process-local lifecycle generations reject stale queued events, the deadline monitor checks caller-supplied expected generation and can terminalize on a caller-reported different generation, and the producer creates a fresh randomized process epoch. Neither monitor input establishes authoritative currentness. The monitor does not autonomously observe lifecycle rotation; durable boot anti-rollback, authenticated principal binding, retained transport behavior, and the complete live restart topology do not exist."
+      "residual_risk": "Process-local lifecycle generations reject stale queued events, the deadline monitor checks caller-supplied expected generation and can terminalize on a caller-reported different generation, and the producer requires an explicit key-safe process epoch. Neither monitor input establishes authoritative currentness. The monitor does not autonomously observe lifecycle rotation; deployment-proven epoch uniqueness, durable boot anti-rollback, authenticated principal binding, retained transport behavior, and the complete live restart topology do not exist."
     },
     {
       "id": "HAZ-014",

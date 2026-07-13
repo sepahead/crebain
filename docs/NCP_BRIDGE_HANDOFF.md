@@ -16,7 +16,7 @@ standalone. NCP is not on the default runtime path:
 |---------|---------------|
 | Rust `src-tauri/src/ncp/mod.rs` | Compiles only with the off-by-default `ncp` feature; provides `NcpBridge`, validated feature-neuron RPCs, and a wired fail-closed `CommandPlant` action loop as library APIs |
 | Rust Tauri commands | Defined, but `NcpHandle` is not managed and the four `ncp_*` commands are not registered |
-| Rust Galadriel producer | Compiles with `ncp`; managed by the app only when `CREBAIN_GALADRIEL_ENABLE=1` and all registry/config/executable pins pass; writes only two named perception evidence routes |
+| Rust Galadriel producer | Compiles with `ncp`; managed by the app only when `CREBAIN_GALADRIEL_ENABLE=1`, an explicit key-safe process epoch is supplied, and all registry/config/executable pins pass; writes only two named perception evidence routes |
 | TypeScript `src/neuro` | Thin guarded re-export of `@sepahead/ncp`; imported by no product component/hook |
 | Vite-dev `window.__ncpDrone` | Manual in-browser wire-shaped command injection; no NCP transport/session; absent from production builds |
 | Live CREBAIN↔Engram action/control loop | Not implemented or enabled |
@@ -139,8 +139,9 @@ product integration updates the registry, Tauri handler, tests, and UI together.
    executable integration documentation.
 
 The Galadriel producer does not complete any item in this action/authority list.
-Its remaining deployment work is receiver-side tap/assembler and registry
-agreement; actual TLS identities/certificates/ACLs; principal-to-`producer_id`
+Its remaining deployment work is to run the available receiver-side
+tap/assembler on the exact topology and retain registry-agreement evidence;
+actual TLS identities/certificates/ACLs; principal-to-`producer_id`
 binding; and loss, reorder, duplicate, restart, saturation, heartbeat-deadline,
 and shutdown evidence on the exact topology.
 

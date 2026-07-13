@@ -33,7 +33,7 @@ No hazard in this baseline is controlled or accepted. Every P0 entry blocks L1.
 | HAZ-010 | Model failure or miscalibration creates an unsafe decision | P1 | open | Signed model contract; calibrated advisory use only |
 | HAZ-011 | Missing, censored, stale, or dropped evidence appears nominal | P0 | partial | Producer outcomes/misses/summaries, strict time eligibility, upstream/track-cap loss degradation, sequence gaps, lane counters, and heartbeat semantics exist; wire numeric attribution and receiver enforcement remain absent |
 | HAZ-012 | Resource exhaustion starves watchdog or emergency handling | P0 | partial | One monitor owns one worker/slot, and other kernel/data bounds exist; global monitor count, JSONL blocking, scheduler reservation, and combined-load/deadline timing remain unresolved |
-| HAZ-013 | Restart or reconnect resurrects stale authority | P0 | partial | Process-local generation guards, caller-reported monitor generation mismatch, and fresh producer epochs exist; the apply observation adds no evidence because generation equality neither binds its command to the health vehicle/frame instance nor proves durable currentness; autonomous rotation observation, durable boot/session anti-rollback, and topology restart tests remain absent |
+| HAZ-013 | Restart or reconnect resurrects stale authority | P0 | partial | Process-local generation guards, caller-reported monitor generation mismatch, and an explicit key-safe producer-epoch input exist; the apply observation adds no evidence because generation equality neither binds its command to the health vehicle/frame instance nor proves durable currentness; deployment-proven epoch uniqueness, autonomous rotation observation, durable boot/session anti-rollback, and topology restart tests remain absent |
 | HAZ-014 | Operator confuses connected/delivered with applied/observed | P1 | open | Controlled vocabulary and distinct authority/effect UX |
 | HAZ-015 | Gazebo/local mutation contaminates flight evidence | P1 | partial | Separate binaries, identities, profiles, and evidence labels |
 | HAZ-016 | Mission, mode, arm, takeoff, land, or disarm bypasses policy | P0 | open | Typed hazardous-action transaction or exclusion from L1 |
@@ -158,7 +158,8 @@ loss retains the newest bounded inputs; registry trimming and whole-cluster
 track-capacity rejection latch degraded/truncated frame state. Sparse finite-edge
 assignment and maximum all-infinite short-circuit behavior are component-tested.
 The producer also exposes sequence gaps and sticky degradation, generates
-heartbeats, and uses a fresh randomized process epoch. This narrows
+heartbeats, and requires an explicit key-safe process epoch. Deployment remains
+responsible for making that value unique and preventing reuse. This narrows
 HAZ-009/011/012/013 mechanics, but no P0 hazard is
 controlled: there is no deployed Galadriel tap/assembler, registry agreement,
 authenticated principal binding, proven router/receiver receive-size policy,
