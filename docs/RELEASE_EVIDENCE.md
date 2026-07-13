@@ -7,28 +7,29 @@ smoke record.
 ## Current Candidate
 
 No release candidate is currently sealed. The exact executable source under
-evidence is `8a30b367e5574671ccbe1e030a0aa254804ffe38`; a later evidence-only
+evidence is `2df8c57ab8d2e46214283eeeca3316feaa973dfb`; a later evidence-only
 commit records results without changing that source. This source combines the
-bounded Galadriel producer with the inert typed vehicle-health snapshot. Its
-component evidence does not promote the system beyond L0 or substitute for
-deployed TLS/ACL/receiver, authenticated FCU collection, SITL, HIL, or field
-evidence.
+bounded Galadriel producer with the inert typed vehicle-health snapshot and
+exact-profile-bound captured-read age classifier. Its component evidence does
+not promote the system beyond L0 or substitute for deployed TLS/ACL/receiver,
+authenticated FCU collection, approved age/state policy, current/apply-time
+checks, SITL, HIL, or field evidence.
 
 | Field | Evidence |
 |-------|----------|
-| Candidate source commit | `8a30b367e5574671ccbe1e030a0aa254804ffe38` |
+| Candidate source commit | `2df8c57ab8d2e46214283eeeca3316feaa973dfb` |
 | Branch/tag | `main`; no release tag |
-| GitHub Actions run | [CI 29243068759](https://github.com/sepahead/crebain/actions/runs/29243068759) passed on attempt 3. Attempts 1 and 2 were canceled only after isolated Ubuntu package-install stalls; every completed job was green, and attempt 3 reran the Ubuntu backend and Linux feature gate successfully |
+| GitHub Actions run | [CI 29249059257](https://github.com/sepahead/crebain/actions/runs/29249059257) passed on attempt 2. Attempt 1 was canceled only after the Ubuntu backend remained in package installation for more than ten minutes; every completed job was green, the separate Linux feature-gate dependency installation and checks had passed, and attempt 2 reran the Ubuntu backend successfully |
 | Hosted supply-chain audit | [Audit 29242246397](https://github.com/sepahead/crebain/actions/runs/29242246397) passed on `09dd5ec1556bd56e6934e1ef019f95de84cf9b4f`, the last dependency-manifest change; the candidate changes none of the workflow's manifest inputs |
-| Hosted CodeQL | [CodeQL 29243068800](https://github.com/sepahead/crebain/actions/runs/29243068800) passed for Rust and JavaScript/TypeScript on the exact source |
-| Additional hosted policy | [OpenSSF Scorecard 29243068803](https://github.com/sepahead/crebain/actions/runs/29243068803) passed on the exact source |
-| Local `bun run validate:all` | Passed on the exact source: 305 frontend tests; 74 plant unit/integration tests plus 2 compile-fail doctests; 320 default all-target Rust tests plus 1 ignored generator; 411 NCP-feature all-target Rust tests plus 1 ignored generator; strict default/NCP/plant Clippy and Rustfmt; 133 inventoried surfaces, 17 hazards, 151 production files, 31 pinned configs, 114 Phase-0 fail-closed fixtures, 20 frame mutations, and 24 health-boundary mutations |
-| Local MSRV check | Rust 1.88 plant `cargo check` and 74 all-target tests passed; Rust 1.89 application `cargo check --locked --all-targets` passed; development and CI remain pinned to 1.91.1 |
-| Frontend test/coverage/bundle result | 45 files and 305 local tests passed; exact-source `bun run check:bundle` passed at 432.3/700.0 kB gzipped with 29 production-boundary fixtures; hosted frontend and coverage jobs passed inside CI 29243068759 |
+| Hosted CodeQL | [CodeQL 29249059315](https://github.com/sepahead/crebain/actions/runs/29249059315) passed for Rust and JavaScript/TypeScript on the exact source |
+| Additional hosted policy | [OpenSSF Scorecard 29249059270](https://github.com/sepahead/crebain/actions/runs/29249059270) passed on the exact source |
+| Local `bun run validate:all` | Passed on the exact source: 305 frontend tests; 79 plant unit/integration tests plus 7 compile-fail doctests; 320 default all-target Rust tests plus 1 ignored generator; 411 NCP-feature all-target Rust tests plus 1 ignored generator; strict default/NCP/plant Clippy and Rustfmt; 133 inventoried surfaces, 17 hazards, 152 production files, 31 pinned configs, 114 Phase-0 fail-closed fixtures, 20 frame mutations, and 64 health-boundary mutations |
+| Local MSRV check | Rust 1.88 plant `cargo check --all-targets` and 79 all-target tests passed; Rust 1.89 application `cargo check --locked --all-targets` passed; development and CI remain pinned to 1.91.1 |
+| Frontend test/coverage/bundle result | 45 files and 305 local tests passed; exact-source `bun run check:bundle` passed at 432.3/700.0 kB gzipped with 29 production-boundary fixtures; hosted frontend and coverage jobs passed inside CI 29249059257 |
 | Rust default/NCP/feature result | Local default and NCP all-target suites passed with 320 and 411 tests respectively, each plus one ignored fixture generator; exact-source plant tests and self-check passed; hosted Linux/macOS default/NCP jobs and Linux feature gates passed |
 | Hardware-WebGL performance smoke | Prior measurement is not candidate evidence; rerun if a numeric performance claim is proposed |
 | Manual smoke | Pending target-platform execution |
-| Boundary focus | Pinned NCP wire 0.8, complete renderer command mediation, serialized negative IPC mechanics, native benchmark mechanics, and the generic renderer/ROS publish prohibition remain in source. The exact-opt-in Galadriel routes, immutable configuration, exact-time/projection eligibility, computational envelopes, and upstream/capacity degradation are inventoried, but the wire summary still lacks numeric upstream/cluster-loss detail. The inert plant package now has a sealed closed immutable in-memory vehicle-health path bound to exact candidate profile, vehicle, declared source/stream epoch, runtime generation, local-frame instance, frame/unit, and plant-local observation-time context. Its non-cloneable publisher requires mutable commits and strictly increasing source sequence within one channel; explicit unknown/unavailable state replaces prior nominal state, and checked reads expose one coherent commit and exact ages without a freshness or safety verdict. Source identity remains unauthenticated; recreated channels can reuse an epoch; real FCU sampling/aggregation and frame-reset attestation are unproved; and there is no parser/transport, command replay gate, durable restart anti-rollback, active watchdog, approved freshness/health gate, safe-action selector, apply-time governor, adapter, or action path. The IPC harness is not packaged-origin/CSP/capability or positive smoke evidence; benchmark provider labels are not accelerator/per-operation attestation; and no approved model, target run, numeric claim, receiver/TLS/ACL/receive-size/deadline/combined-load evidence, or per-session action ownership exists. |
+| Boundary focus | Pinned NCP wire 0.8, complete renderer command mediation, serialized negative IPC mechanics, native benchmark mechanics, and the generic renderer/ROS publish prohibition remain in source. The exact-opt-in Galadriel routes, immutable configuration, exact-time/projection eligibility, computational envelopes, and upstream/capacity degradation are inventoried, but the wire summary still lacks numeric upstream/cluster-loss detail. The inert plant package has a sealed closed immutable in-memory vehicle-health path bound to exact candidate profile, vehicle, declared source/stream epoch, runtime generation, local-frame instance, frame/unit, and plant-local observation-time context. Its non-cloneable publisher requires mutable commits and strictly increasing source sequence within one channel; explicit unknown/unavailable state replaces prior nominal state, and checked reads expose one coherent commit and exact ages. The separate classifier consumes that coherent observation, requires exact structural profile identity, and exposes only eight named strict-exclusive age relations captured at the read. It reads no clock, emits no aggregate/boolean health or safety verdict, does not make recent unknown/unavailable state nominal, and does not implement the draft ODD's inclusive `<=200 ms` position/velocity clause. Its limits and profile binding are caller-proposed structural assertions, not authentication or approval. Source identity remains unauthenticated; recreated channels can reuse an epoch; real FCU sampling/aggregation and frame-reset attestation are unproved; and there is no parser/transport, command replay gate, durable restart anti-rollback, active watchdog, approved freshness/health gate, safe-action selector, apply-time governor, adapter, or action path. The IPC harness is not packaged-origin/CSP/capability or positive smoke evidence; benchmark provider labels are not accelerator/per-operation attestation; and no approved model, target run, numeric claim, receiver/TLS/ACL/receive-size/deadline/combined-load evidence, or per-session action ownership exists. |
 
 ## Pre-producer frame-convention snapshot (`49d7b36`, not current evidence)
 
@@ -101,12 +102,12 @@ must not be reused as evidence for the current dependency or source tree.
 | Bundle and coverage | Hosted bundle budget and coverage thresholds | Local bundle passed at 432.3/700.0 kB gzipped; hosted coverage and bundle jobs passed |
 | Rust default | fmt, check, all-target tests, and clippy on Linux/macOS | Local exact-source suite and hosted Linux/macOS jobs passed |
 | NCP bridge/producer feature | Locked NCP clippy and all-target tests on Linux/macOS, including registry/config/executable pins, readiness-only config immutability, exact-time/channel state, bounded measurement/track admission, invalid-gate refusal, sparse/all-infinite assignment, codecs, upstream/queue degradation, heartbeat, lifecycle, and JSONL archive failure semantics | Local 411-test suite plus one ignored generator and hosted Linux/macOS jobs passed; component complexity tests are not target deadline evidence |
-| Inert plant foundation | Dependency boundary, exact crate-root/API inventory, sealed-health/static mutation checks, compile-fail endpoint checks, strict Clippy, property/stress/headless/retained-snapshot/expiry/contract/frame/health tests, digest-bound cross-language frame corpus, and self-check | Exact source passed locally and in the hosted plant job: 74 unit/integration tests plus 2 compile-fail doctests, 24 health-boundary mutations, 32 frame cases, and 20 frame mutations. This is partial CB-030/CTL-005/HAZ-006 component evidence only—not authenticated FCU state, real aggregation coherence, approved freshness/safety policy, durable epoch ownership, an active watchdog, apply-time governor, adapter, or live authority |
+| Inert plant foundation | Dependency boundary, exact crate-root/API inventory, sealed-health/freshness static mutation checks, compile-fail endpoint/ownership checks, strict Clippy, property/stress/headless/retained-snapshot/expiry/contract/frame/health/freshness tests, digest-bound cross-language frame corpus, and self-check | Exact source passed locally and in the hosted plant job: 79 unit/integration tests plus 7 compile-fail doctests, 64 health/freshness-boundary mutations, 32 frame cases, and 20 frame mutations. This is partial CB-030/CTL-005/HAZ-006 component evidence only—not authenticated FCU state, real aggregation coherence, approved freshness/safety policy, current/apply-time checking, durable epoch ownership, an active watchdog, apply-time governor, adapter, or live authority |
 | Serialized native IPC | Same production handler list plus negative structured invokes for scene, detector, fusion, and transport input boundaries | Exact-source local suite and hosted frontend/Rust checks passed; `InvokeRequest` mock-runtime evidence does not replace raw webview conversion, packaged-origin/CSP/capability, positive-path, or target-platform smoke evidence |
 | Native detector benchmark mechanics | All-target/focused tests cover bounds, failure propagation, model/fixture identity, ONNX Runtime loading records and configured-Linux-library identity, raw-sample summaries, exact millisecond-to-FPS conversion, trusted-baseline digest binding/comparability, and no-overwrite report persistence | The exact-source default and NCP suites each passed all 22 logic tests; no approved model, target-hardware run, baseline, threshold, or numeric result exists |
 | Rust feature gates | `cuda,tensorrt` and `--no-default-features` checks | Hosted exact-source Linux feature-gate job passed |
-| Supply chain | cargo-deny and `bun audit` | Audit 29242246397 passed on the last dependency-manifest change `09dd5ec`; the candidate has no audit-workflow manifest diff |
-| Static analysis | CodeQL JavaScript/TypeScript and Rust | Exact-source CodeQL 29243068800 passed for both languages |
+| Supply chain | cargo-deny and `bun audit` | Audit 29242246397 passed on the last dependency-manifest change `09dd5ec`; source `2df8c57` has no audit-workflow manifest diff |
+| Static analysis | CodeQL JavaScript/TypeScript and Rust | Exact-source CodeQL 29249059315 passed for both languages |
 | Diff hygiene | `git diff --check` before commit and cached diff check | Passed on the source tree; evidence-only diff is checked separately before its commit |
 
 ## Manual evidence required
@@ -140,10 +141,13 @@ must not be reused as evidence for the current dependency or source tree.
   Its active capacity-16 archive/drop/degradation behavior and blocked-writer
   shutdown limit still need candidate-specific storage evidence.
 - The vehicle-health component has a closed immutable in-memory schema and
-  coherent age mechanics, but its source and frame identities are declared, not
-  authenticated or adapter-attested. It still needs real FCU aggregation,
-  durable epoch ownership, approved freshness/safe-action policy, apply-time
-  checks, watchdog/governor/adapter mechanics, and SITL/HIL traces.
+  coherent age mechanics, while the separate exact-profile-bound classifier
+  compares only ages frozen at one read against caller-proposed exclusive
+  limits. Neither component establishes current/apply-time freshness or health;
+  the source, frame, and profile identities are declared, not authenticated or
+  adapter-attested. They still need real FCU aggregation, durable epoch
+  ownership, approved freshness/safe-action policy, apply-time checks,
+  watchdog/governor/adapter mechanics, and SITL/HIL traces.
 - Model and accuracy evidence needs an approved immutable model plus fixture data.
 
 ## Related documents
@@ -152,5 +156,6 @@ must not be reused as evidence for the current dependency or source tree.
 - `docs/MODEL_CONTRACTS.md`
 - `docs/NATIVE_DETECTOR_BENCHMARK.md`
 - `docs/MANUAL_SMOKE_TEST.md`
+- `docs/PLANT_FRESHNESS_V1.md`
 - `docs/PLANT_HEALTH_V1.md`
 - `SECURITY.md`
