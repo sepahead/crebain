@@ -9,8 +9,9 @@ not authenticated FCU state or authority evidence.
 vehicle-health value validated in memory by the inert headless plant foundation. It is a
 component contract and retained-register boundary only. It has no parser,
 transport, FCU connection, source authentication, lifecycle transition,
-approved age/state policy, safety verdict, watchdog, governor, authoritative
-safe-action classifier or approved policy, or adapter call. A separate
+approved age/state policy, safety verdict, integration with the active command
+deadline monitor, governor, authoritative safe-action classifier or approved
+policy, or adapter call. A separate
 inactive component can compare ages already
 captured by its checked reader; see
 [`PLANT_FRESHNESS_V1.md`](PLANT_FRESHNESS_V1.md).
@@ -21,6 +22,13 @@ code under an exact profile identity; see
 health report, classify state/triggers, prove that its proposed rows belong to
 the profile, or select an operational action. Thus the authoritative
 safe-action classifier and approved policy are still absent.
+
+A separate fixed-state deadline component can detect and timestamp a validated
+command candidate's absolute receipt-anchored deadline when its worker is
+scheduled; see [`PLANT_WATCHDOG_V1.md`](PLANT_WATCHDOG_V1.md). It does not
+consume this health report or captured-age assessment, observe lifecycle
+autonomously, revoke output, select a safe action, or close the apply-time
+health race.
 
 The Tauri application does not link this package. Nothing in this contract can
 authorize or apply motion.
@@ -152,7 +160,8 @@ evidence:
 - current/apply-time generation, age, and state enforcement plus physical safe
   action;
 - suspend-inclusive clock qualification and durable restart anti-rollback; and
-- ingress, wire schema, evidence pipeline, watchdog, governor, and FCU I/O.
+- ingress, wire schema, evidence pipeline, integration of the active deadline
+  monitor, governor, and FCU I/O.
 
 ## Verification
 

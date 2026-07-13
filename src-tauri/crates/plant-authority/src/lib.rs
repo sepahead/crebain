@@ -4,11 +4,11 @@
 //! simulation, or vehicle-adapter dependency. It supplies an inactive draft
 //! command validator, closed immutable in-memory vehicle-health candidate,
 //! inert profile-bound captured-read age classifier, unapproved profile-bound
-//! safe-action lookup candidate, lifecycle,
-//! bounded-channel, and passive monotonic-expiry primitives plus an inert
-//! kernel self-check. It does not parse or accept a command, authenticate FCU
-//! state, establish current freshness, transition authority, or cause a
-//! physical action.
+//! safe-action lookup candidate, unwired receipt-anchored active deadline
+//! monitor, lifecycle, bounded-channel, and passive monotonic-expiry primitives
+//! plus an inert kernel self-check. It does not parse or accept a command,
+//! authenticate FCU state, establish current freshness, revoke output,
+//! transition authority, or cause a physical action.
 
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
@@ -16,6 +16,7 @@
 mod adapter;
 mod channels;
 mod contract;
+mod deadline_monitor;
 mod expiry;
 mod frame_conventions;
 mod freshness;
@@ -40,6 +41,12 @@ pub use contract::{
     RawVelocityV1, RequestedCommandTtl, SequenceError, VelocityCommandCandidateV1, VelocityFrame,
     VelocityUnit, DRAFT_L1_MAX_COMMAND_TTL, DRAFT_L1_MAX_HORIZONTAL_SPEED_MPS,
     DRAFT_L1_MAX_VERTICAL_SPEED_MPS, PLANT_CONTRACT_V1,
+};
+pub use deadline_monitor::{
+    ActiveCommandDeadlineMonitorV1, CommandDeadlineKeyV1, CommandDeadlineTicketErrorV1,
+    CommandDeadlineTicketV1, DeadlineAdvanceErrorV1, DeadlineAdvanceReceiptV1,
+    DeadlineControlErrorV1, DeadlineDetectionEvidenceV1, DeadlineMonitorStartErrorV1,
+    DeadlineMonitorTerminalKindV1, DeadlineMonitorTerminalV1,
 };
 pub use expiry::{ExpiryConfigurationError, ExpiryStatus, MonotonicExpiryGuard};
 pub use frame_conventions::{FiniteFramedVelocityMpsV1, FrameConventionError};

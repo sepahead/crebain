@@ -26,7 +26,7 @@ evidence bundle. Its success cannot be inferred from PX4.
 | ODD-03 | Flight volume | Cylinder centered at launch: 100 m radius, 2–50 m AGL, with 15 m braking buffer | Plant and FCU fence tests pending |
 | ODD-04 | Motion envelope | Horizontal speed ≤5 m/s; vertical speed ≤2 m/s; acceleration ≤2 m/s²; jerk ≤4 m/s³ | Inactive contract v1 checks finite velocity bounds; profile approval, acceleration/jerk state, and dynamics/fault verification remain pending |
 | ODD-05 | Commands | Velocity plus state-dependent Hold/Land/RTL only; no mission upload, set-current, `AUTO.MISSION`, arbitrary mode, raw motor, or in-air disarm | General contract-v1 candidate admits velocity only and rejects the other named proposals. A separate inert candidate can dispatch a caller-supplied opaque situation code under an exact profile identity to a closed inhibit/hold/land/RTL/ground-disarm intent, but it does not classify authoritative state/triggers, bind rows into the profile, approve this matrix, convert intent to action, or prove a bypass denial |
-| ODD-06 | Timing | Nominal command rate 20 Hz; command age ≤150 ms at apply; plant watchdog safe transition ≤250 ms | Contract v1 structurally bounds requested TTL and separates producer/local time; apply-time, WCET/jitter/fault evidence remains pending |
+| ODD-06 | Timing | Nominal command rate 20 Hz; command age ≤150 ms at apply; plant watchdog safe transition ≤250 ms | Contract v1 structurally bounds requested TTL and separates producer/local time; an unwired component detects receipt-anchored absolute deadlines with one worker/slot and strict same-stream replacement. The 150 ms apply-age policy, 250 ms safe transition, runtime coupling, WCET/jitter, suspend, and fault-to-effect evidence remain pending |
 | ODD-07 | Localization | FCU estimator healthy; local pose/velocity age ≤200 ms; consistent ENU↔NED/FLU↔FRD transforms; simulation epoch monotonic | Profile-neutral same-frame-instance velocity-axis corpus and profile-bound captured-read age-comparison mechanics are component-tested. The classifier uses caller-proposed exclusive limits (`age < limit`), so it does not implement or approve this clause's inclusive `≤200 ms` condition. Frame-instance identity and same-origin/datum/body-point proof, profile selection/approval, attitude/yaw/quaternions, points/covariance, reset/current/apply-time staleness, and live FCU interpretation remain pending |
 | ODD-08 | Required state | Armed/landed/mode, estimator health, battery, fence, link, position and velocity are one atomic plant snapshot | Closed immutable in-memory candidate and eight coherent ages from one read are component-tested; the separate classifier keeps the observation attached to an exact profile and named exclusive limits but supplies no aggregate health/safety verdict. Authenticated FCU collection, aggregation coherence, approved age/state policy, current/apply-time checking, and consumption remain pending |
 | ODD-09 | Sensors/models | FCU state and pose are mandatory; perception/fusion/ML may inform intent but cannot alone authorize motion | Advisory isolation tests pending |
@@ -49,6 +49,10 @@ its caller and performs only exact-profile, no-default lookup over a
 caller-proposed table. It has no health, lifecycle, time, landed/armed, airborne,
 battery, fence, link, navigation, reset, or emergency inputs and therefore
 cannot establish any trigger, precondition, precedence, or physical action.
+The active deadline-monitor candidate similarly consumes no ODD state: its
+local TTL is caller-proposed, lifecycle invalidation is caller-driven, and
+deadline detection neither revokes output nor selects or applies any row in
+this matrix.
 
 | Trigger and authoritative state | Primary action | Preconditions | Fallback/containment | Required proof |
 |---|---|---|---|---|

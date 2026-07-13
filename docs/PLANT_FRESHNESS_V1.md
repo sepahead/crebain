@@ -28,6 +28,12 @@ establish an approved state-to-action mapping; see
 not link the plant package. Nothing in either component can authorize or apply
 motion.
 
+The separate active deadline monitor does not consume this assessment. It can
+detect and timestamp a validated command candidate's absolute
+receipt-anchored deadline when its worker is scheduled, but it does not reload
+health, interpret these relations, revoke output, or close the apply-time race;
+see [`PLANT_WATCHDOG_V1.md`](PLANT_WATCHDOG_V1.md).
+
 ## Structurally bound policy
 
 `VehicleHealthCapturedAgePolicyV1` retains one exact `ProfileIdentity` and one
@@ -94,7 +100,8 @@ The following remain separate work:
 - local-frame reset issuance, suspend-clock qualification, and durable epoch
   anti-rollback;
 - state interpretation and an aggregate health/safety policy;
-- command admission, apply-time enforcement, watchdog scheduling,
+- command admission, integration of the active deadline monitor with
+  apply-time enforcement,
   authoritative safe-action classification and approved/content-bound policy,
   governor, adapter, and independently attested FCU failsafes; and
 - SITL, HIL, target-timing, and physical evidence.

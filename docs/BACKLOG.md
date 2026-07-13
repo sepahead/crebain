@@ -27,8 +27,12 @@ approved profile policy and do not implement the draft ODD's inclusive
 `<=200 ms` condition. An inert CB-028 candidate now provides only exact-profile
 lookup from caller-proposed opaque situation codes to a closed intent
 vocabulary; its rows are neither profile-content-bound nor an approved
-state/trigger matrix. Next add the active CB-027 watchdog, then the
-immediately-before-write governor (CB-029). CB-032 can follow only as a bounded,
+state/trigger matrix. An unwired CB-027 active deadline-monitor candidate now
+derives immutable deadlines from validated receipt time, owns one worker and
+one active stream slot, and records sticky terminal detection evidence. Next
+define trusted admission/lifecycle integration and the immediately-before-write
+governor (CB-029); do not activate the monitor as command authority before the
+approved profile and TTL policy exist. CB-032 can follow only as a bounded,
 observable mock adapter transaction. A process cannot guarantee a final action after
 `SIGKILL`, power loss, or total scheduler starvation; the eventual live claim
 must combine repeated bounded attempts while alive, immediate output cessation,
@@ -36,13 +40,13 @@ and independently attested FCU failsafe behavior.
 
 | ID | Scope | Current disposition |
 |---|---|---|
-| CB-025 | Small native Rust plant-authority crate/process independent of renderer lifecycle | Implemented and component-tested for this inert slice: separate dependency-free package, inactive command/health/captured-age/safe-action-dispatch candidates, typed channel/status boundary, and headless self-check; profile approval, wire schemas, and integration topology remain pending later phases |
+| CB-025 | Small native Rust plant-authority crate/process independent of renderer lifecycle | Implemented and component-tested for this inert slice: separate dependency-free package, inactive command/health/captured-age/safe-action-dispatch candidates, an unwired active deadline-monitor candidate, typed channel/status boundary, and headless self-check; profile approval, wire schemas, and integration topology remain pending later phases |
 | CB-026 | Explicit Boot, NoAuthority, Standby, Preflight, AuthorizedHold, Active, Degraded, Emergency, Shutdown state machine | Implemented and transition-tested with process-local generation guards and fail-closed invalid transitions; restart epoch sourcing and ODD/FCU transition preconditions remain pending |
-| CB-027 | Plant-local monotonic command-expiry watchdog | Partial component mechanics only: contract v1 structurally bounds requested TTL and separates producer from local receipt time; an immutable generation-bound local `Instant` guard rejects zero TTL, an unrepresentable deadline, clock regression, stale generation, and the exact deadline. The ticket remains pending behind profile approval and CB-030; no command admission, active scheduling, apply-time write coupling, suspend qualification, scheduler-jitter, or kill/freeze evidence exists |
+| CB-027 | Plant-local monotonic command-expiry watchdog | Partial component mechanics only: passive expiry remains separate, while a validated candidate can now mint a non-cloneable ticket whose deadline is exactly opaque receipt time plus a nonzero local TTL proposal no greater than the request. The copyable candidate can mint another ticket, so ownership is one slot per monitor rather than global admission. One unwired named worker owns that slot/no queue; replacement requires exact profile/session/generation and a strictly greater sequence, while clock/deadline failure wins before replacement or control and a newer sequence with an older receipt terminalizes. Exact/late deadline, caller-reported generation mismatch, shutdown, poison, and worker-panic terminal evidence is component-tested; poisoned synchronization exposes no exact active key, and worker-start failure retains the initial key plus any precomputed terminal reason. No authenticated admission, global single-monitor enforcement, autonomous lifecycle observation, approved TTL policy, runtime/output coupling, immediately-before-write invalidation, safe action, suspend qualification, reserved scheduler capacity, combined-load timing, or wake-to-effect bound exists. `TEST-PLANT-ACTIVE-DEADLINE-MONITOR-V1` is partial HAZ-003 evidence; CTL-003 and `TEST-PLANT-LOCAL-TTL` remain planned |
 | CB-028 | Vehicle/ODD/state-specific safe-action table | Partial structural mechanics only: an inert candidate copies a caller-proposed nonempty unique mapping of opaque nonzero situation codes into an owned fixed 255-slot table, requires an exact full-profile match, returns no default, and exposes only a closed plant-intent vocabulary. The rows are not bound into the supplied profile digest; no authoritative health/state/trigger classifier, precedence, approved vehicle/ODD mapping, lifecycle/time input, action conversion, adapter, or physical-response evidence exists. `TEST-PLANT-SAFE-ACTION-POLICY-V1` is component evidence only; CTL-007 remains planned and HAZ-007 remains open |
 | CB-029 | Apply-time profile/frame/unit/envelope/health safety governor | Pending |
 | CB-030 | Atomic typed vehicle-health snapshot | Partial component implementation: the canonical kernel path seals a deeply immutable closed report, validates declared profile/vehicle/source/stream-epoch/generation/frame-instance identity, strict per-channel source sequence, local frame, SI units, plant-local observation times, finite vectors, and battery range, then atomically retains the coherent state and exposes eight exact ages from one read. A separate profile-bound classifier consumes that observation, rejects zero limits or exact-profile mismatch, and applies caller-proposed exclusive limits without an aggregate verdict. Generic snapshot mechanics remain disconnected. The ticket stays partial because the limits/profile are unapproved and do not implement the draft ODD's inclusive `<=200 ms` condition; source identity is unauthenticated; real FCU collection and multi-message coherence are unproved; channel recreation/durable epoch uniqueness are not enforced; and no current/apply-time freshness, state policy, governor, or adapter exists |
-| CB-031 | Bounded ingress/latest-command/health/output/evidence paths and overflow policies | Implemented and component-tested: validated non-eager capacities, latest-value, reject-new lifecycle, drop-oldest evidence, exact loss accounting, poison/counter fail-closed behavior, post-unlock destruction, and a separate non-overwritable safety path; this does not prove future watchdog scheduling under integrated load |
+| CB-031 | Bounded ingress/latest-command/health/output/evidence paths and overflow policies | Implemented and component-tested: validated non-eager capacities, latest-value, reject-new lifecycle, drop-oldest evidence, exact loss accounting, poison/counter fail-closed behavior, post-unlock destruction, and a separate non-overwritable safety path; the one-worker deadline monitor is unwired and does not prove globally bounded monitor count, reserved scheduling, or integrated-load timing |
 | CB-032 | Cancellation-safe, deadline-bounded callbacks/shutdown/final safe action | Pending; inert adapter stop is idempotent but there is no external call, repeated bounded safe transaction, FCU observation, or independent process-loss fallback; do not claim an in-process final action after process death |
 
 | # | Next Step | Primary Outcome |
@@ -65,6 +69,14 @@ and independently attested FCU failsafe behavior.
 
 ## Recently completed
 
+- Unwired receipt-anchored active deadline-monitor candidate: a validated
+  command can mint an immutable non-cloneable ticket with a local TTL no greater
+  than its request; the copyable candidate can remint one, so ownership is local
+  to each monitor. One long-lived worker owns one active slot and accepts only
+  exact-profile/session/generation, strictly increasing replacements; deadline
+  and fault terminal evidence is sticky. This is partial CB-027/HAZ-003
+  component evidence, not trusted admission, an operational watchdog, apply-time
+  output invalidation, safe action, scheduling/latency qualification, or CTL-003.
 - Inactive safe-action situation-dispatch candidate: caller-proposed opaque
   nonzero codes can be copied into a fixed owned no-default table whose lookup
   requires an exact full profile identity and returns one of five closed plant
@@ -93,7 +105,7 @@ and independently attested FCU failsafe behavior.
 - Inactive plant contract-v1 candidate: closed profile/action/frame/unit types,
   distinct producer/local time, draft TTL and instantaneous-speed validation, and
   stable negative reasons. It has no parser, ingress, approval, health gate,
-  watchdog, adapter, or action authority.
+  deadline-monitor runtime integration, adapter, or action authority.
 - Native detector benchmark mechanics: bounded release-command inputs,
   content-identified model/fixture/runtime context, raw sequential call samples,
   trusted-baseline digest binding, p95 comparison, atomic no-overwrite reports,

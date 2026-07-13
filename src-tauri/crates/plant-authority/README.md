@@ -116,6 +116,7 @@ velocity, adapter, or FCU action exists. See
 | Canonical health snapshot | One sealed typed publisher/reader pair | Validates the closed immutable context-bound report and per-channel source sequence before coherent replacement; checked loads expose ages without a freshness verdict |
 | Captured-read age assessment | One owned coherent observation plus one borrowed exact policy | Compares eight captured ages with named nonzero exclusive limits; does not refresh time, aggregate health, or authorize action |
 | Safe-action situation dispatch candidate | Fixed 255-slot owned table plus one borrowed exact policy per selection | Rejects zero codes, empty/oversized/duplicate proposals, exact-profile mismatch, and missing rows; does not classify state, default an intent, or produce an adapter action |
+| Active command deadline monitor candidate | One owned worker, one fixed profile/session/generation, one active ticket slot, and one sticky terminal outcome | Accepts only a separately validated higher-sequence ticket with non-regressing receipt time; has no queue, reset, refresh, extension, rearm, output revocation, safe-action conversion, or adapter effect |
 | Lifecycle | Fixed bounded FIFO | Reject new work; the runtime must latch a safety cause |
 | Evidence | Fixed bounded FIFO | Drop oldest so noncritical storage cannot block safety work; drop count is explicit |
 | Safety | Separate process-lifetime first-cause latch | First notice records its originating generation and cannot be overwritten by normal traffic |
@@ -151,9 +152,51 @@ hook, or I/O. It is component mechanics only—not the CB-027 watchdog—and doe
 not prove suspend behavior, apply-time coupling, scheduler latency, or expiry to
 FCU-safe-action timing.
 
+## Unwired active command deadline monitor v1
+
+`CommandDeadlineTicketV1::try_from_candidate` derives a private absolute
+deadline from a validated command candidate's opaque plant-local receipt time
+plus a caller-proposed nonzero TTL that may narrow, but never exceed, the
+candidate's requested lifetime. It rejects a mismatch with a caller-supplied
+expected generation before TTL checks and does not establish authoritative
+currentness. The ticket exposes its exact profile/session/sequence/generation
+key and scheduled
+TTL, but no raw receipt instant or absolute deadline, and it cannot be cloned,
+copied, defaulted, or built from a raw clock. The candidate is copyable and can
+mint another ticket, so ticket ownership is per monitor rather than global
+admission.
+
+`ActiveCommandDeadlineMonitorV1` owns one named worker and one active ticket
+slot with no queue. A separately validated ticket can replace that slot only
+under the same exact profile, session, and lifecycle generation, with a
+strictly greater sequence and non-regressing receipt time. An already-expired
+initial or superseding ticket becomes terminal; monitor start never grants a
+fresh interval. A newer sequence with a regressing receipt also terminalizes.
+There is no reset, refresh, extension, or rearm operation.
+
+The fixed-state component detects/timestamps an absolute receipt-anchored
+deadline when its worker is scheduled. Its first terminal result is sticky and
+can report deadline detection, a caller-reported generation mismatch, shutdown,
+clock regression, synchronization failure, worker panic, or an already-expired
+or receipt-regressing superseding ticket. A synchronization failure exposes no
+exact active key because the state is poisoned; worker-start failure retains the
+initial key and any precomputed terminal reason. `wait`, `shutdown`, and `Drop`
+join the owned worker; scheduling starvation can still delay completion
+indefinitely. A reported generation is caller-provided rather than observed or
+authenticated autonomously.
+
+This component is not linked to command ingress, lifecycle, health,
+safe-action dispatch, an output path, or an adapter. Its terminal value is
+evidence only and cannot revoke a command or convert into a safe-action intent.
+It does not prove suspend behavior, scheduler reservation/jitter, apply-time
+coupling, process-loss containment, or deadline-to-FCU-effect latency. It is
+partial CB-027/HAZ-003 component evidence only; CTL-003 and
+`TEST-PLANT-LOCAL-TTL` remain planned. See
+[`docs/PLANT_WATCHDOG_V1.md`](../../../docs/PLANT_WATCHDOG_V1.md).
+
 The package has no dependencies and the boundary checker rejects links or
 source references to the application library, Tauri, NCP/Zenoh, transport,
-inference, fusion, simulation, ROS, Gazebo, or MAVROS. A real watchdog, trusted
+inference, fusion, simulation, ROS, Gazebo, or MAVROS. An operational watchdog, trusted
 FCU health source/collector, approved age/state policy, safety governor,
 approved/content-bound safe-action profile, authoritative situation classifier,
 authenticated ingress, and FCU adapter remain
@@ -166,8 +209,10 @@ The boundary mutation checker and compile-fail API checks also lock the concrete
 non-mixable health endpoint pair, private snapshot fields, non-cloneable
 publisher, captured-read observation/policy ownership, strict exclusive
 comparison, safe-action profile/code binding, fixed no-default dispatch table,
-non-cloneable selection, absence of a boolean/aggregate verdict, and absence of
-raw retained endpoints, implicit conversions, or runtime consumption. Future
+non-cloneable selection, validated-candidate-only deadline tickets, fixed
+single-slot monitor identity and strict replacement, terminal evidence
+separation, absence of a boolean/aggregate verdict, and absence of raw retained
+endpoints, implicit conversions, or runtime consumption. Future
 adapter I/O requires an explicit boundary-policy change and review.
 
 ```bash

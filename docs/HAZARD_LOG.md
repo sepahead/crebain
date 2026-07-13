@@ -23,7 +23,7 @@ No hazard in this baseline is controlled or accepted. Every P0 entry blocks L1.
 |---|---|---|---|---|
 | HAZ-001 | Motion through an authority bypass | P0 | open | Sole native applier; exact Gate identity/route; bypass campaign |
 | HAZ-002 | Required safe action is lost or omitted | P0 | open | Plant watchdog plus independent FCU failsafe |
-| HAZ-003 | Delayed command remains active | P0 | partial | Passive generation-bound monotonic expiry mechanics exist; command admission, active scheduling, apply-time age check, and bounded TTL policy remain absent |
+| HAZ-003 | Delayed command remains active | P0 | partial | Passive expiry plus an unwired receipt-anchored one-worker/one-slot active deadline monitor exist; trusted admission, output invalidation, approved TTL policy, apply-time check, scheduler/latency evidence, and safe action remain absent |
 | HAZ-004 | Replay, duplicate, or cross-session command is accepted | P0 | partial | Boot/session/stream fencing and anti-rollback |
 | HAZ-005 | Correct vector is applied in the wrong frame or unit | P0 | partial | Profile-neutral same-frame-instance ENU/NED and FLU/FRD velocity-axis corpus exists; frame-instance proof, approved profile, remaining semantics, and live interpretation are absent |
 | HAZ-006 | Stale or inconsistent vehicle state authorizes motion | P0 | partial | Closed immutable context-bound snapshot plus profile-bound captured-read exclusive age comparisons exist; authenticated collection, approved limits/state policy, current/apply-time checking, and an aggregate verdict remain absent |
@@ -32,8 +32,8 @@ No hazard in this baseline is controlled or accepted. Every P0 entry blocks L1.
 | HAZ-009 | Estimator/fusion divergence appears nominal | P1 | partial | Immutable effective config, exact-time frozen-prior ledger, bounded inputs, invalid-gate refusal, divergence state, conservative invalidation |
 | HAZ-010 | Model failure or miscalibration creates an unsafe decision | P1 | open | Signed model contract; calibrated advisory use only |
 | HAZ-011 | Missing, censored, stale, or dropped evidence appears nominal | P0 | partial | Producer outcomes/misses/summaries, strict time eligibility, upstream/track-cap loss degradation, sequence gaps, lane counters, and heartbeat semantics exist; wire numeric attribution and receiver enforcement remain absent |
-| HAZ-012 | Resource exhaustion starves watchdog or emergency handling | P0 | partial | Inert kernel plus measurement/live-track/assignment/NCP/archive admission bounds exist; JSONL writer blocking, scheduler reservation, and combined-load/deadline timing remain unresolved |
-| HAZ-013 | Restart or reconnect resurrects stale authority | P0 | partial | Process-local generation guards and fresh producer epochs exist; durable boot/session anti-rollback and topology restart tests remain absent |
+| HAZ-012 | Resource exhaustion starves watchdog or emergency handling | P0 | partial | One monitor owns one worker/slot, and other kernel/data bounds exist; global monitor count, JSONL blocking, scheduler reservation, and combined-load/deadline timing remain unresolved |
+| HAZ-013 | Restart or reconnect resurrects stale authority | P0 | partial | Process-local generation guards, caller-reported monitor generation mismatch, and fresh producer epochs exist; the report is not authoritative currentness, while autonomous rotation observation, durable boot/session anti-rollback, and topology restart tests remain absent |
 | HAZ-014 | Operator confuses connected/delivered with applied/observed | P1 | open | Controlled vocabulary and distinct authority/effect UX |
 | HAZ-015 | Gazebo/local mutation contaminates flight evidence | P1 | partial | Separate binaries, identities, profiles, and evidence labels |
 | HAZ-016 | Mission, mode, arm, takeoff, land, or disarm bypasses policy | P0 | open | Typed hazardous-action transaction or exclusion from L1 |
@@ -43,16 +43,36 @@ Controls, causes, ODD clauses, evidence IDs, owners, and residual-risk notes are
 kept in the JSON record and checked by the Phase 0 verifier.
 
 The inert headless plant package adds component evidence only. It does not
-control HAZ-001/002: there is no FCU write path, active watchdog, authoritative
-safe-action classifier, approved/content-bound policy, or independent failsafe
-evidence. HAZ-012/013 remain L1-blocking because fixed
-channel semantics and process-local generation guards do not prove deadline
-scheduling, process-restart uniqueness, or retained-network behavior.
+control HAZ-001/002: there is no FCU write path, output-coupled operational
+watchdog, authoritative safe-action classifier, approved/content-bound policy,
+or independent failsafe evidence. HAZ-012/013 remain L1-blocking because one
+worker per monitor and process-local generation guards do not prove globally
+bounded instances, reserved scheduling, autonomous lifecycle observation,
+process-restart uniqueness, or retained-network behavior.
 The passive expiry guard narrows HAZ-003 mechanics only: exact-deadline,
 generation-rotation, clock-regression, and invalid-TTL cases fail closed. It is
 not an active watchdog and does not prove platform suspend behavior,
 immediately-before-write coupling, scheduler jitter, or expiry-to-safe-action
 latency.
+
+The separate active deadline-monitor candidate narrows HAZ-003 further. A
+ticket derives its immutable absolute deadline from the validated command's
+opaque receipt time and a nonzero local TTL proposal no greater than the
+request. One named worker owns one active slot/no queue; replacement requires
+the same exact profile/session/generation and a strictly greater sequence.
+Current clock regression or exact/past deadline wins before replacement,
+shutdown, or a caller-reported generation mismatch; a newer sequence with an
+older receipt terminalizes rather than leaving the active command armed. The
+copyable candidate can mint another non-cloneable ticket, so ownership is local
+to a monitor rather than global admission. Deadline age/lateness, poison,
+worker panic, reported mismatch, and shutdown become sticky terminal evidence;
+poisoned synchronization makes no exact active-key claim. The
+component is unwired: it does not authenticate admission,
+prevent multiple monitor instances, observe lifecycle rotation autonomously,
+invalidate output at apply time, select/apply a safe action, qualify suspend
+behavior, reserve scheduler capacity, or prove wake-to-effect latency. Thus
+CB-027 and HAZ-003 remain partial, CTL-003 remains planned, and
+`TEST-PLANT-LOCAL-TTL` remains planned.
 
 The inactive contract-v1 candidate narrows input ambiguity only. It rejects a
 profile/session/version mismatch, non-velocity actions, wrong frame or unit,

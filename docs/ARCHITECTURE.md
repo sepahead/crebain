@@ -35,7 +35,7 @@ graph TB
     end
 
     subgraph PlantFoundation["Separate headless package (L0, inert)"]
-        Plantd["crebain-plantd<br/>Inactive command/health/captured-age/situation-dispatch candidates + frame conventions + lifecycle + bounded channels + passive expiry<br/>Self-check only"]
+        Plantd["crebain-plantd<br/>Inactive command/health/captured-age/situation-dispatch candidates + receipt-anchored active deadline monitor + frame/lifecycle/channels/passive expiry<br/>Self-check only"]
     end
 
     subgraph External["External Systems"]
@@ -72,7 +72,8 @@ mode is `--self-check`.
 
 The package establishes inactive command-contract, vehicle-health,
 profile-bound captured-read age-classifier, and exact-profile safe-action
-situation-dispatch candidates,
+situation-dispatch candidates, plus an unwired receipt-anchored active command
+deadline-monitor candidate,
 the nine explicit lifecycle states, generation-guarded events, capacity-one
 latest-value paths, a non-consuming retained whole-snapshot register, bounded
 reject-new lifecycle ingress, bounded drop-oldest evidence
@@ -116,11 +117,35 @@ derive a situation from health, lifecycle, expiry, or an authenticated trigger;
 resolve overlapping trigger priority; content-bind the caller-supplied rows to
 the profile digest; or convert an intent into velocity, adapter, or FCU work.
 
+The active deadline-monitor candidate accepts only a non-cloneable ticket
+derived from a structurally validated command's opaque plant receipt time. The
+copyable candidate can mint another ticket, so ownership constrains one monitor
+only and is not global admission. A caller-proposed local TTL must be nonzero
+and no greater than the command's requested TTL; the absolute deadline is never
+recomputed from monitor start. One long-lived named worker owns one active slot
+and no queue. Replacement requires the same exact profile, session, and
+generation plus a strictly higher sequence; it installs a separately validated
+immutable ticket rather than refreshing the existing interval. Current clock
+regression or `now >= deadline` terminalizes before replacement, shutdown, or
+caller-reported generation mismatch. A newer sequence whose receipt precedes
+the active receipt also terminalizes. The worker rechecks after every `Condvar`
+wake and records one
+sticky terminal outcome, including detection age and lateness for deadlines.
+Poison, worker unwind, shutdown, and a reported generation mismatch also
+terminate fail closed. Poisoned synchronization intentionally exposes no exact
+active key; worker-start failure retains the initial key and any terminal reason
+computed before spawn. This is detection evidence only: the monitor does not observe
+lifecycle rotation autonomously, revoke output, classify state, select/apply a
+safe action, call the inert adapter, reserve scheduler capacity, or prove
+suspend, wake-latency, or deadline-to-effect behavior. Multiple monitor
+instances are not globally prevented.
+
 This is a component foundation, not an authority chain. It has no approved or
 authenticated ingress/UAV profile or FCU health collector, approved age/state
 policy, authoritative situation classifier and content-bound ODD safe-action
-table, active monotonic command watchdog, apply-time governor, PX4/FCU adapter, deadline
-measurement, or staged live evidence. CREBAIN therefore remains L0.
+table, integrated command admission and apply-time output invalidation,
+operational watchdog timing, apply-time governor, PX4/FCU adapter, or staged
+live evidence. CREBAIN therefore remains L0.
 
 ## Design principles
 

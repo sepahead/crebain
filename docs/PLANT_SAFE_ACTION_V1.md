@@ -29,6 +29,12 @@ independently configured failsafes.
 The Tauri application and headless runtime do not consume this component.
 Nothing in it can transition lifecycle, authorize motion, or affect a vehicle.
 
+The separate active deadline monitor emits terminal evidence only. It can
+detect and timestamp a validated command candidate's absolute
+receipt-anchored deadline when its worker is scheduled, but no conversion from
+that terminal event to a situation code or safe-action intent exists; see
+[`PLANT_WATCHDOG_V1.md`](PLANT_WATCHDOG_V1.md).
+
 ## Opaque situation vocabulary
 
 `SafeActionSituationCodeV1` is a nonzero `u8`. Zero is rejected as unset, so
@@ -82,9 +88,10 @@ The following remain outside this component:
 - interpretation of opaque FCU mode codes and proof that Hold, Land, RTL, or
   ground disarm is available and permitted;
 - current/apply-time health, generation, freshness, and command checks;
-- an active watchdog, apply-time governor, typed hazardous-action transaction,
-  FCU adapter, acknowledgement/observation evidence, and independently attested
-  FCU failsafes; and
+- integration of the active deadline monitor with authoritative trigger
+  classification, an apply-time governor, typed hazardous-action transaction,
+  FCU adapter, acknowledgement/observation evidence, and independently
+  attested FCU failsafes; and
 - SITL, HIL, target-timing, process-loss, or physical evidence.
 
 Accordingly, this is only partial structural CB-028 component mechanics.

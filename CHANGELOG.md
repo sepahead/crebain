@@ -82,7 +82,8 @@ Open-source readiness and quality hardening.
   fresh/healthy/safe/eligible/authorized result. Limits are caller-proposed and
   unapproved, recent unknown/unavailable state remains non-nominal, the draft
   ODD's inclusive `<=200 ms` position/velocity condition is not implemented,
-  and no clock read, apply-time consumer, watchdog, governor, or adapter exists.
+  and no clock read, apply-time consumer, active-monitor integration, governor,
+  or adapter exists.
   HAZ-006 and CTL-005 remain partial and CREBAIN remains L0.
 - **Inactive safe-action situation-dispatch candidate.** A separate plant-side
   vocabulary distinguishes output inhibit, profile-defined physical Hold,
@@ -93,8 +94,25 @@ Open-source readiness and quality hardening.
   unmapped codes fail without a default. The opaque code is caller-asserted,
   the profile identity does not content-bind the supplied rows, and there is no
   state/trigger classifier, health or time input, action conversion, runtime
-  consumer, governor, watchdog, adapter, or FCU effect. This is partial
+  consumer or deadline-monitor coupling, governor, adapter, or FCU effect. This is partial
   structural CB-028 mechanics only; CTL-007 remains planned and HAZ-007 open.
+- **Unwired receipt-anchored active command deadline monitor candidate.** A
+  validated command can mint a ticket whose immutable deadline is exactly its
+  opaque plant receipt time plus a nonzero caller-proposed local TTL no greater
+  than the requested TTL. The ticket itself is non-cloneable, but the copyable
+  candidate can mint another, so ownership is per monitor rather than global
+  admission. One named worker owns one active slot and no queue. A replacement
+  must carry the same exact profile, session, and generation with a strictly
+  greater sequence; current clock/deadline failure wins before replacement,
+  shutdown, or a caller-reported generation mismatch, and a newer sequence with
+  an older receipt terminalizes the monitor. Exact/late deadline detection,
+  poison, worker panic, shutdown, and reported mismatch produce sticky terminal
+  evidence; synchronization failure omits an exact active-key claim. Worker-start
+  failure retains the initial key and any precomputed terminal reason. The component is unwired and does not
+  authenticate admission, autonomously observe lifecycle rotation, revoke an
+  output, select/apply a safe action, qualify suspend behavior, reserve scheduler
+  capacity, or prove wake/effect latency. CB-027 and HAZ-003 remain partial;
+  CTL-003 and `TEST-PLANT-LOCAL-TTL` remain planned.
 - **Passive plant-local monotonic expiry mechanics.** The isolated zero-dependency
   plant foundation can classify one immutable, generation-bound local interval;
   zero TTL or an unrepresentable deadline, clock regression, generation rotation, and the

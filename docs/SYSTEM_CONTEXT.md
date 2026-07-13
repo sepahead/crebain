@@ -23,7 +23,8 @@ A separate dependency-free `crebain-plant-authority` workspace package and
 an inert lifecycle/channel foundation, a non-consuming retained whole-snapshot
 register, a closed immutable in-memory vehicle-health candidate, a
 profile-bound classifier for eight ages captured at one checked read, and a
-passive generation-bound monotonic expiry guard. It also provides an inert
+passive generation-bound monotonic expiry guard. It also provides an unwired
+receipt-anchored active command deadline-monitor candidate and an inert
 exact-profile safe-action situation-dispatch candidate over a closed intent
 vocabulary. Contract v1
 uses closed action/frame/unit types, distinct producer and plant-local time,
@@ -51,12 +52,25 @@ not bind the supplied rows into the profile digest, classify plant state or trig
 resolve precedence, consume health/lifecycle/time, or convert an intent into an
 action or adapter call. The binary can only self-check; it has no command
 ingress, authenticated health collector, approved age/state policy, active
-watchdog, governor, approved and content-bound safe-action policy with an
+operational watchdog integration, governor, approved and content-bound safe-action policy with an
 authoritative classifier, NCP link, apply-time consumer, or FCU adapter.
 Generic snapshot storage remains disconnected
 mechanics. The expiry guard has no timer, callback, refresh, command payload,
-or adapter hook. Their existence does not make the process a final applier and
-does not change the L0 claim.
+or adapter hook. The separate active monitor derives tickets only from validated
+plant receipt time and a nonzero local TTL proposal no greater than the request.
+One named worker owns one active slot/no queue; replacement requires the exact
+profile/session/generation and a strictly greater sequence, while regression or
+`now >= deadline` wins before replacement, shutdown, or a caller-reported
+generation mismatch. A newer sequence with an older receipt also
+terminalizes. The copyable candidate can mint multiple tickets, so non-clone
+ticket ownership is per monitor only. Its sticky terminal evidence can record
+command age and detection lateness, poison, worker panic, reported mismatch, or
+shutdown; poisoned synchronization carries no exact active key. It does not
+authenticate admission, enforce one global monitor, observe lifecycle
+rotation autonomously, revoke output, select/apply a safe action, call an
+adapter, qualify suspend behavior, reserve scheduling capacity, or prove
+wake-to-effect latency. These components do not make the process a final applier
+and do not change the L0 claim.
 
 Those facts are inventoried in
 [`baselines/phase0-command-surfaces.json`](baselines/phase0-command-surfaces.json)
