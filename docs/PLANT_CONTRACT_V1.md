@@ -12,7 +12,9 @@ in-memory proposal into an immutable `VelocityCommandCandidateV1`. Possession of
 that candidate proves only structural validation. Authentication, anti-replay,
 fresh vehicle health, authorization, active expiry, safe-action selection,
 apply-time checks, adapter acceptance, and observed vehicle effect remain
-separate required gates.
+separate required gates. Here, “safe-action selection” means authoritative
+state/trigger classification plus an approved content-bound policy; the inert
+opaque-code dispatch candidate does not satisfy that gate.
 
 The module has no serializer, parser, transport, timer, filesystem/network I/O,
 adapter operation, or lifecycle transition. The `crebain-plantd` executable
@@ -26,7 +28,7 @@ still accepts only `--self-check`.
 | Profile | Compound identity (closed ENU/NED semantic kind plus nonzero 256-bit artifact digest) must equal the locally selected profile | The profile artifact and approver are not yet pinned |
 | Session | Nonzero 128-bit identity must equal the authenticated local session | No authenticator or live session exists |
 | Sequence | Nonzero `u64` carried unchanged | Stateful monotonic/replay admission is not implemented |
-| General action | Velocity only | Hold/Land/RTL are reserved for a future state-dependent plant selector; arm/disarm/takeoff/mission/mode/raw-motor proposals are rejected |
+| General action | Velocity only | Hold/Land/RTL remain reserved for a future approved state-dependent plant policy; a separate inert candidate can return closed safe-action intents from opaque caller-supplied situation codes but cannot admit or convert them here; arm/disarm/takeoff/mission/mode/raw-motor proposals are rejected |
 | Frame | Exactly the local frame inseparably bound to the compound profile identity: `LocalNed` or `LocalEnu` | The deployment's canonical profile is not approved; wrong-frame proposals still fail instead of being converted automatically |
 | Unit | Metres per second only | The v1 corpus covers velocity axes in m/s only, not other physical quantities or time units |
 | Horizontal speed | Finite magnitude at most 5 m/s | Draft ODD constraint, not measured capability |
@@ -88,10 +90,16 @@ profile-bound captured-read classifier rejects zero limits and profile mismatch
 and applies named exclusive comparisons to all eight ages, but does not read
 current time, authenticate an FCU source, approve any limit/state policy,
 implement the draft ODD's inclusive `<=200 ms` condition, or close the
-apply-time race. Command ingress and FCU I/O remain out of order until the profile,
-watchdog, safe-action, governor, and adapter gates exist. See
+apply-time race. A separate safe-action candidate now proves only fixed,
+no-default, exact-profile dispatch mechanics over caller-proposed opaque
+situation codes. Its rows are not profile-content-bound, it does not classify
+authoritative state/triggers, and it cannot convert an intent into an action.
+Command ingress and FCU I/O remain out of order until the profile, active
+watchdog, approved safe-action classifier/policy, governor, and adapter gates
+exist. See
 [`PLANT_HEALTH_V1.md`](PLANT_HEALTH_V1.md) and
-[`PLANT_FRESHNESS_V1.md`](PLANT_FRESHNESS_V1.md).
+[`PLANT_FRESHNESS_V1.md`](PLANT_FRESHNESS_V1.md), and
+[`PLANT_SAFE_ACTION_V1.md`](PLANT_SAFE_ACTION_V1.md).
 
 ## Component verification
 

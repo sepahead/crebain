@@ -24,19 +24,22 @@ profile-bound classifier for eight ages captured at one read (CB-030), plus
 monotonic receipt/deadline mechanics (CB-027), now exist as inactive component
 prerequisites. The classifier's exclusive caller-proposed limits are not an
 approved profile policy and do not implement the draft ODD's inclusive
-`<=200 ms` condition. Next add the profile-driven safe-action selector (CB-028) and the
+`<=200 ms` condition. An inert CB-028 candidate now provides only exact-profile
+lookup from caller-proposed opaque situation codes to a closed intent
+vocabulary; its rows are neither profile-content-bound nor an approved
+state/trigger matrix. Next add the active CB-027 watchdog, then the
 immediately-before-write governor (CB-029). CB-032 can follow only as a bounded,
-observable mock transaction. A process cannot guarantee a final action after
+observable mock adapter transaction. A process cannot guarantee a final action after
 `SIGKILL`, power loss, or total scheduler starvation; the eventual live claim
 must combine repeated bounded attempts while alive, immediate output cessation,
 and independently attested FCU failsafe behavior.
 
 | ID | Scope | Current disposition |
 |---|---|---|
-| CB-025 | Small native Rust plant-authority crate/process independent of renderer lifecycle | Implemented and component-tested for this inert slice: separate dependency-free package, inactive command/health/captured-age candidates, typed channel/status boundary, and headless self-check; profile approval, wire schemas, and integration topology remain pending later phases |
+| CB-025 | Small native Rust plant-authority crate/process independent of renderer lifecycle | Implemented and component-tested for this inert slice: separate dependency-free package, inactive command/health/captured-age/safe-action-dispatch candidates, typed channel/status boundary, and headless self-check; profile approval, wire schemas, and integration topology remain pending later phases |
 | CB-026 | Explicit Boot, NoAuthority, Standby, Preflight, AuthorizedHold, Active, Degraded, Emergency, Shutdown state machine | Implemented and transition-tested with process-local generation guards and fail-closed invalid transitions; restart epoch sourcing and ODD/FCU transition preconditions remain pending |
 | CB-027 | Plant-local monotonic command-expiry watchdog | Partial component mechanics only: contract v1 structurally bounds requested TTL and separates producer from local receipt time; an immutable generation-bound local `Instant` guard rejects zero TTL, an unrepresentable deadline, clock regression, stale generation, and the exact deadline. The ticket remains pending behind profile approval and CB-030; no command admission, active scheduling, apply-time write coupling, suspend qualification, scheduler-jitter, or kill/freeze evidence exists |
-| CB-028 | Vehicle/ODD/state-specific safe-action table | Pending; the first-cause latch records a component safety cause but selects no physical response |
+| CB-028 | Vehicle/ODD/state-specific safe-action table | Partial structural mechanics only: an inert candidate copies a caller-proposed nonempty unique mapping of opaque nonzero situation codes into an owned fixed 255-slot table, requires an exact full-profile match, returns no default, and exposes only a closed plant-intent vocabulary. The rows are not bound into the supplied profile digest; no authoritative health/state/trigger classifier, precedence, approved vehicle/ODD mapping, lifecycle/time input, action conversion, adapter, or physical-response evidence exists. `TEST-PLANT-SAFE-ACTION-POLICY-V1` is component evidence only; CTL-007 remains planned and HAZ-007 remains open |
 | CB-029 | Apply-time profile/frame/unit/envelope/health safety governor | Pending |
 | CB-030 | Atomic typed vehicle-health snapshot | Partial component implementation: the canonical kernel path seals a deeply immutable closed report, validates declared profile/vehicle/source/stream-epoch/generation/frame-instance identity, strict per-channel source sequence, local frame, SI units, plant-local observation times, finite vectors, and battery range, then atomically retains the coherent state and exposes eight exact ages from one read. A separate profile-bound classifier consumes that observation, rejects zero limits or exact-profile mismatch, and applies caller-proposed exclusive limits without an aggregate verdict. Generic snapshot mechanics remain disconnected. The ticket stays partial because the limits/profile are unapproved and do not implement the draft ODD's inclusive `<=200 ms` condition; source identity is unauthenticated; real FCU collection and multi-message coherence are unproved; channel recreation/durable epoch uniqueness are not enforced; and no current/apply-time freshness, state policy, governor, or adapter exists |
 | CB-031 | Bounded ingress/latest-command/health/output/evidence paths and overflow policies | Implemented and component-tested: validated non-eager capacities, latest-value, reject-new lifecycle, drop-oldest evidence, exact loss accounting, poison/counter fail-closed behavior, post-unlock destruction, and a separate non-overwritable safety path; this does not prove future watchdog scheduling under integrated load |
@@ -62,6 +65,14 @@ and independently attested FCU failsafe behavior.
 
 ## Recently completed
 
+- Inactive safe-action situation-dispatch candidate: caller-proposed opaque
+  nonzero codes can be copied into a fixed owned no-default table whose lookup
+  requires an exact full profile identity and returns one of five closed plant
+  intents. Empty, oversized, duplicate, missing, and cross-profile cases fail
+  closed. The profile does not content-bind the rows, and callers still supply
+  the situation classification. This is partial CB-028 component evidence, not
+  an approved state/trigger matrix, precedence policy, current health decision,
+  operational action, adapter transaction, or closure of CTL-007/HAZ-007.
 - Inactive vehicle-health contract v1: a closed immutable in-memory report and
   non-cloneable single-writer channel bind declared context identity, strict
   per-channel sequence, local frame/SI values, explicit unknown/unavailable state, and

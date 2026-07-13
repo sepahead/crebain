@@ -84,6 +84,17 @@ Open-source readiness and quality hardening.
   ODD's inclusive `<=200 ms` position/velocity condition is not implemented,
   and no clock read, apply-time consumer, watchdog, governor, or adapter exists.
   HAZ-006 and CTL-005 remain partial and CREBAIN remains L0.
+- **Inactive safe-action situation-dispatch candidate.** A separate plant-side
+  vocabulary distinguishes output inhibit, profile-defined physical Hold,
+  controlled Land, RTL, and guarded ground-disarm requests from untrusted
+  command ingress. Candidate policies copy borrowed rows into a fixed 255-slot
+  table without heap allocation and bind it to an exact `ProfileIdentity`; zero
+  situation codes, empty/oversized/duplicate proposals, profile mismatch, and
+  unmapped codes fail without a default. The opaque code is caller-asserted,
+  the profile identity does not content-bind the supplied rows, and there is no
+  state/trigger classifier, health or time input, action conversion, runtime
+  consumer, governor, watchdog, adapter, or FCU effect. This is partial
+  structural CB-028 mechanics only; CTL-007 remains planned and HAZ-007 open.
 - **Passive plant-local monotonic expiry mechanics.** The isolated zero-dependency
   plant foundation can classify one immutable, generation-bound local interval;
   zero TTL or an unrepresentable deadline, clock regression, generation rotation, and the

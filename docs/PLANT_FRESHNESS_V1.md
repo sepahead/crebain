@@ -20,9 +20,13 @@ read:
 - links.
 
 The classifier does not read a clock, load health, authenticate a source,
-interpret FCU state, transition lifecycle, select a safe action, or call an
-adapter. The Tauri application does not link the plant package. Nothing in this
-component can authorize or apply motion.
+interpret FCU state, transition lifecycle, classify a safe-action situation,
+or call an adapter. A separate inert no-default candidate can look up an opaque
+caller-supplied situation code, but it does not consume this assessment or
+establish an approved state-to-action mapping; see
+[`PLANT_SAFE_ACTION_V1.md`](PLANT_SAFE_ACTION_V1.md). The Tauri application does
+not link the plant package. Nothing in either component can authorize or apply
+motion.
 
 ## Structurally bound policy
 
@@ -90,8 +94,9 @@ The following remain separate work:
 - local-frame reset issuance, suspend-clock qualification, and durable epoch
   anti-rollback;
 - state interpretation and an aggregate health/safety policy;
-- command admission, apply-time enforcement, watchdog scheduling, safe-action
-  selection, governor, adapter, and independently attested FCU failsafes; and
+- command admission, apply-time enforcement, watchdog scheduling,
+  authoritative safe-action classification and approved/content-bound policy,
+  governor, adapter, and independently attested FCU failsafes; and
 - SITL, HIL, target-timing, and physical evidence.
 
 This slice is partial CB-030/CTL-005/HAZ-006 component evidence only.

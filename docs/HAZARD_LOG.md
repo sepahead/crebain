@@ -27,7 +27,7 @@ No hazard in this baseline is controlled or accepted. Every P0 entry blocks L1.
 | HAZ-004 | Replay, duplicate, or cross-session command is accepted | P0 | partial | Boot/session/stream fencing and anti-rollback |
 | HAZ-005 | Correct vector is applied in the wrong frame or unit | P0 | partial | Profile-neutral same-frame-instance ENU/NED and FLU/FRD velocity-axis corpus exists; frame-instance proof, approved profile, remaining semantics, and live interpretation are absent |
 | HAZ-006 | Stale or inconsistent vehicle state authorizes motion | P0 | partial | Closed immutable context-bound snapshot plus profile-bound captured-read exclusive age comparisons exist; authenticated collection, approved limits/state policy, current/apply-time checking, and an aggregate verdict remain absent |
-| HAZ-007 | Generic Hold/ESTOP causes an unsafe physical action | P0 | open | ODD/vehicle safe-action matrix and guarded reset |
+| HAZ-007 | Generic Hold/ESTOP causes an unsafe physical action | P0 | open | ODD/vehicle safe-action matrix and guarded reset; an opaque no-default dispatch candidate exists but does not classify state or approve a physical response |
 | HAZ-008 | Router, MAVROS, FCU, or data-link loss leaves unsafe output | P0 | open | Bounded loss detection and independent FCU fallback |
 | HAZ-009 | Estimator/fusion divergence appears nominal | P1 | partial | Immutable effective config, exact-time frozen-prior ledger, bounded inputs, invalid-gate refusal, divergence state, conservative invalidation |
 | HAZ-010 | Model failure or miscalibration creates an unsafe decision | P1 | open | Signed model contract; calibrated advisory use only |
@@ -43,8 +43,9 @@ Controls, causes, ODD clauses, evidence IDs, owners, and residual-risk notes are
 kept in the JSON record and checked by the Phase 0 verifier.
 
 The inert headless plant package adds component evidence only. It does not
-control HAZ-001/002: there is no FCU write path, watchdog, safe-action table, or
-independent failsafe evidence. HAZ-012/013 remain L1-blocking because fixed
+control HAZ-001/002: there is no FCU write path, active watchdog, authoritative
+safe-action classifier, approved/content-bound policy, or independent failsafe
+evidence. HAZ-012/013 remain L1-blocking because fixed
 channel semantics and process-local generation guards do not prove deadline
 scheduling, process-restart uniqueness, or retained-network behavior.
 The passive expiry guard narrows HAZ-003 mechanics only: exact-deadline,
@@ -83,6 +84,18 @@ policy, current/apply-time freshness, healthy/safe verdict, apply-time consumer,
 failsafe evidence exists. HAZ-006 and CTL-005 are therefore partial, while
 `TEST-PLANT-HEALTH-FRESHNESS-V1` is partial component evidence and
 `TEST-ATOMIC-STATE-STALENESS` remains planned.
+
+The separate safe-action situation-dispatch candidate narrows only part of the
+CB-028 representation mechanics. It owns a fixed table copied from
+caller-proposed unique nonzero opaque codes, requires an exact full profile
+match, has no default row, and returns a closed plant intent rather than a
+contract action. That profile identity does not content-bind the supplied
+rows. The candidate has no authoritative state or trigger classifier, overlap
+precedence, health/lifecycle/time input, approval, action conversion, adapter,
+or effect observation. It therefore cannot establish that Hold, Land, RTL,
+inhibit, or ground disarm is safe in a situation. HAZ-007 and HAZ-002 remain
+open, HAZ-016 remains open, CTL-007 remains planned, and
+`TEST-PLANT-SAFE-ACTION-POLICY-V1` is partial component evidence only.
 
 The Galadriel producer adds component evidence only. It pins one effective
 fusion configuration and executable, makes active initialization readiness-only,

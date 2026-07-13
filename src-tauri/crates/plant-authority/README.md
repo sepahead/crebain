@@ -19,7 +19,9 @@ above 5 m/s, or absolute vertical speed above 2 m/s.
 
 The profile, limits, and canonical local frame remain unapproved. The module
 has no serialization, transport, stateful replay admission, timer, health gate,
-safe-action selection, adapter operation, or lifecycle transition. See
+authoritative state-to-safe-action selection, adapter operation, or lifecycle
+transition. The separate opaque situation-dispatch candidate described below
+does not satisfy that missing gate. See
 [`docs/PLANT_CONTRACT_V1.md`](../../../docs/PLANT_CONTRACT_V1.md).
 
 ## Profile-neutral frame conventions
@@ -62,7 +64,8 @@ links, and all group times. Checked readers expose exact ages computed from one
 monotonic instant. The source identity is not
 authenticated; real FCU sampling and multi-message coherence, exclusive epoch
 construction, approved age/state policy, apply-time checking, watchdog,
-governor, safe action, and adapter remain absent. See
+governor, authoritative safe-action classification and approved policy, and
+adapter remain absent. See
 [`docs/PLANT_HEALTH_V1.md`](../../../docs/PLANT_HEALTH_V1.md).
 
 ## Inactive captured-read health-age classifier v1
@@ -84,6 +87,26 @@ exclusive relation does not implement the draft ODD's inclusive `<=200 ms`
 position/velocity condition. See
 [`docs/PLANT_FRESHNESS_V1.md`](../../../docs/PLANT_FRESHNESS_V1.md).
 
+## Inactive safe-action situation dispatch candidate v1
+
+`safe_action` defines five plant-side candidate intents independently of the
+untrusted command-ingress action enum: inhibit output, request a
+profile-defined physical Hold, request controlled Land, request RTL, or request
+a separately guarded ground-disarm transaction. A nonzero opaque `u8`
+situation code is inseparably paired with the full candidate `ProfileIdentity`.
+
+Policy construction copies a borrowed proposal into a fixed owned 255-slot
+table without allocation. Empty, oversized, or duplicate-code proposals fail;
+exact-profile mismatch and missing rows fail before any intent is returned.
+There is no default or implicit Hold. A selection owns the asserted situation
+and intent while borrowing the exact immutable policy candidate.
+
+This is situation-dispatch mechanics only. It does not derive a situation from
+health, lifecycle, expiry, or a trusted trigger; the profile identity does not
+content-bind the separately supplied rows; and no conversion to ingress,
+velocity, adapter, or FCU action exists. See
+[`docs/PLANT_SAFE_ACTION_V1.md`](../../../docs/PLANT_SAFE_ACTION_V1.md).
+
 ## Channel policy
 
 | Path | Capacity policy | Saturation behavior |
@@ -92,6 +115,7 @@ position/velocity condition. See
 | Generic snapshot mechanics | One retained `Arc`-backed commit | Disconnected low-level register; loads are non-consuming and replacement atomically associates one generic value, caller-supplied generation, and register sequence |
 | Canonical health snapshot | One sealed typed publisher/reader pair | Validates the closed immutable context-bound report and per-channel source sequence before coherent replacement; checked loads expose ages without a freshness verdict |
 | Captured-read age assessment | One owned coherent observation plus one borrowed exact policy | Compares eight captured ages with named nonzero exclusive limits; does not refresh time, aggregate health, or authorize action |
+| Safe-action situation dispatch candidate | Fixed 255-slot owned table plus one borrowed exact policy per selection | Rejects zero codes, empty/oversized/duplicate proposals, exact-profile mismatch, and missing rows; does not classify state, default an intent, or produce an adapter action |
 | Lifecycle | Fixed bounded FIFO | Reject new work; the runtime must latch a safety cause |
 | Evidence | Fixed bounded FIFO | Drop oldest so noncritical storage cannot block safety work; drop count is explicit |
 | Safety | Separate process-lifetime first-cause latch | First notice records its originating generation and cannot be overwritten by normal traffic |
@@ -121,7 +145,8 @@ consumer.
 process monotonic clock and a lifecycle generation. Its half-open validity
 window expires exactly at the deadline; clock regression, generation rotation,
 zero TTL, and unrepresentable deadlines fail closed. The guard has no refresh,
-timer, callback, command payload, raw timestamp, safe-action selection, adapter
+timer, callback, command payload, raw timestamp, state-to-safe-action
+classification, adapter
 hook, or I/O. It is component mechanics only—not the CB-027 watchdog—and does
 not prove suspend behavior, apply-time coupling, scheduler latency, or expiry to
 FCU-safe-action timing.
@@ -130,7 +155,8 @@ The package has no dependencies and the boundary checker rejects links or
 source references to the application library, Tauri, NCP/Zenoh, transport,
 inference, fusion, simulation, ROS, Gazebo, or MAVROS. A real watchdog, trusted
 FCU health source/collector, approved age/state policy, safety governor,
-approved safe-action profile, authenticated ingress, and FCU adapter remain
+approved/content-bound safe-action profile, authoritative situation classifier,
+authenticated ingress, and FCU adapter remain
 intentionally absent.
 
 Production sources also reject subprocess, network, filesystem/device I/O,
@@ -139,9 +165,10 @@ Cargo target outside the inventoried library, daemon, and integration tests.
 The boundary mutation checker and compile-fail API checks also lock the concrete
 non-mixable health endpoint pair, private snapshot fields, non-cloneable
 publisher, captured-read observation/policy ownership, strict exclusive
-comparison, absence of a boolean/aggregate verdict, and absence of raw retained
-endpoints or reader conversion in the runtime. Future adapter I/O requires an explicit boundary-policy change and
-review.
+comparison, safe-action profile/code binding, fixed no-default dispatch table,
+non-cloneable selection, absence of a boolean/aggregate verdict, and absence of
+raw retained endpoints, implicit conversions, or runtime consumption. Future
+adapter I/O requires an explicit boundary-policy change and review.
 
 ```bash
 cargo test --locked --manifest-path src-tauri/Cargo.toml -p crebain-plant-authority
