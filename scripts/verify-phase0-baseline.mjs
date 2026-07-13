@@ -419,7 +419,22 @@ function findMatchingBrace(source, openingBrace) {
       index += 1
       continue
     }
-    if (char === '"' || char === "'" || char === '`') {
+    if (char === "'") {
+      // Rust lifetimes and labels (`'static`, `'a`, `'retry:`) are not character
+      // literals. Treat an identifier after the apostrophe as a lifetime unless
+      // it is immediately closed by another apostrophe (`'a'`). Without this,
+      // one lifetime inside a cfg(test) module can hide its closing brace and
+      // make the fail-closed production scan reject valid Rust.
+      const lifetimeStart = /[A-Za-z_]/.test(next ?? '')
+      if (lifetimeStart) {
+        let end = index + 2
+        while (/[A-Za-z0-9_]/.test(source[end] ?? '')) end += 1
+        if (source[end] !== "'") continue
+      }
+      quote = char
+      continue
+    }
+    if (char === '"' || char === '`') {
       quote = char
       continue
     }
