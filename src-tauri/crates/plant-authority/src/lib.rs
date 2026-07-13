@@ -3,9 +3,11 @@
 //! This crate deliberately has no renderer, Tauri, transport, inference,
 //! simulation, or vehicle-adapter dependency. It supplies an inactive draft
 //! command validator, closed immutable in-memory vehicle-health candidate,
-//! lifecycle, bounded-channel, and passive monotonic-expiry primitives plus an
-//! inert kernel self-check. It does not parse or accept a command, authenticate
-//! FCU state, transition authority, or cause a physical action.
+//! inert profile-bound captured-read age classifier, lifecycle,
+//! bounded-channel, and passive monotonic-expiry primitives plus an inert
+//! kernel self-check. It does not parse or accept a command, authenticate FCU
+//! state, establish current freshness, transition authority, or cause a
+//! physical action.
 
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
@@ -15,6 +17,7 @@ mod channels;
 mod contract;
 mod expiry;
 mod frame_conventions;
+mod freshness;
 mod health;
 mod lifecycle;
 mod runtime;
@@ -38,6 +41,12 @@ pub use contract::{
 };
 pub use expiry::{ExpiryConfigurationError, ExpiryStatus, MonotonicExpiryGuard};
 pub use frame_conventions::{FiniteFramedVelocityMpsV1, FrameConventionError};
+pub use freshness::{
+    VehicleHealthAgeAssessmentErrorV1, VehicleHealthAgeComparisonAtReadV1,
+    VehicleHealthAgeLimitsProposalV1, VehicleHealthAgePointV1,
+    VehicleHealthAgePolicyConfigurationErrorV1, VehicleHealthAgeRelationAtReadV1,
+    VehicleHealthCapturedAgeAssessmentV1, VehicleHealthCapturedAgePolicyV1,
+};
 pub use health::{
     vehicle_health_channel, ArmingStateV1, BatteryObservationV1, EstimateValidityV1,
     EstimatorStateV1, FcuFailsafeStateV1, FcuHealthSourceIdentity, FcuLinksV1, FcuModeStateV1,

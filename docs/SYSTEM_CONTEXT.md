@@ -21,8 +21,9 @@ authenticated deployment, or Haldir→NCP→native-plant→FCU authority chain.
 A separate dependency-free `crebain-plant-authority` workspace package and
 `crebain-plantd` process now provide an inactive draft contract-v1 validator,
 an inert lifecycle/channel foundation, a non-consuming retained whole-snapshot
-register, a closed immutable in-memory vehicle-health candidate, and a passive
-generation-bound monotonic expiry guard. Contract v1
+register, a closed immutable in-memory vehicle-health candidate, a
+profile-bound classifier for eight ages captured at one checked read, and a
+passive generation-bound monotonic expiry guard. Contract v1
 uses closed action/frame/unit types, distinct producer and plant-local time,
 and draft instantaneous-speed/TTL bounds, but has no wire format and its profile/frame are
 unapproved. A separate profile-neutral finite-m/s kernel and digest-bound
@@ -33,11 +34,16 @@ identity and do not select a profile, run during admission, or establish
 attitude, points/covariance, Three.js, time, or FCU semantics. The typed health
 path binds declared profile/vehicle/source/epoch/generation/frame-instance
 identity, strict per-channel source sequence, closed state, SI local vectors, and
-plant-monotonic ages into one coherent retained commit. Its structural source
-identity is not authenticated, it proves no real FCU sampling or aggregation
-coherence, and it defines no freshness threshold or healthy/safe verdict. The
+plant-monotonic ages into one coherent retained commit. The separate classifier
+consumes that observation, rejects zero caller-proposed exclusive limits or
+exact-profile mismatch, and reports only whether each captured age is strictly
+below or at/beyond its limit. It does not read a clock, aggregate health,
+interpret unknown/unavailable state, implement the draft ODD's inclusive
+`<=200 ms` condition, or establish current/apply-time freshness. Its structural
+profile/source binding is not approval or authentication, and it proves no real
+FCU sampling or aggregation coherence. The
 binary can only self-check; it has no command ingress, authenticated health
-collector, active watchdog, governor, safe-action profile, NCP link, apply-time
+collector, approved age/state policy, active watchdog, governor, safe-action profile, NCP link, apply-time
 consumer, or FCU adapter. Generic snapshot storage remains disconnected
 mechanics. The expiry guard has no timer, callback, refresh, command payload,
 or adapter hook. Their existence does not make the process a final applier and

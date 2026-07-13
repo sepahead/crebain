@@ -67,14 +67,14 @@ bun run validate:all
 | Galadriel producer registry/config/envelope/security/baseline changes | `bun run check:phase0-baseline` plus `bun run check:ncp-coherence`; use `bun run validate:all` for source behavior |
 | Frontend-only source/test changes | `bun run validate` |
 | Rust, Tauri IPC, model loading, scene persistence, ROS, Zenoh, transport, or sensor fusion changes | `bun run validate:all` |
-| Headless plant package, command/health contract, frame corpus, lifecycle, or channel-policy changes | `bun run check:plant-boundary`, `bun run check:plant-frames`, and `bun run validate:all` |
+| Headless plant package, command/health/captured-age contract, frame corpus, lifecycle, or channel-policy changes | `bun run check:plant-boundary`, `bun run check:plant-frames`, and `bun run validate:all` |
 | Release-candidate claims | `bun run validate:all` plus `docs/MANUAL_SMOKE_TEST.md` |
 | Native detector performance claim | The release command and archived evidence bundle in `docs/NATIVE_DETECTOR_BENCHMARK.md` |
 
 For documentation-only changes, keep Markdown files aligned on validation commands, backend status, roadmap items, model assumptions, and security boundaries.
 
 `bun run validate:all` includes the inert plant boundary, closed in-memory
-command/health contract tests, digest-bound JavaScript/Rust frame corpus,
+command/health and profile-bound captured-age contract tests, digest-bound JavaScript/Rust frame corpus,
 scoped Rustfmt, check, all-target tests (including
 the native benchmark's logic tests), strict Clippy, and headless self-check
 gates. Every default/NCP Rust package acceptance script uses the checked-in

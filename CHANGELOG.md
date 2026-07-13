@@ -73,6 +73,17 @@ Open-source readiness and quality hardening.
   policy, durable exclusive epoch/channel ownership, apply-time consumer,
   governor, failsafe, or adapter exists. This is
   partial CB-030/CTL-005/HAZ-006 component evidence only.
+- **Inactive profile-bound captured-read health-age classifier.** A separate
+  dependency-free component consumes one coherent observed health commit,
+  rejects zero limits and exact-profile mismatch, and compares receipt plus all
+  seven observation ages against named exclusive limits. Only an age strictly
+  below its limit is within it; equality is outside. The assessment keeps the
+  exact observation and policy together and exposes no boolean or aggregate
+  fresh/healthy/safe/eligible/authorized result. Limits are caller-proposed and
+  unapproved, recent unknown/unavailable state remains non-nominal, the draft
+  ODD's inclusive `<=200 ms` position/velocity condition is not implemented,
+  and no clock read, apply-time consumer, watchdog, governor, or adapter exists.
+  HAZ-006 and CTL-005 remain partial and CREBAIN remains L0.
 - **Passive plant-local monotonic expiry mechanics.** The isolated zero-dependency
   plant foundation can classify one immutable, generation-bound local interval;
   zero TTL or an unrepresentable deadline, clock regression, generation rotation, and the

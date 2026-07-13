@@ -83,11 +83,15 @@ the exact PX4 SITL image/parameters and canonical local frame; review and bind
 the exact v1 corpus digest plus remaining transform semantics into the profile
 artifact; and record its owner, approver, approval scope, and expiry/review
 condition. A separate typed immutable vehicle-health snapshot candidate now
-binds declared context identity and exposes plant-monotonic ages, but it does
-not authenticate an FCU source, approve freshness, or close the apply-time
-race. Command ingress and FCU I/O remain out of order until the profile,
+binds declared context identity and exposes plant-monotonic ages. Its
+profile-bound captured-read classifier rejects zero limits and profile mismatch
+and applies named exclusive comparisons to all eight ages, but does not read
+current time, authenticate an FCU source, approve any limit/state policy,
+implement the draft ODD's inclusive `<=200 ms` condition, or close the
+apply-time race. Command ingress and FCU I/O remain out of order until the profile,
 watchdog, safe-action, governor, and adapter gates exist. See
-[`PLANT_HEALTH_V1.md`](PLANT_HEALTH_V1.md).
+[`PLANT_HEALTH_V1.md`](PLANT_HEALTH_V1.md) and
+[`PLANT_FRESHNESS_V1.md`](PLANT_FRESHNESS_V1.md).
 
 ## Component verification
 

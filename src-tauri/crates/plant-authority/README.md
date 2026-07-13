@@ -59,11 +59,30 @@ explicit and can replace a prior nominal report.
 The retained commit atomically carries declared context fields, arming/landed/opaque
 mode/failsafe state, estimator validity, position, velocity, battery, fence,
 links, and all group times. Checked readers expose exact ages computed from one
-monotonic instant, not a fresh/healthy/safe verdict. The source identity is not
+monotonic instant. The source identity is not
 authenticated; real FCU sampling and multi-message coherence, exclusive epoch
-construction, approved freshness policy, apply-time checking, watchdog,
+construction, approved age/state policy, apply-time checking, watchdog,
 governor, safe action, and adapter remain absent. See
 [`docs/PLANT_HEALTH_V1.md`](../../../docs/PLANT_HEALTH_V1.md).
+
+## Inactive captured-read health-age classifier v1
+
+`freshness` consumes one coherent `ObservedVehicleHealthV1` and binds it to one
+exact profile plus named caller-proposed limits for receipt, FCU state,
+estimator, position, velocity, battery, fence, and links. Every limit must be
+nonzero. Exact-profile mismatch fails before classification, and the resulting
+assessment owns the observation while borrowing the exact policy so bare ages
+cannot be silently mixed with another snapshot or policy.
+
+Each relation describes only the health-reader instant: an age strictly below
+its exclusive limit is `WithinExclusiveLimitAtRead`, while equality or a larger
+age is `AtOrBeyondExclusiveLimitAtRead`. The component does not read a clock or
+expose a boolean/aggregate fresh, healthy, safe, eligible, or authorized
+result. A recent `Unknown` or `Unavailable` value remains semantically
+non-nominal. The limits and profile are not approved or authenticated, and the
+exclusive relation does not implement the draft ODD's inclusive `<=200 ms`
+position/velocity condition. See
+[`docs/PLANT_FRESHNESS_V1.md`](../../../docs/PLANT_FRESHNESS_V1.md).
 
 ## Channel policy
 
@@ -72,6 +91,7 @@ governor, safe action, and adapter remain absent. See
 | Latest command/output foundations | One retained value | Newest replaces unread old value; overwrite count is explicit |
 | Generic snapshot mechanics | One retained `Arc`-backed commit | Disconnected low-level register; loads are non-consuming and replacement atomically associates one generic value, caller-supplied generation, and register sequence |
 | Canonical health snapshot | One sealed typed publisher/reader pair | Validates the closed immutable context-bound report and per-channel source sequence before coherent replacement; checked loads expose ages without a freshness verdict |
+| Captured-read age assessment | One owned coherent observation plus one borrowed exact policy | Compares eight captured ages with named nonzero exclusive limits; does not refresh time, aggregate health, or authorize action |
 | Lifecycle | Fixed bounded FIFO | Reject new work; the runtime must latch a safety cause |
 | Evidence | Fixed bounded FIFO | Drop oldest so noncritical storage cannot block safety work; drop count is explicit |
 | Safety | Separate process-lifetime first-cause latch | First notice records its originating generation and cannot be overwritten by normal traffic |
@@ -89,9 +109,11 @@ replacement. The generic API does not prevent interior mutation exposed by `T`
 and does not validate the freshness or order of a caller-supplied generation.
 The canonical `KernelChannels` path no longer accepts a substitutable generic
 health type or exposes raw snapshot endpoints; it uses the concrete health
-candidate above. CB-030 remains partial because the component still lacks
-authenticated/attested FCU provenance, real aggregation coherence, approved
-freshness semantics, durable epoch ownership, and an apply-time consumer.
+candidate above. The separate age classifier does not change that endpoint or
+create a runtime consumer. CB-030 remains partial because the component still
+lacks authenticated/attested FCU provenance, real aggregation coherence,
+approved age/state semantics, durable epoch ownership, and an apply-time
+consumer.
 
 ## Passive expiry mechanics
 
@@ -107,7 +129,7 @@ FCU-safe-action timing.
 The package has no dependencies and the boundary checker rejects links or
 source references to the application library, Tauri, NCP/Zenoh, transport,
 inference, fusion, simulation, ROS, Gazebo, or MAVROS. A real watchdog, trusted
-FCU health source/collector, approved freshness policy, safety governor,
+FCU health source/collector, approved age/state policy, safety governor,
 approved safe-action profile, authenticated ingress, and FCU adapter remain
 intentionally absent.
 
@@ -116,8 +138,9 @@ external `#[path]`/`include!` reachability, symlinks, custom builds, and any
 Cargo target outside the inventoried library, daemon, and integration tests.
 The boundary mutation checker and compile-fail API checks also lock the concrete
 non-mixable health endpoint pair, private snapshot fields, non-cloneable
-publisher, and absence of raw retained endpoints or reader conversion in the
-runtime. Future adapter I/O requires an explicit boundary-policy change and
+publisher, captured-read observation/policy ownership, strict exclusive
+comparison, absence of a boolean/aggregate verdict, and absence of raw retained
+endpoints or reader conversion in the runtime. Future adapter I/O requires an explicit boundary-policy change and
 review.
 
 ```bash
