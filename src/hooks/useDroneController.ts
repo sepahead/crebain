@@ -329,8 +329,9 @@ export interface ManagedDrone {
   physicsBody: DronePhysicsBody
   flightController: FlightController
   mesh: THREE.Object3D | null
-  /** Rotor meshes cached at spawn (index order matches physics rotors) so the
-   *  rAF loop can spin them without per-frame getObjectByName lookups. */
+  /** Rotor meshes cached at spawn so the rAF loop can animate them without
+   * per-frame name lookups. Their order is model-defined and visual only; it
+   * must not be interpreted as the physics FL/FR/RL/RR order. */
   rotorMeshes: THREE.Object3D[]
   route: DroneRoute
 }

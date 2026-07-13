@@ -113,22 +113,41 @@ describe('canonical quad mixer', () => {
   it('uses the documented local rotor mapping and clamps every command', () => {
     const commands = mixQuadMotorCommands(0.5, 0.1, 0.2, 0.05)
 
-    expect(commands.front_left).toBeCloseTo(0.45, 12)
-    expect(commands.front_right).toBeCloseTo(0.75, 12)
-    expect(commands.rear_left).toBeCloseTo(0.65, 12)
-    expect(commands.rear_right).toBeCloseTo(0.15, 12)
+    expect(commands.front_left).toBeCloseTo(0.35, 12)
+    expect(commands.front_right).toBeCloseTo(0.25, 12)
+    expect(commands.rear_left).toBeCloseTo(0.85, 12)
+    expect(commands.rear_right).toBeCloseTo(0.55, 12)
     expect(mixQuadMotorCommands(0.5, 2, -2, 2)).toEqual({
       front_left: 1,
-      front_right: 0,
-      rear_left: 0,
+      front_right: 1,
+      rear_left: 1,
       rear_right: 0,
     })
   })
 
-  it('turns positive roll into +Z lever torque only', () => {
+  it('stores rotors in truthful FL, FR, RL, RR order with diagonal spin pairs', () => {
+    const { armLength } = DEFAULT_QUADCOPTER_PARAMS
+    const drone = new DronePhysicsBody('rotor-layout')
+
+    expect(
+      drone.state.rotors.map((rotor) => [
+        rotor.position.x,
+        rotor.position.y,
+        rotor.position.z,
+        rotor.direction,
+      ])
+    ).toEqual([
+      [-armLength, 0, armLength, -1],
+      [armLength, 0, armLength, 1],
+      [-armLength, 0, -armLength, 1],
+      [armLength, 0, -armLength, -1],
+    ])
+  })
+
+  it('turns positive right-bank roll into -Z lever torque only', () => {
     const torque = torqueFromMixedControls(0.1, 0, 0)
 
-    expect(torque.z).toBeGreaterThan(0)
+    expect(torque.z).toBeLessThan(0)
     expect(torque.x).toBeCloseTo(0, 12)
     expect(torque.y).toBeCloseTo(0, 12)
   })
@@ -193,11 +212,11 @@ describe('DronePhysicsBody local integrator', () => {
     const thrust = body.state.rotors[0].thrust
     expect(thrust).toBeGreaterThan(0)
 
-    // Rotor 0 at (+arm, 0, +arm), thrust along +Y (identity orientation):
-    // torque = leverArm x (0, thrust, 0) = (-arm * thrust, 0, arm * thrust).
+    // Front-left rotor at (-arm, 0, +arm), thrust along +Y:
+    // torque = leverArm x (0, thrust, 0) = (-arm * thrust, 0, -arm * thrust).
     // Angular velocity after one step = (torque / I) * dt * damping(0.98).
     const expectedAngVelX = ((-armLength * thrust) / momentOfInertia.x) * dt * 0.98
-    const expectedAngVelZ = ((armLength * thrust) / momentOfInertia.z) * dt * 0.98
+    const expectedAngVelZ = ((-armLength * thrust) / momentOfInertia.z) * dt * 0.98
     expect(body.state.angularVelocity.x).toBeCloseTo(expectedAngVelX, 10)
     expect(body.state.angularVelocity.z).toBeCloseTo(expectedAngVelZ, 10)
   })
@@ -308,7 +327,7 @@ describe('DronePhysicsWorld Rapier force application', () => {
 
     const torqueArg = fakeBody.addTorque.mock.calls[0][0]
     expect(torqueArg.x).toBeCloseTo(-armLength * thrust, 10)
-    expect(torqueArg.z).toBeCloseTo(armLength * thrust, 10)
+    expect(torqueArg.z).toBeCloseTo(-armLength * thrust, 10)
   })
 })
 
@@ -406,5 +425,77 @@ describe('FlightController PID state', () => {
     const commands = controller.update(drone, 1, 0, 0, 1, 0.1)
 
     expect(commands).toEqual(mixQuadMotorCommands(0.5, 0.1, 0, 0))
+  })
+
+  it('reads a Three.js -Z bank as positive logical roll and commands restoring torque', () => {
+    const controller = new FlightController({
+      rollPID: { kp: 0.1, ki: 0, kd: 0 },
+      pitchPID: { kp: 0, ki: 0, kd: 0 },
+      yawPID: { kp: 0, ki: 0, kd: 0 },
+      altitudePID: { kp: 0, ki: 0, kd: 0 },
+      maxAngle: 1,
+    })
+    const drone = new DronePhysicsBody('right-bank-feedback', undefined, new THREE.Vector3(0, 1, 0))
+    drone.setArmed(true)
+    drone.state.orientation.setFromAxisAngle(new THREE.Vector3(0, 0, 1), -0.1)
+
+    const commands = controller.update(drone, 0, 0, 0, 1, 0.1)
+    drone.setMotorCommands(commands)
+    const world = new DronePhysicsWorld() as unknown as WorldInternals
+    world.RAPIER = {}
+    const fakeBody = createFakeRigidBody()
+    attachFakeRigidBody(drone, fakeBody)
+    world.applyDroneForces(drone, PHYSICS_FIXED_DT)
+
+    expect(fakeBody.addTorque.mock.calls[0][0].z).toBeGreaterThan(0)
+  })
+
+  it('accelerates toward local +X for a positive right-bank target', () => {
+    const controller = new FlightController({
+      rollPID: { kp: 0.1, ki: 0, kd: 0 },
+      pitchPID: { kp: 0, ki: 0, kd: 0 },
+      yawPID: { kp: 0, ki: 0, kd: 0 },
+      altitudePID: { kp: 0, ki: 0, kd: 0 },
+      maxAngle: 1,
+    })
+    const drone = new DronePhysicsBody(
+      'right-bank-motion',
+      { ...DEFAULT_QUADCOPTER_PARAMS, dragCoefficient: 0 },
+      new THREE.Vector3(0, 10, 0)
+    )
+    drone.setArmed(true)
+
+    for (let step = 0; step < 30; step++) {
+      drone.setMotorCommands(controller.update(drone, 0.1, 0, 0, 10, PHYSICS_FIXED_DT))
+      drone.updatePhysics(PHYSICS_FIXED_DT)
+    }
+
+    expect(drone.state.position.x).toBeGreaterThan(0)
+    expect(drone.state.velocity.x).toBeGreaterThan(0)
+  })
+
+  it('decelerates local +X drift with the hands-off lateral braking target', () => {
+    const controller = new FlightController({
+      rollPID: { kp: 0.1, ki: 0, kd: 0 },
+      pitchPID: { kp: 0, ki: 0, kd: 0 },
+      yawPID: { kp: 0, ki: 0, kd: 0 },
+      altitudePID: { kp: 0, ki: 0, kd: 0 },
+      maxAngle: 1,
+    })
+    const drone = new DronePhysicsBody(
+      'lateral-brake',
+      { ...DEFAULT_QUADCOPTER_PARAMS, dragCoefficient: 0 },
+      new THREE.Vector3(0, 10, 0)
+    )
+    drone.setArmed(true)
+    drone.state.velocity.x = 0.1
+
+    for (let step = 0; step < 30; step++) {
+      const targetRoll = -drone.state.velocity.x * 0.35
+      drone.setMotorCommands(controller.update(drone, targetRoll, 0, 0, 10, PHYSICS_FIXED_DT))
+      drone.updatePhysics(PHYSICS_FIXED_DT)
+    }
+
+    expect(drone.state.velocity.x).toBeLessThan(0.1)
   })
 })
