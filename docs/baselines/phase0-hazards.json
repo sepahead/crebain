@@ -183,7 +183,7 @@
           "artifact": "signed bypass-campaign report"
         }
       ],
-      "residual_risk": "Any unclassified or reachable command surface blocks L1."
+      "residual_risk": "The new headless kernel is inert and dependency-isolated, but it is not yet an FCU applier; any unclassified or reachable command surface still blocks L1."
     },
     {
       "id": "HAZ-002",
@@ -208,7 +208,7 @@
           "artifact": "watchdog and FCU-failsafe trace"
         }
       ],
-      "residual_risk": "A single zero message is not sufficient evidence."
+      "residual_risk": "A component safety latch cannot select or apply an ODD-specific physical safe action; watchdog, FCU failsafe, and kill/freeze evidence remain absent."
     },
     {
       "id": "HAZ-003",
@@ -452,15 +452,20 @@
           "test_id": "TEST-RESOURCE-RESERVED-SAFE-CAPACITY",
           "status": "planned",
           "artifact": "rate/session/disk overload timing trace"
+        },
+        {
+          "test_id": "TEST-PLANT-BOUNDED-CHANNELS",
+          "status": "partial",
+          "artifact": "component stress test showing an eight-value drop-oldest queue retains the final eight of 100 submissions and reports exactly 92 drops"
         }
       ],
-      "residual_risk": "Existing bounds do not prove watchdog scheduling under combined load."
+      "residual_risk": "The inert kernel has fixed channel policies and explicit loss accounting, but no watchdog task, reserved scheduler capacity, disk spool, or combined-load deadline evidence."
     },
     {
       "id": "HAZ-013",
       "title": "Restart or reconnect resurrects stale authority",
       "severity": "P0",
-      "status": "open",
+      "status": "partial",
       "owner": "reliability",
       "unsafe_control_actions": ["provided-when-unsafe", "provided-too-early-or-late"],
       "loss_ids": ["LOSS-001", "LOSS-004"],
@@ -478,9 +483,24 @@
           "test_id": "TEST-COMPONENT-RESTART-MATRIX",
           "status": "planned",
           "artifact": "controller/Gate/router/plant/MAVROS/FCU restart report"
+        },
+        {
+          "test_id": "TEST-PLANT-LIFECYCLE-GENERATIONS",
+          "status": "partial",
+          "artifact": "component lifecycle test showing revocation rotates the process-local generation and rejects queued work from the previous generation"
+        },
+        {
+          "test_id": "TEST-PLANT-SHUTDOWN-GENERATION",
+          "status": "partial",
+          "artifact": "component lifecycle test showing shutdown rotates the process-local generation when a successor is representable"
+        },
+        {
+          "test_id": "TEST-PLANT-MAX-SHUTDOWN-TERMINAL",
+          "status": "partial",
+          "artifact": "component lifecycle test showing maximum-generation shutdown remains terminal without wrapping or later mutation"
         }
       ],
-      "residual_risk": "No complete live restart topology exists."
+      "residual_risk": "Process-local lifecycle generations reject stale queued events, but durable boot epochs, authenticated sessions, retained transport behavior, and the complete live restart topology do not exist."
     },
     {
       "id": "HAZ-014",

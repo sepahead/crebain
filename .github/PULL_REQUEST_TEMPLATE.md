@@ -22,7 +22,7 @@ Describe what changed and why.
 | Command | Result | Notes |
 |---------|--------|-------|
 | `bun run validate` | not run |  |
-| `bun run validate:all` | not run | Required for Rust, IPC, transport, model-loading, or integration changes |
+| `bun run validate:all` | not run | Required for Rust, plant-authority, IPC, transport, model-loading, or integration changes |
 | Manual smoke checklist | not run | Required before release-candidate claims |
 
 ## Checklist

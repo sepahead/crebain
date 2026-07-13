@@ -32,8 +32,8 @@ No hazard in this baseline is controlled or accepted. Every P0 entry blocks L1.
 | HAZ-009 | Estimator/fusion divergence appears nominal | P1 | partial | Consistency metrics, divergence state, conservative invalidation |
 | HAZ-010 | Model failure or miscalibration creates an unsafe decision | P1 | open | Signed model contract; calibrated advisory use only |
 | HAZ-011 | Missing, censored, stale, or dropped evidence appears nominal | P0 | open | Explicit insufficiency/drop/heartbeat semantics |
-| HAZ-012 | Resource exhaustion starves watchdog or emergency handling | P0 | partial | Preparse bounds, bounded queues, reserved safe capacity |
-| HAZ-013 | Restart or reconnect resurrects stale authority | P0 | open | New boot epoch/session and fresh preflight authorization |
+| HAZ-012 | Resource exhaustion starves watchdog or emergency handling | P0 | partial | Inert kernel channel bounds/loss accounting exist; scheduler reservation and combined-load timing remain absent |
+| HAZ-013 | Restart or reconnect resurrects stale authority | P0 | partial | Process-local generation guards exist; durable boot/session anti-rollback and topology restart tests remain absent |
 | HAZ-014 | Operator confuses connected/delivered with applied/observed | P1 | open | Controlled vocabulary and distinct authority/effect UX |
 | HAZ-015 | Gazebo/local mutation contaminates flight evidence | P1 | partial | Separate binaries, identities, profiles, and evidence labels |
 | HAZ-016 | Mission, mode, arm, takeoff, land, or disarm bypasses policy | P0 | open | Typed hazardous-action transaction or exclusion from L1 |
@@ -41,3 +41,9 @@ No hazard in this baseline is controlled or accepted. Every P0 entry blocks L1.
 
 Controls, causes, ODD clauses, evidence IDs, owners, and residual-risk notes are
 kept in the JSON record and checked by the Phase 0 verifier.
+
+The inert headless plant package adds component evidence only. It does not
+control HAZ-001/002: there is no FCU write path, watchdog, safe-action table, or
+independent failsafe evidence. HAZ-012/013 remain L1-blocking because fixed
+channel semantics and process-local generation guards do not prove deadline
+scheduling, process-restart uniqueness, or retained-network behavior.

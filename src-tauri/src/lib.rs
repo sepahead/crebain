@@ -7,6 +7,7 @@
 
 // Core modules
 pub mod common;
+#[cfg(target_os = "macos")]
 mod coreml;
 mod onnx_detector;
 pub mod pid_observation;

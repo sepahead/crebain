@@ -128,7 +128,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "c3c550e2b32c32e31d639a74b2e752c19c363cc7d325e0e2fa05f7bc1fdf47e0"
+      "sha256": "1924fbacfdc50f122a0b89fb6aba85d00a6066773477e0a7fad7f9a2f2573945"
     },
     {
       "path": "bun.lock",
@@ -136,11 +136,15 @@
     },
     {
       "path": "src-tauri/Cargo.toml",
-      "sha256": "7ff1e1d3b7902324494eeab15773ce1ea6bda9a7e5b422d4e97f6aa1fe3f9d47"
+      "sha256": "61a51fbc657bc5c5d05c26071affc8d2947676a32a4af98d09b42dcbc30e9dd5"
     },
     {
       "path": "src-tauri/Cargo.lock",
-      "sha256": "e5469ea3eb7643940c9822b9c69ab2ad3000295d6d057f4878694047dd87e58c"
+      "sha256": "8a5797dccc9764bb14b9febee0d880bd354fe572aaa125b85f734cb9657235d8"
+    },
+    {
+      "path": "src-tauri/crates/plant-authority/Cargo.toml",
+      "sha256": "c9e27c19b7d46dc0bc9db71040afe0b39b92f6b96dbbe41f59b6216985595b8e"
     },
     {
       "path": ".ncp-consumer",
@@ -160,15 +164,19 @@
     },
     {
       "path": "docs/baselines/phase0-command-surfaces.json",
-      "sha256": "068437e201d24bd82d05b7594018ca240db24a8de0c46cf4ab4c63549d339db8"
+      "sha256": "2b76127195ab806775b6558900fd1942fbdbed76bed06a9b440c2bd32de5a9f4"
     },
     {
       "path": "docs/baselines/phase0-hazards.json",
-      "sha256": "758e55822e70371d33d5f7081bca5bb9e3ee7f2337566c8d94f9f706341687f6"
+      "sha256": "945fc8cfe91b3c68f563d9c579c7484a7eeb1d12c504129c7cd605edd6c754a2"
     },
     {
       "path": "scripts/verify-phase0-baseline.mjs",
-      "sha256": "226ad8daa69af83cbbd17d836ad89ac9c247245277ab8bc1ea89c10b324d60da"
+      "sha256": "f13615271a6f044006ce265c9d1ee0e6ab33f66980f86ae298e3f85475c29524"
+    },
+    {
+      "path": "scripts/check-plant-authority-boundary.mjs",
+      "sha256": "fadfeb96d0971061bde30c12a42e31757ef583da2cf7b8c05ec0079097d99366"
     },
     {
       "path": "scripts/test-phase0-baseline.mjs",
@@ -184,7 +192,7 @@
     },
     {
       "path": "scripts/fixtures/phase0-baseline-invalid-cases.json",
-      "sha256": "c6bc7d78d21eee9919b7492b8b18b004e870645f76fa0e0002442fdce1062b37"
+      "sha256": "055d040c6c8faf7ab34bfa4a85fd3a908182fee66396d3793db2af3ca3a19188"
     },
     {
       "path": "scripts/fixtures/production-boundary-invalid-cases.json",

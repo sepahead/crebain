@@ -56,7 +56,7 @@ Use the smallest check that is honest for the change:
 # Frontend typecheck + lint + format check + tests
 bun run validate
 
-# NCP pin coherence + frontend validation + Rust default/NCP gates
+# NCP pin coherence + frontend + plant-boundary + Rust default/NCP gates
 bun run validate:all
 ```
 
@@ -66,11 +66,13 @@ bun run validate:all
 | NCP manifest, lockfile, or normative-doc changes | `bun run check:ncp-coherence` |
 | Frontend-only source/test changes | `bun run validate` |
 | Rust, Tauri IPC, model loading, scene persistence, ROS, Zenoh, transport, or sensor fusion changes | `bun run validate:all` |
+| Headless plant package, lifecycle, or channel-policy changes | `bun run check:plant-boundary` plus `bun run validate:all` |
 | Release-candidate claims | `bun run validate:all` plus `docs/MANUAL_SMOKE_TEST.md` |
 
 For documentation-only changes, keep Markdown files aligned on validation commands, backend status, roadmap items, model assumptions, and security boundaries.
 
-`bun run validate:all` does not run the bundle budget, coverage thresholds,
+`bun run validate:all` includes the inert plant boundary, scoped Rustfmt, check,
+test, strict Clippy, and headless self-check gates. It does not run the bundle budget, coverage thresholds,
 `cuda,tensorrt` / `--no-default-features` feature checks, CodeQL, or supply-chain
 audits. Release candidates require those hosted workflows as defined in
 `docs/RELEASE_ACCEPTANCE.md`.

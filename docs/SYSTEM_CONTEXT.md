@@ -14,6 +14,12 @@ development NCP scene hook remain available for simulation and are not flight
 authority. The Rust NCP adapter remains feature-gated with unregistered Tauri
 commands. There is still no live Haldir→NCP→native-plant→FCU authority chain.
 
+A separate dependency-free `crebain-plant-authority` workspace package and
+`crebain-plantd` process now provide an inert lifecycle/channel foundation. The
+binary can only self-check; it has no command ingress, vehicle-health source,
+watchdog, governor, safe-action profile, NCP link, or FCU adapter. Its existence
+does not make it a final applier and does not change the L0 claim.
+
 Those facts are inventoried in
 [`baselines/phase0-command-surfaces.json`](baselines/phase0-command-surfaces.json)
 and are why the current claim remains L0.

@@ -24,7 +24,7 @@ recorded here after the working tree is committed and pushed.
 | Rust default/NCP/feature result | Pending final combined-tree and hosted runs |
 | Hardware-WebGL performance smoke | Prior measurement is not candidate evidence; rerun if a numeric performance claim is proposed |
 | Manual smoke | Pending target-platform execution |
-| Boundary focus | Pinned NCP wire 0.8; complete command mediation; bounded ingress; per-session lifecycle/action ownership; secure-by-default Zenoh posture; isolated development harness state |
+| Boundary focus | Pinned NCP wire 0.8; complete command mediation; inert headless plant package isolation and bounded channel foundation; per-session lifecycle/action ownership remains pending; secure-by-default Zenoh posture; isolated development harness state |
 
 ## Historical Snapshot (`e89de5a`, not current evidence)
 
@@ -44,6 +44,7 @@ must not be reused as evidence for the current dependency or source tree.
 | Bundle and coverage | Hosted bundle budget and coverage thresholds | Pending new candidate |
 | Rust default | fmt, check, tests, and clippy on Linux/macOS | Pending final combined-tree and hosted runs |
 | NCP feature | NCP clippy and tests on Linux/macOS | Pending final combined-tree and hosted runs |
+| Inert plant foundation | Dependency boundary, strict Clippy, property/stress/headless tests, self-check | Pending final combined-tree and hosted runs |
 | Rust feature gates | `cuda,tensorrt` and `--no-default-features` checks | Pending new candidate |
 | Supply chain | cargo-deny and `bun audit` | Pending because dependency manifests changed |
 | Static analysis | CodeQL JavaScript/TypeScript and Rust | Pending new candidate |

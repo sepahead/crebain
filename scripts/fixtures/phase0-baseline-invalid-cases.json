@@ -903,6 +903,151 @@
       "expected_error": "selector not found"
     },
     {
+      "id": "plant-subprocess-boundary-escape",
+      "mutation": {
+        "type": "append-source",
+        "file": "src-tauri/crates/plant-authority/src/runtime.rs",
+        "value": "\nuse std::process::Command;\n"
+      },
+      "expected_error": "plant authority process, network, or device I/O capability is forbidden"
+    },
+    {
+      "id": "plant-network-boundary-escape",
+      "mutation": {
+        "type": "append-source",
+        "file": "src-tauri/crates/plant-authority/src/runtime.rs",
+        "value": "\nuse std::net::TcpStream;\n"
+      },
+      "expected_error": "plant authority process, network, or device I/O capability is forbidden"
+    },
+    {
+      "id": "plant-path-module-boundary-escape",
+      "mutation": {
+        "type": "append-source",
+        "file": "src-tauri/crates/plant-authority/src/lib.rs",
+        "value": "\n#[path = \"../../outside.rs\"] mod outside;\n"
+      },
+      "expected_error": "plant authority external #[path] module is forbidden"
+    },
+    {
+      "id": "plant-raw-identifier-path-module-boundary-escape",
+      "mutation": {
+        "type": "append-source",
+        "file": "src-tauri/crates/plant-authority/src/lib.rs",
+        "value": "\n#[r#path = \"../../outside.rs\"] mod outside;\n"
+      },
+      "expected_error": "plant authority external #[path] module is forbidden"
+    },
+    {
+      "id": "plant-cfg-attr-path-module-boundary-escape",
+      "mutation": {
+        "type": "append-source",
+        "file": "src-tauri/crates/plant-authority/src/lib.rs",
+        "value": "\n#[cfg_attr(all(), path = \"../../outside.rs\")] mod outside;\n"
+      },
+      "expected_error": "plant authority external #[path] module is forbidden"
+    },
+    {
+      "id": "plant-include-boundary-escape",
+      "mutation": {
+        "type": "append-source",
+        "file": "src-tauri/crates/plant-authority/src/lib.rs",
+        "value": "\ninclude!(\"../../outside.rs\");\n"
+      },
+      "expected_error": "plant authority include macro is forbidden"
+    },
+    {
+      "id": "plant-string-comment-include-boundary-escape",
+      "mutation": {
+        "type": "append-source",
+        "file": "src-tauri/crates/plant-authority/src/lib.rs",
+        "value": "\nconst COMMENT_LIKE: &str = \"//\"; include!(\"../../outside.rs\");\n"
+      },
+      "expected_error": "plant authority include macro is forbidden"
+    },
+    {
+      "id": "plant-raw-string-comment-gap-include-boundary-escape",
+      "mutation": {
+        "type": "append-source",
+        "file": "src-tauri/crates/plant-authority/src/lib.rs",
+        "value": "\nconst RAW_COMMENT_LIKE: &str = r#\"x\" // still raw\"#; include /* gap */ !(\"../../outside.rs\");\n"
+      },
+      "expected_error": "plant authority include macro is forbidden"
+    },
+    {
+      "id": "plant-char-quote-include-boundary-escape",
+      "mutation": {
+        "type": "append-source",
+        "file": "src-tauri/crates/plant-authority/src/lib.rs",
+        "value": "\nconst QUOTE: char = '\"'; include!(\"../../outside.rs\");\n"
+      },
+      "expected_error": "plant authority include macro is forbidden"
+    },
+    {
+      "id": "plant-grouped-process-import-boundary-escape",
+      "mutation": {
+        "type": "append-source",
+        "file": "src-tauri/crates/plant-authority/src/runtime.rs",
+        "value": "\nuse std::{process::{Command as C}}; fn escape() { let _ = C::new(\"true\"); }\n"
+      },
+      "expected_error": "plant authority process, network, or device I/O capability is forbidden"
+    },
+    {
+      "id": "plant-device-write-boundary-escape",
+      "mutation": {
+        "type": "append-source",
+        "file": "src-tauri/crates/plant-authority/src/runtime.rs",
+        "value": "\nuse std::fs::OpenOptions; use std::io::Write; fn escape() { let mut f = OpenOptions::new().write(true).open(\"/dev/null\").unwrap(); f.write_all(b\"x\").unwrap(); }\n"
+      },
+      "expected_error": "plant authority process, network, or device I/O capability is forbidden"
+    },
+    {
+      "id": "plant-custom-build-target",
+      "mutation": {
+        "type": "append-source",
+        "file": "src-tauri/crates/plant-authority/Cargo.toml",
+        "value": "\nbuild = \"../outside-build.rs\"\n"
+      },
+      "expected_error": "plant authority custom build target is forbidden"
+    },
+    {
+      "id": "plant-default-build-script",
+      "mutation": {
+        "type": "add-source",
+        "file": "src-tauri/crates/plant-authority/build.rs",
+        "value": "fn main() {}\n"
+      },
+      "expected_error": "conditional executable input expected absent"
+    },
+    {
+      "id": "plant-cargo-target-path-escape",
+      "mutation": {
+        "type": "replace-source",
+        "file": "src-tauri/crates/plant-authority/Cargo.toml",
+        "needle": "path = \"src/main.rs\"",
+        "value": "path = \"../outside.rs\""
+      },
+      "expected_error": "plant authority Cargo target path escapes package root"
+    },
+    {
+      "id": "plant-dependency-section",
+      "mutation": {
+        "type": "append-source",
+        "file": "src-tauri/crates/plant-authority/Cargo.toml",
+        "value": "\n[dependencies]\nreqwest = \"0.12\"\n"
+      },
+      "expected_error": "plant authority dependency section is forbidden"
+    },
+    {
+      "id": "plant-unexpected-example-target",
+      "mutation": {
+        "type": "append-source",
+        "file": "src-tauri/crates/plant-authority/Cargo.toml",
+        "value": "\n[[example]]\nname = \"escape\"\npath = \"src/main.rs\"\n"
+      },
+      "expected_error": "plant authority unexpected Cargo target is forbidden"
+    },
+    {
       "id": "crebain-configuration-hash-drift",
       "mutation": {
         "type": "set",

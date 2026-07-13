@@ -18,7 +18,8 @@
     "gazebo",
     "local_sim",
     "dev_ncp",
-    "native_ncp"
+    "native_ncp",
+    "plant_authority"
   ],
   "statuses": ["registered", "live", "declared", "dormant-unregistered", "removed"],
   "secure_sitl_dispositions": [
@@ -184,11 +185,61 @@
         "file": "src/ros/__tests__/MessageRegistry.test.ts",
         "selector": "maps built-in message types to centralized transport commands"
       }
+    },
+    {
+      "id": "TEST-PLANT-LIFECYCLE-GENERATIONS",
+      "locator": {
+        "file": "src-tauri/crates/plant-authority/tests/lifecycle_properties.rs",
+        "selector": "fn revocation_should_rotate_generation_and_invalidate_queued_work()"
+      },
+      "hazard_ids": ["HAZ-013"],
+      "control_ids": ["CTL-010"]
+    },
+    {
+      "id": "TEST-PLANT-SHUTDOWN-GENERATION",
+      "locator": {
+        "file": "src-tauri/crates/plant-authority/tests/lifecycle_properties.rs",
+        "selector": "fn representable_shutdown_should_rotate_generation_once()"
+      },
+      "hazard_ids": ["HAZ-013"],
+      "control_ids": ["CTL-010"]
+    },
+    {
+      "id": "TEST-PLANT-MAX-SHUTDOWN-TERMINAL",
+      "locator": {
+        "file": "src-tauri/crates/plant-authority/tests/lifecycle_properties.rs",
+        "selector": "fn maximum_generation_shutdown_should_remain_terminal_without_wrapping()"
+      },
+      "hazard_ids": ["HAZ-013"],
+      "control_ids": ["CTL-010"]
+    },
+    {
+      "id": "TEST-PLANT-BOUNDED-CHANNELS",
+      "locator": {
+        "file": "src-tauri/crates/plant-authority/tests/channel_stress.rs",
+        "selector": "fn evidence_queue_should_bound_memory_and_report_every_oldest_drop()"
+      },
+      "hazard_ids": ["HAZ-012"],
+      "control_ids": ["CTL-011"]
+    },
+    {
+      "id": "TEST-PLANT-HEADLESS-SELF-CHECK",
+      "locator": {
+        "file": "src-tauri/crates/plant-authority/tests/headless.rs",
+        "selector": "fn headless_self_check_should_exit_without_renderer_or_vehicle_services()"
+      }
     }
   ],
   "scan_policy": {
     "tauri_handler_file": "src-tauri/src/lib.rs",
-    "production_roots": ["src", "src-tauri/src", "src-tauri/capabilities", "ros", "public"],
+    "production_roots": [
+      "src",
+      "src-tauri/src",
+      "src-tauri/crates/plant-authority/src",
+      "src-tauri/capabilities",
+      "ros",
+      "public"
+    ],
     "production_config_files": [
       "index.html",
       "package.json",
@@ -199,18 +250,25 @@
       "flake.lock",
       "src-tauri/Cargo.toml",
       "src-tauri/Cargo.lock",
+      "src-tauri/crates/plant-authority/Cargo.toml",
       "src-tauri/build.rs",
       "src-tauri/deny.toml",
       "src-tauri/tauri.conf.json",
       "tsconfig.json",
       "vite.config.ts",
       "scripts/check-bundle-size.mjs",
+      "scripts/check-plant-authority-boundary.mjs",
       "scripts/check-production-authority-boundary.mjs",
       "scripts/test-production-authority-boundary.mjs"
     ],
     "conditional_executable_inputs": [
       { "path": ".cargo/config.toml", "state": "absent", "consumer": "cargo" },
       { "path": ".cargo/config", "state": "absent", "consumer": "cargo" },
+      {
+        "path": "src-tauri/crates/plant-authority/build.rs",
+        "state": "absent",
+        "consumer": "cargo"
+      },
       { "path": "vite.config.js", "state": "absent", "consumer": "vite" },
       { "path": "vite.config.mjs", "state": "absent", "consumer": "vite" },
       { "path": "vite.config.cjs", "state": "absent", "consumer": "vite" },
@@ -275,7 +333,7 @@
       ".yaml",
       ".yml"
     ],
-    "production_file_manifest_sha256": "e7c64ac5f3e0f7e9a7d1a8e174972bc322736887fc6694c836d35d789919bdf3",
+    "production_file_manifest_sha256": "8644404539e9e5f9f4357ba4091a009cac8ee917f10c2c5e8b60cdb649843466",
     "known_route_prefixes": ["mavros/", "gazebo/", "cmd/motor_speed/"],
     "development_network_modules": [
       {
@@ -818,7 +876,7 @@
       ],
       "members": [
         {
-          "id": "SURF-121",
+          "id": "SURF-126",
           "name": "Frozen renderer telemetry-only bridge facade",
           "route": "renderer://telemetry/{state,subscribe}",
           "locator": { "file": "src/ros/TelemetryBridge.ts", "symbol": "TelemetryBridge" },
@@ -1846,6 +1904,52 @@
           "locator": { "file": "src-tauri/src/ncp/mod.rs", "symbol": "NcpBridge.publish_sensor" },
           "status": "dormant-unregistered",
           "source_assertion": { "type": "contains", "needle": "pub async fn publish_sensor(" }
+        }
+      ]
+    },
+    {
+      "group_id": "GROUP-PLANT-AUTHORITY-FOUNDATION",
+      "domain": "plant_authority",
+      "kind": "headless-inert-process",
+      "classification": "production-authority",
+      "owner": "plant-authority",
+      "profiles": { "current": ["headless-inert"], "secure_sitl": "sole-authority" },
+      "hazard_ids": ["HAZ-001", "HAZ-002", "HAZ-012", "HAZ-013"],
+      "tests": [
+        { "id": "TEST-PLANT-LIFECYCLE-GENERATIONS", "status": "existing-component" },
+        { "id": "TEST-PLANT-SHUTDOWN-GENERATION", "status": "existing-component" },
+        { "id": "TEST-PLANT-MAX-SHUTDOWN-TERMINAL", "status": "existing-component" },
+        { "id": "TEST-PLANT-BOUNDED-CHANNELS", "status": "existing-component" },
+        { "id": "TEST-PLANT-HEADLESS-SELF-CHECK", "status": "existing-component" }
+      ],
+      "members": [
+        {
+          "id": "SURF-121",
+          "name": "Inert headless plant-authority process",
+          "route": "process://crebain-plantd/self-check",
+          "locator": {
+            "file": "src-tauri/crates/plant-authority/src/main.rs",
+            "symbol": "SELF_CHECK_ARGUMENT"
+          },
+          "status": "declared",
+          "source_assertion": {
+            "type": "contains",
+            "needle": "const SELF_CHECK_ARGUMENT: &str = \"--self-check\";"
+          }
+        },
+        {
+          "id": "SURF-127",
+          "name": "Inert no-action adapter",
+          "route": "native://plant/inert-adapter",
+          "locator": {
+            "file": "src-tauri/crates/plant-authority/src/adapter.rs",
+            "symbol": "InertAdapter"
+          },
+          "status": "declared",
+          "source_assertion": {
+            "type": "contains",
+            "needle": "pub struct InertAdapter"
+          }
         }
       ]
     },
