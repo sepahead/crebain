@@ -33,8 +33,8 @@ and 100 maximum detections. Use `--help` for the bounded ranges.
 - `callLatencyMs` measures one `DetectorRuntime::detect` call.
 - `runtimeReportedLatencyMs` is the latency returned by that runtime.
 - p50/p90/p95/p99 use nearest-rank quantiles over every raw call sample.
-- `sequentialDetectorThroughputFps` is iterations divided by the sum of
-  `callLatencyMs`.
+- `sequentialDetectorThroughputFps` is `1000 * iterations` divided by the sum
+  of `callLatencyMs`, converting the millisecond samples to frames per second.
 - `evidenceLoopWallMs` also includes timers, first-output cloning, detection
   serialization/digests, and sample recording.
 - `initializationMs` includes detector construction and its trait warmup.
