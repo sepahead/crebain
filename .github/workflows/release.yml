@@ -58,7 +58,10 @@ jobs:
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile
 
-      - name: Build and draft release
+      # This intentionally builds the Cargo default feature set. It does not ship
+      # the off-by-default `ncp` bridge/Galadriel producer; such a deployment is a
+      # distinct executable with its own post-package digest and evidence record.
+      - name: Build default-feature artifact and draft release
         uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -3,8 +3,9 @@
 <!-- ncp-pin: v0.8.0 -->
 
 This is the current implementation handoff for CREBAIN's optional
-Neuro-Cybernetic Protocol integration. It replaces the former extraction plan;
-the sibling-path dependency problem is historical and already fixed.
+Neuro-Cybernetic Protocol integrations: a dormant Engram/action adapter and a
+separately gated live Galadriel evidence producer. It replaces the former
+extraction plan; the sibling-path dependency problem is historical and fixed.
 
 ## Product boundary
 
@@ -15,9 +16,11 @@ standalone. NCP is not on the default runtime path:
 |---------|---------------|
 | Rust `src-tauri/src/ncp/mod.rs` | Compiles only with the off-by-default `ncp` feature; provides `NcpBridge`, validated feature-neuron RPCs, and a wired fail-closed `CommandPlant` action loop as library APIs |
 | Rust Tauri commands | Defined, but `NcpHandle` is not managed and the four `ncp_*` commands are not registered |
+| Rust Galadriel producer | Compiles with `ncp`; managed by the app only when `CREBAIN_GALADRIEL_ENABLE=1` and all registry/config/executable pins pass; writes only two named perception evidence routes |
 | TypeScript `src/neuro` | Thin guarded re-export of `@sepahead/ncp`; imported by no product component/hook |
 | Vite-dev `window.__ncpDrone` | Manual in-browser wire-shaped command injection; no NCP transport/session; absent from production builds |
-| Live CREBAIN↔Engram loop | Not implemented or enabled |
+| Live CREBAIN↔Engram action/control loop | Not implemented or enabled |
+| Live CREBAIN→Galadriel deployed correlation | Producer component is integrated; compatible receiver, security/topology, and end-to-end evidence remain unproved |
 
 No Engram process or sibling checkout is required to run CREBAIN. Cargo's pinned
 Git dependencies must still be network/cache-resolvable when resolving or building
@@ -37,11 +40,12 @@ Engram examples that show an older incompatible wire contract, old package scope
 or `std_msgs` profiles are stale integration material and must be corrected in their owning
 repository rather than copied here.
 
-The audited external ACL/profile set also does not currently establish an
-authorized Galadriel-sidecar identity in CREBAIN's intended realm. That is an
-external deployment blocker, not permission to widen CREBAIN or NCP ACLs here.
-Resolve and test it in the owning NCP/Engram deployment before a live ecosystem
-claim.
+The audited external ACL/profile set does not establish an authorized
+Galadriel-sidecar identity in CREBAIN's intended realm. Producer code does not
+close that external deployment blocker or grant permission to widen CREBAIN or
+NCP ACLs. Resolve the TLS identity, principal-to-envelope identity binding, and
+positive/negative exact-key ACL tests in the owning deployment before a live
+ecosystem claim.
 
 ## Implemented Rust safety path
 
@@ -76,9 +80,28 @@ fields, binds reply kind/session to the originating request, and validates
 versioned typed-error attribution. CREBAIN accepts no local permissive reply
 path.
 
-This remains a library guarantee, not a product deployment claim: no registered
-command or frontend hook calls the loop, and no callback is wired to MAVROS by
-default.
+This remains an action/control library guarantee, not a product deployment
+claim: no registered command or frontend hook calls the loop, and no callback is
+wired to MAVROS by default. It is independent of the Galadriel evidence runtime.
+
+## Implemented Galadriel evidence path
+
+The `ncp` feature also compiles a producer that the Tauri application manages
+only after an exact runtime opt-in and fail-closed deployment preflight. It pins
+the canonical registry, selected frame/context, actual effective fusion config,
+and actual running executable before opening secure-mode Zenoh. Registered
+`fusion_process` calls then admit frozen sidecar observations plus ordered
+outcomes/misses/summaries to bounded queues; a separate lane generates health
+heartbeats. Only `galadriel-pid` and `galadriel-monitor` named-perception keys
+are constructed.
+
+This is component evidence, not proof of an authenticated deployment. Secure
+configuration loading does not prove TLS/mTLS, ACLs, certificates, router
+topology, receiver receipt, heartbeat timeliness, or Galadriel correlation. The
+registry's calibration/transform/projection references remain declarative, and
+common projection is emitted only for input already identified as the canonical
+ENU frame with an empty transform chain. See
+[GALADRIEL_PRODUCER.md](GALADRIEL_PRODUCER.md).
 
 ## Validation
 
@@ -89,7 +112,7 @@ bun run validate:all
 # Read-only Cargo/npm pin, lockfile, and normative-doc guard
 bun run check:ncp-coherence
 
-# Focused optional bridge gates
+# Focused optional bridge and producer gates
 bun run check:rust:ncp
 bun run clippy:rust:ncp
 bun run test:rust:ncp
@@ -99,7 +122,7 @@ CI must run NCP clippy/tests on clean Linux and macOS checkouts. The default
 command-registry contract must continue to exclude `ncp_*` until a deliberate
 product integration updates the registry, Tauri handler, tests, and UI together.
 
-## Work required before a live integration
+## Work required before live action/control integration
 
 1. Add an explicit user/deployment opt-in and manage `NcpHandle`.
 2. Register the four control-plane Tauri commands and synchronize the frontend
@@ -115,11 +138,19 @@ product integration updates the registry, Tauri handler, tests, and UI together.
 7. Reconcile stale external Engram examples/profiles before treating them as
    executable integration documentation.
 
+The Galadriel producer does not complete any item in this action/authority list.
+Its remaining deployment work is receiver-side tap/assembler and registry
+agreement; actual TLS identities/certificates/ACLs; principal-to-`producer_id`
+binding; and loss, reorder, duplicate, restart, saturation, heartbeat-deadline,
+and shutdown evidence on the exact topology.
+
 ## Non-goals and evidence limits
 
 - CREBAIN must not become an NCP commander or depend on Engram for a core result.
 - Protocol changes belong in the NCP repository; project mapping remains here.
 - Raw simulation outputs are not calibrated biological/scientific results.
-- The Galadriel PID JSONL sidecar is separate from NCP. Its local parser/NIS tests
-  do not prove Galadriel correlation, PID actuation, realm ACLs, or a live NCP
-  session.
+- The local `CREBAIN_PID_JSONL` sink is separate from the live NCP producer. Its
+  parser/NIS tests do not prove Galadriel correlation, PID actuation, realm ACLs,
+  or a live NCP session. Active copies use a distinct capacity-16 archive channel;
+  that bound and degradation latch do not make a blocked writer forcibly
+  abortable after its two-second exit wait.

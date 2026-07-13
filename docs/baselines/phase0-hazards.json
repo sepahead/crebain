@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "baseline_id": "crebain-phase0-hazards-2026-07-12",
+  "baseline_id": "crebain-phase0-hazards-2026-07-13",
   "current_completion_level": "L0",
   "target_completion_level": "L1",
   "vocabularies": {
@@ -107,7 +107,7 @@
     {
       "id": "CTL-012",
       "owner": "evidence",
-      "status": "planned",
+      "status": "partial",
       "statement": "Missing, late, rejected, expired, and dropped inputs are explicit and never interpreted as nominal."
     },
     {
@@ -381,7 +381,9 @@
         "association error",
         "covariance inconsistency",
         "numerical failure",
-        "stale sensor"
+        "stale sensor",
+        "nonmonotonic or mixed timestamp",
+        "fusion configuration or producer software drift"
       ],
       "control_ids": ["CTL-014", "CTL-012"],
       "odd_clauses": ["ODD-09", "ODD-14"],
@@ -390,9 +392,34 @@
           "test_id": "TEST-FUSION-NIS-DIVERGENCE",
           "status": "partial",
           "artifact": "scenario NIS/NEES and degradation results"
+        },
+        {
+          "test_id": "TEST-GALADRIEL-FUSION-LEDGER",
+          "status": "partial",
+          "artifact": "component test for one deterministic frozen-prior ledger and common consistency projection"
+        },
+        {
+          "test_id": "TEST-GALADRIEL-PROJECTION-REFUSAL",
+          "status": "partial",
+          "artifact": "component test that missing/wrong source-frame identity remains explicitly incomparable"
+        },
+        {
+          "test_id": "TEST-GALADRIEL-EXACT-TIME-V1",
+          "status": "partial",
+          "artifact": "component test that unsynchronized, duplicate, out-of-order, and per-channel nonmonotonic inputs cannot claim frozen-v1 evidence"
+        },
+        {
+          "test_id": "TEST-GALADRIEL-INVALID-GATE",
+          "status": "partial",
+          "artifact": "component test that invalid internal gate math emits unsupported_filter without fabricated numeric gate or v1 evidence"
+        },
+        {
+          "test_id": "TEST-GALADRIEL-EXTREME-FINITE-INPUT",
+          "status": "partial",
+          "artifact": "component test that extreme finite measurements fail before evidence timing state mutates"
         }
       ],
-      "residual_risk": "Component regression tests are not calibrated system evidence."
+      "residual_risk": "The immutable effective config and executable are pinned; the exact-time frozen-prior ledger, computational envelope, and invalid-gate refusal are component-tested. Registry transform/calibration artifacts are not executed or verified, and these regressions are not calibrated system evidence."
     },
     {
       "id": "HAZ-010",
@@ -423,12 +450,14 @@
       "id": "HAZ-011",
       "title": "Missing, censored, stale, or dropped evidence appears nominal",
       "severity": "P0",
-      "status": "open",
+      "status": "partial",
       "owner": "evidence",
       "unsafe_control_actions": ["omitted-when-required", "provided-when-unsafe"],
       "loss_ids": ["LOSS-003", "LOSS-005"],
       "cause_categories": [
         "sidecar filter",
+        "renderer or registry input trimming",
+        "active-track capacity rejection",
         "queue drop",
         "observer outage",
         "heartbeat loss",
@@ -441,9 +470,39 @@
           "test_id": "TEST-EVIDENCE-INSUFFICIENCY",
           "status": "planned",
           "artifact": "drop/late/missing/rejected replay bundle"
+        },
+        {
+          "test_id": "TEST-GALADRIEL-QUEUE-LOSS",
+          "status": "partial",
+          "artifact": "component test showing a full lane consumes sequence identity, reports a drop, and degrades/truncates the frame summary"
+        },
+        {
+          "test_id": "TEST-GALADRIEL-HEARTBEAT",
+          "status": "partial",
+          "artifact": "component test showing heartbeat admission remains independent of a saturated outcome lane"
+        },
+        {
+          "test_id": "TEST-GALADRIEL-REGISTRY-TRIM-LOSS",
+          "status": "partial",
+          "artifact": "component test that registry input trimming keeps the newest measurements, counts loss, and degrades/truncates the admitted frame"
+        },
+        {
+          "test_id": "TEST-ROS-BUFFER-LOSS",
+          "status": "partial",
+          "artifact": "renderer component test that accumulated buffer overflow is reported rather than presenting survivors as a nominal frame"
+        },
+        {
+          "test_id": "TEST-GALADRIEL-TRACK-CAPACITY",
+          "status": "partial",
+          "artifact": "component test that whole overflow clusters are rejected and close a degraded/truncated frame before recovery"
+        },
+        {
+          "test_id": "TEST-GALADRIEL-EXACT-TIME-V1",
+          "status": "partial",
+          "artifact": "component test that stale/nonmonotonic channel time cannot masquerade as comparable v1 evidence"
         }
       ],
-      "residual_risk": "Local PID JSONL is not joined live authority evidence."
+      "residual_risk": "Producer outcomes, misses, summaries, exact-time refusal, upstream/track-cap loss degradation, sequence gaps, lane drops, sticky degradation, and heartbeats are component-visible. The frozen wire summary lacks numeric upstream/cluster-loss attribution; no deployed receiver assembler enforces registry agreement or heartbeat deadlines; and local puts are not delivery/acceptance evidence."
     },
     {
       "id": "HAZ-012",
@@ -455,6 +514,8 @@
       "loss_ids": ["LOSS-001", "LOSS-002", "LOSS-003"],
       "cause_categories": [
         "payload amplification",
+        "dense association work",
+        "active-track saturation",
         "queue saturation",
         "session exhaustion",
         "disk full",
@@ -472,9 +533,49 @@
           "test_id": "TEST-PLANT-BOUNDED-CHANNELS",
           "status": "partial",
           "artifact": "component stress test showing an eight-value drop-oldest queue retains the final eight of 100 submissions and reports exactly 92 drops"
+        },
+        {
+          "test_id": "TEST-GALADRIEL-QUEUE-LOSS",
+          "status": "partial",
+          "artifact": "component tests for independent bounded drop-new evidence lanes and explicit sticky loss accounting"
+        },
+        {
+          "test_id": "TEST-FUSION-MAX-BATCH",
+          "status": "partial",
+          "artifact": "component test enforcing the native 512-measurement batch ceiling before the fusion engine lock"
+        },
+        {
+          "test_id": "TEST-GALADRIEL-TRACK-CAPACITY",
+          "status": "partial",
+          "artifact": "component test for deterministic whole-cluster rejection at the 1,024-live-track capacity and bounded recovery"
+        },
+        {
+          "test_id": "TEST-FUSION-SPARSE-ASSIGNMENT",
+          "status": "partial",
+          "artifact": "component test decomposing disconnected finite assignment components"
+        },
+        {
+          "test_id": "TEST-FUSION-ALL-INF-ASSIGNMENT",
+          "status": "partial",
+          "artifact": "component test short-circuiting a maximum-size all-infinite assignment matrix"
+        },
+        {
+          "test_id": "TEST-PID-JSONL-BATCH-VALIDATION",
+          "status": "partial",
+          "artifact": "component test proving an invalid record prevents every serialized write in that archive batch"
+        },
+        {
+          "test_id": "TEST-PID-JSONL-FLUSH-FAILURE",
+          "status": "partial",
+          "artifact": "component test proving flush failure is reported to the caller used by the degrading archive worker"
+        },
+        {
+          "test_id": "TEST-PID-JSONL-ARCHIVE-BOUNDS",
+          "status": "planned",
+          "artifact": "active archive saturation, regular-file policy, slow/special-path behavior, archive-specific health, and finite-exit trace"
         }
       ],
-      "residual_risk": "The inert kernel has fixed channel policies and explicit loss accounting, but no watchdog task, reserved scheduler capacity, disk spool, or combined-load deadline evidence."
+      "residual_risk": "The inert kernel, fusion batch/live-track/numeric domains, sparse/all-infinite assignment cases, Galadriel NCP lanes, and active PID JSONL admission have component bounds; the configured ncp sink is preflighted, batches are validated/serialized before writing, and worker write/flush failure degrades the epoch and stops that worker. The writer may still block beyond its two-second exit wait, archive loss lacks a dedicated counter, the no-producer fusion job waits for synchronous append/flush, router/receiver receive-size limits are unproven, and no watchdog task, reserved scheduler capacity, receiver heartbeat-deadline proof, or combined-load timing evidence exists."
     },
     {
       "id": "HAZ-013",
@@ -515,7 +616,7 @@
           "artifact": "component lifecycle test showing maximum-generation shutdown remains terminal without wrapping or later mutation"
         }
       ],
-      "residual_risk": "Process-local lifecycle generations reject stale queued events, but durable boot epochs, authenticated sessions, retained transport behavior, and the complete live restart topology do not exist."
+      "residual_risk": "Process-local lifecycle generations reject stale queued events and the producer creates a fresh randomized process epoch, but durable boot anti-rollback, authenticated principal binding, retained transport behavior, and the complete live restart topology do not exist."
     },
     {
       "id": "HAZ-014",
@@ -529,6 +630,7 @@
         "ambiguous status",
         "stale UI",
         "publish-equals-applied wording",
+        "producer published-counter interpreted as receiver delivery",
         "confirmation fatigue"
       ],
       "control_ids": ["CTL-013", "CTL-016"],

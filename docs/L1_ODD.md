@@ -7,7 +7,10 @@ measured capability. Missing evidence keeps CREBAIN at L0.
 
 L1 covers one simulated electric multirotor, one controller, one Gate, one
 router, one native plant, one PX4 SITL instance, one MAVROS link, and optional
-read-only Galadriel observation on an isolated test network. It excludes
+read-only Galadriel observation on an isolated test network. CREBAIN now has a
+component-tested, feature/runtime-gated producer for two advisory evidence keys,
+but no qualified receiver, identity/ACL topology, registry agreement, deadline,
+or impairment evidence; that does not satisfy this ODD. It excludes
 physical propulsion, HIL, multiple vehicles, fixed-wing flight, payload release,
 formation flight, public networks, arbitrary missions, and field operation.
 

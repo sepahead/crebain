@@ -3,7 +3,7 @@
 ## Current L0 reality
 
 The renderer owns visualization and local physics. Its ROS connection surface is
-a frozen telemetry-only facade; generic ROS/Zenoh publish, service, setpoint,
+a frozen telemetry-only facade; generic renderer/ROS Zenoh publish, service, setpoint,
 mode, arm, takeoff, and land methods have been removed. Guidance is a disabled-
 by-default local preview whose proposals explicitly carry `NoAuthority`; the UI
 exposes no intercept or abort action. Former Waypoint and Gazebo controllers,
@@ -11,8 +11,12 @@ native transport write/spawn handlers, and their registrations are removed.
 
 Gazebo/model-state subscriptions, local scene/physics mutations, and the
 development NCP scene hook remain available for simulation and are not flight
-authority. The Rust NCP adapter remains feature-gated with unregistered Tauri
-commands. There is still no live Haldir→NCP→native-plant→FCU authority chain.
+authority. The Rust NCP action/control adapter remains feature-gated with
+unregistered Tauri commands. A different `ncp`-feature component can, after an
+exact runtime opt-in and registry/config/executable preflight, emit advisory
+fusion evidence on only the `galadriel-pid` and `galadriel-monitor` keys. It has
+no action/FCU capability and does not establish a live Galadriel receiver,
+authenticated deployment, or Haldir→NCP→native-plant→FCU authority chain.
 
 A separate dependency-free `crebain-plant-authority` workspace package and
 `crebain-plantd` process now provide an inactive draft contract-v1 validator,
@@ -55,6 +59,7 @@ flowchart LR
   P --> E
   F --> CP[Common projection]
   CP --> GA[Galadriel observer]
+  FP[CREBAIN fusion producer] -.->|two advisory evidence keys| GA
   GA -->|advisory evidence only| H
   P -->|read-only status| O
 ```
@@ -70,7 +75,7 @@ flowchart LR
 | FCU | Inner-loop stabilization, estimator, fence and independent failsafes | Trust in UI delivery claims |
 | Controller | Signed intent under lease/session constraints | Final-route or FCU credentials |
 | Operator renderer | Read-only telemetry/status and signed intent UX | Generic ROS, Zenoh, Gazebo, native transport, or private Gate credentials |
-| Fusion/perception | Telemetry and derived evidence | Command authority |
+| Fusion/perception producer | Telemetry and derived evidence on exact routes after deployment opt-in | Command authority, generic publisher, or final-route credentials |
 | Galadriel | Quality-tagged advisory observation | Command/final-route capability |
 | Simulation tools | Separate dev-sim binary/profile/identity | Presence or credentials in secure SITL/HIL/field artifacts |
 | Evidence store | Bounded asynchronous append/verification | Ability to block plant watchdog or safe action |
@@ -98,7 +103,9 @@ not produce motion.
 | HIL-tested / field-tested | Executed only under the named hardware/configuration and approved ODD. |
 
 Transport success is never “applied.” UI connection is never “authorized.” A
-missing observer is never “nominal.” Simulation success is never flight evidence.
+producer counter named `published` means its local Zenoh put completed; it is not
+receiver delivery or acceptance. A missing observer is never “nominal.”
+Simulation success is never flight evidence.
 
 ## Non-negotiable L1 invariants
 

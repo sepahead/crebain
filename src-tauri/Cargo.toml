@@ -30,10 +30,11 @@ pyo3-bindings = ["dep:pyo3"]
 # TypeScript type generation via ts-rs. Off by default; run `cargo test export-ts-types`
 # (or the build.rs hook) to regenerate src/__generated__/rust_types.ts.
 ts-export = ["dep:ts-rs"]
-# Neuro-Cybernetic Protocol client (Engram). Off by default; opt-in so
-# the default build and command-contract test are unchanged. The NCP standard SDK
-# is pulled from https://github.com/sepahead/NCP (git; pinned by the v0.8.0 tag
-# and the immutable commit recorded in Cargo.lock).
+# Neuro-Cybernetic Protocol integrations: dormant Engram action/control APIs and
+# the separately runtime-gated Galadriel evidence producer. Off by default, so
+# default artifacts contain neither path. The NCP standard SDK is pulled from
+# https://github.com/sepahead/NCP (git; pinned by the v0.8.0 tag and the immutable
+# commit recorded in Cargo.lock).
 ncp = ["dep:ncp-core", "dep:ncp-zenoh"]
 # Dummy feature to silence warning from objc crate which checks for feature = "cargo-clippy"
 cargo-clippy = []

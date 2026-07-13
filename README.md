@@ -20,7 +20,9 @@ autonomy: a Tauri desktop app that renders Gaussian-splat 3D scenes, places
 simulated surveillance cameras in them, runs ML object detection on the camera
 feeds through platform-native backends, fuses multi-modal sensor measurements
 into persistent 3D tracks in Rust, and talks to ROS/Gazebo for drone
-simulation. Built with Tauri 2, React 19, SparkJS/Three.js, and Rust.
+simulation. An off-by-default native NCP feature can emit narrowly scoped,
+Galadriel-compatible advisory evidence. Built with Tauri 2, React 19,
+SparkJS/Three.js, and Rust.
 
 > **Project status.** This is a research prototype, not a product. No model
 > weights ship with the repository. Capability statuses below are tracked here
@@ -37,6 +39,7 @@ simulation. Built with Tauri 2, React 19, SparkJS/Three.js, and Rust.
 | **Sensor Fusion** | 5 filter algorithms (KF/EKF/UKF/PF/IMM) for multi-modal tracking | Prototype |
 | **Drone Physics** | 120Hz quadcopter aerodynamics simulation | In Progress |
 | **ROS Integration** | Read-only Zenoh product telemetry + development/native rosbridge telemetry fallback | In Progress |
+| **Galadriel Evidence** | Feature-gated, exact-runtime-opt-in producer with immutable pinned registry/config/executable, two bounded NCP evidence routes, strict time/projection eligibility, upstream/capacity loss degradation, and heartbeat accounting; deployed receiver/security evidence remains pending | Component-tested |
 | **Plant Authority** | Dependency-free headless lifecycle/channel/retained-snapshot/passive-expiry foundation, inactive draft contract-v1 validator, and profile-neutral same-frame-instance ENU/NED + FLU/FRD velocity-axis corpus; self-check only, with no frame-instance proof, approved profile, trusted health schema, command ingress, active watchdog, attitude transform, or FCU adapter | L0 Foundation |
 | **Cross-Platform** | macOS (Apple Silicon) + NixOS (CUDA) | In Progress |
 
@@ -59,7 +62,7 @@ git clone https://github.com/sepahead/crebain.git
 bun install
 
 # Build backend (CoreML is used automatically on macOS)
-cargo build --manifest-path src-tauri/Cargo.toml --release
+cargo build --locked --manifest-path src-tauri/Cargo.toml --release
 
 # Run
 bun run tauri:dev
@@ -205,11 +208,13 @@ graph TB
         SensorFusion["Sensor Fusion<br/>Engine"]
         Zenoh["Transport<br/>(Zenoh)"]
         ROSBridge["ROS Telemetry Fallback<br/>(WebSocket, read-only)"]
+        GaladrielProducer["Optional Galadriel Producer<br/>(NCP feature + runtime pinning)"]
     end
 
     subgraph External["External Systems"]
         Gazebo["Gazebo (Headless)<br/>Physics + Sensors"]
         Hardware["Real Hardware<br/>PX4/ArduPilot"]
+        Galadriel["Galadriel<br/>(external advisory observer)"]
     end
 
     ThreeJS --> Invoke
@@ -221,9 +226,11 @@ graph TB
     Invoke --> SensorFusion
     Invoke --> Zenoh
     Invoke --> ROSBridge
+    SensorFusion -. exact opt-in .-> GaladrielProducer
 
     Zenoh --> External
     ROSBridge --> External
+    GaladrielProducer -. two named evidence keys .-> Galadriel
 ```
 
 The frontend captures camera-feed frames from WebGL render targets, sends them
@@ -239,7 +246,7 @@ crebain/
 ├── src/               # React frontend (components, hooks, ros, detection,
 │                      #   physics, simulation, state, neuro, lib)
 ├── src-tauri/         # Rust backend (inference, transport, sensor fusion,
-│                      #   native CoreML/ONNX, NCP feature)
+│                      #   native CoreML/ONNX, NCP bridge + Galadriel producer)
 ├── ros/               # ROS 1 reference package (crebain_msgs + launch files)
 ├── docs/              # Design docs, contracts, release gates
 ├── scripts/           # Version-coherence, bundle-size, perf-smoke checks
@@ -270,10 +277,14 @@ Packaged builds expose only the native read-only telemetry path and default to
 TypeScript rosbridge WebSocket adapter for telemetry experiments; production
 aliases that adapter to a network-free fail-closed stub and the packaged CSP
 does not permit rosbridge sockets. The native Rust rosbridge fallback selected
-with `CREBAIN_ZENOH=0` is also subscription-only. None of these product paths
-can publish pose/twist/setpoints, call ROS/Gazebo services, spawn models, or
-change MAVROS modes/missions. The remaining guidance/interception calculation
-is a disabled-by-default, local `NoAuthority` preview; disabling it,
+with `CREBAIN_ZENOH=0` is also subscription-only. None of these ROS telemetry
+paths can publish pose/twist/setpoints, call ROS/Gazebo services, spawn models,
+or change MAVROS modes/missions. A separate binary compiled with `ncp` may,
+only when `CREBAIN_GALADRIEL_ENABLE=1` and every deployment pin validates, put
+strict evidence on `galadriel-pid` and `galadriel-monitor` named-perception
+keys. It is not a generic ROS/action/FCU publisher. The remaining
+guidance/interception calculation is a disabled-by-default, local
+`NoAuthority` preview; disabling it,
 disconnecting, or toggling simulation off aborts and discards the preview
 generation.
 
@@ -291,8 +302,11 @@ files, and the camera wire contract are documented in
 
 An optional, off-by-default NCP (Engram) bridge exists behind the Rust `ncp`
 feature; its Tauri commands are not registered in the product runtime and
-there is no always-on CREBAIN↔Engram loop. See
-[docs/NCP_BRIDGE_HANDOFF.md](docs/NCP_BRIDGE_HANDOFF.md).
+there is no always-on CREBAIN↔Engram control loop. The same feature also contains
+the separately gated Galadriel evidence producer; its component wiring does not
+prove a deployed Galadriel receiver, TLS/mTLS identities, ACLs, or delivery. See
+[docs/NCP_BRIDGE_HANDOFF.md](docs/NCP_BRIDGE_HANDOFF.md) and
+[docs/GALADRIEL_PRODUCER.md](docs/GALADRIEL_PRODUCER.md).
 
 ---
 
@@ -304,6 +318,7 @@ there is no always-on CREBAIN↔Engram loop. See
 | `CREBAIN_ONNX_MODEL` | ONNX model path (Linux) |
 | `CREBAIN_BACKEND` | Force a backend: `coreml`, `mlx`, `tensorrt`, `cuda`, `onnx` |
 | `CREBAIN_ENABLE_EXPERIMENTAL_MLX` | Required gate for any MLX use |
+| `CREBAIN_GALADRIEL_ENABLE` | Exact runtime gate (`1`) for a Galadriel producer compiled with `ncp`; enabled startup also requires the documented registry/config/executable/NCP pins |
 
 The full environment-variable reference, detection/guidance settings, scene
 and asset limits, and the platform matrix are in
@@ -320,6 +335,7 @@ and asset limits, and the platform matrix are in
 | [docs/MODEL_CONTRACTS.md](docs/MODEL_CONTRACTS.md) | What a model must prove before its detections are trusted |
 | [docs/NATIVE_DETECTOR_BENCHMARK.md](docs/NATIVE_DETECTOR_BENCHMARK.md) | Release-command native detector latency artifact and evidence limits |
 | [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | Environment variables, settings, scene/asset limits |
+| [docs/GALADRIEL_PRODUCER.md](docs/GALADRIEL_PRODUCER.md) | Optional live evidence routes, deployment pins, bounds, and claim limits |
 | [docs/CONTROLS.md](docs/CONTROLS.md) | Full keyboard reference |
 | [ros/README.md](ros/README.md) | ROS package, topics, launch files, camera wire contract |
 | [docs/NCP_BRIDGE_HANDOFF.md](docs/NCP_BRIDGE_HANDOFF.md) | Optional NCP/Engram bridge status and boundaries |
@@ -340,7 +356,7 @@ and asset limits, and the platform matrix are in
 bun run validate
 
 # Frontend validation + inert plant boundary/frame-corpus/fmt/check/test/clippy/self-check +
-# Rust fmt/check/test/clippy, plus clippy and tests with the off-by-default `ncp` feature
+# Rust fmt/check/test/clippy, plus bridge/producer clippy and tests with the off-by-default `ncp` feature
 bun run validate:all
 
 # Focused checks
@@ -390,13 +406,16 @@ Verified engineering baseline (enforced by CI doc-sync tests; full history in
 - [x] CI backend alignment to package scripts
 - [x] Release acceptance matrix, model contracts, security threat model, and manual smoke checklist
 - [x] Executable negative guard tests for native detection, model path, scene path, and transport topic boundaries, including TensorRT build inputs, fusion, Zenoh CDR, and transport payloads
+- [x] Component-tested Galadriel producer mechanics: exact opt-in/default-off behavior, immutable registry and actual config/executable pins, readiness-only active initialization, frozen envelope routes/codecs, deterministic exact-time fusion ledger, bounded measurement/track domains, upstream/capacity loss degradation, sparse assignment, heartbeat generation, and finite owned-task shutdown
 
 Planned capability work:
 
 - [ ] Hardware-in-the-loop (HIL) testing
 - [ ] Real PX4/ArduPilot integration
 - [ ] Multi-drone coordination
-- [ ] Encrypted communication (Zenoh-TLS)
+- [ ] Deployed Zenoh TLS/mTLS identities, certificate policy, exact-route ACLs, and negative topology evidence (secure-mode config loading alone is insufficient)
+- [ ] Live Galadriel receiver tap/assembler, registry agreement, payload-size limits, heartbeat-deadline enforcement, restart/loss/reorder/saturation/clock campaigns, wire-visible upstream-loss detail, and receiver-side correlation evidence
+- [ ] PID JSONL regular-file enforcement, active archive saturation/drop health, and blocked-writer cleanup beyond the current two-second exit wait
 - [ ] Edge deployment (Jetson, Apple Silicon Mac Mini)
 - [ ] Recorded flight replay
 - [ ] AI-assisted threat assessment and C2 integration

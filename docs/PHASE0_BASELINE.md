@@ -1,7 +1,7 @@
 # Phase 0 Baseline
 
-Captured: 2026-07-13 09:53:43 +02:00. This bundle freezes vocabulary and scope;
-it does not promote CREBAIN beyond L0.
+Recaptured: 2026-07-13 09:53:43 +02:00. This bundle freezes vocabulary and
+scope; it does not promote CREBAIN beyond L0.
 
 ## Status
 
@@ -17,6 +17,7 @@ it does not promote CREBAIN beyond L0.
 | Tracked P0/P1 issues, owners, and dependencies | Pending project-governance work |
 | Hermetic clean builds and signed release manifest | Pending |
 | Headless plant-authority foundation | Inactive draft contract-v1 validation, profile-neutral digest-bound ENU/NED + FLU/FRD velocity-axis conventions, lifecycle, bounded channels, retained snapshot storage, and passive monotonic expiry are component-tested in an inert package; approved profile, attitude-dependent transforms, trusted health schema, active watchdog, and live plant controls are absent |
+| Galadriel evidence producer | Feature/runtime-gated component integrated with immutable strict registry and actual config/executable pins, readiness-only active initialization, two exact evidence routes, exact-time/projection eligibility, bounded measurement/live-track/assignment behavior, upstream/capacity/NCP loss degradation, heartbeat generation, and finite owned-task shutdown; numeric upstream loss is not wire-visible, receiver/TLS/ACL/receive-size/deadline/combined-load/calibration evidence is absent, and an optional JSONL writer blocked beyond its separate two-second wait is not forcibly abortable |
 
 Phase 0 exit has therefore **not** been reached. L1 remains blocked until every
 P0 hazard is controlled with evidence and the live topology passes its negative
@@ -27,6 +28,7 @@ bypass, restart, timing, and resource tests.
 - [`COMPLETION_LEVELS.md`](COMPLETION_LEVELS.md)
 - [`L1_ODD.md`](L1_ODD.md)
 - [`SYSTEM_CONTEXT.md`](SYSTEM_CONTEXT.md)
+- [`GALADRIEL_PRODUCER.md`](GALADRIEL_PRODUCER.md)
 - [`HAZARD_LOG.md`](HAZARD_LOG.md)
 - [`baselines/phase0-hazards.json`](baselines/phase0-hazards.json)
 - [`baselines/phase0-command-surfaces.json`](baselines/phase0-command-surfaces.json)
@@ -73,13 +75,17 @@ adapter, and forbidden `Reflect.get` capability recovery. Rust and declarative
 inputs receive token/route scanning. Balanced route-like Rust macros fail closed
 when their literals, captured constants, separators, or unresolved segments can
 construct a route; positional or named format reordering is not treated as a
-trusted evaluator. The fail-closed
+trusted evaluator. The generic `publish` capability remains forbidden. The
+inventory separately requires the two exact feature/runtime-gated Galadriel NCP
+evidence routes and their pin/config-immutability/time/input/capacity/queue/
+heartbeat tests; it does not create a generic publisher exception. The fail-closed
 self-test contains source, comment-shadow, manifest, conditional-input,
 computed-route/capability, network, hazard, evidence, and digest mutations.
 
 `bun run validate` runs both checks; `validate:all` inherits them, and hosted CI
 runs them as an explicit required baseline step. The verifier does not build the
-product, contact external repositories, or claim runtime evidence. Every
+product, contact external repositories, inspect deployment certificates/ACLs,
+or claim receiver/runtime evidence. Every
 `bun run build` (including Tauri's `beforeBuildCommand`) emits a deterministic
 Vite module-graph report, rejects inclusion of the development adapter, hashes
 every emitted JavaScript chunk, and scans the finalized chunks for WebSocket

@@ -77,6 +77,10 @@ const REQUIRED_RELEASE_INVOCATION_FILES = new Set([
   '.github/workflows/release.yml',
 ])
 const REQUIRED_ROUTE_PREFIXES = new Set(['mavros/', 'gazebo/', 'cmd/motor_speed/'])
+const REQUIRED_GALADRIEL_EVIDENCE_ROUTES = new Set([
+  'ncp://{realm}/session/{epoch}/sensor/galadriel-pid',
+  'ncp://{realm}/session/{epoch}/sensor/galadriel-monitor',
+])
 const REQUIRED_PRODUCTION_ROOTS = new Set([
   'src',
   'src-tauri/src',
@@ -1868,6 +1872,23 @@ function verifyInventory(root, inventory, hazardIds, getSource, sourceOverrides,
     )
   }
 
+  const galadrielEvidenceRoutes = new Set(
+    surfaces
+      .filter(
+        (surface) =>
+          surface.domain === 'native_ncp' &&
+          surface.classification === 'evidence' &&
+          surface.status === 'live' &&
+          surface.route.startsWith('ncp://')
+      )
+      .map((surface) => surface.route)
+  )
+  compareSets(
+    galadrielEvidenceRoutes,
+    REQUIRED_GALADRIEL_EVIDENCE_ROUTES,
+    'exact Galadriel evidence route inventory'
+  )
+
   compareSets(
     referencedExistingTests,
     new Set(testEvidence.keys()),
@@ -2090,10 +2111,21 @@ function verifyEcosystem(root, ecosystem) {
       /^[0-9a-f]{40}$/.test(repository.remote_main_at_capture),
       `${repository.name} remote_main_at_capture is not 40-hex`
     )
-    assert(
-      repository.commit === repository.remote_main_at_capture,
-      `${repository.name} commit does not match remote_main_at_capture`
-    )
+    if (repository.branch === 'main') {
+      assert(
+        repository.commit === repository.remote_main_at_capture,
+        `${repository.name} main commit does not match remote_main_at_capture`
+      )
+    } else {
+      assert(
+        /^[0-9a-f]{40}$/.test(repository.remote_branch_at_capture),
+        `${repository.name} remote_branch_at_capture is not 40-hex`
+      )
+      assert(
+        repository.commit === repository.remote_branch_at_capture,
+        `${repository.name} commit does not match remote_branch_at_capture`
+      )
+    }
     assert(
       repository.availability === 'remote-verified',
       `${repository.name} availability must be remote-verified`

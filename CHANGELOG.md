@@ -67,14 +67,51 @@ Open-source readiness and quality hardening.
   zero TTL or an unrepresentable deadline, clock regression, generation rotation, and the
   exact deadline fail closed. It has no command payload, refresh, timer,
   safe-action selection, adapter hook, or I/O and is not an active watchdog.
+- **Opt-in Galadriel live evidence producer.** A binary compiled with the
+  off-by-default `ncp` feature can, only when
+  `CREBAIN_GALADRIEL_ENABLE=1`, start a managed producer that writes frozen
+  sidecar and producer-monitor envelopes to the exact `galadriel-pid` and
+  `galadriel-monitor` named-perception keys. Enabled startup fails closed on a
+  strict canonical registry mismatch, selected frame/context mismatch, actual
+  effective-fusion-config digest mismatch, actual running-executable digest
+  mismatch, malformed queue/heartbeat policy, or secure-mode Zenoh open error.
+  Fusion processing now builds one deterministic frozen-prior ledger with
+  explicit outcomes/misses/frame summaries. Active initialization is a
+  readiness-only check over the startup-loaded immutable config; later config
+  calls cannot replace that engine. Strict exact-time/channel-monotonic rules
+  prevent duplicate, out-of-order, or mixed-old inputs from claiming v1, while
+  bounded renderer/native admission preserves the newest inputs and reports
+  malformed, buffer, registry-trim, and active-track-capacity loss as sticky
+  degraded/truncated frame state. Position, velocity, covariance, metadata,
+  string, batch, and live-track limits bound filter work; sparse finite-edge
+  assignment and an all-infinite short circuit bound component behavior. Four
+  bounded drop-new lanes expose loss, sticky degradation, periodic heartbeats,
+  five-second put bounds, and finite task shutdown. Active JSONL copies use a separate capacity-16 drop-new
+  archive worker; configured sinks are startup-preflighted, batches are
+  validated/serialized before writing, and admission or writer failure degrades
+  the epoch (writer failure also stops that worker). A blocked writer can outlive
+  its two-second shutdown wait. Common projection is
+  identity-only: the source frame
+  must already equal the registry's canonical ENU frame and the transform chain
+  must be empty. Component tests pin codecs/routes, ordering, drops, degradation,
+  heartbeat admission, sequence exhaustion, and task ownership. They do not
+  prove TLS/mTLS identities, ACLs, a deployed Galadriel tap/assembler, receiver
+  delivery/deadlines, router/receiver payload limits, combined-load timing,
+  calibration, PID actuation, or authority. Numeric upstream/cluster loss is not
+  yet carried by the frozen wire summary. Default release artifacts still omit
+  the `ncp` feature. All default and NCP Rust package acceptance scripts now use
+  the locked dependency graph.
 - **Galadriel-oriented local innovation JSONL.** `update_track` can emit a minimal
   observation after an associated measurement actually corrects a Kalman-family
   filter (`FusionConfig.emit_innovations`). `CREBAIN_PID_JSONL=<trusted-path>`
   enables best-effort local JSONL append at fusion initialization. Repository
   tests cover local serialization/parsing and basic NIS consistency; they do not
   claim live Galadriel correlation, PID actuation, NCP, ACL, or versioned-stream
-  interoperability. Track birth and skipped updates emit nothing; Particle and
-  IMM are excluded because they have no single compatible innovation covariance.
+  interoperability. This local sink remains separate from the new live producer.
+  Track birth and skipped updates emit nothing; Particle and IMM are excluded
+  because they have no single compatible innovation covariance. Without an
+  active producer, the blocking fusion job still waits for synchronous local
+  append/flush after releasing the fusion lock.
 
 ### Removed
 - **Production-unreachable inference prototypes.** Removed the unrendered browser

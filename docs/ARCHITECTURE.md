@@ -3,7 +3,8 @@
 Design rationale and system structure for CREBAIN. For the sensor-fusion
 deep-dive see [SENSOR_FUSION.md](SENSOR_FUSION.md); for model requirements see
 [MODEL_CONTRACTS.md](MODEL_CONTRACTS.md); for runtime settings and limits see
-[CONFIGURATION.md](CONFIGURATION.md).
+[CONFIGURATION.md](CONFIGURATION.md); for the optional advisory producer see
+[GALADRIEL_PRODUCER.md](GALADRIEL_PRODUCER.md).
 
 ## System overview
 
@@ -25,6 +26,7 @@ graph TB
         SensorFusion["Sensor Fusion<br/>Engine"]
         Zenoh["Transport<br/>(Zenoh)"]
         ROSBridge["ROS Telemetry Fallback<br/>(WebSocket, read-only)"]
+        EvidenceProducer["Galadriel Evidence Producer<br/>(NCP feature + exact opt-in)"]
 
         subgraph Platform["Platform Abstraction"]
             macOS["macOS<br/>CoreML default<br/>MLX experimental<br/>Metal GPU<br/>framework-managed CoreML placement"]
@@ -39,6 +41,7 @@ graph TB
     subgraph External["External Systems"]
         Gazebo["Gazebo (Headless)<br/>Physics Engine<br/>Sensor Plugins"]
         Hardware["Real Hardware<br/>PX4/ArduPilot<br/>Cameras & Sensors"]
+        Galadriel["Galadriel<br/>(external advisory observer)"]
     end
 
     ThreeJS --> Invoke
@@ -50,19 +53,22 @@ graph TB
     Invoke --> SensorFusion
     Invoke --> Zenoh
     Invoke --> ROSBridge
+    SensorFusion -. pinned evidence .-> EvidenceProducer
 
     Inference --> Platform
 
     Zenoh --> External
     ROSBridge --> External
+    EvidenceProducer -. two named NCP routes .-> Galadriel
 ```
 
 ### Inert headless plant foundation
 
 `src-tauri/crates/plant-authority` is a separate dependency-free workspace
 package with the `crebain-plantd` binary. It does not link `crebain_lib`, Tauri,
-the renderer, inference, fusion, simulation, the dormant NCP module, or the
-generic telemetry transports. Its only executable mode is `--self-check`.
+the renderer, inference, fusion, simulation, the NCP action module, the
+Galadriel producer, or the generic telemetry transports. Its only executable
+mode is `--self-check`.
 
 The package establishes an inactive contract-v1 candidate, the nine explicit
 lifecycle states, generation-guarded events, capacity-one latest-value paths, a non-consuming retained whole-snapshot
@@ -97,10 +103,11 @@ measurement, or staged live evidence. CREBAIN therefore remains L0.
 diagnostics data with very different latency, throughput, and debuggability
 needs.
 
-**Solution**: Keep the product transport surface read-only, use the native
-Zenoh-oriented path for packaged builds, reserve rosbridge for explicit
-development/native telemetry fallback, and measure end-to-end latency in the
-target deployment before making performance claims.
+**Solution**: Keep the renderer-facing ROS product transport surface read-only,
+use the native Zenoh-oriented path for packaged telemetry, reserve rosbridge for
+explicit development/native telemetry fallback, and inventory the separate
+feature-gated Galadriel evidence writer as two exact routes. Measure end-to-end
+latency in the target deployment before making performance claims.
 
 The three paths and when to use them:
 
@@ -117,6 +124,13 @@ The three paths and when to use them:
   Gazebo mutation method. It speaks CREBAIN's own plain-key topic scheme — direct interop
   with an `rmw_zenoh_cpp` ROS 2 graph (which keys topics as
   `<domain>/<topic>/<type>/<hash>`) requires an explicit re-keying bridge.
+- **Galadriel evidence producer (native NCP, optional)** — absent from default
+  binaries and disabled unless an `ncp` build also receives exact runtime opt-in
+  plus valid registry/config/executable pins. It can put frozen evidence only to
+  `galadriel-pid` and `galadriel-monitor` named-perception keys. Startup owns an
+  immutable effective fusion engine; active initialization is readiness-only and
+  a config update cannot replace it. Its secure-mode request, local queue/input
+  accounting, and codec tests are not deployed TLS/ACL/receiver proof.
 - **Tauri commands/events** — small frontend/backend notifications only.
   Tauri's own documentation notes that events are JSON and are not intended for
   low-latency or high-throughput streaming.
@@ -145,10 +159,12 @@ flowchart TB
         subgraph Transport["Transport Layer"]
             RustZenoh["Rust Transport<br/>(zenoh-rs)"]
             TSBridge["TypeScript ROSBridge<br/>(development telemetry only)"]
+            GaladrielProducer["Galadriel Producer<br/>(two evidence keys only)"]
         end
 
         Frontend -->|"Tauri commands/events<br/>(JSON IPC)"| RustZenoh
         Frontend -.->|"Vite development only<br/>(JSON telemetry)"| TSBridge
+        Frontend -.->|"fusion_process; exact deployment opt-in"| GaladrielProducer
     end
 
     subgraph ROS["GAZEBO / ROS (Headless)"]
@@ -160,6 +176,7 @@ flowchart TB
 
     RustZenoh -->|"Zenoh Protocol<br/>(plain-topic keys)"| ROS
     TSBridge -->|"WebSocket<br/>(TCP port 9090)"| ROS
+    GaladrielProducer -. "raw NCP named perception" .-> Observer["Galadriel observer"]
 ```
 
 ### 2. Platform-native inference
@@ -341,7 +358,10 @@ src-tauri/src/
 ├── coreml.rs             # macOS CoreML/Vision FFI (native detect path)
 ├── onnx_detector.rs      # Global ONNX Runtime detector singleton
 ├── sensor_fusion.rs      # KF/EKF/UKF/PF/IMM filters
-├── pid_observation.rs    # Innovation-record (JSONL) observation support
+├── pid_observation.rs    # Frozen sidecar observation/envelope + local JSONL shape
+├── galadriel_registry.rs # Strict canonical deployment registry and policy
+├── galadriel_producer.rs # Feature/runtime-gated bounded NCP evidence runtime
+├── producer_monitor.rs   # Frozen outcome/miss/summary/heartbeat envelope
 │
 ├── common/               # Shared detection, NMS, YOLO, error, path utils
 │
@@ -359,8 +379,35 @@ src-tauri/src/
 │   ├── rosbridge.rs      # Read-only rosbridge WebSocket fallback
 │   └── commands.rs       # Lifecycle + typed subscription Tauri commands
 │
-└── ncp/                  # NCP (Engram) client — off-by-default `ncp` feature
+└── ncp/                  # Dormant NCP (Engram) action/control adapter
 ```
+
+The producer does not execute registry transform chains. It attaches a common
+projection only when the incoming `source_frame_id` already names the selected
+canonical ENU frame and the modality's transform chain is empty; otherwise the
+evidence is explicitly incomparable. Frame-name equality is not authenticated
+sensor provenance. V1 also requires an advancing fusion/frame timestamp and a
+strictly newer equal timestamp for that track/modality channel. The renderer
+keeps one sensor-clock high-water, reuses it for empty frames, and commits it only
+after native success. Duplicate, out-of-order, or mixed-old measurements can
+still use baseline fusion but cannot claim v1.
+
+Renderer/native input admission keeps the newest bounded measurements and turns
+malformed, buffer-overflow, registry-trim, or track-capacity loss into sticky
+degraded/truncated frame state. Native work is capped at 512 measurements and
+1,024 live tracks with explicit numeric/string/metadata envelopes. Track-capacity
+overflow drops whole birth clusters before the final ledger; numeric upstream
+loss is not present on the frozen wire summary. Sparse finite-component
+assignment and an all-infinite short circuit are component-tested, not deployed
+combined-load/deadline evidence. Queue lanes are bounded and report drops/degradation, but
+single-worker monitor ordering can delay heartbeats behind older events. Those
+limits are part of the architectural boundary, not end-to-end liveness proof.
+The optional JSONL archive is another boundary: active admission uses a separate
+capacity-16 drop-new channel; configured `ncp` sinks are startup-preflighted and
+each batch is validated/serialized before writing; writer I/O failure degrades
+the epoch and terminates that worker. Its blocking standard writer is not
+forcibly abortable after the two-second exit wait, and no-producer fusion awaits
+synchronous append/flush outside the fusion lock.
 
 The native macOS CoreML/Vision bridge is implemented directly in
 `src-tauri/src/coreml.rs`; there is no separately built Swift package or

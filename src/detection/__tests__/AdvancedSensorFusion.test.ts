@@ -62,11 +62,12 @@ describe('AdvancedSensorFusion IPC', () => {
       metadata: {},
     }
 
-    await processMeasurements([measurement], 456)
+    await processMeasurements([measurement], 456, 7)
 
     expect(invokeMock).toHaveBeenCalledWith('fusion_process', {
       measurements: [measurement],
       timestampMs: 456,
+      upstreamDroppedMeasurements: 7,
     })
   })
 
@@ -104,6 +105,7 @@ describe('AdvancedSensorFusion IPC', () => {
     expect(invokeMock).toHaveBeenCalledWith('fusion_process', {
       measurements: [measurement],
       timestampMs: 1_700_000_000_000,
+      upstreamDroppedMeasurements: 0,
     })
   })
 
