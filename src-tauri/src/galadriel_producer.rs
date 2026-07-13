@@ -2,7 +2,7 @@
 //!
 //! The runtime is deliberately inert unless an operator explicitly enables it.
 //! Enabled startup pins one registry, frame, projection context, producer build,
-//! and fusion configuration before opening an authenticated Zenoh session.
+//! and fusion configuration before opening a secure-mode Zenoh session.
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt;
