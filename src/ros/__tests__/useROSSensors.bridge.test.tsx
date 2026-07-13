@@ -16,7 +16,13 @@ import {
 
 const fusionMocks = vi.hoisted(() => ({
   initFusion: vi.fn(async () => undefined),
-  processMeasurements: vi.fn(async () => []),
+  processMeasurements: vi.fn(
+    async (
+      _measurements: unknown[],
+      _timestampMs?: number,
+      _upstreamDroppedMeasurements?: number
+    ) => []
+  ),
   getFusionStats: vi.fn(async () => null),
   setFusionConfig: vi.fn(async () => undefined),
   clearTracks: vi.fn(async () => undefined),
@@ -193,7 +199,7 @@ describe('useROSSensors bridge ownership', () => {
           },
         ],
       })
-      hook.addVisualDetection('camera-1', [1, 2, 3], 0.8, 'drone')
+      hook.addVisualDetection('camera-1', [1, 2, 3], 0.8, 'drone', Date.now())
     })
 
     expect(hook.sensorStatus.thermal).toBe(true)
@@ -287,6 +293,98 @@ describe('useROSSensors bridge ownership', () => {
       await Promise.resolve()
     })
     expect(fusionMocks.processMeasurements).toHaveBeenCalledTimes(2)
+
+    await act(async () => root.unmount())
+  })
+
+  it('reports single-message detection truncation to native frame admission', async () => {
+    vi.useFakeTimers()
+    const bridge = new ROSBridge({ url: 'ws://localhost:9090' })
+    const callbacks = new Map<string, (message: unknown) => void>()
+    vi.spyOn(bridge, 'subscribe').mockImplementation((topic, _type, callback) => {
+      callbacks.set(topic, callback)
+      return vi.fn()
+    })
+    const detections = Array.from({ length: 514 }, (_, index) => ({
+      header: { stamp: { secs: 1, nsecs: 0 } },
+      position: { x: index, y: 2, z: 3 },
+      temperature_kelvin: 300,
+      signature_area: 2,
+      confidence: 0.9,
+      classification: 'drone',
+    }))
+    const { root } = await renderHarness({
+      fusionRateHz: 10,
+      externalConnection: { bridge, connectionState: 'connected' },
+    })
+
+    callbacks.get('/crebain/thermal/detections')?.({ detections })
+    await act(async () => vi.advanceTimersByTime(100))
+
+    const [measurements, timestampMs, upstreamDropped] =
+      fusionMocks.processMeasurements.mock.calls[0]
+    expect(measurements).toHaveLength(512)
+    expect((measurements[0] as { position: number[] }).position[0]).toBe(2)
+    expect(timestampMs).toBe(1000)
+    expect(upstreamDropped).toBe(2)
+
+    await act(async () => root.unmount())
+  })
+
+  it('reports accumulated buffer overflow instead of nominal survivor-only fusion', async () => {
+    vi.useFakeTimers()
+    const bridge = new ROSBridge({ url: 'ws://localhost:9090' })
+    const callbacks = new Map<string, (message: unknown) => void>()
+    vi.spyOn(bridge, 'subscribe').mockImplementation((topic, _type, callback) => {
+      callbacks.set(topic, callback)
+      return vi.fn()
+    })
+    const detections = Array.from({ length: 300 }, (_, index) => ({
+      header: { stamp: { secs: 2, nsecs: 0 } },
+      position: { x: index, y: 2, z: 3 },
+      temperature_kelvin: 300,
+      signature_area: 2,
+      confidence: 0.9,
+      classification: 'drone',
+    }))
+    const { root } = await renderHarness({
+      fusionRateHz: 10,
+      externalConnection: { bridge, connectionState: 'connected' },
+    })
+
+    callbacks.get('/crebain/thermal/detections')?.({ detections })
+    callbacks.get('/crebain/thermal/detections')?.({ detections })
+    await act(async () => vi.advanceTimersByTime(100))
+
+    const [measurements, timestampMs, upstreamDropped] =
+      fusionMocks.processMeasurements.mock.calls[0]
+    expect(measurements).toHaveLength(512)
+    expect(timestampMs).toBe(2000)
+    expect(upstreamDropped).toBe(88)
+
+    await act(async () => root.unmount())
+  })
+
+  it('preserves one timestamp for visual tracks emitted from the same detector frame', async () => {
+    vi.useFakeTimers()
+    const { root } = await renderHarness({ fusionRateHz: 10 })
+    const detectorFrameTimestamp = 42_000
+
+    act(() => {
+      hook.addVisualDetection('visual:track-1', [1, 2, 3], 0.9, 'drone', detectorFrameTimestamp)
+    })
+    vi.setSystemTime(new Date(123_456))
+    act(() => {
+      hook.addVisualDetection('visual:track-2', [4, 5, 6], 0.8, 'drone', detectorFrameTimestamp)
+    })
+    await act(async () => vi.advanceTimersByTime(100))
+
+    const [measurements, frameTimestamp] = fusionMocks.processMeasurements.mock.calls[0]
+    expect(measurements).toEqual([
+      expect.objectContaining({ sensor_id: 'visual:track-1', timestamp_ms: detectorFrameTimestamp }),
+      expect.objectContaining({ sensor_id: 'visual:track-2', timestamp_ms: detectorFrameTimestamp }),
+    ])
+    expect(frameTimestamp).toBe(detectorFrameTimestamp)
 
     await act(async () => root.unmount())
   })
@@ -493,7 +591,85 @@ describe('useROSSensors bridge ownership', () => {
     await act(async () => vi.advanceTimersByTime(100))
 
     expect(fusionMocks.processMeasurements).toHaveBeenCalledTimes(2)
-    expect(fusionMocks.processMeasurements).toHaveBeenLastCalledWith([])
+    expect(fusionMocks.processMeasurements).toHaveBeenNthCalledWith(1, expect.any(Array), 1000, 0)
+    expect(fusionMocks.processMeasurements).toHaveBeenLastCalledWith([], 1000, 0)
+
+    await act(async () => root.unmount())
+  })
+
+  it('keeps data, empty, and mixed cycles on one monotonic sensor clock', async () => {
+    vi.useFakeTimers()
+    const bridge = new ROSBridge({ url: 'ws://localhost:9090' })
+    const callbacks = new Map<string, (message: unknown) => void>()
+    vi.spyOn(bridge, 'subscribe').mockImplementation((topic, _type, callback) => {
+      callbacks.set(topic, callback)
+      return vi.fn()
+    })
+    const thermal = (timestampMs: number, x: number) => ({
+      header: {
+        stamp: {
+          secs: Math.floor(timestampMs / 1000),
+          nsecs: (timestampMs % 1000) * 1_000_000,
+        },
+      },
+      position: { x, y: 2, z: 3 },
+      temperature_kelvin: 300,
+      signature_area: 2,
+      confidence: 0.9,
+      classification: 'drone',
+    })
+    const { root } = await renderHarness({
+      fusionRateHz: 10,
+      externalConnection: { bridge, connectionState: 'connected' },
+    })
+
+    // Pre-data closure frames use the neutral sensor epoch, never wall time.
+    await act(async () => vi.advanceTimersByTime(100))
+    callbacks.get('/crebain/thermal/detections')?.({ detections: [thermal(1_000, 1)] })
+    await act(async () => vi.advanceTimersByTime(100))
+    await act(async () => vi.advanceTimersByTime(100))
+    callbacks.get('/crebain/thermal/detections')?.({
+      detections: [thermal(1_050, 2), thermal(1_100, 3)],
+    })
+    await act(async () => vi.advanceTimersByTime(100))
+
+    expect(
+      fusionMocks.processMeasurements.mock.calls.map(([, frameTimestamp]) => frameTimestamp)
+    ).toEqual([0, 1_000, 1_000, 1_100])
+    const finalMeasurements = fusionMocks.processMeasurements.mock.calls[3][0] as Array<{
+      timestamp_ms: number
+    }>
+    expect(finalMeasurements.map((measurement) => measurement.timestamp_ms)).toEqual([1_050, 1_100])
+
+    await act(async () => root.unmount())
+  })
+
+  it('does not let a rejected future batch poison the renderer clock', async () => {
+    vi.useFakeTimers()
+    fusionMocks.processMeasurements.mockRejectedValueOnce(new Error('preflight rejected'))
+    const { root } = await renderHarness({ fusionRateHz: 10 })
+
+    act(() => {
+      hook.addVisualDetection('visual:future', [1, 2, 3], 0.9, 'drone', 9_000)
+    })
+    await act(async () => vi.advanceTimersByTime(100))
+    act(() => {
+      hook.addVisualDetection('visual:valid', [1, 2, 3], 0.9, 'drone', 1_000)
+    })
+    await act(async () => vi.advanceTimersByTime(100))
+
+    expect(fusionMocks.processMeasurements).toHaveBeenNthCalledWith(
+      1,
+      [expect.objectContaining({ timestamp_ms: 9_000 })],
+      9_000,
+      0
+    )
+    expect(fusionMocks.processMeasurements).toHaveBeenNthCalledWith(
+      2,
+      [expect.objectContaining({ timestamp_ms: 1_000 })],
+      1_000,
+      0
+    )
 
     await act(async () => root.unmount())
   })

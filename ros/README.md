@@ -114,8 +114,11 @@ read-only surface: camera, CameraInfo, IMU, PoseStamped, and ModelStates. The
 TypeScript rosbridge client is available only to Vite development builds;
 production substitutes a network-free stub and its CSP omits rosbridge socket
 origins. The native Rust rosbridge fallback (`CREBAIN_ZENOH=0`) is also
-subscription-only. No product transport has generic publish, pose/twist
-setpoint, ROS service, MAVROS mode/mission, or Gazebo mutation methods.
+subscription-only. No renderer-facing ROS telemetry transport has generic
+publish, pose/twist setpoint, ROS service, MAVROS mode/mission, or Gazebo
+mutation methods. A separately feature/runtime-gated native producer can put
+only Galadriel sidecar/monitor evidence to two NCP named-perception keys; it is
+not a ROS transport, re-keying bridge, service, setpoint, or actuator surface.
 
 The native Zenoh adapter maps ROS-looking topic strings to CREBAIN plain keys.
 An `rmw_zenoh_cpp` graph uses DDS/RMW-qualified keys, so setting
@@ -142,6 +145,20 @@ inference. The native Rust rosbridge fallback and native Zenoh transport enforce
   a custom model; and
 - finite/non-negative header time with nanoseconds below `1,000,000,000` plus a
   bounded, control-character-free frame ID.
+
+ROS sensor header frame IDs are forwarded into fusion as source-frame
+provenance. In the optional Galadriel producer, matching the configured
+canonical ENU frame plus an empty registry transform chain is necessary for a
+common projection. CREBAIN does not evaluate a transform chain, and a matching
+frame-name string is not authenticated sensor origin or calibration evidence.
+Header/detector timestamps remain in the sensor domain: one visual detector pass
+uses one captured stamp for all of its tracks, nonempty fusion frames advance to
+the newest successfully admitted input stamp, and empty frames reuse that
+high-water (zero before the first data). Duplicate, out-of-order, or mixed-old
+measurements cannot claim Galadriel v1 evidence. Malformed detections and
+renderer-buffer or native registry trimming keep the newest bounded inputs and
+mark the resulting producer frame degraded/truncated; the current frozen summary
+does not carry the numeric upstream-loss count.
 
 ## Removed mutation boundary
 

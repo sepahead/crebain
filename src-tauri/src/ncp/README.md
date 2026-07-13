@@ -7,7 +7,7 @@ This module is CREBAIN's Rust + Zenoh adapter for the Neuro-Cybernetic Protocol
 wire types and key construction come from pinned `ncp-core` and `ncp-zenoh`
 dependencies in [`src-tauri/Cargo.toml`](../../Cargo.toml).
 
-It is **dormant in the product runtime**:
+This action/control adapter is **dormant in the product runtime**:
 
 - the `ncp` Cargo feature is off by default;
 - `NcpHandle` is not managed by the Tauri builder;
@@ -16,6 +16,10 @@ It is **dormant in the product runtime**:
 - no frontend hook runs a perception/action loop.
 
 Compiling this module does not make CREBAIN an always-on Engram body.
+The same Cargo feature also compiles sibling Galadriel registry, envelope, and
+producer modules. Those are not this action adapter: the application may manage
+the evidence producer after its separate exact runtime opt-in and deployment-pin
+preflight while all four `ncp_*` commands here remain unregistered.
 
 ## Build and test
 
@@ -73,6 +77,11 @@ Successfully loading a configuration proves only startup posture. CREBAIN cannot
 prove that its TLS identities, ACL rules, router topology, or certificate policy
 are sufficient; those remain target-deployment evidence.
 
+The sibling Galadriel producer has no `QuietDevelopment` option: enabled startup
+always requests secure mode. That remains a configuration request, not evidence
+that the supplied file actually establishes TLS/mTLS, an ACL, or a binding
+between its authenticated principal and the envelope's declared `producer_id`.
+
 ## Input and reply boundaries
 
 - realm, session ID, and model name are limited to 128 bytes and safe key/name
@@ -113,6 +122,11 @@ a `VelocitySetpointProposal`; registration alone is not a plant or actuator loop
 Before a live deployment claim, also prove the target NCP realm/key ACL allows
 the CREBAIN participant. Repository unit tests do not validate an external
 Engram/Galadriel ACL or network topology.
+
+The Galadriel evidence path is documented separately in
+[`docs/GALADRIEL_PRODUCER.md`](../../../docs/GALADRIEL_PRODUCER.md). Its two
+advisory output keys do not register these Tauri commands, activate
+`CommandPlant`, or provide an actuator callback.
 
 ## Scientific boundary
 

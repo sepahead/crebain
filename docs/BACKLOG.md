@@ -48,6 +48,14 @@ and independently attested FCU failsafe behavior.
 | 6 | Validate at least one full model contract with fixture frames, class mapping, thresholds, and benchmark context | Trustworthy demo/model evidence |
 | 7 | Extract reusable hook-test harness utilities for React root setup, `act`, IPC mocks, and cleanup | Less duplicated test code |
 | 8 | Keep tracked Markdown docs synchronized after each behavior, validation, or security-boundary change | Lower onboarding friction |
+| 9 | Deploy a Galadriel tap/monitor/cross-route assembler that pins the same registry and proves decode, identity, sequence-gap, and heartbeat-deadline behavior | Receiver-side evidence rather than producer-only puts |
+| 10 | Audit real NCP TLS/mTLS identities, certificates, router topology, principal↔`producer_id` binding, and exact allow/deny ACLs for both evidence keys | Deployment security evidence |
+| 11 | Run multi-process loss/reorder/duplicate/restart/partition/queue-saturation/slow-put/shutdown campaigns and archive both producer and receiver traces | HAZ-011/012/013 evidence and heartbeat-timeliness bounds |
+| 12 | Implement and verify registry calibration/transform/projection artifacts before allowing non-identity common projection | Frame/calibration evidence beyond string equality |
+| 13 | Qualify PID JSONL storage: enforce/verify regular-local-file policy, test the active capacity-16 archive boundary, expose archive-specific drop health, and define cleanup for a writer blocked beyond the two-second exit wait | Bounded archival behavior without confusing producer degradation or task shutdown claims |
+| 14 | Extend the frozen monitor contract and receiver to carry/validate numeric malformed, renderer-buffer, registry-trim, and track-capacity loss without weakening degraded/truncated semantics | Receiver-visible upstream-loss attribution rather than log-only counts |
+| 15 | Establish router/receiver sidecar and monitor receive-size ceilings, then run oversize allow/deny tests with the exact deployment topology | Proof that every permitted envelope is accepted or explicitly rejected before operation |
+| 16 | Benchmark sparse-assignment, maximum-batch/live-track, lane-saturation, slow-put, and JSONL interaction under one candidate process and receiver | Combined-load deadline evidence beyond component complexity tests |
 
 ## Recently completed
 
@@ -72,6 +80,16 @@ and independently attested FCU failsafe behavior.
   payload, path, UTF-8, parse, absence, and size failures; detector/fusion
   deserialization and bounds; and validation-before-connection for every
   topic-bearing transport command.
+- Feature/runtime-gated Galadriel producer component: strict canonical registry,
+  immutable actual effective-config and executable digest pins, readiness-only
+  active initialization, frozen sidecar/monitor codecs, deterministic exact-time
+  frozen-prior ledger, bounded measurement/track domains, newest-preserving
+  upstream admission, whole-cluster track-cap rejection, sparse assignment,
+  bounded drop/degradation lanes, heartbeats, finite task shutdown, and a
+  preflighted capacity-16 JSONL archive whose batches validate/serialize before
+  writing and whose I/O failure degrades the epoch and stops the worker. This is
+  not a deployed receiver, TLS/ACL/receive-size, deadline, combined-load,
+  calibration, or authority claim.
 - Multi-frame scenario tests for track confirmation (sliding-window M-of-N),
   target motion, and stale-track cleanup.
 - CI test-count summaries: the CI workflow writes frontend and Rust test-count

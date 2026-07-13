@@ -52,6 +52,7 @@ describe('useROSSensors helpers', () => {
       sensor_id: 'thermal_sensor',
       modality: 'thermal',
       timestamp_ms: 10500,
+      source_frame_id: 'sensor_frame',
       position: [1, 2, 3],
       covariance: [2, 2, 2],
       confidence: 0.8,
@@ -92,6 +93,7 @@ describe('useROSSensors helpers', () => {
 
     expect(measurement.modality).toBe('acoustic')
     expect(measurement.timestamp_ms).toBe(10500)
+    expect(measurement.source_frame_id).toBe('sensor_frame')
     expect(measurement.position[0]).toBeCloseTo(0, 6)
     expect(measurement.position[1]).toBeCloseTo(10, 6)
     expect(measurement.position[2]).toBeCloseTo(0, 6)
@@ -155,6 +157,7 @@ describe('useROSSensors helpers', () => {
       sensor_id: 'radar_sensor',
       modality: 'radar',
       timestamp_ms: 10500,
+      source_frame_id: 'sensor_frame',
       position: [20, 0, 0],
       velocity: [4, 0, 0],
       metadata: { rcs_dbsm: -5, radial_velocity: 4 },
@@ -236,6 +239,7 @@ describe('useROSSensors helpers', () => {
       sensor_id: 'lidar_sensor',
       modality: 'lidar',
       timestamp_ms: 10500,
+      source_frame_id: 'sensor_frame',
       position: [1, 2, 3],
       velocity: [0.1, 0.2, 0.3],
       covariance: [0.1, 0.1, 0.1],
@@ -262,5 +266,36 @@ describe('useROSSensors helpers', () => {
     }
 
     expect(() => lidarToMeasurement(detection, 'lidar_sensor')).toThrow('lidar.bbox_size_x must be non-negative')
+  })
+
+  it('keeps legacy blank frame provenance baseline-compatible', () => {
+    const detection: ThermalDetection = {
+      header: { ...header, frame_id: '' },
+      id: 'thermal-no-frame',
+      position: { x: 1, y: 2, z: 3 },
+      temperature_kelvin: 320,
+      signature_area: 1.5,
+      confidence: 0.8,
+      classification: 'drone',
+    }
+
+    expect(thermalToMeasurement(detection, 'thermal_sensor').source_frame_id).toBeUndefined()
+  })
+
+  it.each([
+    ['control characters', 'camera\u0000frame', 'must not contain control or whitespace'],
+    ['oversized UTF-8 identifiers', 'é'.repeat(129), 'exceeds 256 UTF-8 bytes'],
+  ])('rejects malformed %s without poisoning a fusion batch', (_case, frameId, message) => {
+    const detection: ThermalDetection = {
+      header: { ...header, frame_id: frameId },
+      id: 'thermal-invalid-frame',
+      position: { x: 1, y: 2, z: 3 },
+      temperature_kelvin: 320,
+      signature_area: 1.5,
+      confidence: 0.8,
+      classification: 'drone',
+    }
+
+    expect(() => thermalToMeasurement(detection, 'thermal_sensor')).toThrow(message)
   })
 })

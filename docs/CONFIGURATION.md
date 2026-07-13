@@ -22,13 +22,32 @@ the trust-sensitive variables in [../SECURITY.md](../SECURITY.md).
 | `ORT_DYLIB_PATH` | ONNX Runtime library path (honored by `ort` only on Linux `load-dynamic` builds; the Nix shells pre-set it to the nixpkgs library) | Path to `libonnxruntime.so` |
 | `CREBAIN_ZENOH` | Select the native read-only Rust telemetry transport: unset/true-like uses Zenoh; any other value uses its read-only rosbridge fallback. This does not enable the development-only renderer client. | `1` / `0` |
 | `CREBAIN_ROSBRIDGE_URL` | URL used only by the native read-only Rust rosbridge fallback (`CREBAIN_ZENOH=0`) | `ws://localhost:9090` (default) |
-| `CREBAIN_PID_JSONL` | Native best-effort innovation-record append sink; the path is trusted operator configuration and may contain sensitive telemetry. Records are emitted per associated measurement that corrected a Kalman-family filter; Particle and IMM emit nothing (no single compatible innovation covariance). | Writable local path |
+| `CREBAIN_PID_JSONL` | Native innovation-record sink; its presence also changes the effective Galadriel config pin. An `ncp` build preflights a configured sink. Without an active producer the fusion command waits for synchronous best-effort write/flush after releasing the fusion lock. With the producer active, copies use a capacity-16 drop-new archive worker; admission or worker I/O failure latches degradation, and worker failure terminates the worker. | Operator-approved regular local file; never a FIFO/device/socket or unbounded/remote mount |
+| `CREBAIN_GALADRIEL_ENABLE` | Exact runtime opt-in for the Galadriel evidence producer in a binary compiled with Cargo feature `ncp`; a non-feature binary fails startup when set to `1` | Absent/`0` off; exactly `1` on |
+| `CREBAIN_GALADRIEL_REALM` | Required enabled NCP realm for both evidence routes | Key-safe NCP realm |
+| `CREBAIN_GALADRIEL_PRODUCER_ID` | Required declared producer identity in each envelope; this string is not by itself a TLS-principal binding | Key-safe identity segment |
+| `CREBAIN_GALADRIEL_REGISTRY_PATH` | Required enabled path to the strict, bounded deployment registry | Readable JSON file, at most 1 MiB |
+| `CREBAIN_GALADRIEL_REGISTRY_DIGEST` | Required expected canonical registry digest | 64 lowercase SHA-256 hex characters |
+| `CREBAIN_GALADRIEL_FRAME_ID` | Required selected frame in the registry | Decimal JSON-safe positive integer |
+| `CREBAIN_GALADRIEL_CONTEXT_ID` | Required selected context bound to that frame | Decimal JSON-safe positive integer |
+| `CREBAIN_GALADRIEL_SOFTWARE_DIGEST` | Required digest that must match both the running executable file and selected registry context | 64 lowercase SHA-256 hex characters |
+| `CREBAIN_GALADRIEL_CONFIGURATION_DIGEST` | Required digest that must match both the effective canonical fusion configuration and selected registry context | 64 lowercase SHA-256 hex characters |
+| `CREBAIN_GALADRIEL_FUSION_CONFIG_PATH` | Optional strict fusion-config input; absence uses `FusionConfig::default()` | Nonempty JSON file, at most 64 KiB |
+| `CREBAIN_GALADRIEL_HEARTBEAT_INTERVAL_MS` | Producer heartbeat interval | `1..=300000`; default `1000` |
+| `CREBAIN_GALADRIEL_HEARTBEAT_DEADLINE_MS` | Declared receiver deadline, no shorter than the interval | Interval through `300000`; default `3000` |
+| `CREBAIN_GALADRIEL_OBSERVATION_QUEUE_CAPACITY` | Optional observation-lane override | Positive; bounded by registry/wire policy |
+| `CREBAIN_GALADRIEL_OUTCOME_QUEUE_CAPACITY` | Optional outcome/miss-lane override | Positive; bounded by registry/wire policy |
+| `CREBAIN_GALADRIEL_SUMMARY_QUEUE_CAPACITY` | Optional summary-lane override | Positive; bounded by registry/wire policy |
+| `CREBAIN_GALADRIEL_HEARTBEAT_QUEUE_CAPACITY` | Optional heartbeat-lane override | Positive; bounded by registry/wire policy |
+| `NCP_ZENOH_CONFIG` | Zenoh configuration required by the enabled producer's secure mode and by the optional native NCP bridge's secure connection mode | Readable deployment-controlled path |
 
 Packaged frontend builds default to Zenoh and do not contain a usable renderer
 rosbridge client; their CSP also omits rosbridge WebSocket origins. Vite
 development builds may select the read-only WebSocket adapter and use its URL
 field. No environment variable enables removed renderer/native Gazebo mutation
-or generic ROS publishing capabilities.
+or generic ROS publishing capabilities. The Galadriel switch is a separate
+native, feature-gated exception limited to two named perception evidence routes;
+it does not add a generic ROS, renderer, action, service, or FCU surface.
 
 Production `connect-src` permits Tauri IPC plus only the source classes already
 accepted by bounded scene-asset restoration: same-origin, HTTPS, and HTTP
@@ -38,6 +57,52 @@ rosbridge replacement and omit the development client. `img-src` is limited to
 same-origin, `blob:`, and `data:` because downloaded textures are decoded from
 bounded bytes rather than loaded as arbitrary remote image URLs. Navigation,
 forms, embedded objects, and framing are denied by explicit CSP directives.
+
+## Galadriel deployment pins
+
+Galadriel publication has two independent gates: the executable must be built
+with Cargo feature `ncp`, then `CREBAIN_GALADRIEL_ENABLE` must be exactly `1`.
+The standard release workflow currently omits that feature. An absent/`0` switch
+opens no producer session; an ambiguous value or `1` in a non-feature binary
+fails startup.
+
+Enabled startup validates the registry, selected identities, effective fusion
+configuration, and running executable before opening the secure-mode NCP Zenoh
+session. The effective configuration is the parsed/default `FusionConfig` after
+the `CREBAIN_PID_JSONL` innovation-emission override. Its fully materialized
+compact JSON SHA-256 must equal both the environment pin and selected registry
+context. The actual running executable file SHA-256 must likewise equal the
+environment and context software pins. Provision the latter from the final
+post-signing/post-packaging executable.
+
+Once active, the startup-loaded fusion engine is immutable for the producer
+epoch. Renderer `fusion_init` calls are readiness checks and their supplied
+defaults are ignored; `fusion_set_config` accepts only the already pinned
+canonical digest and does not replace the engine.
+
+The registry is strict and canonically hashed, but its calibration, transform,
+and projection-algorithm content references are not fetched or verified. Digest
+matching also does not authenticate the operator-supplied environment or prove
+software provenance. Protect the registry, digest source, fusion config,
+executable, and `NCP_ZENOH_CONFIG` as one deployment manifest.
+
+The active producer does not write JSONL on its ordered evidence workers. It
+copies eligible observations into a separate capacity-16 frame channel with
+nonblocking drop-new admission; full/disconnected admission marks the producer
+degraded before its frame summary is admitted. An `ncp`-feature startup first
+opens/truncates and preflights a configured sink. The archive worker validates
+and serializes the whole batch before its first write; write or flush failure
+degrades the epoch and terminates the worker. A later OS write failure can still
+leave part of that already-validated batch on disk. The archive thread performs
+blocking file I/O. Shutdown closes its sender and waits at most two seconds, but
+a blocked standard thread cannot be forcibly aborted. The ordinary
+no-producer path remains synchronous (inside `spawn_blocking`), so a slow or
+special path can delay `fusion_process`. These archive semantics are separate
+from the four NCP evidence lanes and the five-second NCP put bound.
+
+See [GALADRIEL_PRODUCER.md](GALADRIEL_PRODUCER.md) for the exact routes, queue and
+drop semantics, heartbeat/shutdown limits, projection restrictions, and the
+component-versus-deployment evidence boundary.
 
 ## Detection settings
 
@@ -63,6 +128,16 @@ The full tuning table (algorithm choice, process/measurement noise, gating,
 M-of-N confirmation, covariance ceilings, particle count) is maintained in
 [SENSOR_FUSION.md](SENSOR_FUSION.md#configuration-and-tuning) — it is the
 single source of truth for fusion defaults and per-parameter guidance.
+
+The native input envelope is at most 512 measurements per call, 1,024 live
+tracks, 256-byte measurement strings, and 64 metadata entries. Cartesian
+position/radar range is bounded at 10,000,000 m, velocity components at
+100,000 m/s, covariance diagonals at `(0, 1e12]`, and metadata magnitude at
+`1e12`. A selected Galadriel registry may tighten the input/active-track limits.
+Upstream and registry trimming keep the newest inputs and make the active frame
+degraded/truncated; active-track overflow drops whole deterministic birth
+clusters. See [GALADRIEL_PRODUCER.md](GALADRIEL_PRODUCER.md) for exact-time and
+loss semantics.
 
 ## Local guidance-preview settings
 

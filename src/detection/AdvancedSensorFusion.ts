@@ -29,6 +29,12 @@ export interface SensorMeasurement {
   modality: SensorModality
   timestamp_ms: number
   /**
+   * Coordinate frame declared by the sensor ingress header. Legacy/browser
+   * measurements may omit it, but omitted provenance cannot support a
+   * producer-attested cross-modal consistency projection.
+   */
+  source_frame_id?: string
+  /**
    * Target position in the sensor measurement frame, selected by `modality`:
    * - `radar` → polar `[range_m, azimuth_rad, elevation_rad]`
    * - `visual` / `thermal` / `acoustic` / `lidar` → Cartesian `[x, y, z]` meters
@@ -271,12 +277,14 @@ export async function initFusion(config?: Partial<FusionConfig>): Promise<void> 
  */
 export async function processMeasurements(
   measurements: SensorMeasurement[],
-  timestampMs?: number
+  timestampMs?: number,
+  upstreamDroppedMeasurements = 0
 ): Promise<FusedTrack[]> {
   const ts = timestampMs ?? Date.now()
   const response = await invoke<unknown>(TAURI_COMMANDS.fusion.process, {
     measurements,
     timestampMs: ts,
+    upstreamDroppedMeasurements,
   })
   return normalizeTracks(response)
 }
