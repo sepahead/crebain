@@ -487,6 +487,7 @@ fn get_system_info() -> serde_json::Value {
         })
         .unwrap_or_else(|| match runtime_snapshot.status {
             inference::RuntimeStatus::Uninitialized => "Not Initialized".to_string(),
+            inference::RuntimeStatus::Busy => "Inference Runtime Busy".to_string(),
             inference::RuntimeStatus::Failed => "No Backend Available".to_string(),
             inference::RuntimeStatus::Ready => "Unknown Backend".to_string(),
         });
