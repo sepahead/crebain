@@ -26,7 +26,7 @@ No hazard in this baseline is controlled or accepted. Every P0 entry blocks L1.
 | HAZ-003 | Delayed command remains active | P0 | partial | Passive generation-bound monotonic expiry mechanics exist; command admission, active scheduling, apply-time age check, and bounded TTL policy remain absent |
 | HAZ-004 | Replay, duplicate, or cross-session command is accepted | P0 | partial | Boot/session/stream fencing and anti-rollback |
 | HAZ-005 | Correct vector is applied in the wrong frame or unit | P0 | partial | Profile-neutral same-frame-instance ENU/NED and FLU/FRD velocity-axis corpus exists; frame-instance proof, approved profile, remaining semantics, and live interpretation are absent |
-| HAZ-006 | Stale or inconsistent vehicle state authorizes motion | P0 | open | Atomic fresh health snapshot immediately before write |
+| HAZ-006 | Stale or inconsistent vehicle state authorizes motion | P0 | partial | Closed immutable context-bound snapshot and age mechanics exist; authenticated collection, approved freshness, and apply-time check remain absent |
 | HAZ-007 | Generic Hold/ESTOP causes an unsafe physical action | P0 | open | ODD/vehicle safe-action matrix and guarded reset |
 | HAZ-008 | Router, MAVROS, FCU, or data-link loss leaves unsafe output | P0 | open | Bounded loss detection and independent FCU fallback |
 | HAZ-009 | Estimator/fusion divergence appears nominal | P1 | partial | Immutable effective config, exact-time frozen-prior ledger, bounded inputs, invalid-gate refusal, divergence state, conservative invalidation |
@@ -65,13 +65,17 @@ degrees/radians, time units, authenticated ingress, apply-time enforcement, and
 live FCU interpretation remain absent. HAZ-005 is therefore partial, CTL-006
 remains planned, and HAZ-016 remains open.
 
-The retained snapshot register is generic CB-030 storage mechanics only. It
-proves non-consuming whole-value replacement and atomic association with
-caller-supplied generation/sequence metadata for a plain-data test type. It does
-not prevent interior mutation exposed by `T`, validate generation order, or
-provide authoritative FCU fields, provenance, freshness policy, or an
-apply-time consumer. HAZ-006 therefore remains open, CTL-005 remains planned,
-and `TEST-ATOMIC-STATE-STALENESS` remains planned.
+The canonical kernel health path now seals a closed immutable in-memory report,
+validates declared profile/vehicle/source/stream-epoch/generation/frame-instance
+identity, strict sequence within one publisher/channel instance, local frame,
+SI units, plant-local observation times, finite vectors, and battery range, and
+atomically exposes one coherent commit plus exact ages. Source identity remains
+a caller-supplied structural assertion rather than authenticated provenance;
+real FCU sampling and aggregation coherence are unproved; channel/epoch
+uniqueness across recreation is not enforced; and no approved freshness
+threshold, healthy/safe verdict, apply-time consumer, governor, adapter, or FCU
+failsafe evidence exists. HAZ-006 and CTL-005 are therefore partial, while
+`TEST-ATOMIC-STATE-STALENESS` remains planned.
 
 The Galadriel producer adds component evidence only. It pins one effective
 fusion configuration and executable, makes active initialization readiness-only,

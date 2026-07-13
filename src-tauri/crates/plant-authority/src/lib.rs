@@ -2,9 +2,10 @@
 //!
 //! This crate deliberately has no renderer, Tauri, transport, inference,
 //! simulation, or vehicle-adapter dependency. It supplies an inactive draft
-//! contract validator, lifecycle, bounded-channel, and passive monotonic-expiry
-//! primitives plus an inert kernel self-check. It does not parse or accept a
-//! command, transition authority, or cause a physical action.
+//! command validator, closed immutable in-memory vehicle-health candidate,
+//! lifecycle, bounded-channel, and passive monotonic-expiry primitives plus an
+//! inert kernel self-check. It does not parse or accept a command, authenticate
+//! FCU state, transition authority, or cause a physical action.
 
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
@@ -14,6 +15,7 @@ mod channels;
 mod contract;
 mod expiry;
 mod frame_conventions;
+mod health;
 mod lifecycle;
 mod runtime;
 
@@ -36,6 +38,20 @@ pub use contract::{
 };
 pub use expiry::{ExpiryConfigurationError, ExpiryStatus, MonotonicExpiryGuard};
 pub use frame_conventions::{FiniteFramedVelocityMpsV1, FrameConventionError};
+pub use health::{
+    vehicle_health_channel, ArmingStateV1, BatteryObservationV1, EstimateValidityV1,
+    EstimatorStateV1, FcuFailsafeStateV1, FcuHealthSourceIdentity, FcuLinksV1, FcuModeStateV1,
+    FcuStateV1, FenceStateV1, HealthAxisV1, HealthIdentityError, HealthIdentityKind,
+    HealthObservationGroupV1, HealthObservationTimesV1, HealthSequenceError,
+    HealthStreamEpochIdentity, HealthStreamSequence, HealthVectorKindV1, LandedStateV1,
+    LinkStateV1, LocalFrameInstanceIdentity, MeasurementUnavailableReasonV1,
+    ObservedVehicleHealthV1, PlantObservationTime, PositionObservationV1, PositionUnitV1,
+    ProfileModeCode, VehicleHealthAgesV1, VehicleHealthCommitError, VehicleHealthCommitReceiptV1,
+    VehicleHealthContextV1, VehicleHealthDomainV1, VehicleHealthMetadataV1,
+    VehicleHealthPublisherV1, VehicleHealthReadError, VehicleHealthReaderV1, VehicleHealthReportV1,
+    VehicleHealthSnapshotV1, VehicleHealthStateV1, VehicleHealthTimePointV1, VehicleHealthUnitsV1,
+    VehicleIdentity, VelocityObservationV1, VEHICLE_HEALTH_SCHEMA_V1,
+};
 pub use lifecycle::{
     GuardedEvent, LifecycleError, LifecycleEvent, LifecycleMachine, PlantState, RuntimeGeneration,
     Transition,

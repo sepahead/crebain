@@ -21,7 +21,8 @@ authenticated deployment, or Haldir→NCP→native-plant→FCU authority chain.
 A separate dependency-free `crebain-plant-authority` workspace package and
 `crebain-plantd` process now provide an inactive draft contract-v1 validator,
 an inert lifecycle/channel foundation, a non-consuming retained whole-snapshot
-register, and a passive generation-bound monotonic expiry guard. Contract v1
+register, a closed immutable in-memory vehicle-health candidate, and a passive
+generation-bound monotonic expiry guard. Contract v1
 uses closed action/frame/unit types, distinct producer and plant-local time,
 and draft instantaneous-speed/TTL bounds, but has no wire format and its profile/frame are
 unapproved. A separate profile-neutral finite-m/s kernel and digest-bound
@@ -29,12 +30,16 @@ JavaScript/Rust corpus cover exact ENU↔NED and FLU↔FRD velocity-axis
 conventions only at the same local origin/datum or rigid-body reference point,
 and reject local↔body routes without attitude. They carry no frame-instance
 identity and do not select a profile, run during admission, or establish
-attitude, points/covariance, Three.js, time, or FCU semantics. The binary can only self-check; it has no command ingress,
-vehicle-health source/schema/provenance/freshness policy,
-active watchdog, governor, safe-action profile, NCP link, or FCU adapter. The
-snapshot register is storage mechanics only: it neither prevents interior
-mutation exposed by its generic value type nor validates its caller-supplied
-generation. The expiry guard has no timer, callback, refresh, command payload,
+attitude, points/covariance, Three.js, time, or FCU semantics. The typed health
+path binds declared profile/vehicle/source/epoch/generation/frame-instance
+identity, strict per-channel source sequence, closed state, SI local vectors, and
+plant-monotonic ages into one coherent retained commit. Its structural source
+identity is not authenticated, it proves no real FCU sampling or aggregation
+coherence, and it defines no freshness threshold or healthy/safe verdict. The
+binary can only self-check; it has no command ingress, authenticated health
+collector, active watchdog, governor, safe-action profile, NCP link, apply-time
+consumer, or FCU adapter. Generic snapshot storage remains disconnected
+mechanics. The expiry guard has no timer, callback, refresh, command payload,
 or adapter hook. Their existence does not make the process a final applier and
 does not change the L0 claim.
 

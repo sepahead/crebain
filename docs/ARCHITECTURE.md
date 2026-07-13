@@ -35,7 +35,7 @@ graph TB
     end
 
     subgraph PlantFoundation["Separate headless package (L0, inert)"]
-        Plantd["crebain-plantd<br/>Inactive contract v1 + frame conventions + lifecycle + bounded channels + retained snapshot + passive expiry<br/>Self-check only"]
+        Plantd["crebain-plantd<br/>Inactive command/health contracts + frame conventions + lifecycle + bounded channels + passive expiry<br/>Self-check only"]
     end
 
     subgraph External["External Systems"]
@@ -70,28 +70,35 @@ the renderer, inference, fusion, simulation, the NCP action module, the
 Galadriel producer, or the generic telemetry transports. Its only executable
 mode is `--self-check`.
 
-The package establishes an inactive contract-v1 candidate, the nine explicit
-lifecycle states, generation-guarded events, capacity-one latest-value paths, a non-consuming retained whole-snapshot
-register, bounded reject-new lifecycle ingress, bounded drop-oldest evidence
+The package establishes inactive command-contract and vehicle-health candidates,
+the nine explicit lifecycle states, generation-guarded events, capacity-one
+latest-value paths, a non-consuming retained whole-snapshot register, bounded
+reject-new lifecycle ingress, bounded drop-oldest evidence
 with loss accounting, a separate sticky first-cause safety latch, and a passive
 generation-bound monotonic expiry guard. The current adapter is deliberately
-inert and exposes no action operation. The snapshot register atomically
-associates one whole value with a caller-supplied generation and exact sequence,
-but neither prevents interior mutation exposed by the generic value type nor
-validates generation order. The contract candidate gives velocity proposals
+inert and exposes no action operation. Generic snapshot storage remains
+disconnected mechanics. The canonical kernel health path instead seals a
+concrete, deeply immutable report and binds its declared profile, vehicle,
+source, stream epoch, runtime generation, local-frame instance, strictly
+increasing per-channel source sequence, frame, SI units, values, and plant-local
+observation times into one retained commit. Checked loads compute all ages from one instant
+without declaring any value fresh, healthy, safe, or authorized. The command
+contract candidate gives velocity proposals
 closed action/frame/unit semantics, distinct producer and plant-local time, and
 draft instantaneous-speed/TTL validation, but defines no wire format or command ingress and
 its profile/frame/limits are unapproved. A separate finite m/s component and
 digest-bound JavaScript/Rust corpus cover exact ENU↔NED and FLU↔FRD
 velocity-axis conventions only for the same local origin/datum or rigid-body
 reference point, while rejecting local↔body conversion without attitude. The
-component carries no frame-instance identity, is not called by admission, and
+frame-convention component carries no frame-instance identity, is not called by command admission, and
 does not select a profile or cover attitude, yaw/quaternions, points,
-covariance, Three.js, time, or live FCU semantics. It defines no trusted health fields,
-provenance, freshness, or apply-time policy.
+covariance, Three.js, time, or live FCU semantics. The separate health candidate
+carries a declared local-frame-instance identity but does not authenticate its
+source, prove real FCU sampling or multi-message coherence, interpret profile
+mode/estimator flags, set freshness thresholds, or apply policy.
 
 This is a component foundation, not an authority chain. It has no approved or
-authenticated ingress/UAV profile, trusted vehicle-health schema, active monotonic
+authenticated ingress/UAV profile or FCU health collector, active monotonic
 command watchdog, apply-time governor, ODD safe-action table, PX4/FCU adapter, deadline
 measurement, or staged live evidence. CREBAIN therefore remains L0.
 

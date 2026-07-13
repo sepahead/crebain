@@ -4,13 +4,29 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Barrier};
 
 use crebain_plant_authority::{
-    bounded_queue, latest_value, snapshot_value, ChannelConfigurationError, ChannelError,
-    FullPolicy, KernelChannels, RuntimeGeneration, SafetyCause, SafetyLatch, SafetyNotice,
+    bounded_queue, latest_value, snapshot_value, CandidateProfileKind, CandidateProfileV1,
+    ChannelConfigurationError, ChannelError, FcuHealthSourceIdentity, FullPolicy,
+    HealthStreamEpochIdentity, KernelChannels, LocalFrameInstanceIdentity, ProfileIdentity,
+    RuntimeGeneration, SafetyCause, SafetyLatch, SafetyNotice, VehicleHealthContextV1,
+    VehicleHealthReadError, VehicleIdentity,
 };
 
 const PRODUCERS: usize = 8;
 const VALUES_PER_PRODUCER: u64 = 5_000;
 const TOTAL_SUBMISSIONS: u64 = 40_000;
+
+fn health_context(generation: RuntimeGeneration) -> VehicleHealthContextV1 {
+    let identity = ProfileIdentity::new(CandidateProfileKind::DraftL1SitlLocalNed, [1_u8; 32])
+        .expect("test profile identity is nonzero");
+    VehicleHealthContextV1::new(
+        CandidateProfileV1::from_identity(identity),
+        VehicleIdentity::new([2_u8; 16]).expect("test vehicle identity is nonzero"),
+        FcuHealthSourceIdentity::new([3_u8; 32]).expect("test source identity is nonzero"),
+        HealthStreamEpochIdentity::new([4_u8; 16]).expect("test epoch identity is nonzero"),
+        generation,
+        LocalFrameInstanceIdentity::new([5_u8; 16]).expect("test frame identity is nonzero"),
+    )
+}
 
 #[test]
 fn latest_value_channel_should_remain_capacity_one_under_concurrent_load() {
@@ -269,8 +285,13 @@ fn safety_latch_should_preserve_one_first_cause_under_concurrent_load() {
 fn kernel_channel_set_should_assign_explicit_policy_to_every_path() {
     let lifecycle_capacity = NonZeroUsize::new(2).expect("test capacity is nonzero");
     let evidence_capacity = NonZeroUsize::new(3).expect("test capacity is nonzero");
-    let channels = KernelChannels::<u8, u16, u32, u64>::new(lifecycle_capacity, evidence_capacity)
-        .expect("test capacities are accepted");
+    let generation = RuntimeGeneration::new(NonZeroU64::MIN);
+    let channels = KernelChannels::<u8, u32, u64>::new(
+        lifecycle_capacity,
+        evidence_capacity,
+        health_context(generation),
+    )
+    .expect("test capacities are accepted");
 
     assert!(
         channels.lifecycle.sender.capacity() == lifecycle_capacity
@@ -281,11 +302,8 @@ fn kernel_channel_set_should_assign_explicit_policy_to_every_path() {
                 .has_value()
                 .expect("command state is healthy")
             && channels
-                .health_snapshot
-                .receiver
-                .load()
-                .expect("health state is healthy")
-                .is_none()
+                .load_vehicle_health(generation)
+                .is_err_and(|error| error == VehicleHealthReadError::NoSnapshot)
             && !channels
                 .latest_adapter_output
                 .receiver

@@ -4,8 +4,16 @@ use std::fmt;
 use std::num::{NonZeroU64, NonZeroUsize};
 
 use crate::{
-    AdapterError, ChannelError, GuardedEvent, InertAdapter, KernelChannels, LifecycleError,
-    LifecycleEvent, LifecycleMachine, PlantState, RuntimeGeneration, SafetyCause, SafetyNotice,
+    AdapterError, ArmingStateV1, BatteryObservationV1, CandidateProfileKind, CandidateProfileV1,
+    ChannelError, EstimateValidityV1, EstimatorStateV1, FcuFailsafeStateV1,
+    FcuHealthSourceIdentity, FcuLinksV1, FcuModeStateV1, FcuStateV1, FenceStateV1, GuardedEvent,
+    HealthObservationTimesV1, HealthStreamEpochIdentity, HealthStreamSequence, InertAdapter,
+    KernelChannels, LandedStateV1, LifecycleError, LifecycleEvent, LifecycleMachine, LinkStateV1,
+    LocalFrameInstanceIdentity, MeasurementUnavailableReasonV1, PlantObservationTime, PlantState,
+    PositionObservationV1, PositionUnitV1, ProfileIdentity, RuntimeGeneration, SafetyCause,
+    SafetyNotice, VehicleHealthContextV1, VehicleHealthMetadataV1, VehicleHealthReportV1,
+    VehicleHealthStateV1, VehicleHealthUnitsV1, VehicleIdentity, VelocityObservationV1,
+    VelocityUnit, VEHICLE_HEALTH_SCHEMA_V1,
 };
 
 const SELF_CHECK_GENERATION: NonZeroU64 = NonZeroU64::MIN;
@@ -14,7 +22,7 @@ const EVIDENCE_QUEUE_CAPACITY: NonZeroUsize = match NonZeroUsize::new(4) {
     Some(value) => value,
     None => NonZeroUsize::MIN,
 };
-type SelfCheckChannels = KernelChannels<u64, u64, u64, u64>;
+type SelfCheckChannels = KernelChannels<u64, u64, u64>;
 
 /// Error returned by the inert self-check.
 #[derive(Debug)]
@@ -69,7 +77,7 @@ pub struct SelfCheckReport {
 }
 
 fn check_latest_paths(
-    channels: &SelfCheckChannels,
+    channels: &mut SelfCheckChannels,
     generation: RuntimeGeneration,
 ) -> Result<u64, KernelError> {
     channels
@@ -96,10 +104,9 @@ fn check_latest_paths(
         ));
     }
 
+    let report = self_check_health_report(generation)?;
     channels
-        .health_snapshot
-        .sender
-        .commit(generation, 1_u64)
+        .commit_vehicle_health(&report)
         .map_err(|_| KernelError::ChannelInvariant("health receiver closed unexpectedly"))?;
     channels
         .latest_adapter_output
@@ -107,25 +114,19 @@ fn check_latest_paths(
         .replace(1_u64)
         .map_err(|_| KernelError::ChannelInvariant("output receiver closed unexpectedly"))?;
     let health = channels
-        .health_snapshot
-        .receiver
-        .load()
+        .load_vehicle_health(generation)
         .map_err(|_| KernelError::ChannelInvariant("health snapshot state was poisoned"))?;
     let repeated_health = channels
-        .health_snapshot
-        .receiver
-        .load()
+        .load_vehicle_health(generation)
         .map_err(|_| KernelError::ChannelInvariant("health snapshot state was poisoned"))?;
     let output = channels
         .latest_adapter_output
         .receiver
         .take_latest()
         .map_err(|_| KernelError::ChannelInvariant("output channel state was poisoned"))?;
-    if health.as_ref().map(crate::SnapshotCommit::sequence) != Some(1)
-        || repeated_health
-            .as_ref()
-            .map(crate::SnapshotCommit::sequence)
-            != Some(1)
+    if health.register_sequence() != 1
+        || repeated_health.register_sequence() != 1
+        || health.snapshot().metadata().stream_sequence().get() != 1
         || output.is_none()
     {
         return Err(KernelError::ChannelInvariant(
@@ -133,6 +134,74 @@ fn check_latest_paths(
         ));
     }
     Ok(latest.overwritten)
+}
+
+fn self_check_health_context(
+    generation: RuntimeGeneration,
+) -> Result<VehicleHealthContextV1, KernelError> {
+    let profile_identity =
+        ProfileIdentity::new(CandidateProfileKind::DraftL1SitlLocalNed, [1_u8; 32]).map_err(
+            |_| KernelError::ChannelInvariant("fixed health profile identity was invalid"),
+        )?;
+    let vehicle = VehicleIdentity::new([2_u8; 16])
+        .map_err(|_| KernelError::ChannelInvariant("fixed vehicle identity was invalid"))?;
+    let source = FcuHealthSourceIdentity::new([3_u8; 32])
+        .map_err(|_| KernelError::ChannelInvariant("fixed health source identity was invalid"))?;
+    let stream_epoch = HealthStreamEpochIdentity::new([4_u8; 16])
+        .map_err(|_| KernelError::ChannelInvariant("fixed health epoch was invalid"))?;
+    let frame_instance = LocalFrameInstanceIdentity::new([5_u8; 16])
+        .map_err(|_| KernelError::ChannelInvariant("fixed frame instance was invalid"))?;
+    Ok(VehicleHealthContextV1::new(
+        CandidateProfileV1::from_identity(profile_identity),
+        vehicle,
+        source,
+        stream_epoch,
+        generation,
+        frame_instance,
+    ))
+}
+
+fn self_check_health_report(
+    generation: RuntimeGeneration,
+) -> Result<VehicleHealthReportV1, KernelError> {
+    let context = self_check_health_context(generation)?;
+    let sequence = HealthStreamSequence::new(1)
+        .map_err(|_| KernelError::ChannelInvariant("fixed health sequence was invalid"))?;
+    let observed_at = PlantObservationTime::now(generation);
+    Ok(VehicleHealthReportV1::new(
+        VehicleHealthMetadataV1::new(VEHICLE_HEALTH_SCHEMA_V1, context.domain(), sequence),
+        VehicleHealthUnitsV1::new(
+            context.profile().velocity_frame(),
+            PositionUnitV1::Metres,
+            VelocityUnit::MetresPerSecond,
+        ),
+        HealthObservationTimesV1::all(observed_at),
+        VehicleHealthStateV1::new(
+            FcuStateV1::new(
+                ArmingStateV1::Unknown,
+                LandedStateV1::Unknown,
+                FcuModeStateV1::Unknown,
+                FcuFailsafeStateV1::Unknown,
+            ),
+            EstimatorStateV1::new(
+                EstimateValidityV1::Unknown,
+                EstimateValidityV1::Unknown,
+                EstimateValidityV1::Unknown,
+                EstimateValidityV1::Unknown,
+                EstimateValidityV1::Unknown,
+                EstimateValidityV1::Unknown,
+            ),
+            PositionObservationV1::Unavailable(MeasurementUnavailableReasonV1::NotReported),
+            VelocityObservationV1::Unavailable(MeasurementUnavailableReasonV1::NotReported),
+            BatteryObservationV1::Unavailable(MeasurementUnavailableReasonV1::NotReported),
+            FenceStateV1::Unknown,
+            FcuLinksV1::new(
+                LinkStateV1::Unknown,
+                LinkStateV1::Unknown,
+                LinkStateV1::Unknown,
+            ),
+        ),
+    ))
 }
 
 fn check_lifecycle_path(
@@ -221,13 +290,15 @@ pub fn run_self_check() -> Result<SelfCheckReport, KernelError> {
         event: LifecycleEvent::BootCompleted,
     })?;
 
-    let channels = KernelChannels::<u64, u64, u64, u64>::new(
+    let health_context = self_check_health_context(initial_generation)?;
+    let mut channels = KernelChannels::<u64, u64, u64>::new(
         LIFECYCLE_QUEUE_CAPACITY,
         EVIDENCE_QUEUE_CAPACITY,
+        health_context,
     )
     .map_err(|_| KernelError::ChannelInvariant("kernel channel capacity was rejected"))?;
 
-    let latest_overwritten = check_latest_paths(&channels, initial_generation)?;
+    let latest_overwritten = check_latest_paths(&mut channels, initial_generation)?;
     let retained = check_lifecycle_path(&mut lifecycle, &channels)?;
     let evidence_dropped = check_evidence_path(&channels)?;
     let repeated = channels

@@ -5,6 +5,11 @@ use std::fmt;
 use std::num::NonZeroUsize;
 use std::sync::{Arc, Mutex};
 
+use crate::health::{
+    vehicle_health_channel_set, ObservedVehicleHealthV1, VehicleHealthChannelV1,
+    VehicleHealthCommitError, VehicleHealthCommitReceiptV1, VehicleHealthContextV1,
+    VehicleHealthReadError, VehicleHealthReportV1,
+};
 use crate::{GuardedEvent, RuntimeGeneration};
 
 /// Largest logical FIFO capacity accepted by this component foundation.
@@ -324,13 +329,6 @@ pub struct SnapshotChannel<T> {
     pub receiver: SnapshotReceiver<T>,
 }
 
-impl<T> SnapshotChannel<T> {
-    fn new() -> Self {
-        let (sender, receiver) = snapshot_value();
-        Self { sender, receiver }
-    }
-}
-
 impl<T> SnapshotSender<T> {
     /// Atomically commits one whole value with its caller-supplied generation.
     ///
@@ -367,6 +365,35 @@ impl<T> SnapshotSender<T> {
 
         drop(displaced);
         Ok(sequence)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_sequence_for_test(&self, sequence: u64) {
+        self.shared
+            .lock()
+            .expect("test snapshot state should be healthy")
+            .sequence = sequence;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_receiver_open_for_test(&self, receiver_open: bool) {
+        self.shared
+            .lock()
+            .expect("test snapshot state should be healthy")
+            .receiver_open = receiver_open;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn poison_for_test(&self)
+    where
+        T: Send + Sync + 'static,
+    {
+        let shared = Arc::clone(&self.shared);
+        let _ = std::thread::spawn(move || {
+            let _guard = shared.lock().expect("new test mutex should be healthy");
+            panic!("intentional test poison");
+        })
+        .join();
     }
 }
 
@@ -677,13 +704,15 @@ impl SafetyLatch {
 /// item with accounting. Safety has a separate first-cause latch and therefore
 /// cannot be displaced by saturation of any normal path.
 #[derive(Debug)]
-pub struct KernelChannels<CommandValue, Health, AdapterOutput, Evidence> {
+pub struct KernelChannels<CommandValue, AdapterOutput, Evidence> {
     /// Latest validated-command foundation. The inactive contract-v1 candidate
     /// is not wired to this channel and defines no wire schema.
     pub latest_command: LatestChannel<CommandValue>,
-    /// Non-consuming retained health-snapshot foundation.
-    /// No trusted vehicle-health schema or freshness policy exists yet.
-    pub health_snapshot: SnapshotChannel<Health>,
+    /// Concrete context-bound vehicle-health snapshot path.
+    ///
+    /// It validates a closed immutable in-memory candidate and exposes exact
+    /// ages, but no source authentication, freshness verdict, or apply-time gate.
+    health_snapshot: VehicleHealthChannelV1,
     /// Latest adapter-output foundation. The current adapter is inert.
     pub latest_adapter_output: LatestChannel<AdapterOutput>,
     /// Bounded lifecycle ingress using [`FullPolicy::RejectNew`].
@@ -694,9 +723,7 @@ pub struct KernelChannels<CommandValue, Health, AdapterOutput, Evidence> {
     pub safety: Arc<SafetyLatch>,
 }
 
-impl<CommandValue, Health, AdapterOutput, Evidence>
-    KernelChannels<CommandValue, Health, AdapterOutput, Evidence>
-{
+impl<CommandValue, AdapterOutput, Evidence> KernelChannels<CommandValue, AdapterOutput, Evidence> {
     /// Creates typed kernel channels with explicit nonzero queue capacities.
     ///
     /// # Errors
@@ -706,15 +733,42 @@ impl<CommandValue, Health, AdapterOutput, Evidence>
     pub fn new(
         lifecycle_capacity: NonZeroUsize,
         evidence_capacity: NonZeroUsize,
+        health_context: VehicleHealthContextV1,
     ) -> Result<Self, ChannelConfigurationError> {
         Ok(Self {
             latest_command: LatestChannel::new(),
-            health_snapshot: SnapshotChannel::new(),
+            health_snapshot: vehicle_health_channel_set(health_context),
             latest_adapter_output: LatestChannel::new(),
             lifecycle: QueueChannel::new(lifecycle_capacity, FullPolicy::RejectNew)?,
             evidence: QueueChannel::new(evidence_capacity, FullPolicy::DropOldest)?,
             safety: Arc::new(SafetyLatch::new()),
         })
+    }
+
+    /// Validates and commits one report through the sealed canonical health path.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`VehicleHealthCommitError`] for a schema, context identity,
+    /// sequence, frame/unit, time, numeric, or retained-storage failure.
+    pub fn commit_vehicle_health(
+        &mut self,
+        report: &VehicleHealthReportV1,
+    ) -> Result<VehicleHealthCommitReceiptV1, VehicleHealthCommitError> {
+        self.health_snapshot.commit(report)
+    }
+
+    /// Loads one checked coherent health snapshot with exact ages.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`VehicleHealthReadError`] for poisoned or empty storage,
+    /// generation mismatch, or monotonic-clock regression.
+    pub fn load_vehicle_health(
+        &self,
+        current_generation: RuntimeGeneration,
+    ) -> Result<ObservedVehicleHealthV1, VehicleHealthReadError> {
+        self.health_snapshot.load(current_generation)
     }
 }
 
