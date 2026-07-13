@@ -1,15 +1,17 @@
 //! Inert foundations for CREBAIN's future headless plant authority.
 //!
 //! This crate deliberately has no renderer, Tauri, transport, inference,
-//! simulation, or vehicle-adapter dependency. It supplies only lifecycle and
-//! bounded-channel and passive monotonic-expiry primitives plus an inert kernel
-//! self-check. It does not accept a command or cause a physical action.
+//! simulation, or vehicle-adapter dependency. It supplies an inactive draft
+//! contract validator, lifecycle, bounded-channel, and passive monotonic-expiry
+//! primitives plus an inert kernel self-check. It does not parse or accept a
+//! command, transition authority, or cause a physical action.
 
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
 
 mod adapter;
 mod channels;
+mod contract;
 mod expiry;
 mod lifecycle;
 mod runtime;
@@ -21,6 +23,15 @@ pub use channels::{
     KernelChannels, LatestChannel, LatestReceiver, LatestSender, LatestSnapshot, QueueChannel,
     SafetyCause, SafetyLatch, SafetyNotice, SnapshotChannel, SnapshotCommit, SnapshotReceiver,
     SnapshotSender, MAX_BOUNDED_QUEUE_CAPACITY,
+};
+pub use contract::{
+    Axis, CandidateProfileKind, CandidateProfileV1, CommandMetadataV1, CommandProposalV1,
+    CommandSessionIdentity, CommandStreamSequence, ContractRejection, ContractVersion,
+    FramedVelocityMetresPerSecond, IdentifierError, IdentifierKind, PlantReceiptTime,
+    ProducerEpochIdentity, ProducerTime, ProfileIdentity, ProposedActionKind, ProposedActionV1,
+    RawVelocityV1, RequestedCommandTtl, SequenceError, VelocityCommandCandidateV1, VelocityFrame,
+    VelocityUnit, DRAFT_L1_MAX_COMMAND_TTL, DRAFT_L1_MAX_HORIZONTAL_SPEED_MPS,
+    DRAFT_L1_MAX_VERTICAL_SPEED_MPS, PLANT_CONTRACT_V1,
 };
 pub use expiry::{ExpiryConfigurationError, ExpiryStatus, MonotonicExpiryGuard};
 pub use lifecycle::{
