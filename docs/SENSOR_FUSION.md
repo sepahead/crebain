@@ -125,8 +125,9 @@ from the position sequence.
 > mismatch silently corrupts every track for the affected modality.
 
 A `SensorMeasurement` carries a `position`, an optional Cartesian `velocity` seed,
-and a diagonal measurement-noise `covariance`. The frame of `position` and
-`covariance` is **selected by modality**:
+an optional `source_frame_id` copied from sensor ingress, and a diagonal
+measurement-noise `covariance`. The frame of `position` and `covariance` is
+**selected by modality**:
 
 | Modality | `position` frame | `covariance` units | Notes |
 |----------|------------------|--------------------|-------|
@@ -148,6 +149,14 @@ The frame is interpreted in Rust by two helpers:
   `[x, y, z]` through.
 - `measurement_position_polar()` — returns `Some([range, az, el])` **only for
   radar**, feeding the EKF polar update; `None` otherwise.
+
+`source_frame_id` is provenance, not a conversion request. Fusion does not
+transform a measurement merely because the string names a frame. In the optional
+Galadriel evidence path, a common projection is attached only when this string
+already equals the selected registry frame's canonical ENU identity and the
+modality's registry transform chain is empty. Missing/different identity or any
+transform step yields explicitly incomparable evidence. String equality is not
+cryptographic sensor authentication or proof that calibration was applied.
 
 > **Historical note.** Radar/lidar measurements were previously converted
 > spherical→Cartesian on the TypeScript side *and* re-interpreted as polar in Rust,
@@ -458,6 +467,15 @@ The native engine is configured through `FusionConfig`
 | `confirmation_window` | `5` | Sliding-window size N (in `[1, 32]`) for the M-of-N rule | the textbook radar value is 3-of-5; ↑ N for more averaging over intermittent detections |
 | `max_position_cov_volume` | `1e6` | Position-block covariance-determinant ceiling (m⁶); a track exceeding it is deleted | ↓ to drop diverging tracks sooner; ↑ to tolerate higher position uncertainty |
 | `particle_count` | `100` | Particles per track (PF only) | ↑ accuracy at `O(N)` cost; the default is a real-time compromise |
+| `emit_innovations` | `false` | Emit compatible observations into the legacy drain/local-JSONL buffer | The explicit live `process_frame` evidence API constructs frozen-v1 observations independently; PF/IMM still emit none |
+| `emit_innovation_research` | `false` | Add raw innovation/covariance research fields | Diagnostic only; changes the canonical deployment-config digest |
+
+`FusionConfig` rejects unknown fields and validates every bound. In an enabled
+Galadriel deployment, the effective fully materialized compact JSON is SHA-256
+pinned to both the environment and selected registry context. Presence of
+`CREBAIN_PID_JSONL` forces `emit_innovations=true` before hashing. Runtime
+`fusion_init`/`fusion_set_config` cannot replace an active pinned deployment with
+a different digest. See [GALADRIEL_PRODUCER.md](GALADRIEL_PRODUCER.md).
 
 Per-modality measurement covariances are set by the producers in `useROSSensors.ts`
 and reflect realistic sensor characteristics: lidar tightest (`[0.1, 0.1, 0.1]` m²),
@@ -475,8 +493,11 @@ drops the oldest measurements if a topic floods.
 The engine ships with Rust unit and multi-frame scenario tests
 (`cargo test sensor_fusion`) covering the predict/update math, the track lifecycle,
 polar radar integration, the lidar Cartesian contract, algorithm switching, and
-Joseph-form covariance stability. The browser engine and ROS bridge have Vitest
-coverage (`bun run test:run`).
+Joseph-form covariance stability. NCP-feature tests additionally cover the
+frozen-prior ledger, deterministic outcome/miss ordering, one-per-track/modality
+v1 selection, source-frame projection refusal, registry bounds, queue loss, and
+monitor summaries. These remain component tests. The browser engine and ROS
+bridge have Vitest coverage (`bun run test:run`).
 
 For deeper tracker validation — recommended before any accuracy claim against real
 hardware — the standard tools are:
@@ -515,10 +536,13 @@ crashing the engine.
 | 6 | CV + **Coordinated-Turn** IMM (two-model bank) | ✅ Implemented (CT added; a constant-acceleration mode is still deferred) |
 | 7 | Geometric (skew-ray closest-approach + cheirality) cross-camera gate in the browser engine | ✅ Implemented |
 | 8 | **Diagonal-only measurement covariances** at the TS↔Rust boundary | ⬜ **Open** — full 3×3 covariances (incl. the polar→Cartesian Jacobian cross-terms and Doppler) |
+| 9 | Registry-driven calibration and transform-chain execution | ⬜ **Open** — the producer supports identity-only already-canonical ENU projection; referenced artifacts are not loaded or hashed |
+| 10 | Deployed Galadriel receiver/assembler, heartbeat deadline, loss/reorder/restart/saturation evidence | ⬜ **Open** — producer queues/codecs are component-tested only |
 
 ### Remaining work
 
-Rows 1–4, 6, and 7 are implemented. The recovered agent transcript has been moved to
+Rows 1–4, 6, and 7 are implemented. Rows 9–10 deliberately preserve the live
+producer's current deployment and projection limits. The recovered agent transcript has been moved to
 [`docs/archive/SENSOR_FUSION_AGENT_SPECS.md`](archive/SENSOR_FUSION_AGENT_SPECS.md)
 for provenance only; it is historical, contains superseded and unsafe instructions,
 and must not be used as an implementation plan. Two items are deliberately deferred:
@@ -594,8 +618,27 @@ The repository proves local serialization/parsing and basic NIS consistency. It
 does **not** prove a live Galadriel reader, cross-process correlation, PID control,
 an NCP session, deployment ACLs, or a negotiated/versioned streaming protocol.
 Treat the file as best-effort local instrumentation: the operator owns the path,
-write failures are logged without blocking fusion, and the file may contain
-sensitive track/timing data.
+errors are logged, and the file may contain sensitive track/timing data. Use a
+regular local file only. Without an active producer, append/flush is synchronous
+inside the blocking fusion job after the fusion lock is released, so slow or
+special storage can still delay the command. With the producer active, JSONL
+copies use a separate capacity-16 drop-new frame channel; archive admission never
+waits for channel capacity or file I/O; admission failure latches producer
+degradation before summary admission; and the writer thread performs blocking
+I/O. An `ncp`-feature startup preflights a
+configured sink. The worker validates and serializes the complete batch before
+writing; write/flush failure latches degradation and stops the worker, although
+a mid-write OS failure can leave part of the already-validated batch. Exit waits
+two seconds for that thread but
+cannot abort a blocked standard thread. This archive channel is separate from
+the four NCP lanes and their counters/timeouts.
+
+This local file is independent of the live producer. When the `ncp` feature and
+exact runtime opt-in are both active, `fusion_process` instead also wraps the
+same compatible observations in strict sidecar envelopes and emits a complete
+monitor ledger to two named-perception routes. That wiring does not upgrade a
+JSONL test into receiver, ACL, or delivery evidence; see
+[GALADRIEL_PRODUCER.md](GALADRIEL_PRODUCER.md).
 
 Semantics:
 

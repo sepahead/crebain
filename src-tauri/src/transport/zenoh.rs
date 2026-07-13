@@ -26,7 +26,9 @@
 //! └─────────────────┘                         └─────────────────┘
 //! ```
 
-use super::{PoseData, Result, Transport, TransportError, TransportStats, VelocityCmd};
+#[cfg(feature = "zenoh-transport")]
+use super::{PoseData, VelocityCmd};
+use super::{Result, Transport, TransportError, TransportStats};
 use std::future::Future;
 use std::pin::Pin;
 use std::time::Instant;

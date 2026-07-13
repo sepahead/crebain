@@ -78,6 +78,16 @@
       "expected_error": "known actuator/telemetry route inventory drift"
     },
     {
+      "id": "galadriel-evidence-route-widening",
+      "mutation": {
+        "type": "set",
+        "document": "inventory",
+        "path": ["surface_groups", 33, "members", 0, "route"],
+        "value": "ncp://{realm}/session/{epoch}/sensor/*"
+      },
+      "expected_error": "exact Galadriel evidence route inventory drift"
+    },
+    {
       "id": "new-unscanned-production-file",
       "mutation": {
         "type": "add-source",
@@ -1066,6 +1076,16 @@
         "value": "scripts/verify-plant-frame-conventions.mjs"
       },
       "expected_error": "locator is not a checked test source"
+    },
+    {
+      "id": "external-main-pin-drift",
+      "mutation": {
+        "type": "set",
+        "document": "ecosystem",
+        "path": ["external_repositories", 2, "remote_main_at_capture"],
+        "value": "0000000000000000000000000000000000000000"
+      },
+      "expected_error": "Galadriel commit does not match remote_main_at_capture"
     },
     {
       "id": "crebain-configuration-hash-drift",

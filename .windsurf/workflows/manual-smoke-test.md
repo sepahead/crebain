@@ -11,9 +11,18 @@ Use this workflow after automated validation passes and before tagging, demoing,
 4. Start the relevant app mode:
    - Frontend-only: `bun run dev`
    - Full Tauri app: `bun run tauri:dev`
+   - Galadriel producer: an `ncp`-feature Tauri build with the exact documented
+     runtime env, registry/config/executable pins, and deployment-controlled
+     `NCP_ZENOH_CONFIG` (never reuse placeholder values from `.env.example`)
 5. Execute each checklist row in `docs/MANUAL_SMOKE_TEST.md`.
 6. For detector or benchmark results, record model file, digest, backend, hardware, fixture inputs, threshold settings, and the exact invocation or UI action.
-7. For ROS/Zenoh checks, record whether the run used rosbridge WebSocket mode, Zenoh transport mode, or both.
+7. For ROS/Zenoh checks, record whether the run used rosbridge WebSocket mode,
+   telemetry Zenoh mode, or Galadriel NCP mode. For the producer also record the
+   exact two keys, producer epoch/identity, registry and effective-config digests,
+   queue/drop/degraded counters, heartbeat observations, receiver/topology, and
+   positive/negative ACL result. A local put is not receiver delivery.
 8. Classify each finding as release-blocking, needs measurement, documentation follow-up, or non-blocking observation.
-9. Stop the app and confirm no dev server, transport subscription, or simulator process remains unexpectedly active.
+9. Stop the app and confirm no dev server, transport subscription, Galadriel
+   producer task, PID JSONL archive writer, or simulator process remains
+   unexpectedly active; record any writer that exceeds its two-second exit wait.
 10. If docs changed during the smoke test, run `git diff --check`; run `bun run validate:all` for Rust, IPC, transport, model-loading, or integration-affecting changes.

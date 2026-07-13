@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "baseline_id": "crebain-command-surfaces-2026-07-12",
+  "baseline_id": "crebain-command-surfaces-2026-07-13",
   "current_completion_level": "L0",
   "target_completion_level": "L1",
   "classifications": [
@@ -51,6 +51,216 @@
       "locator": {
         "file": "src-tauri/src/sensor_fusion.rs",
         "selector": "fn test_multi_sensor_fusion()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-REGISTRY-PIN",
+      "locator": {
+        "file": "src-tauri/src/galadriel_registry.rs",
+        "selector": "fn pinned_constructor_rejects_content_mismatch()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-SIDECAR-WIRE",
+      "locator": {
+        "file": "src-tauri/src/pid_observation.rs",
+        "selector": "fn sidecar_envelope_exact_json_matches_galadriel()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-MONITOR-WIRE",
+      "locator": {
+        "file": "src-tauri/src/producer_monitor.rs",
+        "selector": "fn updated_envelope_matches_galadriel_golden_bytes()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-FUSION-LEDGER",
+      "locator": {
+        "file": "src-tauri/src/sensor_fusion.rs",
+        "selector": "fn sequential_modalities_share_frozen_prior_and_radar_uses_cartesian_projection()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-PROJECTION-REFUSAL",
+      "locator": {
+        "file": "src-tauri/src/sensor_fusion.rs",
+        "selector": "fn missing_or_wrong_common_frame_is_incomparable_but_keeps_baseline_v1()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-OPT-IN",
+      "locator": {
+        "file": "src-tauri/src/galadriel_producer.rs",
+        "selector": "fn opt_in_accepts_only_zero_one_or_absent()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-QUEUE-LOSS",
+      "locator": {
+        "file": "src-tauri/src/galadriel_producer.rs",
+        "selector": "fn dropped_outcome_consumes_sequence_and_degrades_summary()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-HEARTBEAT",
+      "locator": {
+        "file": "src-tauri/src/galadriel_producer.rs",
+        "selector": "fn heartbeat_lane_remains_available_when_outcome_lane_is_full()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-SHUTDOWN",
+      "locator": {
+        "file": "src-tauri/src/galadriel_producer.rs",
+        "selector": "fn dropping_runtime_aborts_owned_tasks()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-ACTUAL-PINS",
+      "locator": {
+        "file": "src-tauri/src/lib.rs",
+        "selector": "fn galadriel_artifact_preflight_accepts_exact_config_and_executable_pins()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-DEFAULT-CONFIG-PIN",
+      "locator": {
+        "file": "src-tauri/src/sensor_fusion.rs",
+        "selector": "fn default_fusion_configuration_has_stable_canonical_pin()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-CANONICAL-KEYS",
+      "locator": {
+        "file": "src-tauri/src/galadriel_producer.rs",
+        "selector": "fn canonical_keys_and_encoded_bytes_match_frozen_envelopes()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-SEQUENCE-EXHAUSTION",
+      "locator": {
+        "file": "src-tauri/src/galadriel_producer.rs",
+        "selector": "fn checked_sequence_exhaustion_never_wraps()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-DUPLICATE-FUSION-SEQUENCE",
+      "locator": {
+        "file": "src-tauri/src/galadriel_producer.rs",
+        "selector": "fn duplicate_fusion_sequence_is_rejected_without_reservation()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-DUPLICATE-MISS",
+      "locator": {
+        "file": "src-tauri/src/galadriel_producer.rs",
+        "selector": "fn duplicate_miss_identity_is_rejected()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-DUPLICATE-OBSERVATION",
+      "locator": {
+        "file": "src-tauri/src/galadriel_producer.rs",
+        "selector": "fn duplicate_observation_identity_is_rejected()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-DUPLICATE-OUTCOME",
+      "locator": {
+        "file": "src-tauri/src/galadriel_producer.rs",
+        "selector": "fn duplicate_outcome_identity_is_rejected()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-DUPLICATE-V1-EXPECTED",
+      "locator": {
+        "file": "src-tauri/src/galadriel_producer.rs",
+        "selector": "fn duplicate_v1_expected_identity_is_rejected_across_attempts()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-INTERNAL-FAULT-LATCH",
+      "locator": {
+        "file": "src-tauri/src/galadriel_producer.rs",
+        "selector": "fn explicit_internal_fault_latch_is_visible_in_heartbeat()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-HEARTBEAT-STATUS-ORDERING",
+      "locator": {
+        "file": "src-tauri/src/galadriel_producer.rs",
+        "selector": "fn heartbeat_status_update_does_not_preempt_frame_admission()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-DEGRADATION-CARRY",
+      "locator": {
+        "file": "src-tauri/src/galadriel_producer.rs",
+        "selector": "fn latched_degradation_is_carried_by_later_frame_summary()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-GLOBAL-SEQUENCE-ORDERING",
+      "locator": {
+        "file": "src-tauri/src/galadriel_producer.rs",
+        "selector": "fn monitor_worker_selects_lowest_sequence_across_lanes()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-PAIR-ATTEMPT-CONTIGUITY",
+      "locator": {
+        "file": "src-tauri/src/galadriel_producer.rs",
+        "selector": "fn noncontiguous_pair_attempts_are_rejected()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-LANE-ISOLATION",
+      "locator": {
+        "file": "src-tauri/src/galadriel_producer.rs",
+        "selector": "fn observation_drop_does_not_consume_outcome_or_summary_lanes()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-OBSERVATION-FAILURE",
+      "locator": {
+        "file": "src-tauri/src/galadriel_producer.rs",
+        "selector": "fn observation_failure_degrades_blocked_summary_before_transmission()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-FROZEN-PAIR-COMPLETENESS",
+      "locator": {
+        "file": "src-tauri/src/galadriel_producer.rs",
+        "selector": "fn omitted_frozen_cartesian_pair_is_rejected()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-PRIOR-REUSE",
+      "locator": {
+        "file": "src-tauri/src/galadriel_producer.rs",
+        "selector": "fn reused_prior_is_rejected_before_sequence_reservation()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-TERMINAL-OUTCOME-EXCLUSIVITY",
+      "locator": {
+        "file": "src-tauri/src/galadriel_producer.rs",
+        "selector": "fn terminal_outcome_and_aggregate_miss_are_rejected()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-TRANSPORT-FAILURE",
+      "locator": {
+        "file": "src-tauri/src/galadriel_producer.rs",
+        "selector": "fn transport_failure_permanently_degrades_epoch()"
+      }
+    },
+    {
+      "id": "TEST-GALADRIEL-PROJECTION-OUTCOME-MATCH",
+      "locator": {
+        "file": "src-tauri/src/galadriel_producer.rs",
+        "selector": "fn v1_observation_projection_must_exactly_match_outcome()"
       }
     },
     {
@@ -121,6 +331,20 @@
       "locator": {
         "file": "src-tauri/src/sensor_fusion.rs",
         "selector": "fn emit_innovations_produces_contract_records_with_consistent_nis()"
+      }
+    },
+    {
+      "id": "TEST-PID-JSONL-BATCH-VALIDATION",
+      "locator": {
+        "file": "src-tauri/src/lib.rs",
+        "selector": "fn pid_jsonl_writer_validates_entire_batch_before_writing()"
+      }
+    },
+    {
+      "id": "TEST-PID-JSONL-FLUSH-FAILURE",
+      "locator": {
+        "file": "src-tauri/src/lib.rs",
+        "selector": "fn pid_jsonl_writer_reports_flush_failure()"
       }
     },
     {
@@ -414,8 +638,11 @@
       "kind": "tauri-command",
       "classification": "telemetry",
       "owner": "model-runtime",
-      "profiles": { "current": ["default", "dev-sim"], "secure_sitl": "read-only" },
-      "hazard_ids": ["HAZ-010", "HAZ-012"],
+      "profiles": {
+        "current": ["default", "dev-sim", "ncp-feature+galadriel-enabled"],
+        "secure_sitl": "read-only"
+      },
+      "hazard_ids": ["HAZ-010", "HAZ-012", "HAZ-014"],
       "tests": [
         { "id": "TEST-TAURI-REGISTRY", "status": "existing" },
         { "id": "TEST-MODEL-BOUNDARIES", "status": "partial" }
@@ -455,7 +682,7 @@
         },
         {
           "id": "SURF-005",
-          "name": "Native system and detector information",
+          "name": "Native system, detector, and conditional Galadriel producer information",
           "route": "get_system_info",
           "locator": { "file": "src-tauri/src/lib.rs", "symbol": "get_system_info" },
           "status": "registered",
@@ -497,16 +724,21 @@
       "kind": "tauri-command",
       "classification": "evidence",
       "owner": "fusion",
-      "profiles": { "current": ["default", "dev-sim"], "secure_sitl": "read-only" },
-      "hazard_ids": ["HAZ-009", "HAZ-011"],
+      "profiles": {
+        "current": ["default", "dev-sim", "ncp-feature+galadriel-enabled"],
+        "secure_sitl": "read-only"
+      },
+      "hazard_ids": ["HAZ-009", "HAZ-011", "HAZ-012", "HAZ-014"],
       "tests": [
         { "id": "TEST-FUSION-CONTRACT", "status": "existing" },
+        { "id": "TEST-GALADRIEL-FUSION-LEDGER", "status": "existing-component" },
+        { "id": "TEST-GALADRIEL-PROJECTION-REFUSAL", "status": "existing-component" },
         { "id": "TEST-EVIDENCE-INSUFFICIENCY", "status": "planned" }
       ],
       "members": [
         {
           "id": "SURF-009",
-          "name": "Process sensor fusion batch",
+          "name": "Process sensor fusion batch; conditionally admit exact-route Galadriel evidence",
           "route": "fusion_process",
           "locator": { "file": "src-tauri/src/lib.rs", "symbol": "fusion_process" },
           "status": "registered",
@@ -536,13 +768,20 @@
       "kind": "tauri-command",
       "classification": "maintenance-only",
       "owner": "fusion",
-      "profiles": { "current": ["default", "dev-sim"], "secure_sitl": "maintenance-only" },
-      "hazard_ids": ["HAZ-006", "HAZ-009"],
-      "tests": [{ "id": "TEST-FUSION-CONFIG-VALIDATION", "status": "existing" }],
+      "profiles": {
+        "current": ["default", "dev-sim", "ncp-feature+galadriel-enabled"],
+        "secure_sitl": "maintenance-only"
+      },
+      "hazard_ids": ["HAZ-006", "HAZ-009", "HAZ-011", "HAZ-013"],
+      "tests": [
+        { "id": "TEST-FUSION-CONFIG-VALIDATION", "status": "existing" },
+        { "id": "TEST-GALADRIEL-ACTUAL-PINS", "status": "existing-component" },
+        { "id": "TEST-GALADRIEL-DEFAULT-CONFIG-PIN", "status": "existing-component" }
+      ],
       "members": [
         {
           "id": "SURF-008",
-          "name": "Initialize fusion state",
+          "name": "Initialize fusion state; active producer requires the pinned config and pre-evidence epoch",
           "route": "fusion_init",
           "locator": { "file": "src-tauri/src/lib.rs", "symbol": "fusion_init" },
           "status": "registered",
@@ -550,7 +789,7 @@
         },
         {
           "id": "SURF-012",
-          "name": "Set fusion configuration",
+          "name": "Set fusion configuration; active producer rejects digest drift",
           "route": "fusion_set_config",
           "locator": { "file": "src-tauri/src/lib.rs", "symbol": "fusion_set_config" },
           "status": "registered",
@@ -558,7 +797,7 @@
         },
         {
           "id": "SURF-013",
-          "name": "Clear fusion state",
+          "name": "Clear fusion state and synchronize active producer track status",
           "route": "fusion_clear",
           "locator": { "file": "src-tauri/src/lib.rs", "symbol": "fusion_clear" },
           "status": "registered",
@@ -2016,16 +2255,174 @@
       "hazard_ids": ["HAZ-009", "HAZ-011", "HAZ-012"],
       "tests": [
         { "id": "TEST-PID-JSONL-LOCAL", "status": "existing-component" },
+        { "id": "TEST-PID-JSONL-BATCH-VALIDATION", "status": "existing-component" },
+        { "id": "TEST-PID-JSONL-FLUSH-FAILURE", "status": "existing-component" },
+        { "id": "TEST-PID-JSONL-ARCHIVE-BOUNDS", "status": "planned" },
         { "id": "TEST-EVIDENCE-INSUFFICIENCY", "status": "planned" }
       ],
       "members": [
         {
           "id": "SURF-105",
-          "name": "Best-effort Galadriel-oriented PID JSONL",
+          "name": "Galadriel-oriented PID JSONL; configured ncp builds preflight the sink, validate/serialize each batch before writing, and use capacity-16 active drop-new admission whose writer failure degrades the epoch and stops the worker",
           "route": "file://CREBAIN_PID_JSONL",
           "locator": { "file": "src-tauri/src/lib.rs", "symbol": "append_pid_observations" },
           "status": "live",
           "source_assertion": { "type": "contains", "needle": "fn append_pid_observations(" }
+        }
+      ]
+    },
+    {
+      "group_id": "GROUP-GALADRIEL-DEPLOYMENT-INPUTS",
+      "domain": "native_ncp",
+      "kind": "deployment-file-read-and-pin",
+      "classification": "evidence",
+      "owner": "ncp-integration",
+      "profiles": {
+        "current": ["ncp-feature+galadriel-enabled"],
+        "secure_sitl": "read-only"
+      },
+      "hazard_ids": ["HAZ-005", "HAZ-009", "HAZ-011", "HAZ-012", "HAZ-015"],
+      "tests": [
+        { "id": "TEST-GALADRIEL-OPT-IN", "status": "existing-component" },
+        { "id": "TEST-GALADRIEL-REGISTRY-PIN", "status": "existing-component" },
+        { "id": "TEST-GALADRIEL-ACTUAL-PINS", "status": "existing-component" }
+      ],
+      "members": [
+        {
+          "id": "SURF-128",
+          "name": "Pinned bounded Galadriel deployment registry input",
+          "route": "file://CREBAIN_GALADRIEL_REGISTRY_PATH",
+          "locator": {
+            "file": "src-tauri/src/galadriel_producer.rs",
+            "symbol": "read_registry_bounded"
+          },
+          "status": "live",
+          "source_assertion": { "type": "contains", "needle": "fn read_registry_bounded(" }
+        },
+        {
+          "id": "SURF-129",
+          "name": "Optional bounded effective fusion configuration input; the PID JSONL innovation override participates in its digest",
+          "route": "file://CREBAIN_GALADRIEL_FUSION_CONFIG_PATH",
+          "locator": {
+            "file": "src-tauri/src/lib.rs",
+            "symbol": "read_fusion_config_bounded"
+          },
+          "status": "live",
+          "source_assertion": {
+            "type": "contains",
+            "needle": "fn read_fusion_config_bounded("
+          }
+        },
+        {
+          "id": "SURF-130",
+          "name": "Running executable file used for actual software digest",
+          "route": "file://std::env::current_exe",
+          "locator": { "file": "src-tauri/src/lib.rs", "symbol": "sha256_file" },
+          "status": "live",
+          "source_assertion": { "type": "contains", "needle": "fn sha256_file(" }
+        },
+        {
+          "id": "SURF-131",
+          "name": "Secure-mode NCP Zenoh configuration input",
+          "route": "file://NCP_ZENOH_CONFIG",
+          "locator": {
+            "file": "src-tauri/src/galadriel_producer.rs",
+            "symbol": "start_from_env"
+          },
+          "status": "live",
+          "source_assertion": {
+            "type": "contains",
+            "needle": "ZenohBus::open_secure(keys)"
+          }
+        }
+      ]
+    },
+    {
+      "group_id": "GROUP-GALADRIEL-PRODUCER-EVIDENCE",
+      "domain": "native_ncp",
+      "kind": "native-exact-route-evidence-put",
+      "classification": "evidence",
+      "owner": "fusion",
+      "profiles": {
+        "current": ["ncp-feature+galadriel-enabled"],
+        "secure_sitl": "read-only"
+      },
+      "hazard_ids": ["HAZ-005", "HAZ-009", "HAZ-011", "HAZ-012", "HAZ-013", "HAZ-014"],
+      "tests": [
+        { "id": "TEST-GALADRIEL-SIDECAR-WIRE", "status": "existing-component" },
+        { "id": "TEST-GALADRIEL-MONITOR-WIRE", "status": "existing-component" },
+        { "id": "TEST-GALADRIEL-FUSION-LEDGER", "status": "existing-component" },
+        { "id": "TEST-GALADRIEL-PROJECTION-REFUSAL", "status": "existing-component" },
+        { "id": "TEST-GALADRIEL-CANONICAL-KEYS", "status": "existing-component" },
+        { "id": "TEST-GALADRIEL-SEQUENCE-EXHAUSTION", "status": "existing-component" },
+        { "id": "TEST-GALADRIEL-QUEUE-LOSS", "status": "existing-component" },
+        { "id": "TEST-GALADRIEL-HEARTBEAT", "status": "existing-component" },
+        { "id": "TEST-GALADRIEL-SHUTDOWN", "status": "existing-component" },
+        {
+          "id": "TEST-GALADRIEL-DUPLICATE-FUSION-SEQUENCE",
+          "status": "existing-component"
+        },
+        { "id": "TEST-GALADRIEL-DUPLICATE-MISS", "status": "existing-component" },
+        {
+          "id": "TEST-GALADRIEL-DUPLICATE-OBSERVATION",
+          "status": "existing-component"
+        },
+        { "id": "TEST-GALADRIEL-DUPLICATE-OUTCOME", "status": "existing-component" },
+        {
+          "id": "TEST-GALADRIEL-DUPLICATE-V1-EXPECTED",
+          "status": "existing-component"
+        },
+        {
+          "id": "TEST-GALADRIEL-INTERNAL-FAULT-LATCH",
+          "status": "existing-component"
+        },
+        {
+          "id": "TEST-GALADRIEL-HEARTBEAT-STATUS-ORDERING",
+          "status": "existing-component"
+        },
+        { "id": "TEST-GALADRIEL-DEGRADATION-CARRY", "status": "existing-component" },
+        {
+          "id": "TEST-GALADRIEL-GLOBAL-SEQUENCE-ORDERING",
+          "status": "existing-component"
+        },
+        {
+          "id": "TEST-GALADRIEL-PAIR-ATTEMPT-CONTIGUITY",
+          "status": "existing-component"
+        },
+        { "id": "TEST-GALADRIEL-LANE-ISOLATION", "status": "existing-component" },
+        { "id": "TEST-GALADRIEL-OBSERVATION-FAILURE", "status": "existing-component" },
+        {
+          "id": "TEST-GALADRIEL-FROZEN-PAIR-COMPLETENESS",
+          "status": "existing-component"
+        },
+        { "id": "TEST-GALADRIEL-PRIOR-REUSE", "status": "existing-component" },
+        {
+          "id": "TEST-GALADRIEL-TERMINAL-OUTCOME-EXCLUSIVITY",
+          "status": "existing-component"
+        },
+        { "id": "TEST-GALADRIEL-TRANSPORT-FAILURE", "status": "existing-component" },
+        {
+          "id": "TEST-GALADRIEL-PROJECTION-OUTCOME-MATCH",
+          "status": "existing-component"
+        },
+        { "id": "TEST-GALADRIEL-RECEIVER-DELIVERY", "status": "planned" }
+      ],
+      "members": [
+        {
+          "id": "SURF-132",
+          "name": "Galadriel frozen PID sidecar evidence",
+          "route": "ncp://{realm}/session/{epoch}/sensor/galadriel-pid",
+          "locator": { "file": "src-tauri/src/pid_observation.rs", "symbol": "sidecar_key" },
+          "status": "live",
+          "source_assertion": { "type": "contains", "needle": "pub fn sidecar_key(" }
+        },
+        {
+          "id": "SURF-133",
+          "name": "Galadriel ordered producer monitor evidence",
+          "route": "ncp://{realm}/session/{epoch}/sensor/galadriel-monitor",
+          "locator": { "file": "src-tauri/src/producer_monitor.rs", "symbol": "monitor_key" },
+          "status": "live",
+          "source_assertion": { "type": "contains", "needle": "pub fn monitor_key(" }
         }
       ]
     }

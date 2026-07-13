@@ -27,6 +27,9 @@ route, one native CREBAIN plant authority, and one separately qualified FCU
 adapter. The renderer has no generic command capability. Every command is fresh,
 session-bound, apply-time checked, and followed through accepted, attempted,
 FCU-accepted, and observed evidence. Galadriel, if enabled, is advisory only.
+CREBAIN's feature/runtime-gated producer is component-tested, but a local NCP
+put is not accepted/correlated Galadriel evidence and does not satisfy the live
+L1 topology, security, heartbeat, or joined-stage requirements.
 
 All L1 checks apply to the ODD in [`L1_ODD.md`](L1_ODD.md). PX4 is the initial
 adapter target; ArduPilot is a separate qualification and is outside the initial

@@ -149,7 +149,10 @@ const INACTIVE_SENSOR_STATUS: ROSSensorState['sensorStatus'] = {
 
 // Maximum measurements to process per fusion cycle (backpressure guard)
 // Prevents memory spikes if a ROS topic floods with data
-const MAX_MEASUREMENTS_PER_CYCLE = 10_000
+// Must match the native MAX_FUSION_MEASUREMENTS_PER_BATCH hard limit. Keeping
+// the browser buffer larger would clear and then reject an oversized batch,
+// silently losing every measurement in that cycle.
+const MAX_MEASUREMENTS_PER_CYCLE = 512
 
 export function clampFusionRateHz(rateHz: number): number {
   if (!Number.isFinite(rateHz)) return DEFAULT_ROS_SENSOR_CONFIG.fusionRateHz
@@ -211,10 +214,10 @@ function assertPoint(
   assertFiniteNumber(record.z, `${name}.z`)
 }
 
-function assertTimestamp(
+function assertHeader(
   header: unknown,
   name: string
-): asserts header is { stamp: { secs: number; nsecs: number } } {
+): asserts header is { stamp: { secs: number; nsecs: number }; frame_id?: unknown } {
   assertRecord(header, name)
   const stamp = header.stamp
   assertRecord(stamp, `${name}.stamp`)
@@ -232,6 +235,40 @@ function assertTimestamp(
   ) {
     throw new Error(`${name}.stamp.nsecs must be a safe integer within [0, 1000000000)`)
   }
+}
+
+const MAX_SOURCE_FRAME_ID_BYTES = 256
+
+function isSourceFrameControlOrWhitespace(character: string): boolean {
+  const codePoint = character.codePointAt(0)
+  return (
+    /\s/u.test(character) ||
+    codePoint === undefined ||
+    codePoint <= 0x1f ||
+    (codePoint >= 0x7f && codePoint <= 0x9f)
+  )
+}
+
+/**
+ * Preserve valid ROS frame provenance without making it a baseline-fusion
+ * prerequisite. Older/custom detections legitimately carry an absent or blank
+ * frame; those continue as unprovenanced measurements and are ineligible for a
+ * producer-attested common-frame projection.
+ */
+function optionalSourceFrameId(value: unknown, name: string): string | undefined {
+  if (value == null || (typeof value === 'string' && value.trim().length === 0)) {
+    return undefined
+  }
+  if (typeof value !== 'string') {
+    throw new Error(`${name} must be a string when present`)
+  }
+  if (Array.from(value).some(isSourceFrameControlOrWhitespace)) {
+    throw new Error(`${name} must not contain control or whitespace characters`)
+  }
+  if (new TextEncoder().encode(value).byteLength > MAX_SOURCE_FRAME_ID_BYTES) {
+    throw new Error(`${name} exceeds ${MAX_SOURCE_FRAME_ID_BYTES} UTF-8 bytes`)
+  }
+  return value
 }
 
 function timestampMs(header: { stamp: { secs: number; nsecs: number } }): number {
@@ -288,17 +325,19 @@ function pushValidatedMeasurements<T>(
 export function thermalToMeasurement(det: ThermalDetection, sensorId: string): SensorMeasurement {
   assertString(sensorId, 'sensorId')
   assertRecord(det, 'thermal')
-  assertTimestamp(det.header, 'thermal.header')
+  assertHeader(det.header, 'thermal.header')
   assertPoint(det.position, 'thermal.position')
   assertNonNegativeFinite(det.temperature_kelvin, 'thermal.temperature_kelvin')
   assertNonNegativeFinite(det.signature_area, 'thermal.signature_area')
   assertConfidence(det.confidence, 'thermal.confidence')
   assertString(det.classification, 'thermal.classification')
+  const sourceFrameId = optionalSourceFrameId(det.header.frame_id, 'thermal.header.frame_id')
 
   return {
     sensor_id: sensorId,
     modality: 'thermal',
     timestamp_ms: timestampMs(det.header),
+    source_frame_id: sourceFrameId,
     position: [det.position.x, det.position.y, det.position.z],
     covariance: [2, 2, 2], // Thermal has moderate uncertainty
     confidence: det.confidence,
@@ -313,7 +352,7 @@ export function thermalToMeasurement(det: ThermalDetection, sensorId: string): S
 export function acousticToMeasurement(det: AcousticDetection, sensorId: string): SensorMeasurement {
   assertString(sensorId, 'sensorId')
   assertRecord(det, 'acoustic')
-  assertTimestamp(det.header, 'acoustic.header')
+  assertHeader(det.header, 'acoustic.header')
   assertFiniteNumber(det.azimuth, 'acoustic.azimuth')
   assertFiniteNumber(det.elevation, 'acoustic.elevation')
   assertNonNegativeFinite(det.range_estimate, 'acoustic.range_estimate')
@@ -322,6 +361,7 @@ export function acousticToMeasurement(det: AcousticDetection, sensorId: string):
   assertFiniteNumber(det.doppler_hz, 'acoustic.doppler_hz')
   assertConfidence(det.confidence, 'acoustic.confidence')
   assertString(det.classification, 'acoustic.classification')
+  const sourceFrameId = optionalSourceFrameId(det.header.frame_id, 'acoustic.header.frame_id')
 
   // Convert spherical to Cartesian
   const r = det.range_estimate
@@ -351,6 +391,7 @@ export function acousticToMeasurement(det: AcousticDetection, sensorId: string):
     sensor_id: sensorId,
     modality: 'acoustic',
     timestamp_ms: timestampMs(det.header),
+    source_frame_id: sourceFrameId,
     position: [x, y, z],
     velocity,
     covariance: [10, 10, 10], // Acoustic has high position uncertainty
@@ -369,7 +410,7 @@ export function acousticToMeasurement(det: AcousticDetection, sensorId: string):
 export function radarToMeasurement(det: RadarDetection, sensorId: string): SensorMeasurement {
   assertString(sensorId, 'sensorId')
   assertRecord(det, 'radar')
-  assertTimestamp(det.header, 'radar.header')
+  assertHeader(det.header, 'radar.header')
   assertNonNegativeFinite(det.range, 'radar.range')
   assertFiniteNumber(det.azimuth, 'radar.azimuth')
   assertFiniteNumber(det.elevation, 'radar.elevation')
@@ -377,6 +418,7 @@ export function radarToMeasurement(det: RadarDetection, sensorId: string): Senso
   assertFiniteNumber(det.rcs_dbsm, 'radar.rcs_dbsm')
   assertConfidence(det.confidence, 'radar.confidence')
   assertString(det.classification, 'radar.classification')
+  const sourceFrameId = optionalSourceFrameId(det.header.frame_id, 'radar.header.frame_id')
 
   const r = det.range
   const az = det.azimuth
@@ -412,6 +454,7 @@ export function radarToMeasurement(det: RadarDetection, sensorId: string): Senso
     sensor_id: sensorId,
     modality: 'radar',
     timestamp_ms: timestampMs(det.header),
+    source_frame_id: sourceFrameId,
     position,
     velocity,
     covariance,
@@ -427,7 +470,7 @@ export function radarToMeasurement(det: RadarDetection, sensorId: string): Senso
 export function lidarToMeasurement(det: LidarDetection, sensorId: string): SensorMeasurement {
   assertString(sensorId, 'sensorId')
   assertRecord(det, 'lidar')
-  assertTimestamp(det.header, 'lidar.header')
+  assertHeader(det.header, 'lidar.header')
   assertPoint(det.centroid, 'lidar.centroid')
   assertPoint(det.bbox_min, 'lidar.bbox_min')
   assertPoint(det.bbox_max, 'lidar.bbox_max')
@@ -438,6 +481,7 @@ export function lidarToMeasurement(det: LidarDetection, sensorId: string): Senso
   }
   assertConfidence(det.confidence, 'lidar.confidence')
   assertString(det.classification, 'lidar.classification')
+  const sourceFrameId = optionalSourceFrameId(det.header.frame_id, 'lidar.header.frame_id')
 
   const bboxSizeX = det.bbox_max.x - det.bbox_min.x
   const bboxSizeY = det.bbox_max.y - det.bbox_min.y
@@ -450,6 +494,7 @@ export function lidarToMeasurement(det: LidarDetection, sensorId: string): Senso
     sensor_id: sensorId,
     modality: 'lidar',
     timestamp_ms: timestampMs(det.header),
+    source_frame_id: sourceFrameId,
     position: [det.centroid.x, det.centroid.y, det.centroid.z],
     velocity: [det.velocity.x, det.velocity.y, det.velocity.z],
     covariance: [0.1, 0.1, 0.1], // LIDAR has very good position accuracy
@@ -549,7 +594,6 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
   const fusionMaintenanceRef = useRef<Promise<void>>(Promise.resolve())
   const fusionMaintenanceCountRef = useRef(0)
   const fusionInitGenerationRef = useRef(0)
-  const hasActiveTracksRef = useRef(false)
   const previousExternalBridgeRef = useRef<ExternalROSSensorConnection['bridge']>(null)
   const externalWasConnectedRef = useRef(false)
   const sensorTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
@@ -596,7 +640,6 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
     sensorTimeoutsRef.current.clear()
     measurementBufferRef.current = []
     fusionCycleRequestedRef.current = false
-    hasActiveTracksRef.current = false
     setState((prev) => ({
       ...prev,
       sensorStatus: { ...INACTIVE_SENSOR_STATUS },
@@ -772,15 +815,17 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
           fusionCycleRequestedRef.current = false
           if (!fusionReadyRef.current || generation !== fusionCycleGenerationRef.current) break
 
+          // Every scheduled native cycle is a fusion frame, including an empty
+          // frame. The producer contract requires an explicit closure record for
+          // zero-input/zero-track frames; liveness must not be inferred from
+          // silence.
           const measurements = measurementBufferRef.current
-          if (measurements.length === 0 && !hasActiveTracksRef.current) break
           measurementBufferRef.current = []
 
           try {
             const tracks = await processMeasurements(measurements)
             if (!fusionReadyRef.current || generation !== fusionCycleGenerationRef.current) break
 
-            hasActiveTracksRef.current = tracks.length > 0
             let stats: FusionStats | null | undefined
             try {
               stats = await getFusionStats()
@@ -821,7 +866,6 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
     fusionCycleGenerationRef.current += 1
     let cancelled = false
     fusionReadyRef.current = false
-    hasActiveTracksRef.current = false
     setState((prev) => ({
       ...prev,
       fusionAvailable: fusionBackendAvailable,
@@ -1043,7 +1087,6 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
     if (fusionBackendAvailable) {
       await queueFusionMaintenance(clearTracks)
     }
-    hasActiveTracksRef.current = false
     setState((prev) => ({ ...prev, tracks: [], fusionStats: null }))
   }, [fusionBackendAvailable, queueFusionMaintenance])
 

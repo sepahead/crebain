@@ -10,7 +10,9 @@ request/session attribution, and NCP scientific-boundary fields.
 It is **not imported by any product component or hook today**. No WebSocket is
 opened, no session is created, and no always-on CREBAIN↔Engram loop ships from
 this directory. The example below is integration guidance, not current product
-behavior or performance evidence.
+behavior or performance evidence. A separately gated native Galadriel evidence
+producer does not import or activate this TypeScript glue and is not an Engram
+action/control loop.
 
 ## Single source of truth
 
@@ -66,7 +68,8 @@ warning-only mode.
   `ZenohBridge` cannot be assumed to implement NCP query/reply merely because both
   use Zenoh.
 - The native Rust NCP module provides a separate feature-gated Zenoh adapter; its
-  Tauri commands also remain unregistered. See
+  action/control Tauri commands also remain unregistered. The same Cargo feature
+  contains an independently gated two-route Galadriel evidence producer. See
   [`src-tauri/src/ncp/README.md`](../../src-tauri/src/ncp/README.md).
 - Vite development builds separately expose `window.__ncpDrone`, a manual
   in-browser injection harness for wire-shaped command frames. It opens no NCP

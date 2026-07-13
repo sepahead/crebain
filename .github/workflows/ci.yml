@@ -167,20 +167,19 @@ jobs:
           set -o pipefail
           bun run clippy:rust 2>&1 | tee rust-clippy.log
 
-      # The NCP bridge lives behind the optional `ncp` feature, so the default
-      # check/clippy/test steps above never compile it — an NCP API change could
-      # break the bridge silently. Lint it with the feature on (clippy compiles, so
-      # this also catches build breaks).
-      - name: Clippy NCP bridge (feature `ncp`)
+      # The dormant NCP bridge and runtime-gated Galadriel producer live behind
+      # `ncp`, so default checks do not compile them. Lint the complete feature
+      # surface (clippy also catches build breaks).
+      - name: Clippy NCP bridge and Galadriel producer (feature `ncp`)
         run: |
           set -o pipefail
           bun run clippy:rust:ncp 2>&1 | tee rust-ncp.log
 
-      # clippy:rust:ncp only compiles + lints the bridge; the unit tests behind
-      # the `ncp` feature (src-tauri/src/ncp/mod.rs) never ran in CI until now.
+      # clippy:rust:ncp only compiles + lints; run the bridge, registry, codec,
+      # fusion-ledger, bounded-queue, heartbeat, and lifecycle unit tests too.
       # First build here pulls Zenoh (ncp-zenoh), so allow extra time on a cold
       # cache; rust-cache above keeps subsequent runs fast.
-      - name: Test NCP bridge (feature `ncp`)
+      - name: Test NCP bridge and Galadriel producer (feature `ncp`)
         timeout-minutes: 30
         run: |
           set -o pipefail

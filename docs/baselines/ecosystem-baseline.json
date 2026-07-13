@@ -2,7 +2,7 @@
   "schema_version": 1,
   "baseline_id": "crebain-ecosystem-phase0-2026-07-13",
   "captured_at": "2026-07-13T09:53:43+02:00",
-  "purpose": "Exact remote-main source identities, local toolchain, protocol, and CREBAIN configuration baseline for Phase 0; not L1 runtime evidence",
+  "purpose": "Exact remote-main source identities, local toolchain, protocol, Galadriel producer-contract, and CREBAIN configuration baseline for Phase 0; not L1 runtime evidence",
   "crebain_source": {
     "repository": "https://github.com/sepahead/crebain",
     "branch": "main",
@@ -45,8 +45,8 @@
       "remote_main_at_capture": "ff272dc814080c6766a53c872ca4d0e24bcd5132",
       "tag": null,
       "availability": "remote-verified",
-      "role": "Read-only advisory common-projection observer",
-      "l1_status": "NCP 0.8 pin, pid-rs 1.0 migration, and producer lifecycle contract landed; monitor publisher/assembler and live CREBAIN common-projection deployment remain absent"
+      "role": "Read-only advisory common-projection observer and producer wire-contract authority",
+      "l1_status": "Producer and monitor contract pinned to the remote-verified main commit containing PR #20; live tap, assembler, authenticated deployment, and receiver evidence remain pending"
     },
     {
       "name": "pid-rs",
@@ -138,7 +138,7 @@
     },
     {
       "path": "src-tauri/Cargo.toml",
-      "sha256": "e7c120258bc5605064b5e6f1efda09b5bb7cdf9acac8e9e1dc6c006cbce60803"
+      "sha256": "7f5ca25ee73d0b696c61fcae35e324ac601079c2e00862e9adaf172f46843062"
     },
     {
       "path": "src-tauri/Cargo.lock",
@@ -226,7 +226,15 @@
     },
     {
       "path": ".github/workflows/release.yml",
-      "sha256": "e2fe9f040b933bac8d1c86237d4bb8d0226e535aa1c25f11825426266ccbb281"
+      "sha256": "ea0172d2165ac8d3f0032f83b0191f567641e1856f2c593e15325bb1adea56f6"
+    },
+    {
+      "path": ".env.example",
+      "sha256": "558718b15c4d58feca9aa03527f2e271a349311f3d32693dc1dc58bffbeefbe8"
+    },
+    {
+      "path": "docs/GALADRIEL_PRODUCER.md",
+      "sha256": "de36a70de87a61bf91d69ffd2429f36e439b2b4228860e96464678fbb67b8ac3"
     },
     {
       "path": "scripts/fixtures/phase0-evidence-artifact-valid.json",
@@ -286,6 +294,31 @@
       "repository": "Galadriel",
       "path": "rust-toolchain.toml",
       "sha256": "3e3727651b8a0c0d727b68740cc5769fb40d548dc05a5ea07277fec27765c79d"
+    },
+    {
+      "repository": "Galadriel",
+      "path": "crates/galadriel-ncp/src/lib.rs",
+      "sha256": "c3e33fe66d83d96a90c4ef96d438661345f52b2ce1a0ac9ac8fe7b77b46c8950"
+    },
+    {
+      "repository": "Galadriel",
+      "path": "crates/galadriel-ncp/src/monitor.rs",
+      "sha256": "e9fab413159f164efa5062f053680e24984473a9db0d048f651f371bf3620edf"
+    },
+    {
+      "repository": "Galadriel",
+      "path": "crates/galadriel-ncp/schemas/galadriel-monitor-envelope-v1.schema.json",
+      "sha256": "166f6ddc81798763d49ee218133a2532f850c96d5388cbbf053704232c011679"
+    },
+    {
+      "repository": "Galadriel",
+      "path": "crates/galadriel-ncp/schemas/galadriel-pid-envelope-v1.schema.json",
+      "sha256": "1a95627882e8dd84277e21501b77f94a63c71cae0eb81e8d01bcebe86b64ab43"
+    },
+    {
+      "repository": "Galadriel",
+      "path": "docs/PRODUCER-CONTRACT.md",
+      "sha256": "406daf8dc690071c051bd36cb41cb9aec09112e3ed5d014f4466ff4edcdbfc98"
     },
     {
       "repository": "pid-rs",

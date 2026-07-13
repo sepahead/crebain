@@ -29,6 +29,12 @@ export interface SensorMeasurement {
   modality: SensorModality
   timestamp_ms: number
   /**
+   * Coordinate frame declared by the sensor ingress header. Legacy/browser
+   * measurements may omit it, but omitted provenance cannot support a
+   * producer-attested cross-modal consistency projection.
+   */
+  source_frame_id?: string
+  /**
    * Target position in the sensor measurement frame, selected by `modality`:
    * - `radar` → polar `[range_m, azimuth_rad, elevation_rad]`
    * - `visual` / `thermal` / `acoustic` / `lidar` → Cartesian `[x, y, z]` meters
