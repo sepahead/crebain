@@ -319,6 +319,7 @@ prove a deployed Galadriel receiver, TLS/mTLS identities, ACLs, or delivery. See
 | `CREBAIN_BACKEND` | Force a backend: `coreml`, `mlx`, `tensorrt`, `cuda`, `onnx` |
 | `CREBAIN_ENABLE_EXPERIMENTAL_MLX` | Required gate for any MLX use |
 | `CREBAIN_GALADRIEL_ENABLE` | Exact runtime gate (`1`) for a Galadriel producer compiled with `ncp`; enabled startup also requires the documented registry/config/executable/NCP pins |
+| `CREBAIN_GALADRIEL_EPOCH` | Required enabled, operator-provisioned key-safe process-session identity; deployment must make it unique per process lifetime |
 
 The full environment-variable reference, detection/guidance settings, scene
 and asset limits, and the platform matrix are in

@@ -31,6 +31,7 @@ Every enabled deployment requires:
 |---|---|
 | `CREBAIN_GALADRIEL_REALM` | NCP realm used to construct both evidence keys |
 | `CREBAIN_GALADRIEL_PRODUCER_ID` | Declared, key-safe producer identity carried in envelopes |
+| `CREBAIN_GALADRIEL_EPOCH` | Operator-provisioned `1..=64` byte key-safe UTF-8 session segment used in both evidence keys |
 | `CREBAIN_GALADRIEL_REGISTRY_PATH` | Path to the bounded deployment-registry JSON |
 | `CREBAIN_GALADRIEL_REGISTRY_DIGEST` | Lowercase SHA-256 of the registry's canonical JSON form |
 | `CREBAIN_GALADRIEL_FRAME_ID` | Positive JSON-safe frame identifier present in the registry |
@@ -38,6 +39,12 @@ Every enabled deployment requires:
 | `CREBAIN_GALADRIEL_SOFTWARE_DIGEST` | Lowercase SHA-256 expected for the running executable file and selected registry context |
 | `CREBAIN_GALADRIEL_CONFIGURATION_DIGEST` | Lowercase SHA-256 expected for the effective fusion configuration and selected registry context |
 | `NCP_ZENOH_CONFIG` | Readable NCP Zenoh configuration used by secure mode |
+
+CREBAIN does not mint or persist the epoch. Deployment orchestration must
+provision a new unique `CREBAIN_GALADRIEL_EPOCH` for every process lifetime and
+prevent reuse across restarts. Startup proves only that the supplied value is a
+single key-safe segment; it does not prove freshness, durable uniqueness, or
+anti-rollback.
 
 `CREBAIN_GALADRIEL_FUSION_CONFIG_PATH` is optional. When present, it names a
 nonempty JSON file of at most 64 KiB. `FusionConfig` rejects unknown and duplicate
@@ -89,7 +96,9 @@ trust anchor only when the deployment protects it independently.
 
 The registry itself is limited to 1 MiB, rejects unknown fields, is normalized
 and hashed canonically, and fixes the selected frame/context, applicability,
-expected modalities, opportunity policy, and queue ceilings. Content references
+expected modalities, opportunity policy, and queue ceilings. Repeated immutable
+content identifiers must retain one digest globally, and repeated projection
+algorithm identifier/version pairs must retain one digest. Content references
 inside it are declarations: CREBAIN does not fetch or hash referenced
 calibration, transform, or projection-algorithm artifacts. The executable and
 effective fusion configuration are the only referenced deployment artifacts
@@ -112,8 +121,8 @@ The four lane capacities must also fit the aggregate monitor-event cap of 8,192.
 
 The registered `fusion_process` command remains the fusion entry point. In an
 enabled deployment it additionally constructs and admits one immutable frame
-ledger. It can write only these named-perception keys for its fresh process
-epoch:
+ledger. It can write only these named-perception keys for its explicitly
+configured process epoch:
 
 ```text
 {realm}/session/{epoch}/sensor/galadriel-pid

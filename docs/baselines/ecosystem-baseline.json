@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "baseline_id": "crebain-ecosystem-phase0-2026-07-13",
-  "captured_at": "2026-07-13T14:05:44+02:00",
+  "captured_at": "2026-07-13T20:51:37+02:00",
   "purpose": "Exact remote-main source identities, local toolchain, protocol, Galadriel producer-contract, and CREBAIN configuration baseline for Phase 0; not L1 runtime evidence",
   "crebain_source": {
     "repository": "https://github.com/sepahead/crebain",
@@ -29,32 +29,32 @@
       "repository": "https://github.com/sepahead/haldir",
       "verified_remote": "git@github.com:sepahead/haldir.git",
       "branch": "main",
-      "commit": "8c370230f2e0b9792549c0e46983baabc94605c3",
-      "remote_main_at_capture": "8c370230f2e0b9792549c0e46983baabc94605c3",
+      "commit": "a959eea50b2f04dceb1f540f79566351efda41b2",
+      "remote_main_at_capture": "a959eea50b2f04dceb1f540f79566351efda41b2",
       "tag": null,
       "availability": "remote-verified",
       "role": "Admission, policy, final-route Gate, and authority evidence",
-      "l1_status": "Exact NCP adapter and internal durable/publication foundations exist; this baseline does not establish a runnable authenticated Haldir-to-CREBAIN service, complete mediation, credential custody, delivery, or application"
+      "l1_status": "Exact NCP adapter, single-owner live-service/Zenoh aggregate, retained development bind/shutdown smoke, and deployment-package/boot-ratchet primitives exist; no authenticated mandatory runtime package/control plane, protected credential custody, complete mediation, delivery/acceptance/application, or deployed Haldir-to-CREBAIN service is established"
     },
     {
       "name": "Galadriel",
       "repository": "https://github.com/sepahead/galadriel",
       "verified_remote": "git@github.com:sepahead/galadriel.git",
       "branch": "main",
-      "commit": "ff272dc814080c6766a53c872ca4d0e24bcd5132",
-      "remote_main_at_capture": "ff272dc814080c6766a53c872ca4d0e24bcd5132",
+      "commit": "81437d807ca83b66b45c8353968948e540072d97",
+      "remote_main_at_capture": "81437d807ca83b66b45c8353968948e540072d97",
       "tag": null,
       "availability": "remote-verified",
       "role": "Merged mainline read-only advisory common-projection observer and producer wire-contract authority",
-      "l1_status": "Producer and monitor contract pinned to the remote-verified main commit containing PR #20; live tap, assembler, authenticated deployment, and receiver evidence remain pending"
+      "l1_status": "Operational receiver, tap, assembler, and producer wire-contract component evidence landed in PR #21; real external mTLS/ACL/topology, retained receiver evidence, and calibration remain pending"
     },
     {
       "name": "pid-rs",
       "repository": "https://github.com/sepahead/pid-rs",
       "verified_remote": "git@github.com:sepahead/pid-rs.git",
       "branch": "main",
-      "commit": "7cc59022d01ca136b17c915da623fc3a33696f25",
-      "remote_main_at_capture": "7cc59022d01ca136b17c915da623fc3a33696f25",
+      "commit": "5cc49791b00e291d4fff5d5aafa2a55fa1d8b8d5",
+      "remote_main_at_capture": "5cc49791b00e291d4fff5d5aafa2a55fa1d8b8d5",
       "tag": null,
       "availability": "remote-verified",
       "role": "Scientific PID estimator and status surface",
@@ -170,7 +170,7 @@
     },
     {
       "path": "docs/baselines/phase0-hazards.json",
-      "sha256": "5468f8f620ca7ad97f48103828936f4bdcd78d9babf9562bfbd49cefa1e0d23f"
+      "sha256": "1a9d3247c5c7c6034cd53bb4cac78eb0e3376fcca8b8d0c091dd7836f0a041e4"
     },
     {
       "path": "scripts/verify-phase0-baseline.mjs",
@@ -230,11 +230,11 @@
     },
     {
       "path": ".env.example",
-      "sha256": "0a69890296ebac07b18445b7a03199596abbba37386e9c137b792ada78889907"
+      "sha256": "09905e61f9b4e924dd35038bb8b68ee35031a6ae491d024d3587c2bc84d59cfc"
     },
     {
       "path": "docs/GALADRIEL_PRODUCER.md",
-      "sha256": "7bcf875ce59a6942bcb43cb54670f9a6b79530420acaa6b7970ec1e4feb979a5"
+      "sha256": "285aa1fb33b609793e3ddf7f2897ece2cbd512a9a6e278857ad439554481123d"
     },
     {
       "path": "scripts/fixtures/phase0-evidence-artifact-valid.json",
@@ -268,7 +268,7 @@
     {
       "repository": "Haldir",
       "path": "Cargo.lock",
-      "sha256": "c37ab9d280a1a9778a3007ffe4d32fff69bb406909b0c7898f33fa0190d0cd63"
+      "sha256": "5f15e9fbadbba5127fa70f02b1439b8adbc5845356d862e1208c682eabf4b1e8"
     },
     {
       "repository": "Haldir",
@@ -283,7 +283,7 @@
     {
       "repository": "Galadriel",
       "path": "Cargo.lock",
-      "sha256": "181a4bdc79478e623e23950c66b5d13fcd5543131507bf219065cc1e22f38161"
+      "sha256": "54cf0ec30d5885cec9d291be359ad51d313456950415b6a14686c89aba75b306"
     },
     {
       "repository": "Galadriel",
@@ -298,12 +298,12 @@
     {
       "repository": "Galadriel",
       "path": "crates/galadriel-ncp/src/lib.rs",
-      "sha256": "c3e33fe66d83d96a90c4ef96d438661345f52b2ce1a0ac9ac8fe7b77b46c8950"
+      "sha256": "c721dde0eeb815b6631a8221d7d6925a5842a19a5d4883c758977541273332c1"
     },
     {
       "repository": "Galadriel",
       "path": "crates/galadriel-ncp/src/monitor.rs",
-      "sha256": "e9fab413159f164efa5062f053680e24984473a9db0d048f651f371bf3620edf"
+      "sha256": "6378e6a706b3b8d041f797b9f8d1dcaecd816ba80397e0790d8658981041d1c3"
     },
     {
       "repository": "Galadriel",
@@ -318,7 +318,7 @@
     {
       "repository": "Galadriel",
       "path": "docs/PRODUCER-CONTRACT.md",
-      "sha256": "406daf8dc690071c051bd36cb41cb9aec09112e3ed5d014f4466ff4edcdbfc98"
+      "sha256": "785d35bd9a1b58bdc630f5a0334dbdb9c8cf0061654422ff44ea5e033d71bf31"
     },
     {
       "repository": "pid-rs",

@@ -625,9 +625,12 @@ mod tests {
 
         for (index, point) in POINTS.into_iter().enumerate() {
             let limit = limit_values[index];
+            let below_limit = limit
+                .checked_sub(Duration::from_nanos(1))
+                .expect("test limits are greater than one nanosecond");
             for (age, expected) in [
                 (
-                    limit - Duration::from_nanos(1),
+                    below_limit,
                     VehicleHealthAgeRelationAtReadV1::WithinExclusiveLimitAtRead,
                 ),
                 (

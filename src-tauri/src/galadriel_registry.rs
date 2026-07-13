@@ -5,6 +5,7 @@
 //! a deterministic SHA-256 digest over its compact canonical JSON representation.
 //! Operational callers should construct it with [`DeploymentRegistry::from_json_pinned`].
 
+use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt;
 
@@ -346,6 +347,38 @@ impl RegistryDocument {
                 .ok_or(RegistryError::UnknownFrame(context.frame_id))?;
             context.validate_against_frame(&path, frame)?;
         }
+        self.validate_content_identifiers()
+    }
+
+    fn validate_content_identifiers(&self) -> Result<(), RegistryError> {
+        let mut digests_by_identifier = BTreeMap::new();
+        let mut versioned_digests_by_identity = BTreeMap::new();
+
+        for frame in &self.frames {
+            record_content_identity(&mut digests_by_identifier, &frame.origin)?;
+            record_content_identity(&mut digests_by_identifier, &frame.datum)?;
+            for source_frame in &frame.source_frames {
+                record_content_identity(
+                    &mut digests_by_identifier,
+                    &source_frame.aggregate_extrinsic,
+                )?;
+                for step in &source_frame.transform_chain {
+                    record_content_identity(&mut digests_by_identifier, &step.transform)?;
+                }
+            }
+        }
+
+        for context in &self.contexts {
+            record_versioned_content_identity(
+                &mut versioned_digests_by_identity,
+                &context.projection_algorithm,
+            )?;
+            for modality in &context.expected_modalities {
+                record_content_identity(&mut digests_by_identifier, &modality.calibration)?;
+                record_content_identity(&mut digests_by_identifier, &modality.extrinsic)?;
+            }
+        }
+
         Ok(())
     }
 }
@@ -1103,6 +1136,26 @@ pub enum RegistryError {
         /// Reused numeric identifier.
         value: u64,
     },
+    /// One immutable content identifier was associated with different digests.
+    ConflictingContentIdentifier {
+        /// Reused immutable content identifier.
+        identifier: String,
+        /// Digest observed first in canonical registry order.
+        first_digest: String,
+        /// Different digest observed later in canonical registry order.
+        conflicting_digest: String,
+    },
+    /// One immutable versioned content identity was associated with different digests.
+    ConflictingVersionedContentIdentifier {
+        /// Stable algorithm/content family identifier.
+        identifier: String,
+        /// Exact version within that family.
+        version: String,
+        /// Digest observed first in canonical registry order.
+        first_digest: String,
+        /// Different digest observed later in canonical registry order.
+        conflicting_digest: String,
+    },
     /// A context references a missing frame.
     UnknownFrame(u64),
     /// Canonical registry content does not match the deployment pin.
@@ -1135,6 +1188,23 @@ impl fmt::Display for RegistryError {
             Self::DuplicateIdentifier { kind, value } => {
                 write!(formatter, "duplicate {kind} {value}")
             }
+            Self::ConflictingContentIdentifier {
+                identifier,
+                first_digest,
+                conflicting_digest,
+            } => write!(
+                formatter,
+                "content identifier {identifier:?} has conflicting digests {first_digest} and {conflicting_digest}"
+            ),
+            Self::ConflictingVersionedContentIdentifier {
+                identifier,
+                version,
+                first_digest,
+                conflicting_digest,
+            } => write!(
+                formatter,
+                "versioned content identity {identifier:?}@{version:?} has conflicting digests {first_digest} and {conflicting_digest}"
+            ),
             Self::UnknownFrame(frame_id) => write!(formatter, "unknown frame_id {frame_id}"),
             Self::DigestMismatch { expected, actual } => write!(
                 formatter,
@@ -1292,6 +1362,49 @@ fn validate_sha256(field: &str, value: &str) -> Result<(), RegistryError> {
     Ok(())
 }
 
+fn record_content_identity<'a>(
+    digests_by_identifier: &mut BTreeMap<&'a str, &'a str>,
+    reference: &'a ContentReference,
+) -> Result<(), RegistryError> {
+    if let Some(first_digest) = digests_by_identifier.get(reference.identifier.as_str()) {
+        if *first_digest != reference.content_digest {
+            return Err(RegistryError::ConflictingContentIdentifier {
+                identifier: reference.identifier.clone(),
+                first_digest: (*first_digest).to_owned(),
+                conflicting_digest: reference.content_digest.clone(),
+            });
+        }
+        return Ok(());
+    }
+
+    digests_by_identifier.insert(
+        reference.identifier.as_str(),
+        reference.content_digest.as_str(),
+    );
+    Ok(())
+}
+
+fn record_versioned_content_identity<'a>(
+    digests_by_identity: &mut BTreeMap<(&'a str, &'a str), &'a str>,
+    reference: &'a VersionedContentReference,
+) -> Result<(), RegistryError> {
+    let identity = (reference.identifier.as_str(), reference.version.as_str());
+    if let Some(first_digest) = digests_by_identity.get(&identity) {
+        if *first_digest != reference.content_digest {
+            return Err(RegistryError::ConflictingVersionedContentIdentifier {
+                identifier: reference.identifier.clone(),
+                version: reference.version.clone(),
+                first_digest: (*first_digest).to_owned(),
+                conflicting_digest: reference.content_digest.clone(),
+            });
+        }
+        return Ok(());
+    }
+
+    digests_by_identity.insert(identity, reference.content_digest.as_str());
+    Ok(())
+}
+
 fn validate_positive_json_id(field: &str, value: u64) -> Result<(), RegistryError> {
     if value == 0 || value > JSON_SAFE_INTEGER_MAX {
         return invalid(field, format!("must be within 1..={JSON_SAFE_INTEGER_MAX}"));
@@ -1355,6 +1468,14 @@ mod tests {
     const FRAME_ID: u64 = 17;
     const CONTEXT_ID: u64 = 23;
     const VALID_UNTIL_MS: u64 = 2_000;
+    const RAW_GALADRIEL_FIXTURE: &[u8] =
+        include_bytes!("../tests/fixtures/crebain_registry_v1.json");
+    const RAW_GALADRIEL_FIXTURE_BYTES: usize = 3_053;
+    const RAW_GALADRIEL_FIXTURE_SHA256: &str =
+        "506ce1437acc20ee5d36fd1e3551dd020095cc4d30d22d959c5df3cca81715a6";
+    const CANONICAL_GALADRIEL_FIXTURE_BYTES: usize = 3_052;
+    const CANONICAL_GALADRIEL_FIXTURE_SHA256: &str =
+        "7644ec2bbf0e400303aaad62c647eea36bd919913f1a28a81c52c13e00dd45ba";
 
     fn digest(character: char) -> String {
         character.to_string().repeat(SHA256_HEX_LEN)
@@ -1509,6 +1630,165 @@ mod tests {
         let changed = decode(&changed).expect("changed registry validates");
 
         assert_ne!(first.digest(), changed.digest());
+    }
+
+    #[test]
+    fn conflicting_digest_for_one_content_identifier_is_rejected() {
+        let mut value = registry_value();
+        value["frames"][0]["datum"]["identifier"] =
+            Value::String("site_alpha_origin_v1".to_owned());
+
+        let error = decode(&value).expect_err("content identifiers must be immutable");
+
+        assert!(matches!(
+            error,
+            RegistryError::ConflictingContentIdentifier {
+                ref identifier,
+                ..
+            } if identifier == "site_alpha_origin_v1"
+        ));
+    }
+
+    #[test]
+    fn conflicting_transform_content_identifier_is_rejected() {
+        let mut value = registry_value();
+        value["frames"][0]["source_frames"][0]["transform_chain"][0]["transform"]["identifier"] =
+            Value::String("site_alpha_origin_v1".to_owned());
+
+        let error = decode(&value).expect_err("transform identifiers must be immutable");
+
+        assert!(matches!(
+            error,
+            RegistryError::ConflictingContentIdentifier {
+                ref identifier,
+                ..
+            } if identifier == "site_alpha_origin_v1"
+        ));
+    }
+
+    #[test]
+    fn conflicting_modality_calibration_identifier_is_rejected() {
+        let mut value = registry_value();
+        value["contexts"][0]["expected_modalities"][1]["calibration"]["identifier"] =
+            Value::String("radar_calibration_v5".to_owned());
+
+        let error = decode(&value).expect_err("calibration identifiers must be immutable");
+
+        assert!(matches!(
+            error,
+            RegistryError::ConflictingContentIdentifier {
+                ref identifier,
+                ..
+            } if identifier == "radar_calibration_v5"
+        ));
+    }
+
+    #[test]
+    fn conflicting_digest_for_one_projection_algorithm_version_is_rejected() {
+        let mut value = registry_value();
+        let mut second_context = value["contexts"][0].clone();
+        second_context["context_id"] = Value::from(CONTEXT_ID + 1);
+        second_context["projection_algorithm"]["content_digest"] = Value::String(digest('a'));
+        value["contexts"]
+            .as_array_mut()
+            .expect("context array")
+            .push(second_context);
+
+        let error = decode(&value).expect_err("one algorithm version must have one digest");
+
+        assert!(matches!(
+            error,
+            RegistryError::ConflictingVersionedContentIdentifier {
+                ref identifier,
+                ref version,
+                ..
+            } if identifier == "common_enu_residual" && version == "1.0.0"
+        ));
+    }
+
+    #[test]
+    fn new_projection_algorithm_version_may_use_a_new_digest() {
+        let mut value = registry_value();
+        let mut second_context = value["contexts"][0].clone();
+        second_context["context_id"] = Value::from(CONTEXT_ID + 1);
+        second_context["projection_algorithm"]["version"] = Value::String("1.1.0".to_owned());
+        second_context["projection_algorithm"]["content_digest"] = Value::String(digest('a'));
+        value["contexts"]
+            .as_array_mut()
+            .expect("context array")
+            .push(second_context);
+
+        let registry = decode(&value).expect("new algorithm versions are distinct identities");
+
+        assert_eq!(registry.contexts().len(), 2);
+    }
+
+    #[test]
+    fn output_dimensions_other_than_three_are_rejected() {
+        let mut value = registry_value();
+        value["contexts"][0]["output_dimensions"] = Value::from(2);
+
+        let error = decode(&value).expect_err("frozen ENU projections must be three-dimensional");
+
+        assert!(matches!(error, RegistryError::InvalidField { .. }));
+    }
+
+    #[test]
+    fn committed_galadriel_fixture_raw_bytes_are_frozen() {
+        let actual = (
+            RAW_GALADRIEL_FIXTURE.len(),
+            format!("{:x}", Sha256::digest(RAW_GALADRIEL_FIXTURE)),
+        );
+
+        assert_eq!(
+            actual,
+            (
+                RAW_GALADRIEL_FIXTURE_BYTES,
+                RAW_GALADRIEL_FIXTURE_SHA256.to_string(),
+            )
+        );
+    }
+
+    #[test]
+    fn committed_galadriel_fixture_canonical_digest_is_frozen() {
+        let registry = DeploymentRegistry::from_json(RAW_GALADRIEL_FIXTURE)
+            .expect("committed Galadriel registry fixture validates");
+
+        assert_eq!(
+            (registry.canonical_json().len(), registry.digest()),
+            (
+                CANONICAL_GALADRIEL_FIXTURE_BYTES,
+                CANONICAL_GALADRIEL_FIXTURE_SHA256,
+            )
+        );
+    }
+
+    #[test]
+    fn committed_galadriel_fixture_has_exact_projection_dimensions_and_algorithm() {
+        let registry = DeploymentRegistry::from_json_pinned(
+            RAW_GALADRIEL_FIXTURE,
+            CANONICAL_GALADRIEL_FIXTURE_SHA256,
+        )
+        .expect("committed Galadriel registry fixture matches its canonical pin");
+        let context = registry
+            .context(CONTEXT_ID)
+            .expect("committed fixture contains context 23");
+        let algorithm = context.projection_algorithm();
+
+        assert_eq!(
+            (
+                context.output_dimensions(),
+                algorithm.identifier(),
+                algorithm.version(),
+                algorithm.content_digest(),
+            ),
+            (
+                3,
+                "common_enu_residual",
+                "1.0.0",
+                "5555555555555555555555555555555555555555555555555555555555555555",
+            )
+        );
     }
 
     #[test]
