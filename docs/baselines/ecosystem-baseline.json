@@ -172,7 +172,7 @@
     },
     {
       "path": "scripts/verify-phase0-baseline.mjs",
-      "sha256": "f13615271a6f044006ce265c9d1ee0e6ab33f66980f86ae298e3f85475c29524"
+      "sha256": "3aa25e6b8e97c976fe54006d3fd8841d890c57ec6a059df86d0dda9ed0c10274"
     },
     {
       "path": "scripts/check-plant-authority-boundary.mjs",
