@@ -40,7 +40,7 @@ SparkJS/Three.js, and Rust.
 | **Drone Physics** | 120Hz quadcopter aerodynamics simulation | In Progress |
 | **ROS Integration** | Read-only Zenoh product telemetry + development/native rosbridge telemetry fallback | In Progress |
 | **Galadriel Evidence** | Feature-gated, exact-runtime-opt-in producer with immutable pinned registry/config/executable, two bounded NCP evidence routes, strict time/projection eligibility, upstream/capacity loss degradation, and heartbeat accounting; deployed receiver/security evidence remains pending | Component-tested |
-| **Plant Authority** | Dependency-free headless lifecycle/channel/passive-expiry foundation, inactive draft command contract with no command ingress, profile-neutral same-frame-instance ENU/NED + FLU/FRD velocity-axis corpus, generic retained snapshots, a closed immutable context-bound health-snapshot candidate, and a profile-bound classifier for eight ages captured at one read against caller-proposed nonzero exclusive limits; self-check only—within-limit is not current freshness or health, frame/source identity is caller-supplied and unattested, and there is no authenticated collector, durable epoch ownership, approved profile/age policy, aggregate verdict, apply-time gate, active watchdog, or FCU adapter | L0 Foundation |
+| **Plant Authority** | Dependency-free headless lifecycle/channel/passive-expiry foundation, inactive draft command contract with no command ingress, profile-neutral same-frame-instance ENU/NED + FLU/FRD velocity-axis corpus, generic retained snapshots, a closed immutable context-bound health-snapshot candidate, a profile-bound classifier for eight ages captured at one read, and an unapproved exact-profile safe-action situation-dispatch candidate with a fixed no-default table and closed plant intent vocabulary; self-check only—within-limit is not current freshness or health, an opaque situation code is not authoritative state, profile/source/policy assertions are unattested, and there is no authenticated collector, content-bound approved policy, aggregate verdict, state classifier, apply-time gate, active watchdog, or FCU adapter | L0 Foundation |
 | **Cross-Platform** | macOS (Apple Silicon) + NixOS (CUDA) | In Progress |
 
 ---
@@ -342,6 +342,7 @@ and asset limits, and the platform matrix are in
 | [docs/PLANT_CONTRACT_V1.md](docs/PLANT_CONTRACT_V1.md) | Inactive draft command contract, frame corpus, and limits |
 | [docs/PLANT_HEALTH_V1.md](docs/PLANT_HEALTH_V1.md) | Inactive typed vehicle-health snapshot and evidence limits |
 | [docs/PLANT_FRESHNESS_V1.md](docs/PLANT_FRESHNESS_V1.md) | Inactive profile-bound captured-read health-age classifier |
+| [docs/PLANT_SAFE_ACTION_V1.md](docs/PLANT_SAFE_ACTION_V1.md) | Inactive exact-profile safe-action situation-dispatch candidate |
 | [docs/RELEASE_ACCEPTANCE.md](docs/RELEASE_ACCEPTANCE.md) | Release-candidate evidence gates |
 | [docs/MANUAL_SMOKE_TEST.md](docs/MANUAL_SMOKE_TEST.md) | Manual smoke checklist |
 | [docs/RELEASE_EVIDENCE.md](docs/RELEASE_EVIDENCE.md) | Release evidence log |

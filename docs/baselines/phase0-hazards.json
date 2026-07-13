@@ -362,12 +362,17 @@
       "odd_clauses": ["ODD-01", "ODD-05", "ODD-08"],
       "evidence": [
         {
+          "test_id": "TEST-PLANT-SAFE-ACTION-POLICY-V1",
+          "status": "partial",
+          "artifact": "component-suite matrix across the module's focused tests proving exact-profile binding, nonzero opaque situation codes, bounded unique rows with no default, profile-mismatch and missing-row refusal, duplicate and oversized-table rejection, copying into a fixed owned table, and exact lookup across the closed candidate-intent vocabulary"
+        },
+        {
           "test_id": "TEST-SAFE-ACTION-STATE-MATRIX",
           "status": "planned",
           "artifact": "state/trigger/action/observation matrix"
         }
       ],
-      "residual_risk": "Protocol hold remains distinct from physical safety."
+      "residual_risk": "An inert exact-profile-bound candidate table now maps caller-supplied opaque situations into a closed intent vocabulary without a default. The table and situation remain caller-proposed and unapproved; no authoritative state classifier, trigger precedence, apply-time gate, typed adapter transaction, FCU behavior, or physical safe-action evidence exists. Protocol hold remains distinct from physical safety."
     },
     {
       "id": "HAZ-008",

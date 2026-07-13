@@ -23,7 +23,9 @@ A separate dependency-free `crebain-plant-authority` workspace package and
 an inert lifecycle/channel foundation, a non-consuming retained whole-snapshot
 register, a closed immutable in-memory vehicle-health candidate, a
 profile-bound classifier for eight ages captured at one checked read, and a
-passive generation-bound monotonic expiry guard. Contract v1
+passive generation-bound monotonic expiry guard. It also provides an inert
+exact-profile safe-action situation-dispatch candidate over a closed intent
+vocabulary. Contract v1
 uses closed action/frame/unit types, distinct producer and plant-local time,
 and draft instantaneous-speed/TTL bounds, but has no wire format and its profile/frame are
 unapproved. A separate profile-neutral finite-m/s kernel and digest-bound
@@ -42,9 +44,16 @@ interpret unknown/unavailable state, implement the draft ODD's inclusive
 `<=200 ms` condition, or establish current/apply-time freshness. Its structural
 profile/source binding is not approval or authentication, and it proves no real
 FCU sampling or aggregation coherence. The
-binary can only self-check; it has no command ingress, authenticated health
-collector, approved age/state policy, active watchdog, governor, safe-action profile, NCP link, apply-time
-consumer, or FCU adapter. Generic snapshot storage remains disconnected
+safe-action candidate copies caller-proposed opaque nonzero situation codes
+into an owned fixed 255-slot table, rejects an empty, oversized, or duplicate
+proposal, requires an exact full profile match, and has no default row. It does
+not bind the supplied rows into the profile digest, classify plant state or triggers,
+resolve precedence, consume health/lifecycle/time, or convert an intent into an
+action or adapter call. The binary can only self-check; it has no command
+ingress, authenticated health collector, approved age/state policy, active
+watchdog, governor, approved and content-bound safe-action policy with an
+authoritative classifier, NCP link, apply-time consumer, or FCU adapter.
+Generic snapshot storage remains disconnected
 mechanics. The expiry guard has no timer, callback, refresh, command payload,
 or adapter hook. Their existence does not make the process a final applier and
 does not change the L0 claim.

@@ -13,6 +13,7 @@ const EXPECTED_PACKAGE = 'crebain-plant-authority'
 const EXPECTED_BINARY = 'crebain-plantd'
 const HEALTH_SOURCE = resolve(PLANT_ROOT, 'src/health.rs')
 const FRESHNESS_SOURCE = resolve(PLANT_ROOT, 'src/freshness.rs')
+const SAFE_ACTION_SOURCE = resolve(PLANT_ROOT, 'src/safe_action.rs')
 const CONTRACT_SOURCE = resolve(PLANT_ROOT, 'src/contract.rs')
 const LIFECYCLE_SOURCE = resolve(PLANT_ROOT, 'src/lifecycle.rs')
 const EXPECTED_TARGETS = [
@@ -234,6 +235,24 @@ function enumItem(code, name) {
   return oneBracedItem(code, `\\bpub\\s+enum\\s+${name}`, `enum '${name}'`)
 }
 
+function unbracedStructItem(code, name) {
+  const matches = [
+    ...code.matchAll(
+      new RegExp(`\\bpub\\s+struct\\s+${name}(?:\\s*<[^;{}]*>)?\\s*(?:\\([^;{}]*\\))?\\s*;`, 'g')
+    ),
+  ]
+  if (matches.length !== 1) fail(`struct '${name}' must have exactly one unbraced definition`)
+  const match = matches[0]
+  const prefix = code.slice(Math.max(0, match.index - 200), match.index)
+  if (/#[\s]*\[[\s]*cfg(?:_attr)?\b[^\]]*\][\s\S]*$/.test(prefix))
+    fail(`struct '${name}' must not be conditionally defined`)
+  return {
+    declaration: match[0],
+    start: match.index,
+    end: match.index + match[0].length,
+  }
+}
+
 function implItem(code, name) {
   return oneBracedItem(code, `\\bimpl\\s+${name}\\b`, `inherent impl '${name}'`)
 }
@@ -386,6 +405,48 @@ function topLevelAliasDeclarations(code) {
     }
   }
   return aliases
+}
+
+function topLevelTypeDeclarations(code) {
+  const declarations = []
+  let depth = 0
+  for (let index = 0; index < code.length; index += 1) {
+    if (code[index] === '{') {
+      depth += 1
+      continue
+    }
+    if (code[index] === '}') {
+      depth -= 1
+      continue
+    }
+    if (depth !== 0) continue
+    const match = code.slice(index).match(/^(pub(?:\s*\([^)]*\))?\s+)?(struct|enum)\s+(\w+)\b/)
+    if (!match) continue
+    declarations.push(`${match[1] ? 'visible' : 'private'}:${match[2]}:${match[3]}`)
+    index += match[0].length - 1
+  }
+  return declarations
+}
+
+function topLevelConstantDeclarations(code) {
+  const declarations = []
+  let depth = 0
+  for (let index = 0; index < code.length; index += 1) {
+    if (code[index] === '{') {
+      depth += 1
+      continue
+    }
+    if (code[index] === '}') {
+      depth -= 1
+      continue
+    }
+    if (depth !== 0) continue
+    const match = code.slice(index).match(/^(pub(?:\s*\([^)]*\))?\s+)?const\s+(?!fn\b)(\w+)\s*:/)
+    if (!match) continue
+    declarations.push(`${match[1] ? 'visible' : 'private'}:${match[2]}`)
+    index += match[0].length - 1
+  }
+  return declarations
 }
 
 function traitImplItems(code) {
@@ -1265,6 +1326,458 @@ function verifyVehicleHealthBoundary(overrides = {}) {
   }
 }
 
+function verifySafeActionBoundary(overrides = {}) {
+  assertCanonicalPathWithin(SAFE_ACTION_SOURCE, PLANT_ROOT, 'safe-action source')
+  const safeActionCode = rustBoundaryCode(
+    overrides.safeAction ?? readFileSync(SAFE_ACTION_SOURCE, 'utf8')
+  )
+  const libraryCode = rustBoundaryCode(
+    overrides.library ?? readFileSync(resolve(PLANT_ROOT, 'src/lib.rs'), 'utf8')
+  )
+
+  const moduleDeclarations = [
+    ...libraryCode.matchAll(/\b(?:pub(?:\s*\([^)]*\))?\s+)?mod\s+safe_action\s*;/g),
+  ]
+  if (
+    moduleDeclarations.length !== 1 ||
+    normalizedRustBody(moduleDeclarations[0][0]) !== 'modsafe_action;' ||
+    leadingAttributes(libraryCode, moduleDeclarations[0].index) !== ''
+  ) {
+    fail('safe-action module must have one private unconditional crate-root declaration')
+  }
+  const reexports = oneBracedItem(
+    libraryCode,
+    '\\bpub\\s+use\\s+safe_action\\s*::',
+    'safe-action crate-root re-export'
+  )
+  assertExactLeadingAttributes(libraryCode, reexports, '', 'safe-action crate-root re-export')
+  assertExactBody(
+    reexports,
+    `
+      SafeActionIntentV1, SafeActionPolicyCandidateV1, SafeActionPolicyConfigurationErrorV1,
+      SafeActionPolicyRowProposalV1, SafeActionSelectionCandidateV1, SafeActionSelectionErrorV1,
+      SafeActionSituationCandidateV1, SafeActionSituationCodeErrorV1, SafeActionSituationCodeV1,
+      MAX_SAFE_ACTION_POLICY_ROWS_V1,
+    `,
+    'safe-action crate-root re-export'
+  )
+
+  const submodules = [
+    ...safeActionCode.matchAll(/\b(?:pub(?:\s*\([^)]*\))?\s+)?mod\s+(\w+)\s*(?:;|\{)/g),
+  ]
+  if (submodules.length !== 1 || submodules[0][1] !== 'tests')
+    fail('safe-action implementation must not gain child modules')
+  const tests = oneBracedItem(
+    safeActionCode,
+    '#\\s*\\[\\s*cfg\\s*\\(\\s*test\\s*\\)\\s*\\]\\s*mod\\s+tests',
+    'safe-action test module'
+  )
+  const productionCode =
+    safeActionCode.slice(0, tests.start) +
+    blankRustSegment(safeActionCode, tests.start, tests.end) +
+    safeActionCode.slice(tests.end)
+  assertNoTopLevelMacroInvocations(productionCode, 'safe-action module')
+  assertNoLocalMacroDefinitions(productionCode, 'safe-action module')
+
+  const expectedTypes = [
+    'visible:struct:SafeActionSituationCodeErrorV1',
+    'visible:struct:SafeActionSituationCodeV1',
+    'visible:enum:SafeActionIntentV1',
+    'visible:struct:SafeActionPolicyRowProposalV1',
+    'visible:enum:SafeActionPolicyConfigurationErrorV1',
+    'visible:struct:SafeActionPolicyCandidateV1',
+    'visible:struct:SafeActionSituationCandidateV1',
+    'visible:enum:SafeActionSelectionErrorV1',
+    'visible:struct:SafeActionSelectionCandidateV1',
+  ]
+  const actualTypes = topLevelTypeDeclarations(productionCode)
+  if (
+    actualTypes.length !== expectedTypes.length ||
+    actualTypes.some((declaration, index) => declaration !== expectedTypes[index])
+  ) {
+    fail(`safe-action type surface drift; got ${actualTypes.join(',')}`)
+  }
+  const aliases = topLevelAliasDeclarations(productionCode)
+  if (aliases.length !== 0) fail(`safe-action aliases are forbidden; got ${aliases.join(',')}`)
+  const functions = topLevelFunctions(productionCode)
+  if (functions.length !== 0)
+    fail(`safe-action top-level functions are forbidden; got ${functions.join(',')}`)
+
+  const maximumDeclarations = [
+    ...productionCode.matchAll(
+      /\bpub\s+const\s+MAX_SAFE_ACTION_POLICY_ROWS_V1\s*:\s*usize\s*=\s*u8\s*::\s*MAX\s+as\s+usize\s*;/g
+    ),
+  ]
+  const constants = topLevelConstantDeclarations(productionCode)
+  if (
+    maximumDeclarations.length !== 1 ||
+    constants.length !== 1 ||
+    constants[0] !== 'visible:MAX_SAFE_ACTION_POLICY_ROWS_V1'
+  ) {
+    fail('safe-action table bound must remain the complete nonzero u8 code space')
+  }
+
+  const codeError = unbracedStructItem(productionCode, 'SafeActionSituationCodeErrorV1')
+  if (normalizedRustBody(codeError.declaration) !== 'pubstructSafeActionSituationCodeErrorV1;') {
+    fail('SafeActionSituationCodeErrorV1 closed value shape drift')
+  }
+  const situationCode = unbracedStructItem(productionCode, 'SafeActionSituationCodeV1')
+  if (
+    normalizedRustBody(situationCode.declaration) !==
+    'pubstructSafeActionSituationCodeV1(NonZeroU8);'
+  ) {
+    fail('SafeActionSituationCodeV1 closed value shape drift')
+  }
+
+  const structShapes = new Map([
+    [
+      'SafeActionPolicyRowProposalV1',
+      'situation_code:SafeActionSituationCodeV1,intent:SafeActionIntentV1,',
+    ],
+    [
+      'SafeActionPolicyCandidateV1',
+      'profile:ProfileIdentity,intents:[Option<SafeActionIntentV1>;MAX_SAFE_ACTION_POLICY_ROWS_V1],row_count:usize,',
+    ],
+    ['SafeActionSituationCandidateV1', 'profile:ProfileIdentity,code:SafeActionSituationCodeV1,'],
+    [
+      'SafeActionSelectionCandidateV1',
+      "policy:&'policy SafeActionPolicyCandidateV1,situation:SafeActionSituationCandidateV1,intent:SafeActionIntentV1,",
+    ],
+  ])
+  const structItems = new Map()
+  for (const [name, expected] of structShapes) {
+    const item = structItem(productionCode, name)
+    structItems.set(name, item)
+    assertExactBody(item, expected, name)
+  }
+
+  const enumShapes = new Map([
+    [
+      'SafeActionIntentV1',
+      'InhibitPlantOutput,RequestProfileDefinedPhysicalHold,RequestControlledLand,RequestReturnToLaunch,RequestGroundDisarmTransaction,',
+    ],
+    [
+      'SafeActionPolicyConfigurationErrorV1',
+      'EmptyTable,TooManyRows{maximum:usize,received:usize,},DuplicateSituation{situation_code:SafeActionSituationCodeV1,},',
+    ],
+    [
+      'SafeActionSelectionErrorV1',
+      'ProfileMismatch{policy_profile:ProfileIdentity,situation_profile:ProfileIdentity,},MissingSituation{situation_code:SafeActionSituationCodeV1,},',
+    ],
+  ])
+  const enumItems = new Map()
+  for (const [name, expected] of enumShapes) {
+    const item = enumItem(productionCode, name)
+    enumItems.set(name, item)
+    assertExactBody(item, expected, name)
+  }
+
+  const deriveItems = new Map([
+    ['SafeActionSituationCodeErrorV1', codeError],
+    ['SafeActionSituationCodeV1', situationCode],
+    ...structItems,
+    ...enumItems,
+  ])
+  const expectedDerives = new Map([
+    ['SafeActionSituationCodeErrorV1', '#[derive(Clone,Copy,Debug,Eq,PartialEq)]'],
+    ['SafeActionSituationCodeV1', '#[derive(Clone,Copy,Debug,Eq,Ord,PartialEq,PartialOrd)]'],
+    ['SafeActionIntentV1', '#[derive(Clone,Copy,Debug,Eq,PartialEq)]'],
+    ['SafeActionPolicyRowProposalV1', '#[derive(Clone,Copy,Debug,Eq,PartialEq)]'],
+    ['SafeActionPolicyConfigurationErrorV1', '#[derive(Clone,Copy,Debug,Eq,PartialEq)]'],
+    ['SafeActionPolicyCandidateV1', '#[derive(Debug)]'],
+    ['SafeActionSituationCandidateV1', '#[derive(Clone,Copy,Debug,Eq,PartialEq)]'],
+    ['SafeActionSelectionErrorV1', '#[derive(Clone,Copy,Debug,Eq,PartialEq)]'],
+    ['SafeActionSelectionCandidateV1', '#[derive(Debug)]'],
+  ])
+  for (const [name, expected] of expectedDerives)
+    assertExactLeadingAttributes(productionCode, deriveItems.get(name), expected, name)
+
+  if (/\bDefault\b/.test(productionCode))
+    fail('safe-action policy and selection must not define a default')
+  if (/\bfallback\b/i.test(productionCode)) fail('safe-action lookup must not define a fallback')
+
+  const forbiddenDomainSurface =
+    /\b(?:health|freshness|lifecycle|channels|runtime|adapter|[A-Za-z_]\w*(?:Health|Freshness)\w*|LifecycleMachine|LifecycleEvent|GuardedEvent|PlantState|Transition|KernelChannels|SnapshotChannel|SnapshotSender|SnapshotReceiver|SafetyLatch|SafetyNotice|ChannelError|InertAdapter|AdapterState|AdapterError|run_self_check|KernelError|SelfCheckReport|RuntimeGeneration|MonotonicExpiryGuard|ProposedAction\w*|CandidateProfileV1|CommandProposalV1|Velocity\w*|RawVelocityV1|FramedVelocityMetresPerSecond|FiniteFramedVelocityMpsV1|Axis)\b/
+  if (forbiddenDomainSurface.test(productionCode))
+    fail(
+      'safe-action lookup must not interpret health, freshness, lifecycle, channels, runtime, adapters, contract actions, or velocity'
+    )
+
+  const codeImpl = implItem(productionCode, 'SafeActionSituationCodeV1')
+  const rowImpl = implItem(productionCode, 'SafeActionPolicyRowProposalV1')
+  const policyImpl = implItem(productionCode, 'SafeActionPolicyCandidateV1')
+  const situationImpl = implItem(productionCode, 'SafeActionSituationCandidateV1')
+  const selectionImpl = oneBracedItem(
+    productionCode,
+    "\\bimpl\\s*<\\s*'policy\\s*>\\s*SafeActionSelectionCandidateV1\\s*<\\s*'policy\\s*>",
+    'SafeActionSelectionCandidateV1 inherent impl'
+  )
+  assertExactMethods(codeImpl, ['new', 'get'], 'SafeActionSituationCodeV1')
+  assertExactMethods(rowImpl, ['new', 'situation_code', 'intent'], 'SafeActionPolicyRowProposalV1')
+  assertExactMethods(
+    policyImpl,
+    ['try_from_rows', 'profile', 'row_count', 'select'],
+    'SafeActionPolicyCandidateV1'
+  )
+  assertExactMethods(situationImpl, ['new', 'profile', 'code'], 'SafeActionSituationCandidateV1')
+  assertExactMethods(
+    selectionImpl,
+    ['policy', 'situation', 'intent'],
+    'SafeActionSelectionCandidateV1'
+  )
+
+  const expectedInherentImplCounts = new Map([
+    ['SafeActionSituationCodeErrorV1', 0],
+    ['SafeActionSituationCodeV1', 1],
+    ['SafeActionIntentV1', 0],
+    ['SafeActionPolicyRowProposalV1', 1],
+    ['SafeActionPolicyConfigurationErrorV1', 0],
+    ['SafeActionPolicyCandidateV1', 1],
+    ['SafeActionSituationCandidateV1', 1],
+    ['SafeActionSelectionErrorV1', 0],
+    ['SafeActionSelectionCandidateV1', 1],
+  ])
+  const actualInherentImplCounts = new Map(
+    [...expectedInherentImplCounts.keys()].map((name) => [name, 0])
+  )
+  for (const item of inherentImplItems(productionCode)) {
+    for (const name of expectedInherentImplCounts.keys()) {
+      const protectedTarget = new RegExp(`(?:^|::)${name}(?:\\s*<[^>{}]*>)?(?:\\s+where\\b|\\s*$)`)
+      if (protectedTarget.test(item.target))
+        actualInherentImplCounts.set(name, actualInherentImplCounts.get(name) + 1)
+    }
+  }
+  for (const [name, expected] of expectedInherentImplCounts) {
+    const actual = actualInherentImplCounts.get(name)
+    if (actual !== expected)
+      fail(`${name} inherent impl count drift; expected ${expected}, got ${actual}`)
+  }
+  for (const item of [codeImpl, rowImpl, policyImpl, situationImpl, selectionImpl]) {
+    assertNoTopLevelMacroInvocations(item.body, 'safe-action protected impl')
+    if (/\b(?:pub(?:\s*\([^)]*\))?\s+)?const\s+(?!fn\b)\w+\s*:/.test(item.body))
+      fail('safe-action protected impls must not expose associated constants')
+  }
+
+  const codeNew = oneBracedItem(
+    codeImpl.body,
+    '\\bpub\\s+fn\\s+new\\s*\\(\\s*value\\s*:\\s*u8\\s*\\)\\s*->\\s*Result\\s*<\\s*Self\\s*,\\s*SafeActionSituationCodeErrorV1\\s*>',
+    'SafeActionSituationCodeV1::new'
+  )
+  assertExactBody(
+    codeNew,
+    'NonZeroU8::new(value).map(Self).ok_or(SafeActionSituationCodeErrorV1)',
+    'SafeActionSituationCodeV1::new'
+  )
+  const codeGet = oneBracedItem(
+    codeImpl.body,
+    '\\bpub\\s+const\\s+fn\\s+get\\s*\\(\\s*self\\s*\\)\\s*->\\s*u8',
+    'SafeActionSituationCodeV1::get'
+  )
+  assertExactBody(codeGet, 'self.0.get()', 'SafeActionSituationCodeV1::get')
+
+  const rowNew = oneBracedItem(
+    rowImpl.body,
+    '\\bpub\\s+const\\s+fn\\s+new\\s*\\(\\s*situation_code\\s*:\\s*SafeActionSituationCodeV1\\s*,\\s*intent\\s*:\\s*SafeActionIntentV1\\s*,?\\s*\\)\\s*->\\s*Self',
+    'SafeActionPolicyRowProposalV1::new'
+  )
+  assertExactBody(rowNew, 'Self { situation_code, intent, }', 'SafeActionPolicyRowProposalV1::new')
+  for (const [method, signature, expected] of [
+    [
+      'situation_code',
+      '\\bpub\\s+const\\s+fn\\s+situation_code\\s*\\(\\s*self\\s*\\)\\s*->\\s*SafeActionSituationCodeV1',
+      'self.situation_code',
+    ],
+    [
+      'intent',
+      '\\bpub\\s+const\\s+fn\\s+intent\\s*\\(\\s*self\\s*\\)\\s*->\\s*SafeActionIntentV1',
+      'self.intent',
+    ],
+  ]) {
+    const accessor = oneBracedItem(
+      rowImpl.body,
+      signature,
+      `SafeActionPolicyRowProposalV1::${method}`
+    )
+    assertExactBody(accessor, expected, `SafeActionPolicyRowProposalV1::${method}`)
+  }
+
+  const tryFromRows = oneBracedItem(
+    policyImpl.body,
+    '\\bpub\\s+fn\\s+try_from_rows\\s*\\(\\s*profile\\s*:\\s*ProfileIdentity\\s*,\\s*rows\\s*:\\s*&\\s*\\[\\s*SafeActionPolicyRowProposalV1\\s*\\]\\s*,?\\s*\\)\\s*->\\s*Result\\s*<\\s*Self\\s*,\\s*SafeActionPolicyConfigurationErrorV1\\s*>',
+    'SafeActionPolicyCandidateV1::try_from_rows'
+  )
+  assertExactBody(
+    tryFromRows,
+    `
+      if rows.len() > MAX_SAFE_ACTION_POLICY_ROWS_V1 {
+        return Err(SafeActionPolicyConfigurationErrorV1::TooManyRows {
+          maximum: MAX_SAFE_ACTION_POLICY_ROWS_V1,
+          received: rows.len(),
+        });
+      }
+      if rows.is_empty() {
+        return Err(SafeActionPolicyConfigurationErrorV1::EmptyTable);
+      }
+      let mut intents = [None; MAX_SAFE_ACTION_POLICY_ROWS_V1];
+      for row in rows {
+        let index = usize::from(row.situation_code.get() - 1);
+        if intents[index].is_some() {
+          return Err(SafeActionPolicyConfigurationErrorV1::DuplicateSituation {
+            situation_code: row.situation_code,
+          });
+        }
+        intents[index] = Some(row.intent);
+      }
+      Ok(Self {
+        profile,
+        intents,
+        row_count: rows.len(),
+      })
+    `,
+    'SafeActionPolicyCandidateV1::try_from_rows'
+  )
+  const policyProfile = oneBracedItem(
+    policyImpl.body,
+    '\\bpub\\s+const\\s+fn\\s+profile\\s*\\(\\s*&\\s*self\\s*\\)\\s*->\\s*ProfileIdentity',
+    'SafeActionPolicyCandidateV1::profile'
+  )
+  assertExactBody(policyProfile, 'self.profile', 'SafeActionPolicyCandidateV1::profile')
+  const rowCount = oneBracedItem(
+    policyImpl.body,
+    '\\bpub\\s+const\\s+fn\\s+row_count\\s*\\(\\s*&\\s*self\\s*\\)\\s*->\\s*usize',
+    'SafeActionPolicyCandidateV1::row_count'
+  )
+  assertExactBody(rowCount, 'self.row_count', 'SafeActionPolicyCandidateV1::row_count')
+  const select = oneBracedItem(
+    policyImpl.body,
+    "\\bpub\\s+fn\\s+select\\s*\\(\\s*&\\s*self\\s*,\\s*situation\\s*:\\s*SafeActionSituationCandidateV1\\s*,?\\s*\\)\\s*->\\s*Result\\s*<\\s*SafeActionSelectionCandidateV1\\s*<\\s*'_\\s*>\\s*,\\s*SafeActionSelectionErrorV1\\s*>",
+    'SafeActionPolicyCandidateV1::select'
+  )
+  assertExactBody(
+    select,
+    `
+      if situation.profile != self.profile {
+        return Err(SafeActionSelectionErrorV1::ProfileMismatch {
+          policy_profile: self.profile,
+          situation_profile: situation.profile,
+        });
+      }
+      let index = usize::from(situation.code.get() - 1);
+      let intent = self.intents[index].ok_or(SafeActionSelectionErrorV1::MissingSituation {
+        situation_code: situation.code,
+      })?;
+      Ok(SafeActionSelectionCandidateV1 {
+        policy: self,
+        situation,
+        intent,
+      })
+    `,
+    'SafeActionPolicyCandidateV1::select'
+  )
+
+  const situationNew = oneBracedItem(
+    situationImpl.body,
+    '\\bpub\\s+const\\s+fn\\s+new\\s*\\(\\s*profile\\s*:\\s*ProfileIdentity\\s*,\\s*code\\s*:\\s*SafeActionSituationCodeV1\\s*\\)\\s*->\\s*Self',
+    'SafeActionSituationCandidateV1::new'
+  )
+  assertExactBody(situationNew, 'Self { profile, code }', 'SafeActionSituationCandidateV1::new')
+  for (const [method, returnType, expected] of [
+    ['profile', 'ProfileIdentity', 'self.profile'],
+    ['code', 'SafeActionSituationCodeV1', 'self.code'],
+  ]) {
+    const accessor = oneBracedItem(
+      situationImpl.body,
+      `\\bpub\\s+const\\s+fn\\s+${method}\\s*\\(\\s*self\\s*\\)\\s*->\\s*${returnType}`,
+      `SafeActionSituationCandidateV1::${method}`
+    )
+    assertExactBody(accessor, expected, `SafeActionSituationCandidateV1::${method}`)
+  }
+
+  const selectionAccessors = [
+    [
+      'policy',
+      "\\bpub\\s+const\\s+fn\\s+policy\\s*\\(\\s*&\\s*self\\s*\\)\\s*->\\s*&\\s*'policy\\s+SafeActionPolicyCandidateV1",
+      'self.policy',
+    ],
+    [
+      'situation',
+      '\\bpub\\s+const\\s+fn\\s+situation\\s*\\(\\s*&\\s*self\\s*\\)\\s*->\\s*SafeActionSituationCandidateV1',
+      'self.situation',
+    ],
+    [
+      'intent',
+      '\\bpub\\s+const\\s+fn\\s+intent\\s*\\(\\s*&\\s*self\\s*\\)\\s*->\\s*SafeActionIntentV1',
+      'self.intent',
+    ],
+  ]
+  for (const [method, signature, expected] of selectionAccessors) {
+    const accessor = oneBracedItem(
+      selectionImpl.body,
+      signature,
+      `SafeActionSelectionCandidateV1::${method}`
+    )
+    assertExactBody(accessor, expected, `SafeActionSelectionCandidateV1::${method}`)
+  }
+
+  const expectedTraits = [
+    'implfmt::DisplayforSafeActionPolicyConfigurationErrorV1{',
+    'implfmt::DisplayforSafeActionSelectionErrorV1{',
+    'implfmt::DisplayforSafeActionSituationCodeErrorV1{',
+    'implstd::error::ErrorforSafeActionPolicyConfigurationErrorV1{',
+    'implstd::error::ErrorforSafeActionSelectionErrorV1{',
+    'implstd::error::ErrorforSafeActionSituationCodeErrorV1{',
+  ].sort()
+  const actualTraits = traitImplItems(productionCode)
+    .map((item) => normalizedRustBody(item.header))
+    .sort()
+  if (
+    actualTraits.length !== expectedTraits.length ||
+    actualTraits.some((header, index) => header !== expectedTraits[index])
+  ) {
+    fail(`safe-action trait surface drift; got ${actualTraits.join(',')}`)
+  }
+
+  const safeActionUse =
+    /\b(?:safe_action|SafeAction[A-Za-z0-9_]*V1|MAX_SAFE_ACTION_POLICY_ROWS_V1)\b/
+  let libraryWithoutSafeActionSurface = libraryCode
+  for (const [start, end] of [
+    [moduleDeclarations[0].index, moduleDeclarations[0].index + moduleDeclarations[0][0].length],
+    [reexports.start, reexports.end],
+  ]) {
+    libraryWithoutSafeActionSurface =
+      libraryWithoutSafeActionSurface.slice(0, start) +
+      blankRustSegment(libraryWithoutSafeActionSurface, start, end) +
+      libraryWithoutSafeActionSurface.slice(end)
+  }
+  if (safeActionUse.test(libraryWithoutSafeActionSurface))
+    fail('safe-action candidate lookup must remain unwired in the plant crate root')
+
+  const sourceRoot = resolve(PLANT_ROOT, 'src')
+  for (const path of walkRustFiles(sourceRoot)) {
+    const canonical = realpathSync(path)
+    if (
+      canonical === realpathSync(SAFE_ACTION_SOURCE) ||
+      canonical === realpathSync(resolve(PLANT_ROOT, 'src/lib.rs'))
+    ) {
+      continue
+    }
+    let source = readFileSync(path, 'utf8')
+    if (canonical === realpathSync(resolve(PLANT_ROOT, 'src/runtime.rs')))
+      source = overrides.runtime ?? source
+    else if (canonical === realpathSync(resolve(PLANT_ROOT, 'src/adapter.rs')))
+      source = overrides.adapter ?? source
+    else if (canonical === realpathSync(resolve(PLANT_ROOT, 'src/channels.rs')))
+      source = overrides.channels ?? source
+    else if (canonical === realpathSync(HEALTH_SOURCE)) source = overrides.health ?? source
+    else if (canonical === realpathSync(FRESHNESS_SOURCE)) source = overrides.freshness ?? source
+    else if (canonical === realpathSync(CONTRACT_SOURCE)) source = overrides.contract ?? source
+    else if (canonical === realpathSync(LIFECYCLE_SOURCE)) source = overrides.lifecycle ?? source
+    const code = rustBoundaryCode(source)
+    if (safeActionUse.test(code))
+      fail(`safe-action candidate lookup must remain unwired in ${relative(ROOT, path)}`)
+  }
+}
+
 function replaced(source, before, after, label) {
   if (!source.includes(before)) fail(`vehicle-health boundary self-test fixture drift: ${label}`)
   return source.replace(before, after)
@@ -1970,6 +2483,542 @@ function verifyVehicleHealthBoundaryMutations() {
   return cases.length
 }
 
+function verifySafeActionBoundaryMutations() {
+  const safeAction = readFileSync(SAFE_ACTION_SOURCE, 'utf8')
+  const library = readFileSync(resolve(PLANT_ROOT, 'src/lib.rs'), 'utf8')
+  const runtime = readFileSync(resolve(PLANT_ROOT, 'src/runtime.rs'), 'utf8')
+  const adapter = readFileSync(resolve(PLANT_ROOT, 'src/adapter.rs'), 'utf8')
+  const cases = [
+    {
+      label: 'public safe-action module',
+      expectedError: 'safe-action module must have one private',
+      overrides: {
+        library: replacedExactlyOnce(
+          library,
+          'mod safe_action;',
+          'pub mod safe_action;',
+          'public safe-action module'
+        ),
+      },
+    },
+    {
+      label: 'conditionally disabled safe-action module',
+      expectedError: 'safe-action module must have one private',
+      overrides: {
+        library: replacedExactlyOnce(
+          library,
+          'mod safe_action;',
+          '#[cfg(any())]\nmod safe_action;',
+          'conditional safe-action module'
+        ),
+      },
+    },
+    {
+      label: 'wildcard safe-action re-export',
+      expectedError: 'safe-action crate-root re-export',
+      overrides: {
+        library: replacedExactlyOnce(
+          library,
+          'pub use safe_action::{',
+          'pub use safe_action::*;\npub use safe_action::{',
+          'wildcard safe-action re-export'
+        ),
+      },
+    },
+    {
+      label: 'conditionally disabled safe-action re-export',
+      expectedError: 'safe-action crate-root re-export',
+      overrides: {
+        library: replacedExactlyOnce(
+          library,
+          'pub use safe_action::{',
+          '#[cfg(any())]\npub use safe_action::{',
+          'conditional safe-action re-export'
+        ),
+      },
+    },
+    {
+      label: 'expanded safe-action re-export',
+      expectedError: 'safe-action crate-root re-export',
+      overrides: {
+        library: replacedExactlyOnce(
+          library,
+          '    MAX_SAFE_ACTION_POLICY_ROWS_V1,\n};',
+          '    MAX_SAFE_ACTION_POLICY_ROWS_V1, ProfileIdentity,\n};',
+          'expanded safe-action re-export'
+        ),
+      },
+    },
+    {
+      label: 'expanded safe-action table bound',
+      expectedError: 'table bound must remain',
+      overrides: {
+        safeAction: replacedExactlyOnce(
+          safeAction,
+          'pub const MAX_SAFE_ACTION_POLICY_ROWS_V1: usize = u8::MAX as usize;',
+          'pub const MAX_SAFE_ACTION_POLICY_ROWS_V1: usize = usize::from(u8::MAX) + 1;',
+          'expanded safe-action table bound'
+        ),
+      },
+    },
+    {
+      label: 'public situation-code representation',
+      expectedError: 'SafeActionSituationCodeV1 closed value shape drift',
+      overrides: {
+        safeAction: replacedExactlyOnce(
+          safeAction,
+          'pub struct SafeActionSituationCodeV1(NonZeroU8);',
+          'pub struct SafeActionSituationCodeV1(pub NonZeroU8);',
+          'public situation code representation'
+        ),
+      },
+    },
+    {
+      label: 'resizable safe-action table',
+      expectedError: 'SafeActionPolicyCandidateV1 closed value shape drift',
+      overrides: {
+        safeAction: replacedExactlyOnce(
+          safeAction,
+          '    intents: [Option<SafeActionIntentV1>; MAX_SAFE_ACTION_POLICY_ROWS_V1],',
+          '    intents: Vec<Option<SafeActionIntentV1>>,',
+          'resizable safe-action table'
+        ),
+      },
+    },
+    {
+      label: 'missing safe-action row count',
+      expectedError: 'SafeActionPolicyCandidateV1 closed value shape drift',
+      overrides: {
+        safeAction: replacedExactlyOnce(
+          safeAction,
+          '    row_count: usize,\n}',
+          '}',
+          'missing safe-action row count'
+        ),
+      },
+    },
+    {
+      label: 'public raw safe-action table',
+      expectedError: 'SafeActionPolicyCandidateV1 closed value shape drift',
+      overrides: {
+        safeAction: replacedExactlyOnce(
+          safeAction,
+          '    intents: [Option<SafeActionIntentV1>; MAX_SAFE_ACTION_POLICY_ROWS_V1],',
+          '    pub intents: [Option<SafeActionIntentV1>; MAX_SAFE_ACTION_POLICY_ROWS_V1],',
+          'public raw safe-action table'
+        ),
+      },
+    },
+    {
+      label: 'public safe-action proposal fields',
+      expectedError: 'SafeActionPolicyRowProposalV1 closed value shape drift',
+      overrides: {
+        safeAction: replacedExactlyOnce(
+          safeAction,
+          '    situation_code: SafeActionSituationCodeV1,\n    intent: SafeActionIntentV1,',
+          '    pub situation_code: SafeActionSituationCodeV1,\n    pub intent: SafeActionIntentV1,',
+          'public safe-action proposal fields'
+        ),
+      },
+    },
+    {
+      label: 'public safe-action selection fields',
+      expectedError: 'SafeActionSelectionCandidateV1 closed value shape drift',
+      overrides: {
+        safeAction: replacedExactlyOnce(
+          safeAction,
+          "    policy: &'policy SafeActionPolicyCandidateV1,\n    situation: SafeActionSituationCandidateV1,\n    intent: SafeActionIntentV1,",
+          "    pub policy: &'policy SafeActionPolicyCandidateV1,\n    pub situation: SafeActionSituationCandidateV1,\n    pub intent: SafeActionIntentV1,",
+          'public safe-action selection fields'
+        ),
+      },
+    },
+    {
+      label: 'default-derived safe-action policy',
+      expectedError: 'SafeActionPolicyCandidateV1 attributes drift',
+      overrides: {
+        safeAction: replacedExactlyOnce(
+          safeAction,
+          '#[derive(Debug)]\npub struct SafeActionPolicyCandidateV1 {',
+          '#[derive(Debug, Default)]\npub struct SafeActionPolicyCandidateV1 {',
+          'default-derived safe-action policy'
+        ),
+      },
+    },
+    {
+      label: 'explicit default safe-action policy',
+      expectedError: 'must not define a default',
+      overrides: {
+        safeAction: `${safeAction}\nimpl Default for SafeActionPolicyCandidateV1 {\n    fn default() -> Self { unimplemented!() }\n}\n`,
+      },
+    },
+    {
+      label: 'fallback safe-action intent variant',
+      expectedError: 'SafeActionIntentV1 closed value shape drift',
+      overrides: {
+        safeAction: replacedExactlyOnce(
+          safeAction,
+          '    InhibitPlantOutput,',
+          '    Fallback,\n    InhibitPlantOutput,',
+          'fallback safe-action intent variant'
+        ),
+      },
+    },
+    {
+      label: 'missing-row fallback intent',
+      expectedError: 'SafeActionPolicyCandidateV1::select closed value shape drift',
+      overrides: {
+        safeAction: replacedExactlyOnce(
+          safeAction,
+          '        let intent = self.intents[index].ok_or(SafeActionSelectionErrorV1::MissingSituation {\n            situation_code: situation.code,\n        })?;',
+          '        let intent = self.intents[index]\n            .unwrap_or(SafeActionIntentV1::RequestProfileDefinedPhysicalHold);',
+          'missing-row fallback intent'
+        ),
+      },
+    },
+    {
+      label: 'bare-code safe-action lookup',
+      expectedError: 'SafeActionPolicyCandidateV1::select must have exactly one',
+      overrides: {
+        safeAction: replacedExactlyOnce(
+          safeAction,
+          '        situation: SafeActionSituationCandidateV1,\n    ) -> Result<SafeActionSelectionCandidateV1',
+          '        situation: SafeActionSituationCodeV1,\n    ) -> Result<SafeActionSelectionCandidateV1',
+          'bare-code safe-action lookup'
+        ),
+      },
+    },
+    {
+      label: 'profile-kind-only safe-action match',
+      expectedError: 'SafeActionPolicyCandidateV1::select closed value shape drift',
+      overrides: {
+        safeAction: replacedExactlyOnce(
+          safeAction,
+          '        if situation.profile != self.profile {',
+          '        if situation.profile.kind() != self.profile.kind() {',
+          'profile-kind-only safe-action match'
+        ),
+      },
+    },
+    {
+      label: 'profile-digest-only safe-action match',
+      expectedError: 'SafeActionPolicyCandidateV1::select closed value shape drift',
+      overrides: {
+        safeAction: replacedExactlyOnce(
+          safeAction,
+          '        if situation.profile != self.profile {',
+          '        if situation.profile.artifact_digest() != self.profile.artifact_digest() {',
+          'profile-digest-only safe-action match'
+        ),
+      },
+    },
+    {
+      label: 'lookup before exact profile rejection',
+      expectedError: 'SafeActionPolicyCandidateV1::select closed value shape drift',
+      overrides: {
+        safeAction: replacedExactlyOnce(
+          safeAction,
+          '        if situation.profile != self.profile {\n            return Err(SafeActionSelectionErrorV1::ProfileMismatch {\n                policy_profile: self.profile,\n                situation_profile: situation.profile,\n            });\n        }\n        let index = usize::from(situation.code.get() - 1);',
+          '        let index = usize::from(situation.code.get() - 1);\n        if situation.profile != self.profile {\n            return Err(SafeActionSelectionErrorV1::ProfileMismatch {\n                policy_profile: self.profile,\n                situation_profile: situation.profile,\n            });\n        }',
+          'lookup before exact profile rejection'
+        ),
+      },
+    },
+    {
+      label: 'linear safe-action lookup',
+      expectedError: 'SafeActionPolicyCandidateV1::select closed value shape drift',
+      overrides: {
+        safeAction: replacedExactlyOnce(
+          safeAction,
+          '        let intent = self.intents[index].ok_or(SafeActionSelectionErrorV1::MissingSituation {',
+          '        let intent = self.intents.iter().copied().flatten().next().ok_or(SafeActionSelectionErrorV1::MissingSituation {',
+          'linear safe-action lookup'
+        ),
+      },
+    },
+    {
+      label: 'empty safe-action table accepted',
+      expectedError: 'SafeActionPolicyCandidateV1::try_from_rows closed value shape drift',
+      overrides: {
+        safeAction: replacedExactlyOnce(
+          safeAction,
+          '        if rows.is_empty() {\n            return Err(SafeActionPolicyConfigurationErrorV1::EmptyTable);\n        }',
+          '',
+          'empty safe-action table accepted'
+        ),
+      },
+    },
+    {
+      label: 'duplicate safe-action row overwritten',
+      expectedError: 'SafeActionPolicyCandidateV1::try_from_rows closed value shape drift',
+      overrides: {
+        safeAction: replacedExactlyOnce(
+          safeAction,
+          '            if intents[index].is_some() {\n                return Err(SafeActionPolicyConfigurationErrorV1::DuplicateSituation {\n                    situation_code: row.situation_code,\n                });\n            }',
+          '',
+          'duplicate safe-action row overwritten'
+        ),
+      },
+    },
+    {
+      label: 'unbounded safe-action proposal',
+      expectedError: 'SafeActionPolicyCandidateV1::try_from_rows closed value shape drift',
+      overrides: {
+        safeAction: replacedExactlyOnce(
+          safeAction,
+          '        if rows.len() > MAX_SAFE_ACTION_POLICY_ROWS_V1 {\n            return Err(SafeActionPolicyConfigurationErrorV1::TooManyRows {\n                maximum: MAX_SAFE_ACTION_POLICY_ROWS_V1,\n                received: rows.len(),\n            });\n        }',
+          '',
+          'unbounded safe-action proposal'
+        ),
+      },
+    },
+    {
+      label: 'cloneable safe-action selection',
+      expectedError: 'SafeActionSelectionCandidateV1 attributes drift',
+      overrides: {
+        safeAction: replacedExactlyOnce(
+          safeAction,
+          "#[derive(Debug)]\npub struct SafeActionSelectionCandidateV1<'policy> {",
+          "#[derive(Clone, Debug)]\npub struct SafeActionSelectionCandidateV1<'policy> {",
+          'cloneable safe-action selection'
+        ),
+      },
+    },
+    {
+      label: 'copyable safe-action selection',
+      expectedError: 'SafeActionSelectionCandidateV1 attributes drift',
+      overrides: {
+        safeAction: replacedExactlyOnce(
+          safeAction,
+          "#[derive(Debug)]\npub struct SafeActionSelectionCandidateV1<'policy> {",
+          "#[derive(Clone, Copy, Debug)]\npub struct SafeActionSelectionCandidateV1<'policy> {",
+          'copyable safe-action selection'
+        ),
+      },
+    },
+    {
+      label: 'explicit cloneable safe-action selection',
+      expectedError: 'safe-action trait surface drift',
+      overrides: {
+        safeAction: `${safeAction}\nimpl<'policy> Clone for SafeActionSelectionCandidateV1<'policy> {\n    fn clone(&self) -> Self { unimplemented!() }\n}\n`,
+      },
+    },
+    {
+      label: 'mutable safe-action selection policy accessor',
+      expectedError: 'SafeActionSelectionCandidateV1::policy must have exactly one',
+      overrides: {
+        safeAction: replacedExactlyOnce(
+          safeAction,
+          "    pub const fn policy(&self) -> &'policy SafeActionPolicyCandidateV1 {",
+          "    pub fn policy(&mut self) -> &'policy mut SafeActionPolicyCandidateV1 {",
+          'mutable safe-action selection policy accessor'
+        ),
+      },
+    },
+    {
+      label: 'raw safe-action table accessor',
+      expectedError: 'method surface drift',
+      overrides: {
+        safeAction: replacedExactlyOnce(
+          safeAction,
+          'impl SafeActionPolicyCandidateV1 {',
+          'impl SafeActionPolicyCandidateV1 {\n    pub fn raw_intents(&self) -> &[Option<SafeActionIntentV1>] { &self.intents }',
+          'raw safe-action table accessor'
+        ),
+      },
+    },
+    {
+      label: 'mutable safe-action table accessor',
+      expectedError: 'method surface drift',
+      overrides: {
+        safeAction: replacedExactlyOnce(
+          safeAction,
+          'impl SafeActionPolicyCandidateV1 {',
+          'impl SafeActionPolicyCandidateV1 {\n    pub fn raw_intents_mut(&mut self) -> &mut [Option<SafeActionIntentV1>] { &mut self.intents }',
+          'mutable safe-action table accessor'
+        ),
+      },
+    },
+    {
+      label: 'safe-action fallback associated constant',
+      expectedError: 'must not define a fallback',
+      overrides: {
+        safeAction: `${safeAction}\nimpl SafeActionIntentV1 {\n    pub const FALLBACK: Self = Self::RequestProfileDefinedPhysicalHold;\n}\n`,
+      },
+    },
+    {
+      label: 'direct safe-action ingress conversion',
+      expectedError: 'must not interpret health, freshness',
+      overrides: {
+        safeAction: `${safeAction}\nimpl From<SafeActionSelectionCandidateV1<'_>> for crate::contract::ProposedActionV1 {\n    fn from(_: SafeActionSelectionCandidateV1<'_>) -> Self { unimplemented!() }\n}\n`,
+      },
+    },
+    {
+      label: 'direct safe-action velocity conversion',
+      expectedError: 'must not interpret health, freshness',
+      overrides: {
+        safeAction: `${safeAction}\nimpl From<SafeActionIntentV1> for crate::contract::RawVelocityV1 {\n    fn from(_: SafeActionIntentV1) -> Self { unimplemented!() }\n}\n`,
+      },
+    },
+    {
+      label: 'safe-action health inference',
+      expectedError: 'must not interpret health, freshness',
+      overrides: {
+        safeAction: `${safeAction}\nimpl SafeActionSituationCandidateV1 {\n    pub fn infer_from_health(_: crate::health::VehicleHealthStateV1) -> Self { unimplemented!() }\n}\n`,
+      },
+    },
+    {
+      label: 'safe-action freshness inference',
+      expectedError: 'must not interpret health, freshness',
+      overrides: {
+        safeAction: `${safeAction}\nimpl SafeActionSituationCandidateV1 {\n    pub fn infer_from_freshness(_: crate::freshness::VehicleHealthAgeRelationAtReadV1) -> Self { unimplemented!() }\n}\n`,
+      },
+    },
+    {
+      label: 'safe-action lifecycle interpretation',
+      expectedError: 'must not interpret health, freshness',
+      overrides: {
+        safeAction: `${safeAction}\nimpl SafeActionSituationCandidateV1 {\n    pub fn infer_from_lifecycle(_: crate::lifecycle::PlantState) -> Self { unimplemented!() }\n}\n`,
+      },
+    },
+    {
+      label: 'safe-action channel interpretation',
+      expectedError: 'must not interpret health, freshness',
+      overrides: {
+        safeAction: `${safeAction}\nimpl SafeActionSituationCandidateV1 {\n    pub fn infer_from_channels<C, A, E>(_: &crate::channels::KernelChannels<C, A, E>) -> Self { unimplemented!() }\n}\n`,
+      },
+    },
+    {
+      label: 'safe-action runtime interpretation',
+      expectedError: 'must not interpret health, freshness',
+      overrides: {
+        safeAction: `${safeAction}\nimpl SafeActionSituationCandidateV1 {\n    pub fn infer_from_runtime(_: crate::runtime::SelfCheckReport) -> Self { unimplemented!() }\n}\n`,
+      },
+    },
+    {
+      label: 'safe-action adapter interpretation',
+      expectedError: 'must not interpret health, freshness',
+      overrides: {
+        safeAction: `${safeAction}\nimpl SafeActionIntentV1 {\n    pub fn into_adapter(self) -> crate::adapter::AdapterState { unimplemented!() }\n}\n`,
+      },
+    },
+    {
+      label: 'safe-action runtime wiring',
+      expectedError: 'must remain unwired',
+      overrides: {
+        runtime: `${runtime}\nfn select_candidate(_: crate::SafeActionPolicyCandidateV1) {}\n`,
+      },
+    },
+    {
+      label: 'safe-action adapter wiring',
+      expectedError: 'must remain unwired',
+      overrides: {
+        adapter: `${adapter}\nfn apply_candidate(_: crate::SafeActionSelectionCandidateV1<'_>) {}\n`,
+      },
+    },
+    {
+      label: 'safe-action child module',
+      expectedError: 'must not gain child modules',
+      overrides: {
+        safeAction: replacedExactlyOnce(
+          safeAction,
+          '#[cfg(test)]\nmod tests {',
+          'mod escape {}\n\n#[cfg(test)]\nmod tests {',
+          'safe-action child module'
+        ),
+      },
+    },
+    {
+      label: 'safe-action local macro definition',
+      expectedError: 'must not define source-invisible',
+      overrides: {
+        safeAction: replacedExactlyOnce(
+          safeAction,
+          '#[cfg(test)]\nmod tests {',
+          'macro_rules! candidate_fallback { () => {}; }\n\n#[cfg(test)]\nmod tests {',
+          'safe-action local macro definition'
+        ),
+      },
+    },
+    {
+      label: 'safe-action top-level macro invocation',
+      expectedError: 'must not hide its item surface behind macros',
+      overrides: {
+        safeAction: replacedExactlyOnce(
+          safeAction,
+          '#[cfg(test)]\nmod tests {',
+          'candidate_escape!();\n\n#[cfg(test)]\nmod tests {',
+          'safe-action top-level macro invocation'
+        ),
+      },
+    },
+    {
+      label: 'safe-action type alias',
+      expectedError: 'safe-action aliases are forbidden',
+      overrides: {
+        safeAction: `${safeAction}\ntype PolicyAlias = SafeActionPolicyCandidateV1;\n`,
+      },
+    },
+    {
+      label: 'safe-action import alias',
+      expectedError: 'safe-action aliases are forbidden',
+      overrides: {
+        safeAction: `${safeAction}\nuse self::SafeActionPolicyCandidateV1 as PolicyAlias;\n`,
+      },
+    },
+    {
+      label: 'safe-action top-level visible function',
+      expectedError: 'top-level functions are forbidden',
+      overrides: {
+        safeAction: `${safeAction}\npub fn select_without_policy() -> SafeActionIntentV1 { SafeActionIntentV1::InhibitPlantOutput }\n`,
+      },
+    },
+    {
+      label: 'qualified secondary safe-action policy impl',
+      expectedError: 'inherent impl count drift',
+      overrides: {
+        safeAction: `${safeAction}\nimpl crate::safe_action::SafeActionPolicyCandidateV1 {\n    pub fn unchecked() -> Self { unimplemented!() }\n}\n`,
+      },
+    },
+    {
+      label: 'qualified secondary safe-action selection impl',
+      expectedError: 'inherent impl count drift',
+      overrides: {
+        safeAction: `${safeAction}\nimpl<'policy> crate::safe_action::SafeActionSelectionCandidateV1<'policy> {\n    pub fn duplicate(&self) -> Self { unimplemented!() }\n}\n`,
+      },
+    },
+    {
+      label: 'qualified secondary safe-action intent impl',
+      expectedError: 'inherent impl count drift',
+      overrides: {
+        safeAction: `${safeAction}\nimpl crate::safe_action::SafeActionIntentV1 {\n    pub const fn unchecked_intent() -> Self { Self::RequestProfileDefinedPhysicalHold }\n}\n`,
+      },
+    },
+    {
+      label: 'qualified safe-action conversion trait',
+      expectedError: 'safe-action trait surface drift',
+      overrides: {
+        safeAction: `${safeAction}\nimpl From<crate::safe_action::SafeActionSelectionCandidateV1<'_>> for crate::safe_action::SafeActionIntentV1 {\n    fn from(selection: crate::safe_action::SafeActionSelectionCandidateV1<'_>) -> Self { selection.intent }\n}\n`,
+      },
+    },
+  ]
+  for (const fixture of cases) {
+    let rejection = null
+    try {
+      verifySafeActionBoundary(fixture.overrides)
+    } catch (error) {
+      rejection = error instanceof Error ? error.message : String(error)
+    }
+    if (rejection === null) fail(`safe-action boundary accepted mutation: ${fixture.label}`)
+    if (fixture.expectedError && !rejection.includes(fixture.expectedError)) {
+      fail(
+        `safe-action boundary mutation '${fixture.label}' rejected for the wrong reason: ${rejection}`
+      )
+    }
+  }
+  return cases.length
+}
+
 function verify() {
   if (!existsSync(PLANT_MANIFEST)) fail('plant package manifest is missing')
   if (lstatSync(PLANT_ROOT).isSymbolicLink()) fail('plant package root must not be a symbolic link')
@@ -2023,6 +3072,8 @@ function verify() {
 
   verifyVehicleHealthBoundary()
   const healthNegativeMutations = verifyVehicleHealthBoundaryMutations()
+  verifySafeActionBoundary()
+  const safeActionNegativeMutations = verifySafeActionBoundaryMutations()
 
   const rustFiles = walkRustFiles(PLANT_ROOT)
   const runtimeSourceRoot = `${realpathSync(resolve(PLANT_ROOT, 'src'))}${process.platform === 'win32' ? '\\' : '/'}`
@@ -2067,13 +3118,15 @@ function verify() {
     files: rustFiles.length,
     packages: metadata.workspace_members.length,
     healthNegativeMutations,
+    safeActionNegativeMutations,
+    boundaryNegativeMutations: healthNegativeMutations + safeActionNegativeMutations,
   }
 }
 
 try {
   const result = verify()
   console.log(
-    `OK: inert plant boundary verified (${result.files} Rust files, ${result.packages} workspace packages, zero dependencies, ${result.healthNegativeMutations} health-boundary mutations rejected)`
+    `OK: inert plant boundary verified (${result.files} Rust files, ${result.packages} workspace packages, zero dependencies, ${result.boundaryNegativeMutations} plant-authority boundary mutations rejected: ${result.healthNegativeMutations} health/freshness and ${result.safeActionNegativeMutations} safe-action)`
   )
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error))

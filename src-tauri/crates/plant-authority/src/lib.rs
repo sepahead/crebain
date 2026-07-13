@@ -3,7 +3,8 @@
 //! This crate deliberately has no renderer, Tauri, transport, inference,
 //! simulation, or vehicle-adapter dependency. It supplies an inactive draft
 //! command validator, closed immutable in-memory vehicle-health candidate,
-//! inert profile-bound captured-read age classifier, lifecycle,
+//! inert profile-bound captured-read age classifier, unapproved profile-bound
+//! safe-action lookup candidate, lifecycle,
 //! bounded-channel, and passive monotonic-expiry primitives plus an inert
 //! kernel self-check. It does not parse or accept a command, authenticate FCU
 //! state, establish current freshness, transition authority, or cause a
@@ -21,6 +22,7 @@ mod freshness;
 mod health;
 mod lifecycle;
 mod runtime;
+mod safe_action;
 
 pub use adapter::{AdapterError, AdapterState, InertAdapter};
 pub use channels::{
@@ -66,3 +68,9 @@ pub use lifecycle::{
     Transition,
 };
 pub use runtime::{run_self_check, KernelError, SelfCheckReport};
+pub use safe_action::{
+    SafeActionIntentV1, SafeActionPolicyCandidateV1, SafeActionPolicyConfigurationErrorV1,
+    SafeActionPolicyRowProposalV1, SafeActionSelectionCandidateV1, SafeActionSelectionErrorV1,
+    SafeActionSituationCandidateV1, SafeActionSituationCodeErrorV1, SafeActionSituationCodeV1,
+    MAX_SAFE_ACTION_POLICY_ROWS_V1,
+};

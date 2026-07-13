@@ -9,10 +9,18 @@ not authenticated FCU state or authority evidence.
 vehicle-health value validated in memory by the inert headless plant foundation. It is a
 component contract and retained-register boundary only. It has no parser,
 transport, FCU connection, source authentication, lifecycle transition,
-approved age/state policy, safety verdict, watchdog, governor, safe-action selector,
-or adapter call. A separate inactive component can compare ages already
+approved age/state policy, safety verdict, watchdog, governor, authoritative
+safe-action classifier or approved policy, or adapter call. A separate
+inactive component can compare ages already
 captured by its checked reader; see
 [`PLANT_FRESHNESS_V1.md`](PLANT_FRESHNESS_V1.md).
+
+A separate safe-action component can look up a caller-proposed opaque situation
+code under an exact profile identity; see
+[`PLANT_SAFE_ACTION_V1.md`](PLANT_SAFE_ACTION_V1.md). It does not consume this
+health report, classify state/triggers, prove that its proposed rows belong to
+the profile, or select an operational action. Thus the authoritative
+safe-action classifier and approved policy are still absent.
 
 The Tauri application does not link this package. Nothing in this contract can
 authorize or apply motion.

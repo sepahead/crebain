@@ -143,8 +143,10 @@ loss semantics.
 
 These values configure disabled-by-default, renderer-local proposals only.
 They do not configure a flight controller or create vehicle authority. Every
-proposal is marked `NoAuthority`; the safe action is `Hold`, and boundary
-transitions discard the preview generation rather than resuming it.
+proposal is marked `NoAuthority`; the preview's local fallback label is `Hold`,
+and boundary transitions discard the preview generation rather than resuming
+it. That label is neither the plant safe-action candidate nor a claim that a
+physical Hold is safe for any authoritative vehicle state.
 
 | Parameter | Default | Description |
 | --------- | ------- | ----------- |

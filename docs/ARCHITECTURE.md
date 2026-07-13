@@ -35,7 +35,7 @@ graph TB
     end
 
     subgraph PlantFoundation["Separate headless package (L0, inert)"]
-        Plantd["crebain-plantd<br/>Inactive command/health/captured-age contracts + frame conventions + lifecycle + bounded channels + passive expiry<br/>Self-check only"]
+        Plantd["crebain-plantd<br/>Inactive command/health/captured-age/situation-dispatch candidates + frame conventions + lifecycle + bounded channels + passive expiry<br/>Self-check only"]
     end
 
     subgraph External["External Systems"]
@@ -70,8 +70,9 @@ the renderer, inference, fusion, simulation, the NCP action module, the
 Galadriel producer, or the generic telemetry transports. Its only executable
 mode is `--self-check`.
 
-The package establishes inactive command-contract, vehicle-health, and
-profile-bound captured-read age-classifier candidates,
+The package establishes inactive command-contract, vehicle-health,
+profile-bound captured-read age-classifier, and exact-profile safe-action
+situation-dispatch candidates,
 the nine explicit lifecycle states, generation-guarded events, capacity-one
 latest-value paths, a non-consuming retained whole-snapshot register, bounded
 reject-new lifecycle ingress, bounded drop-oldest evidence
@@ -105,9 +106,20 @@ not read a clock, approve its profile/limits, implement the draft ODD's inclusiv
 `<=200 ms` position/velocity condition, interpret unknown/unavailable state, or
 establish current or apply-time freshness.
 
+The safe-action candidate keeps five plant intent labels separate from
+untrusted ingress actions. It pairs a nonzero opaque situation code with the
+full profile identity, copies borrowed rows into an owned fixed 255-slot table,
+and rejects empty/oversized/duplicate proposals, exact-profile mismatch, and
+missing rows without a default. Its non-cloneable selection owns the asserted
+situation and intent while borrowing the immutable policy object. It does not
+derive a situation from health, lifecycle, expiry, or an authenticated trigger;
+resolve overlapping trigger priority; content-bind the caller-supplied rows to
+the profile digest; or convert an intent into velocity, adapter, or FCU work.
+
 This is a component foundation, not an authority chain. It has no approved or
 authenticated ingress/UAV profile or FCU health collector, approved age/state
-policy, active monotonic command watchdog, apply-time governor, ODD safe-action table, PX4/FCU adapter, deadline
+policy, authoritative situation classifier and content-bound ODD safe-action
+table, active monotonic command watchdog, apply-time governor, PX4/FCU adapter, deadline
 measurement, or staged live evidence. CREBAIN therefore remains L0.
 
 ## Design principles
