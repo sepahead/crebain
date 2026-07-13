@@ -20,7 +20,12 @@ an inert lifecycle/channel foundation, a non-consuming retained whole-snapshot
 register, and a passive generation-bound monotonic expiry guard. Contract v1
 uses closed action/frame/unit types, distinct producer and plant-local time,
 and draft instantaneous-speed/TTL bounds, but has no wire format and its profile/frame are
-unapproved. The binary can only self-check; it has no command ingress,
+unapproved. A separate profile-neutral finite-m/s kernel and digest-bound
+JavaScript/Rust corpus cover exact ENU↔NED and FLU↔FRD velocity-axis
+conventions only at the same local origin/datum or rigid-body reference point,
+and reject local↔body routes without attitude. They carry no frame-instance
+identity and do not select a profile, run during admission, or establish
+attitude, points/covariance, Three.js, time, or FCU semantics. The binary can only self-check; it has no command ingress,
 vehicle-health source/schema/provenance/freshness policy,
 active watchdog, governor, safe-action profile, NCP link, or FCU adapter. The
 snapshot register is storage mechanics only: it neither prevents interior

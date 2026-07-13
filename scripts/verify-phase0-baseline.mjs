@@ -1323,10 +1323,10 @@ function verifyTestEvidence(inventory, getSource) {
     )
     assertSafeRelativePath(evidence.locator.file, `${evidence.id}.locator.file`)
     assertString(evidence.locator.selector, `${evidence.id}.locator.selector`)
-    assert(
-      /(?:__tests__|\.(?:test|spec)\.|\.rs$)/.test(evidence.locator.file),
-      `${evidence.id} locator is not a checked test source`
-    )
+    const isCheckedTestSource =
+      /(?:__tests__|\.(?:test|spec)\.|\.rs$)/.test(evidence.locator.file) ||
+      evidence.locator.file === 'scripts/test-plant-frame-conventions.mjs'
+    assert(isCheckedTestSource, `${evidence.id} locator is not a checked test source`)
     assert(
       getSource(evidence.locator.file).includes(evidence.locator.selector),
       `${evidence.id} selector not found in ${evidence.locator.file}`
@@ -2112,11 +2112,13 @@ function verifyEcosystem(root, ecosystem) {
     excludedRepoNames.add(repository.name)
     assertString(repository.reason, `${repository.name}.reason`)
     assertString(repository.required_follow_up, `${repository.name}.required_follow_up`)
-    if (Object.hasOwn(repository, 'base_commit'))
-      assert(
-        /^[0-9a-f]{40}$/.test(repository.base_commit),
-        `${repository.name}.base_commit is not 40-hex`
-      )
+    for (const field of ['base_commit', 'migration_commit', 'remote_main_at_capture']) {
+      if (Object.hasOwn(repository, field))
+        assert(
+          /^[0-9a-f]{40}$/.test(repository[field]),
+          `${repository.name}.${field} is not 40-hex`
+        )
+    }
     if (Object.hasOwn(repository, 'target_mirror_ref'))
       assertString(repository.target_mirror_ref, `${repository.name}.target_mirror_ref`)
     if (Object.hasOwn(repository, 'target_wire_version'))

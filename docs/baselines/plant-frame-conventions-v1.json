@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "corpus_id": "plant-frame-conventions-v1",
+  "scope": "velocity_vectors_only",
+  "units": "m/s",
+  "zero_representation": "positive_zero",
+  "number_encoding": "shortest_round_trip_plain_decimal_max_3_integer_6_fraction_digits",
+  "frame_instance_requirement": {
+    "local": "same_tangent_origin_and_datum",
+    "body": "same_rigid_body_reference_point",
+    "enforcement": "not_carried_caller_must_prove"
+  },
+  "golden_corpus": {
+    "path": "docs/baselines/plant-frame-golden-v1.tsv",
+    "sha256": "4ebe6e287f8d094716065292b2c7614c807c19a7573c47b655f70e7e853cd578"
+  },
+  "frames": [
+    {
+      "id": "local_enu",
+      "domain": "local",
+      "axes": ["east", "north", "up"]
+    },
+    {
+      "id": "local_ned",
+      "domain": "local",
+      "axes": ["north", "east", "down"]
+    },
+    {
+      "id": "body_flu",
+      "domain": "body",
+      "axes": ["forward", "left", "up"]
+    },
+    {
+      "id": "body_frd",
+      "domain": "body",
+      "axes": ["forward", "right", "down"]
+    }
+  ],
+  "transform_routes": [
+    {
+      "from": "local_enu",
+      "to": "local_enu",
+      "operation": "identity"
+    },
+    {
+      "from": "local_enu",
+      "to": "local_ned",
+      "operation": "swap_xy_negate_z"
+    },
+    {
+      "from": "local_ned",
+      "to": "local_enu",
+      "operation": "swap_xy_negate_z"
+    },
+    {
+      "from": "local_ned",
+      "to": "local_ned",
+      "operation": "identity"
+    },
+    {
+      "from": "body_flu",
+      "to": "body_flu",
+      "operation": "identity"
+    },
+    {
+      "from": "body_flu",
+      "to": "body_frd",
+      "operation": "keep_x_negate_yz"
+    },
+    {
+      "from": "body_frd",
+      "to": "body_flu",
+      "operation": "keep_x_negate_yz"
+    },
+    {
+      "from": "body_frd",
+      "to": "body_frd",
+      "operation": "identity"
+    }
+  ],
+  "rejected_routes": [
+    {
+      "from": "local_enu",
+      "to": "body_flu",
+      "reason": "attitude_required"
+    },
+    {
+      "from": "local_enu",
+      "to": "body_frd",
+      "reason": "attitude_required"
+    },
+    {
+      "from": "local_ned",
+      "to": "body_flu",
+      "reason": "attitude_required"
+    },
+    {
+      "from": "local_ned",
+      "to": "body_frd",
+      "reason": "attitude_required"
+    },
+    {
+      "from": "body_flu",
+      "to": "local_enu",
+      "reason": "attitude_required"
+    },
+    {
+      "from": "body_flu",
+      "to": "local_ned",
+      "reason": "attitude_required"
+    },
+    {
+      "from": "body_frd",
+      "to": "local_enu",
+      "reason": "attitude_required"
+    },
+    {
+      "from": "body_frd",
+      "to": "local_ned",
+      "reason": "attitude_required"
+    }
+  ],
+  "explicit_exclusions": [
+    "frame instance identity",
+    "attitude",
+    "quaternions",
+    "yaw",
+    "points",
+    "translation",
+    "covariance",
+    "Three.js",
+    "time",
+    "profile selection"
+  ]
+}

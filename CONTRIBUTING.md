@@ -56,7 +56,7 @@ Use the smallest check that is honest for the change:
 # Frontend typecheck + lint + format check + tests
 bun run validate
 
-# NCP pin coherence + frontend + plant-boundary + Rust default/NCP gates
+# NCP pin coherence + frontend + plant boundary/frame corpus + Rust default/NCP gates
 bun run validate:all
 ```
 
@@ -66,15 +66,16 @@ bun run validate:all
 | NCP manifest, lockfile, or normative-doc changes | `bun run check:ncp-coherence` |
 | Frontend-only source/test changes | `bun run validate` |
 | Rust, Tauri IPC, model loading, scene persistence, ROS, Zenoh, transport, or sensor fusion changes | `bun run validate:all` |
-| Headless plant package, lifecycle, or channel-policy changes | `bun run check:plant-boundary` plus `bun run validate:all` |
+| Headless plant package, frame corpus, lifecycle, or channel-policy changes | `bun run check:plant-boundary`, `bun run check:plant-frames`, and `bun run validate:all` |
 | Release-candidate claims | `bun run validate:all` plus `docs/MANUAL_SMOKE_TEST.md` |
 | Native detector performance claim | The release command and archived evidence bundle in `docs/NATIVE_DETECTOR_BENCHMARK.md` |
 
 For documentation-only changes, keep Markdown files aligned on validation commands, backend status, roadmap items, model assumptions, and security boundaries.
 
-`bun run validate:all` includes the inert plant boundary, scoped Rustfmt, check,
-all-target tests (including the native benchmark's logic tests), strict Clippy,
-and headless self-check gates. It does not run a real model benchmark, the
+`bun run validate:all` includes the inert plant boundary, digest-bound
+JavaScript/Rust frame corpus, scoped Rustfmt, check, all-target tests (including
+the native benchmark's logic tests), strict Clippy, and headless self-check
+gates. It does not run a real model benchmark, the
 bundle budget, coverage thresholds,
 `cuda,tensorrt` / `--no-default-features` feature checks, CodeQL, or supply-chain
 audits. Release candidates require those hosted workflows as defined in

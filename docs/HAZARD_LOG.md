@@ -25,7 +25,7 @@ No hazard in this baseline is controlled or accepted. Every P0 entry blocks L1.
 | HAZ-002 | Required safe action is lost or omitted | P0 | open | Plant watchdog plus independent FCU failsafe |
 | HAZ-003 | Delayed command remains active | P0 | partial | Passive generation-bound monotonic expiry mechanics exist; command admission, active scheduling, apply-time age check, and bounded TTL policy remain absent |
 | HAZ-004 | Replay, duplicate, or cross-session command is accepted | P0 | partial | Boot/session/stream fencing and anti-rollback |
-| HAZ-005 | Correct vector is applied in the wrong frame or unit | P0 | open | Typed frame/unit profile and golden transforms |
+| HAZ-005 | Correct vector is applied in the wrong frame or unit | P0 | partial | Profile-neutral same-frame-instance ENU/NED and FLU/FRD velocity-axis corpus exists; frame-instance proof, approved profile, remaining semantics, and live interpretation are absent |
 | HAZ-006 | Stale or inconsistent vehicle state authorizes motion | P0 | open | Atomic fresh health snapshot immediately before write |
 | HAZ-007 | Generic Hold/ESTOP causes an unsafe physical action | P0 | open | ODD/vehicle safe-action matrix and guarded reset |
 | HAZ-008 | Router, MAVROS, FCU, or data-link loss leaves unsafe output | P0 | open | Bounded loss detection and independent FCU fallback |
@@ -56,9 +56,14 @@ latency.
 The inactive contract-v1 candidate narrows input ambiguity only. It rejects a
 profile/session/version mismatch, non-velocity actions, wrong frame or unit,
 invalid requested lifetime, nonfinite components, and draft speed-limit excess.
-The canonical local frame and profile remain unapproved, there is no wire
-decoder or authenticated ingress, and no ENU/NED or FLU/FRD transform corpus
-exists. HAZ-005 and HAZ-016 therefore remain open.
+The profile-neutral frame-convention kernel and digest-bound golden corpus now
+cover exact ENU↔NED and FLU↔FRD velocity-axis mappings and reject every
+local↔body route without attitude. The canonical local frame and profile remain
+unapproved; frame-instance identity and same-origin/datum/body-point proof,
+attitude/yaw/quaternions, points/translation, covariance, Three.js,
+degrees/radians, time units, authenticated ingress, apply-time enforcement, and
+live FCU interpretation remain absent. HAZ-005 is therefore partial, CTL-006
+remains planned, and HAZ-016 remains open.
 
 The retained snapshot register is generic CB-030 storage mechanics only. It
 proves non-consuming whole-value replacement and atomic association with

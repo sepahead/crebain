@@ -13,6 +13,7 @@ mod adapter;
 mod channels;
 mod contract;
 mod expiry;
+mod frame_conventions;
 mod lifecycle;
 mod runtime;
 
@@ -34,6 +35,7 @@ pub use contract::{
     DRAFT_L1_MAX_VERTICAL_SPEED_MPS, PLANT_CONTRACT_V1,
 };
 pub use expiry::{ExpiryConfigurationError, ExpiryStatus, MonotonicExpiryGuard};
+pub use frame_conventions::{FiniteFramedVelocityMpsV1, FrameConventionError};
 pub use lifecycle::{
     GuardedEvent, LifecycleError, LifecycleEvent, LifecycleMachine, PlantState, RuntimeGeneration,
     Transition,
