@@ -229,9 +229,14 @@
           "test_id": "TEST-PLANT-LOCAL-TTL",
           "status": "planned",
           "artifact": "monotonic expiry latency distribution"
+        },
+        {
+          "test_id": "TEST-PLANT-MONOTONIC-EXPIRY",
+          "status": "partial",
+          "artifact": "component tests proving half-open local expiry, immutable deadline, generation fencing, invalid-TTL rejection, and clock-regression failure"
         }
       ],
-      "residual_risk": "Component ActionBuffer tests do not prove apply-time plant expiry."
+      "residual_risk": "Passive local expiry mechanics exist, but there is no command admission, active watchdog scheduling, suspend qualification, immediately-before-write check, safe action, or latency evidence."
     },
     {
       "id": "HAZ-004",

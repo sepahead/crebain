@@ -20,6 +20,17 @@ exhaustion fail closed. Replaced values are destroyed only after committed
 state and accounting have been unlocked, so an adversarial destructor cannot
 poison the channel mutex.
 
+## Passive expiry mechanics
+
+`MonotonicExpiryGuard` binds one immutable, locally armed interval to the
+process monotonic clock and a lifecycle generation. Its half-open validity
+window expires exactly at the deadline; clock regression, generation rotation,
+zero TTL, and unrepresentable deadlines fail closed. The guard has no refresh,
+timer, callback, command payload, raw timestamp, safe-action selection, adapter
+hook, or I/O. It is component mechanics only—not the CB-027 watchdog—and does
+not prove suspend behavior, apply-time coupling, scheduler latency, or expiry to
+FCU-safe-action timing.
+
 The package has no dependencies and the boundary checker rejects links or
 source references to the application library, Tauri, NCP/Zenoh, transport,
 inference, fusion, simulation, ROS, Gazebo, or MAVROS. A real watchdog, trusted

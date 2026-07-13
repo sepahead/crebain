@@ -23,7 +23,7 @@ No hazard in this baseline is controlled or accepted. Every P0 entry blocks L1.
 |---|---|---|---|---|
 | HAZ-001 | Motion through an authority bypass | P0 | open | Sole native applier; exact Gate identity/route; bypass campaign |
 | HAZ-002 | Required safe action is lost or omitted | P0 | open | Plant watchdog plus independent FCU failsafe |
-| HAZ-003 | Delayed command remains active | P0 | partial | Apply-time monotonic age and bounded TTL |
+| HAZ-003 | Delayed command remains active | P0 | partial | Passive generation-bound monotonic expiry mechanics exist; command admission, active scheduling, apply-time age check, and bounded TTL policy remain absent |
 | HAZ-004 | Replay, duplicate, or cross-session command is accepted | P0 | partial | Boot/session/stream fencing and anti-rollback |
 | HAZ-005 | Correct vector is applied in the wrong frame or unit | P0 | open | Typed frame/unit profile and golden transforms |
 | HAZ-006 | Stale or inconsistent vehicle state authorizes motion | P0 | open | Atomic fresh health snapshot immediately before write |
@@ -47,3 +47,8 @@ control HAZ-001/002: there is no FCU write path, watchdog, safe-action table, or
 independent failsafe evidence. HAZ-012/013 remain L1-blocking because fixed
 channel semantics and process-local generation guards do not prove deadline
 scheduling, process-restart uniqueness, or retained-network behavior.
+The passive expiry guard narrows HAZ-003 mechanics only: exact-deadline,
+generation-rotation, clock-regression, and invalid-TTL cases fail closed. It is
+not an active watchdog and does not prove platform suspend behavior,
+immediately-before-write coupling, scheduler jitter, or expiry-to-safe-action
+latency.
