@@ -82,10 +82,12 @@ Before this candidate can be called an approved profile, the project must name
 the exact PX4 SITL image/parameters and canonical local frame; review and bind
 the exact v1 corpus digest plus remaining transform semantics into the profile
 artifact; and record its owner, approver, approval scope, and expiry/review
-condition. The next implementation dependency remains a typed immutable
-vehicle-health snapshot with provenance and freshness; command ingress and FCU
-I/O remain out of order until the later watchdog, safe-action, governor, and
-adapter gates exist.
+condition. A separate typed immutable vehicle-health snapshot candidate now
+binds declared context identity and exposes plant-monotonic ages, but it does
+not authenticate an FCU source, approve freshness, or close the apply-time
+race. Command ingress and FCU I/O remain out of order until the profile,
+watchdog, safe-action, governor, and adapter gates exist. See
+[`PLANT_HEALTH_V1.md`](PLANT_HEALTH_V1.md).
 
 ## Component verification
 

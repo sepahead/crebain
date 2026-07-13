@@ -58,10 +58,21 @@ Open-source readiness and quality hardening.
   Repeated loads do not consume or deep-clone the value; previously loaded
   handles keep their prior allocation after replacement; poisoning, closure,
   and counter exhaustion fail closed; and concurrency/adversarial-destructor
-  tests cover coherent commits. This generic API does not prevent interior
-  mutation exposed by `T` or validate generation freshness/order. It is CB-030
-  storage mechanics only, not a trusted vehicle-health schema, freshness check,
-  apply-time gate, or HAZ-006 control.
+  tests cover coherent commits. This generic API remains disconnected storage
+  mechanics and by itself does not prevent interior mutation exposed by `T` or
+  validate generation freshness/order.
+- **Inactive typed vehicle-health snapshot contract.** The canonical kernel
+  health path now validates a closed immutable in-memory report against an
+  exact candidate profile, vehicle/source/stream-epoch identity, runtime
+  generation, local-frame instance, source sequence that is strictly increasing
+  within one publisher instance,
+  local frame, SI units, plant-local observation times, finite vectors, and
+  bounded battery fraction. Its sealed channel retains coherent state and
+  exposes exact ages without a healthy/safe verdict. Source identities are
+  declared rather than authenticated; no FCU collector, approved freshness
+  policy, durable exclusive epoch/channel ownership, apply-time consumer,
+  governor, failsafe, or adapter exists. This is
+  partial CB-030/CTL-005/HAZ-006 component evidence only.
 - **Passive plant-local monotonic expiry mechanics.** The isolated zero-dependency
   plant foundation can classify one immutable, generation-bound local interval;
   zero TTL or an unrepresentable deadline, clock regression, generation rotation, and the

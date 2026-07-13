@@ -1,0 +1,139 @@
+# Inactive Vehicle Health Contract V1
+
+Status: **inactive and unapproved**. This is an in-memory component contract,
+not authenticated FCU state or authority evidence.
+
+## Scope
+
+`crebain-plant-authority::health` defines the first closed, dependency-free
+vehicle-health value validated in memory by the inert headless plant foundation. It is a
+component contract and retained-register boundary only. It has no parser,
+transport, FCU connection, source authentication, lifecycle transition,
+freshness threshold, safety verdict, watchdog, governor, safe-action selector,
+or adapter call.
+
+The Tauri application does not link this package. Nothing in this contract can
+authorize or apply motion.
+
+## Provenance and lifecycle binding
+
+One channel is fixed for its lifetime to all of the following:
+
+- the exact candidate profile identity, including its ENU or NED semantics;
+- one nonzero vehicle identity;
+- one nonzero configured health-source identity;
+- one nonzero source-stream epoch;
+- one process-local runtime generation; and
+- one nonzero local-frame-instance identity.
+
+The source identity is a structural digest-sized value. Equality does not
+authenticate the source or prove exclusive ownership of an FCU connection. The
+local-frame-instance identity can fence silent reuse only when the deployment
+supplies a new value after an origin, datum, or simulation-frame reset. This
+component neither creates nor verifies that deployment identity.
+
+The publisher is concrete, non-cloneable, and requires mutable access for every
+commit. A caller must represent a lifecycle/source reset by constructing a new
+context and channel instead of rebinding an existing publisher. Stream sequence
+is strictly increasing within one publisher/channel instance bound to the
+source epoch; gaps are accepted, rejected reports do not advance the high water
+mark, and exhaustion fails closed without wrapping. The API
+cannot globally prevent a caller from recreating another channel with the same
+epoch identity. Exclusive construction, durable epoch uniqueness, and
+anti-rollback across process restart remain unproved.
+
+## Closed report state
+
+Every report explicitly carries schema, profile, vehicle, source, epoch,
+sequence, generation, local-frame instance, frame, position unit, velocity
+unit, and plant-local observation times. It also carries:
+
+- arming, landed, opaque profile mode, and FCU failsafe state;
+- validity of attitude, height, local position, local velocity, global
+  position, and home position estimates;
+- local position and velocity observations;
+- battery remaining fraction;
+- fence state; and
+- plant-to-FCU, FCU data-link, and offboard-control link state.
+
+Safety-relevant fields are mandatory. Closed `Unknown` states and explicit
+unavailability reasons (`NotReported`, `RejectedBySource`, or
+`ResetInProgress`) replace older values instead of being rejected and leaving a
+nominal-looking snapshot behind. The opaque numeric mode code is retained for a
+future approved profile to interpret; this component does not assign generic
+safe/unsafe mode names.
+
+Available position and velocity values must be finite and use metres and
+metres per second in the profile's exact local frame. Available battery values
+must be finite and within `0.0..=1.0`. Signed zero is canonicalized to positive
+zero. No telemetry plausibility, speed, battery-critical, or freshness policy
+limit is applied. Large finite observations and contradictory but structurally
+possible state are retained for a later conservative policy to assess.
+
+## Plant-local time
+
+Observation tokens and the internal receipt stamp use `std::time::Instant` and
+the bound runtime generation. They are neither FCU time, producer time,
+simulation time, nor wall time. Admission rejects an observation from another
+generation or after the plant receipt instant. An old but well-formed report is
+retained; its age is data for the future governor, not a reason to preserve an
+even older snapshot.
+
+One reader load returns a coherent immutable commit and exact ages for receipt,
+FCU state, estimator, position, velocity, battery, fence, and links. Missing
+state, poisoned storage, generation rotation, and monotonic-clock regression
+are explicit errors. Loads never refresh an observation and never classify it
+as fresh. Platform suspend behavior for the selected monotonic clock is not yet
+qualified.
+
+## Atomic boundary and remaining race
+
+The validated snapshot contains only closed value types, fixed arrays, numeric
+scalars, identities, and monotonic timestamps. Its fields are private and it
+exposes no mutable access or interior-mutable container. One whole snapshot,
+including declared context fields, source sequence, values, and all observation times,
+replaces the retained commit atomically. A previously loaded commit keeps its
+unchanged allocation after replacement.
+
+The generic retained register remains available as low-level channel mechanics,
+but the canonical `KernelChannels` health path is the specialized contract and
+does not expose its raw sender or receiver. A separately-created generic
+register is not the canonical vehicle-health path.
+
+A lifecycle change can still occur after a reader load. Only a future governor
+that checks generation, approved freshness limits, profile policy, and state
+immediately before every FCU write can close that race. Consequently this slice
+is partial CB-030/CTL-005/HAZ-006 component evidence; it is not
+`TEST-ATOMIC-STATE-STALENESS`, active authority, or L1 completion.
+
+## Deliberately deferred semantics
+
+The following need separately reviewed profile, adapter, deployment, and live
+evidence:
+
+- the exact PX4 image, parameters, vehicle, source principal, and profile
+  approval;
+- FCU mode and estimator-flag interpretation;
+- source authentication and proof that timestamps are captured at the real
+  observation boundary;
+- multi-message aggregation and oldest-constituent time rules;
+- local-frame origin/datum issuance and reset detection;
+- freshness, battery-critical, fence, failsafe, link, armed/landed, and mode
+  policy;
+- covariance, attitude/quaternions, global coordinates, and transforms;
+- apply-time generation/freshness enforcement and physical safe action;
+- suspend-inclusive clock qualification and durable restart anti-rollback; and
+- ingress, wire schema, evidence pipeline, watchdog, governor, and FCU I/O.
+
+## Verification
+
+```bash
+bun run check:plant-boundary
+bun run test:plant
+bun run clippy:plant
+bun run fmt:plant:check
+bun run self-check:plant
+```
+
+These commands prove component behavior and package isolation only. They do not
+exercise SITL, HIL, an authenticated deployment, or a physical vehicle.

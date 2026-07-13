@@ -65,7 +65,7 @@
     {
       "id": "CTL-005",
       "owner": "plant-authority",
-      "status": "planned",
+      "status": "partial",
       "statement": "One atomic fresh FCU health/state snapshot is checked at apply time."
     },
     {
@@ -303,7 +303,7 @@
       "id": "HAZ-006",
       "title": "Stale or inconsistent vehicle state authorizes motion",
       "severity": "P0",
-      "status": "open",
+      "status": "partial",
       "owner": "plant-authority",
       "unsafe_control_actions": ["provided-when-unsafe"],
       "loss_ids": ["LOSS-001", "LOSS-005"],
@@ -317,12 +317,27 @@
       "odd_clauses": ["ODD-07", "ODD-08"],
       "evidence": [
         {
+          "test_id": "TEST-PLANT-HEALTH-SNAPSHOT-V1",
+          "status": "partial",
+          "artifact": "barrier- and acknowledgement-coordinated component test requiring every reader to verify coherent source-sequence, position, and velocity values at staged replacements two and three before the writer continues through 1,000 retained commits"
+        },
+        {
+          "test_id": "TEST-PLANT-HEALTH-ADMISSION-V1",
+          "status": "partial",
+          "artifact": "component rejection matrix for closed identity, per-channel sequence, frame/unit, plant-time, numeric, explicit unavailable-state, and reachable closure/poison/counter retained-storage failures"
+        },
+        {
+          "test_id": "TEST-PLANT-HEALTH-AGES-V1",
+          "status": "partial",
+          "artifact": "component reader test for missing state, generation rotation, clock regression, deliberately old observations, and increasing ages without freshness classification"
+        },
+        {
           "test_id": "TEST-ATOMIC-STATE-STALENESS",
           "status": "planned",
           "artifact": "apply-time race and staleness trace"
         }
       ],
-      "residual_risk": "Generic retained snapshot storage exists, but it does not prevent interior mutation, validate caller-supplied generation order, or provide an authoritative FCU health schema, provenance, freshness policy, or apply-time consumer."
+      "residual_risk": "A closed immutable in-memory snapshot, context-bound retained channel, strict sequence admission within one publisher/channel instance, and coherent plant-monotonic age mechanics exist. Source/profile/frame identities remain caller-supplied structural assertions, not authenticated provenance; a caller can recreate another channel with the same epoch and reset its in-memory high-water; real FCU sampling and multi-message coherence are unproved; no approved freshness threshold or health verdict exists; lifecycle can rotate after load; and no immediately-before-write governor, adapter, or independently attested FCU failsafe consumes the snapshot."
     },
     {
       "id": "HAZ-007",

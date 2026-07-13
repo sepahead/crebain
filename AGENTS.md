@@ -24,7 +24,7 @@ bun run check:ncp-coherence # Verify NCP manifests, locks, and normative docs ag
 bun run check:plant-boundary # Verify the inert plant package/process dependency boundary
 bun run check:plant-frames # Verify the digest-bound JS/Rust frame-convention corpus
 bun run check:plant      # Check the headless plant-authority package
-bun run test:plant       # Test contract/frame/lifecycle/channel/snapshot/passive-expiry/headless foundations
+bun run test:plant       # Test command/health contracts, frame/lifecycle/channel/passive-expiry/headless foundations
 bun run clippy:plant     # Strict Clippy for all plant targets
 bun run fmt:plant:check  # Rustfmt check scoped to the plant package
 bun run self-check:plant # Run crebain-plantd in inert self-check mode
