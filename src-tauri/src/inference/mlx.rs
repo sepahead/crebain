@@ -959,12 +959,44 @@ mod tests {
     static MLX_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-    fn restore_env_var(name: &str, value: Option<String>) {
-        if let Some(value) = value {
-            std::env::set_var(name, value);
-        } else {
-            std::env::remove_var(name);
+    struct MlxChecksumEnvOverride {
+        original: Option<std::ffi::OsString>,
+        _lock: std::sync::MutexGuard<'static, ()>,
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    impl MlxChecksumEnvOverride {
+        fn apply(value: Option<&str>) -> Self {
+            let lock = MLX_ENV_LOCK
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let original = std::env::var_os("CREBAIN_MLX_MODEL_SHA256");
+            if let Some(value) = value {
+                std::env::set_var("CREBAIN_MLX_MODEL_SHA256", value);
+            } else {
+                std::env::remove_var("CREBAIN_MLX_MODEL_SHA256");
+            }
+            Self {
+                original,
+                _lock: lock,
+            }
         }
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    impl Drop for MlxChecksumEnvOverride {
+        fn drop(&mut self) {
+            if let Some(value) = self.original.take() {
+                std::env::set_var("CREBAIN_MLX_MODEL_SHA256", value);
+            } else {
+                std::env::remove_var("CREBAIN_MLX_MODEL_SHA256");
+            }
+        }
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    fn with_mlx_checksum(value: Option<&str>) -> MlxChecksumEnvOverride {
+        MlxChecksumEnvOverride::apply(value)
     }
 
     #[test]
@@ -1091,32 +1123,24 @@ mod tests {
     #[test]
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     fn mlx_checksum_accepts_expected_digest() {
-        let _guard = MLX_ENV_LOCK.lock().unwrap();
-        let original = std::env::var("CREBAIN_MLX_MODEL_SHA256").ok();
-        std::env::set_var(
-            "CREBAIN_MLX_MODEL_SHA256",
+        let _env = with_mlx_checksum(Some(
             "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
-        );
+        ));
 
         let result = validate_model_checksum("model.safetensors", b"abc");
 
-        restore_env_var("CREBAIN_MLX_MODEL_SHA256", original);
         assert!(result.is_ok());
     }
 
     #[test]
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     fn mlx_checksum_rejects_mismatch() {
-        let _guard = MLX_ENV_LOCK.lock().unwrap();
-        let original = std::env::var("CREBAIN_MLX_MODEL_SHA256").ok();
-        std::env::set_var(
-            "CREBAIN_MLX_MODEL_SHA256",
+        let _env = with_mlx_checksum(Some(
             "0000000000000000000000000000000000000000000000000000000000000000",
-        );
+        ));
 
         let error = validate_model_checksum("model.safetensors", b"abc").unwrap_err();
 
-        restore_env_var("CREBAIN_MLX_MODEL_SHA256", original);
         assert!(error.to_string().contains("checksum mismatch"));
     }
 
@@ -1223,6 +1247,7 @@ mod tests {
     #[test]
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     fn e2e_mlx_smoke_test_with_minimal_model() {
+        let _env = with_mlx_checksum(None);
         let device = Device::Cpu;
         let model_path = std::env::temp_dir().join(format!(
             "crebain-e2e-mlx-{}.safetensors",
