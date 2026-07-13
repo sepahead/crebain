@@ -10,7 +10,7 @@ use objc::{class, msg_send, runtime::Object, sel, sel_impl};
 use std::ffi::CString;
 
 #[cfg(target_os = "macos")]
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
@@ -130,6 +130,8 @@ pub struct NativeCoreMLDetector {
 
 #[cfg(target_os = "macos")]
 static DETECTOR: OnceLock<NativeCoreMLDetector> = OnceLock::new();
+#[cfg(target_os = "macos")]
+static DETECTOR_INIT_LOCK: Mutex<()> = Mutex::new(());
 
 #[cfg(target_os = "macos")]
 impl NativeCoreMLDetector {
@@ -140,6 +142,10 @@ impl NativeCoreMLDetector {
     /// `lib.rs`), so a failure for one path must not poison retries with the
     /// next path. Each call may retry until `DETECTOR` is set.
     pub fn init_global(model_path: &str) -> Result<(), String> {
+        let _guard = DETECTOR_INIT_LOCK
+            .lock()
+            .map_err(|_| "CoreML detector initialization lock poisoned".to_string())?;
+
         // Check if already initialized
         if DETECTOR.get().is_some() {
             return Ok(());
@@ -153,6 +159,30 @@ impl NativeCoreMLDetector {
             }
             Err(e) => Err(e),
         }
+    }
+
+    /// Initialize the global detector from exactly this path.
+    ///
+    /// Unlike the fallback-friendly initializer, this rejects any previously
+    /// initialized detector. The shared initialization lock makes the check,
+    /// construction, and singleton publication atomic with respect to every
+    /// supported initialization path.
+    pub fn init_global_exact(model_path: &str) -> Result<(), String> {
+        let _guard = DETECTOR_INIT_LOCK
+            .lock()
+            .map_err(|_| "CoreML detector initialization lock poisoned".to_string())?;
+        if DETECTOR.get().is_some() {
+            return Err(
+                "CoreML detector is already initialized; exact model identity cannot be proven"
+                    .to_string(),
+            );
+        }
+
+        let detector = Self::new(model_path)?;
+        DETECTOR.set(detector).map_err(|_| {
+            "CoreML detector was initialized concurrently; exact model identity cannot be proven"
+                .to_string()
+        })
     }
 
     /// Get the global detector instance
@@ -587,6 +617,12 @@ struct CGSize {
 #[cfg(target_os = "macos")]
 pub fn init_detector(model_path: &str) -> Result<(), String> {
     NativeCoreMLDetector::init_global(model_path)
+}
+
+/// Initialize the CoreML detector only when no prior global model exists.
+#[cfg(target_os = "macos")]
+pub fn init_detector_exact(model_path: &str) -> Result<(), String> {
+    NativeCoreMLDetector::init_global_exact(model_path)
 }
 
 /// Run detection on raw RGBA data.

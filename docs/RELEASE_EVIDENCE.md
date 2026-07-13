@@ -48,6 +48,7 @@ must not be reused as evidence for the current dependency or source tree.
 | NCP feature | NCP clippy and tests on Linux/macOS | Passed locally and in CI 29224462291 |
 | Inert plant foundation | Dependency boundary, strict Clippy, property/stress/headless/retained-snapshot/expiry tests, self-check | Passed locally and in CI 29224462291; retained snapshots and passive expiry remain component mechanics, not a trusted health contract, active watchdog, or live authority |
 | Serialized native IPC | Same production handler list plus negative structured invokes for scene, detector, fusion, and transport input boundaries | Passed locally and in CI 29224462291; starts with `InvokeRequest` under the mock runtime and does not replace raw webview-conversion, packaged-origin/CSP/capability, positive path, or target-platform smoke evidence |
+| Native detector benchmark mechanics | All-target/focused tests cover bounds, failure propagation, model/fixture identity, ONNX Runtime loading records and configured-Linux-library identity, raw-sample summaries, trusted-baseline digest binding/comparability, and no-overwrite report persistence | Post-candidate working-tree evidence only, excluded from the candidate evidence above: 22 focused logic tests passed locally; no approved model, target-hardware run, baseline, threshold, or numeric result; hosted evidence for the new source is pending |
 | Rust feature gates | `cuda,tensorrt` and `--no-default-features` checks | Passed on Linux in CI 29224462291 |
 | Supply chain | cargo-deny and `bun audit` | Passed in Audit 29215667661 on the last dependency-manifest change; no later dependency drift |
 | Static analysis | CodeQL JavaScript/TypeScript and Rust | Passed in CodeQL 29224462197 |
@@ -79,5 +80,6 @@ must not be reused as evidence for the current dependency or source tree.
 
 - `docs/RELEASE_ACCEPTANCE.md`
 - `docs/MODEL_CONTRACTS.md`
+- `docs/NATIVE_DETECTOR_BENCHMARK.md`
 - `docs/MANUAL_SMOKE_TEST.md`
 - `SECURITY.md`

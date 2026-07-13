@@ -23,6 +23,7 @@ Describe what changed and why.
 |---------|--------|-------|
 | `bun run validate` | not run |  |
 | `bun run validate:all` | not run | Required for Rust, plant-authority, IPC, transport, model-loading, or integration changes |
+| Native detector evidence bundle | not applicable | Required only for a retained numeric detector-performance claim |
 | Manual smoke checklist | not run | Required before release-candidate claims |
 
 ## Checklist

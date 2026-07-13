@@ -27,7 +27,7 @@ graph TB
         ROSBridge["ROS Telemetry Fallback<br/>(WebSocket, read-only)"]
 
         subgraph Platform["Platform Abstraction"]
-            macOS["macOS<br/>CoreML default<br/>MLX experimental<br/>Metal GPU<br/>Neural Engine"]
+            macOS["macOS<br/>CoreML default<br/>MLX experimental<br/>Metal GPU<br/>framework-managed CoreML placement"]
             Linux["Linux (NixOS)<br/>CUDA / TensorRT<br/>NVIDIA GPU<br/>Vulkan"]
         end
     end
@@ -216,7 +216,7 @@ flowchart TB
 
     subgraph Backend["Rust Backend: create_detector()"]
         Preprocess["Preprocess<br/>(resize 640×640, normalize)"]
-        Inference["Inference<br/>(GPU/Neural Engine)"]
+        Inference["Inference<br/>(native providers/CPU)"]
         Postprocess["Postprocess<br/>(NMS, filter confidence)"]
 
         Preprocess --> Inference --> Postprocess

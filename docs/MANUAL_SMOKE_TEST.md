@@ -13,6 +13,7 @@ model, platform, or ROS/Zenoh topology.
 | App mode | `bun run tauri:dev` / packaged build |
 | Model file + digest |  |
 | Detection backend | CoreML / ONNX / CUDA / TensorRT / MLX |
+| Native benchmark report/baseline digests, if claimed |  |
 | ROS 1 / Gazebo Classic topology |  |
 | Zenoh peer/re-key bridge, if used |  |
 | Local validation command/result |  |
@@ -34,7 +35,7 @@ candidate:
 | Diagnostics | Platform, backend, mode, availability, and MLX opt-in state match the environment; raw path is not mislabeled zero-copy | 🟡 value/label guards; live values manual |  |
 | Camera lifecycle | Add/select/remove cameras; feed/export works; total cameras/render pixels stop at documented limits | 🟡 state/detection-loop coverage |  |
 | Detection | Valid model returns structured detections; missing/wrong model returns a structured error without UI crash | 🟡 backend error tests; real model manual |  |
-| Benchmark/cancel | Progress updates and cancel clears busy state; record command/hardware/model if retaining numbers | ⬜ |  |
+| Native detector benchmark (only when retaining a numeric claim) | Archive clean commit, exact command/report and digest, approved model/fixture digests, external target-runtime context, trusted baseline digest, and pre-approved threshold per `NATIVE_DETECTOR_BENCHMARK.md` | 🟡 harness logic tests only; real target run manual |  |
 | Save scene | Valid `.json` saves in Tauri mode and replacement is atomic from the user's perspective | 🟡 negative native IPC tests; valid filesystem path manual |  |
 | Load/migrate scene | Valid current and older fixture restore; malformed/non-JSON/>10 MiB/schema-invalid files fail before mutating live state | ✅ schema/migration/bounds; live UI observation manual |  |
 | Restore assets | Relative/HTTPS/loopback sources restore sequentially; self-contained GLBs and splats appear with transforms; one bad asset produces an explicit partial failure | 🟡 loader/scene tests; renderer/network manual |  |

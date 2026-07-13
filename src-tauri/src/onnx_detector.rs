@@ -2,7 +2,7 @@
 //! Cross-platform ML inference using ONNX Runtime
 //!
 //! Supports multiple execution providers:
-//! - CoreML (macOS with Apple Silicon/Neural Engine)
+//! - CoreML (macOS; CoreML owns operation placement)
 //! - CUDA (Linux/Windows with NVIDIA GPU)
 //! - TensorRT (optimized NVIDIA inference)
 //! - CPU (fallback for all platforms)
@@ -206,12 +206,21 @@ impl OnnxDetector {
                         .with_engine_cache_path(cache_dir.to_string_lossy().to_string());
                 }
 
-                match Session::builder()
-                    .map_err(|e| format!("Failed to create session builder: {}", e))?
-                    .with_execution_providers([trt_ep.build()])
-                    .map_err(|e| format!("Failed to set execution providers: {}", e))?
-                    .commit_from_file(model_path)
-                {
+                let attempt = Session::builder()
+                    .map_err(|error| format!("Failed to create session builder: {error}"))
+                    .and_then(|builder| {
+                        builder
+                            .with_execution_providers([trt_ep.build().error_on_failure()])
+                            .map_err(|error| {
+                                format!("Failed to register TensorRT provider: {error}")
+                            })
+                    })
+                    .and_then(|mut builder| {
+                        builder
+                            .commit_from_file(model_path)
+                            .map_err(|error| format!("Failed to create TensorRT session: {error}"))
+                    });
+                match attempt {
                     Ok(session) => return Ok((session, "ONNX Runtime (TensorRT)".to_string())),
                     Err(e) => {
                         log::warn!(
@@ -229,12 +238,21 @@ impl OnnxDetector {
             if cuda_available {
                 log::info!("ONNX: CUDA execution provider available, attempting to use it");
 
-                match Session::builder()
-                    .map_err(|e| format!("Failed to create session builder: {}", e))?
-                    .with_execution_providers([CUDAExecutionProvider::default().build()])
-                    .map_err(|e| format!("Failed to set execution providers: {}", e))?
-                    .commit_from_file(model_path)
-                {
+                let attempt = Session::builder()
+                    .map_err(|error| format!("Failed to create session builder: {error}"))
+                    .and_then(|builder| {
+                        builder
+                            .with_execution_providers([CUDAExecutionProvider::default()
+                                .build()
+                                .error_on_failure()])
+                            .map_err(|error| format!("Failed to register CUDA provider: {error}"))
+                    })
+                    .and_then(|mut builder| {
+                        builder
+                            .commit_from_file(model_path)
+                            .map_err(|error| format!("Failed to create CUDA session: {error}"))
+                    });
+                match attempt {
                     Ok(session) => return Ok((session, "ONNX Runtime (CUDA)".to_string())),
                     Err(e) => {
                         log::warn!("ONNX: Failed to use CUDA EP (falling back to CPU): {}", e);
@@ -262,19 +280,31 @@ impl OnnxDetector {
     #[cfg(target_os = "macos")]
     fn create_session(model_path: &str) -> Result<(Session, String), String> {
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            // Try CoreML first (uses Neural Engine on Apple Silicon), fall back to CPU.
+            // Try the CoreML execution provider first; CoreML owns device
+            // placement. Fall back to the ONNX Runtime CPU provider.
             let coreml_available = CoreMLExecutionProvider::default()
                 .is_available()
                 .unwrap_or(false);
 
             if coreml_available {
-                log::info!("ONNX: CoreML execution provider available, using Neural Engine/GPU");
-                match Session::builder()
-                    .map_err(|e| format!("Failed to create session builder: {}", e))?
-                    .with_execution_providers([CoreMLExecutionProvider::default().build()])
-                    .map_err(|e| format!("Failed to set execution providers: {}", e))?
-                    .commit_from_file(model_path)
-                {
+                log::info!(
+                    "ONNX: CoreML execution provider available, attempting provider registration"
+                );
+                let attempt = Session::builder()
+                    .map_err(|error| format!("Failed to create session builder: {error}"))
+                    .and_then(|builder| {
+                        builder
+                            .with_execution_providers([CoreMLExecutionProvider::default()
+                                .build()
+                                .error_on_failure()])
+                            .map_err(|error| format!("Failed to register CoreML provider: {error}"))
+                    })
+                    .and_then(|mut builder| {
+                        builder
+                            .commit_from_file(model_path)
+                            .map_err(|error| format!("Failed to create CoreML session: {error}"))
+                    });
+                match attempt {
                     Ok(session) => return Ok((session, "ONNX Runtime (CoreML)".to_string())),
                     Err(e) => {
                         log::warn!("ONNX: Failed to use CoreML EP (falling back to CPU): {}", e);
@@ -773,6 +803,11 @@ pub fn strict_cuda_backend_name() -> Option<&'static str> {
         .get()
         .map(OnnxDetector::get_backend_name)
         .filter(|backend| is_strict_cuda_backend(backend))
+}
+
+/// Return the execution-provider name selected by the initialized general ONNX detector.
+pub fn initialized_onnx_backend_name() -> Option<&'static str> {
+    DETECTOR.get().map(OnnxDetector::get_backend_name)
 }
 
 /// Check if ONNX detector is available

@@ -51,6 +51,12 @@ These limits are the common portable backend envelope. The runtime policy can
 tighten confidence, IoU, and result-count limits, but it cannot recover a
 candidate that a selected backend already discarded.
 
+The standalone native detector benchmark accepts these same policy bounds. For
+comparability it removes `CREBAIN_PROFILE_MLX` and forces
+`CREBAIN_DISABLE_TRT_CACHE=1` inside its single-purpose process; initialization
+is recorded separately. This does not change product-runtime configuration.
+See [NATIVE_DETECTOR_BENCHMARK.md](NATIVE_DETECTOR_BENCHMARK.md).
+
 ## Sensor fusion settings
 
 The full tuning table (algorithm choice, process/measurement noise, gating,

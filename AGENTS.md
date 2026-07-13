@@ -18,6 +18,7 @@ bun run format           # Prettier (write); format:check verifies
 bun run test             # Run tests in watch mode
 bun run test:run         # Run tests once
 bun run test:coverage    # Run tests with coverage (enforces thresholds)
+bun run benchmark:native-detector -- --help # Release-only native detector evidence CLI
 bun run check:bundle     # Build + initial-bundle size budget
 bun run check:ncp-coherence # Verify NCP manifests, locks, and normative docs agree
 bun run check:plant-boundary # Verify the inert plant package/process dependency boundary
@@ -31,11 +32,11 @@ bun run validate:all     # NCP + frontend + inert plant + Rust default/NCP gates
 
 # Rust backend
 bun run check:rust       # cargo check --manifest-path src-tauri/Cargo.toml
-bun run test:rust        # cargo test --manifest-path src-tauri/Cargo.toml
+bun run test:rust        # cargo test --manifest-path src-tauri/Cargo.toml --all-targets
 bun run clippy:rust      # cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 bun run check:rust:ncp   # cargo check with the off-by-default ncp feature
 bun run clippy:rust:ncp  # clippy with ncp, all targets, warnings denied
-bun run test:rust:ncp    # cargo test with ncp enabled
+bun run test:rust:ncp    # cargo test with ncp enabled, including all targets
 cargo build --manifest-path src-tauri/Cargo.toml
 ```
 

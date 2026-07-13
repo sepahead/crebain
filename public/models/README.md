@@ -9,7 +9,9 @@ Native inference models are supplied by the operator through
 `CREBAIN_MLX_MODEL`, or optional `CREBAIN_MLX_MODEL_SHA256`. Before trusting
 any model, record its provenance, tensor contract, class mapping, fixtures, and
 benchmark context as described in
-[`../../docs/MODEL_CONTRACTS.md`](../../docs/MODEL_CONTRACTS.md).
+[`../../docs/MODEL_CONTRACTS.md`](../../docs/MODEL_CONTRACTS.md). The native
+latency artifact and its evidence limits are documented in
+[`../../docs/NATIVE_DETECTOR_BENCHMARK.md`](../../docs/NATIVE_DETECTOR_BENCHMARK.md).
 
 Do not commit downloaded detection weights. Confirm rights before committing or
 redistributing any 3D asset.

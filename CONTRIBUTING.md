@@ -11,7 +11,7 @@ Please be respectful and constructive in all interactions. CREBAIN follows the s
 ### Prerequisites
 
 - **Bun** 1.3.14+ for project scripts; **Node.js** 20.19+ for Node-based tooling
-- **Rust** 1.88+ with `cargo` (MSRV per `src-tauri/Cargo.toml`); `rust-toolchain.toml` pins 1.91.1 for development and CI
+- **Rust** 1.89+ with `cargo` (MSRV per `src-tauri/Cargo.toml`); `rust-toolchain.toml` pins 1.91.1 for development and CI
 - **macOS**: Xcode Command Line Tools
 - **Linux**: CUDA Toolkit and NVIDIA runtime libraries when testing CUDA/TensorRT paths
 
@@ -68,11 +68,14 @@ bun run validate:all
 | Rust, Tauri IPC, model loading, scene persistence, ROS, Zenoh, transport, or sensor fusion changes | `bun run validate:all` |
 | Headless plant package, lifecycle, or channel-policy changes | `bun run check:plant-boundary` plus `bun run validate:all` |
 | Release-candidate claims | `bun run validate:all` plus `docs/MANUAL_SMOKE_TEST.md` |
+| Native detector performance claim | The release command and archived evidence bundle in `docs/NATIVE_DETECTOR_BENCHMARK.md` |
 
 For documentation-only changes, keep Markdown files aligned on validation commands, backend status, roadmap items, model assumptions, and security boundaries.
 
 `bun run validate:all` includes the inert plant boundary, scoped Rustfmt, check,
-test, strict Clippy, and headless self-check gates. It does not run the bundle budget, coverage thresholds,
+all-target tests (including the native benchmark's logic tests), strict Clippy,
+and headless self-check gates. It does not run a real model benchmark, the
+bundle budget, coverage thresholds,
 `cuda,tensorrt` / `--no-default-features` feature checks, CodeQL, or supply-chain
 audits. Release candidates require those hosted workflows as defined in
 `docs/RELEASE_ACCEPTANCE.md`.
