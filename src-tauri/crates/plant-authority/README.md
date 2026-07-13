@@ -9,7 +9,8 @@ only `--self-check` and exits.
 
 | Path | Capacity policy | Saturation behavior |
 |---|---|---|
-| Latest command/health/output foundations | One retained value | Newest replaces unread old value; overwrite count is explicit |
+| Latest command/output foundations | One retained value | Newest replaces unread old value; overwrite count is explicit |
+| Health-snapshot foundation | One retained `Arc`-backed commit | Loads are non-consuming; replacement atomically associates the whole value, caller-supplied lifecycle generation, and exact sequence |
 | Lifecycle | Fixed bounded FIFO | Reject new work; the runtime must latch a safety cause |
 | Evidence | Fixed bounded FIFO | Drop oldest so noncritical storage cannot block safety work; drop count is explicit |
 | Safety | Separate process-lifetime first-cause latch | First notice records its originating generation and cannot be overwritten by normal traffic |
@@ -19,6 +20,15 @@ allocation. Poisoned state, allocation failure, and exact sequence/loss-counter
 exhaustion fail closed. Replaced values are destroyed only after committed
 state and accounting have been unlocked, so an adversarial destructor cannot
 poison the channel mutex.
+
+`SnapshotChannel` is generic storage mechanics for the future health path. It
+stores each complete value behind `Arc`, so repeated loads never consume or
+deep-clone it and a previously loaded handle keeps its prior allocation after
+replacement. The generic API does not prevent interior mutation exposed by `T`
+and does not validate the freshness or order of a caller-supplied generation. A
+future health type must close both contracts. The register also does not define
+FCU fields, authoritative provenance, frame/unit semantics, freshness, or an
+apply-time check. CB-030 therefore remains pending.
 
 ## Passive expiry mechanics
 
@@ -34,7 +44,7 @@ FCU-safe-action timing.
 The package has no dependencies and the boundary checker rejects links or
 source references to the application library, Tauri, NCP/Zenoh, transport,
 inference, fusion, simulation, ROS, Gazebo, or MAVROS. A real watchdog, trusted
-health snapshot, safety governor, safe-action profile, authenticated ingress,
+vehicle-health schema, safety governor, safe-action profile, authenticated ingress,
 and FCU adapter remain intentionally absent.
 
 Production sources also reject subprocess, network, filesystem/device I/O,

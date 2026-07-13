@@ -52,3 +52,11 @@ generation-rotation, clock-regression, and invalid-TTL cases fail closed. It is
 not an active watchdog and does not prove platform suspend behavior,
 immediately-before-write coupling, scheduler jitter, or expiry-to-safe-action
 latency.
+
+The retained snapshot register is generic CB-030 storage mechanics only. It
+proves non-consuming whole-value replacement and atomic association with
+caller-supplied generation/sequence metadata for a plain-data test type. It does
+not prevent interior mutation exposed by `T`, validate generation order, or
+provide authoritative FCU fields, provenance, freshness policy, or an
+apply-time consumer. HAZ-006 therefore remains open, CTL-005 remains planned,
+and `TEST-ATOMIC-STATE-STALENESS` remains planned.

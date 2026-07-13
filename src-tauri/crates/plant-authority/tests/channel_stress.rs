@@ -1,10 +1,11 @@
 use std::collections::HashSet;
 use std::num::{NonZeroU64, NonZeroUsize};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Barrier};
 
 use crebain_plant_authority::{
-    bounded_queue, latest_value, ChannelConfigurationError, ChannelError, FullPolicy,
-    KernelChannels, RuntimeGeneration, SafetyCause, SafetyLatch, SafetyNotice,
+    bounded_queue, latest_value, snapshot_value, ChannelConfigurationError, ChannelError,
+    FullPolicy, KernelChannels, RuntimeGeneration, SafetyCause, SafetyLatch, SafetyNotice,
 };
 
 const PRODUCERS: usize = 8;
@@ -45,6 +46,139 @@ fn latest_value_channel_should_remain_capacity_one_under_concurrent_load() {
                 .expect("latest state should remain healthy"),
         "unexpected latest snapshot: {snapshot:?}"
     );
+}
+
+#[test]
+fn snapshot_register_should_load_repeatedly_without_replacing_old_commits() {
+    let (sender, receiver) = snapshot_value::<String>();
+    let first_generation = RuntimeGeneration::new(NonZeroU64::MIN);
+    sender
+        .commit(first_generation, String::from("first"))
+        .expect("first snapshot should commit");
+    let retained_first = receiver
+        .load()
+        .expect("snapshot state should remain healthy")
+        .expect("first snapshot should be retained");
+    let repeated_first = receiver
+        .load()
+        .expect("snapshot state should remain healthy")
+        .expect("loads must not consume the snapshot");
+    let second_generation =
+        RuntimeGeneration::new(NonZeroU64::new(2).expect("test generation should be nonzero"));
+    sender
+        .commit(second_generation, String::from("second"))
+        .expect("replacement snapshot should commit");
+    let current = receiver
+        .load()
+        .expect("snapshot state should remain healthy")
+        .expect("replacement snapshot should be retained");
+
+    assert!(
+        retained_first.value() == "first"
+            && repeated_first.value() == "first"
+            && retained_first.sequence() == repeated_first.sequence()
+            && retained_first.generation() == first_generation
+            && current.value() == "second"
+            && current.sequence() == 2
+            && current.generation() == second_generation
+    );
+}
+
+#[derive(Debug)]
+struct CoherentHealth {
+    marker: u64,
+    duplicate: u64,
+    complement: u64,
+}
+
+#[test]
+fn snapshot_register_should_never_expose_a_torn_concurrent_commit() {
+    const WRITERS: usize = 4;
+    const READERS: usize = 4;
+    const COMMITS_PER_WRITER: u64 = 2_000;
+    let (sender, receiver) = snapshot_value::<CoherentHealth>();
+    let receiver = Arc::new(receiver);
+    let stop = Arc::new(AtomicBool::new(false));
+    let observed = Arc::new(AtomicUsize::new(0));
+    sender
+        .commit(
+            RuntimeGeneration::new(NonZeroU64::MIN),
+            CoherentHealth {
+                marker: 0,
+                duplicate: 0,
+                complement: !0,
+            },
+        )
+        .expect("initial snapshot should commit");
+    let readers: Vec<_> = (0..READERS)
+        .map(|_| {
+            let receiver = Arc::clone(&receiver);
+            let stop = Arc::clone(&stop);
+            let observed = Arc::clone(&observed);
+            std::thread::spawn(move || loop {
+                if let Some(snapshot) = receiver
+                    .load()
+                    .expect("snapshot state should remain healthy")
+                {
+                    let value = snapshot.value();
+                    assert!(
+                        value.marker == value.duplicate
+                            && value.complement == !value.marker
+                            && snapshot.generation().get() == value.marker + 1
+                    );
+                    observed.fetch_add(1, Ordering::Relaxed);
+                }
+                if stop.load(Ordering::Acquire) {
+                    break;
+                }
+            })
+        })
+        .collect();
+    let writers: Vec<_> = (0..WRITERS)
+        .map(|writer| {
+            let sender = sender.clone();
+            std::thread::spawn(move || {
+                for local in 0..COMMITS_PER_WRITER {
+                    let marker = u64::try_from(writer)
+                        .expect("writer index fits u64")
+                        .checked_mul(COMMITS_PER_WRITER)
+                        .and_then(|base| base.checked_add(local))
+                        .and_then(|value| value.checked_add(1))
+                        .expect("test marker remains bounded");
+                    sender
+                        .commit(
+                            RuntimeGeneration::new(
+                                NonZeroU64::new(marker + 1)
+                                    .expect("test generation should be nonzero"),
+                            ),
+                            CoherentHealth {
+                                marker,
+                                duplicate: marker,
+                                complement: !marker,
+                            },
+                        )
+                        .expect("snapshot receiver remains alive");
+                }
+            })
+        })
+        .collect();
+    for writer in writers {
+        writer.join().expect("snapshot writer should not panic");
+    }
+    stop.store(true, Ordering::Release);
+    for reader in readers {
+        reader.join().expect("snapshot reader should not panic");
+    }
+    let final_snapshot = receiver
+        .load()
+        .expect("snapshot state should remain healthy")
+        .expect("one final snapshot should remain");
+
+    assert_eq!(
+        final_snapshot.sequence(),
+        u64::try_from(WRITERS).expect("writer count fits u64") * COMMITS_PER_WRITER + 1
+    );
+    assert!(observed.load(Ordering::Relaxed) >= READERS);
 }
 
 #[test]
@@ -146,11 +280,12 @@ fn kernel_channel_set_should_assign_explicit_policy_to_every_path() {
                 .receiver
                 .has_value()
                 .expect("command state is healthy")
-            && !channels
-                .latest_health
+            && channels
+                .health_snapshot
                 .receiver
-                .has_value()
+                .load()
                 .expect("health state is healthy")
+                .is_none()
             && !channels
                 .latest_adapter_output
                 .receiver
@@ -182,6 +317,20 @@ fn closed_latest_channel_should_return_submitted_value_ownership() {
     drop(receiver);
 
     let result = sender.replace(String::from("retained-by-caller"));
+
+    assert!(matches!(
+        result,
+        Err(ChannelError::Closed(value)) if value == "retained-by-caller"
+    ));
+}
+
+#[test]
+fn closed_snapshot_register_should_return_submitted_value_ownership() {
+    let (sender, receiver) = snapshot_value();
+    drop(receiver);
+    let generation = RuntimeGeneration::new(NonZeroU64::MIN);
+
+    let result = sender.commit(generation, String::from("retained-by-caller"));
 
     assert!(matches!(
         result,

@@ -33,7 +33,7 @@ graph TB
     end
 
     subgraph PlantFoundation["Separate headless package (L0, inert)"]
-        Plantd["crebain-plantd<br/>Lifecycle + bounded channels + passive expiry<br/>Self-check only"]
+        Plantd["crebain-plantd<br/>Lifecycle + bounded channels + retained snapshot + passive expiry<br/>Self-check only"]
     end
 
     subgraph External["External Systems"]
@@ -65,13 +65,18 @@ the renderer, inference, fusion, simulation, the dormant NCP module, or the
 generic telemetry transports. Its only executable mode is `--self-check`.
 
 The package establishes the nine explicit lifecycle states, generation-guarded
-events, capacity-one latest-value paths, bounded reject-new lifecycle ingress,
-bounded drop-oldest evidence with loss accounting, a separate sticky first-cause
-safety latch, and a passive generation-bound monotonic expiry guard. The current
-adapter is deliberately inert and exposes no action operation.
+events, capacity-one latest-value paths, a non-consuming retained whole-snapshot
+register, bounded reject-new lifecycle ingress, bounded drop-oldest evidence
+with loss accounting, a separate sticky first-cause safety latch, and a passive
+generation-bound monotonic expiry guard. The current adapter is deliberately
+inert and exposes no action operation. The snapshot register atomically
+associates one whole value with a caller-supplied generation and exact sequence,
+but neither prevents interior mutation exposed by the generic value type nor
+validates generation order. It defines no trusted health fields, provenance,
+freshness, or apply-time policy.
 
 This is a component foundation, not an authority chain. It has no authenticated
-ingress, NCP UAV profile, trusted vehicle-health snapshot, active monotonic
+ingress, NCP UAV profile, trusted vehicle-health schema, active monotonic
 command watchdog, apply-time governor, ODD safe-action table, PX4/FCU adapter, deadline
 measurement, or staged live evidence. CREBAIN therefore remains L0.
 

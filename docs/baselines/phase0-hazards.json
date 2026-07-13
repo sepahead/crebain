@@ -312,7 +312,7 @@
           "artifact": "apply-time race and staleness trace"
         }
       ],
-      "residual_risk": "No native atomic plant snapshot exists."
+      "residual_risk": "Generic retained snapshot storage exists, but it does not prevent interior mutation, validate caller-supplied generation order, or provide an authoritative FCU health schema, provenance, freshness policy, or apply-time consumer."
     },
     {
       "id": "HAZ-007",

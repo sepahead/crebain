@@ -238,6 +238,170 @@ impl<T> Drop for LatestReceiver<T> {
 }
 
 #[derive(Debug)]
+struct SnapshotState<T> {
+    current: Option<SnapshotCommit<T>>,
+    sequence: u64,
+    receiver_open: bool,
+}
+
+/// Publishing endpoint for one non-consuming retained snapshot register.
+#[derive(Debug)]
+pub struct SnapshotSender<T> {
+    shared: Arc<Mutex<SnapshotState<T>>>,
+}
+
+/// Reading endpoint for one non-consuming retained snapshot register.
+#[derive(Debug)]
+pub struct SnapshotReceiver<T> {
+    shared: Arc<Mutex<SnapshotState<T>>>,
+}
+
+/// One coherent snapshot commit retained independently of later replacements.
+///
+/// The register never mutates `value`, but `T` may expose interior mutability.
+/// A future health schema must prohibit that when deep immutability is required.
+#[derive(Debug)]
+pub struct SnapshotCommit<T> {
+    value: Arc<T>,
+    generation: RuntimeGeneration,
+    sequence: u64,
+}
+
+impl<T> Clone for SnapshotCommit<T> {
+    fn clone(&self) -> Self {
+        Self {
+            value: Arc::clone(&self.value),
+            generation: self.generation,
+            sequence: self.sequence,
+        }
+    }
+}
+
+impl<T> SnapshotCommit<T> {
+    /// Returns the complete retained value for this commit.
+    #[must_use]
+    pub fn value(&self) -> &T {
+        self.value.as_ref()
+    }
+
+    /// Returns the caller-supplied lifecycle generation associated with the value.
+    ///
+    /// This storage primitive does not validate generation freshness or order.
+    #[must_use]
+    pub const fn generation(&self) -> RuntimeGeneration {
+        self.generation
+    }
+
+    /// Returns the exact monotonic commit sequence for this register.
+    #[must_use]
+    pub const fn sequence(&self) -> u64 {
+        self.sequence
+    }
+}
+
+/// Creates an empty non-consuming retained snapshot register.
+#[must_use]
+pub fn snapshot_value<T>() -> (SnapshotSender<T>, SnapshotReceiver<T>) {
+    let shared = Arc::new(Mutex::new(SnapshotState {
+        current: None,
+        sequence: 0,
+        receiver_open: true,
+    }));
+    (
+        SnapshotSender {
+            shared: Arc::clone(&shared),
+        },
+        SnapshotReceiver { shared },
+    )
+}
+
+/// Owned endpoints for one non-consuming retained snapshot register.
+#[derive(Debug)]
+pub struct SnapshotChannel<T> {
+    /// Producer endpoint. A commit replaces the retained register value.
+    pub sender: SnapshotSender<T>,
+    /// Reader endpoint. Loads never consume the retained commit.
+    pub receiver: SnapshotReceiver<T>,
+}
+
+impl<T> SnapshotChannel<T> {
+    fn new() -> Self {
+        let (sender, receiver) = snapshot_value();
+        Self { sender, receiver }
+    }
+}
+
+impl<T> SnapshotSender<T> {
+    /// Atomically commits one whole value with its caller-supplied generation.
+    ///
+    /// This storage primitive does not validate generation freshness or order,
+    /// and it does not prevent interior mutation exposed by `T`.
+    ///
+    /// The previous commit is released only after the register lock is
+    /// released, so arbitrary value destruction cannot poison committed state.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ChannelError`] with ownership of `value` when the receiver is
+    /// closed, shared state is poisoned, or the exact sequence is exhausted.
+    pub fn commit(&self, generation: RuntimeGeneration, value: T) -> Result<u64, ChannelError<T>> {
+        let (displaced, sequence) = {
+            let Ok(mut state) = self.shared.lock() else {
+                return Err(ChannelError::Poisoned(value));
+            };
+            if !state.receiver_open {
+                return Err(ChannelError::Closed(value));
+            }
+            let Some(sequence) = state.sequence.checked_add(1) else {
+                return Err(ChannelError::CounterExhausted(value));
+            };
+
+            let displaced = state.current.replace(SnapshotCommit {
+                value: Arc::new(value),
+                generation,
+                sequence,
+            });
+            state.sequence = sequence;
+            (displaced, sequence)
+        };
+
+        drop(displaced);
+        Ok(sequence)
+    }
+}
+
+impl<T> Clone for SnapshotSender<T> {
+    fn clone(&self) -> Self {
+        Self {
+            shared: Arc::clone(&self.shared),
+        }
+    }
+}
+
+impl<T> SnapshotReceiver<T> {
+    /// Loads the current commit without consuming or deep-cloning its value.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ChannelReadError::Poisoned`] when shared state is not
+    /// trustworthy.
+    pub fn load(&self) -> Result<Option<SnapshotCommit<T>>, ChannelReadError> {
+        self.shared
+            .lock()
+            .map(|state| state.current.clone())
+            .map_err(|_| ChannelReadError::Poisoned)
+    }
+}
+
+impl<T> Drop for SnapshotReceiver<T> {
+    fn drop(&mut self) {
+        if let Ok(mut state) = self.shared.lock() {
+            state.receiver_open = false;
+        }
+    }
+}
+
+#[derive(Debug)]
 struct QueueState<T> {
     values: VecDeque<T>,
     capacity: NonZeroUsize,
@@ -516,8 +680,9 @@ impl SafetyLatch {
 pub struct KernelChannels<CommandValue, Health, AdapterOutput, Evidence> {
     /// Latest validated-command foundation. No command schema exists yet.
     pub latest_command: LatestChannel<CommandValue>,
-    /// Latest atomic-health foundation. No trusted health schema exists yet.
-    pub latest_health: LatestChannel<Health>,
+    /// Non-consuming retained health-snapshot foundation.
+    /// No trusted vehicle-health schema or freshness policy exists yet.
+    pub health_snapshot: SnapshotChannel<Health>,
     /// Latest adapter-output foundation. The current adapter is inert.
     pub latest_adapter_output: LatestChannel<AdapterOutput>,
     /// Bounded lifecycle ingress using [`FullPolicy::RejectNew`].
@@ -543,7 +708,7 @@ impl<CommandValue, Health, AdapterOutput, Evidence>
     ) -> Result<Self, ChannelConfigurationError> {
         Ok(Self {
             latest_command: LatestChannel::new(),
-            latest_health: LatestChannel::new(),
+            health_snapshot: SnapshotChannel::new(),
             latest_adapter_output: LatestChannel::new(),
             lifecycle: QueueChannel::new(lifecycle_capacity, FullPolicy::RejectNew)?,
             evidence: QueueChannel::new(evidence_capacity, FullPolicy::DropOldest)?,
@@ -554,11 +719,14 @@ impl<CommandValue, Health, AdapterOutput, Evidence>
 
 #[cfg(test)]
 mod tests {
-    use std::num::NonZeroUsize;
+    use std::num::{NonZeroU64, NonZeroUsize};
     use std::panic::{catch_unwind, AssertUnwindSafe};
     use std::sync::Arc;
 
-    use super::{bounded_queue, latest_value, ChannelError, ChannelReadError, FullPolicy};
+    use super::{
+        bounded_queue, latest_value, snapshot_value, ChannelError, ChannelReadError, FullPolicy,
+        RuntimeGeneration,
+    };
 
     #[derive(Debug)]
     struct DropBomb(bool);
@@ -583,6 +751,25 @@ mod tests {
             .expect("replacement was committed before displaced drop");
 
         assert!(unwind.is_err() && snapshot.sequence == 2 && snapshot.overwritten == 1);
+    }
+
+    #[test]
+    fn snapshot_drop_panic_should_not_poison_committed_replacement() {
+        let (sender, receiver) = snapshot_value();
+        let generation = RuntimeGeneration::new(NonZeroU64::MIN);
+        sender
+            .commit(generation, DropBomb(true))
+            .expect("first snapshot admitted");
+
+        let unwind = catch_unwind(AssertUnwindSafe(|| {
+            sender.commit(generation, DropBomb(false))
+        }));
+        let snapshot = receiver
+            .load()
+            .expect("snapshot state must not be poisoned")
+            .expect("replacement was committed before displaced drop");
+
+        assert!(unwind.is_err() && snapshot.sequence() == 2);
     }
 
     #[test]
@@ -620,6 +807,23 @@ mod tests {
     }
 
     #[test]
+    fn poisoned_snapshot_state_should_fail_closed_for_reads_and_writes() {
+        let (sender, receiver) = snapshot_value::<u8>();
+        let shared = Arc::clone(&sender.shared);
+        let _ = std::thread::spawn(move || {
+            let _guard = shared.lock().expect("new mutex is healthy");
+            panic!("intentional poison");
+        })
+        .join();
+        let generation = RuntimeGeneration::new(NonZeroU64::MIN);
+
+        assert!(
+            matches!(sender.commit(generation, 7), Err(ChannelError::Poisoned(7)))
+                && matches!(receiver.load(), Err(ChannelReadError::Poisoned))
+        );
+    }
+
+    #[test]
     fn latest_counter_exhaustion_should_reject_without_duplicate_sequence() {
         let (sender, receiver) = latest_value();
         {
@@ -632,6 +836,34 @@ mod tests {
         assert!(
             matches!(result, Err(ChannelError::CounterExhausted(42)))
                 && !receiver.has_value().expect("state remains healthy")
+        );
+    }
+
+    #[test]
+    fn snapshot_counter_exhaustion_should_preserve_previous_commit() {
+        let (sender, receiver) = snapshot_value();
+        let first_generation = RuntimeGeneration::new(NonZeroU64::MIN);
+        let second_generation =
+            RuntimeGeneration::new(NonZeroU64::new(2).expect("test generation is nonzero"));
+        sender
+            .commit(first_generation, 1_u8)
+            .expect("first snapshot admitted");
+        {
+            let mut state = sender.shared.lock().expect("new mutex is healthy");
+            state.sequence = u64::MAX;
+        }
+
+        let result = sender.commit(second_generation, 2_u8);
+        let retained = receiver
+            .load()
+            .expect("state remains healthy")
+            .expect("previous snapshot remains retained");
+
+        assert!(
+            matches!(result, Err(ChannelError::CounterExhausted(2)))
+                && *retained.value() == 1
+                && retained.sequence() == 1
+                && retained.generation() == first_generation
         );
     }
 

@@ -68,7 +68,10 @@ pub struct SelfCheckReport {
     pub safety_cause: SafetyCause,
 }
 
-fn check_latest_paths(channels: &SelfCheckChannels) -> Result<u64, KernelError> {
+fn check_latest_paths(
+    channels: &SelfCheckChannels,
+    generation: RuntimeGeneration,
+) -> Result<u64, KernelError> {
     channels
         .latest_command
         .sender
@@ -94,9 +97,9 @@ fn check_latest_paths(channels: &SelfCheckChannels) -> Result<u64, KernelError> 
     }
 
     channels
-        .latest_health
+        .health_snapshot
         .sender
-        .replace(1_u64)
+        .commit(generation, 1_u64)
         .map_err(|_| KernelError::ChannelInvariant("health receiver closed unexpectedly"))?;
     channels
         .latest_adapter_output
@@ -104,18 +107,29 @@ fn check_latest_paths(channels: &SelfCheckChannels) -> Result<u64, KernelError> 
         .replace(1_u64)
         .map_err(|_| KernelError::ChannelInvariant("output receiver closed unexpectedly"))?;
     let health = channels
-        .latest_health
+        .health_snapshot
         .receiver
-        .take_latest()
-        .map_err(|_| KernelError::ChannelInvariant("health channel state was poisoned"))?;
+        .load()
+        .map_err(|_| KernelError::ChannelInvariant("health snapshot state was poisoned"))?;
+    let repeated_health = channels
+        .health_snapshot
+        .receiver
+        .load()
+        .map_err(|_| KernelError::ChannelInvariant("health snapshot state was poisoned"))?;
     let output = channels
         .latest_adapter_output
         .receiver
         .take_latest()
         .map_err(|_| KernelError::ChannelInvariant("output channel state was poisoned"))?;
-    if health.is_none() || output.is_none() {
+    if health.as_ref().map(crate::SnapshotCommit::sequence) != Some(1)
+        || repeated_health
+            .as_ref()
+            .map(crate::SnapshotCommit::sequence)
+            != Some(1)
+        || output.is_none()
+    {
         return Err(KernelError::ChannelInvariant(
-            "typed latest-value path did not retain its value",
+            "typed snapshot/latest-value path did not retain its value",
         ));
     }
     Ok(latest.overwritten)
@@ -213,7 +227,7 @@ pub fn run_self_check() -> Result<SelfCheckReport, KernelError> {
     )
     .map_err(|_| KernelError::ChannelInvariant("kernel channel capacity was rejected"))?;
 
-    let latest_overwritten = check_latest_paths(&channels)?;
+    let latest_overwritten = check_latest_paths(&channels, initial_generation)?;
     let retained = check_lifecycle_path(&mut lifecycle, &channels)?;
     let evidence_dropped = check_evidence_path(&channels)?;
     let repeated = channels
