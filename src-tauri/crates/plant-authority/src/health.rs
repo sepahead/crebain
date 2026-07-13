@@ -218,7 +218,7 @@ impl PlantObservationTime {
     }
 
     #[cfg(test)]
-    const fn at(generation: RuntimeGeneration, instant: Instant) -> Self {
+    pub(crate) const fn at(generation: RuntimeGeneration, instant: Instant) -> Self {
         Self {
             generation,
             instant,
@@ -1278,6 +1278,15 @@ impl VehicleHealthPublisherV1 {
         self.commit_at(report, Instant::now())
     }
 
+    #[cfg(test)]
+    pub(crate) fn commit_for_test_at(
+        &mut self,
+        report: &VehicleHealthReportV1,
+        received_at: Instant,
+    ) -> Result<VehicleHealthCommitReceiptV1, VehicleHealthCommitError> {
+        self.commit_at(report, received_at)
+    }
+
     fn commit_at(
         &mut self,
         report: &VehicleHealthReportV1,
@@ -1642,7 +1651,7 @@ impl VehicleHealthReaderV1 {
     }
 
     #[cfg(test)]
-    fn load_at(
+    pub(crate) fn load_at(
         &self,
         current_generation: RuntimeGeneration,
         now: Instant,

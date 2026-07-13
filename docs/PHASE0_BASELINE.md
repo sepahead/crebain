@@ -1,6 +1,6 @@
 # Phase 0 Baseline
 
-Recaptured: 2026-07-13 09:53:43 +02:00. This bundle freezes vocabulary and
+Recaptured: 2026-07-13T14:05:44+02:00. This bundle freezes vocabulary and
 scope; it does not promote CREBAIN beyond L0.
 
 ## Status
@@ -16,8 +16,9 @@ scope; it does not promote CREBAIN beyond L0.
 | External source/toolchain/config baseline | Remote `main` identities and exact commit-object configuration digests recorded; dirty sibling working-tree bytes were excluded; CREBAIN commit is intentionally resolved by later release evidence |
 | Tracked P0/P1 issues, owners, and dependencies | Pending project-governance work |
 | Hermetic clean builds and signed release manifest | Pending |
-| Headless plant-authority foundation | Inactive draft command validation, profile-neutral digest-bound ENU/NED + FLU/FRD velocity-axis conventions, closed immutable context-bound vehicle-health validation with plant-monotonic ages, lifecycle, bounded channels, and passive monotonic expiry are component-tested in an inert package; approved profile, authenticated FCU collection, freshness/apply-time policy, attitude-dependent transforms, active watchdog, and live plant controls are absent |
-| Inactive vehicle-health contract | [`PLANT_HEALTH_V1.md`](PLANT_HEALTH_V1.md) defines the closed in-memory schema, per-channel sequence and plant-local age mechanics, atomic boundary, and explicit limits; it is not authenticated FCU state, freshness policy, or authority evidence |
+| Headless plant-authority foundation | Inactive draft command validation, profile-neutral digest-bound ENU/NED + FLU/FRD velocity-axis conventions, closed immutable context-bound vehicle-health validation with plant-monotonic ages, a profile-bound classifier for eight ages captured at one read, lifecycle, bounded channels, and passive monotonic expiry are component-tested in an inert package; approved profile/age/state policy, authenticated FCU collection, current/apply-time checking, attitude-dependent transforms, active watchdog, and live plant controls are absent |
+| Inactive vehicle-health contract | [`PLANT_HEALTH_V1.md`](PLANT_HEALTH_V1.md) defines the closed in-memory schema, per-channel sequence and plant-local age mechanics, atomic boundary, and explicit limits; it is not authenticated FCU state, an approved health policy, or authority evidence |
+| Inactive captured-read age classifier | [`PLANT_FRESHNESS_V1.md`](PLANT_FRESHNESS_V1.md) defines exact-profile binding, eight named nonzero exclusive limits, and per-point exclusive relations tested below, at, and above each boundary while retaining the coherent observed commit; it does not read current time, implement the draft ODD's inclusive `<=200 ms` condition, aggregate health, or enforce anything at apply time |
 | Galadriel evidence producer | Feature/runtime-gated component integrated with immutable strict registry and actual config/executable pins, readiness-only active initialization, two exact evidence routes, exact-time/projection eligibility, bounded measurement/live-track/assignment behavior, upstream/capacity/NCP loss degradation, heartbeat generation, and finite owned-task shutdown; numeric upstream loss is not wire-visible, receiver/TLS/ACL/receive-size/deadline/combined-load/calibration evidence is absent, and an optional JSONL writer blocked beyond its separate two-second wait is not forcibly abortable |
 
 Phase 0 exit has therefore **not** been reached. L1 remains blocked until every
@@ -32,6 +33,7 @@ bypass, restart, timing, and resource tests.
 - [`GALADRIEL_PRODUCER.md`](GALADRIEL_PRODUCER.md)
 - [`HAZARD_LOG.md`](HAZARD_LOG.md)
 - [`PLANT_HEALTH_V1.md`](PLANT_HEALTH_V1.md)
+- [`PLANT_FRESHNESS_V1.md`](PLANT_FRESHNESS_V1.md)
 - [`baselines/phase0-hazards.json`](baselines/phase0-hazards.json)
 - [`baselines/phase0-command-surfaces.json`](baselines/phase0-command-surfaces.json)
 - [`baselines/ecosystem-baseline.json`](baselines/ecosystem-baseline.json)
@@ -106,9 +108,12 @@ require a separate dependency-free `crebain-plant-authority` package, a single
 from the Tauri application, and no reference to renderer/model/simulation/
 transport domains. It also locks the canonical kernel to one concrete sealed
 health endpoint pair, private immutable snapshot fields, a non-cloneable
-single-writer publisher, and no raw snapshot endpoint in the runtime. These are
+single-writer publisher, and no raw snapshot endpoint in the runtime. It also
+locks one private freshness module, exact profile/observation ownership, eight
+nonzero named exclusive limits, the strict `<` comparator, and the absence of a
+boolean or aggregate verdict. These are
 source-boundary and component properties, not authenticated FCU state, an
-approved freshness verdict, live authority, or safety.
+approved freshness/health policy, current/apply-time enforcement, live authority, or safety.
 The frame checker independently evaluates the same digest-bound finite m/s TSV
 with JavaScript and Rust. It proves exact ENU/NED and FLU/FRD velocity-axis
 conventions for one unchanged local origin/datum or rigid-body reference point,

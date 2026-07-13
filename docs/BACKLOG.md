@@ -19,9 +19,12 @@ local frame remain unapproved. A profile-neutral digest-bound corpus now covers
 the exact same-frame-instance ENU/NED and FLU/FRD velocity-axis prerequisite
 but carries no origin/datum/body-point identity and deliberately omits profile
 selection and attitude-dependent conversion. Approve and pin the full
-profile first. The typed non-consuming health-snapshot candidate (CB-030) and
-monotonic receipt/deadline mechanics (CB-027) now exist as inactive component
-prerequisites; next add the profile-driven safe-action selector (CB-028) and the
+profile first. The typed non-consuming health-snapshot candidate and its
+profile-bound classifier for eight ages captured at one read (CB-030), plus
+monotonic receipt/deadline mechanics (CB-027), now exist as inactive component
+prerequisites. The classifier's exclusive caller-proposed limits are not an
+approved profile policy and do not implement the draft ODD's inclusive
+`<=200 ms` condition. Next add the profile-driven safe-action selector (CB-028) and the
 immediately-before-write governor (CB-029). CB-032 can follow only as a bounded,
 observable mock transaction. A process cannot guarantee a final action after
 `SIGKILL`, power loss, or total scheduler starvation; the eventual live claim
@@ -30,12 +33,12 @@ and independently attested FCU failsafe behavior.
 
 | ID | Scope | Current disposition |
 |---|---|---|
-| CB-025 | Small native Rust plant-authority crate/process independent of renderer lifecycle | Implemented and component-tested for this inert slice: separate dependency-free package, inactive command/health candidates, typed channel/status boundary, and headless self-check; profile approval, wire schemas, and integration topology remain pending later phases |
+| CB-025 | Small native Rust plant-authority crate/process independent of renderer lifecycle | Implemented and component-tested for this inert slice: separate dependency-free package, inactive command/health/captured-age candidates, typed channel/status boundary, and headless self-check; profile approval, wire schemas, and integration topology remain pending later phases |
 | CB-026 | Explicit Boot, NoAuthority, Standby, Preflight, AuthorizedHold, Active, Degraded, Emergency, Shutdown state machine | Implemented and transition-tested with process-local generation guards and fail-closed invalid transitions; restart epoch sourcing and ODD/FCU transition preconditions remain pending |
 | CB-027 | Plant-local monotonic command-expiry watchdog | Partial component mechanics only: contract v1 structurally bounds requested TTL and separates producer from local receipt time; an immutable generation-bound local `Instant` guard rejects zero TTL, an unrepresentable deadline, clock regression, stale generation, and the exact deadline. The ticket remains pending behind profile approval and CB-030; no command admission, active scheduling, apply-time write coupling, suspend qualification, scheduler-jitter, or kill/freeze evidence exists |
 | CB-028 | Vehicle/ODD/state-specific safe-action table | Pending; the first-cause latch records a component safety cause but selects no physical response |
 | CB-029 | Apply-time profile/frame/unit/envelope/health safety governor | Pending |
-| CB-030 | Atomic typed vehicle-health snapshot | Partial component implementation: the canonical kernel path seals a deeply immutable closed report, validates declared profile/vehicle/source/stream-epoch/generation/frame-instance identity, strict per-channel source sequence, local frame, SI units, plant-local observation times, finite vectors, and battery range, then atomically retains the coherent state and exposes exact ages. Generic snapshot mechanics remain disconnected. The ticket stays partial because source identity is unauthenticated, real FCU collection and multi-message coherence are unproved, channel recreation/durable epoch uniqueness are not enforced, and no approved freshness threshold, healthy/safe verdict, apply-time consumer, governor, or adapter exists |
+| CB-030 | Atomic typed vehicle-health snapshot | Partial component implementation: the canonical kernel path seals a deeply immutable closed report, validates declared profile/vehicle/source/stream-epoch/generation/frame-instance identity, strict per-channel source sequence, local frame, SI units, plant-local observation times, finite vectors, and battery range, then atomically retains the coherent state and exposes eight exact ages from one read. A separate profile-bound classifier consumes that observation, rejects zero limits or exact-profile mismatch, and applies caller-proposed exclusive limits without an aggregate verdict. Generic snapshot mechanics remain disconnected. The ticket stays partial because the limits/profile are unapproved and do not implement the draft ODD's inclusive `<=200 ms` condition; source identity is unauthenticated; real FCU collection and multi-message coherence are unproved; channel recreation/durable epoch uniqueness are not enforced; and no current/apply-time freshness, state policy, governor, or adapter exists |
 | CB-031 | Bounded ingress/latest-command/health/output/evidence paths and overflow policies | Implemented and component-tested: validated non-eager capacities, latest-value, reject-new lifecycle, drop-oldest evidence, exact loss accounting, poison/counter fail-closed behavior, post-unlock destruction, and a separate non-overwritable safety path; this does not prove future watchdog scheduling under integrated load |
 | CB-032 | Cancellation-safe, deadline-bounded callbacks/shutdown/final safe action | Pending; inert adapter stop is idempotent but there is no external call, repeated bounded safe transaction, FCU observation, or independent process-loss fallback; do not claim an in-process final action after process death |
 
@@ -62,9 +65,13 @@ and independently attested FCU failsafe behavior.
 - Inactive vehicle-health contract v1: a closed immutable in-memory report and
   non-cloneable single-writer channel bind declared context identity, strict
   per-channel sequence, local frame/SI values, explicit unknown/unavailable state, and
-  plant-monotonic ages into one retained commit. This is partial
+  plant-monotonic ages into one retained commit. A separate profile-bound
+  captured-read classifier now keeps that observation attached to named
+  nonzero exclusive limits and classifies all eight ages without a boolean or
+  aggregate verdict. The limits are unapproved, equality is outside, and this
+  does not implement the draft ODD's inclusive `<=200 ms` condition. This is partial
   CB-030/CTL-005/HAZ-006 component evidence, not authenticated FCU state,
-  freshness policy, apply-time safety, or L1 authority.
+  current/apply-time freshness, state policy, apply-time safety, or L1 authority.
 - Profile-neutral frame-conventions v1: dependency-free Rust and JavaScript
   independently evaluate one digest-bound 32-case m/s corpus for identity,
   ENU↔NED, and FLU↔FRD velocity axes; all local↔body routes reject without

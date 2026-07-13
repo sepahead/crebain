@@ -332,12 +332,17 @@
           "artifact": "component reader test for missing state, generation rotation, clock regression, deliberately old observations, and increasing ages without freshness classification"
         },
         {
+          "test_id": "TEST-PLANT-HEALTH-FRESHNESS-V1",
+          "status": "partial",
+          "artifact": "component matrix proving nonzero profile-bound exclusive limits, below/equal/above classification for receipt and all seven observation groups, exact-profile mismatch refusal before classification, ownership of the coherent observed commit, and separation of temporal currency from unknown/unavailable health semantics"
+        },
+        {
           "test_id": "TEST-ATOMIC-STATE-STALENESS",
           "status": "planned",
           "artifact": "apply-time race and staleness trace"
         }
       ],
-      "residual_risk": "A closed immutable in-memory snapshot, context-bound retained channel, strict sequence admission within one publisher/channel instance, and coherent plant-monotonic age mechanics exist. Source/profile/frame identities remain caller-supplied structural assertions, not authenticated provenance; a caller can recreate another channel with the same epoch and reset its in-memory high-water; real FCU sampling and multi-message coherence are unproved; no approved freshness threshold or health verdict exists; lifecycle can rotate after load; and no immediately-before-write governor, adapter, or independently attested FCU failsafe consumes the snapshot."
+      "residual_risk": "A closed immutable in-memory snapshot, context-bound retained channel, strict sequence admission within one publisher/channel instance, coherent plant-monotonic age mechanics, and an exact-profile-bound exclusive captured-read age classifier exist. Source/profile/frame identities and proposed limits remain caller-supplied structural assertions, not authenticated provenance or approval; a caller can recreate another channel with the same epoch and reset its in-memory high-water; real FCU sampling and multi-message coherence are unproved; no approved freshness/health policy or aggregate verdict exists; lifecycle can rotate and time can advance after load; and no immediately-before-write governor, adapter, or independently attested FCU failsafe consumes the assessment."
     },
     {
       "id": "HAZ-007",

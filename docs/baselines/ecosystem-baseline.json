@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "baseline_id": "crebain-ecosystem-phase0-2026-07-13",
-  "captured_at": "2026-07-13T10:22:39+02:00",
+  "captured_at": "2026-07-13T14:05:44+02:00",
   "purpose": "Exact remote-main source identities, local toolchain, protocol, Galadriel producer-contract, and CREBAIN configuration baseline for Phase 0; not L1 runtime evidence",
   "crebain_source": {
     "repository": "https://github.com/sepahead/crebain",
@@ -166,11 +166,11 @@
     },
     {
       "path": "docs/baselines/phase0-command-surfaces.json",
-      "sha256": "ae09b04c64722dc3d6819fb2572b6ef653ec80c817e44071544f40d7dcdff96b"
+      "sha256": "43ed4917aeed73c6e9520413cae1f16e113b8e4176eb2b0cea417e5406710a87"
     },
     {
       "path": "docs/baselines/phase0-hazards.json",
-      "sha256": "350b891dde69823b983e41d11af0e35f5a56848e530cf238315fdb658b71ef53"
+      "sha256": "86da6ce39c3878687cd75267eeecfae0125254adf4adfcda0afc922a980622a0"
     },
     {
       "path": "scripts/verify-phase0-baseline.mjs",
@@ -178,7 +178,7 @@
     },
     {
       "path": "scripts/check-plant-authority-boundary.mjs",
-      "sha256": "65b4d42871b9cffb08054fa2772184a706f95aaa77797708a0a8461c84f4d5f8"
+      "sha256": "56636da2c6a6bbc1de206880e1b0838ee5bd29151aea594c08bba156532088d1"
     },
     {
       "path": "scripts/lib/plant-frame-conventions.mjs",

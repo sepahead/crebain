@@ -35,7 +35,7 @@ graph TB
     end
 
     subgraph PlantFoundation["Separate headless package (L0, inert)"]
-        Plantd["crebain-plantd<br/>Inactive command/health contracts + frame conventions + lifecycle + bounded channels + passive expiry<br/>Self-check only"]
+        Plantd["crebain-plantd<br/>Inactive command/health/captured-age contracts + frame conventions + lifecycle + bounded channels + passive expiry<br/>Self-check only"]
     end
 
     subgraph External["External Systems"]
@@ -70,7 +70,8 @@ the renderer, inference, fusion, simulation, the NCP action module, the
 Galadriel producer, or the generic telemetry transports. Its only executable
 mode is `--self-check`.
 
-The package establishes inactive command-contract and vehicle-health candidates,
+The package establishes inactive command-contract, vehicle-health, and
+profile-bound captured-read age-classifier candidates,
 the nine explicit lifecycle states, generation-guarded events, capacity-one
 latest-value paths, a non-consuming retained whole-snapshot register, bounded
 reject-new lifecycle ingress, bounded drop-oldest evidence
@@ -81,9 +82,13 @@ disconnected mechanics. The canonical kernel health path instead seals a
 concrete, deeply immutable report and binds its declared profile, vehicle,
 source, stream epoch, runtime generation, local-frame instance, strictly
 increasing per-channel source sequence, frame, SI units, values, and plant-local
-observation times into one retained commit. Checked loads compute all ages from one instant
-without declaring any value fresh, healthy, safe, or authorized. The command
-contract candidate gives velocity proposals
+observation times into one retained commit. Checked loads compute all ages from
+one instant. The separate classifier consumes one such coherent observation,
+rejects zero limits and exact-profile mismatch, and compares receipt plus all
+seven observation ages against caller-proposed exclusive limits. Only an age
+strictly below its limit is within it; equality is outside. The assessment owns
+the observed commit and exposes no boolean or aggregate fresh, healthy, safe,
+eligible, or authorized result. The command contract candidate gives velocity proposals
 closed action/frame/unit semantics, distinct producer and plant-local time, and
 draft instantaneous-speed/TTL validation, but defines no wire format or command ingress and
 its profile/frame/limits are unapproved. A separate finite m/s component and
@@ -95,11 +100,14 @@ does not select a profile or cover attitude, yaw/quaternions, points,
 covariance, Three.js, time, or live FCU semantics. The separate health candidate
 carries a declared local-frame-instance identity but does not authenticate its
 source, prove real FCU sampling or multi-message coherence, interpret profile
-mode/estimator flags, set freshness thresholds, or apply policy.
+mode/estimator flags, or apply state policy. The captured-read classifier does
+not read a clock, approve its profile/limits, implement the draft ODD's inclusive
+`<=200 ms` position/velocity condition, interpret unknown/unavailable state, or
+establish current or apply-time freshness.
 
 This is a component foundation, not an authority chain. It has no approved or
-authenticated ingress/UAV profile or FCU health collector, active monotonic
-command watchdog, apply-time governor, ODD safe-action table, PX4/FCU adapter, deadline
+authenticated ingress/UAV profile or FCU health collector, approved age/state
+policy, active monotonic command watchdog, apply-time governor, ODD safe-action table, PX4/FCU adapter, deadline
 measurement, or staged live evidence. CREBAIN therefore remains L0.
 
 ## Design principles

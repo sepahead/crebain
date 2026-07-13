@@ -9,8 +9,10 @@ not authenticated FCU state or authority evidence.
 vehicle-health value validated in memory by the inert headless plant foundation. It is a
 component contract and retained-register boundary only. It has no parser,
 transport, FCU connection, source authentication, lifecycle transition,
-freshness threshold, safety verdict, watchdog, governor, safe-action selector,
-or adapter call.
+approved age/state policy, safety verdict, watchdog, governor, safe-action selector,
+or adapter call. A separate inactive component can compare ages already
+captured by its checked reader; see
+[`PLANT_FRESHNESS_V1.md`](PLANT_FRESHNESS_V1.md).
 
 The Tauri application does not link this package. Nothing in this contract can
 authorize or apply motion.
@@ -66,8 +68,8 @@ safe/unsafe mode names.
 Available position and velocity values must be finite and use metres and
 metres per second in the profile's exact local frame. Available battery values
 must be finite and within `0.0..=1.0`. Signed zero is canonicalized to positive
-zero. No telemetry plausibility, speed, battery-critical, or freshness policy
-limit is applied. Large finite observations and contradictory but structurally
+zero. Health admission applies no telemetry plausibility, speed,
+battery-critical, or age-policy limit. Large finite observations and contradictory but structurally
 possible state are retained for a later conservative policy to assess.
 
 ## Plant-local time
@@ -82,9 +84,26 @@ even older snapshot.
 One reader load returns a coherent immutable commit and exact ages for receipt,
 FCU state, estimator, position, velocity, battery, fence, and links. Missing
 state, poisoned storage, generation rotation, and monotonic-clock regression
-are explicit errors. Loads never refresh an observation and never classify it
-as fresh. Platform suspend behavior for the selected monotonic clock is not yet
-qualified.
+are explicit errors. Loads never refresh an observation. The separate
+captured-read classifier consumes that coherent result and can compare all
+eight ages without rereading a clock, but it never establishes current or
+apply-time freshness. Platform suspend behavior for the selected monotonic
+clock is not yet qualified.
+
+## Captured-read age comparison
+
+`VehicleHealthCapturedAgePolicyV1` binds caller-proposed nonzero exclusive
+limits to one exact profile identity. It refuses exact-profile mismatch before
+classification. The resulting assessment owns the coherent observation and
+borrows the exact policy.
+For each age it reports only whether the captured value is strictly below or
+at/beyond the exclusive limit; equality is outside.
+
+Those limits are not approved or proven to belong to the profile artifact. The
+assessment has no aggregate or boolean health/safety result. A recent
+`Unknown` or `Unavailable` value can be within its age limit while remaining
+semantically non-nominal. The draft ODD's inclusive local position/velocity
+condition of `<=200 ms` is not implemented or translated by this component.
 
 ## Atomic boundary and remaining race
 
@@ -100,8 +119,9 @@ but the canonical `KernelChannels` health path is the specialized contract and
 does not expose its raw sender or receiver. A separately-created generic
 register is not the canonical vehicle-health path.
 
-A lifecycle change can still occur after a reader load. Only a future governor
-that checks generation, approved freshness limits, profile policy, and state
+A lifecycle change can still occur after a reader load or captured-age
+assessment. Only a future governor that reloads health and checks generation,
+approved age/state limits, profile policy, and state
 immediately before every FCU write can close that race. Consequently this slice
 is partial CB-030/CTL-005/HAZ-006 component evidence; it is not
 `TEST-ATOMIC-STATE-STALENESS`, active authority, or L1 completion.
@@ -118,10 +138,11 @@ evidence:
   observation boundary;
 - multi-message aggregation and oldest-constituent time rules;
 - local-frame origin/datum issuance and reset detection;
-- freshness, battery-critical, fence, failsafe, link, armed/landed, and mode
-  policy;
+- approved age, battery-critical, fence, failsafe, link, armed/landed, mode,
+  aggregate health, and safe-action policy;
 - covariance, attitude/quaternions, global coordinates, and transforms;
-- apply-time generation/freshness enforcement and physical safe action;
+- current/apply-time generation, age, and state enforcement plus physical safe
+  action;
 - suspend-inclusive clock qualification and durable restart anti-rollback; and
 - ingress, wire schema, evidence pipeline, watchdog, governor, and FCU I/O.
 
