@@ -20,9 +20,9 @@ use tempfile::NamedTempFile;
 const SCHEMA_VERSION: &str = "crebain.native-detector-benchmark.v1";
 const MEASUREMENT_SCOPE: &str = "callLatencyMs measures one DetectorRuntime::detect call; runtimeReportedLatencyMs is the latency returned by that runtime; sequentialDetectorThroughputFps is iterations divided by the sum of callLatencyMs; evidenceLoopWallMs additionally includes timing, first-output cloning, detection JSON serialization/digesting, and sample recording; initializationMs includes detector construction and Detector::warmup; fixture decoding, Tauri IPC, spawn_blocking queueing, camera transport, renderer load, and UI work are excluded";
 const PROVIDER_LABEL_SCOPE: &str = "providerLabel identifies the backend or successfully registered execution provider selected by CREBAIN; it does not attest accelerator placement or prove that every graph operation ran on that provider";
-const REPORT_SENSITIVITY_NOTICE: &str = "local file paths and environment values are redacted, but this report contains an operator-supplied hardware label, model/fixture/runtime digests, raw timings, detection counts, and first-frame detections; review it before sharing";
+const REPORT_SENSITIVITY_NOTICE: &str = "local file paths and environment values are redacted, but this report contains an operator-supplied hardware label, model/fixture digests, the ONNX Runtime loading record and—only for a configured Linux library—a runtime digest, raw timings, detection counts, and first-frame detections; review it before sharing";
 const FORCED_MLX_PROFILING_POLICY: &str = "forced-disabled";
-const FORCED_TENSORRT_CACHE_POLICY: &str = "forced-disabled-cold-initialization";
+const FORCED_TENSORRT_CACHE_POLICY: &str = "forced-persistent-engine-cache-disabled";
 const TREE_HASH_DOMAIN: &[u8] = b"CREBAIN-MLMODELC-TREE-SHA256-V1\0";
 const MAX_WARMUPS: usize = 100;
 const MAX_ITERATIONS: usize = 1_000;
@@ -1819,8 +1819,9 @@ fn write_artifact_atomically(path: &Path, artifact: &BenchmarkArtifact) -> Bench
 
 fn configure_model_environment(model: &ValidatedModel, backend: Backend) -> BenchResult<()> {
     // Make steady-state comparisons independent of optional MLX logging and
-    // persistent TensorRT engine-cache warmth. Initialization remains recorded
-    // separately and is deliberately cold when TensorRT is selected.
+    // CREBAIN's persistent TensorRT engine-cache state. Initialization remains
+    // recorded separately; this does not attest OS, driver, JIT, module, or GPU
+    // cache/state coldness.
     std::env::remove_var("CREBAIN_PROFILE_MLX");
     std::env::set_var("CREBAIN_DISABLE_TRT_CACHE", "1");
     let path = utf8_path(&model.path, "model")?;

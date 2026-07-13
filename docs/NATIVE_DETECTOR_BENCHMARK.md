@@ -55,8 +55,10 @@ mutation; they are not attestation against a hostile writer racing the
 filesystem.
 
 MLX layer profiling and the persistent TensorRT engine cache are forced off.
-TensorRT initialization is therefore cold and separate from steady-state call
-samples. On Linux, a run without a configured, hashable `ORT_DYLIB_PATH` may
+TensorRT initialization is therefore cold only with respect to CREBAIN's
+persistent engine cache and remains separate from steady-state call samples;
+the harness does not attest OS page cache, driver/JIT/module caches, or GPU
+state. On Linux, a run without a configured, hashable `ORT_DYLIB_PATH` may
 produce a standalone report, but it cannot be used for baseline gating.
 
 `providerLabel` means that CREBAIN selected the backend or successfully
@@ -73,10 +75,18 @@ clean checkout and an external target-runtime record.
 
 ## Compare with a baseline
 
-Archive the first report and obtain its SHA-256 from a trusted evidence store:
+At baseline approval time, a trusted pipeline can hash the archived report and
+publish that value to an evidence store separate from the report:
 
 ```bash
 shasum -a 256 /private/evidence/native-detector-baseline.json
+```
+
+At comparison time, retrieve the approved value independently; do not recompute
+it from the baseline file being checked:
+
+```bash
+APPROVED_BASELINE_SHA256=<value-from-trusted-evidence-store>
 
 bun run benchmark:native-detector -- \
   --backend onnx \
@@ -86,7 +96,7 @@ bun run benchmark:native-detector -- \
   --hardware target-profile-id \
   --source-commit "$(git rev-parse HEAD)" \
   --baseline /private/evidence/native-detector-baseline.json \
-  --baseline-sha256 <trusted-64-hex-digest> \
+  --baseline-sha256 "$APPROVED_BASELINE_SHA256" \
   --max-regression-percent 5
 ```
 
