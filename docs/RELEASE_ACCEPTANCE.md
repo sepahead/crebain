@@ -16,7 +16,7 @@ target environment.
 | Documentation drift | README, AGENTS, CONTRIBUTING, SECURITY, ROS/model/NCP docs, and workflows agree on commands, status, limits, and boundaries | Stale command, unsupported capability, invented count/run, or mismatched protocol/model claim |
 | Native launch | Tauri app launches on each release platform and diagnostics render actual backend availability | Crash, missing diagnostics, or misleading mode label |
 | Models | Exact artifact digest, model path, input/output tensors, preprocessing, postprocessing, class map, fixtures, and rights are recorded; MLX safetensors inputs receive the same review | Assuming a five-class `[1,9,N]` exporter fits the native COCO-80 `[1,84,N]`/`[1,N,84]` parser; unverified model |
-| Scene JSON | Browser and native paths reject a non-JSON, traversing, malformed, or >10 MiB scene file; migration precedes strict validation; bounds/references are enforced | Unbounded parse/read, schema bypass, path escape, or non-atomic native save |
+| Scene JSON | Browser paths and serialized production-handler native IPC tests reject a non-JSON, traversing, outside-root, missing, malformed, invalid-UTF-8, or >10 MiB scene file; migration precedes strict validation; bounds/references are enforced | Unbounded parse/read, schema bypass, path escape, or non-atomic native save |
 | Scene asset restore | Only reloadable relative/HTTPS/loopback sources persist; GLB is self-contained; per-file/aggregate/pixel/time limits hold; superseded/partial restores are surfaced | External GLB fetch, hidden partial failure, stale load mutation, or any byte/pixel budget bypass |
 | ROS 1 / Gazebo Classic | Packaged UI is Zenoh/read-only; development and native rosbridge fallbacks are telemetry-only and tested against the documented ROS 1 message packages | Any renderer/native publish, setpoint, service, MAVROS mode/mission, or Gazebo mutation capability; claiming reference definitions are product commands |
 | Camera transport | Raw and compressed fixtures pass on rosbridge and native Zenoh; malformed base64/CDR, sizes, formats, timestamps, matrices, and distortion arrays fail | Suffix-inferred schema, JSON byte-array ingress, dimension/allocation bypass, or divergent transport behavior |
@@ -30,7 +30,7 @@ target environment.
 | Manual smoke | `docs/MANUAL_SMOKE_TEST.md` records target platform/model/topology and has no release blocker | Critical path incomplete, inconsistent diagnostics, data loss, or unsafe boundary behavior |
 | Performance claims | Reproducible command, artifact digest, target hardware, thresholds, and raw result are archived | Any numeric claim without candidate-specific evidence |
 
-| Error handling | External-boundary failures return structured error payloads or explicit typed failures | Silent fallback, ambiguous success, or leaking sensitive internals |
+| Error handling | External-boundary failures return structured error payloads or explicit typed failures; serialized production-handler IPC negatives exercise Tauri argument decoding plus scene, detector, fusion, and topic validation | Silent fallback, ambiguous success, or leaking sensitive internals |
 
 ## Release Candidate Gate
 

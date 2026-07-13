@@ -36,7 +36,6 @@ and independently attested FCU failsafe behavior.
 | # | Next Step | Primary Outcome |
 | - | --------- | --------------- |
 | 1 | Validate the experimental MLX YOLOv8 safetensors path with an approved model contract, fixture detections, class mapping, and target-hardware benchmarks | Trustworthy Apple Silicon model evidence |
-| 2 | Extend AppHandle-backed negative IPC integration tests beyond `scene_save_file` (mock-runtime tests exist for empty/oversized scene JSON) to `scene_load_file`, scene-path negatives, and the model, transport, and fusion boundaries | Stronger end-to-end IPC evidence |
 | 3 | Run ROS/Gazebo/Zenoh multi-frame smoke tests against a target topology | Deployment-specific transport confidence |
 | 4 | Add a native detector regression benchmark harness, then extend it to sensor fusion, transport event routing, and position history | Better latency visibility |
 | 5 | Execute and archive manual smoke-test results for native launch, diagnostics, scene save/load, and ROS/Zenoh modes | Repeatable release checks |
@@ -46,6 +45,11 @@ and independently attested FCU failsafe behavior.
 
 ## Recently completed
 
+- Backlog item 2: the production Tauri handler list is reused by a serialized
+  mock-runtime IPC harness. Negative invoke requests now cover scene save/load
+  payload, path, UTF-8, parse, absence, and size failures; detector/fusion
+  deserialization and bounds; and validation-before-connection for every
+  topic-bearing transport command.
 - Multi-frame scenario tests for track confirmation (sliding-window M-of-N),
   target motion, and stale-track cleanup.
 - CI test-count summaries: the CI workflow writes frontend and Rust test-count

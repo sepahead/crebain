@@ -819,35 +819,38 @@ fn fusion_get_modalities() -> Vec<serde_json::Value> {
 
 use transport::commands::*;
 
+fn with_invoke_handler<R: tauri::Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
+    builder.invoke_handler(tauri::generate_handler![
+        detect_native_raw,
+        get_system_info,
+        // Scene state persistence (filesystem)
+        scene_save_file,
+        scene_load_file,
+        // Sensor fusion commands
+        fusion_init,
+        fusion_process,
+        fusion_get_tracks,
+        fusion_get_stats,
+        fusion_set_config,
+        fusion_clear,
+        fusion_get_algorithms,
+        fusion_get_modalities,
+        // Transport commands
+        transport_connect,
+        transport_disconnect,
+        transport_subscribe_camera,
+        transport_subscribe_camera_info,
+        transport_subscribe_imu,
+        transport_subscribe_pose,
+        transport_subscribe_model_states,
+        transport_unsubscribe,
+        transport_get_stats
+    ])
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![
-            detect_native_raw,
-            get_system_info,
-            // Scene state persistence (filesystem)
-            scene_save_file,
-            scene_load_file,
-            // Sensor fusion commands
-            fusion_init,
-            fusion_process,
-            fusion_get_tracks,
-            fusion_get_stats,
-            fusion_set_config,
-            fusion_clear,
-            fusion_get_algorithms,
-            fusion_get_modalities,
-            // Transport commands
-            transport_connect,
-            transport_disconnect,
-            transport_subscribe_camera,
-            transport_subscribe_camera_info,
-            transport_subscribe_imu,
-            transport_subscribe_pose,
-            transport_subscribe_model_states,
-            transport_unsubscribe,
-            transport_get_stats
-        ])
+    with_invoke_handler(tauri::Builder::default())
         .setup(|app| {
             // Initialize logging in debug mode
             #[cfg(debug_assertions)]
@@ -1474,43 +1477,270 @@ mod tests {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // AppHandle-backed IPC integration tests (Tauri mock runtime).
+    // Serialized IPC integration tests (Tauri mock runtime).
     //
-    // These invoke the real `#[tauri::command]` async functions through a mock
-    // `AppHandle`, exercising the IPC boundary end-to-end rather than only the
-    // validation helpers, and confirm that malformed payloads return structured
-    // errors instead of panicking. The empty/oversized cases short-circuit
-    // before any filesystem access, so they have no side effects.
+    // These build the production handler list and pass JSON InvokeRequest values
+    // through Tauri's real argument deserialization and command dispatch. Each
+    // app uses a unique data directory that is removed after the test.
     // ─────────────────────────────────────────────────────────────────────────
 
-    fn mock_app() -> tauri::App<tauri::test::MockRuntime> {
-        tauri::test::mock_builder()
-            .build(tauri::test::mock_context(tauri::test::noop_assets()))
-            .expect("failed to build mock Tauri app")
+    static NEXT_MOCK_APP_ID: AtomicU64 = AtomicU64::new(1);
+
+    struct MockIpcApp {
+        _app: tauri::App<tauri::test::MockRuntime>,
+        webview: tauri::WebviewWindow<tauri::test::MockRuntime>,
+        data_dir: std::path::PathBuf,
+        scenes_dir: std::path::PathBuf,
+    }
+
+    impl MockIpcApp {
+        fn new() -> Self {
+            let app_id = NEXT_MOCK_APP_ID.fetch_add(1, Ordering::Relaxed);
+            let mut context = tauri::test::mock_context(tauri::test::noop_assets());
+            context.config_mut().identifier = format!(
+                "com.sepahead.crebain.test.{}.{}",
+                std::process::id(),
+                app_id
+            );
+            let app = with_invoke_handler(tauri::test::mock_builder())
+                .build(context)
+                .expect("failed to build mock Tauri app");
+            let data_dir = app
+                .path()
+                .app_data_dir()
+                .expect("mock app data directory must resolve");
+            let scenes_dir = data_dir.join("scenes");
+            std::fs::create_dir_all(&scenes_dir).expect("mock scenes directory must be creatable");
+            let webview = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+                .build()
+                .expect("failed to build mock Tauri webview");
+
+            Self {
+                _app: app,
+                webview,
+                data_dir,
+                scenes_dir,
+            }
+        }
+
+        fn invoke(
+            &self,
+            command: &str,
+            body: serde_json::Value,
+        ) -> Result<serde_json::Value, serde_json::Value> {
+            tauri::test::get_ipc_response(
+                &self.webview,
+                tauri::webview::InvokeRequest {
+                    cmd: command.to_string(),
+                    callback: tauri::ipc::CallbackFn(0),
+                    error: tauri::ipc::CallbackFn(1),
+                    url: if cfg!(any(windows, target_os = "android")) {
+                        "http://tauri.localhost"
+                    } else {
+                        "tauri://localhost"
+                    }
+                    .parse()
+                    .expect("static mock invoke URL must parse"),
+                    body: tauri::ipc::InvokeBody::Json(body),
+                    headers: Default::default(),
+                    invoke_key: tauri::test::INVOKE_KEY.to_string(),
+                },
+            )
+            .map(|body| {
+                body.deserialize()
+                    .expect("command response must be valid JSON")
+            })
+        }
+
+        fn assert_error_contains(&self, command: &str, body: serde_json::Value, expected: &str) {
+            let error = self
+                .invoke(command, body)
+                .expect_err("negative IPC case unexpectedly succeeded");
+            let rendered = error
+                .as_str()
+                .map(str::to_owned)
+                .unwrap_or_else(|| error.to_string());
+            assert!(
+                rendered
+                    .to_ascii_lowercase()
+                    .contains(&expected.to_ascii_lowercase()),
+                "unexpected {command} error: {rendered}"
+            );
+        }
+    }
+
+    impl Drop for MockIpcApp {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.data_dir);
+        }
     }
 
     #[test]
-    fn scene_save_file_rejects_empty_json_via_apphandle() {
-        let app = mock_app();
-        let err = tauri::async_runtime::block_on(scene_save_file(
-            "scene.json".to_string(),
-            String::new(),
-            app.handle().clone(),
-        ))
-        .unwrap_err();
-        assert!(err.contains("Empty scene JSON"), "unexpected error: {err}");
+    fn serialized_ipc_rejects_scene_save_payload_and_path_failures() {
+        let app = MockIpcApp::new();
+        let valid_json = serde_json::json!({ "version": "1.0.0", "name": "IPC test" });
+        let outside_path = std::env::temp_dir().join("crebain-ipc-outside.json");
+
+        app.assert_error_contains(
+            "scene_save_file",
+            serde_json::json!({ "path": "scene.json", "json": "" }),
+            "Empty scene JSON",
+        );
+        app.assert_error_contains(
+            "scene_save_file",
+            serde_json::json!({
+                "path": "scene.json",
+                "json": "x".repeat(MAX_SCENE_STATE_BYTES + 1),
+            }),
+            "too large",
+        );
+        app.assert_error_contains(
+            "scene_save_file",
+            serde_json::json!({ "path": "../outside.json", "json": valid_json.to_string() }),
+            "traversal",
+        );
+        app.assert_error_contains(
+            "scene_save_file",
+            serde_json::json!({ "path": "wrong.txt", "json": valid_json.to_string() }),
+            "must end with .json",
+        );
+        app.assert_error_contains(
+            "scene_save_file",
+            serde_json::json!({
+                "path": outside_path.to_string_lossy(),
+                "json": valid_json.to_string(),
+            }),
+            "traversal",
+        );
+        app.assert_error_contains(
+            "scene_save_file",
+            serde_json::json!({ "path": "malformed.json", "json": "{" }),
+            "Invalid scene JSON",
+        );
     }
 
     #[test]
-    fn scene_save_file_rejects_oversized_json_via_apphandle() {
-        let app = mock_app();
-        let oversized = "x".repeat(MAX_SCENE_STATE_BYTES + 1);
-        let err = tauri::async_runtime::block_on(scene_save_file(
-            "scene.json".to_string(),
-            oversized,
-            app.handle().clone(),
-        ))
-        .unwrap_err();
-        assert!(err.contains("too large"), "unexpected error: {err}");
+    fn serialized_ipc_rejects_scene_load_path_and_content_failures() {
+        let app = MockIpcApp::new();
+        let outside_path = std::env::temp_dir().join("crebain-ipc-outside.json");
+        std::fs::write(app.scenes_dir.join("malformed.json"), b"{")
+            .expect("malformed scene fixture must be writable");
+        std::fs::write(app.scenes_dir.join("invalid-utf8.json"), [0xff])
+            .expect("UTF-8 fixture must be writable");
+        let oversized_path = app.scenes_dir.join("oversized.json");
+        let oversized = std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(true)
+            .write(true)
+            .open(&oversized_path)
+            .expect("oversized scene fixture must be creatable");
+        oversized
+            .set_len((MAX_SCENE_STATE_BYTES + 1) as u64)
+            .expect("oversized scene fixture must be resizable");
+
+        for (path, expected) in [
+            ("../outside.json", "traversal"),
+            ("wrong.txt", "must end with .json"),
+            ("missing.json", "Failed to open"),
+            ("malformed.json", "Invalid scene JSON"),
+            ("invalid-utf8.json", "not valid UTF-8"),
+            ("oversized.json", "too large"),
+        ] {
+            app.assert_error_contains(
+                "scene_load_file",
+                serde_json::json!({ "path": path }),
+                expected,
+            );
+        }
+        app.assert_error_contains(
+            "scene_load_file",
+            serde_json::json!({ "path": outside_path.to_string_lossy() }),
+            "traversal",
+        );
+    }
+
+    #[test]
+    fn serialized_ipc_rejects_detector_and_fusion_inputs_before_runtime_use() {
+        let app = MockIpcApp::new();
+        app.assert_error_contains(
+            "detect_native_raw",
+            serde_json::json!({
+                "rgbaData": [0, 1, 2],
+                "width": 1,
+                "height": 1,
+                "confidenceThreshold": null,
+                "iouThreshold": null,
+                "maxDetections": null,
+            }),
+            "Invalid RGBA data size",
+        );
+        app.assert_error_contains(
+            "detect_native_raw",
+            serde_json::json!({
+                "rgbaData": [0, 0, 0, 255],
+                "width": 1,
+                "height": 1,
+                "confidenceThreshold": 0.24,
+                "iouThreshold": 0.45,
+                "maxDetections": 100,
+            }),
+            "common backend envelope starts at 0.25",
+        );
+        app.assert_error_contains(
+            "detect_native_raw",
+            serde_json::json!({
+                "rgbaData": [],
+                "width": "not-a-number",
+                "height": 1,
+            }),
+            "invalid args `width`",
+        );
+
+        let mut invalid_config = test_fusion_config();
+        invalid_config.particle_count = sensor_fusion::MAX_FUSION_PARTICLE_COUNT + 1;
+        let invalid_config =
+            serde_json::to_value(invalid_config).expect("fusion config must serialize");
+        for command in ["fusion_init", "fusion_set_config"] {
+            app.assert_error_contains(
+                command,
+                serde_json::json!({ "config": invalid_config.clone() }),
+                "particle_count",
+            );
+        }
+
+        let mut invalid_measurement = test_sensor_measurement();
+        invalid_measurement.covariance[1] = 0.0;
+        app.assert_error_contains(
+            "fusion_process",
+            serde_json::json!({
+                "measurements": [invalid_measurement],
+                "timestampMs": 1000,
+            }),
+            "covariance[1] must be > 0",
+        );
+        app.assert_error_contains(
+            "fusion_process",
+            serde_json::json!({ "measurements": [], "timestampMs": "not-a-number" }),
+            "invalid args `timestampMs`",
+        );
+    }
+
+    #[test]
+    fn serialized_ipc_rejects_all_transport_topic_commands_before_connection_lookup() {
+        let app = MockIpcApp::new();
+        for command in [
+            "transport_subscribe_camera",
+            "transport_subscribe_camera_info",
+            "transport_subscribe_imu",
+            "transport_subscribe_pose",
+            "transport_subscribe_model_states",
+            "transport_unsubscribe",
+        ] {
+            let mut body = serde_json::json!({ "topic": "relative/topic" });
+            if command == "transport_subscribe_camera" {
+                body["compressed"] = serde_json::Value::Bool(false);
+            }
+            app.assert_error_contains(command, body, "absolute ROS name");
+        }
     }
 }

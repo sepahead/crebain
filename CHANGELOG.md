@@ -12,6 +12,16 @@ README and treated as unverified until measured on target hardware.
 Open-source readiness and quality hardening.
 
 ### Added
+- **Serialized Tauri IPC negative-boundary coverage.** The production command
+  handler is now reusable with Tauri's mock runtime, so tests pass JSON invoke
+  requests through the real handler dispatch and argument deserializer instead
+  of calling command functions directly. The suite covers scene traversal,
+  outside-root, extension, missing, malformed, invalid-UTF-8, and 10 MiB limits;
+  detector and fusion type/range rejection before runtime use; and every
+  topic-bearing transport command rejecting invalid ROS names before connection
+  lookup. Transport subscription handlers are runtime-generic solely so the
+  same production handler list can be exercised; their product behavior and
+  registered surface are unchanged.
 - **Non-consuming retained plant snapshot mechanics.** The isolated plant
   foundation can atomically replace one whole `Arc`-backed value together with
   a caller-supplied lifecycle generation and exact per-register sequence.

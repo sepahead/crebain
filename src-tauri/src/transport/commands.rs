@@ -5,7 +5,7 @@ use super::{
 use std::future::Future;
 use std::sync::{Arc, LazyLock};
 use std::time::Duration;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Runtime};
 use tokio::sync::Mutex;
 
 // Global transport instance. The mutex is only held briefly to swap or clone
@@ -130,8 +130,8 @@ pub async fn transport_disconnect() -> Result<(), String> {
 /// Subscribe to a camera topic
 /// frames will be emitted as events with the same name as the topic
 #[tauri::command]
-pub async fn transport_subscribe_camera(
-    app: AppHandle,
+pub async fn transport_subscribe_camera<R: Runtime>(
+    app: AppHandle<R>,
     topic: String,
     compressed: Option<bool>,
 ) -> Result<(), String> {
@@ -166,7 +166,10 @@ pub async fn transport_subscribe_camera(
 /// Subscribe to a CameraInfo topic
 /// messages will be emitted as events with the same name as the topic
 #[tauri::command]
-pub async fn transport_subscribe_camera_info(app: AppHandle, topic: String) -> Result<(), String> {
+pub async fn transport_subscribe_camera_info<R: Runtime>(
+    app: AppHandle<R>,
+    topic: String,
+) -> Result<(), String> {
     validate_topic(&topic)?;
     let bridge = current_bridge().await?;
 
@@ -188,7 +191,10 @@ pub async fn transport_subscribe_camera_info(app: AppHandle, topic: String) -> R
 
 /// Subscribe to an IMU topic
 #[tauri::command]
-pub async fn transport_subscribe_imu(app: AppHandle, topic: String) -> Result<(), String> {
+pub async fn transport_subscribe_imu<R: Runtime>(
+    app: AppHandle<R>,
+    topic: String,
+) -> Result<(), String> {
     validate_topic(&topic)?;
     let bridge = current_bridge().await?;
 
@@ -210,7 +216,10 @@ pub async fn transport_subscribe_imu(app: AppHandle, topic: String) -> Result<()
 
 /// Subscribe to a Pose topic
 #[tauri::command]
-pub async fn transport_subscribe_pose(app: AppHandle, topic: String) -> Result<(), String> {
+pub async fn transport_subscribe_pose<R: Runtime>(
+    app: AppHandle<R>,
+    topic: String,
+) -> Result<(), String> {
     validate_topic(&topic)?;
     let bridge = current_bridge().await?;
 
@@ -232,7 +241,10 @@ pub async fn transport_subscribe_pose(app: AppHandle, topic: String) -> Result<(
 
 /// Subscribe to Model States
 #[tauri::command]
-pub async fn transport_subscribe_model_states(app: AppHandle, topic: String) -> Result<(), String> {
+pub async fn transport_subscribe_model_states<R: Runtime>(
+    app: AppHandle<R>,
+    topic: String,
+) -> Result<(), String> {
     validate_topic(&topic)?;
     let bridge = current_bridge().await?;
 
