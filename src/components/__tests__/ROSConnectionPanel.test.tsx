@@ -58,4 +58,41 @@ describe('ROSConnectionPanel telemetry posture', () => {
 
     await act(async () => root.unmount())
   })
+
+  it('locks connection controls while an automatic reconnect is in progress', async () => {
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    const onConnect = vi.fn()
+    const onTransportChange = vi.fn()
+
+    await act(async () => {
+      root.render(
+        <ROSConnectionPanel
+          connectionState="reconnecting"
+          transport="zenoh"
+          onTransportChange={onTransportChange}
+          rosUrl="ws://localhost:9090"
+          onUrlChange={vi.fn()}
+          onConnect={onConnect}
+          onDisconnect={vi.fn()}
+          error={null}
+          drones={[]}
+        />
+      )
+    })
+
+    const transport = container.querySelector('select')
+    const connect = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'VERBINDEN'
+    )
+    expect(transport?.disabled).toBe(true)
+    expect(connect?.disabled).toBe(true)
+    expect(connect?.getAttribute('aria-busy')).toBe('true')
+
+    await act(async () => connect?.click())
+    expect(onConnect).not.toHaveBeenCalled()
+    expect(onTransportChange).not.toHaveBeenCalled()
+
+    await act(async () => root.unmount())
+  })
 })

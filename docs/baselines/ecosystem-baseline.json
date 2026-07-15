@@ -130,23 +130,23 @@
     },
     {
       "path": "package.json",
-      "sha256": "ead4d53256db1fbd2e182a7874d2006c942145e887660a475b3739a674340ed2"
+      "sha256": "ebd73cdb692bf24be46064178a8b16a1f2f623b4a46966a1e0066c802eb9b08d"
     },
     {
       "path": "bun.lock",
-      "sha256": "17bba19246b42fd1f99abbedaa4c206f572e8975aac1037c0faadc9446dc0c06"
+      "sha256": "350cbcf91559947dc5e4c7b028fa2a9c1bfe0f055407b9b162e72c77dcdd197e"
     },
     {
       "path": "src-tauri/Cargo.toml",
-      "sha256": "7f5ca25ee73d0b696c61fcae35e324ac601079c2e00862e9adaf172f46843062"
+      "sha256": "7ca7a656779c9c439d17d1e0f16f82a5701363af4a817017eabb88198bafab66"
     },
     {
       "path": "src-tauri/Cargo.lock",
-      "sha256": "8a5797dccc9764bb14b9febee0d880bd354fe572aaa125b85f734cb9657235d8"
+      "sha256": "aeafe843a67f7a7e41e530a5c1b5b217a43c1360021335a77fdda841e92d8314"
     },
     {
       "path": "src-tauri/crates/plant-authority/Cargo.toml",
-      "sha256": "c9e27c19b7d46dc0bc9db71040afe0b39b92f6b96dbbe41f59b6216985595b8e"
+      "sha256": "bef91356b905e962cd1a895be12017e78bc2952785f38c0bb7a99845d85b1cd8"
     },
     {
       "path": ".ncp-consumer",
@@ -154,7 +154,7 @@
     },
     {
       "path": "src-tauri/tauri.conf.json",
-      "sha256": "c8121f4596212011da4452b532833372d50e680772506f47d04f566418218a12"
+      "sha256": "aff325e6f223ce506c24e7d19fafd5725e252d2c005db73931c350962c376db4"
     },
     {
       "path": "tsconfig.json",
@@ -162,11 +162,11 @@
     },
     {
       "path": "vite.config.ts",
-      "sha256": "ea7fec33e46c538236ade866627ae1231e8baae8cf3a208acd91e2d66fd66031"
+      "sha256": "d5f08a94dd37409af137b1802a08b4278da8643abb911fed794788d34f45c2b3"
     },
     {
       "path": "docs/baselines/phase0-command-surfaces.json",
-      "sha256": "7ba31dbbe1cb7a0227d0481ae02c042809f713126b75967a527aaf425f8e28c2"
+      "sha256": "36fdac66f507bcdd54b7488c9071c2b2417fd93f22f102e5a241b6b1062f13e0"
     },
     {
       "path": "docs/baselines/phase0-hazards.json",
@@ -174,7 +174,7 @@
     },
     {
       "path": "scripts/verify-phase0-baseline.mjs",
-      "sha256": "9f129b3e39c74594c7ae80d34caba6955235f42ce528a0a4439378030cf29afc"
+      "sha256": "d50468ae1e069b56a2489c890784e6a82a9f9576b108f9fe676f3ee75746bec7"
     },
     {
       "path": "scripts/check-plant-authority-boundary.mjs",
@@ -202,31 +202,39 @@
     },
     {
       "path": "scripts/test-phase0-baseline.mjs",
-      "sha256": "ce0ca07593defd4dd0355d15361fca48fe1835e84f2d1a6b2e6570b9bc5c2252"
+      "sha256": "3f38b062b5251b4a1f4b4b9bab2716636d4db77cf2f9cf83e76152cc8ff2c13e"
     },
     {
       "path": "scripts/check-production-authority-boundary.mjs",
-      "sha256": "8f2c8fd4c23e80a7866a36258081f9c8220cf1c5b0d873c71c2173819513a245"
+      "sha256": "4d6ada8268a433bb874f6b7361ff6d4e8ce121447905853c6c14a69ad1ab8947"
     },
     {
       "path": "scripts/test-production-authority-boundary.mjs",
-      "sha256": "f6049a2400cc0a6c0d3d541571d4c0509287fa774a15acb52cee53be06b6abcc"
+      "sha256": "975678efbc4b3151514567626c1d7d5a9ebad78d2eac15d8338ef8bc98c87f6e"
+    },
+    {
+      "path": "scripts/lib/production-vendor-boundary.mjs",
+      "sha256": "1971bb32e91c592796c299fd09fbc7282fc20ac55caf6efa6f8441cbe4c65598"
+    },
+    {
+      "path": "scripts/test-production-vendor-boundary.mjs",
+      "sha256": "79b4ec0d3a0c207707a29b67b98d73ba1e84cc69f65aba27e5f4571187419277"
     },
     {
       "path": "scripts/fixtures/phase0-baseline-invalid-cases.json",
-      "sha256": "fad7a320665fb491cc921e40e8ce06292fe8a95c9d5484308d7a339ed0731273"
+      "sha256": "e5c077d7f1cf7a4e696b98f0e557380f347ea99af6bc21671a82a7265c349050"
     },
     {
       "path": "scripts/fixtures/production-boundary-invalid-cases.json",
-      "sha256": "b8b4052bd8f60c9acae8321db4327d4e18a6197ea7bb0c92fe89b11578952027"
+      "sha256": "6dc35ed9bcd38bd0e2eba83e3cc0e90e03bb392daa90b6b2e299abdf3284efa1"
     },
     {
       "path": ".github/workflows/ci.yml",
-      "sha256": "5e1ef9f71f64ee3b0dc9b4e04f689dc9cb10b709c5b1f7cc467cbde9ecbad844"
+      "sha256": "57b2dd820b7ab31fa5e8949ee1427e179236cd9b40f44c74702abdba0aa6377d"
     },
     {
       "path": ".github/workflows/release.yml",
-      "sha256": "ea0172d2165ac8d3f0032f83b0191f567641e1856f2c593e15325bb1adea56f6"
+      "sha256": "93174a7de0d7a0a50faedb73065649d28fe8baf60e5f1f208aec90c8f40b90d4"
     },
     {
       "path": ".env.example",
@@ -234,7 +242,7 @@
     },
     {
       "path": "docs/GALADRIEL_PRODUCER.md",
-      "sha256": "285aa1fb33b609793e3ddf7f2897ece2cbd512a9a6e278857ad439554481123d"
+      "sha256": "bbda5a64930e65787fb38454fe53a1bd52657477b1688ad70436dd2ca580eaa8"
     },
     {
       "path": "scripts/fixtures/phase0-evidence-artifact-valid.json",
@@ -246,7 +254,215 @@
     },
     {
       "path": "ros/launch/simulation.launch",
-      "sha256": "d5d997444827423ca23ddeca679204c8fc5404faa727962b3341561bcc70487c"
+      "sha256": "eec1d0bbe8cb02df134e922c9811f9c641c7c9986ea25834b33f5b8b33238bab"
+    },
+    {
+      "path": "bun.nix",
+      "sha256": "e9a6c801995dc60559ac7983b64b7e02bb3dfba41ae446665d6380969081d3a5"
+    },
+    {
+      "path": "flake.nix",
+      "sha256": "e0d6931b71254a2a0d9744afc90ac061d0c37dec7aa2b21d9f45f13a80955d86"
+    },
+    {
+      "path": "flake.lock",
+      "sha256": "1c43c79d7e34376511cc9240bdbac3137a109997b03ad96437cc432f709a4c14"
+    },
+    {
+      "path": "CITATION.cff",
+      "sha256": "78db0e17e46b834e5f510b22544ff5db6e240d99021e2c75549e73610e78040b"
+    },
+    {
+      "path": "src-tauri/deny.toml",
+      "sha256": "49749745df33aa3a3fbff59e6bee21b4fe51050f7c7a2b4c896f0b9ef0fc3c2b"
+    },
+    {
+      "path": ".github/dependabot.yml",
+      "sha256": "61ca80828f1892fa53c054294cca186d99683c0c4e8125f2767d2eb117dae07d"
+    },
+    {
+      "path": ".github/workflows/audit.yml",
+      "sha256": "310212e399ea41ee0bdc9cd55fe86a9aec6306098c59322cc6184b67780c1143"
+    },
+    {
+      "path": ".github/workflows/codeql.yml",
+      "sha256": "f9b329f4db9f385b7b219faea20164409f4e8223ad57b8f90ede17c5612208e2"
+    },
+    {
+      "path": ".github/workflows/nix.yml",
+      "sha256": "a34fe31739d4d4c1292e0a2cee31075af5aeb117e869b5d11d4f363211a1dd4b"
+    },
+    {
+      "path": ".github/workflows/ros-ci.yml",
+      "sha256": "ba915915778ded94aa47b603cb2674b2701b78309e10b4cb32b9f47cb725a699"
+    },
+    {
+      "path": ".github/workflows/scorecard.yml",
+      "sha256": "f2ca657d2bab0e39302f27ef3b5980bb88f7556d3323d7411adc9ff5726964be"
+    },
+    {
+      "path": "docs/NARROWED_GO_0.9.0.md",
+      "sha256": "eb0d63b5b60d7434ec686e75aeaf06dc1494a8b0ffd40626dfd1e296ad4953dd"
+    },
+    {
+      "path": "docs/baselines/product-profiles-0.9.0.json",
+      "sha256": "756218f6904a6cedc14595f6d5a2f088fe0392e86992d5469ffc09ac7eee7e5a"
+    },
+    {
+      "path": "scripts/verify-product-profiles.mjs",
+      "sha256": "48c022ec5478eca0c348e4820325f676c1018aab782a5b72a71837f2aec03dba"
+    },
+    {
+      "path": "scripts/test-product-profiles.mjs",
+      "sha256": "5f88755c9331af69f9004946cabfad39460aa7b21fbc69bbd7082ca695b78633"
+    },
+    {
+      "path": "docs/baselines/ipc-contract-registry.json",
+      "sha256": "10db33e7143f41304eb2c46d5d265ee726af43cb1e8a4e12b31a740266fc45f1"
+    },
+    {
+      "path": "scripts/generate-ipc-contract-registry.mjs",
+      "sha256": "d342b1200e4fa4c19481f749628d4770dee866d9d3e5966e719a97f7ce00efaa"
+    },
+    {
+      "path": "scripts/test-ipc-contract-registry.mjs",
+      "sha256": "b896497efb921c9b6df7e73995ff79b375c68316757179275d34c82b3ad58594"
+    },
+    {
+      "path": "scripts/check-version-coherence.sh",
+      "sha256": "3b0a1e6fd96ffaa3013a923196576ce9cdbbf9f168ec03528b3dd935ffd87499"
+    },
+    {
+      "path": "scripts/test-version-coherence.sh",
+      "sha256": "13353e66fbe0e8637757e090ff6556582b43dac66a367e60577e2f7df367c0de"
+    },
+    {
+      "path": "scripts/normalize-bun-nix.mjs",
+      "sha256": "ecde58ade4d57af341af9b2e530f900eeb1d9160ec441cc257da394728eaa82c"
+    },
+    {
+      "path": "scripts/test-normalize-bun-nix.mjs",
+      "sha256": "ec78bb4b7b343c8a7b2bb515e276ccae11b99af5f9e90f31f9fc5d0c4cb80564"
+    },
+    {
+      "path": "src-tauri/vendor-compat/PROVENANCE.json",
+      "sha256": "a33eb93e75a49206a74e4a9819fcdb9ee0868a7d74b8706a5d28534a06ca84b0"
+    },
+    {
+      "path": "scripts/verify-vendor-compat.py",
+      "sha256": "817e911dc5951ef2dfe78dfea83e30abd561680efc17dda06856e0c9ed99c023"
+    },
+    {
+      "path": "scripts/test-vendor-compat.py",
+      "sha256": "fd5503d680c576a2d2be76685856e073167d41d9f00ef944b54f5002fe4f93c4"
+    },
+    {
+      "path": "scripts/generate-release-evidence-manifest.py",
+      "sha256": "b47ddeddb9fbe75eef4ff6950f27d6f9e992c19689a0e3123053403feba7aa23"
+    },
+    {
+      "path": "scripts/verify-evidence-manifest.py",
+      "sha256": "adf085c0807a3d67b06c43aa24d837a8e292d04cb0a9b4df883f0105c5c4bf1f"
+    },
+    {
+      "path": "scripts/test-evidence-manifest.py",
+      "sha256": "dc94980039aacb189df5bb480bac3e675b7748a38178cc4082eaae617c2f7fee"
+    },
+    {
+      "path": "scripts/audit-tracked-files.py",
+      "sha256": "2529819225bb8be8a562e6536fb3c77e1095d4625ff3f7929724e84d4cf7e4fc"
+    },
+    {
+      "path": "scripts/test-audit-tracked-files.py",
+      "sha256": "0945afa2a9f5e139c1a829295c8bfecefda5620a9d8d2221a6bae4e6f3b8e510"
+    },
+    {
+      "path": "scripts/inventory-handoff.py",
+      "sha256": "37c1affd89887a5a760c3df9a4a5b9c94297bd8154e4b0106cbea0dc9c86a24e"
+    },
+    {
+      "path": "scripts/generate-task-disposition.py",
+      "sha256": "962c60ef022d458eb832741d59c4ae3fc5029bcb31324cac176676d93b846155"
+    },
+    {
+      "path": "scripts/check-bundle-size.mjs",
+      "sha256": "48557abcbdc1359ab860db0e2a1010eb7dd433d2db815fb33cf9bf4e93284cd5"
+    },
+    {
+      "path": "scripts/test-check-bundle-size.mjs",
+      "sha256": "b266dfc5fb610087f54332d9c31ac9e82fcdf2bb10efd754fe0f430f0253574e"
+    },
+    {
+      "path": "scripts/check-ncp-coherence.sh",
+      "sha256": "ebb6ce2fcd6450e6d40083286cdbcf76cec0b4b7718bbf4d7a9db8c542c87049"
+    },
+    {
+      "path": "scripts/validate_ros_defs.py",
+      "sha256": "b14d238dbec0c0b71c00ada521fe586a8da1896a400258de19f5fc51cf773365"
+    },
+    {
+      "path": "ros/package.xml",
+      "sha256": "a035608d944d1f6697ed684c2deaa6c4e4421ebc6d52912d4ba97bb969b313da"
+    },
+    {
+      "path": "ros/launch/multi_drone.launch",
+      "sha256": "1b09301af7491901aa7e62197578ac3177b16628349e72ab79d27b5e81e6d939"
+    },
+    {
+      "path": "ros/launch/rosbridge.launch",
+      "sha256": "8346e6e283a431fc58dcde5486e7ee8e2cf2d4c2fef98425771400b767bc9451"
+    },
+    {
+      "path": "ros/msg/AcousticDetection.msg",
+      "sha256": "c5008ec981600eed7df0f09074ad15513606e78079626865c816bfca473338f6"
+    },
+    {
+      "path": "ros/msg/AcousticDetectionArray.msg",
+      "sha256": "56278ecd199b282ef4ccc4b718973c9d8a6db00ac9fabda48c8e51dc6a00ee61"
+    },
+    {
+      "path": "ros/msg/DroneTarget.msg",
+      "sha256": "6d9aff0a6f0f457940658bb815bb7759edde924f7fde2f3be442f65a93121553"
+    },
+    {
+      "path": "ros/msg/InterceptionCommand.msg",
+      "sha256": "24e02a74de60acbf7baa6809c443dbfcc681c378f96446fb74fe0ea4fae2be38"
+    },
+    {
+      "path": "ros/msg/InterceptionStatus.msg",
+      "sha256": "85a8a3d8c1238e2a799a98ac7d2d2b203a9b0eebdf206a1c0313ac480ba9054a"
+    },
+    {
+      "path": "ros/msg/LidarDetection.msg",
+      "sha256": "9a4ae7bf4b56c14af971d75671b1b879cf723c4c2e441832b021274f81a35236"
+    },
+    {
+      "path": "ros/msg/LidarDetectionArray.msg",
+      "sha256": "a8568f6b516f3898c82ff41e98a9772188f690cd1600f5a1b9ab38b85fd8266b"
+    },
+    {
+      "path": "ros/msg/RadarDetection.msg",
+      "sha256": "9710247c59805a15129f7a68a3f64a1c8af1160e78063c6474372f61717d0761"
+    },
+    {
+      "path": "ros/msg/RadarDetectionArray.msg",
+      "sha256": "7621c07a96834b074da0a962cd44b812b1eac5ccd5cd629e850308fb7d9466b7"
+    },
+    {
+      "path": "ros/msg/ThermalDetection.msg",
+      "sha256": "c226ae976ba11eb00347348fb24ba063c5303e7295e94d611ead7a26f7ab222e"
+    },
+    {
+      "path": "ros/msg/ThermalDetectionArray.msg",
+      "sha256": "fe958ab534b7769693102db8155c881b222c40fdc11d3f225b9a1db23938ecfb"
+    },
+    {
+      "path": "ros/srv/AbortMission.srv",
+      "sha256": "e7973ab3413bbfed87a7e18273d1d6c859a78421de47d1f246c3647915b7e914"
+    },
+    {
+      "path": "ros/srv/InitiateIntercept.srv",
+      "sha256": "cff8f3346d53001dd9e0ec9c3a68963a6fe6db38c305d5248c366c978fcc188b"
     }
   ],
   "external_configuration_digests": [

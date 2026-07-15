@@ -458,7 +458,7 @@ fn apply_detection_policy(
         .map_err(InferenceError::InferenceError)?;
 
     for detection in &detections {
-        validate_detection(detection, frame_width, frame_height)?;
+        validate_backend_detection(detection, frame_width, frame_height)?;
     }
 
     detections.retain(|detection| detection.confidence >= policy.confidence_threshold);
@@ -481,7 +481,11 @@ fn apply_detection_policy(
     Ok(kept)
 }
 
-fn validate_detection(detection: &Detection, frame_width: u32, frame_height: u32) -> Result<()> {
+pub(crate) fn validate_backend_detection(
+    detection: &Detection,
+    frame_width: u32,
+    frame_height: u32,
+) -> Result<()> {
     if !detection.confidence.is_finite() || !(0.0..=1.0).contains(&detection.confidence) {
         return Err(InferenceError::InferenceError(
             "backend returned a non-finite or out-of-range confidence".to_string(),
@@ -514,6 +518,42 @@ fn validate_detection(detection: &Detection, frame_width: u32, frame_height: u32
     }
 
     Ok(())
+}
+
+/// Route backend candidates through the shared class-aware NMS implementation.
+pub(crate) fn apply_common_nms(
+    detections: Vec<Detection>,
+    iou_threshold: f32,
+) -> Result<Vec<Detection>> {
+    if !iou_threshold.is_finite() || !(0.0..=1.0).contains(&iou_threshold) {
+        return Err(InferenceError::InvalidInput(
+            "NMS IoU threshold must be finite and between 0 and 1".to_string(),
+        ));
+    }
+    crate::common::nms::validate_nms_candidate_count(detections.len())
+        .map_err(InferenceError::InferenceError)?;
+
+    let shared = detections
+        .into_iter()
+        .map(|detection| crate::common::detection::Detection {
+            bbox: crate::common::detection::BBox::from_array(detection.bbox),
+            confidence: detection.confidence,
+            class_id: detection.class_id,
+            class_label: detection.class_label,
+        })
+        .collect();
+
+    Ok(
+        crate::common::nms::non_max_suppression(shared, iou_threshold)
+            .into_iter()
+            .map(|detection| Detection {
+                bbox: detection.bbox.to_array(),
+                confidence: detection.confidence,
+                class_id: detection.class_id,
+                class_label: detection.class_label,
+            })
+            .collect(),
+    )
 }
 
 fn intersection_over_union(left: &[f32; 4], right: &[f32; 4]) -> f32 {
@@ -922,6 +962,32 @@ mod tests {
         .to_string();
 
         assert!(error.contains("common backend envelope caps at 100"));
+    }
+
+    #[test]
+    fn backend_nms_route_matches_shared_class_aware_contract() {
+        let detections = vec![
+            detection([0.0, 0.0, 10.0, 10.0], 0.8, 0, "person"),
+            detection([0.5, 0.5, 10.5, 10.5], 0.9, 0, "person"),
+            detection([0.5, 0.5, 10.5, 10.5], 0.7, 1, "bicycle"),
+        ];
+
+        let kept = apply_common_nms(detections, 0.45).unwrap();
+        let summary: Vec<_> = kept
+            .iter()
+            .map(|detection| (detection.class_id, detection.confidence))
+            .collect();
+
+        assert_eq!(summary, vec![(0, 0.9), (1, 0.7)]);
+    }
+
+    #[test]
+    fn backend_nms_route_rejects_non_finite_threshold() {
+        let error = apply_common_nms(Vec::new(), f32::NAN)
+            .unwrap_err()
+            .to_string();
+
+        assert!(error.contains("NMS IoU threshold"));
     }
 
     #[test]

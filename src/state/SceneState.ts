@@ -5,6 +5,12 @@
 
 import * as THREE from 'three'
 import { sceneLogger as log } from '../lib/logger'
+import {
+  isAdmissibleRoutePosition,
+  MAX_ROUTE_ALTITUDE_M,
+  MAX_ROUTE_WAYPOINTS,
+} from '../lib/routeLimits'
+import { DRONE_TYPES } from '../physics/DroneTypes'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { TAURI_COMMANDS } from '../lib/tauriCommands'
 
@@ -175,7 +181,7 @@ const MAX_SCENE_CAMERAS = 64
 const MAX_SCENE_DRONES = 256
 export const MAX_SCENE_ASSETS = 128
 const MAX_SCENE_DETECTIONS = 10_000
-const MAX_ROUTE_POINTS = 4096
+const MAX_CAMERA_PATROL_POINTS = 4096
 const MAX_NAME_LENGTH = 256
 const MAX_CAMERA_RENDER_PIXELS = 16_777_216
 const MAX_VECTOR_COMPONENT = 1_000_000
@@ -260,10 +266,13 @@ function isFiniteTuple4(value: unknown): value is [number, number, number, numbe
   return Array.isArray(value) && value.length === 4 && value.every(isFiniteNumber)
 }
 
-function isOptionalVector3Array(value: unknown): value is Vector3State[] | undefined {
+function isOptionalVector3Array(
+  value: unknown,
+  maximumLength: number
+): value is Vector3State[] | undefined {
   return (
     value === undefined ||
-    (Array.isArray(value) && value.length <= MAX_ROUTE_POINTS && value.every(isVector3State))
+    (Array.isArray(value) && value.length <= maximumLength && value.every(isVector3State))
   )
 }
 
@@ -288,7 +297,7 @@ function isCameraState(value: unknown): value is CameraState {
   if (value.pan !== undefined && !isFiniteNumber(value.pan)) return false
   if (value.tilt !== undefined && !isFiniteNumber(value.tilt)) return false
   if (value.zoom !== undefined && (!isFiniteNumber(value.zoom) || value.zoom <= 0)) return false
-  if (!isOptionalVector3Array(value.patrolPoints)) return false
+  if (!isOptionalVector3Array(value.patrolPoints, MAX_CAMERA_PATROL_POINTS)) return false
   if (
     value.patrolSpeed !== undefined &&
     (!isFiniteNumber(value.patrolSpeed) || value.patrolSpeed < 0 || value.patrolSpeed > 1)
@@ -316,10 +325,29 @@ function isDroneState(value: unknown): value is DroneState {
   if (!isVector3State(value.velocity) || !isVector3State(value.angularVelocity)) return false
   if (!isBoolean(value.armed)) return false
   if (!isFiniteNumber(value.battery) || value.battery < 0 || value.battery > 100) return false
-  if (value.targetAltitude !== undefined && !isFiniteNumber(value.targetAltitude)) return false
-  if (value.targetPosition !== undefined && !isVector3State(value.targetPosition)) return false
+  const maxRouteAltitude = DRONE_TYPES[value.type]?.physics.maxAltitude ?? MAX_ROUTE_ALTITUDE_M
+  if (
+    value.targetAltitude !== undefined &&
+    (!isFiniteNumber(value.targetAltitude) ||
+      value.targetAltitude < 0 ||
+      value.targetAltitude > maxRouteAltitude)
+  )
+    return false
+  if (
+    value.targetPosition !== undefined &&
+    !isAdmissibleRoutePosition(value.targetPosition, { maxAltitude: maxRouteAltitude })
+  )
+    return false
   if (value.flightMode !== undefined && !isFlightMode(value.flightMode)) return false
-  if (!isOptionalVector3Array(value.waypoints)) return false
+  if (
+    value.waypoints !== undefined &&
+    (!Array.isArray(value.waypoints) ||
+      value.waypoints.length > MAX_ROUTE_WAYPOINTS ||
+      !value.waypoints.every((waypoint) =>
+        isAdmissibleRoutePosition(waypoint, { maxAltitude: maxRouteAltitude })
+      ))
+  )
+    return false
   if (
     value.routeMode !== undefined &&
     value.routeMode !== 'none' &&
@@ -337,10 +365,15 @@ function isDroneState(value: unknown): value is DroneState {
     return false
   if (
     value.routeCurrentWaypointIndex !== undefined &&
-    (value.waypoints?.length ?? 0) > 0 &&
-    value.routeCurrentWaypointIndex >= (value.waypoints?.length ?? 0)
+    ((value.waypoints?.length ?? 0) === 0
+      ? value.routeCurrentWaypointIndex !== 0
+      : value.routeCurrentWaypointIndex >= (value.waypoints?.length ?? 0))
   )
     return false
+  const waypointCount = value.waypoints?.length ?? 0
+  if (value.routeActive === true && (waypointCount === 0 || value.routeMode === 'none'))
+    return false
+  if (value.routeMode === 'none' && waypointCount > 0) return false
   return true
 }
 
@@ -375,7 +408,7 @@ function isDetectionState(value: unknown): value is DetectionState {
 
 function isSplatSceneState(value: unknown): value is SplatSceneState {
   if (!isRecord(value)) return false
-  if (!isString(value.url) || !isReloadableSceneSource(value.url)) return false
+  if (!isString(value.url) || !isReloadableSplatSource(value.url)) return false
   if (!isOptionalString(value.localPath)) return false
   if (
     !isVector3State(value.position) ||
@@ -386,15 +419,34 @@ function isSplatSceneState(value: unknown): value is SplatSceneState {
   return value.scale.x > 0 && value.scale.y > 0 && value.scale.z > 0
 }
 
+function hasAmbiguousSceneSourceCharacter(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index)
+    if (code <= 0x1f || code === 0x7f || code === 0x5c) return true
+  }
+  return false
+}
+
 export function isReloadableSceneSource(value: string): boolean {
-  if (value.length === 0 || value.length > 2048 || value.includes('\0')) return false
-  if (/^(\/|\.\/|\.\.\/)/.test(value)) return true
+  if (
+    value.length === 0 ||
+    value.length > 2048 ||
+    value !== value.trim() ||
+    hasAmbiguousSceneSourceCharacter(value)
+  )
+    return false
+  // Protocol-relative inputs must not bypass the explicit absolute-URL policy.
+  // `new URL(value)` intentionally has no base, so ambiguous `//host` values
+  // fail closed instead of inheriting the WebView's current scheme.
+  if (value.startsWith('//')) return false
+  if (/^(\/(?!\/)|\.\/|\.\.\/)/.test(value)) return true
   try {
     const url = new URL(value)
     if (url.username || url.password) return false
-    if (url.protocol === 'https:') return true
+    if (url.protocol === 'https:') return /^https:\/\/[^/]/i.test(value)
     return (
       url.protocol === 'http:' &&
+      /^http:\/\/[^/]/i.test(value) &&
       (url.hostname === 'localhost' ||
         url.hostname === '127.0.0.1' ||
         url.hostname === '::1' ||
@@ -403,6 +455,20 @@ export function isReloadableSceneSource(value: string): boolean {
   } catch {
     return false
   }
+}
+
+function sourcePathWithoutQueryOrFragment(value: string): string {
+  return value.split(/[?#]/, 1)[0]
+}
+
+export function isReloadableSplatSource(value: string): boolean {
+  if (!isReloadableSceneSource(value)) return false
+  return /\.(?:spz|ply|splat|ksplat)$/i.test(sourcePathWithoutQueryOrFragment(value))
+}
+
+export function isReloadableGlbSource(value: string): boolean {
+  if (!isReloadableSceneSource(value)) return false
+  return /\.glb$/i.test(sourcePathWithoutQueryOrFragment(value))
 }
 
 function isSceneAssetState(value: unknown): value is SceneAssetState {
@@ -417,8 +483,7 @@ function isSceneAssetState(value: unknown): value is SceneAssetState {
     value.type !== 'glb'
   )
     return false
-  if (!isString(value.source) || !isReloadableSceneSource(value.source)) return false
-  if (!value.source.split('?')[0].toLowerCase().endsWith('.glb')) return false
+  if (!isString(value.source) || !isReloadableGlbSource(value.source)) return false
   if (
     !isVector3State(value.position) ||
     !isVector3State(value.rotation) ||

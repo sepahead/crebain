@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from 'react'
 import { getVersion } from '@tauri-apps/api/app'
 import { isTauri } from '@tauri-apps/api/core'
+import packageMetadata from '../../package.json'
 import { logger } from '../lib/logger'
 
 const log = logger.scope('App')
@@ -11,7 +12,7 @@ interface AboutModalProps {
 }
 
 export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
-  const [appVersion, setAppVersion] = useState<string>('0.4.0') // Fallback/Dev version
+  const [appVersion, setAppVersion] = useState<string>(packageMetadata.version)
   const dialogRef = useRef<HTMLDivElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const onCloseRef = useRef(onClose)
@@ -122,7 +123,7 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
           </div>
 
           <div className="text-xs text-[#444]">
-            <p>© 2026 Gitjo. All rights reserved.</p>
+            <p>© 2026 Sepehr Mahmoudian.</p>
             <p className="mt-1">Built with Tauri 2 & React 19</p>
           </div>
         </div>

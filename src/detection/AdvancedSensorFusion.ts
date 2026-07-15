@@ -158,6 +158,8 @@ const SENSOR_MODALITIES = new Set<SensorModality>([
   'radiofrequency',
 ])
 const TRACK_STATES = new Set<TrackStateLabel>(['Tentative', 'Confirmed', 'Coasting', 'Lost'])
+const MAX_FUSION_TRACKS = 1_024
+const MAX_TRACK_AGE = 0xffff_ffff
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -168,6 +170,31 @@ function finiteNumber(value: unknown, field: string): number {
     throw new Error(`Invalid fusion response: ${field} must be a finite number`)
   }
   return value
+}
+
+function numberInRange(value: unknown, field: string, min: number, max: number): number {
+  const number = finiteNumber(value, field)
+  if (number < min || number > max) {
+    throw new Error(`Invalid fusion response: ${field} must be between ${min} and ${max}`)
+  }
+  return number
+}
+
+function integerInRange(value: unknown, field: string, min: number, max: number): number {
+  const number = finiteNumber(value, field)
+  if (!Number.isSafeInteger(number) || number < min || number > max) {
+    throw new Error(
+      `Invalid fusion response: ${field} must be a safe integer between ${min} and ${max}`
+    )
+  }
+  return number
+}
+
+function requestTimestamp(value: unknown, field: string): number {
+  if (!Number.isSafeInteger(value) || (value as number) < 0) {
+    throw new Error(`Invalid fusion request: ${field} must be a non-negative safe integer`)
+  }
+  return value as number
 }
 
 function stringField(value: unknown, field: string): string {
@@ -188,6 +215,14 @@ function tuple3(value: unknown, field: string): [number, number, number] {
   ]
 }
 
+function nonnegativeTuple3(value: unknown, field: string): [number, number, number] {
+  const tuple = tuple3(value, field)
+  if (tuple.some((entry) => entry < 0)) {
+    throw new Error(`Invalid fusion response: ${field} entries must be non-negative`)
+  }
+  return tuple
+}
+
 function normalizeTrack(value: unknown, index: number): FusedTrack {
   const field = `tracks[${index}]`
   if (!isRecord(value)) {
@@ -195,6 +230,9 @@ function normalizeTrack(value: unknown, index: number): FusedTrack {
   }
   if (
     !Array.isArray(value.sensor_sources) ||
+    value.sensor_sources.length === 0 ||
+    value.sensor_sources.length > SENSOR_MODALITIES.size ||
+    new Set(value.sensor_sources).size !== value.sensor_sources.length ||
     !value.sensor_sources.every((source) => SENSOR_MODALITIES.has(source as SensorModality))
   ) {
     throw new Error(
@@ -209,21 +247,37 @@ function normalizeTrack(value: unknown, index: number): FusedTrack {
     id: stringField(value.id, `${field}.id`),
     position: tuple3(value.position, `${field}.position`),
     velocity: tuple3(value.velocity, `${field}.velocity`),
-    position_uncertainty: tuple3(value.position_uncertainty, `${field}.position_uncertainty`),
-    velocity_uncertainty: tuple3(value.velocity_uncertainty, `${field}.velocity_uncertainty`),
+    position_uncertainty: nonnegativeTuple3(
+      value.position_uncertainty,
+      `${field}.position_uncertainty`
+    ),
+    velocity_uncertainty: nonnegativeTuple3(
+      value.velocity_uncertainty,
+      `${field}.velocity_uncertainty`
+    ),
     class_label: stringField(value.class_label, `${field}.class_label`),
-    confidence: finiteNumber(value.confidence, `${field}.confidence`),
+    confidence: numberInRange(value.confidence, `${field}.confidence`, 0, 1),
     sensor_sources: value.sensor_sources as SensorModality[],
-    last_update_ms: finiteNumber(value.last_update_ms, `${field}.last_update_ms`),
-    age: finiteNumber(value.age, `${field}.age`),
+    last_update_ms: integerInRange(
+      value.last_update_ms,
+      `${field}.last_update_ms`,
+      0,
+      Number.MAX_SAFE_INTEGER
+    ),
+    age: integerInRange(value.age, `${field}.age`, 0, MAX_TRACK_AGE),
     state: value.state as TrackStateLabel,
-    threat_level: finiteNumber(value.threat_level, `${field}.threat_level`),
+    threat_level: integerInRange(value.threat_level, `${field}.threat_level`, 1, 4),
   }
 }
 
 function normalizeTracks(value: unknown): FusedTrack[] {
   if (!Array.isArray(value)) {
     throw new Error('Invalid fusion response: tracks must be an array')
+  }
+  if (value.length > MAX_FUSION_TRACKS) {
+    throw new Error(
+      `Invalid fusion response: tracks must contain at most ${MAX_FUSION_TRACKS} entries`
+    )
   }
   return value.map(normalizeTrack)
 }
@@ -236,14 +290,45 @@ function normalizeFusionStats(value: unknown): FusionStats {
     throw new Error('Invalid fusion response: stats.algorithm must be a known algorithm')
   }
 
+  const totalTracks = integerInRange(value.total_tracks, 'stats.total_tracks', 0, MAX_FUSION_TRACKS)
+  const confirmedTracks = integerInRange(
+    value.confirmed_tracks,
+    'stats.confirmed_tracks',
+    0,
+    totalTracks
+  )
+  const tentativeTracks = integerInRange(
+    value.tentative_tracks,
+    'stats.tentative_tracks',
+    0,
+    totalTracks
+  )
+  const coastingTracks = integerInRange(
+    value.coasting_tracks,
+    'stats.coasting_tracks',
+    0,
+    totalTracks
+  )
+  const multiSensorTracks = integerInRange(
+    value.multi_sensor_tracks,
+    'stats.multi_sensor_tracks',
+    0,
+    totalTracks
+  )
+  if (confirmedTracks + tentativeTracks + coastingTracks > totalTracks) {
+    throw new Error(
+      'Invalid fusion response: stats state counts must not exceed stats.total_tracks'
+    )
+  }
+
   return {
-    total_tracks: finiteNumber(value.total_tracks, 'stats.total_tracks'),
-    confirmed_tracks: finiteNumber(value.confirmed_tracks, 'stats.confirmed_tracks'),
-    tentative_tracks: finiteNumber(value.tentative_tracks, 'stats.tentative_tracks'),
-    coasting_tracks: finiteNumber(value.coasting_tracks, 'stats.coasting_tracks'),
-    multi_sensor_tracks: finiteNumber(value.multi_sensor_tracks, 'stats.multi_sensor_tracks'),
+    total_tracks: totalTracks,
+    confirmed_tracks: confirmedTracks,
+    tentative_tracks: tentativeTracks,
+    coasting_tracks: coastingTracks,
+    multi_sensor_tracks: multiSensorTracks,
     algorithm: value.algorithm as FilterAlgorithm,
-    frame_count: finiteNumber(value.frame_count, 'stats.frame_count'),
+    frame_count: integerInRange(value.frame_count, 'stats.frame_count', 0, Number.MAX_SAFE_INTEGER),
   }
 }
 
@@ -280,11 +365,43 @@ export async function processMeasurements(
   timestampMs?: number,
   upstreamDroppedMeasurements = 0
 ): Promise<FusedTrack[]> {
-  const ts = timestampMs ?? Date.now()
+  if (measurements.length === 0 && timestampMs === undefined) {
+    throw new Error(
+      'Invalid fusion request: timestampMs is required when processing an empty measurement frame'
+    )
+  }
+
+  const requestedTimestamp =
+    timestampMs === undefined ? undefined : requestTimestamp(timestampMs, 'timestampMs')
+  let measurementTimestamp: number | undefined
+  for (let index = 0; index < measurements.length; index += 1) {
+    const candidate = requestTimestamp(
+      measurements[index].timestamp_ms,
+      `measurements[${index}].timestamp_ms`
+    )
+    measurementTimestamp ??= candidate
+    if (candidate !== measurementTimestamp) {
+      throw new Error(
+        'Invalid fusion request: all measurements in one frame must have the same timestamp_ms'
+      )
+    }
+  }
+  if (
+    requestedTimestamp !== undefined &&
+    measurementTimestamp !== undefined &&
+    requestedTimestamp !== measurementTimestamp
+  ) {
+    throw new Error('Invalid fusion request: timestampMs must equal every measurement timestamp_ms')
+  }
+  const ts = requestedTimestamp ?? measurementTimestamp!
+  const droppedMeasurements = requestTimestamp(
+    upstreamDroppedMeasurements,
+    'upstreamDroppedMeasurements'
+  )
   const response = await invoke<unknown>(TAURI_COMMANDS.fusion.process, {
     measurements,
     timestampMs: ts,
-    upstreamDroppedMeasurements,
+    upstreamDroppedMeasurements: droppedMeasurements,
   })
   return normalizeTracks(response)
 }

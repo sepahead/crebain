@@ -158,9 +158,10 @@ export function useGazeboSimulation(
   // detects real changes and returns `prev` otherwise, so the idle update loop
   // does not re-render the whole App at 10 Hz with fresh array identities.
   const publishActiveMissions = useCallback(() => {
-    const system = interceptionSystemRef.current
+    const next = interceptionSystemRef.current
+      .getActiveMissions()
+      .map((mission) => ({ ...mission }))
     setActiveMissions((prev) => {
-      const next = system.getActiveMissions()
       const unchanged =
         prev.length === next.length &&
         next.every((mission, i) => {
@@ -172,7 +173,7 @@ export function useGazeboSimulation(
           )
         })
       if (unchanged) return prev
-      return next.map((mission) => ({ ...mission }))
+      return next
     })
   }, [])
 

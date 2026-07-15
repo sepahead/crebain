@@ -10,6 +10,11 @@ import { DronePhysicsWorld, type DronePhysicsBody, FlightController } from '../p
 import { DRONE_TYPES, toQuadcopterParams, type DroneTypeDefinition } from '../physics/DroneTypes'
 import { useKeyboardControls, type DroneControlInput } from './useKeyboardControls'
 import { logger } from '../lib/logger'
+import {
+  isAdmissibleRouteWaypoints,
+  isFiniteRouteWaypoint,
+  MAX_ROUTE_WAYPOINTS,
+} from '../lib/routeLimits'
 import { disposeObject3D, forEachMesh } from '../lib/three/sceneObjects'
 // The SDK plant-side wire gate + deadline/seq/latch primitive for the dev
 // NCP→drone bridge.
@@ -415,6 +420,18 @@ function collectRotorMeshes(root: THREE.Object3D): THREE.Object3D[] {
   return rotors
 }
 
+export function commitSimulationPauseState(
+  pauseState: { current: boolean },
+  commit: (paused: boolean) => void,
+  resetTime: () => void,
+  paused: boolean
+): void {
+  const wasPaused = pauseState.current
+  pauseState.current = paused
+  commit(paused)
+  if (wasPaused && !paused) resetTime()
+}
+
 export function useDroneController(options: UseDroneControllerOptions) {
   const { scene, enabled = true, onDroneStateChange } = options
 
@@ -429,6 +446,7 @@ export function useDroneController(options: UseDroneControllerOptions) {
   const [drones, setDrones] = useState<ManagedDrone[]>([])
   const [selectedDroneId, setSelectedDroneId] = useState<string | null>(null)
   const [isPaused, setIsPaused] = useState(true)
+  const isPausedRef = useRef(true)
   const animationFrameRef = useRef<number>(0)
   const loaderRef = useRef<GLTFLoader | null>(null)
   const droneCounterRef = useRef(0)
@@ -444,20 +462,18 @@ export function useDroneController(options: UseDroneControllerOptions) {
     onDroneStateChange?.(dronesList)
   }, [onDroneStateChange])
 
-  const togglePause = useCallback(() => {
-    if (isPaused) {
-      // Reset time to avoid physics jump after resume
-      physicsWorldRef.current?.resetTime()
-    }
-    setIsPaused((prev) => !prev)
-  }, [isPaused])
-
   const setSimulationPaused = useCallback((paused: boolean) => {
-    setIsPaused((wasPaused) => {
-      if (wasPaused && !paused) physicsWorldRef.current?.resetTime()
-      return paused
-    })
+    commitSimulationPauseState(
+      isPausedRef,
+      setIsPaused,
+      () => physicsWorldRef.current?.resetTime(),
+      paused
+    )
   }, [])
+
+  const togglePause = useCallback(() => {
+    setSimulationPaused(!isPausedRef.current)
+  }, [setSimulationPaused])
 
   const resetSimulation = useCallback(
     (pausedAfterReset = false) => {
@@ -475,6 +491,7 @@ export function useDroneController(options: UseDroneControllerOptions) {
       dronesRef.current.clear()
       updateDronesList()
       setSelectedDroneId(null)
+      isPausedRef.current = pausedAfterReset
       setIsPaused(pausedAfterReset)
     },
     [updateDronesList]
@@ -543,10 +560,29 @@ export function useDroneController(options: UseDroneControllerOptions) {
 
   const loadDroneModel = useCallback(
     async (droneType: DroneTypeDefinition): Promise<THREE.Object3D | null> => {
+      const createFallback = () => {
+        const placeholder = createPlaceholderDrone(droneType)
+        const ringGeom = new THREE.RingGeometry(0.6, 0.7, 32)
+        const ringMat = new THREE.MeshBasicMaterial({
+          color: 0x00ff00,
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: 0.8,
+        })
+        const ring = new THREE.Mesh(ringGeom, ringMat)
+        ring.rotation.x = -Math.PI / 2
+        ring.name = 'selection_ring'
+        ring.visible = false
+        placeholder.add(ring)
+        return placeholder
+      }
+
+      const modelPath = droneType.modelPath
+      if (!modelPath) return createFallback()
       if (!loaderRef.current) return null
       return new Promise((resolve) => {
         loaderRef.current!.load(
-          droneType.modelPath,
+          modelPath,
           (gltf) => {
             const model = gltf.scene.clone()
             const box = new THREE.Box3().setFromObject(model)
@@ -595,22 +631,7 @@ export function useDroneController(options: UseDroneControllerOptions) {
           },
           undefined,
           () => {
-            const placeholder = createPlaceholderDrone(droneType)
-
-            const ringGeom = new THREE.RingGeometry(0.6, 0.7, 32)
-            const ringMat = new THREE.MeshBasicMaterial({
-              color: 0x00ff00,
-              side: THREE.DoubleSide,
-              transparent: true,
-              opacity: 0.8,
-            })
-            const ring = new THREE.Mesh(ringGeom, ringMat)
-            ring.rotation.x = -Math.PI / 2
-            ring.name = 'selection_ring'
-            ring.visible = false
-            placeholder.add(ring)
-
-            resolve(placeholder)
+            resolve(createFallback())
           }
         )
       })
@@ -782,7 +803,9 @@ export function useDroneController(options: UseDroneControllerOptions) {
       restored?: { isActive?: boolean; currentWaypointIndex?: number }
     ) => {
       const drone = dronesRef.current.get(droneId)
-      if (!drone) return
+      if (!drone) return false
+      const maxAltitude = DRONE_TYPES[drone.type]?.physics.maxAltitude
+      if (!isAdmissibleRouteWaypoints(waypoints, { maxAltitude })) return false
 
       const convertedWaypoints = waypoints.map((wp) => {
         const pos = wp.position as { x: number; y: number; z: number }
@@ -813,6 +836,7 @@ export function useDroneController(options: UseDroneControllerOptions) {
       }
 
       updateDronesList()
+      return true
     },
     [updateDronesList]
   )
@@ -821,6 +845,12 @@ export function useDroneController(options: UseDroneControllerOptions) {
     (droneId: string, waypoint: Waypoint) => {
       const drone = dronesRef.current.get(droneId)
       if (!drone) return
+      const maxAltitude = DRONE_TYPES[drone.type]?.physics.maxAltitude
+      if (
+        drone.route.waypoints.length >= MAX_ROUTE_WAYPOINTS ||
+        !isFiniteRouteWaypoint(waypoint, { maxAltitude })
+      )
+        return
 
       drone.route.waypoints.push(waypoint)
       updateDronesList()
@@ -1175,7 +1205,7 @@ export function useDroneController(options: UseDroneControllerOptions) {
           estopped: state.stream.isEstopped(),
         }
       },
-      // Supervisor authority: replace stream state so clearing ESTOP cannot
+      // Development reset authority: replace stream state so clearing ESTOP cannot
       // resurrect a command buffered before or during the latch.
       reset(id?: string) {
         if (id === undefined) commandStreams.clear()

@@ -56,9 +56,9 @@ pub enum PlantState {
 pub enum LifecycleEvent {
     /// Inert process initialization completed.
     BootCompleted,
-    /// A future supervisor requested standby.
+    /// A future authority component requested standby.
     StandbyRequested,
-    /// A future supervisor requested preflight evaluation.
+    /// A future authority component requested preflight evaluation.
     PreflightRequested,
     /// A future authority path completed all preflight authorization.
     AuthorizationGranted,

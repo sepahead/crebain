@@ -6,6 +6,7 @@ import { defineConfig } from 'vite'
 import type { Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { fileURLToPath } from 'node:url'
+import { productionVendorBoundaryPlugin } from './scripts/lib/production-vendor-boundary.mjs'
 
 const ROOT_DIRECTORY = fileURLToPath(new URL('.', import.meta.url))
 const DEVELOPMENT_ROSBRIDGE_MODULE = 'src/ros/ROSBridge.ts'
@@ -17,6 +18,23 @@ function projectModuleId(moduleId: string): string | null {
   const projectRelative = relative(ROOT_DIRECTORY, withoutQuery).replaceAll('\\', '/')
   if (projectRelative.startsWith('../') || projectRelative.startsWith('node_modules/')) return null
   return projectRelative
+}
+
+function vendorModuleId(moduleId: string): string | null {
+  const withoutQuery = moduleId.split('?', 1)[0]
+  if (!withoutQuery.startsWith(ROOT_DIRECTORY)) return null
+  const projectRelative = relative(ROOT_DIRECTORY, withoutQuery).replaceAll('\\', '/')
+  if (!projectRelative.startsWith('node_modules/')) return null
+  return projectRelative
+}
+
+function uniqueModuleIds(
+  moduleIds: string[],
+  classify: (moduleId: string) => string | null
+): string[] {
+  return [
+    ...new Set(moduleIds.map(classify).filter((value): value is string => value !== null)),
+  ].sort()
 }
 
 function authorityBoundaryManifestPlugin(mode: string): Plugin {
@@ -32,6 +50,7 @@ function authorityBoundaryManifestPlugin(mode: string): Plugin {
       imports: string[]
       dynamic_imports: string[]
       project_modules: string[]
+      vendor_modules: string[]
       sha256: string
     }>
   } | null = null
@@ -50,10 +69,8 @@ function authorityBoundaryManifestPlugin(mode: string): Plugin {
           facade_module: chunk.facadeModuleId ? projectModuleId(chunk.facadeModuleId) : null,
           imports: [...chunk.imports].sort(),
           dynamic_imports: [...chunk.dynamicImports].sort(),
-          project_modules: Object.keys(chunk.modules)
-            .map(projectModuleId)
-            .filter((value): value is string => value !== null)
-            .sort(),
+          project_modules: uniqueModuleIds(Object.keys(chunk.modules), projectModuleId),
+          vendor_modules: uniqueModuleIds(Object.keys(chunk.modules), vendorModuleId),
           sha256: createHash('sha256').update(chunk.code).digest('hex'),
         }))
         .sort((left, right) => left.file.localeCompare(right.file))
@@ -67,7 +84,7 @@ function authorityBoundaryManifestPlugin(mode: string): Plugin {
       }
 
       report = {
-        schema_version: 1,
+        schema_version: 2,
         build_mode: mode,
         development_module: DEVELOPMENT_ROSBRIDGE_MODULE,
         production_replacement: PRODUCTION_ROSBRIDGE_MODULE,
@@ -100,7 +117,11 @@ function authorityBoundaryManifestPlugin(mode: string): Plugin {
 }
 
 export default defineConfig(({ command, mode }) => ({
-  plugins: [react(), authorityBoundaryManifestPlugin(mode)],
+  plugins: [
+    productionVendorBoundaryPlugin(ROOT_DIRECTORY),
+    react(),
+    authorityBoundaryManifestPlugin(mode),
+  ],
 
   // The raw rosbridge WebSocket implementation exists only in the Vite
   // development/test profile. Production resolves the same import to a
@@ -125,6 +146,9 @@ export default defineConfig(({ command, mode }) => ({
   build: {
     target: 'esnext',
     minify: 'esbuild',
+    // Tauri's modern WebViews do not need Vite's fallback. The polyfill calls
+    // fetch directly and would bypass the renderer's sole bounded adapter.
+    modulePreload: { polyfill: false },
     // Emit dist/.vite/manifest.json so scripts/check-bundle-size.mjs can measure
     // the initial (eager) load and exclude the lazy Rapier chunk.
     manifest: true,

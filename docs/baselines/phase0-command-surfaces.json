@@ -3,6 +3,10 @@
   "baseline_id": "crebain-command-surfaces-2026-07-13",
   "current_completion_level": "L0",
   "target_completion_level": "L1",
+  "profile_semantics": {
+    "current": "audit-applicability-not-live-reachability",
+    "member_reachability": "members[].status plus members[].source_assertion"
+  },
   "classifications": [
     "production-authority",
     "telemetry",
@@ -85,7 +89,7 @@
       "id": "TEST-GALADRIEL-PROJECTION-REFUSAL",
       "locator": {
         "file": "src-tauri/src/sensor_fusion.rs",
-        "selector": "fn missing_or_wrong_common_frame_is_incomparable_but_keeps_baseline_v1()"
+        "selector": "fn missing_or_wrong_source_frame_births_without_cross_domain_update()"
       }
     },
     {
@@ -330,14 +334,14 @@
       "id": "TEST-GALADRIEL-EXACT-TIME-V1",
       "locator": {
         "file": "src-tauri/src/sensor_fusion.rs",
-        "selector": "fn unsynchronized_or_nonmonotonic_inputs_never_claim_v1()"
+        "selector": "fn unsynchronized_or_nonmonotonic_inputs_are_rejected_without_mutation()"
       }
     },
     {
       "id": "TEST-GALADRIEL-DUPLICATE-ZERO-TIME",
       "locator": {
         "file": "src-tauri/src/sensor_fusion.rs",
-        "selector": "fn duplicate_zero_epoch_timestamp_never_claims_v1()"
+        "selector": "fn duplicate_zero_epoch_timestamp_is_rejected_without_mutation()"
       }
     },
     {
@@ -519,7 +523,7 @@
       "id": "TEST-ROS-DEFINITION-VALIDATION",
       "locator": {
         "file": "src/ros/__tests__/MessageRegistry.test.ts",
-        "selector": "validates supported sensor payload shapes"
+        "selector": "validates the raw native image contract rather than a ROS-shaped payload"
       }
     },
     {
@@ -547,7 +551,7 @@
       "id": "TEST-TRANSPORT-TYPED-SUBSCRIPTIONS",
       "locator": {
         "file": "src/ros/__tests__/MessageRegistry.test.ts",
-        "selector": "maps built-in message types to centralized transport commands"
+        "selector": "maps exactly the native telemetry types to transport commands"
       }
     },
     {
@@ -732,7 +736,9 @@
       "scripts/check-bundle-size.mjs",
       "scripts/check-plant-authority-boundary.mjs",
       "scripts/check-production-authority-boundary.mjs",
-      "scripts/test-production-authority-boundary.mjs"
+      "scripts/lib/production-vendor-boundary.mjs",
+      "scripts/test-production-authority-boundary.mjs",
+      "scripts/test-production-vendor-boundary.mjs"
     ],
     "conditional_executable_inputs": [
       { "path": ".cargo/config.toml", "state": "absent", "consumer": "cargo" },
@@ -806,7 +812,7 @@
       ".yaml",
       ".yml"
     ],
-    "production_file_manifest_sha256": "25278b83781380a7e836239cf4fee9502a3ba5d4b983e159c0eaf7bdbd01ff74",
+    "production_file_manifest_sha256": "baecc3c3f6f6643e2eac48a69b3cddc2cf8bf09394f4ab68028f5422ea69665e",
     "known_route_prefixes": ["mavros/", "gazebo/", "cmd/motor_speed/"],
     "development_network_modules": [
       {
@@ -1117,6 +1123,28 @@
           "locator": {
             "file": "src-tauri/src/transport/commands.rs",
             "symbol": "transport_subscribe_camera"
+          },
+          "status": "registered",
+          "source_assertion": { "type": "tauri-handler" }
+        },
+        {
+          "id": "SURF-134",
+          "name": "Pull one admitted native camera frame",
+          "route": "transport_take_camera_frame",
+          "locator": {
+            "file": "src-tauri/src/transport/commands.rs",
+            "symbol": "transport_take_camera_frame"
+          },
+          "status": "registered",
+          "source_assertion": { "type": "tauri-handler" }
+        },
+        {
+          "id": "SURF-135",
+          "name": "Acknowledge one consumed native camera frame",
+          "route": "transport_ack_camera_frame",
+          "locator": {
+            "file": "src-tauri/src/transport/commands.rs",
+            "symbol": "transport_ack_camera_frame"
           },
           "status": "registered",
           "source_assertion": { "type": "tauri-handler" }
@@ -2250,7 +2278,7 @@
         },
         {
           "id": "SURF-097",
-          "name": "Development NCP supervisor reset",
+          "name": "Development NCP reset",
           "route": "window.__ncpDrone.reset",
           "locator": { "file": "src/hooks/useDroneController.ts", "symbol": "bridge.reset" },
           "status": "live",

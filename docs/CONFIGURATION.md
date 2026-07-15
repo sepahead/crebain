@@ -20,7 +20,7 @@ the trust-sensitive variables in [../SECURITY.md](../SECURITY.md).
 | `CREBAIN_DISABLE_TRT_CACHE` | Disable TensorRT caching | `1` / `true` |
 | `TENSORRT_ROOT` | TensorRT installation root, probed for `bin/trtexec` (Linux) | Directory path |
 | `ORT_DYLIB_PATH` | ONNX Runtime library path (honored by `ort` only on Linux `load-dynamic` builds; the Nix shells pre-set it to the nixpkgs library) | Path to `libonnxruntime.so` |
-| `CREBAIN_ZENOH` | Select the native read-only Rust telemetry transport: unset/true-like uses Zenoh; any other value uses its read-only rosbridge fallback. This does not enable the development-only renderer client. | `1` / `0` |
+| `CREBAIN_ZENOH` | Select the native read-only Rust telemetry transport: unset or `1`/`true`/`yes`/`on` uses Zenoh; `0`/`false`/`no`/`off` uses its read-only rosbridge fallback. Any other value is a configuration error. This does not enable the development-only renderer client. | `1` / `0` |
 | `CREBAIN_ROSBRIDGE_URL` | URL used only by the native read-only Rust rosbridge fallback (`CREBAIN_ZENOH=0`) | `ws://localhost:9090` (default) |
 | `CREBAIN_PID_JSONL` | Native innovation-record sink; its presence also changes the effective Galadriel config pin. An `ncp` build preflights a configured sink. Without an active producer the fusion command waits for synchronous best-effort write/flush after releasing the fusion lock. With the producer active, copies use a capacity-16 drop-new archive worker; admission or worker I/O failure latches degradation, and worker failure terminates the worker. | Operator-approved regular local file; never a FIFO/device/socket or unbounded/remote mount |
 | `CREBAIN_GALADRIEL_ENABLE` | Exact runtime opt-in for the Galadriel evidence producer in a binary compiled with Cargo feature `ncp`; a non-feature binary fails startup when set to `1` | Absent/`0` off; exactly `1` on |
@@ -42,6 +42,12 @@ the trust-sensitive variables in [../SECURITY.md](../SECURITY.md).
 | `CREBAIN_GALADRIEL_HEARTBEAT_QUEUE_CAPACITY` | Optional heartbeat-lane override | Positive; bounded by registry/wire policy |
 | `NCP_ZENOH_CONFIG` | Zenoh configuration required by the enabled producer's secure mode and by the optional native NCP bridge's secure connection mode | Readable deployment-controlled path |
 
+Model paths reject a final symlink and require a regular file for ONNX and
+safetensors or a real directory for `.mlmodelc`. The runtime subsequently
+reopens the path, so an operator must keep the model and parent directories
+immutable and access-controlled during loading; path validation is not a claim
+against a concurrent privileged local replacement.
+
 Packaged frontend builds default to Zenoh and do not contain a usable renderer
 rosbridge client; their CSP also omits rosbridge WebSocket origins. Vite
 development builds may select the read-only WebSocket adapter and use its URL
@@ -54,10 +60,45 @@ Production `connect-src` permits Tauri IPC plus only the source classes already
 accepted by bounded scene-asset restoration: same-origin, HTTPS, and HTTP
 loopback. Static analysis permits renderer `fetch` only in
 `src/lib/boundedFetch.ts`; the production module graph must contain the disabled
-rosbridge replacement and omit the development client. `img-src` is limited to
-same-origin, `blob:`, and `data:` because downloaded textures are decoded from
-bounded bytes rather than loaded as arbitrary remote image URLs. Navigation,
-forms, embedded objects, and framing are denied by explicit CSP directives.
+rosbridge replacement and omit the development client. Before bundling, an
+exact package/version/module-hash transform disables pinned Spark URL loading,
+Spark/Rapier external WebAssembly inputs, and Three `FileLoader` and
+`ImageBitmapLoader` network paths. Spark's exact embedded payload is decoded
+directly to bytes, Rapier retains its exact public embedded-byte initializer,
+and Spark's `fileBytes` scene path remains structurally pinned. Three's
+`ImageLoader` admits only local `blob:` URLs or canonical PNG/JPEG base64 data
+URIs, while transformed `GLTFLoader.parse` rejects every other manifest `uri`.
+Both URI walks reserve each container against a 262,144-value visited-plus-
+pending ceiling before pushing any children, and the loader selects
+`TextureLoader` so validated embedded textures remain usable. Any
+upstream digest, package entry, payload, call-shape, or replacement-count drift
+stops the build; `bun run check:production-vendors` exercises both validated
+local-texture GLB forms and the Spark/Rapier embedded-byte runtimes. `img-src`
+is limited to same-origin, `blob:`, and `data:` because downloaded textures are
+decoded from bounded bytes rather than loaded as arbitrary remote image URLs.
+Navigation, forms, embedded objects, and framing are denied by explicit CSP
+directives.
+
+## Renderer TF boundary
+
+The development-only renderer rosbridge validates `/tf` and `/tf_static`
+before dispatch. Parent and child frame IDs must be nonempty, unpadded,
+whitespace-free strings of at most 256 characters. Each transform translation
+has a Euclidean norm of at most 1,000,000 m. Incoming rotations must be finite,
+nonzero quaternions whose norm differs from one by no more than `1e-3`.
+
+Accepted ingress quaternions are normalized to exact unit length before the
+transform cache uses them; zero and materially non-unit inputs are rejected,
+not repaired. Interpolation and composition normalize ordinary finite
+floating-point drift, but reject zero/nonfinite rotations, nonfinite results,
+and translations beyond the same operational bound. A multi-hop lookup fails
+closed when any intermediate composed transform violates these rules.
+
+An explicit-time lookup of a dynamic edge requires an exact or bracketing sample
+and never extrapolates. A latest multi-hop lookup chooses the newest timestamp
+in the intersection of all dynamic-edge histories and evaluates every dynamic
+edge at that one common time; static edges are timeless. No common interval
+fails closed.
 
 ## Galadriel deployment pins
 
@@ -171,25 +212,27 @@ Local drone physics simulation steps at 120 Hz (`src/physics/`).
 ## Scene and asset limits
 
 All limits below are enforced in code; sources are `src/state/SceneState.ts`,
-`src-tauri/src/lib.rs`, `src/components/CrebainViewer.tsx`, and
-`src/lib/glbValidation.ts`.
+`src/lib/routeLimits.ts`, `src/physics/DroneTypes.ts`, `src-tauri/src/lib.rs`,
+`src/components/CrebainViewer.tsx`, and `src/lib/glbValidation.ts`.
 
 ### Scene files
 
 Scene JSON is bounded to 10 MiB before browser or native parsing. Older
 versions are migrated before the current schema is validated. The current
 schema allows at most 64 cameras, 256 drones, 128 GLB assets, 10,000 recent
-detections, 4,096 route points per route, and 16,777,216 aggregate camera
+detections, 256 route points per route, and 16,777,216 aggregate camera
 render-target pixels. Camera, drone, and asset IDs must be mutually unique
 (detection IDs are not deduplicated), references must resolve, and drone
 orientation quaternions must be approximately unit length (camera rotations
 are finite Euler vectors bounded like other vector components). Numeric values
 must be finite, with range bounds on most fields (vector components within
-±1,000,000; bounding-box coordinates non-negative, at most 1,000,000, and
-max ≥ min per axis; battery 0–100; confidence 0–1; threat level 0–4;
-FOV strictly between 0 and 180; resolution 1–4096 per axis); a few fields are
-only required to be finite (pan, tilt, target altitude) or positive (zoom,
-near-plane).
+±1,000,000; route X/Z within that envelope; route Y, target altitude, and target
+position Y from 0 through the selected built-in drone profile's declared ceiling,
+or 4,500 m for an unknown profile; route speed multiplier 0–2; bounding-box
+coordinates non-negative, at most 1,000,000, and max ≥ min per axis; battery
+0–100; confidence 0–1; threat level 0–4; FOV strictly between 0 and 180;
+resolution 1–4096 per axis). Pan and tilt are finite; zoom and near-plane are
+positive.
 
 Native saves use an atomic same-directory temporary file before replacement,
 and native scene paths are confined to the app-data `scenes` directory, must
@@ -197,33 +240,45 @@ end in `.json`, and reject path traversal.
 
 ### Restorable external sources
 
-Restorable sources are limited to app-relative paths, HTTPS URLs, and HTTP
-loopback URLs (`localhost`, `127.0.0.1`, or `::1`) without URL credentials, at
-most 2,048 characters, with NUL bytes rejected. Scene GLB entries must end in
-`.glb`; browser-selected local files that have no reloadable source are
-intentionally not serialized as restorable assets.
+Restorable and dropped string sources are limited to unambiguous app-relative
+paths, explicit HTTPS URLs, and HTTP loopback URLs (`localhost`, `127.0.0.1`, or
+`::1`) without URL credentials. Protocol-relative URLs, backslashes, ASCII
+control characters, leading/trailing whitespace, and inputs longer than 2,048
+characters are rejected before acquisition. Scene GLB entries must end in
+`.glb`; splat entries must end in `.spz`, `.ply`, `.splat`, or `.ksplat` (before
+any query or fragment). Browser-selected local files that have no reloadable
+source are intentionally not serialized as restorable assets.
 
 ### Asset loading
 
 | Asset | Boundary |
 | ----- | -------- |
-| Splat | 256 MiB source; remote download aborts after 30 s; renderer initialization aborts after 120 s |
+| Splat | 256 MiB source; a newer load/restore/unmount aborts both remote and browser-file acquisition; remote download aborts after 30 s; renderer initialization aborts after 120 s |
 | GLB | 128 MiB per source; remote download aborts after 30 s; 512 MiB aggregate loaded/pending GLB bytes; 128 assets |
-| GLB contents | GLB 2.0 only; any buffer must use the single embedded binary chunk; no external buffers/images; embedded images must be PNG/JPEG with matching MIME bytes, at most 256 images, at most 8,192 px per image dimension, and at most 16,777,216 aggregate texture pixels |
+| GLB contents | GLB 2.0 only; one embedded buffer; validated bufferView/accessor/stride/sparse spans; at most 65,536 accessors, 16,777,216 elements per accessor, and 256 MiB decoded accessor data; bounded strict-tree scene/mesh/skin/animation work, 2,048 primitive instances, primitive modes 0-4 only, expanded draw/morph/node/mesh/camera/material/image-metadata budgets, and no strip/fan conversion or Draco/meshopt/GPU-instancing/punctual-light/texture-transform extensions; material texture references use texCoord 0; no external buffers/images; embedded PNG/JPEG dimensions, MIME bytes, non-overlapping distinct spans, sampler enums, 16 loader sampler-index identities per image, and decoded/resident pixel totals are bounded |
+| Aggregate GLB resources | Loaded and concurrently parsing GLBs share the same decoded accessor/texture, resident texture, node, primitive, draw, morph, graph, animation, and cloneable-metadata ceilings as one accepted GLB; remote sources reserve 128 MiB before fetch and shrink to actual length; reservations are atomic before parsing and callback-only parse reservations remain until the parse settles even after reset/unmount, while removed/reset accepted assets release their retained budgets |
 | Floor texture | PNG/JPEG only; 32 MiB source; at most 8,192 px per dimension and 16,777,216 pixels; remote download aborts after 30 s |
 
 Streaming byte ceilings are enforced even when `Content-Length` is missing or
-dishonest. Scene restore waits for each asset result, ignores superseded loads,
-and reports a partial restore instead of claiming success when an asset fails;
-the whole restore is additionally bounded by a 120 s timeout that aborts all
-in-flight asset loads.
+dishonest. Scene restore waits for each asset result and has one transactional
+success boundary. Any ordinary loader/spawn error, returned-false aggregate
+failure, or 120 s timeout invalidates nested work, aborts in-flight asset loads,
+clears the partial cameras/drones/assets, rolls back applied UI settings, and
+leaves physics paused before propagating the failure. A superseded generation
+cannot clear or commit the newer restore.
 
 ## Platform matrix
 
-| Component | macOS (Apple Silicon) | NixOS (NVIDIA) |
-| --------- | --------------------- | -------------- |
-| ML Inference | CoreML default / MLX experimental opt-in | CUDA / TensorRT |
-| GPU Compute | Metal-family APIs where supported | CUDA where supported |
+The macOS application targets macOS 13.4 or later, matching the minimum of its
+build-time-linked ONNX Runtime dependency. Both the ordinary Cargo/Tauri build
+and the Apple Silicon Nix package compile the digest-pinned ort-rs static
+runtime distribution into the executable; neither macOS package depends on an
+ONNX Runtime dylib at launch.
+
+| Component | macOS (Apple Silicon) | Linux / Nix |
+| --------- | --------------------- | ----------- |
+| ML Inference | CoreML default / MLX experimental opt-in | ONNX Runtime with CPU fallback; CUDA/TensorRT execution providers are optional |
+| GPU Compute | Metal-family APIs where supported | Optional CUDA where separately installed and qualified |
 | 3D Rendering | Three.js WebGLRenderer | Three.js WebGLRenderer |
 | Build System | Nix / Homebrew | Nix |
 | Gazebo | Native / Docker | Native |

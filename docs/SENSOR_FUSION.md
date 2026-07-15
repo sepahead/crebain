@@ -24,7 +24,7 @@ It is written to be read alongside the code. Primary sources:
 
 ## Table of Contents
 
-- [Two fusion subsystems](#two-fusion-subsystems)
+- [Normative engine and separate camera estimator](#normative-engine-and-separate-camera-estimator)
 - [The estimation pipeline](#the-estimation-pipeline)
 - [Coordinate frames and the measurement contract](#coordinate-frames-and-the-measurement-contract)
 - [Filter algorithms](#filter-algorithms)
@@ -40,11 +40,14 @@ It is written to be read alongside the code. Primary sources:
 
 ---
 
-## Two fusion subsystems
+## Normative engine and separate camera estimator
 
-CREBAIN contains **two independent fusion engines** that serve different sensor
-geometries. They are not competing implementations — they sit at different points
-in the pipeline.
+The Rust `MultiSensorFusion` implementation is the sole normative multi-modal
+tracking engine for the 0.9 product contract. `AdvancedSensorFusion.ts` is its
+validated IPC adapter, not another engine. The browser `SensorFusion.ts` module
+is a separate camera-only geometric estimator with a different input, state,
+identity, covariance, and output contract. It is not a substitute, oracle, or
+parity implementation of `MultiSensorFusion`.
 
 ```mermaid
 graph LR
@@ -64,7 +67,7 @@ graph LR
 
 ### 1. Native multi-modal engine — `sensor_fusion.rs`
 
-The primary engine. It maintains a recursive Bayesian estimate per target using a
+The normative engine. It maintains a recursive Bayesian estimate per target using a
 selectable filter (Kalman, Extended Kalman, Unscented Kalman, Particle, or IMM),
 associates incoming measurements to tracks with a Mahalanobis gate, and manages the
 full track lifecycle. It runs in Rust for performance and numerical control, and is
@@ -73,14 +76,47 @@ displays and the one this document is mostly about.
 
 ### 2. Browser multi-camera engine — `SensorFusion.ts`
 
-A self-contained TypeScript engine for the special case of **several calibrated
-RGB cameras observing the same scene**. It correlates 2D detections across cameras,
+A self-contained TypeScript estimator for the special case of **several pose- and
+FOV-configured RGB cameras observing the same scene**. It correlates 2D detections across cameras,
 triangulates a 3D position from the back-projected rays, and runs a lightweight
 track manager. It exists so the 3D viewer can show fused camera tracks without a
 round trip to the native backend.
 
-The remainder of this document treats the native engine as the default and calls
-out the browser engine explicitly in [Multi-camera triangulation](#multi-camera-triangulation).
+Browser estimates must remain typed and labeled separately: they cannot be
+serialized as native `TrackOutput`, counted as native filter evidence, or enter
+the optional Galadriel producer without an explicit future versioned conversion
+and validation campaign. The 0.9 migration disposition is therefore to retain
+both modules under their distinct names and contracts, remove language such as
+“two implementations,” and reject any downstream claim of numerical parity.
+If camera estimates later enter native fusion, that must occur as bounded,
+frame-identified measurements at the native ingress—not by merging tracker
+state or IDs.
+
+The viewer keeps display retention separate from fusion work. Native detection
+callbacks enter a bounded one-shot coalescer (at most 64 pending cameras); each
+batch carries a unique frame ID, strictly increasing epoch, and a measurement
+timestamp derived from the detections rather than a render-time restamp.
+Consuming the batch clears it, so a retained camera overlay or restored scene
+snapshot cannot replay an old observation. The browser estimator rejects
+replayed/out-of-order identities and stale/future batches, filters incoherent
+measurements, rejects malformed camera geometry and non-finite, out-of-range,
+oversized, or frame-inconsistent detections before correlation, accepts at most
+512 detections, and caps dense assignment at 128 groups × 128 live tracks.
+`FusionStats.lastFrameStatus` and its drop/rejection counters expose every
+capacity or input degradation; the policy is deterministic and does not imply
+native-engine parity. Coasting browser tracks remain visible as predictions but
+are excluded from the current-frame observed set and are not emitted downstream
+as fresh visual measurements. A current single-camera track likewise retains
+only a local origin placeholder with infinite triangulation error; only a finite
+multi-camera triangulation may cross the viewer-to-native visual-measurement
+boundary. Parallel or ill-conditioned rays may retain an assumed-range point for
+local display, but their error remains infinite. A later single-camera update
+also invalidates the freshness of any older finite triangulation, so stale 3D
+positions cannot be republished at a new observation timestamp.
+
+The remainder of this document treats the native engine as normative and calls
+out the browser estimator explicitly in
+[Multi-camera triangulation](#multi-camera-triangulation).
 
 ---
 
@@ -167,12 +203,30 @@ angles retain their documented polar-domain limits. These are safety/computation
 ceilings, not statements that values near them are physically meaningful.
 
 The renderer supplies a monotonic sensor/header-domain frame clock. Tracks from
-one visual detector pass share one captured timestamp. A nonempty cycle advances
-to the maximum prior/input stamp, an empty cycle reuses the prior stamp, and the
-pre-data neutral value is zero. The active native path clamps only an empty
-neutral frame to the registry applicability floor. Renderer high-water state is
-committed only after native success. Baseline fusion still uses one frame time;
-it does not retrodict mixed or out-of-order measurements.
+one visual detector pass share one captured timestamp. Every measurement in a
+nonempty native cycle must have a timestamp exactly equal to the enclosing frame
+timestamp; a mixed-time, lagged, future, replayed/nonadvancing, or out-of-order
+measurement rejects the whole frame before prediction or other fusion state mutation. The
+renderer therefore partitions each drained buffer into ascending exact-time
+groups and invokes native fusion once per group; choosing the newest input as a
+frame time never authorizes older inputs in that batch. Groups at or below the
+committed high-water are dropped and explicitly counted. A failed group and all
+later drained groups are likewise counted as upstream loss, because retrying an
+IPC result with unknown mutation status could duplicate an accepted update. An
+empty cycle may reuse the prior stamp after at least one admitted measurement.
+Before that first admission the renderer submits no empty closure, so timestamp
+zero remains available to a legitimate epoch-zero measurement. The active native
+path clamps only an empty neutral frame to the registry applicability floor.
+Renderer high-water state is committed only after native success. The engine
+does not retrodict or approximate out-of-sequence measurements.
+
+ROS measurements use their stable subscribed topic as `sensor_id`, with modality
+and source frame retained separately. Array position is never an identity:
+reordering or repeating a payload therefore cannot turn one physical capture
+into independent evidence. Browser visual timestamps use a wall clock and are
+not admitted while ROS header-clock subscriptions are active; such observations
+are counted as dropped instead of mixing wall and simulation time in one native
+prediction epoch.
 
 > **Historical note.** Radar/lidar measurements were previously converted
 > spherical→Cartesian on the TypeScript side *and* re-interpreted as polar in Rust,
@@ -315,14 +369,23 @@ possible future tiers.
 ## Multi-sensor fusion semantics
 
 When several measurements (e.g. radar + thermal) associate to one track in a single
-frame, the engine applies each one **sequentially** through its own measurement model
-and covariance `R` — an information-form (inverse-covariance) update — rather than
-pre-averaging. Each sensor is therefore weighted by its actual precision: a
-centimetre-accurate lidar centroid dominates a tens-of-metres acoustic bearing
-regardless of their reported confidences. For conditionally-independent same-time
-measurements this sequential update is mathematically equivalent to the batch
-information-form posterior `x̂ = (ΣCᵢ⁻¹)⁻¹ ΣCᵢ⁻¹xᵢ`; measurements are applied in order
-of increasing `R`-trace for determinism on the (re-linearised) EKF polar path.
+frame, the engine applies each conditionally independent return **sequentially**
+through its own measurement model and covariance `R`—an information-form
+(inverse-covariance) update—rather than pre-averaging. Within one co-located
+association cluster, records sharing the exact `(sensor_id, modality,
+timestamp_ms, source_frame_id)` correlation identity contribute only one effective
+update. The representative has the smallest Cartesian `R` trace, then deterministic
+confidence/covariance/position tie-breakers. This prevents repeated post-processing
+of one capture from falsely collapsing covariance or over-concentrating IMM mode
+probabilities. Different sensor identities remain independent contributors, and
+the same sensor may contribute again at the next exact frame timestamp.
+
+Each retained sensor is weighted by its actual precision: a centimetre-accurate
+lidar centroid dominates a tens-of-metres acoustic bearing regardless of their
+reported confidences. For conditionally independent same-time measurements this
+sequential update is mathematically equivalent to the batch information-form
+posterior `x̂ = (ΣCᵢ⁻¹)⁻¹ ΣCᵢ⁻¹xᵢ`; measurements are applied in order of increasing
+`R`-trace for determinism on the (re-linearised) EKF polar path.
 
 Detector **confidence is not used as a fusion weight**. `track.confidence` is derived
 *after* the updates — the maximum contributing measurement confidence plus a small
@@ -482,7 +545,7 @@ The native engine is configured through `FusionConfig`
 | `min_confirmation_hits` | `3` | Hits within the window (M) before Tentative → Confirmed | ↑ to suppress false tracks from clutter; ↓ for faster confirmation |
 | `confirmation_window` | `5` | Sliding-window size N (in `[1, 32]`) for the M-of-N rule | the textbook radar value is 3-of-5; ↑ N for more averaging over intermittent detections |
 | `max_position_cov_volume` | `1e6` | Position-block covariance-determinant ceiling (m⁶); a track exceeding it is deleted | ↓ to drop diverging tracks sooner; ↑ to tolerate higher position uncertainty |
-| `particle_count` | `100` | Particles per track (PF only) | ↑ accuracy at `O(N)` cost; the default is a real-time compromise |
+| `particle_count` | `100` | Particles per track (PF only) | ↑ samples the posterior more densely at `O(N)` cost; the default is an implementation setting, not a measured accuracy or real-time optimum |
 | `emit_innovations` | `false` | Emit compatible observations into the legacy drain/local-JSONL buffer | The explicit live `process_frame` evidence API constructs frozen-v1 observations independently; PF/IMM still emit none |
 | `emit_innovation_research` | `false` | Add raw innovation/covariance research fields | Diagnostic only; changes the canonical deployment-config digest |
 
@@ -495,10 +558,12 @@ pinned to both the environment and selected registry context. Presence of
 active startup-loaded engine. See
 [GALADRIEL_PRODUCER.md](GALADRIEL_PRODUCER.md).
 
-Per-modality measurement covariances are set by the producers in `useROSSensors.ts`
-and reflect realistic sensor characteristics: lidar tightest (`[0.1, 0.1, 0.1]` m²),
-radar good in range / coarse in angle (`[0.5 m², (1°)², (1.5°)²]`), thermal moderate
-(`[2, 2, 2]` m²), acoustic loosest (`[10, 10, 10]` m²).
+Per-modality measurement covariances are carried or set by the producers in
+`useROSSensors.ts`: LIDAR preserves the required positive finite three-axis
+covariance from `ros/msg/LidarDetection.msg`; radar uses good range / coarse angle
+defaults (`[0.5 m², (1°)², (1.5°)²]`); thermal uses `[2, 2, 2]` m²; and acoustic
+uses `[10, 10, 10]` m². These are source contracts and defaults, not measured
+accuracy claims.
 
 The **fusion rate** (`fusionRateHz`, default 10 Hz, clamped to 1–60 Hz) is set on the
 ROS hook; measurements are buffered between cycles, with a backpressure guard that
@@ -527,8 +592,9 @@ component tests. The browser engine and ROS bridge have Vitest coverage for
 malformed/buffer loss, same-frame visual stamps, monotonic empty/data cycles, and
 commit-on-success (`bun run test:run`).
 
-For deeper tracker validation — recommended before any accuracy claim against real
-hardware — the standard tools are:
+The preregistered, versioned protocol for any future numeric or accuracy claim is
+[`FUSION_VALIDATION_PROTOCOL.md`](FUSION_VALIDATION_PROTOCOL.md). No protocol run
+or acceptance result is claimed by 0.9.0. Its preregistered measures include:
 
 - **NEES / NIS** (normalized estimation / innovation error squared): test whether the
   reported covariance is *honest*. A consistent filter yields NEES averaging the state
@@ -542,9 +608,8 @@ hardware — the standard tools are:
   accuracy. Report ID switches alongside MOTA — MOTA is detection-dominated and hides
   the label swaps that would misdirect an interceptor.
 
-These should be run as Monte-Carlo sweeps over scripted ground-truth scenarios that
-vary clutter, detection probability, occlusion duration, maneuvers, and crossing
-targets — not single happy-path runs.
+These must be run as the preregistered Monte-Carlo sweep over scripted
+ground-truth scenarios—not a selected happy-path run.
 
 ---
 
@@ -556,10 +621,10 @@ status and preserves the remaining scientific and deployment gaps.
 | # | Item | Status |
 |---|------|--------|
 | 1 | Global nearest-neighbour (Hungarian) assignment over the gated cost matrix, with co-located-measurement clustering | ✅ Implemented |
-| 2 | Information-form / covariance-weighted sequential per-sensor fusion (each modality its own `R`) | ✅ Implemented |
+| 2 | Information-form / covariance-weighted sequential independent-return fusion (each measurement its own `R`; one effective return per correlated capture identity) | ✅ Implemented |
 | 3 | Sliding-window **M-of-N** confirmation + covariance-volume deletion | ✅ Implemented |
 | 4 | Per-measurement `R` threaded into every filter update (KF / EKF / UKF / PF / IMM) | ✅ Implemented |
-| 5 | **Per-measurement timestamps / OOSM** — baseline filter uses one monotonic frame time | ⬜ **Open** — live v1/projection now requires exact advancing same-time stamps and rejects duplicate/OOSM evidence, but per-measurement prediction and retrodiction remain deferred |
+| 5 | **Per-measurement timestamps / OOSM** — baseline filter uses one monotonic frame time | ⬜ **Open** — every nonempty native frame now requires exact advancing co-temporal stamps and rejects mixed-time/replayed/OOSM input before mutation, but per-measurement prediction and retrodiction remain deferred |
 | 6 | CV + **Coordinated-Turn** IMM (two-model bank) | ✅ Implemented (CT added; a constant-acceleration mode is still deferred) |
 | 7 | Geometric (skew-ray closest-approach + cheirality) cross-camera gate in the browser engine | ✅ Implemented |
 | 8 | **Diagonal-only measurement covariances** at the TS↔Rust boundary | ⬜ **Open** — full 3×3 covariances (incl. the polar→Cartesian Jacobian cross-terms and Doppler) |
@@ -672,8 +737,9 @@ JSONL test into receiver, ACL, or delivery evidence; see
 
 Semantics:
 
-- `nis = yᵀS⁻¹y` uses the state entering that measurement update. Co-located
-  follow-up measurements therefore see the sequentially conditioned state.
+- `nis = yᵀS⁻¹y` uses the state entering that measurement update. Independent
+  co-located follow-up measurements therefore see the sequentially conditioned
+  state; correlated same-capture shadows never receive another update.
 - Track birth has no prior innovation and emits nothing. A skipped update with an
   unusable innovation covariance also emits nothing.
 - Visual/thermal/acoustic/lidar use Cartesian metres. EKF radar NIS derives from

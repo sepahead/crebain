@@ -143,14 +143,21 @@ incomparable. A matching frame-name string is provenance supplied through the
 fusion input; it is not cryptographic sensor authentication or evidence that a
 calibration was applied.
 
-Time eligibility is equally strict. A frozen-v1 observation or common projection
-is possible only when the frame timestamp advances the fusion prior, the
-measurement timestamp exactly equals that frame timestamp, and that timestamp is
-strictly newer for the same track/modality channel. Duplicate, out-of-order, or
-mixed older inputs can still take the bounded baseline fusion path, but they emit
-no v1 and remain incomparable. Timestamp zero explicitly initializes the fusion
-clock; it is not confused with an uninitialized clock. Per-channel high-water
-state is removed when its track leaves the live set.
+Time eligibility is equally strict. Every measurement in a nonempty native frame
+must exactly equal the frame timestamp, which must advance the fusion prior.
+Future, lagged, mixed-time, replayed/nonadvancing, and out-of-order inputs reject the whole
+frame before prediction or evidence mutation; there is no time-inexact baseline
+update. A frozen-v1 observation or common projection additionally requires that
+timestamp to be strictly newer for the same track/modality channel. Timestamp zero
+explicitly initializes the fusion clock; it is not confused with an uninitialized
+clock. Per-channel high-water state is removed when its track leaves the live set.
+
+Inside an assigned co-located cluster, one `(sensor_id, modality, timestamp_ms,
+source_frame_id)` correlation identity can correct the track only once. The
+deterministic lowest-Cartesian-noise representative is effective; independent
+sensor identities remain separate observations. This applies before optional
+Galadriel selection, so repeated processing of one sensor capture cannot
+artificially tighten the native posterior or IMM mode probabilities.
 
 Renderer ingestion stays in the sensor/header clock domain. One visual detector
 pass stamps all of its tracks once. Each fusion frame uses the maximum of the

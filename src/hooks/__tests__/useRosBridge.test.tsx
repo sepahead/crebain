@@ -159,12 +159,23 @@ describe('useRosBridge', () => {
     const ws = await connectHook()
     const callback = vi.fn()
     const unsubscribe = hook.subscribe('/camera', 'sensor_msgs/Image', callback, 20)
-    ws.receive({ op: 'publish', topic: '/camera', msg: { frame: 1 } })
+    const image = {
+      header: { seq: 1, stamp: { secs: 1, nsecs: 0 }, frame_id: 'camera' },
+      height: 1,
+      width: 1,
+      encoding: 'rgb8',
+      is_bigendian: 0,
+      step: 3,
+      data: [1, 2, 3],
+    }
+    await act(async () => {
+      ws.receive({ op: 'publish', topic: '/camera', msg: image })
+    })
     unsubscribe()
 
     expect(hook.state).toBe('connected')
     expect(hook.isConnected).toBe(true)
-    expect(callback).toHaveBeenCalledWith({ frame: 1 })
+    expect(callback).toHaveBeenCalledWith(image)
     expect(sentMessages(ws).map((message) => message.op)).toEqual(['subscribe', 'unsubscribe'])
 
     const surface = hook as unknown as Record<string, unknown>
@@ -205,7 +216,7 @@ describe('useRosBridge', () => {
     })
 
     await act(async () => {
-      hook.recordMessage('/camera', 100, Date.now() - 20)
+      hook.recordMessage('/camera', 100, 20)
     })
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1000)
@@ -225,5 +236,37 @@ describe('useRosBridge', () => {
     expect(hook.performance.quality).toEqual(expect.objectContaining({ avgLatencyMs: 20 }))
 
     await act(async () => root.unmount())
+  })
+
+  it('runs freeze detection and stops both monitoring intervals on cleanup', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(10_000)
+    const root = await renderHook({
+      transport: 'websocket',
+      autoConnect: false,
+      enablePerformanceMonitoring: true,
+    })
+
+    expect(vi.getTimerCount()).toBe(2)
+    await act(async () => {
+      hook.recordMessage('/frozen-camera', 64, 4)
+      await vi.advanceTimersByTimeAsync(6_000)
+    })
+
+    expect(hook.performance.alerts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: 'low_throughput', topic: '/frozen-camera' }),
+      ])
+    )
+    expect(hook.performance.topicStats).toEqual([
+      expect.objectContaining({
+        topic: '/frozen-camera',
+        messageCount: 1,
+        windowMessageCount: 0,
+      }),
+    ])
+
+    await act(async () => root.unmount())
+    expect(vi.getTimerCount()).toBe(0)
   })
 })

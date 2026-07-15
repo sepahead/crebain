@@ -1,0 +1,334 @@
+//
+// Copyright (c) 2023 ZettaScale Technology
+//
+// This program and the accompanying materials are made available under the
+// terms of the Eclipse Public License 2.0 which is available at
+// http://www.eclipse.org/legal/epl-2.0, or the Apache License, Version 2.0
+// which is available at https://www.apache.org/licenses/LICENSE-2.0.
+//
+// SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
+//
+// Contributors:
+//   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
+//
+#[cfg(feature = "stats")]
+use std::sync::OnceLock;
+use std::{
+    sync::{Arc, RwLock as SyncRwLock},
+    time::Duration,
+};
+
+use async_trait::async_trait;
+use tokio::sync::{Mutex as AsyncMutex, MutexGuard as AsyncMutexGuard, RwLock};
+use tokio_util::{sync::CancellationToken, task::TaskTracker};
+use zenoh_core::{zasynclock, zasyncread, zasyncwrite, zread, zwrite};
+use zenoh_link::Link;
+use zenoh_protocol::{
+    core::{Bound, RegionName, WhatAmI, ZenohIdProto},
+    network::NetworkMessageMut,
+    transport::{
+        close, Close, TransportBodyLowLatencyRef, TransportMessageLowLatencyRef, TransportSn,
+    },
+};
+use zenoh_result::{zerror, ZResult};
+
+#[cfg(feature = "shared-memory")]
+use crate::shm_context::UnicastTransportShmContext;
+use crate::{
+    unicast::{
+        authentication::TransportAuthId,
+        link::{LinkUnicastWithOpenAck, TransportLinkUnicast},
+        transport_unicast_inner::{AddLinkResult, TransportStatus, TransportUnicastTrait},
+        TransportConfigUnicast,
+    },
+    TransportManager, TransportPeerEventHandler,
+};
+
+/*************************************/
+/*       LOW-LATENCY TRANSPORT       */
+/*************************************/
+#[derive(Clone)]
+pub(crate) struct TransportUnicastLowlatency {
+    // Transport Manager
+    pub(super) manager: TransportManager,
+    // Transport config
+    pub(super) config: TransportConfigUnicast,
+    // The link associated to the transport
+    pub(super) link: Arc<RwLock<Option<TransportLinkUnicast>>>,
+    // The callback
+    pub(super) callback: Arc<SyncRwLock<Option<Arc<dyn TransportPeerEventHandler>>>>,
+    // Mutex for notification
+    status: Arc<AsyncMutex<TransportStatus>>,
+    // Transport statistics
+    #[cfg(feature = "stats")]
+    pub(super) stats: zenoh_stats::TransportStats,
+    #[cfg(feature = "stats")]
+    pub(super) link_stats: Arc<OnceLock<zenoh_stats::LinkStats>>,
+
+    // The handles for TX/RX tasks
+    pub(crate) token: CancellationToken,
+    pub(crate) tracker: TaskTracker,
+
+    #[cfg(feature = "shared-memory")]
+    pub(super) shm_context: Option<UnicastTransportShmContext>,
+}
+
+impl TransportUnicastLowlatency {
+    pub fn make(
+        manager: TransportManager,
+        config: TransportConfigUnicast,
+        #[cfg(feature = "shared-memory")] shm_context: Option<UnicastTransportShmContext>,
+        #[cfg(feature = "stats")] stats: zenoh_stats::TransportStats,
+    ) -> Arc<dyn TransportUnicastTrait> {
+        Arc::new(TransportUnicastLowlatency {
+            manager,
+            config,
+            link: Arc::new(RwLock::new(None)),
+            callback: Arc::new(SyncRwLock::new(None)),
+            status: Arc::new(AsyncMutex::new(TransportStatus::Uninitialized)),
+            #[cfg(feature = "stats")]
+            stats,
+            #[cfg(feature = "stats")]
+            link_stats: Arc::new(OnceLock::new()),
+            token: CancellationToken::new(),
+            tracker: TaskTracker::new(),
+            #[cfg(feature = "shared-memory")]
+            shm_context,
+        }) as Arc<dyn TransportUnicastTrait>
+    }
+
+    /*************************************/
+    /*           TERMINATION             */
+    /*************************************/
+    pub(super) async fn finalize(&self, reason: u8) -> ZResult<()> {
+        tracing::debug!(
+            "[{}] Finalizing transport with peer: {}",
+            self.manager.config.zid,
+            self.config.zid
+        );
+
+        // Send close message on the link
+        let close = TransportMessageLowLatencyRef {
+            body: TransportBodyLowLatencyRef::Close(Close {
+                reason,
+                session: false,
+            }),
+        };
+        let _ = self.send_async(close).await;
+
+        // Terminate and clean up the transport
+        self.delete().await
+    }
+
+    pub(super) async fn delete(&self) -> ZResult<()> {
+        tracing::debug!(
+            "[{}] Deleting transport with peer: {}",
+            self.manager.config.zid,
+            self.config.zid
+        );
+        // Mark the transport as no longer alive and keep the lock
+        // to avoid concurrent new_transport and closing/closed notifications
+        let mut status_guard = self.get_status().await;
+        *status_guard = TransportStatus::Closed;
+
+        // Close and drop the link
+        self.token.cancel();
+        self.tracker.close();
+        self.tracker.wait().await;
+
+        if let Some(val) = zasyncwrite!(self.link).as_ref() {
+            let _ = val.close(Some(close::reason::GENERIC)).await;
+        }
+        let callback = zwrite!(self.callback).take();
+        // Notify the callback that we have closed the transport
+        if let Some(cb) = callback.as_ref() {
+            cb.closed();
+        }
+        // Delete the transport on the manager - this should be the last step to ensure that no new transport to the same peer can be added while we are closing this transport.
+        // We also drop the status_guard, to avoid deadlock due to different lock acquisition order in init_existing_transport unicast.
+        // The lock is no longer needed at this point, as we have already marked the transport as not alive and taken the callback to notify it of the closure.
+        drop(status_guard);
+        let _ = self.manager.del_transport_unicast(&self.config.zid).await;
+        Ok(())
+    }
+
+    async fn sync(
+        &self,
+        _initial_sn_rx: TransportSn,
+    ) -> ZResult<AsyncMutexGuard<'_, TransportStatus>> {
+        // Mark the transport as alive
+        let mut status_guard = zasynclock!(self.status);
+        match *status_guard {
+            TransportStatus::Uninitialized => {
+                *status_guard = TransportStatus::Alive;
+                Ok(status_guard)
+            }
+            TransportStatus::Alive => Ok(status_guard),
+            TransportStatus::Closed => {
+                let e = zerror!("Transport with peer {} is closed", self.config.zid);
+                tracing::trace!("{}", e);
+                Err(e.into())
+            }
+        }
+    }
+}
+
+#[async_trait]
+impl TransportUnicastTrait for TransportUnicastLowlatency {
+    /*************************************/
+    /*            ACCESSORS              */
+    /*************************************/
+    fn set_callback(&self, callback: Arc<dyn TransportPeerEventHandler>) {
+        *zwrite!(self.callback) = Some(callback);
+    }
+
+    async fn get_status(&self) -> AsyncMutexGuard<'_, TransportStatus> {
+        zasynclock!(self.status)
+    }
+
+    fn get_links(&self) -> Vec<Link> {
+        let handle = tokio::runtime::Handle::current();
+        let guard =
+            tokio::task::block_in_place(|| handle.block_on(async { zasyncread!(self.link) }));
+        guard.as_ref().map(|l| vec![l.link()]).unwrap_or_default()
+    }
+
+    fn get_zid(&self) -> ZenohIdProto {
+        self.config.zid
+    }
+
+    fn get_auth_ids(&self) -> TransportAuthId {
+        // Convert LinkUnicast auth id to AuthId
+        let mut transport_auth_id = TransportAuthId::new(self.get_zid());
+        let handle = tokio::runtime::Handle::current();
+        let guard =
+            tokio::task::block_in_place(|| handle.block_on(async { zasyncread!(self.link) }));
+        if let Some(val) = guard.as_ref() {
+            transport_auth_id.push_link_auth_id(val.link.get_auth_id().clone());
+        }
+        // Convert usrpwd auth id to AuthId
+        #[cfg(feature = "auth_usrpwd")]
+        transport_auth_id.set_username(&self.config.auth_id);
+        transport_auth_id
+    }
+
+    fn get_whatami(&self) -> WhatAmI {
+        self.config.whatami
+    }
+
+    #[cfg(feature = "shared-memory")]
+    fn is_shm(&self) -> bool {
+        self.config.shm.is_some()
+    }
+
+    fn is_qos(&self) -> bool {
+        self.config.is_qos
+    }
+
+    fn region_name(&self) -> Option<RegionName> {
+        self.config.region_name.clone()
+    }
+
+    fn get_bound(&self) -> Option<Bound> {
+        self.config.bound
+    }
+
+    fn get_callback(&self) -> Option<Arc<dyn TransportPeerEventHandler>> {
+        zread!(self.callback).clone()
+    }
+
+    fn get_config(&self) -> &TransportConfigUnicast {
+        &self.config
+    }
+
+    #[cfg(feature = "stats")]
+    fn stats(&self) -> zenoh_stats::TransportStats {
+        self.stats.clone()
+    }
+
+    /*************************************/
+    /*                TX                 */
+    /*************************************/
+    fn schedule(&self, msg: NetworkMessageMut) -> ZResult<bool> {
+        self.internal_schedule(msg)?;
+        Ok(true)
+    }
+
+    /*************************************/
+    /*               LINK                */
+    /*************************************/
+    async fn add_link(
+        &self,
+        link: LinkUnicastWithOpenAck,
+        other_initial_sn: TransportSn,
+        other_lease: Duration,
+    ) -> AddLinkResult {
+        tracing::trace!("Adding link: {}", link);
+
+        let status_guard = match self.sync(other_initial_sn).await {
+            Ok(status_guard) => status_guard,
+            Err(e) => {
+                tracing::error!(
+                    "Error syncing transport with peer {}: {}",
+                    self.config.zid,
+                    e
+                );
+                let (l, asl) = link.fail();
+                return Err((e, l, asl, close::reason::GENERIC));
+            }
+        };
+
+        let mut guard = zasyncwrite!(self.link);
+        if guard.is_some() {
+            let (l, asl) = link.fail();
+            return Err((
+                zerror!("Lowlatency transport cannot support more than one link!").into(),
+                l,
+                asl,
+                close::reason::GENERIC,
+            ));
+        }
+        let (link, ack, asl) = link.unpack();
+        if asl.is_some() {
+            return Err((
+                zerror!("Lowlatency transport does not support mixed-reliability links").into(),
+                link,
+                asl,
+                close::reason::GENERIC,
+            ));
+        }
+
+        // Use the complete src and dest locators including parameters
+        #[cfg(feature = "stats")]
+        let link_unicast = link.link();
+        #[cfg(feature = "stats")]
+        self.link_stats
+            .set(self.stats.link_stats(&link_unicast.src, &link_unicast.dst))
+            .unwrap();
+        *guard = Some(link);
+        drop(guard);
+
+        // create a callback to start the link
+        let start_tx = Box::new(move || {
+            // start keepalive task
+            let keep_alive =
+                self.manager.config.unicast.lease / self.manager.config.unicast.keep_alive as u32;
+            self.start_keepalive(keep_alive);
+        });
+
+        let start_rx = Box::new(move || {
+            // start RX task
+            self.internal_start_rx(other_lease);
+        });
+
+        Ok((start_tx, start_rx, ack, status_guard))
+    }
+
+    /*************************************/
+    /*           TERMINATION             */
+    /*************************************/
+    async fn close(&self, reason: u8) -> ZResult<()> {
+        tracing::trace!("Closing transport with peer: {}", self.config.zid);
+        self.finalize(reason).await
+    }
+}

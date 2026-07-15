@@ -1,235 +1,305 @@
 /**
- * CREBAIN Message Type Registry
- * Centralized type-safe message handler registration for ROS/Zenoh
- *
- * Provides:
- * - Type-safe message type identification
- * - Automatic mapper selection
- * - Validation and error handling
- * - Support for custom message types
+ * Registry for the raw telemetry payloads emitted by the native Tauri
+ * transport. It deliberately owns only command selection and raw-payload
+ * validation; ROS message mapping remains in ZenohBridge.
  */
 
 import { rosLogger as log } from '../lib/logger'
 import { TAURI_COMMANDS } from '../lib/tauriCommands'
+import {
+  MAX_GAZEBO_ANGULAR_SPEED_RAD_S,
+  MAX_GAZEBO_LINEAR_SPEED_MPS,
+  MAX_GAZEBO_POSITION_MAGNITUDE_M,
+  MAX_GAZEBO_QUATERNION_NORM,
+  MIN_GAZEBO_QUATERNION_NORM,
+} from './gazeboValidation'
 
-// Import types for reference only (used in JSDoc, not runtime)
-
-// ─────────────────────────────────────────────────────────────────────────────
-// TYPES
-// ─────────────────────────────────────────────────────────────────────────────
-
-export type MessageMapper<T, R> = (data: T) => R
-
-export interface MessageTypeHandler<TRaw, TMapped> {
-  type: string
-  mapper: MessageMapper<TRaw, TMapped>
-  command?: string // Tauri command for backend
-  validator?: (data: TRaw) => boolean
+interface MessageTypeHandler<TRaw = unknown> {
+  command: string
+  validator: (data: TRaw) => boolean
 }
 
 type UnknownRecord = Record<string, unknown>
 
-type StoredMessageHandler = {
-  mapper: MessageMapper<unknown, unknown>
-  command?: string
-  validator?: (data: unknown) => boolean
+interface StoredMessageHandler {
+  command: string
+  validator: (data: unknown) => boolean
 }
+
+const MAX_NATIVE_STRING_LENGTH = 4096
+const MAX_NATIVE_SEQUENCE_LENGTH = 10_000
+const MAX_NATIVE_IMAGE_DIMENSION = 8192
+const MAX_NATIVE_IMAGE_BYTES = 64 * 1024 * 1024
+const MAX_BASE64_IMAGE_LENGTH = Math.ceil(MAX_NATIVE_IMAGE_BYTES / 3) * 4
+const BASE64_PATTERN = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u
 
 function isRecord(data: unknown): data is UnknownRecord {
-  return typeof data === 'object' && data !== null
+  return typeof data === 'object' && data !== null && !Array.isArray(data)
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// MESSAGE TYPE REGISTRY
-// ─────────────────────────────────────────────────────────────────────────────
+function hasOnlyKeys(
+  value: UnknownRecord,
+  expectedKeys: readonly string[]
+): boolean {
+  const actualKeys = Object.keys(value)
+  return (
+    actualKeys.length === expectedKeys.length &&
+    actualKeys.every((key) => expectedKeys.includes(key))
+  )
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+function isSafeNonNegativeInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+}
+
+function isBoundedString(value: unknown, maximum = MAX_NATIVE_STRING_LENGTH): value is string {
+  return (
+    typeof value === 'string' &&
+    value.length <= maximum &&
+    !Array.from(value).some((character) => {
+      const codePoint = character.codePointAt(0) ?? 0
+      return codePoint === 0 || (codePoint < 0x20 && character !== '\t')
+    })
+  )
+}
+
+function isFiniteTuple(value: unknown, length: number): value is number[] {
+  return Array.isArray(value) && value.length === length && value.every(isFiniteNumber)
+}
+
+function isUnitQuaternion(value: unknown): value is number[] {
+  if (!isFiniteTuple(value, 4)) return false
+  const norm = Math.hypot(...value)
+  return norm >= MIN_GAZEBO_QUATERNION_NORM && norm <= MAX_GAZEBO_QUATERNION_NORM
+}
+
+function isBoundedVector(value: unknown, maximumMagnitude: number): value is number[] {
+  return isFiniteTuple(value, 3) && Math.hypot(...value) <= maximumMagnitude
+}
+
+function isTimestamp(value: unknown): value is number {
+  return isFiniteNumber(value) && value >= 0 && value <= Number.MAX_SAFE_INTEGER
+}
+
+function isBase64Image(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.length <= MAX_BASE64_IMAGE_LENGTH &&
+    value.length % 4 === 0 &&
+    BASE64_PATTERN.test(value)
+  )
+}
+
+function decodedBase64Length(value: string): number {
+  if (value.length === 0) return 0
+  const padding = value.endsWith('==') ? 2 : value.endsWith('=') ? 1 : 0
+  return (value.length / 4) * 3 - padding
+}
+
+function isRawCameraFrame(data: unknown, compressed: boolean): boolean {
+  if (
+    !isRecord(data) ||
+    !hasOnlyKeys(data, [
+      'data',
+      'width',
+      'height',
+      'encoding',
+      'timestamp',
+      'frame_id',
+      'is_bigendian',
+      'step',
+    ]) ||
+    !isBase64Image(data.data) ||
+    !isSafeNonNegativeInteger(data.width) ||
+    data.width === 0 ||
+    data.width > MAX_NATIVE_IMAGE_DIMENSION ||
+    !isSafeNonNegativeInteger(data.height) ||
+    data.height === 0 ||
+    data.height > MAX_NATIVE_IMAGE_DIMENSION ||
+    !isBoundedString(data.encoding, 64) ||
+    data.encoding.length === 0 ||
+    !isTimestamp(data.timestamp) ||
+    !isBoundedString(data.frame_id, 256) ||
+    (data.is_bigendian !== 0 && data.is_bigendian !== 1) ||
+    !isSafeNonNegativeInteger(data.step)
+  ) {
+    return false
+  }
+
+  if (compressed) return decodedBase64Length(data.data) > 0
+  const expectedLength = data.height * data.step
+  return (
+    Number.isSafeInteger(expectedLength) &&
+    expectedLength <= MAX_NATIVE_IMAGE_BYTES &&
+    decodedBase64Length(data.data) === expectedLength
+  )
+}
+
+function isRawCameraInfo(data: unknown): boolean {
+  return (
+    isRecord(data) &&
+    hasOnlyKeys(data, [
+      'height',
+      'width',
+      'distortion_model',
+      'd',
+      'k',
+      'r',
+      'p',
+      'timestamp',
+      'frame_id',
+    ]) &&
+    isSafeNonNegativeInteger(data.height) &&
+    data.height > 0 &&
+    data.height <= MAX_NATIVE_IMAGE_DIMENSION &&
+    isSafeNonNegativeInteger(data.width) &&
+    data.width > 0 &&
+    data.width <= MAX_NATIVE_IMAGE_DIMENSION &&
+    isBoundedString(data.distortion_model, 64) &&
+    Array.isArray(data.d) &&
+    data.d.length <= 32 &&
+    data.d.every(isFiniteNumber) &&
+    isFiniteTuple(data.k, 9) &&
+    isFiniteTuple(data.r, 9) &&
+    isFiniteTuple(data.p, 12) &&
+    isTimestamp(data.timestamp) &&
+    isBoundedString(data.frame_id, 256)
+  )
+}
+
+function isRawImu(data: unknown): boolean {
+  if (
+    !isRecord(data) ||
+    !hasOnlyKeys(data, [
+      'orientation',
+      'orientation_covariance',
+      'angular_velocity',
+      'angular_velocity_covariance',
+      'linear_acceleration',
+      'linear_acceleration_covariance',
+      'timestamp',
+      'frame_id',
+    ]) ||
+    !isFiniteTuple(data.orientation_covariance, 9) ||
+    !isFiniteTuple(data.angular_velocity, 3) ||
+    !isFiniteTuple(data.angular_velocity_covariance, 9) ||
+    !isFiniteTuple(data.linear_acceleration, 3) ||
+    !isFiniteTuple(data.linear_acceleration_covariance, 9) ||
+    !isTimestamp(data.timestamp) ||
+    !isBoundedString(data.frame_id, 256)
+  ) {
+    return false
+  }
+
+  const orientationUnavailable = data.orientation_covariance[0] === -1
+  return orientationUnavailable
+    ? isFiniteTuple(data.orientation, 4)
+    : isUnitQuaternion(data.orientation)
+}
+
+function isRawPose(data: unknown): boolean {
+  return (
+    isRecord(data) &&
+    hasOnlyKeys(data, ['position', 'orientation', 'timestamp', 'frame_id']) &&
+    isBoundedVector(data.position, MAX_GAZEBO_POSITION_MAGNITUDE_M) &&
+    isUnitQuaternion(data.orientation) &&
+    isTimestamp(data.timestamp) &&
+    isBoundedString(data.frame_id, 256)
+  )
+}
+
+function isRawVelocity(data: unknown): boolean {
+  return (
+    isRecord(data) &&
+    hasOnlyKeys(data, ['linear', 'angular']) &&
+    isBoundedVector(data.linear, MAX_GAZEBO_LINEAR_SPEED_MPS) &&
+    isBoundedVector(data.angular, MAX_GAZEBO_ANGULAR_SPEED_RAD_S)
+  )
+}
+
+function isRawModelStates(data: unknown): boolean {
+  if (
+    !isRecord(data) ||
+    !hasOnlyKeys(data, ['name', 'pose', 'twist']) ||
+    !Array.isArray(data.name) ||
+    !Array.isArray(data.pose) ||
+    !Array.isArray(data.twist) ||
+    data.name.length > MAX_NATIVE_SEQUENCE_LENGTH ||
+    data.name.length !== data.pose.length ||
+    data.name.length !== data.twist.length
+  ) {
+    return false
+  }
+
+  return (
+    data.name.every((name) => isBoundedString(name, 256)) &&
+    data.pose.every(isRawPose) &&
+    data.twist.every(isRawVelocity)
+  )
+}
 
 class MessageRegistry {
   private handlers = new Map<string, StoredMessageHandler>()
 
-  // Built-in types
-  private builtinTypes = [
+  private readonly builtinTypes = [
     'sensor_msgs/Image',
     'sensor_msgs/CompressedImage',
     'sensor_msgs/CameraInfo',
     'sensor_msgs/Imu',
     'geometry_msgs/PoseStamped',
     'gazebo_msgs/ModelStates',
-    'std_msgs/Header',
-    'std_msgs/String',
-    'rosgraph_msgs/Clock',
-  ]
+  ] as const
 
   constructor() {
-    this.registerBuiltins()
-  }
-
-  private registerBuiltins() {
-    // Note: Actual mappers are implemented in ZenohBridge
-    // This registry just defines which types are supported
-
     this.register('sensor_msgs/Image', {
-      mapper: (data: unknown) => data,
       command: TAURI_COMMANDS.transport.subscribeCamera,
-      validator: (data: unknown) => {
-        if (!isRecord(data)) return false
-        return (
-          (typeof data.data === 'string' || Array.isArray(data.data)) &&
-          typeof data.width === 'number' &&
-          typeof data.height === 'number' &&
-          typeof data.encoding === 'string'
-        )
-      },
+      validator: (data) => isRawCameraFrame(data, false),
     })
-
     this.register('sensor_msgs/CompressedImage', {
-      mapper: (data: unknown) => data,
       command: TAURI_COMMANDS.transport.subscribeCamera,
-      validator: (data: unknown) => {
-        if (!isRecord(data)) return false
-        return (
-          (typeof data.data === 'string' || Array.isArray(data.data)) &&
-          typeof data.format === 'string'
-        )
-      },
+      validator: (data) => isRawCameraFrame(data, true),
     })
-
     this.register('sensor_msgs/CameraInfo', {
-      mapper: (data: unknown) => data,
       command: TAURI_COMMANDS.transport.subscribeCameraInfo,
-      validator: (data: unknown) => {
-        if (!isRecord(data)) return false
-        return (
-          typeof data.height === 'number' &&
-          typeof data.width === 'number' &&
-          typeof data.distortion_model === 'string' &&
-          Array.isArray(data.d) &&
-          Array.isArray(data.k) &&
-          Array.isArray(data.r) &&
-          Array.isArray(data.p)
-        )
-      },
+      validator: isRawCameraInfo,
     })
-
     this.register('sensor_msgs/Imu', {
-      mapper: (data: unknown) => data,
       command: TAURI_COMMANDS.transport.subscribeImu,
-      validator: (data: unknown) => {
-        if (!isRecord(data)) return false
-        return (
-          Array.isArray(data.orientation) &&
-          Array.isArray(data.angular_velocity) &&
-          Array.isArray(data.linear_acceleration)
-        )
-      },
+      validator: isRawImu,
     })
-
     this.register('geometry_msgs/PoseStamped', {
-      mapper: (data: unknown) => data,
       command: TAURI_COMMANDS.transport.subscribePose,
-      validator: (data: unknown) => {
-        if (!isRecord(data)) return false
-        return Boolean(
-          isRecord(data.header) &&
-          isRecord(data.pose) &&
-          data.pose.position &&
-          data.pose.orientation
-        )
-      },
+      validator: isRawPose,
     })
-
     this.register('gazebo_msgs/ModelStates', {
-      mapper: (data: unknown) => data,
       command: TAURI_COMMANDS.transport.subscribeModelStates,
-      validator: (data: unknown) => {
-        if (!isRecord(data)) return false
-        return (
-          Array.isArray(data.name) &&
-          Array.isArray(data.pose) &&
-          Array.isArray(data.twist)
-        )
-      },
-    })
-
-    this.register('rosgraph_msgs/Clock', {
-      mapper: (data: unknown) => data,
-      validator: (data: unknown) => {
-        if (!isRecord(data) || !isRecord(data.clock)) return false
-        return (
-          typeof data.clock.secs === 'number' &&
-          typeof data.clock.nsecs === 'number'
-        )
-      },
-    })
-
-    this.register('std_msgs/Header', {
-      mapper: (data: unknown) => data,
-      validator: (data: unknown) => {
-        if (!isRecord(data) || !isRecord(data.stamp)) return false
-        return (
-          typeof data.stamp.secs === 'number' &&
-          typeof data.stamp.nsecs === 'number' &&
-          typeof data.frame_id === 'string'
-        )
-      },
-    })
-
-    this.register('std_msgs/String', {
-      mapper: (data: unknown) => data,
-      validator: (data: unknown) => {
-        if (!isRecord(data)) return false
-        return typeof data.data === 'string'
-      },
+      validator: isRawModelStates,
     })
   }
 
-  /**
-   * Register a custom message type
-   */
-  register<TRaw, TMapped>(
-    type: string,
-    handler: Omit<MessageTypeHandler<TRaw, TMapped>, 'type'>
-  ): void {
-    if (this.handlers.has(type)) {
-      log.warn(`Type ${type} already registered`)
-    }
-
+  private register<TRaw>(type: string, handler: MessageTypeHandler<TRaw>): void {
+    if (this.handlers.has(type)) log.warn(`Type ${type} already registered`)
     this.handlers.set(type, {
-      mapper: handler.mapper as MessageMapper<unknown, unknown>,
       command: handler.command,
-      validator: handler.validator as ((data: unknown) => boolean) | undefined,
+      validator: handler.validator as (data: unknown) => boolean,
     })
   }
 
-  /**
-   * Check if a type is registered
-   */
   isRegistered(type: string): boolean {
     return this.handlers.has(type)
   }
 
-  /**
-   * Get the mapper for a type
-   */
-  getMapper<TRaw = unknown, TMapped = unknown>(type: string): MessageMapper<TRaw, TMapped> | null {
-    const handler = this.handlers.get(type)
-    return handler ? handler.mapper as MessageMapper<TRaw, TMapped> : null
-  }
-
-  /**
-   * Get the Tauri command for a type
-   */
   getCommand(type: string): string | null {
-    const handler = this.handlers.get(type)
-    return handler?.command ?? null
+    return this.handlers.get(type)?.command ?? null
   }
 
-  /**
-   * Validate data against a registered type
-   */
   validate(type: string, data: unknown): boolean {
     const handler = this.handlers.get(type)
     if (!handler) return false
-    if (!handler.validator) return true // No validator, assume valid
     try {
       return Boolean(handler.validator(data))
     } catch {
@@ -237,37 +307,22 @@ class MessageRegistry {
     }
   }
 
-  /**
-   * List all registered types
-   */
   listTypes(): string[] {
     return Array.from(this.handlers.keys())
   }
 
-  /**
-   * Get all builtin types
-   */
   getBuiltinTypes(): string[] {
     return [...this.builtinTypes]
   }
 }
 
-// Singleton instance
 let instance: MessageRegistry | null = null
 
-/**
- * Get the global message registry
- */
 export function getMessageRegistry(): MessageRegistry {
-  if (!instance) {
-    instance = new MessageRegistry()
-  }
+  instance ??= new MessageRegistry()
   return instance
 }
 
-/**
- * Create a new registry instance (for testing)
- */
 export function createMessageRegistry(): MessageRegistry {
   return new MessageRegistry()
 }

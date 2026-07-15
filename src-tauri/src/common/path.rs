@@ -187,6 +187,8 @@ pub fn validate_path(path: &str, allowed_root: Option<&Path>) -> Result<PathBuf,
 /// Convenience wrapper for model paths that:
 /// - Validates path security
 /// - Checks file exists
+/// - Rejects a symlink at the model boundary
+/// - Requires a regular file, except for a compiled `.mlmodelc` directory
 /// - Optionally validates extension
 ///
 /// # Arguments
@@ -199,17 +201,25 @@ pub fn validate_model_path(
     // Basic security validation
     let validated = validate_path(path, None)?;
 
-    // Check file exists
-    if !validated.exists() {
+    // Use symlink_metadata so a dangling link is not confused with a missing
+    // path and a live link is not followed before the boundary decision.
+    let metadata = validated.symlink_metadata().map_err(|error| {
+        format!(
+            "Model path is unavailable or unreadable ({}): {error}",
+            validated.display()
+        )
+    })?;
+    if metadata.file_type().is_symlink() {
         return Err(format!(
-            "Model file does not exist: {}",
+            "Model path must not be a symlink: {}",
             validated.display()
         ));
     }
 
     // Check extension if specified
+    let extension = validated.extension().and_then(|e| e.to_str()).unwrap_or("");
     if let Some(extensions) = expected_extensions {
-        let ext = validated.extension().and_then(|e| e.to_str()).unwrap_or("");
+        let ext = extension;
 
         if !extensions.iter().any(|&e| e.eq_ignore_ascii_case(ext)) {
             return Err(format!(
@@ -219,7 +229,23 @@ pub fn validate_model_path(
         }
     }
 
-    Ok(validated)
+    if extension.eq_ignore_ascii_case("mlmodelc") {
+        if !metadata.file_type().is_dir() {
+            return Err(format!(
+                "Compiled CoreML model must be a directory: {}",
+                validated.display()
+            ));
+        }
+    } else if !metadata.file_type().is_file() {
+        return Err(format!(
+            "Model path must be a regular file: {}",
+            validated.display()
+        ));
+    }
+
+    validated
+        .canonicalize()
+        .map_err(|error| format!("Failed to canonicalize model path: {error}"))
 }
 
 #[cfg(test)]
@@ -315,6 +341,52 @@ mod tests {
         assert!(validate_model_path(model_path.to_str().unwrap(), Some(&["mlmodelc"])).is_ok());
 
         let _ = std::fs::remove_dir_all(model_path);
+    }
+
+    #[test]
+    fn test_regular_model_rejects_directory() {
+        let model_path =
+            std::env::temp_dir().join(format!("crebain-model-dir-{}.onnx", std::process::id()));
+        std::fs::create_dir_all(&model_path).unwrap();
+
+        let error = validate_model_path(model_path.to_str().unwrap(), Some(&["onnx"])).unwrap_err();
+        assert!(error.contains("regular file"));
+
+        let _ = std::fs::remove_dir_all(model_path);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_model_path_rejects_symlink() {
+        let base = std::env::temp_dir().join(format!("crebain-model-link-{}", std::process::id()));
+        let target = base.with_extension("target.onnx");
+        let link = base.with_extension("onnx");
+        std::fs::write(&target, b"model").unwrap();
+        let _ = std::fs::remove_file(&link);
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+
+        let error = validate_model_path(link.to_str().unwrap(), Some(&["onnx"])).unwrap_err();
+        assert!(error.contains("symlink"));
+
+        let _ = std::fs::remove_file(link);
+        let _ = std::fs::remove_file(target);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_model_path_rejects_socket() {
+        use std::os::unix::net::UnixListener;
+
+        let socket =
+            std::env::temp_dir().join(format!("crebain-model-socket-{}.onnx", std::process::id()));
+        let _ = std::fs::remove_file(&socket);
+        let listener = UnixListener::bind(&socket).unwrap();
+
+        let error = validate_model_path(socket.to_str().unwrap(), Some(&["onnx"])).unwrap_err();
+        assert!(error.contains("regular file"));
+
+        drop(listener);
+        let _ = std::fs::remove_file(socket);
     }
 
     #[test]

@@ -75,6 +75,22 @@ describe('useROSSensors helpers', () => {
     expect(() => thermalToMeasurement(detection, 'thermal_sensor')).toThrow('thermal.position.y must be finite')
   })
 
+  it('rejects finite thermal coordinates outside the native position envelope', () => {
+    const detection: ThermalDetection = {
+      header,
+      id: 'thermal-too-far',
+      position: { x: 10_000_001, y: 0, z: 0 },
+      temperature_kelvin: 320,
+      signature_area: 1.5,
+      confidence: 0.8,
+      classification: 'drone',
+    }
+
+    expect(() => thermalToMeasurement(detection, 'thermal_sensor')).toThrow(
+      'thermal.position.x magnitude must not exceed 10000000'
+    )
+  })
+
   it('converts acoustic detections from spherical coordinates', () => {
     const detection: AcousticDetection = {
       header,
@@ -136,7 +152,28 @@ describe('useROSSensors helpers', () => {
       classification: 'unknown',
     }
 
-    expect(() => acousticToMeasurement(detection, 'acoustic_sensor')).toThrow('acoustic.range_estimate must be non-negative')
+    expect(() => acousticToMeasurement(detection, 'acoustic_sensor')).toThrow(
+      'acoustic.range_estimate must be within [0, 10000000]'
+    )
+  })
+
+  it('rejects acoustic inputs whose derived velocity exceeds the native envelope', () => {
+    const detection: AcousticDetection = {
+      header,
+      id: 'acoustic-extreme-doppler',
+      azimuth: 0,
+      elevation: 0,
+      range_estimate: 10,
+      spl_db: 60,
+      dominant_frequency_hz: Number.MIN_VALUE,
+      doppler_hz: 1,
+      confidence: 0.5,
+      classification: 'unknown',
+    }
+
+    expect(() => acousticToMeasurement(detection, 'acoustic_sensor')).toThrow(
+      'acoustic.velocity[0]'
+    )
   })
 
   it('keeps radar detections in polar [range, azimuth, elevation] form', () => {
@@ -189,6 +226,29 @@ describe('useROSSensors helpers', () => {
     expect(measurement.position[2]).toBeCloseTo(0.2, 6)
   })
 
+  it.each([
+    ['range', { range: 10_000_001 }],
+    ['azimuth', { azimuth: 2 * Math.PI + 1e-12 }],
+    ['elevation', { elevation: Math.PI / 2 + 1e-12 }],
+    ['radial_velocity', { radial_velocity: 100_001 }],
+    ['rcs_dbsm', { rcs_dbsm: 1_000_000_000_001 }],
+  ])('rejects radar %s outside the native measurement envelope', (_field, override) => {
+    const detection: RadarDetection = {
+      header,
+      id: 'radar-out-of-envelope',
+      range: 20,
+      azimuth: 0,
+      elevation: 0,
+      radial_velocity: 4,
+      rcs_dbsm: -5,
+      confidence: 0.9,
+      classification: 'drone',
+      ...override,
+    }
+
+    expect(() => radarToMeasurement(detection, 'radar_sensor')).toThrow()
+  })
+
   it('rounds sub-millisecond timestamps to an integer (Rust u64 compatibility)', () => {
     // 10·1000 + 1_500_000/1e6 = 10001.5 → 10002. A fractional timestamp_ms would
     // fail serde u64 deserialization and reject the entire fusion batch.
@@ -230,6 +290,7 @@ describe('useROSSensors helpers', () => {
       bbox_min: { x: 0, y: 0, z: 1 },
       bbox_max: { x: 2, y: 4, z: 5 },
       velocity: { x: 0.1, y: 0.2, z: 0.3 },
+      covariance: [0.04, 0.09, 0.16],
       num_points: 42,
       confidence: 0.85,
       classification: 'drone',
@@ -242,7 +303,7 @@ describe('useROSSensors helpers', () => {
       source_frame_id: 'sensor_frame',
       position: [1, 2, 3],
       velocity: [0.1, 0.2, 0.3],
-      covariance: [0.1, 0.1, 0.1],
+      covariance: [0.04, 0.09, 0.16],
       metadata: {
         num_points: 42,
         bbox_size_x: 2,
@@ -260,12 +321,54 @@ describe('useROSSensors helpers', () => {
       bbox_min: { x: 2, y: 0, z: 1 },
       bbox_max: { x: 0, y: 4, z: 5 },
       velocity: { x: 0.1, y: 0.2, z: 0.3 },
+      covariance: [0.04, 0.09, 0.16],
       num_points: 42,
       confidence: 0.85,
       classification: 'drone',
     }
 
     expect(() => lidarToMeasurement(detection, 'lidar_sensor')).toThrow('lidar.bbox_size_x must be non-negative')
+  })
+
+  it.each([0, -1, Number.NaN, 1_000_000_000_001])(
+    'rejects %s LIDAR covariance before native fusion',
+    (variance) => {
+    const detection: LidarDetection = {
+      header,
+      id: 'lidar-covariance-bad',
+      centroid: { x: 1, y: 2, z: 3 },
+      bbox_min: { x: 0, y: 0, z: 1 },
+      bbox_max: { x: 2, y: 4, z: 5 },
+      velocity: { x: 0.1, y: 0.2, z: 0.3 },
+      covariance: [variance, 0.09, 0.16],
+      num_points: 42,
+      confidence: 0.85,
+      classification: 'drone',
+    }
+
+      expect(() => lidarToMeasurement(detection, 'lidar_sensor')).toThrow(
+        'lidar.covariance[0]'
+      )
+    }
+  )
+
+  it('rejects LIDAR velocity outside the native measurement envelope', () => {
+    const detection: LidarDetection = {
+      header,
+      id: 'lidar-too-fast',
+      centroid: { x: 1, y: 2, z: 3 },
+      bbox_min: { x: 0, y: 0, z: 1 },
+      bbox_max: { x: 2, y: 4, z: 5 },
+      velocity: { x: 100_001, y: 0, z: 0 },
+      covariance: [0.04, 0.09, 0.16],
+      num_points: 42,
+      confidence: 0.85,
+      classification: 'drone',
+    }
+
+    expect(() => lidarToMeasurement(detection, 'lidar_sensor')).toThrow(
+      'lidar.velocity.x magnitude must not exceed 100000'
+    )
   })
 
   it('keeps legacy blank frame provenance baseline-compatible', () => {

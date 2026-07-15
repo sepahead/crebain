@@ -57,3 +57,54 @@ export async function fetchAssetWithLimit(
   }
   return combined.buffer
 }
+
+/** Read a browser-selected file while preserving cancellation through FileReader. */
+export function readFileAsArrayBuffer(
+  file: File,
+  signal: AbortSignal,
+  onProgress?: (received: number, total: number) => void
+): Promise<ArrayBuffer> {
+  return new Promise((resolve, reject) => {
+    const abortError = (): Error =>
+      signal.reason instanceof Error
+        ? signal.reason
+        : new DOMException('File read aborted', 'AbortError')
+
+    if (signal.aborted) {
+      reject(abortError())
+      return
+    }
+
+    const reader = new FileReader()
+    let settled = false
+    const cleanup = (): void => signal.removeEventListener('abort', abort)
+    const fail = (error: Error): void => {
+      if (settled) return
+      settled = true
+      cleanup()
+      reject(error)
+    }
+    const abort = (): void => {
+      if (reader.readyState === FileReader.LOADING) reader.abort()
+      else fail(abortError())
+    }
+
+    signal.addEventListener('abort', abort, { once: true })
+    reader.onprogress = (event) => {
+      if (event.lengthComputable) onProgress?.(event.loaded, event.total)
+    }
+    reader.onload = () => {
+      if (settled) return
+      if (!(reader.result instanceof ArrayBuffer)) {
+        fail(new Error('File read returned an invalid result'))
+        return
+      }
+      settled = true
+      cleanup()
+      resolve(reader.result)
+    }
+    reader.onerror = () => fail(reader.error ?? new Error('File read failed'))
+    reader.onabort = () => fail(abortError())
+    reader.readAsArrayBuffer(file)
+  })
+}

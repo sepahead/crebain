@@ -97,6 +97,13 @@ const MIN_LATERAL_SPEED_SQ = 0.01 // 0.1² minimum lateral speed
 // guards divisions by the interceptor-to-target distance.
 const MIN_INTERCEPT_DISTANCE = 0.001
 
+/**
+ * Hard allocation bound for predictive trajectories. Invalid requests fail
+ * closed with an empty trajectory instead of returning a silently truncated
+ * time horizon.
+ */
+export const MAX_TRAJECTORY_POINTS = 10_000
+
 // ─────────────────────────────────────────────────────────────────────────────
 // INTERCEPTION SYSTEM
 // ─────────────────────────────────────────────────────────────────────────────
@@ -124,14 +131,21 @@ export class InterceptionSystem {
 
   removeTarget(id: string): void {
     this.targets.delete(id)
-    // Abort any missions targeting this target
+    // Abort every nonterminal mission targeting the removed target. PENDING
+    // missions already reserve their interceptor in createMission(), so limiting
+    // cleanup to ACTIVE missions strands that interceptor indefinitely.
     for (const mission of this.missions.values()) {
-      if (mission.targetId === id && mission.status === 'ACTIVE') {
-        mission.status = 'ABORTED'
-        const interceptor = this.interceptors.get(mission.interceptorId)
-        if (interceptor) {
-          interceptor.currentMission = null
-        }
+      const terminal =
+        mission.status === 'COMPLETED' ||
+        mission.status === 'ABORTED' ||
+        mission.status === 'FAILED'
+      if (mission.targetId !== id || terminal) continue
+
+      mission.status = 'ABORTED'
+      mission.lastUpdate = Date.now()
+      const interceptor = this.interceptors.get(mission.interceptorId)
+      if (interceptor?.currentMission?.id === mission.id) {
+        interceptor.currentMission = null
       }
     }
   }
@@ -205,8 +219,25 @@ export class InterceptionSystem {
     const target = this.targets.get(targetId)
     if (!target) return []
 
+    if (
+      !Number.isFinite(durationSeconds) ||
+      durationSeconds <= 0 ||
+      !Number.isFinite(stepSeconds) ||
+      stepSeconds <= 0
+    ) {
+      return []
+    }
+
     const trajectory: TrajectoryPoint[] = []
-    const numSteps = Math.ceil(durationSeconds / stepSeconds) + 1
+    const intervalCount = Math.ceil(durationSeconds / stepSeconds)
+    if (
+      !Number.isSafeInteger(intervalCount) ||
+      intervalCount < 1 ||
+      intervalCount >= MAX_TRAJECTORY_POINTS
+    ) {
+      return []
+    }
+    const numSteps = intervalCount + 1
 
     for (let i = 0; i < numSteps; i++) {
       const t = Math.min(i * stepSeconds, durationSeconds)
@@ -598,12 +629,20 @@ export class InterceptionSystem {
 
   abortMission(missionId: string): boolean {
     const mission = this.missions.get(missionId)
-    if (!mission) return false
+    if (
+      !mission ||
+      mission.status === 'COMPLETED' ||
+      mission.status === 'ABORTED' ||
+      mission.status === 'FAILED'
+    ) {
+      return false
+    }
 
     mission.status = 'ABORTED'
+    mission.lastUpdate = Date.now()
 
     const interceptor = this.interceptors.get(mission.interceptorId)
-    if (interceptor) {
+    if (interceptor?.currentMission?.id === mission.id) {
       interceptor.currentMission = null
     }
 

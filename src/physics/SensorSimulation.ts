@@ -281,6 +281,14 @@ export class GPSSensor {
         fixType: 'none',
         valid: false,
       }
+      // A receiver dropout is itself the newest sensor output. It must traverse
+      // the same latency model as valid fixes; otherwise getDelayedReading()
+      // keeps exposing an older valid position after the delayed invalid fix
+      // should have made signal loss observable.
+      this.readingBuffer.push(invalidReading)
+      if (this.readingBuffer.length > GPS_READING_BUFFER_SIZE) {
+        this.readingBuffer.shift()
+      }
       this.lastReading = invalidReading
       return invalidReading
     }
@@ -375,17 +383,73 @@ export interface BarometerReading {
   temperature: number // Celsius
 }
 
+const BAROMETER_REFERENCE_TEMPERATURE_C = 15
+const MAX_BAROMETER_READING_BUFFER_SIZE = 4096
+
 export class BarometerSensor {
   private config: BarometerConfig
   private baselinePressure: number = 101325 // Sea level Pa
   private temperatureOffset: number = 0
+  private readingBuffer: BarometerReading[] = []
+  private lastReading: BarometerReading | null = null
+  private timeSinceLastReading = 0
+  private readonly readingBufferSize: number
 
   constructor(config: BarometerConfig = DEFAULT_BAROMETER_CONFIG) {
-    this.config = config
+    if (!Number.isFinite(config.updateRate) || config.updateRate <= 0) {
+      throw new Error('Barometer updateRate must be a positive finite number')
+    }
+    if (!Number.isFinite(config.latencyMs) || config.latencyMs < 0) {
+      throw new Error('Barometer latencyMs must be a non-negative finite number')
+    }
+    if (
+      !Number.isFinite(config.altitudeNoiseStdDev) ||
+      config.altitudeNoiseStdDev < 0 ||
+      !Number.isFinite(config.pressureNoiseStdDev) ||
+      config.pressureNoiseStdDev < 0 ||
+      !Number.isFinite(config.temperatureDrift)
+    ) {
+      throw new Error('Barometer noise and temperature drift configuration must be finite')
+    }
+
+    const requiredBufferSize = Math.max(
+      2,
+      Math.ceil((config.updateRate * config.latencyMs) / 1000) + 2
+    )
+    if (requiredBufferSize > MAX_BAROMETER_READING_BUFFER_SIZE) {
+      throw new Error(
+        `Barometer latency requires more than ${MAX_BAROMETER_READING_BUFFER_SIZE} buffered readings`
+      )
+    }
+
+    this.config = { ...config }
+    this.readingBufferSize = requiredBufferSize
     this.temperatureOffset = gaussianRandom(0, 2) // Random temperature offset
   }
 
-  update(trueAltitude: number): BarometerReading {
+  /**
+   * Update the barometer simulation.
+   *
+   * The optional `dt` defaults to one configured sensor period for callers
+   * that do not run a fixed-step simulation. Fixed-step callers should pass
+   * their actual elapsed seconds so repeated calls between sensor ticks hold
+   * the last output.
+   */
+  update(trueAltitude: number, dt: number = 1 / this.config.updateRate): BarometerReading {
+    if (!Number.isFinite(trueAltitude)) {
+      throw new Error('Barometer trueAltitude must be finite')
+    }
+    if (!Number.isFinite(dt) || dt < 0) {
+      throw new Error('Barometer dt must be a non-negative finite number')
+    }
+
+    this.timeSinceLastReading += dt
+    const samplePeriod = 1 / this.config.updateRate
+    if (this.lastReading && this.timeSinceLastReading < samplePeriod) {
+      return this.lastReading
+    }
+    this.timeSinceLastReading = this.lastReading ? this.timeSinceLastReading % samplePeriod : 0
+
     const now = performance.now()
 
     // Barometric formula: P = P0 * (1 - L*h/T0)^(g*M/(R*L))
@@ -394,19 +458,37 @@ export class BarometerSensor {
 
     // Add noise
     const noisyPressure = truePressure + gaussianRandom(0, this.config.pressureNoiseStdDev)
-    const noisyAltitude =
-      44330 * (1 - Math.pow(noisyPressure / this.baselinePressure, 0.1903)) +
-      gaussianRandom(0, this.config.altitudeNoiseStdDev)
+    const pressureAltitude = 44330 * (1 - Math.pow(noisyPressure / this.baselinePressure, 0.1903))
 
-    // Temperature affects reading
-    const temperature = 15 - 0.0065 * trueAltitude + this.temperatureOffset
+    // The configured coefficient is an altitude error per degree of sensor
+    // temperature offset from the standard-atmosphere temperature at this
+    // altitude. This keeps lapse rate and sensor drift as separate effects.
+    const ambientTemperature = BAROMETER_REFERENCE_TEMPERATURE_C - 0.0065 * trueAltitude
+    const sensorTemperature = ambientTemperature + this.temperatureOffset
+    const temperatureAltitudeError =
+      (sensorTemperature - ambientTemperature) * this.config.temperatureDrift
 
-    return {
+    const reading: BarometerReading = {
       timestamp: now,
       pressure: noisyPressure,
-      altitude: noisyAltitude,
-      temperature: temperature + gaussianRandom(0, 0.1),
+      altitude:
+        pressureAltitude +
+        temperatureAltitudeError +
+        gaussianRandom(0, this.config.altitudeNoiseStdDev),
+      temperature: sensorTemperature + gaussianRandom(0, 0.1),
     }
+
+    this.readingBuffer.push(reading)
+    if (this.readingBuffer.length > this.readingBufferSize) {
+      this.readingBuffer.shift()
+    }
+    this.lastReading = reading
+    return reading
+  }
+
+  /** Return the newest reading that has crossed the configured latency window. */
+  getDelayedReading(): BarometerReading | null {
+    return selectDelayedReading(this.readingBuffer, this.config.latencyMs)
   }
 }
 
@@ -550,7 +632,7 @@ export class SensorSuite {
     return {
       imu: this.imu.update(angularVelocity, acceleration, orientation, dt),
       gps: this.gps.update(position, velocity, dt),
-      barometer: this.barometer.update(position.y),
+      barometer: this.barometer.update(position.y, dt),
     }
   }
 }

@@ -21,6 +21,13 @@ bun run test:coverage    # Run tests with coverage (enforces thresholds)
 bun run benchmark:native-detector -- --help # Release-only native detector evidence CLI
 bun run check:bundle     # Build + initial-bundle size budget
 bun run check:ncp-coherence # Verify NCP manifests, locks, and normative docs agree
+bun run check:product-profiles # Verify all eight immutable 0.9 NoAuthority profiles
+bun run check:ipc-contracts # Verify frontend/Rust commands and event contracts
+bun run check:release-tools # Verify version/tag and digest-manifest tooling
+bun run check:vendor-compat # Verify exact crates.io overlay provenance
+bun run check:production-vendors # Verify pinned Spark/Rapier/Three transforms and local-byte runtimes
+bun run check:ros-defs    # Validate ROS definitions and package XML
+bun run check:nix-deps    # Verify bun.nix is exactly generated from bun.lock
 bun run check:plant-boundary # Verify the inert plant package/process dependency boundary
 bun run check:plant-frames # Verify the digest-bound JS/Rust frame-convention corpus
 bun run check:plant      # Check the headless plant-authority package
@@ -28,7 +35,7 @@ bun run test:plant       # Test command/health/captured-age/safe-action/deadline
 bun run clippy:plant     # Strict Clippy for all plant targets
 bun run fmt:plant:check  # Rustfmt check scoped to the plant package
 bun run self-check:plant # Run crebain-plantd in inert self-check mode
-bun run validate         # typecheck + lint + format:check + frontend tests
+bun run validate         # contracts/provenance + typecheck/lint/format/frontend tests
 bun run validate:all     # NCP + frontend + inert plant + Rust default/NCP gates
 
 # Rust backend

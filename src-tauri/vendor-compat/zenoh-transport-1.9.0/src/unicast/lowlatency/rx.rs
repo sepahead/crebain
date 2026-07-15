@@ -1,0 +1,104 @@
+//
+// Copyright (c) 2023 ZettaScale Technology
+//
+// This program and the accompanying materials are made available under the
+// terms of the Eclipse Public License 2.0 which is available at
+// http://www.eclipse.org/legal/epl-2.0, or the Apache License, Version 2.0
+// which is available at https://www.apache.org/licenses/LICENSE-2.0.
+//
+// SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
+//
+// Contributors:
+//   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
+//
+use zenoh_buffers::{
+    reader::{HasReader, Reader},
+    ZSlice,
+};
+use zenoh_codec::{RCodec, Zenoh080};
+use zenoh_core::zread;
+use zenoh_link::LinkUnicast;
+use zenoh_protocol::{network::NetworkMessageMut, transport::TransportMessageLowLatency};
+use zenoh_result::{zerror, ZResult};
+
+use super::transport::TransportUnicastLowlatency;
+
+/*************************************/
+/*            TRANSPORT RX           */
+/*************************************/
+impl TransportUnicastLowlatency {
+    fn trigger_callback(
+        &self,
+        #[allow(unused_mut)] // shared-memory feature requires mut
+        mut msg: NetworkMessageMut,
+        #[cfg(feature = "stats")] stats: &zenoh_stats::LinkStats,
+    ) -> ZResult<()> {
+        let callback = zread!(self.callback).clone();
+        if let Some(callback) = callback.as_ref() {
+            #[cfg(feature = "stats")]
+            stats.inc_network_message(
+                zenoh_stats::Rx,
+                zenoh_protocol::network::NetworkMessageExt::as_ref(&msg),
+            );
+            #[cfg(feature = "shared-memory")]
+            {
+                if let Some(shm_context) = &self.shm_context {
+                    if let Err(e) =
+                        crate::shm::map_zmsg_to_shmbuf(msg.as_mut(), &shm_context.shm_reader)
+                    {
+                        tracing::debug!("Error receiving SHM buffer: {e}");
+                        return Ok(());
+                    }
+                }
+            }
+            callback.handle_message(msg)
+        } else {
+            tracing::debug!(
+                "Transport: {}. No callback available, dropping message: {}",
+                self.config.zid,
+                msg
+            );
+            Ok(())
+        }
+    }
+
+    pub(super) async fn read_messages(
+        &self,
+        mut zslice: ZSlice,
+        link: &LinkUnicast,
+        #[cfg(feature = "stats")] stats: &zenoh_stats::LinkStats,
+    ) -> ZResult<()> {
+        let codec = Zenoh080::new();
+        let mut reader = zslice.reader();
+        while reader.can_read() {
+            let msg: TransportMessageLowLatency = codec
+                .read(&mut reader)
+                .map_err(|_| zerror!("{}: decoding error", link))?;
+
+            tracing::trace!("Received: {:?}", msg);
+
+            #[cfg(feature = "stats")]
+            stats.inc_transport_message(zenoh_stats::Rx, 1);
+
+            match msg.body {
+                zenoh_protocol::transport::TransportBodyLowLatency::Close(_) => {
+                    // Spawn a task to avoid a deadlock waiting for this same task
+                    // to finish in the link close() joining the rx handle
+                    let c_transport = self.clone();
+                    zenoh_runtime::ZRuntime::Net.spawn(async move {
+                        let _ = c_transport.delete().await;
+                    });
+                }
+                zenoh_protocol::transport::TransportBodyLowLatency::KeepAlive(_) => {}
+                zenoh_protocol::transport::TransportBodyLowLatency::Network(mut msg) => {
+                    let _ = self.trigger_callback(
+                        msg.as_mut(),
+                        #[cfg(feature = "stats")]
+                        stats,
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+}

@@ -7,11 +7,14 @@ export interface SystemInfo {
   mode: string
   availableBackends: string[]
   experimentalMlxEnabled: boolean
+  inferenceReady: boolean | null
   onnxDetector?: unknown
   sensorFusion?: unknown
 }
 
-export type BackendHealth = 'ready' | 'unavailable' | 'unknown'
+export type BackendHealth = 'ready' | 'unavailable' | 'initializing' | 'busy' | 'unknown'
+export type DiagnosticsConnectionState =
+  'disconnected' | 'connecting' | 'connected' | 'reconnecting'
 
 export interface LatencyStats {
   mean: number
@@ -32,6 +35,7 @@ const UNKNOWN_SYSTEM_INFO: SystemInfo = {
   mode: 'unknown',
   availableBackends: [],
   experimentalMlxEnabled: false,
+  inferenceReady: null,
 }
 
 function readString(value: unknown, fallback: string): string {
@@ -42,6 +46,10 @@ function readString(value: unknown, fallback: string): string {
 
 function readBoolean(value: unknown): boolean {
   return typeof value === 'boolean' ? value : false
+}
+
+function readOptionalBoolean(value: unknown): boolean | null {
+  return typeof value === 'boolean' ? value : null
 }
 
 function readStringArray(value: unknown): string[] {
@@ -65,18 +73,43 @@ export function normalizeSystemInfo(value: unknown): SystemInfo {
     mode: readString(record.mode, UNKNOWN_SYSTEM_INFO.mode),
     availableBackends: readStringArray(record.availableBackends),
     experimentalMlxEnabled: readBoolean(record.experimentalMlxEnabled),
+    inferenceReady: readOptionalBoolean(record.inferenceReady),
     onnxDetector: record.onnxDetector,
     sensorFusion: record.sensorFusion,
   }
 }
 
 export function getBackendHealth(
-  info: Pick<SystemInfo, 'backend' | 'coremlAvailable' | 'onnxAvailable'>
+  info: Pick<SystemInfo, 'backend' | 'coremlAvailable' | 'onnxAvailable'> & {
+    inferenceReady?: boolean | null
+  }
 ): BackendHealth {
   const backend = info.backend.toLowerCase()
 
-  if (backend.includes('no backend') || backend.includes('not available') || backend === 'unknown')
+  // State words take precedence over provider-name substrings and legacy
+  // availability flags. For example, "Inference Runtime Busy" and
+  // "CoreML Not Initialized" must never become ready merely because they
+  // contain a recognized backend name.
+  if (backend.includes('busy')) return 'busy'
+  if (
+    backend.includes('not initialized') ||
+    backend.includes('uninitialized') ||
+    backend.includes('initializing')
+  ) {
+    return 'initializing'
+  }
+  if (
+    backend.includes('no backend') ||
+    backend.includes('not available') ||
+    backend.includes('unavailable') ||
+    backend.includes('failed') ||
+    backend.includes('error') ||
+    backend === 'unknown'
+  ) {
     return 'unavailable'
+  }
+  if (info.inferenceReady === false) return 'unknown'
+  if (info.inferenceReady === true) return 'ready'
   if (info.coremlAvailable || info.onnxAvailable) return 'ready'
   if (
     backend.includes('coreml') ||
@@ -88,6 +121,25 @@ export function getBackendHealth(
   }
 
   return 'unknown'
+}
+
+export function getBackendHealthLabel(health: BackendHealth): string {
+  return {
+    ready: 'BEREIT',
+    unavailable: 'NICHT VERFÜGBAR',
+    initializing: 'NICHT INITIALISIERT',
+    busy: 'BESCHÄFTIGT',
+    unknown: 'UNBEKANNT',
+  }[health]
+}
+
+export function getConnectionStatusLabel(state: DiagnosticsConnectionState): string {
+  return {
+    disconnected: 'GETRENNT',
+    connecting: 'VERBINDE...',
+    connected: 'VERBUNDEN',
+    reconnecting: 'WIEDERVERBINDEN...',
+  }[state]
 }
 
 export function summarizeSystemInfo(info: SystemInfo) {

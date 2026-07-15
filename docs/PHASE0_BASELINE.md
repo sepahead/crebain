@@ -43,6 +43,12 @@ bypass, restart, timing, and resource tests.
 - [`baselines/phase0-hazards.json`](baselines/phase0-hazards.json)
 - [`baselines/phase0-command-surfaces.json`](baselines/phase0-command-surfaces.json)
 - [`baselines/ecosystem-baseline.json`](baselines/ecosystem-baseline.json)
+
+At group level, `profiles.current` records the profiles in which a surface family
+is audited; it is not a live-reachability declaration. A fully removed group may
+therefore retain historical/applicability profiles. Each member's `status` and
+`source_assertion` are the authoritative current-reachability evidence, and the
+machine-readable `profile_semantics` field locks that interpretation.
 - [`baselines/plant-frame-conventions-v1.json`](baselines/plant-frame-conventions-v1.json)
 - [`baselines/plant-frame-golden-v1.tsv`](baselines/plant-frame-golden-v1.tsv)
 
@@ -102,11 +108,27 @@ every emitted JavaScript chunk, and scans the finalized chunks for WebSocket
 or computed/reflective/descriptor/global-destructuring capability recovery and
 callable-constructor dynamic code. A dedicated artifact self-test proves the
 finalized-chunk scanner rejects split, aliased, bound, descriptor, destructured,
-and dynamic variants. Direct `new Function` sites already supplied by pinned
-Spark/Rapier dependency-only chunks are an explicit vendor exception; project-
-bearing chunks and the artifact fixtures reject them, callable `.constructor()`
-remains forbidden, and Tauri CSP omits `unsafe-eval`. `bun run check:bundle`
-adds the initial-load size budget to that build.
+and dynamic variants. An exact pre-transform verifies the Spark 0.1.10, Rapier
+0.19.3, and Three 0.182.0 package manifests and exact upstream module hashes.
+It removes every vendor `fetch` reference, rejects Spark/Rapier external
+WebAssembly inputs, preserves Rapier's exact embedded-byte initializer,
+converts Spark's exact embedded main/worker payloads to local byte decoding,
+and hash-pins Spark's unchanged `fileBytes` path. Three's `FileLoader` and
+`ImageBitmapLoader` fail closed; its `ImageLoader` accepts only local `blob:` or
+canonical PNG/JPEG data-image inputs; and its exact GLTF transform rejects other
+manifest URIs while preserving bufferView/data-image textures through
+`TextureLoader`. Source and transformed URI walks reject each container before
+bulk push when it cannot fit a 262,144-value visited-plus-pending work ceiling.
+`bun run check:production-vendors` covers source, metadata,
+payload, AST shape, replacement count, and post-transform mutations; executes
+the Spark/Rapier embedded-byte paths; and parses product-validated textured GLBs
+through both admitted local-image forms. The transform and verifier are
+production-config inventory entries. The artifact report inventories each
+chunk's exact vendor modules; only the one-module Spark and Rapier chunks may
+contain their canonical bare `new Function` sites, at exact counts two and one.
+Every other dynamic-constructor path, callable `.constructor()`, and vendor
+network reference remains forbidden, and Tauri CSP omits `unsafe-eval`.
+`bun run check:bundle` adds the initial-load size budget to that build.
 
 The plant boundary check uses locked Cargo metadata and source inspection to
 require a separate dependency-free `crebain-plant-authority` package, a single

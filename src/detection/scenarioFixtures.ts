@@ -23,11 +23,15 @@ const FRAME_WIDTH = 1280
 const FRAME_HEIGHT = 720
 const TIMESTAMP = 1_700_000_000_000
 
-function camera(id: string, x: number, y: number, yaw: number): CameraParams {
+function camera(id: string, position: THREE.Vector3, target: THREE.Vector3): CameraParams {
+  const camera = new THREE.PerspectiveCamera(60, FRAME_WIDTH / FRAME_HEIGHT, 0.1, 1000)
+  camera.position.copy(position)
+  camera.lookAt(target)
+
   return {
     id,
-    position: new THREE.Vector3(x, y, 12),
-    rotation: new THREE.Euler(-0.35, yaw, 0),
+    position: position.clone(),
+    rotation: camera.rotation.clone(),
     fov: 60,
     aspectRatio: FRAME_WIDTH / FRAME_HEIGHT,
     near: 0.1,
@@ -55,7 +59,11 @@ function detection(
 }
 
 export function createDroneApproachScenario(): DetectionFusionScenarioFixture {
-  const cameras = [camera('cam-left', -8, 0, 0.18), camera('cam-right', 8, 0, -0.18)]
+  const target = new THREE.Vector3(0, 10, 57)
+  const cameras = [
+    camera('cam-left', new THREE.Vector3(-8, 0, 12), target),
+    camera('cam-right', new THREE.Vector3(8, 0, 12), target),
+  ]
 
   return {
     name: 'two-camera-drone-approach',
@@ -63,15 +71,15 @@ export function createDroneApproachScenario(): DetectionFusionScenarioFixture {
     frameHeight: FRAME_HEIGHT,
     cameras,
     detectionsByCamera: {
-      'cam-left': [detection('left-drone-1', 'cam-left', [602, 236, 676, 312], 0.91)],
-      'cam-right': [detection('right-drone-1', 'cam-right', [594, 238, 668, 314], 0.89)],
+      'cam-left': [detection('left-drone-1', 'cam-left', [603, 323, 677, 397], 0.91)],
+      'cam-right': [detection('right-drone-1', 'cam-right', [603, 323, 677, 397], 0.89)],
     },
     expectedTrack: {
       class: 'drone',
       threatLevel: 4,
       contributingCameras: ['cam-left', 'cam-right'],
       minConfidence: 0.85,
-      approximatePosition: [0.38, 9.71, 57.01],
+      approximatePosition: [0, 10, 57],
       positionTolerance: 0.5,
     },
   }

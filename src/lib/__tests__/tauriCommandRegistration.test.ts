@@ -96,7 +96,7 @@ describe('Tauri command registration', () => {
       // The engine is acquired either via the current_bridge() helper or a
       // direct TRANSPORT_ENGINE.lock(); validation must come first either way.
       const engineIndexes = [
-        block.indexOf('current_bridge()'),
+        block.indexOf('current_bridge('),
         block.indexOf('TRANSPORT_ENGINE.lock()'),
       ].filter((index) => index >= 0)
       expect(engineIndexes.length).toBeGreaterThan(0)

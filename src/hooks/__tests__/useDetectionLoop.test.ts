@@ -201,6 +201,7 @@ describe('useDetectionLoop helpers', () => {
       inferenceTimeMs: 1,
       preprocessTimeMs: null,
       postprocessTimeMs: null,
+      backend: 'test',
       error: null,
     })
     const { root, render, onDetection, onError } = renderDetectionLoop()

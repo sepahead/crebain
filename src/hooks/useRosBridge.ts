@@ -54,7 +54,10 @@ export interface UseRosBridgeReturn {
     topicStats: TopicStats[]
     alerts: PerformanceAlert[]
   }
-  /** Record a message receipt for performance tracking */
+  /**
+   * Record a message receipt for performance tracking. `latencyMs` is an
+   * already measured non-negative duration, not a wall-clock send timestamp.
+   */
   recordMessage: (topic: string, sizeBytes: number, latencyMs?: number) => void
 }
 
@@ -200,6 +203,7 @@ export function useRosBridge(config: Partial<UseRosBridgeConfig> = {}): UseRosBr
       })
 
       performanceMonitorRef.current = monitor
+      monitor.start()
 
       // Update stats periodically
       statsInterval = setInterval(() => {
@@ -216,6 +220,7 @@ export function useRosBridge(config: Partial<UseRosBridgeConfig> = {}): UseRosBr
 
     return () => {
       if (statsInterval) clearInterval(statsInterval)
+      monitor?.stop()
       if (bridgeSnapshotRef.current.bridge === bridge) {
         bridgeSnapshotRef.current = { transport, bridge: null, telemetry: null }
       }
@@ -276,7 +281,10 @@ export function useRosBridge(config: Partial<UseRosBridgeConfig> = {}): UseRosBr
 
   // Record message for performance tracking
   const recordMessage = useCallback((topic: string, sizeBytes: number, latencyMs?: number) => {
-    performanceMonitorRef.current?.recordMessage(topic, sizeBytes, latencyMs)
+    const monitor = performanceMonitorRef.current
+    if (!monitor) return
+    monitor.recordMessage(topic, sizeBytes)
+    if (latencyMs !== undefined) monitor.recordLatency(topic, latencyMs)
   }, [])
 
   const activeBridge = bridgeSnapshot.transport === transport ? bridgeSnapshot.telemetry : null

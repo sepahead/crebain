@@ -4,7 +4,15 @@ import * as THREE from 'three'
 import { SplatMesh } from '@sparkjsdev/spark'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js'
-import { SensorFusion, type FusionStats } from '../detection/SensorFusion'
+import {
+  hasFiniteMultiCameraTriangulation,
+  SensorFusion,
+  type FusionStats,
+} from '../detection/SensorFusion'
+import {
+  BROWSER_FUSION_BATCH_WINDOW_MS,
+  BrowserFusionBatcher,
+} from '../detection/BrowserFusionBatcher'
 import type { CoreMLDetectionResult, Detection, FusedTrack, CameraParams } from '../detection/types'
 import { drawDetectionsOnCanvas } from './DetectionOverlay'
 import {
@@ -26,19 +34,41 @@ import { createTacticalGrid, createGridLabels } from './viewer/TacticalGrid'
 import DetectionPanel from './viewer/DetectionPanel'
 import HeaderBar from './viewer/HeaderBar'
 import { captureCameraPixels, withCameraRenderTarget } from './viewer/cameraCapture'
+import {
+  disposeAllSurveillanceCamerasOnce,
+  removeSurveillanceCameraOnce,
+  updateSurveillanceCameraPtz,
+} from './viewer/surveillanceCameraState'
 import { disposeObject3D, forEachMesh, objectLabel } from '../lib/three/sceneObjects'
-import { fetchAssetWithLimit } from '../lib/boundedFetch'
+import { fetchAssetWithLimit, readFileAsArrayBuffer } from '../lib/boundedFetch'
 import { inspectPngJpegDimensions, validateSelfContainedGlb } from '../lib/glbValidation'
+import {
+  MAX_GLB_SOURCE_BYTES,
+  reserveGlbSceneResources,
+  reserveGlbSceneSourceBytes,
+} from '../lib/glbSceneBudget'
 import {
   createProceduralFloor,
   createTerrainMesh,
   type FloorStyle,
 } from './viewer/ProceduralTerrain'
-import { calculateLatencyStats, normalizeSystemInfo, type SystemInfo } from '../lib/diagnostics'
+import {
+  calculateLatencyStats,
+  getBackendHealth,
+  getBackendHealthLabel,
+  getConnectionStatusLabel,
+  normalizeSystemInfo,
+  type DiagnosticsConnectionState,
+  type SystemInfo,
+} from '../lib/diagnostics'
+import { runWithOperationDeadline } from '../lib/operationDeadline'
+import { runSceneRestoreTransaction } from '../lib/sceneRestoreTransaction'
 import { isTextInputTarget, VIEWER_SHORTCUTS } from '../lib/shortcuts'
 import { TAURI_COMMANDS } from '../lib/tauriCommands'
 import {
+  isReloadableGlbSource,
   isReloadableSceneSource,
+  isReloadableSplatSource,
   MAX_SCENE_ASSETS,
   type CameraState,
   type DetectionState,
@@ -64,7 +94,7 @@ import { isSplatFormat, isGlbFormat, generateCameraDesignation } from './viewer/
  * Adaptives Reaktions- und Aufklärungssystem
  * ═══════════════════════════════════════════════════════════════════════════════
  *
- * Version: 0.4.0
+ * Version: 0.9.0
  *
  * 3D-Gaussian-Splatting-Visualisierung für Verteidigungsanwendungen
  *
@@ -98,14 +128,6 @@ import { isSplatFormat, isGlbFormat, generateCameraDesignation } from './viewer/
  * ═══════════════════════════════════════════════════════════════════════════════
  */
 
-function disposeSurveillanceCamera(scene: THREE.Scene | null, camera: SurveillanceCamera): void {
-  scene?.remove(camera.helper)
-  camera.helper.dispose()
-  scene?.remove(camera.mesh)
-  camera.renderTarget.dispose()
-  disposeObject3D(camera.mesh)
-}
-
 interface CrebainViewerProps {
   onDetectionComplete?: (result: {
     inferenceTimeMs: number
@@ -122,6 +144,8 @@ interface CrebainViewerProps {
   }) => void
   performancePanelVisible?: boolean
   onPerformancePanelVisibleChange?: (visible: boolean) => void
+  rosConnectionState?: DiagnosticsConnectionState
+  rosTransport?: 'websocket' | 'zenoh'
 }
 
 type NativeDetectionResult = CoreMLDetectionResult & { backend?: string | null }
@@ -131,8 +155,6 @@ const COREML_TEST_HEIGHT = 480
 const VIEWER_BENCHMARK_ITERATIONS = 100
 const VIEWER_BENCHMARK_PROGRESS_STEP = 10
 const MAX_SPLAT_BYTES = 256 * 1024 * 1024
-const MAX_GLB_BYTES = 128 * 1024 * 1024
-const MAX_GLB_SCENE_BYTES = 512 * 1024 * 1024
 const MAX_FLOOR_TEXTURE_BYTES = 32 * 1024 * 1024
 const MAX_FLOOR_TEXTURE_PIXELS = 16_777_216
 const ASSET_DOWNLOAD_TIMEOUT_MS = 30_000
@@ -145,6 +167,8 @@ export default function CrebainViewer({
   onVisualTrack,
   performancePanelVisible = true,
   onPerformancePanelVisibleChange,
+  rosConnectionState = 'disconnected',
+  rosTransport = 'zenoh',
 }: CrebainViewerProps) {
   const { increaseScale, decreaseScale, scalePercent, isAtMin, isAtMax, cssVar } = useUIScale()
 
@@ -209,8 +233,10 @@ export default function CrebainViewer({
   const sceneRestoreGenerationRef = useRef(0)
   const splatCancellationRef = useRef<(() => void) | null>(null)
   const assetAbortControllersRef = useRef<Set<AbortController>>(new Set())
-  const pendingAssetLoadsRef = useRef(0)
-  const pendingAssetBytesRef = useRef(0)
+  const pendingAssetReservationsRef = useRef<Map<symbol, number>>(new Map())
+  const pendingAssetResourceReservationsRef = useRef(
+    new Map<symbol, ReturnType<typeof validateSelfContainedGlb>>()
+  )
   const [isDragging, setIsDragging] = useState(false)
   const [consoleMessages, setConsoleMessages] = useState<ConsoleMessage[]>([])
 
@@ -251,6 +277,13 @@ export default function CrebainViewer({
   const cameraDetectionsRef = useRef<Map<string, Detection[]>>(new Map())
   const [fusedTracks, setFusedTracks] = useState<FusedTrack[]>([])
   const [fusionStats, setFusionStats] = useState<FusionStats | null>(null)
+  const fusionBatcherRef = useRef(new BrowserFusionBatcher())
+  const fusionBatchTimerRef = useRef<number | null>(null)
+  const [fusionBatchDispatch, setFusionBatchDispatch] = useState(0)
+  const fusionBatchDispatchSequenceRef = useRef(0)
+  const lastFusionBatchDispatchRef = useRef(0)
+  const onVisualTrackRef = useRef(onVisualTrack)
+  onVisualTrackRef.current = onVisualTrack
   const [showDetectionPanel, setShowDetectionPanel] = useState(true)
   const [isTestingCoreML, setIsTestingCoreML] = useState(false)
   const [showDronePanel, setShowDronePanel] = useState(true)
@@ -396,6 +429,28 @@ export default function CrebainViewer({
     }
   }, [])
 
+  const resetVisualFusion = useCallback((clearTracks: boolean): void => {
+    if (fusionBatchTimerRef.current !== null) {
+      window.clearTimeout(fusionBatchTimerRef.current)
+      fusionBatchTimerRef.current = null
+    }
+    fusionBatcherRef.current.reset()
+    lastFusionBatchDispatchRef.current = fusionBatchDispatchSequenceRef.current
+    if (clearTracks) {
+      sensorFusionRef.current?.clearTracks()
+      setFusedTracks([])
+      setFusionStats(sensorFusionRef.current?.getStats() ?? null)
+    }
+  }, [])
+
+  useEffect(() => {
+    return () => resetVisualFusion(false)
+  }, [resetVisualFusion])
+
+  useEffect(() => {
+    if (!detectionEnabled) resetVisualFusion(true)
+  }, [detectionEnabled, resetVisualFusion])
+
   const messageTimeoutsRef = useRef<Map<string, number>>(new Map())
 
   useEffect(() => {
@@ -491,12 +546,31 @@ export default function CrebainViewer({
   )
 
   const handleDetection = useCallback((cameraId: string, detections: Detection[]) => {
-    setCameraDetections((prev) => {
-      const updated = new Map(prev)
-      updated.set(cameraId, detections)
-      cameraDetectionsRef.current = updated
-      return updated
-    })
+    const updated = new Map(cameraDetectionsRef.current)
+    updated.set(cameraId, detections)
+    cameraDetectionsRef.current = updated
+    setCameraDetections(updated)
+
+    // Display retention and fusion work are deliberately separate. A camera
+    // result enters this one-shot batcher exactly once; later React renders may
+    // continue to show it without replaying it into the tracker.
+    const enqueueStatus = fusionBatcherRef.current.enqueue(cameraId, detections, Date.now())
+    if (enqueueStatus !== 'accepted') {
+      log.warn('Visual fusion pending queue applied its bounded input policy', {
+        cameraId,
+        status: enqueueStatus,
+      })
+    }
+    if (enqueueStatus === 'rejected_invalid' || enqueueStatus === 'rejected_capacity') {
+      return
+    }
+    if (fusionBatchTimerRef.current === null) {
+      fusionBatchTimerRef.current = window.setTimeout(() => {
+        fusionBatchTimerRef.current = null
+        fusionBatchDispatchSequenceRef.current += 1
+        setFusionBatchDispatch(fusionBatchDispatchSequenceRef.current)
+      }, BROWSER_FUSION_BATCH_WINDOW_MS)
+    }
   }, [])
 
   const handlePerformance = useCallback(
@@ -528,9 +602,13 @@ export default function CrebainViewer({
   }, [handleDetection])
 
   useEffect(() => {
-    if (sensorFusionRef.current && cameras.length > 1 && cameraDetections.size > 0) {
+    if (fusionBatchDispatch === lastFusionBatchDispatchRef.current) return
+    lastFusionBatchDispatchRef.current = fusionBatchDispatch
+
+    const batch = fusionBatcherRef.current.takeBatch()
+    if (sensorFusionRef.current && batch && camerasRef.current.length > 1) {
       const cameraParams = new Map<string, CameraParams>()
-      cameras.forEach((cam) => {
+      camerasRef.current.forEach((cam) => {
         cameraParams.set(cam.id, {
           id: cam.id,
           position: cam.camera.position.clone(),
@@ -542,36 +620,32 @@ export default function CrebainViewer({
         })
       })
 
-      const tracks = sensorFusionRef.current.processFrame(cameraDetections, cameraParams)
+      const tracks = sensorFusionRef.current.processFrame(
+        batch.detections,
+        cameraParams,
+        batch.context
+      )
       setFusedTracks(tracks)
       setFusionStats(sensorFusionRef.current.getStats())
-      // All tracks emitted by one visual fusion pass are one synchronized
-      // observation frame. Capture the clock once so a millisecond rollover in
-      // this loop cannot make an otherwise coherent batch look asynchronous.
-      const timestampMs = Date.now()
-      for (const track of tracks) {
+      for (const track of sensorFusionRef.current.getLastFrameObservedTracks()) {
         const position = track.triangulatedPosition
-        if (
-          Number.isFinite(position.x) &&
-          Number.isFinite(position.y) &&
-          Number.isFinite(position.z)
-        ) {
-          onVisualTrack?.({
+        if (hasFiniteMultiCameraTriangulation(track)) {
+          onVisualTrackRef.current?.({
             id: track.id,
             position: [position.x, position.y, position.z],
             confidence: track.fusedConfidence,
             classLabel: track.class,
-            timestampMs,
+            timestampMs: track.updatedAt,
           })
         }
       }
 
       const highThreatTracks = tracks.filter((t) => t.threatLevel >= 3)
-      if (highThreatTracks.length > 0 && threatLevel < 3) {
-        setThreatLevel(3)
+      if (highThreatTracks.length > 0) {
+        setThreatLevel((current) => (current < 3 ? 3 : current))
       }
     }
-  }, [cameras, cameraDetections, onVisualTrack, threatLevel])
+  }, [fusionBatchDispatch])
 
   const totalDetections = useMemo(() => {
     let count = 0
@@ -732,42 +806,17 @@ export default function CrebainViewer({
 
   const updateCameraPTZ = useCallback(
     (cameraId: string, pan?: number, tilt?: number, zoom?: number) => {
-      setCameras((prev) =>
-        prev.map((cam) => {
-          if (cam.id !== cameraId) return cam
-          const newPan = pan !== undefined ? pan : cam.pan
-          const newTilt = tilt !== undefined ? Math.max(-85, Math.min(85, tilt)) : cam.tilt
-          const newZoom = zoom !== undefined ? Math.max(5, Math.min(120, zoom)) : cam.zoom
-          const euler = new THREE.Euler(
-            THREE.MathUtils.degToRad(-newTilt),
-            THREE.MathUtils.degToRad(newPan),
-            0,
-            'YXZ'
-          )
-          cam.camera.quaternion.setFromEuler(euler)
-          cam.camera.fov = newZoom
-          cam.camera.updateProjectionMatrix()
-          cam.mesh.quaternion.copy(cam.camera.quaternion)
-          return { ...cam, pan: newPan, tilt: newTilt, zoom: newZoom }
-        })
-      )
+      updateSurveillanceCameraPtz(camerasRef, setCameras, cameraId, pan, tilt, zoom)
     },
     []
   )
 
   const removeCamera = useCallback(
     (cameraId: string) => {
-      setCameras((prev) => {
-        const cam = prev.find((c) => c.id === cameraId)
-        if (cam) {
-          disposeSurveillanceCamera(sceneRef.current, cam)
-          addMessage('system', `${cam.name} DEAKTIVIERT`)
-        }
-        const next = prev.filter((c) => c.id !== cameraId)
-        camerasRef.current = next
-        return next
-      })
-      if (selectedCamera === cameraId) setSelectedCamera(null)
+      removeSurveillanceCameraOnce(sceneRef.current, camerasRef, setCameras, cameraId, (camera) =>
+        addMessage('system', `${camera.name} DEAKTIVIERT`)
+      )
+      setSelectedCamera((current) => (current === cameraId ? null : current))
       // Free the per-camera feed state: the canvas ref callback also deletes
       // its entry on unmount, but the pixel-readback buffer and pooled
       // ImageData (~0.9 MB each at 640x360) plus the last-render timestamp
@@ -776,22 +825,22 @@ export default function CrebainViewer({
       feedBuffersRef.current.delete(cameraId)
       feedImageDataRef.current.delete(cameraId)
       feedLastRenderAtRef.current.delete(cameraId)
+      fusionBatcherRef.current.removeCamera(cameraId)
       // Purge retained detections for the removed camera (the Map grows otherwise).
-      setCameraDetections((prev) => {
-        if (!prev.has(cameraId)) return prev
-        const next = new Map(prev)
+      const currentDetections = cameraDetectionsRef.current
+      if (currentDetections.has(cameraId)) {
+        const next = new Map(currentDetections)
         next.delete(cameraId)
         cameraDetectionsRef.current = next
-        return next
-      })
+        setCameraDetections(next)
+      }
     },
-    [selectedCamera, addMessage]
+    [addMessage]
   )
 
   const clearAllCameras = useCallback(() => {
-    camerasRef.current.forEach((camera) => disposeSurveillanceCamera(sceneRef.current, camera))
-    camerasRef.current = []
-    setCameras([])
+    disposeAllSurveillanceCamerasOnce(sceneRef.current, camerasRef, setCameras)
+    resetVisualFusion(true)
     setSelectedCamera(null)
     feedCanvasRefs.current.clear()
     feedBuffersRef.current.clear()
@@ -799,10 +848,16 @@ export default function CrebainViewer({
     feedLastRenderAtRef.current.clear()
     cameraDetectionsRef.current = new Map()
     setCameraDetections(new Map())
-  }, [])
+  }, [resetVisualFusion])
 
   const renameCamera = useCallback((cameraId: string, newName: string) => {
-    setCameras((prev) => prev.map((cam) => (cam.id === cameraId ? { ...cam, name: newName } : cam)))
+    const current = camerasRef.current
+    if (!current.some((camera) => camera.id === cameraId)) return
+    const next = current.map((camera) =>
+      camera.id === cameraId ? { ...camera, name: newName } : camera
+    )
+    camerasRef.current = next
+    setCameras(next)
   }, [])
 
   // GPU pixel readback is synchronous; the Promise contract is kept for API
@@ -1168,7 +1223,6 @@ export default function CrebainViewer({
       const camera = cameras.find((c) => c.mesh === object)
       if (camera) {
         removeCamera(camera.id)
-        addMessage('system', `${camera.name} ENTFERNT`)
         return
       }
 
@@ -1279,8 +1333,11 @@ export default function CrebainViewer({
       restoredTransform?: SplatSceneState
     ): Promise<boolean> => {
       if (!sceneRef.current) return false
+      if (typeof source === 'string' && !isReloadableSplatSource(source)) {
+        addMessage('error', 'FEHLER: SPLAT-URL ODER -FORMAT NICHT ERLAUBT')
+        return false
+      }
       splatCancellationRef.current?.()
-      splatCancellationRef.current = null
       // Bump the load generation: any callback belonging to an older, still
       // in-flight load becomes stale and must not touch the scene or UI.
       const generation = ++splatLoadGenRef.current
@@ -1296,6 +1353,18 @@ export default function CrebainViewer({
 
       let loadTimeout: ReturnType<typeof setTimeout> | undefined
       let progressInterval: ReturnType<typeof setInterval> | undefined
+      const acquisitionController = new AbortController()
+      let cancelRenderer: (() => void) | null = null
+      const cancelCurrentLoad = () => {
+        if (!acquisitionController.signal.aborted) {
+          acquisitionController.abort(new DOMException('Splat load superseded', 'AbortError'))
+        }
+        cancelRenderer?.()
+      }
+      // Install cancellation before URL or File acquisition starts. A newer
+      // load, restore, or unmount can now stop the full byte-read phase too.
+      splatCancellationRef.current = cancelCurrentLoad
+      assetAbortControllersRef.current.add(acquisitionController)
 
       try {
         if (splatMeshRef.current) {
@@ -1307,17 +1376,15 @@ export default function CrebainViewer({
         let fileBytes: ArrayBuffer
 
         if (typeof source === 'string') {
-          const controller = new AbortController()
-          assetAbortControllersRef.current.add(controller)
           const downloadTimeout = setTimeout(
-            () => controller.abort(new Error('Asset download timed out')),
+            () => acquisitionController.abort(new Error('Asset download timed out')),
             ASSET_DOWNLOAD_TIMEOUT_MS
           )
           try {
             fileBytes = await fetchAssetWithLimit(
               source,
               MAX_SPLAT_BYTES,
-              controller.signal,
+              acquisitionController.signal,
               (received, total) => {
                 if (!isStale() && isLatestLoading(loadingToken)) {
                   setLoadingProgress(total ? Math.round((received / total) * 50) : 25)
@@ -1326,23 +1393,20 @@ export default function CrebainViewer({
             )
           } finally {
             clearTimeout(downloadTimeout)
-            assetAbortControllersRef.current.delete(controller)
           }
         } else if (source instanceof File) {
           if (source.size > MAX_SPLAT_BYTES) {
             throw new Error(`Asset exceeds maximum size of ${MAX_SPLAT_BYTES} bytes`)
           }
-          fileBytes = await new Promise<ArrayBuffer>((resolve, reject) => {
-            const reader = new FileReader()
-            reader.onprogress = (e) => {
-              if (!isStale() && isLatestLoading(loadingToken) && e.lengthComputable) {
-                setLoadingProgress(Math.round((e.loaded / e.total) * 50))
+          fileBytes = await readFileAsArrayBuffer(
+            source,
+            acquisitionController.signal,
+            (received, total) => {
+              if (!isStale() && isLatestLoading(loadingToken)) {
+                setLoadingProgress(Math.round((received / total) * 50))
               }
             }
-            reader.onload = () => resolve(reader.result as ArrayBuffer)
-            reader.onerror = () => reject(new Error('File read failed'))
-            reader.readAsArrayBuffer(source)
-          })
+          )
         } else {
           if (source.byteLength > MAX_SPLAT_BYTES) {
             throw new Error(`Asset exceeds maximum size of ${MAX_SPLAT_BYTES} bytes`)
@@ -1361,7 +1425,6 @@ export default function CrebainViewer({
         if (isStale()) return false
 
         let loadSettled = false
-        let cancelCurrentLoad: (() => void) | null = null
         let resolveCompletion: (success: boolean) => void = () => undefined
         const completion = new Promise<boolean>((resolve) => {
           resolveCompletion = resolve
@@ -1377,9 +1440,10 @@ export default function CrebainViewer({
 
         progressInterval = setInterval(() => {
           if (isStale() || !isLatestLoading(loadingToken)) return
+          const increment = Math.random() * 5
           setLoadingProgress((prev) => {
             if (prev >= 95) return prev
-            return prev + Math.random() * 5
+            return prev + increment
           })
         }, 200)
 
@@ -1465,7 +1529,7 @@ export default function CrebainViewer({
             finish(true)
           },
         })
-        cancelCurrentLoad = () => {
+        cancelRenderer = () => {
           if (loadSettled) return
           clearTimeout(loadTimeout)
           clearInterval(progressInterval)
@@ -1477,10 +1541,9 @@ export default function CrebainViewer({
           finish(false)
         }
         if (!loadSettled) {
-          splatCancellationRef.current = cancelCurrentLoad
           loadTimeout = setTimeout(() => {
             if (loadSettled) return
-            cancelCurrentLoad?.()
+            cancelCurrentLoad()
             if (!isStale()) addMessage('error', `ZEITÜBERSCHREITUNG: ${displayName}`)
           }, 120000)
         }
@@ -1531,6 +1594,10 @@ export default function CrebainViewer({
         }
         return false
       } finally {
+        assetAbortControllersRef.current.delete(acquisitionController)
+        if (splatCancellationRef.current === cancelCurrentLoad) {
+          splatCancellationRef.current = null
+        }
         finishLoading(loadingToken)
       }
     },
@@ -1545,23 +1612,22 @@ export default function CrebainViewer({
     ): Promise<LoadedAsset | null> => {
       if (!sceneRef.current || !glbLoaderRef.current) return null
       const displayName = name || (source instanceof File ? source.name : 'MODELL')
-      if (loadedAssetsRef.current.length + pendingAssetLoadsRef.current >= MAX_SCENE_ASSETS) {
+      const reservation = Symbol(displayName)
+      const pendingReservations = pendingAssetReservationsRef.current
+      const pendingResourceReservations = pendingAssetResourceReservationsRef.current
+      if (loadedAssetsRef.current.length + pendingReservations.size >= MAX_SCENE_ASSETS) {
         addMessage('error', `FEHLER: MAXIMAL ${MAX_SCENE_ASSETS} GLB-ASSETS PRO SZENE`)
         return null
       }
-      pendingAssetLoadsRef.current += 1
-      let reservedBytes = 0
+      pendingReservations.set(reservation, 0)
       const loadingToken = beginLoading(displayName)
       const reserveBytes = (byteLength: number) => {
-        const currentBytes = loadedAssetsRef.current.reduce(
-          (total, asset) => total + (asset.byteSize ?? 0),
-          0
+        reserveGlbSceneSourceBytes(
+          loadedAssetsRef.current.map((asset) => asset.byteSize ?? 0),
+          pendingReservations,
+          reservation,
+          byteLength
         )
-        if (currentBytes + pendingAssetBytesRef.current + byteLength > MAX_GLB_SCENE_BYTES) {
-          throw new Error(`Scene GLB sources exceed ${MAX_GLB_SCENE_BYTES} aggregate bytes`)
-        }
-        reservedBytes = byteLength
-        pendingAssetBytesRef.current += reservedBytes
       }
       const scene = sceneRef.current
       const loader = glbLoaderRef.current
@@ -1572,19 +1638,26 @@ export default function CrebainViewer({
         assetLoadGenerationRef.current !== generation
 
       try {
-        const sourcePath = source instanceof File ? source.name : source.split('?')[0]
+        if (typeof source === 'string' && !isReloadableGlbSource(source)) {
+          throw new Error('GLB URL or format is not allowed')
+        }
+        const sourcePath = source instanceof File ? source.name : source.split(/[?#]/, 1)[0]
         if (!sourcePath.toLowerCase().endsWith('.glb')) {
           throw new Error('Only self-contained .glb imports are supported')
         }
 
         let bytes: ArrayBuffer
         if (source instanceof File) {
-          if (source.size > MAX_GLB_BYTES) {
-            throw new Error(`Asset exceeds maximum size of ${MAX_GLB_BYTES} bytes`)
+          if (source.size > MAX_GLB_SOURCE_BYTES) {
+            throw new Error(`Asset exceeds maximum size of ${MAX_GLB_SOURCE_BYTES} bytes`)
           }
           reserveBytes(source.size)
           bytes = await source.arrayBuffer()
         } else {
+          // Reserve the full per-source ceiling before acquisition. Waiting
+          // until fetch completion would allow many large ArrayBuffers to be
+          // materialized concurrently before the aggregate check runs.
+          reserveBytes(MAX_GLB_SOURCE_BYTES)
           const controller = new AbortController()
           assetAbortControllersRef.current.add(controller)
           const timeout = setTimeout(
@@ -1592,7 +1665,7 @@ export default function CrebainViewer({
             ASSET_DOWNLOAD_TIMEOUT_MS
           )
           try {
-            bytes = await fetchAssetWithLimit(source, MAX_GLB_BYTES, controller.signal)
+            bytes = await fetchAssetWithLimit(source, MAX_GLB_SOURCE_BYTES, controller.signal)
           } finally {
             clearTimeout(timeout)
             assetAbortControllersRef.current.delete(controller)
@@ -1601,7 +1674,15 @@ export default function CrebainViewer({
         if (isStale()) return null
 
         if (!(source instanceof File)) reserveBytes(bytes.byteLength)
-        validateSelfContainedGlb(bytes)
+        const glbValidation = validateSelfContainedGlb(bytes)
+        reserveGlbSceneResources(
+          loadedAssetsRef.current.flatMap((asset) =>
+            asset.glbValidation ? [asset.glbValidation] : []
+          ),
+          pendingResourceReservations,
+          reservation,
+          glbValidation
+        )
 
         const gltf = await new Promise<GLTF>((resolve, reject) => {
           loader.parse(bytes, '', resolve, reject)
@@ -1642,12 +1723,11 @@ export default function CrebainViewer({
           object: model,
           source: typeof source === 'string' ? source : undefined,
           byteSize: bytes.byteLength,
+          glbValidation,
         }
-        setLoadedAssets((previous) => {
-          const next = [...previous, asset]
-          loadedAssetsRef.current = next
-          return next
-        })
+        const nextAssets = [...loadedAssetsRef.current, asset]
+        loadedAssetsRef.current = nextAssets
+        setLoadedAssets(nextAssets)
         addMessage('success', `GELADEN: ${displayName}`)
         return asset
       } catch (error) {
@@ -1656,8 +1736,8 @@ export default function CrebainViewer({
         }
         return null
       } finally {
-        pendingAssetLoadsRef.current = Math.max(0, pendingAssetLoadsRef.current - 1)
-        pendingAssetBytesRef.current = Math.max(0, pendingAssetBytesRef.current - reservedBytes)
+        pendingReservations.delete(reservation)
+        pendingResourceReservations.delete(reservation)
         finishLoading(loadingToken)
       }
     },
@@ -2227,6 +2307,11 @@ export default function CrebainViewer({
       sceneRestoreGenerationRef.current += 1
       for (const controller of assetAbortControllers) controller.abort()
       assetAbortControllers.clear()
+      splatCancellationRef.current?.()
+      splatCancellationRef.current = null
+      // GLTFLoader.parse is callback-only and cannot be aborted. Its source
+      // and derived-resource reservations remain until loadGlb's finally path
+      // runs, even though this component will admit no further work unmounted.
       // Dispose floor mesh if it exists
       if (floorMeshRef.current) {
         disposeObject3D(floorMeshRef.current)
@@ -2264,10 +2349,7 @@ export default function CrebainViewer({
         disposeObject3D(asset.object)
       }
       loadedAssetsRef.current = []
-      for (const surveillanceCamera of camerasRef.current) {
-        disposeSurveillanceCamera(scene, surveillanceCamera)
-      }
-      camerasRef.current = []
+      disposeAllSurveillanceCamerasOnce(scene, camerasRef)
       controls.dispose()
       renderer.dispose()
       // Release the WebGL context so the GPU frees all uploaded buffers/textures
@@ -2541,18 +2623,6 @@ export default function CrebainViewer({
       setIsDragging(false)
       if (e.dataTransfer?.files?.length) {
         for (const file of Array.from(e.dataTransfer.files)) {
-          if (file.name === 'maverick-drone.glb') {
-            addMessage('tactical', 'MAVERICK-DROHNE ERKANNT: INITIIERE SYSTEM...')
-
-            const id = await spawnDrone('maverick', 'Maverick-Sim')
-            if (!id) {
-              addMessage('error', 'REACT SPAWN FEHLGESCHLAGEN')
-              return
-            }
-            addMessage('success', `LOKALE SIMULATION: ${id}`)
-            continue
-          }
-
           if (isSplatFormat(file.name)) await loadSplat(file, file.name)
           else if (isGlbFormat(file.name)) await loadGlb(file, file.name)
           else if (/\.(jpg|jpeg|png)$/i.test(file.name)) await loadFloorTexture(file, file.name)
@@ -2562,10 +2632,11 @@ export default function CrebainViewer({
       }
       const droppedText = e.dataTransfer?.getData('text/plain')
       if (droppedText) {
-        const filename = droppedText.split('/').pop() || 'Asset'
-        if (isSplatFormat(droppedText)) await loadSplat(droppedText, filename)
-        else if (isGlbFormat(droppedText)) await loadGlb(droppedText, filename)
-        else if (/\.(jpg|jpeg|png)$/i.test(droppedText))
+        const sourcePath = droppedText.split(/[?#]/, 1)[0]
+        const filename = sourcePath.split('/').pop() || 'Asset'
+        if (isReloadableSplatSource(droppedText)) await loadSplat(droppedText, filename)
+        else if (isReloadableGlbSource(droppedText)) await loadGlb(droppedText, filename)
+        else if (isReloadableSceneSource(droppedText) && /\.(jpg|jpeg|png)$/i.test(sourcePath))
           await loadFloorTexture(droppedText, filename)
         else addMessage('warning', 'URL NICHT UNTERSTÜTZT')
       }
@@ -2579,7 +2650,7 @@ export default function CrebainViewer({
       container.removeEventListener('dragleave', handleDragLeave)
       container.removeEventListener('drop', onDrop)
     }
-  }, [loadSplat, loadGlb, loadFloorTexture, spawnDrone, addMessage])
+  }, [loadSplat, loadGlb, loadFloorTexture, addMessage])
 
   const createSceneSnapshot = useCallback(
     (sceneName: string): SceneState => {
@@ -2707,188 +2778,242 @@ export default function CrebainViewer({
   const restoreScene = useCallback(
     async (state: SceneState): Promise<void> => {
       if (!physicsReady) throw new Error('Physics engine is still initializing')
+      const previousSettings = {
+        detectionEnabled,
+        showDetectionPanel,
+        performancePanelVisible,
+      }
+      const previousViewPosition = cameraRef.current?.position.clone() ?? null
+      const previousViewTarget = controlsRef.current?.target.clone() ?? null
       const restoreGeneration = ++sceneRestoreGenerationRef.current
-      let restoreTimedOut = false
       const isCurrentRestore = () =>
-        !restoreTimedOut &&
-        viewerMountedRef.current &&
-        sceneRestoreGenerationRef.current === restoreGeneration
-      const assertCurrentRestore = () => {
-        if (restoreTimedOut) throw new Error('Scene restore timed out')
-        if (!isCurrentRestore()) throw new Error('Scene restore was superseded')
+        viewerMountedRef.current && sceneRestoreGenerationRef.current === restoreGeneration
+      const clearLoadedSceneAssets = () => {
+        for (const asset of loadedAssetsRef.current) {
+          sceneRef.current?.remove(asset.object)
+          disposeObject3D(asset.object)
+        }
+        loadedAssetsRef.current = []
+        setLoadedAssets([])
+        if (splatMeshRef.current) {
+          sceneRef.current?.remove(splatMeshRef.current)
+          splatMeshRef.current.dispose?.()
+          splatMeshRef.current = null
+        }
+        lastSplatSourceRef.current = null
+        lastSplatNameRef.current = undefined
+        setCurrentAsset(null)
       }
-      const failures: string[] = []
-
-      // Supersede every pending asset operation from the previous scene before
-      // clearing its objects. Fetches are abortable; loader callbacks also gate
-      // on the generation below.
-      assetLoadGenerationRef.current += 1
-      for (const controller of assetAbortControllersRef.current) controller.abort()
-      assetAbortControllersRef.current.clear()
-      splatLoadGenRef.current += 1
-      cancelLoadingOperations()
-
-      clearSelection()
-      setCameraPlacementMode(null)
-      setDronePlacementMode(false)
-      setSimulationPaused(true)
-      clearAllCameras()
-      cameraCounterRef.current = { static: 0, ptz: 0, patrol: 0 }
-      for (const camera of state.cameras) {
-        const restoredCamera = placeCamera(
-          new THREE.Vector3(camera.position.x, camera.position.y, camera.position.z),
-          camera.type,
-          camera
-        )
-        if (!restoredCamera) failures.push(`camera ${camera.name}`)
-      }
-      setSelectedCamera(state.activeCameraId ?? null)
-
-      resetSimulation(true)
-
-      const previousAssets = loadedAssetsRef.current
-      for (const asset of previousAssets) {
-        sceneRef.current?.remove(asset.object)
-        disposeObject3D(asset.object)
-      }
-      loadedAssetsRef.current = []
-      setLoadedAssets([])
-      if (splatMeshRef.current) {
-        sceneRef.current?.remove(splatMeshRef.current)
-        splatMeshRef.current.dispose?.()
-        splatMeshRef.current = null
-      }
-      lastSplatSourceRef.current = null
-      lastSplatNameRef.current = undefined
-      setCurrentAsset(null)
-
-      const restoreTimeout = setTimeout(() => {
-        if (!isCurrentRestore()) return
-        restoreTimedOut = true
+      const cancelPendingAssetOperations = () => {
         assetLoadGenerationRef.current += 1
         splatLoadGenRef.current += 1
         for (const controller of assetAbortControllersRef.current) controller.abort()
         assetAbortControllersRef.current.clear()
         splatCancellationRef.current?.()
         splatCancellationRef.current = null
+        // Fetches abort, but a GLTF parse already in progress does not. Keep
+        // those reservations until each stale load reaches its finally path.
         cancelLoadingOperations()
-      }, SCENE_RESTORE_TIMEOUT_MS)
-
-      try {
-        for (const drone of state.drones) {
-          const restoredId = await spawnDrone(
-            drone.type,
-            drone.name,
-            new THREE.Vector3(drone.position.x, drone.position.y, drone.position.z),
-            {
-              id: drone.id,
-              orientation: new THREE.Quaternion(
-                drone.orientation.x,
-                drone.orientation.y,
-                drone.orientation.z,
-                drone.orientation.w
-              ),
-              velocity: new THREE.Vector3(drone.velocity.x, drone.velocity.y, drone.velocity.z),
-              angularVelocity: new THREE.Vector3(
-                drone.angularVelocity.x,
-                drone.angularVelocity.y,
-                drone.angularVelocity.z
-              ),
-              armed: drone.armed,
-              battery: drone.battery / 100,
-            }
-          )
-          assertCurrentRestore()
-          if (!restoredId) {
-            failures.push(`drone ${drone.name ?? drone.id}`)
-            addMessage('error', `DROHNE KONNTE NICHT GELADEN WERDEN: ${drone.name ?? drone.id}`)
-            continue
-          }
-          const waypoints = (drone.waypoints ?? []).map((waypoint) => ({
-            position: new THREE.Vector3(waypoint.x, waypoint.y, waypoint.z),
-            altitude: waypoint.y,
-          }))
-          setRoute(restoredId, waypoints, drone.routeMode ?? (waypoints.length ? 'once' : 'none'), {
-            isActive: drone.routeActive,
-            currentWaypointIndex: drone.routeCurrentWaypointIndex,
-          })
+      }
+      const rollbackFailedRestore = () => {
+        // A stale failure must not clear a newer restore. When this restore is
+        // current, invalidate every nested asynchronous path before disposing
+        // the partial scene. resetSimulation also advances the drone-spawn
+        // generation, so a late GLTF callback can only dispose its own mesh.
+        if (!isCurrentRestore()) return
+        sceneRestoreGenerationRef.current += 1
+        cancelPendingAssetOperations()
+        clearSelection()
+        setCameraPlacementMode(null)
+        setDronePlacementMode(false)
+        clearAllCameras()
+        cameraCounterRef.current = { static: 0, ptz: 0, patrol: 0 }
+        resetSimulation(true)
+        setSimulationPaused(true)
+        clearLoadedSceneAssets()
+        setDetectionEnabled(previousSettings.detectionEnabled)
+        setShowDetectionPanel(previousSettings.showDetectionPanel)
+        onPerformancePanelVisibleChange?.(previousSettings.performancePanelVisible)
+        setThreatLevel(1)
+        if (previousViewPosition && cameraRef.current) {
+          cameraRef.current.position.copy(previousViewPosition)
         }
-
-        const detections = new Map<string, Detection[]>()
-        const cameraIds = new Set(state.cameras.map((camera) => camera.id))
-        for (const detection of state.recentDetections) {
-          if (!cameraIds.has(detection.cameraId)) continue
-          const cameraDetections = detections.get(detection.cameraId) ?? []
-          cameraDetections.push({
-            id: detection.id,
-            class: detection.class as Detection['class'],
-            confidence: detection.confidence,
-            bbox: [...detection.bbox],
-            timestamp: detection.timestamp,
-            threatLevel:
-              detection.threatLevel >= 1 && detection.threatLevel <= 4
-                ? (detection.threatLevel as NonNullable<Detection['threatLevel']>)
-                : undefined,
-          })
-          detections.set(detection.cameraId, cameraDetections)
-        }
-        cameraDetectionsRef.current = detections
-        setCameraDetections(detections)
-
-        assertCurrentRestore()
-        for (const asset of state.assets ?? []) {
-          const loaded = await loadGlb(asset.source, asset.name, asset)
-          assertCurrentRestore()
-          if (!loaded) failures.push(`asset ${asset.name}`)
-        }
-        if (state.splatScene?.url) {
-          const loaded = await loadSplat(state.splatScene.url, undefined, state.splatScene)
-          assertCurrentRestore()
-          if (!loaded) failures.push('splat scene')
-        }
-
-        setDetectionEnabled(state.settings.detectionEnabled)
-        setShowDetectionPanel(state.settings.showDetectionPanel)
-        onPerformancePanelVisibleChange?.(state.settings.showPerformancePanel)
-        if (cameraRef.current) {
-          cameraRef.current.position.set(
-            state.viewCamera.position.x,
-            state.viewCamera.position.y,
-            state.viewCamera.position.z
-          )
-        }
-        if (controlsRef.current) {
-          controlsRef.current.target.set(
-            state.viewCamera.target.x,
-            state.viewCamera.target.y,
-            state.viewCamera.target.z
-          )
+        if (previousViewTarget && controlsRef.current) {
+          controlsRef.current.target.copy(previousViewTarget)
           controlsRef.current.update()
         }
-      } finally {
-        clearTimeout(restoreTimeout)
-        if (isCurrentRestore()) {
-          setSimulationPaused(!state.settings.physicsEnabled)
-        }
       }
 
-      if (failures.length > 0) {
-        throw new Error(`Scene restored with failures: ${failures.join(', ')}`)
-      }
+      await runSceneRestoreTransaction(
+        () =>
+          runWithOperationDeadline(
+            async ({ assertActive }) => {
+              assertActive()
+              const failures: string[] = []
+
+              // Supersede pending work from the previous scene before clearing its
+              // objects. Fetches are aborted; callback-only loaders are fenced by
+              // the generation counters they captured when they started.
+              cancelPendingAssetOperations()
+              clearSelection()
+              setCameraPlacementMode(null)
+              setDronePlacementMode(false)
+              setSimulationPaused(true)
+              clearAllCameras()
+              cameraCounterRef.current = { static: 0, ptz: 0, patrol: 0 }
+              resetSimulation(true)
+              clearLoadedSceneAssets()
+
+              for (const camera of state.cameras) {
+                const restoredCamera = placeCamera(
+                  new THREE.Vector3(camera.position.x, camera.position.y, camera.position.z),
+                  camera.type,
+                  camera
+                )
+                if (!restoredCamera) failures.push(`camera ${camera.name}`)
+              }
+              setSelectedCamera(state.activeCameraId ?? null)
+
+              for (const drone of state.drones) {
+                const restoredId = await spawnDrone(
+                  drone.type,
+                  drone.name,
+                  new THREE.Vector3(drone.position.x, drone.position.y, drone.position.z),
+                  {
+                    id: drone.id,
+                    orientation: new THREE.Quaternion(
+                      drone.orientation.x,
+                      drone.orientation.y,
+                      drone.orientation.z,
+                      drone.orientation.w
+                    ),
+                    velocity: new THREE.Vector3(
+                      drone.velocity.x,
+                      drone.velocity.y,
+                      drone.velocity.z
+                    ),
+                    angularVelocity: new THREE.Vector3(
+                      drone.angularVelocity.x,
+                      drone.angularVelocity.y,
+                      drone.angularVelocity.z
+                    ),
+                    armed: drone.armed,
+                    battery: drone.battery / 100,
+                  }
+                )
+                assertActive()
+                if (!restoredId) {
+                  failures.push(`drone ${drone.name ?? drone.id}`)
+                  addMessage(
+                    'error',
+                    `DROHNE KONNTE NICHT GELADEN WERDEN: ${drone.name ?? drone.id}`
+                  )
+                  continue
+                }
+                const waypoints = (drone.waypoints ?? []).map((waypoint) => ({
+                  position: new THREE.Vector3(waypoint.x, waypoint.y, waypoint.z),
+                  altitude: waypoint.y,
+                }))
+                const routeAccepted = setRoute(
+                  restoredId,
+                  waypoints,
+                  drone.routeMode ?? (waypoints.length ? 'once' : 'none'),
+                  {
+                    isActive: drone.routeActive,
+                    currentWaypointIndex: drone.routeCurrentWaypointIndex,
+                  }
+                )
+                if (!routeAccepted) failures.push(`route ${drone.name ?? drone.id}`)
+              }
+
+              const detections = new Map<string, Detection[]>()
+              const cameraIds = new Set(state.cameras.map((camera) => camera.id))
+              for (const detection of state.recentDetections) {
+                if (!cameraIds.has(detection.cameraId)) continue
+                const cameraDetections = detections.get(detection.cameraId) ?? []
+                cameraDetections.push({
+                  id: detection.id,
+                  class: detection.class as Detection['class'],
+                  confidence: detection.confidence,
+                  bbox: [...detection.bbox],
+                  timestamp: detection.timestamp,
+                  threatLevel:
+                    detection.threatLevel >= 1 && detection.threatLevel <= 4
+                      ? (detection.threatLevel as NonNullable<Detection['threatLevel']>)
+                      : undefined,
+                })
+                detections.set(detection.cameraId, cameraDetections)
+              }
+              cameraDetectionsRef.current = detections
+              setCameraDetections(detections)
+
+              assertActive()
+              for (const asset of state.assets ?? []) {
+                const loaded = await loadGlb(asset.source, asset.name, asset)
+                assertActive()
+                if (!loaded) failures.push(`asset ${asset.name}`)
+              }
+              if (state.splatScene?.url) {
+                const loaded = await loadSplat(state.splatScene.url, undefined, state.splatScene)
+                assertActive()
+                if (!loaded) failures.push('splat scene')
+              }
+
+              assertActive()
+              setDetectionEnabled(state.settings.detectionEnabled)
+              setShowDetectionPanel(state.settings.showDetectionPanel)
+              onPerformancePanelVisibleChange?.(state.settings.showPerformancePanel)
+              if (cameraRef.current) {
+                cameraRef.current.position.set(
+                  state.viewCamera.position.x,
+                  state.viewCamera.position.y,
+                  state.viewCamera.position.z
+                )
+              }
+              if (controlsRef.current) {
+                controlsRef.current.target.set(
+                  state.viewCamera.target.x,
+                  state.viewCamera.target.y,
+                  state.viewCamera.target.z
+                )
+                controlsRef.current.update()
+              }
+
+              if (failures.length > 0) {
+                throw new Error(`Scene restored with failures: ${failures.join(', ')}`)
+              }
+            },
+            {
+              timeoutMs: SCENE_RESTORE_TIMEOUT_MS,
+              timeoutMessage: 'Scene restore timed out',
+              supersededMessage: 'Scene restore was superseded',
+              isCurrent: isCurrentRestore,
+              onTimeout: rollbackFailedRestore,
+            }
+          ),
+        {
+          isCurrent: isCurrentRestore,
+          rollback: rollbackFailedRestore,
+          commit: () => setSimulationPaused(!state.settings.physicsEnabled),
+        }
+      )
     },
     [
       addMessage,
       cancelLoadingOperations,
       clearAllCameras,
       clearSelection,
+      detectionEnabled,
       loadGlb,
       loadSplat,
       onPerformancePanelVisibleChange,
+      performancePanelVisible,
       placeCamera,
       physicsReady,
       resetSimulation,
       setRoute,
       setSimulationPaused,
+      showDetectionPanel,
       spawnDrone,
     ]
   )
@@ -2901,14 +3026,20 @@ export default function CrebainViewer({
           .join(', ')
       : 'KEINE'
   const mlxStatusText = systemInfo.experimentalMlxEnabled ? 'OPT-IN EXP.' : 'AUS'
-  const backendStatusText =
-    systemInfo.backend === 'Unknown' || systemInfo.backend.toLowerCase().includes('no backend')
-      ? 'UNBEKANNT'
-      : 'BEREIT'
-  const backendStatusColor = backendStatusText === 'BEREIT' ? 'bg-[#3a6b4a]' : 'bg-[#a08040]'
+  const backendHealth = getBackendHealth(systemInfo)
+  const backendStatusText = getBackendHealthLabel(backendHealth)
+  const backendStatusColor = backendHealth === 'ready' ? 'bg-[#3a6b4a]' : 'bg-[#a08040]'
   const backendModeText = systemInfo.mode !== 'unknown' ? systemInfo.mode : 'UNBEKANNT'
   const cryptoStatusText = 'NICHT KONFIG.'
   const modelStatusText = 'VERTRAG OFFEN'
+  const rosConnectionStatusText = getConnectionStatusLabel(rosConnectionState)
+  const rosConnectionStatusColor =
+    rosConnectionState === 'connected'
+      ? 'text-[#3a6b4a]'
+      : rosConnectionState === 'disconnected'
+        ? 'text-[#808080]'
+        : 'text-[#a08040]'
+  const rosTransportText = rosTransport === 'websocket' ? 'rosbridge' : 'Zenoh'
 
   return (
     <div
@@ -3420,6 +3551,29 @@ export default function CrebainViewer({
                                 {fusionStats.multiCameraTracks}
                               </span>
                             </div>
+                            <div>
+                              Batch:{' '}
+                              <span
+                                className={
+                                  fusionStats.lastFrameStatus === 'ok'
+                                    ? 'text-[#3a6b4a]'
+                                    : 'text-[#a08040]'
+                                }
+                              >
+                                {fusionStats.lastFrameStatus}
+                              </span>
+                            </div>
+                            <div>
+                              Verworfen:{' '}
+                              <span className="text-[#808080]">
+                                {fusionStats.lastFrameDroppedDetections +
+                                  fusionStats.lastFrameRejectedDetections +
+                                  fusionStats.lastFrameDroppedGroups +
+                                  fusionStats.lastFrameEvictedTracks +
+                                  fusionStats.lastFrameDroppedCameras +
+                                  fusionStats.lastFrameRejectedCameras}
+                              </span>
+                            </div>
                           </>
                         )}
                       </div>
@@ -3447,7 +3601,10 @@ export default function CrebainViewer({
                       <div className="text-[#909090] mb-1.5">ROS INTEGRATION</div>
                       <div className="text-[#606060] space-y-0.5">
                         <div>
-                          rosbridge: <span className="text-[#3a6b4a]">BEREIT</span>
+                          {rosTransportText}:{' '}
+                          <span className={rosConnectionStatusColor}>
+                            {rosConnectionStatusText}
+                          </span>
                         </div>
                         <div>
                           Topics: <span className="text-[#808080]">/crebain/cam_*</span>

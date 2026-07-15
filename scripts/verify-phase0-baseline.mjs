@@ -76,6 +76,18 @@ const REQUIRED_RELEASE_INVOCATION_FILES = new Set([
   'src-tauri/tauri.conf.json',
   '.github/workflows/release.yml',
 ])
+const REQUIRED_PRODUCTION_BOUNDARY_DIGEST_FILES = new Set([
+  'package.json',
+  'bun.lock',
+  'vite.config.ts',
+  'docs/baselines/phase0-command-surfaces.json',
+  'scripts/verify-phase0-baseline.mjs',
+  'scripts/check-production-authority-boundary.mjs',
+  'scripts/test-production-authority-boundary.mjs',
+  'scripts/fixtures/production-boundary-invalid-cases.json',
+  'scripts/lib/production-vendor-boundary.mjs',
+  'scripts/test-production-vendor-boundary.mjs',
+])
 const REQUIRED_ROUTE_PREFIXES = new Set(['mavros/', 'gazebo/', 'cmd/motor_speed/'])
 const REQUIRED_GALADRIEL_EVIDENCE_ROUTES = new Set([
   'ncp://{realm}/session/{epoch}/sensor/galadriel-pid',
@@ -108,7 +120,9 @@ const REQUIRED_PRODUCTION_CONFIGS = new Set([
   'scripts/check-bundle-size.mjs',
   'scripts/check-plant-authority-boundary.mjs',
   'scripts/check-production-authority-boundary.mjs',
+  'scripts/lib/production-vendor-boundary.mjs',
   'scripts/test-production-authority-boundary.mjs',
+  'scripts/test-production-vendor-boundary.mjs',
 ])
 const REQUIRED_PRODUCTION_EXTENSIONS = new Set([
   '.action',
@@ -137,6 +151,12 @@ const REQUIRED_DEVELOPMENT_NETWORK_MODULES = new Map([
   ['src/ros/ROSBridge.ts', 'src/ros/ROSBridgeDisabled.ts'],
 ])
 const REQUIRED_PRODUCTION_FETCH_MODULES = new Set(['src/lib/boundedFetch.ts'])
+const FORBIDDEN_RENDERER_NETWORK_CAPABILITIES = new Set([
+  'XMLHttpRequest',
+  'EventSource',
+  'WebTransport',
+  'sendBeacon',
+])
 const PLANT_AUTHORITY_SOURCE_ROOT = 'src-tauri/crates/plant-authority/src/'
 const PLANT_AUTHORITY_MANIFEST = 'src-tauri/crates/plant-authority/Cargo.toml'
 const REQUIRED_CONDITIONAL_EXECUTABLE_INPUTS = new Map([
@@ -260,7 +280,7 @@ function isProductionFile(path, extensions) {
   )
 }
 
-function walkFiles(root, relativeRoot) {
+export function walkFiles(root, relativeRoot) {
   const absoluteRoot = resolve(root, relativeRoot)
   assert(existsSync(absoluteRoot), `production scan root is missing: ${relativeRoot}`)
   const files = []
@@ -268,8 +288,10 @@ function walkFiles(root, relativeRoot) {
     for (const entry of readdirSync(absoluteDirectory, { withFileTypes: true })) {
       if (entry.name.startsWith('.')) continue
       const relativePath = `${relativeDirectory}/${entry.name}`
+      assert(!entry.isSymbolicLink(), `production scan rejects symbolic link: ${relativePath}`)
       if (entry.isDirectory()) walk(resolve(absoluteDirectory, entry.name), relativePath)
       else if (entry.isFile()) files.push(relativePath)
+      else fail(`production scan encountered unsupported filesystem entry: ${relativePath}`)
     }
   }
   walk(absoluteRoot, relativeRoot)
@@ -912,6 +934,7 @@ function analyzeScriptSource(relativePath, source, knownPrefixes, forbiddenCapab
   const capabilities = new Set()
   const websocketReferences = []
   const fetchCalls = []
+  const forbiddenNetworkReferences = []
   const directDevImports = []
   const unresolvedComputedCalls = []
   const dynamicCode = []
@@ -934,6 +957,7 @@ function analyzeScriptSource(relativePath, source, knownPrefixes, forbiddenCapab
     ...forbiddenCapabilities,
     'WebSocket',
     'fetch',
+    ...FORBIDDEN_RENDERER_NETWORK_CAPABILITIES,
     'Function',
     'eval',
   ])
@@ -954,6 +978,9 @@ function analyzeScriptSource(relativePath, source, knownPrefixes, forbiddenCapab
       }
       if (name === 'fetch') fetchCalls.push(sourceLocation(sourceFile, node))
       if (name === 'WebSocket') websocketReferences.push(sourceLocation(sourceFile, node))
+      if (name && FORBIDDEN_RENDERER_NETWORK_CAPABILITIES.has(name)) {
+        forbiddenNetworkReferences.push(`${name}@${sourceLocation(sourceFile, node)}`)
+      }
       if (ts.isElementAccessExpression(unwrapExpression(node.expression)) && name === null) {
         unresolvedComputedCalls.push(sourceLocation(sourceFile, node))
       }
@@ -1086,6 +1113,14 @@ function analyzeScriptSource(relativePath, source, knownPrefixes, forbiddenCapab
     }
     if (
       ts.isNewExpression(node) &&
+      FORBIDDEN_RENDERER_NETWORK_CAPABILITIES.has(memberName(node.expression, bindings))
+    ) {
+      forbiddenNetworkReferences.push(
+        `${memberName(node.expression, bindings)}@${sourceLocation(sourceFile, node)}`
+      )
+    }
+    if (
+      ts.isNewExpression(node) &&
       ts.isElementAccessExpression(unwrapExpression(node.expression)) &&
       memberName(node.expression, bindings) === null
     ) {
@@ -1107,6 +1142,13 @@ function analyzeScriptSource(relativePath, source, knownPrefixes, forbiddenCapab
     }
     if (ts.isIdentifier(node) && node.text === 'fetch') {
       fetchCalls.push(sourceLocation(sourceFile, node))
+    }
+    if (
+      ts.isIdentifier(node) &&
+      FORBIDDEN_RENDERER_NETWORK_CAPABILITIES.has(node.text) &&
+      !ts.isPropertyAssignment(node.parent)
+    ) {
+      forbiddenNetworkReferences.push(`${node.text}@${sourceLocation(sourceFile, node)}`)
     }
     if (ts.isIdentifier(node) && (node.text === 'Function' || node.text === 'eval')) {
       dynamicCode.push(sourceLocation(sourceFile, node))
@@ -1141,6 +1183,7 @@ function analyzeScriptSource(relativePath, source, knownPrefixes, forbiddenCapab
     capabilities,
     websocketReferences,
     fetchCalls,
+    forbiddenNetworkReferences,
     directDevImports,
     unresolvedComputedCalls,
     dynamicCode,
@@ -1665,6 +1708,12 @@ function verifyInventory(root, inventory, hazardIds, getSource, sourceOverrides,
     inventory.target_completion_level === 'L1',
     `inventory target_completion_level must be L1, got '${inventory.target_completion_level}'`
   )
+  assert(
+    inventory.profile_semantics?.current === 'audit-applicability-not-live-reachability' &&
+      inventory.profile_semantics?.member_reachability ===
+        'members[].status plus members[].source_assertion',
+    'inventory profile_semantics must distinguish group applicability from member reachability'
+  )
   assertExactVocabulary(
     inventory.classifications,
     KNOWN_CLASSIFICATIONS,
@@ -1994,6 +2043,11 @@ function verifyInventory(root, inventory, hazardIds, getSource, sourceOverrides,
           `undeclared renderer fetch capability in ${relativePath}:${analysis.fetchCalls.join(',')}`
         )
       }
+      if (analysis.forbiddenNetworkReferences.length > 0) {
+        fail(
+          `forbidden renderer network capability in ${relativePath}:${analysis.forbiddenNetworkReferences.join(',')}`
+        )
+      }
       if (analysis.directDevImports.length > 0 && !developmentNetworkModules.has(relativePath)) {
         fail(
           `direct runtime import of the development rosbridge module in ${relativePath}:${analysis.directDevImports.join(',')}`
@@ -2049,7 +2103,8 @@ function verifyInventory(root, inventory, hazardIds, getSource, sourceOverrides,
     )
     assert(
       replacementAnalysis.websocketReferences.length === 0 &&
-        replacementAnalysis.fetchCalls.length === 0,
+        replacementAnalysis.fetchCalls.length === 0 &&
+        replacementAnalysis.forbiddenNetworkReferences.length === 0,
       `${replacement} production replacement must be network-free`
     )
   }
@@ -2208,6 +2263,9 @@ function verifyEcosystem(root, ecosystem) {
   }
   for (const path of REQUIRED_RELEASE_INVOCATION_FILES) {
     assert(configPaths.has(path), `release invocation artifact is not pinned: ${path}`)
+  }
+  for (const path of REQUIRED_PRODUCTION_BOUNDARY_DIGEST_FILES) {
+    assert(configPaths.has(path), `production boundary artifact is not digest-pinned: ${path}`)
   }
 
   assert(

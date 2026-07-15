@@ -1119,7 +1119,23 @@ fn retain_newest_measurements_for_limit(
         return Ok(0);
     }
     let dropped = measurements.len() - limit;
-    *measurements = measurements.split_off(dropped);
+    let mut newest_first = (0..measurements.len()).collect::<Vec<_>>();
+    newest_first.sort_by(|left, right| {
+        measurements[*right]
+            .timestamp_ms
+            .cmp(&measurements[*left].timestamp_ms)
+            .then_with(|| left.cmp(right))
+    });
+    let mut retained = vec![false; measurements.len()];
+    for index in newest_first.into_iter().take(limit) {
+        retained[index] = true;
+    }
+    let mut index = 0_usize;
+    measurements.retain(|_| {
+        let keep = retained[index];
+        index += 1;
+        keep
+    });
     u64::try_from(dropped).map_err(|_| "registry input-drop count exceeds u64".to_string())
 }
 
@@ -1141,6 +1157,14 @@ fn process_fusion_batch_with_sink<F>(
 where
     F: FnOnce(Vec<pid_observation::PidObservation>),
 {
+    let (measurements, duplicate_count) =
+        sensor_fusion::deduplicate_sensor_measurements(measurements);
+    if duplicate_count > 0 {
+        log::warn!(
+            "Ignored {duplicate_count} bit-exact duplicate measurements before fusion admission"
+        );
+    }
+
     #[cfg(feature = "ncp")]
     if let Some(handle) = galadriel_handle()? {
         let mut measurements = measurements;
@@ -1483,6 +1507,8 @@ fn with_invoke_handler<R: tauri::Runtime>(builder: tauri::Builder<R>) -> tauri::
         transport_connect,
         transport_disconnect,
         transport_subscribe_camera,
+        transport_take_camera_frame,
+        transport_ack_camera_frame,
         transport_subscribe_camera_info,
         transport_subscribe_imu,
         transport_subscribe_pose,
@@ -2005,6 +2031,7 @@ mod tests {
             .map(|index| {
                 let mut measurement = test_sensor_measurement();
                 measurement.sensor_id = format!("sensor-{index}");
+                measurement.timestamp_ms = [1_200, 1_000, 1_100][index];
                 measurement
             })
             .collect::<Vec<_>>();
@@ -2012,6 +2039,29 @@ mod tests {
         let dropped = retain_newest_measurements_for_limit(&mut measurements, 2).unwrap();
 
         assert_eq!(dropped, 1);
+        assert_eq!(
+            measurements
+                .iter()
+                .map(|measurement| measurement.sensor_id.as_str())
+                .collect::<Vec<_>>(),
+            ["sensor-0", "sensor-2"]
+        );
+    }
+
+    #[test]
+    fn registry_input_limit_breaks_timestamp_ties_by_original_order() {
+        let mut measurements = (0..4)
+            .map(|index| {
+                let mut measurement = test_sensor_measurement();
+                measurement.sensor_id = format!("sensor-{index}");
+                measurement.timestamp_ms = [1_000, 1_200, 1_200, 1_100][index];
+                measurement
+            })
+            .collect::<Vec<_>>();
+
+        let dropped = retain_newest_measurements_for_limit(&mut measurements, 2).unwrap();
+
+        assert_eq!(dropped, 2);
         assert_eq!(
             measurements
                 .iter()
@@ -2268,6 +2318,8 @@ mod tests {
             "transport_connect",
             "transport_disconnect",
             "transport_subscribe_camera",
+            "transport_take_camera_frame",
+            "transport_ack_camera_frame",
             "transport_subscribe_camera_info",
             "transport_subscribe_imu",
             "transport_subscribe_pose",
@@ -2606,6 +2658,8 @@ mod tests {
         let app = MockIpcApp::new();
         for command in [
             "transport_subscribe_camera",
+            "transport_take_camera_frame",
+            "transport_ack_camera_frame",
             "transport_subscribe_camera_info",
             "transport_subscribe_imu",
             "transport_subscribe_pose",
@@ -2615,8 +2669,58 @@ mod tests {
             let mut body = serde_json::json!({ "topic": "relative/topic" });
             if command == "transport_subscribe_camera" {
                 body["compressed"] = serde_json::Value::Bool(false);
+                body["cameraSubscriptionId"] = serde_json::Value::String("1".to_string());
+            }
+            if matches!(
+                command,
+                "transport_take_camera_frame" | "transport_ack_camera_frame"
+            ) {
+                body["deliveryId"] = serde_json::Value::String("1".to_string());
+                body["cameraSubscriptionId"] = serde_json::Value::String("1".to_string());
+                body["generation"] = serde_json::Value::String("1".to_string());
             }
             app.assert_error_contains(command, body, "absolute ROS name");
+        }
+    }
+
+    #[test]
+    fn serialized_ipc_accepts_maximum_canonical_lifecycle_generation_string() {
+        let app = MockIpcApp::new();
+
+        let response = app
+            .invoke(
+                "transport_disconnect",
+                serde_json::json!({ "generation": "18446744073709551615" }),
+            )
+            .expect("maximum canonical u64 generation must cross IPC exactly");
+
+        assert_eq!(response, serde_json::Value::Null);
+    }
+
+    #[test]
+    fn serialized_ipc_rejects_numeric_lifecycle_generations() {
+        let app = MockIpcApp::new();
+        for generation in [
+            serde_json::json!(7),
+            serde_json::json!(9_007_199_254_740_992_u64),
+        ] {
+            app.assert_error_contains(
+                "transport_disconnect",
+                serde_json::json!({ "generation": generation }),
+                "invalid args `generation`",
+            );
+        }
+    }
+
+    #[test]
+    fn serialized_ipc_rejects_noncanonical_lifecycle_generation_strings() {
+        let app = MockIpcApp::new();
+        for generation in ["", "0", "01", "+1", "18446744073709551616"] {
+            app.assert_error_contains(
+                "transport_disconnect",
+                serde_json::json!({ "generation": generation }),
+                "Transport lifecycle generation",
+            );
         }
     }
 }

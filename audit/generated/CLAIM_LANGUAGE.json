@@ -1,0 +1,2632 @@
+[
+  {
+    "line": 15,
+    "path": ".superstack/security-reports/crebain-2026-07-10.md",
+    "text": "transport-correlation, fail-safe control, and supply-chain gaps found during the"
+  },
+  {
+    "line": 41,
+    "path": ".superstack/security-reports/crebain-2026-07-10.md",
+    "text": "| SEC-01 | High | Browser/native image ingress | PNG/JPEG signatures, dimensions, exact raw lengths, decoded-allocation limits, bounded reads, and codec narrowing now reject image bombs and malformed payloads before allocation/decode. |"
+  },
+  {
+    "line": 42,
+    "path": ".superstack/security-reports/crebain-2026-07-10.md",
+    "text": "| SEC-02 | High | Scene persistence | Scene files are JSON-only and capped at 10 MiB; browser reads are preflighted; native reads are bounded and saves use same-directory atomic replacement; schema counts, IDs, references, numbers, and migrations are validated. |"
+  },
+  {
+    "line": 44,
+    "path": ".superstack/security-reports/crebain-2026-07-10.md",
+    "text": "| SEC-04 | High | Gazebo mutation | Names, poses, twists, XML size, and privileged XML constructs are validated. Only the fixed bundled Maverick path may construct privileged SDF; mutation calls require an explicit successful service reply. |"
+  },
+  {
+    "line": 46,
+    "path": ".superstack/security-reports/crebain-2026-07-10.md",
+    "text": "| SEC-06 | High | NCP actuation | Velocity commands are exact finite m/s vectors with a magnitude ceiling; sequence, TTL, and horizon rules fail closed; the plant is rate-limited and emits final HOLD on close/drop. RPC and spike targets are validated. |"
+  },
+  {
+    "line": 97,
+    "path": ".superstack/security-reports/crebain-2026-07-10.md",
+    "text": "   git declarations. The committed lockfiles resolve exact revisions; dependency"
+  },
+  {
+    "line": 109,
+    "path": ".superstack/security-reports/crebain-2026-07-10.md",
+    "text": "Merge only with the exact candidate's hosted CI, CodeQL, and supply-chain runs"
+  },
+  {
+    "line": 14,
+    "path": ".windsurf/workflows/manual-smoke-test.md",
+    "text": "   - Galadriel producer: an `ncp`-feature Tauri build with the exact documented"
+  },
+  {
+    "line": 18,
+    "path": ".windsurf/workflows/manual-smoke-test.md",
+    "text": "6. For detector or benchmark results, record model file, digest, backend, hardware, fixture inputs, threshold settings, and the exact invocation or UI action."
+  },
+  {
+    "line": 21,
+    "path": ".windsurf/workflows/manual-smoke-test.md",
+    "text": "   exact two keys, producer epoch/identity, registry and effective-config digests,"
+  },
+  {
+    "line": 27,
+    "path": "AGENTS.md",
+    "text": "bun run test:plant       # Test command/health/captured-age/safe-action/deadline-monitor/apply-observation contracts plus frame/lifecycle/channel/passive-expiry/headless foundations"
+  },
+  {
+    "line": 82,
+    "path": "AGENTS.md",
+    "text": "- `ncp/` - Dormant NCP Engram action/control adapter behind the off-by-default `ncp` feature; its Tauri commands remain unregistered. The feature also compiles the separately exact-runtime-gated `galadriel_producer.rs`, strict `galadriel_registry.rs`, and frozen `producer_monitor.rs` evidence path. Do not describe secure config loading as TLS/ACL proof or local puts as receiver delivery. See `src-tauri/src/ncp/README.md` and `docs/GALADRIEL_PRODUCER.md`. (The dormant TypeScript peer is `src/neur"
+  },
+  {
+    "line": 83,
+    "path": "AGENTS.md",
+    "text": "- `sensor_fusion.rs` - Kalman/EKF/UKF/Particle/IMM filters plus the feature-gated exact-time frozen-prior Galadriel ledger, bounded upstream/capacity accounting, and sparse assignment; registry transforms are not executed and component load tests are not deployment deadline evidence"
+  },
+  {
+    "line": 21,
+    "path": "CHANGELOG.md",
+    "text": "  profile-bound health-age relations from one check. Exact profile or"
+  },
+  {
+    "line": 30,
+    "path": "CHANGELOG.md",
+    "text": "  revocation, safe action, adapter operation, I/O, or runtime wiring, although"
+  },
+  {
+    "line": 56,
+    "path": "CHANGELOG.md",
+    "text": "  nonfinite values, and vectors outside the instantaneous speed limits are rejected by stable typed"
+  },
+  {
+    "line": 83,
+    "path": "CHANGELOG.md",
+    "text": "  a caller-supplied lifecycle generation and exact per-register sequence."
+  },
+  {
+    "line": 92,
+    "path": "CHANGELOG.md",
+    "text": "  exact candidate profile, vehicle/source/stream-epoch identity, runtime"
+  },
+  {
+    "line": 97,
+    "path": "CHANGELOG.md",
+    "text": "  exposes exact ages without a healthy/safe verdict. Source identities are"
+  },
+  {
+    "line": 104,
+    "path": "CHANGELOG.md",
+    "text": "  rejects zero limits and exact-profile mismatch, and compares receipt plus all"
+  },
+  {
+    "line": 107,
+    "path": "CHANGELOG.md",
+    "text": "  exact observation and policy together and exposes no boolean or aggregate"
+  },
+  {
+    "line": 108,
+    "path": "CHANGELOG.md",
+    "text": "  fresh/healthy/safe/eligible/authorized result. Limits are caller-proposed and"
+  },
+  {
+    "line": 115,
+    "path": "CHANGELOG.md",
+    "text": "- **Inactive safe-action situation-dispatch candidate.** A separate plant-side"
+  },
+  {
+    "line": 119,
+    "path": "CHANGELOG.md",
+    "text": "  table without heap allocation and bind it to an exact `ProfileIdentity`; zero"
+  },
+  {
+    "line": 127,
+    "path": "CHANGELOG.md",
+    "text": "  validated command can mint a ticket whose immutable deadline is exactly its"
+  },
+  {
+    "line": 132,
+    "path": "CHANGELOG.md",
+    "text": "  must carry the same exact profile, session, and generation with a strictly"
+  },
+  {
+    "line": 135,
+    "path": "CHANGELOG.md",
+    "text": "  an older receipt terminalizes the monitor. Exact/late deadline detection,"
+  },
+  {
+    "line": 137,
+    "path": "CHANGELOG.md",
+    "text": "  evidence; synchronization failure omits an exact active-key claim. Worker-start"
+  },
+  {
+    "line": 140,
+    "path": "CHANGELOG.md",
+    "text": "  output, select/apply a safe action, qualify suspend behavior, reserve scheduler"
+  },
+  {
+    "line": 146,
+    "path": "CHANGELOG.md",
+    "text": "  exact deadline fail closed. It has no command payload, refresh, timer,"
+  },
+  {
+    "line": 147,
+    "path": "CHANGELOG.md",
+    "text": "  safe-action selection, adapter hook, or I/O and is not an active watchdog."
+  },
+  {
+    "line": 150,
+    "path": "CHANGELOG.md",
+    "text": "  `CREBAIN_GALADRIEL_ENABLE=1` and an explicit key-safe"
+  },
+  {
+    "line": 152,
+    "path": "CHANGELOG.md",
+    "text": "  sidecar and producer-monitor envelopes to the exact `galadriel-pid` and"
+  },
+  {
+    "line": 158,
+    "path": "CHANGELOG.md",
+    "text": "  mismatch, malformed queue/heartbeat policy, or secure-mode Zenoh open error."
+  },
+  {
+    "line": 162,
+    "path": "CHANGELOG.md",
+    "text": "  calls cannot replace that engine. Strict exact-time/channel-monotonic rules"
+  },
+  {
+    "line": 172,
+    "path": "CHANGELOG.md",
+    "text": "  validated/serialized before writing, and admission or writer failure degrades"
+  },
+  {
+    "line": 193,
+    "path": "CHANGELOG.md",
+    "text": "  because they have no single compatible innovation covariance. Without an"
+  },
+  {
+    "line": 213,
+    "path": "CHANGELOG.md",
+    "text": "  session configuration, not exclusive accelerator graph placement. Exact"
+  },
+  {
+    "line": 226,
+    "path": "CHANGELOG.md",
+    "text": "- **Unit-correct \"lowest-noise\" selection across modalities.** The birth-representative"
+  },
+  {
+    "line": 245,
+    "path": "CHANGELOG.md",
+    "text": "  identical post-gap state and covariance."
+  },
+  {
+    "line": 268,
+    "path": "CHANGELOG.md",
+    "text": "- **The optional NCP action receiver now enforces fail-safe output continuously.**"
+  },
+  {
+    "line": 277,
+    "path": "CHANGELOG.md",
+    "text": "  SDK's typed `ZenohNcpClient`. The Vite-dev harness validates complete active"
+  },
+  {
+    "line": 288,
+    "path": "CHANGELOG.md",
+    "text": "- **Historical NCP 0.7 repin:** re-pinned to `v0.7.1` and adopted the complete"
+  },
+  {
+    "line": 290,
+    "path": "CHANGELOG.md",
+    "text": "  The `v0.7.1` SDK is a wire-identical patch over `v0.7.0`; Cargo and npm"
+  },
+  {
+    "line": 294,
+    "path": "CHANGELOG.md",
+    "text": "  cannot actuate, and the TypeScript guard delegates complete message validation"
+  },
+  {
+    "line": 305,
+    "path": "CHANGELOG.md",
+    "text": "  and data-plane message must carry a compatible `ncp_version` (v0.6 error replies"
+  },
+  {
+    "line": 310,
+    "path": "CHANGELOG.md",
+    "text": "  complete the org rename (all `src/**` imports updated)."
+  },
+  {
+    "line": 312,
+    "path": "CHANGELOG.md",
+    "text": "    (major/minor compatibility, shared with every peer) instead of a bespoke exact"
+  },
+  {
+    "line": 327,
+    "path": "CHANGELOG.md",
+    "text": "  - Native connection now defaults to the SDK's secure config path:"
+  },
+  {
+    "line": 332,
+    "path": "CHANGELOG.md",
+    "text": "- Re-pinned NCP to `v0.5.0` (wire `0.4` -> `0.5`, the stable-wire cut: the command/sim `mode` strings are now proto enums (`Mode`/`SimMode`), `CONTRACT_HASH` recomputed). Bumped `ncp-core`/`ncp-zenoh` (Cargo.toml + Cargo.lock) and `@sepehrmn/ncp` (package.json + bun.lock); the reply-`ncp_version` guard now speaks `0.5`."
+  },
+  {
+    "line": 444,
+    "path": "CHANGELOG.md",
+    "text": "  references a nonexistent `zig-detector` component and installs the correct"
+  },
+  {
+    "line": 70,
+    "path": "CONTRIBUTING.md",
+    "text": "| Headless plant package, command/health/captured-age/safe-action/deadline-monitor/apply-observation contract, frame corpus, lifecycle, or channel-policy changes | `bun run check:plant-boundary`, `bun run check:plant-frames`, and `bun run validate:all` |"
+  },
+  {
+    "line": 77,
+    "path": "CONTRIBUTING.md",
+    "text": "command/health, profile-bound captured-age/safe-action, receipt-anchored active"
+  },
+  {
+    "line": 24,
+    "path": "README.md",
+    "text": "Galadriel-compatible advisory evidence. Built with Tauri 2, React 19,"
+  },
+  {
+    "line": 42,
+    "path": "README.md",
+    "text": "| **Galadriel Evidence** | Feature-gated, exact-runtime-opt-in producer with immutable pinned registry/config/executable, two bounded NCP evidence routes, strict time/projection eligibility, upstream/capacity loss degradation, and heartbeat accounting; deployed receiver/security evidence remains pending | Component-tested |"
+  },
+  {
+    "line": 43,
+    "path": "README.md",
+    "text": "| **Plant Authority** | Dependency-free headless lifecycle/channel/passive-expiry foundation, inactive draft command contract with no command ingress, profile-neutral same-frame-instance ENU/NED + FLU/FRD velocity-axis corpus, closed context-bound health and captured-read age candidates, an unapproved exact-profile safe-action dispatch candidate, an unwired receipt-anchored active deadline-monitor candidate with one worker, one slot, strict same-stream advancement, and sticky terminal evidence, "
+  },
+  {
+    "line": 170,
+    "path": "README.md",
+    "text": "  not drop-in compatible. See"
+  },
+  {
+    "line": 229,
+    "path": "README.md",
+    "text": "    SensorFusion -. exact opt-in .-> GaladrielProducer"
+  },
+  {
+    "line": 321,
+    "path": "README.md",
+    "text": "| `CREBAIN_GALADRIEL_ENABLE` | Exact runtime gate (`1`) for a Galadriel producer compiled with `ncp`; enabled startup also requires the documented registry/config/executable/NCP pins |"
+  },
+  {
+    "line": 322,
+    "path": "README.md",
+    "text": "| `CREBAIN_GALADRIEL_EPOCH` | Required enabled, operator-provisioned key-safe process-session identity; deployment must make it unique per process lifetime |"
+  },
+  {
+    "line": 346,
+    "path": "README.md",
+    "text": "| [docs/PLANT_SAFE_ACTION_V1.md](docs/PLANT_SAFE_ACTION_V1.md) | Inactive exact-profile safe-action situation-dispatch candidate |"
+  },
+  {
+    "line": 408,
+    "path": "README.md",
+    "text": "Verified engineering baseline (enforced by CI doc-sync tests; full history in"
+  },
+  {
+    "line": 416,
+    "path": "README.md",
+    "text": "- [x] Component-tested Galadriel producer mechanics: exact opt-in/default-off behavior, immutable registry and actual config/executable pins, readiness-only active initialization, frozen envelope routes/codecs, deterministic exact-time fusion ledger, bounded measurement/track domains, upstream/capacity loss degradation, sparse assignment, heartbeat generation, and finite owned-task shutdown"
+  },
+  {
+    "line": 423,
+    "path": "README.md",
+    "text": "- [ ] Deployed Zenoh TLS/mTLS identities, certificate policy, exact-route ACLs, and negative topology evidence (secure-mode config loading alone is insufficient)"
+  },
+  {
+    "line": 441,
+    "path": "README.md",
+    "text": "  compatible `libonnxruntime.so` (the Nix shells pre-set it)."
+  },
+  {
+    "line": 68,
+    "path": "SECURITY.md",
+    "text": "| Model loading | Backend environment paths, model files, TensorRT build/cache inputs | Allowed-path/extension checks, MLX `.safetensors` checks and optional SHA-256 pin, missing-model errors, unsupported build-mode rejection | Provenance, rights, exact tensor/class contract, golden fixtures, and target-hardware evidence |"
+  },
+  {
+    "line": 69,
+    "path": "SECURITY.md",
+    "text": "| Native detector benchmark | Model/fixture/baseline/output paths; policy/count inputs; operator source/hardware declarations | Bounded validated inputs; no-overwrite atomic report; model/fixture pre/post digests; recorded ONNX Runtime loading mode plus a pre/post digest only for configured Linux `ORT_DYLIB_PATH`; trusted baseline-digest check; forced profiling/cache controls; local paths/environment values redacted | Report remains sensitive; declarations are not executable/hardware attestation"
+  },
+  {
+    "line": 73,
+    "path": "SECURITY.md",
+    "text": "| Native detection IPC | Base64 or RGBA image, dimensions, thresholds, limits | PNG/JPEG inspection; `1..=8192` dimensions; 64 MiB decoded allocation budget; exact raw length; structured failures | Confirm malformed images fail without a frontend crash |"
+  },
+  {
+    "line": 76,
+    "path": "SECURITY.md",
+    "text": "| Camera transport | Raw/compressed image CDR or rosbridge JSON and CameraInfo | Explicit raw/compressed schema; base64-only rosbridge bytes; exact row/data sizes; PNG/JPEG signature-format check; dimension/allocation caps; exact matrices and bounded distortion; validated headers | Test both transports with the same malformed corpus |"
+  },
+  {
+    "line": 79,
+    "path": "SECURITY.md",
+    "text": "| Sensor fusion / PID JSONL | Config, renderer/ROS-derived measurements and frame-name provenance, track state, operator-selected output path | Strict config plus finite/cardinality/magnitude/string/batch/live-track bounds; sensor-clock high-water commits only after native success; renderer/native trimming keeps newest inputs and latches degradation; `ncp` startup preflights a configured sink; legacy/default path releases the fusion lock before synchronous best-effort append; active producer use"
+  },
+  {
+    "line": 80,
+    "path": "SECURITY.md",
+    "text": "| Galadriel evidence producer | Feature/runtime switches; registry/config paths and JSON; environment pins; executable path; realm/identity; bounded fusion measurements and upstream-loss claims; Zenoh configuration and failures | `ncp` compile gate plus exact `1` runtime gate; disabled/default-off opens no producer; strict bounded registry and startup-loaded immutable fusion config; canonical registry and effective-config SHA-256; actual executable-file SHA-256; frame/context/software/config thr"
+  },
+  {
+    "line": 81,
+    "path": "SECURITY.md",
+    "text": "| Native NCP action/control opt-in | Realm/session/model text, Zenoh configuration, RPC replies, command frames | Off-by-default feature and unregistered commands; secure mode requires `NCP_ZENOH_CONFIG`; bounded inputs/timeouts; explicit `ok` plus kind/session/version checks; per-session lifecycle/subscriber cleanup; sanitized `CommandPlant`, sequence, TTL/horizon, raw ESTOP, and bounded final-HOLD attempt | Audit actual TLS identities, ACLs, certificates, and topology; config loading is not po"
+  },
+  {
+    "line": 82,
+    "path": "SECURITY.md",
+    "text": "| Headless plant foundation | In-memory command/health reports, captured-read age, apply-check inputs, health-age policy proposals, safe-action-row and local-TTL proposals, exact-profile opaque situation candidates, finite frame vectors, lifecycle events, and typed channel/deadline values | Separate dependency-free package; inactive contract validation, digest-bound same-instance frame corpus, sealed coherent health/captured-age path, and fixed no-default safe-action dispatch remain as previousl"
+  },
+  {
+    "line": 91,
+    "path": "SECURITY.md",
+    "text": "  `1..=8192`, sufficient `step`, exact `height * step`, and at most 64 MiB;"
+  },
+  {
+    "line": 110,
+    "path": "SECURITY.md",
+    "text": "6. Any Galadriel deployment claim binds the exact post-package executable,"
+  },
+  {
+    "line": 29,
+    "path": "docs/ARCHITECTURE.md",
+    "text": "        EvidenceProducer[\"Galadriel Evidence Producer<br/>(NCP feature + exact opt-in)\"]"
+  },
+  {
+    "line": 76,
+    "path": "docs/ARCHITECTURE.md",
+    "text": "and exact-profile safe-action situation-dispatch candidates, plus an unwired"
+  },
+  {
+    "line": 90,
+    "path": "docs/ARCHITECTURE.md",
+    "text": "rejects zero limits and exact-profile mismatch, and compares receipt plus all"
+  },
+  {
+    "line": 93,
+    "path": "docs/ARCHITECTURE.md",
+    "text": "the observed commit and exposes no boolean or aggregate fresh, healthy, safe,"
+  },
+  {
+    "line": 98,
+    "path": "docs/ARCHITECTURE.md",
+    "text": "digest-bound JavaScript/Rust corpus cover exact ENU\u2194NED and FLU\u2194FRD"
+  },
+  {
+    "line": 112,
+    "path": "docs/ARCHITECTURE.md",
+    "text": "granting authority. After exact-profile and command/lifecycle-generation"
+  },
+  {
+    "line": 118,
+    "path": "docs/ARCHITECTURE.md",
+    "text": "check, the command-age relation, and all eight health-age relations. Exact"
+  },
+  {
+    "line": 127,
+    "path": "docs/ARCHITECTURE.md",
+    "text": "action, output revocation, safe action, adapter conversion, I/O, or runtime call,"
+  },
+  {
+    "line": 129,
+    "path": "docs/ARCHITECTURE.md",
+    "text": "`VehicleIdentity` or `LocalFrameInstanceIdentity`, so exact profile/generation"
+  },
+  {
+    "line": 138,
+    "path": "docs/ARCHITECTURE.md",
+    "text": "The safe-action candidate keeps five plant intent labels separate from"
+  },
+  {
+    "line": 141,
+    "path": "docs/ARCHITECTURE.md",
+    "text": "and rejects empty/oversized/duplicate proposals, exact-profile mismatch, and"
+  },
+  {
+    "line": 149,
+    "path": "docs/ARCHITECTURE.md",
+    "text": "derived from a structurally validated command's opaque plant receipt time. The"
+  },
+  {
+    "line": 154,
+    "path": "docs/ARCHITECTURE.md",
+    "text": "and no queue. Replacement requires the same exact profile, session, and"
+  },
+  {
+    "line": 155,
+    "path": "docs/ARCHITECTURE.md",
+    "text": "generation plus a strictly higher sequence; it installs a separately validated"
+  },
+  {
+    "line": 163,
+    "path": "docs/ARCHITECTURE.md",
+    "text": "terminate fail closed. Poisoned synchronization intentionally exposes no exact"
+  },
+  {
+    "line": 167,
+    "path": "docs/ARCHITECTURE.md",
+    "text": "safe action, call the inert adapter, reserve scheduler capacity, or prove"
+  },
+  {
+    "line": 173,
+    "path": "docs/ARCHITECTURE.md",
+    "text": "policy, authoritative situation classifier and content-bound ODD safe-action"
+  },
+  {
+    "line": 189,
+    "path": "docs/ARCHITECTURE.md",
+    "text": "feature-gated Galadriel evidence writer as two exact routes. Measure end-to-end"
+  },
+  {
+    "line": 208,
+    "path": "docs/ARCHITECTURE.md",
+    "text": "  binaries and disabled unless an `ncp` build also receives exact runtime opt-in"
+  },
+  {
+    "line": 212,
+    "path": "docs/ARCHITECTURE.md",
+    "text": "  a config update cannot replace it. Its secure-mode request, local queue/input"
+  },
+  {
+    "line": 247,
+    "path": "docs/ARCHITECTURE.md",
+    "text": "        Frontend -.->|\"fusion_process; exact deployment opt-in\"| GaladrielProducer"
+  },
+  {
+    "line": 267,
+    "path": "docs/ARCHITECTURE.md",
+    "text": "**Solution**: Prefer the validated backend for the host platform, report"
+  },
+  {
+    "line": 269,
+    "path": "docs/ARCHITECTURE.md",
+    "text": "until their behavior is measured and complete."
+  },
+  {
+    "line": 344,
+    "path": "docs/ARCHITECTURE.md",
+    "text": "through the native Tauri path on deployment hardware with the exact model"
+  },
+  {
+    "line": 370,
+    "path": "docs/ARCHITECTURE.md",
+    "text": "| Safe failure mode testing  | Production deployment          |"
+  },
+  {
+    "line": 487,
+    "path": "docs/ARCHITECTURE.md",
+    "text": "each batch is validated/serialized before writing; writer I/O failure degrades"
+  },
+  {
+    "line": 19,
+    "path": "docs/BACKLOG.md",
+    "text": "the exact same-frame-instance ENU/NED and FLU/FRD velocity-axis prerequisite"
+  },
+  {
+    "line": 27,
+    "path": "docs/BACKLOG.md",
+    "text": "`<=200 ms` condition. An inert CB-028 candidate now provides only exact-profile"
+  },
+  {
+    "line": 31,
+    "path": "docs/BACKLOG.md",
+    "text": "derives immutable deadlines from validated receipt time, owns one worker and"
+  },
+  {
+    "line": 40,
+    "path": "docs/BACKLOG.md",
+    "text": "observable mock adapter transaction. A process cannot guarantee a final action after"
+  },
+  {
+    "line": 47,
+    "path": "docs/BACKLOG.md",
+    "text": "| CB-025 | Small native Rust plant-authority crate/process independent of renderer lifecycle | Implemented and component-tested for this inert slice: separate dependency-free package, inactive command/health/captured-age/apply-observation/safe-action-dispatch candidates, an unwired active deadline-monitor candidate, typed channel/status boundary, and headless self-check; profile approval, wire schemas, and integration topology remain pending later phases |"
+  },
+  {
+    "line": 49,
+    "path": "docs/BACKLOG.md",
+    "text": "| CB-027 | Plant-local monotonic command-expiry watchdog | Partial component mechanics only: passive expiry remains separate, while a validated candidate can now mint a non-cloneable ticket whose deadline is exactly opaque receipt time plus a nonzero local TTL proposal no greater than the request. The copyable candidate can mint another ticket, so ownership is one slot per monitor rather than global admission. One unwired named worker owns that slot/no queue; replacement requires exact profile/s"
+  },
+  {
+    "line": 50,
+    "path": "docs/BACKLOG.md",
+    "text": "| CB-028 | Vehicle/ODD/state-specific safe-action table | Partial structural mechanics only: an inert candidate copies a caller-proposed nonempty unique mapping of opaque nonzero situation codes into an owned fixed 255-slot table, requires an exact full-profile match, returns no default, and exposes only a closed plant-intent vocabulary. The rows are not bound into the supplied profile digest; no authoritative health/state/trigger classifier, precedence, approved vehicle/ODD mapping, lifecycle/t"
+  },
+  {
+    "line": 51,
+    "path": "docs/BACKLOG.md",
+    "text": "| CB-029 | Apply-time profile/frame/unit/envelope/health safety governor | Partial observation mechanics only: after exact-profile and command/lifecycle-generation prechecks, an unwired candidate loads one generation-checked coherent health snapshot, then mints one private plant-monotonic reference instant, computes health ages, and computes command receipt age relative to that instant. It retains the command's strict requested-lifetime relation (equality outside), neutral lifecycle state/genera"
+  },
+  {
+    "line": 52,
+    "path": "docs/BACKLOG.md",
+    "text": "| CB-030 | Atomic typed vehicle-health snapshot | Partial component implementation: the canonical kernel path seals a deeply immutable closed report, validates declared profile/vehicle/source/stream-epoch/generation/frame-instance identity, strict per-channel source sequence, local frame, SI units, plant-local observation times, finite vectors, and battery range, then atomically retains the coherent state and exposes eight exact ages from one read. A separate profile-bound classifier consumes th"
+  },
+  {
+    "line": 53,
+    "path": "docs/BACKLOG.md",
+    "text": "| CB-031 | Bounded ingress/latest-command/health/output/evidence paths and overflow policies | Implemented and component-tested: validated non-eager capacities, latest-value, reject-new lifecycle, drop-oldest evidence, exact loss accounting, poison/counter fail-closed behavior, post-unlock destruction, and a separate non-overwritable safety path; the one-worker deadline monitor is unwired and does not prove globally bounded monitor count, reserved scheduling, or integrated-load timing |"
+  },
+  {
+    "line": 54,
+    "path": "docs/BACKLOG.md",
+    "text": "| CB-032 | Cancellation-safe, deadline-bounded callbacks/shutdown/final safe action | Pending; inert adapter stop is idempotent but there is no external call, repeated bounded safe transaction, FCU observation, or independent process-loss fallback; do not claim an in-process final action after process death |"
+  },
+  {
+    "line": 66,
+    "path": "docs/BACKLOG.md",
+    "text": "| 10 | Audit real NCP TLS/mTLS identities, certificates, router topology, principal\u2194`producer_id` binding, and exact allow/deny ACLs for both evidence keys | Deployment security evidence |"
+  },
+  {
+    "line": 71,
+    "path": "docs/BACKLOG.md",
+    "text": "| 15 | Establish router/receiver sidecar and monitor receive-size ceilings, then run oversize allow/deny tests with the exact deployment topology | Proof that every permitted envelope is accepted or explicitly rejected before operation |"
+  },
+  {
+    "line": 79,
+    "path": "docs/BACKLOG.md",
+    "text": "  are evaluated relative to that instant. Exact context mismatch, clock"
+  },
+  {
+    "line": 92,
+    "path": "docs/BACKLOG.md",
+    "text": "- Unwired receipt-anchored active deadline-monitor candidate: a validated"
+  },
+  {
+    "line": 96,
+    "path": "docs/BACKLOG.md",
+    "text": "  exact-profile/session/generation, strictly increasing replacements; deadline"
+  },
+  {
+    "line": 99,
+    "path": "docs/BACKLOG.md",
+    "text": "  output invalidation, safe action, scheduling/latency qualification, or CTL-003."
+  },
+  {
+    "line": 100,
+    "path": "docs/BACKLOG.md",
+    "text": "- Inactive safe-action situation-dispatch candidate: caller-proposed opaque"
+  },
+  {
+    "line": 102,
+    "path": "docs/BACKLOG.md",
+    "text": "  requires an exact full profile identity and returns one of five closed plant"
+  },
+  {
+    "line": 122,
+    "path": "docs/BACKLOG.md",
+    "text": "  attitude. Exact permutations require the same local origin/datum or body"
+  },
+  {
+    "line": 124,
+    "path": "docs/BACKLOG.md",
+    "text": "  component evidence, not profile approval, complete CTL-006 coverage,"
+  },
+  {
+    "line": 128,
+    "path": "docs/BACKLOG.md",
+    "text": "  stable negative reasons. It has no parser, ingress, approval, health gate,"
+  },
+  {
+    "line": 142,
+    "path": "docs/BACKLOG.md",
+    "text": "  active initialization, frozen sidecar/monitor codecs, deterministic exact-time"
+  },
+  {
+    "line": 6,
+    "path": "docs/COMPLETION_LEVELS.md",
+    "text": "- **Next target:** L1 secure deterministic single-vehicle SITL."
+  },
+  {
+    "line": 7,
+    "path": "docs/COMPLETION_LEVELS.md",
+    "text": "- **Not claimed:** live secure authority, HIL, physical-flight safety, field"
+  },
+  {
+    "line": 11,
+    "path": "docs/COMPLETION_LEVELS.md",
+    "text": "for one exact topology, source/configuration manifest, and ODD."
+  },
+  {
+    "line": 17,
+    "path": "docs/COMPLETION_LEVELS.md",
+    "text": "| L0 \u2014 Research application | Visualization, algorithms, local physics, Gazebo integration, developer bridges | Reproducible component tests and explicit limitations | Secure authority, HIL, physical safety, field validity |"
+  },
+  {
+    "line": 18,
+    "path": "docs/COMPLETION_LEVELS.md",
+    "text": "| L1 \u2014 Secure SITL authority chain | One fully mediated authenticated vehicle-command chain in pinned SITL | Live Haldir/NCP/plant/FCU topology; sole-applier proof; bypass denial; plant-local expiry; safe-action, fault, restart, replay, overload, and staged evidence | HIL or physical-flight safety |"
+  },
+  {
+    "line": 19,
+    "path": "docs/COMPLETION_LEVELS.md",
+    "text": "| L2 \u2014 Target-hardware HIL | The L1 chain on named compute/network/FCU hardware inside a declared HIL envelope | Timing/WCET, power-cycle, overload, link, FCU, geofence, and emergency evidence on exact hardware | Safety outside the tested HIL envelope |"
+  },
+  {
+    "line": 20,
+    "path": "docs/COMPLETION_LEVELS.md",
+    "text": "| L3 \u2014 Supervised field experiment | Bounded experiment under an approved ODD | L2 exit, permits/range containment, trained operator, rehearsed abort, independent go/no-go, flight and incident records | General operational or certified use |"
+  },
+  {
+    "line": 21,
+    "path": "docs/COMPLETION_LEVELS.md",
+    "text": "| L4 \u2014 Named operational/certification target | Configuration-controlled product under a named regulatory and assurance basis | Domain-specific safety/security case, independent verification, continued airworthiness/security | Generic \u201ccertified\u201d claims |"
+  },
+  {
+    "line": 36,
+    "path": "docs/COMPLETION_LEVELS.md",
+    "text": "claim unless its own complete evidence bundle passes."
+  },
+  {
+    "line": 26,
+    "path": "docs/CONFIGURATION.md",
+    "text": "| `CREBAIN_GALADRIEL_ENABLE` | Exact runtime opt-in for the Galadriel evidence producer in a binary compiled with Cargo feature `ncp`; a non-feature binary fails startup when set to `1` | Absent/`0` off; exactly `1` on |"
+  },
+  {
+    "line": 27,
+    "path": "docs/CONFIGURATION.md",
+    "text": "| `CREBAIN_GALADRIEL_REALM` | Required enabled NCP realm for both evidence routes | Key-safe NCP realm |"
+  },
+  {
+    "line": 28,
+    "path": "docs/CONFIGURATION.md",
+    "text": "| `CREBAIN_GALADRIEL_PRODUCER_ID` | Required declared producer identity in each envelope; this string is not by itself a TLS-principal binding | Key-safe identity segment |"
+  },
+  {
+    "line": 29,
+    "path": "docs/CONFIGURATION.md",
+    "text": "| `CREBAIN_GALADRIEL_EPOCH` | Required operator-provisioned session identity used in both evidence keys; syntax validation does not prove uniqueness or anti-rollback | One key-safe UTF-8 segment, `1..=64` bytes; provision a new unique value for each process lifetime |"
+  },
+  {
+    "line": 32,
+    "path": "docs/CONFIGURATION.md",
+    "text": "| `CREBAIN_GALADRIEL_FRAME_ID` | Required selected frame in the registry | Decimal JSON-safe positive integer |"
+  },
+  {
+    "line": 33,
+    "path": "docs/CONFIGURATION.md",
+    "text": "| `CREBAIN_GALADRIEL_CONTEXT_ID` | Required selected context bound to that frame | Decimal JSON-safe positive integer |"
+  },
+  {
+    "line": 43,
+    "path": "docs/CONFIGURATION.md",
+    "text": "| `NCP_ZENOH_CONFIG` | Zenoh configuration required by the enabled producer's secure mode and by the optional native NCP bridge's secure connection mode | Readable deployment-controlled path |"
+  },
+  {
+    "line": 72,
+    "path": "docs/CONFIGURATION.md",
+    "text": "opening the secure-mode NCP Zenoh session. The effective configuration is the"
+  },
+  {
+    "line": 83,
+    "path": "docs/CONFIGURATION.md",
+    "text": "is one key-safe `1..=64` byte segment; it cannot prove freshness, durable"
+  },
+  {
+    "line": 92,
+    "path": "docs/CONFIGURATION.md",
+    "text": "and projection-algorithm content references are not fetched or verified. Digest"
+  },
+  {
+    "line": 104,
+    "path": "docs/CONFIGURATION.md",
+    "text": "leave part of that already-validated batch on disk. The archive thread performs"
+  },
+  {
+    "line": 111,
+    "path": "docs/CONFIGURATION.md",
+    "text": "See [GALADRIEL_PRODUCER.md](GALADRIEL_PRODUCER.md) for the exact routes, queue and"
+  },
+  {
+    "line": 147,
+    "path": "docs/CONFIGURATION.md",
+    "text": "clusters. See [GALADRIEL_PRODUCER.md](GALADRIEL_PRODUCER.md) for exact-time and"
+  },
+  {
+    "line": 156,
+    "path": "docs/CONFIGURATION.md",
+    "text": "it. That label is neither the plant safe-action candidate nor a claim that a"
+  },
+  {
+    "line": 157,
+    "path": "docs/CONFIGURATION.md",
+    "text": "physical Hold is safe for any authoritative vehicle state."
+  },
+  {
+    "line": 180,
+    "path": "docs/CONFIGURATION.md",
+    "text": "versions are migrated before the current schema is validated. The current"
+  },
+  {
+    "line": 3,
+    "path": "docs/GALADRIEL_PRODUCER.md",
+    "text": "CREBAIN contains an optional native producer for Galadriel-compatible fusion"
+  },
+  {
+    "line": 20,
+    "path": "docs/GALADRIEL_PRODUCER.md",
+    "text": "| Binary with `ncp`; switch `1` | All deployment pins must validate before the secure-mode NCP Zenoh session is opened |"
+  },
+  {
+    "line": 23,
+    "path": "docs/GALADRIEL_PRODUCER.md",
+    "text": "not include `ncp`. A deployment must record whether its exact executable was"
+  },
+  {
+    "line": 33,
+    "path": "docs/GALADRIEL_PRODUCER.md",
+    "text": "| `CREBAIN_GALADRIEL_PRODUCER_ID` | Declared, key-safe producer identity carried in envelopes |"
+  },
+  {
+    "line": 34,
+    "path": "docs/GALADRIEL_PRODUCER.md",
+    "text": "| `CREBAIN_GALADRIEL_EPOCH` | Operator-provisioned `1..=64` byte key-safe UTF-8 session segment used in both evidence keys |"
+  },
+  {
+    "line": 37,
+    "path": "docs/GALADRIEL_PRODUCER.md",
+    "text": "| `CREBAIN_GALADRIEL_FRAME_ID` | Positive JSON-safe frame identifier present in the registry |"
+  },
+  {
+    "line": 38,
+    "path": "docs/GALADRIEL_PRODUCER.md",
+    "text": "| `CREBAIN_GALADRIEL_CONTEXT_ID` | Positive JSON-safe projection-context identifier bound to that frame |"
+  },
+  {
+    "line": 41,
+    "path": "docs/GALADRIEL_PRODUCER.md",
+    "text": "| `NCP_ZENOH_CONFIG` | Readable NCP Zenoh configuration used by secure mode |"
+  },
+  {
+    "line": 46,
+    "path": "docs/GALADRIEL_PRODUCER.md",
+    "text": "single key-safe segment; it does not prove freshness, durable uniqueness, or"
+  },
+  {
+    "line": 75,
+    "path": "docs/GALADRIEL_PRODUCER.md",
+    "text": "validated batch."
+  },
+  {
+    "line": 105,
+    "path": "docs/GALADRIEL_PRODUCER.md",
+    "text": "verified against actual local bytes by this startup path."
+  },
+  {
+    "line": 182,
+    "path": "docs/GALADRIEL_PRODUCER.md",
+    "text": "default can therefore construct compatible frozen-v1 sidecar observations as"
+  },
+  {
+    "line": 186,
+    "path": "docs/GALADRIEL_PRODUCER.md",
+    "text": "no compatible v1 innovation record."
+  },
+  {
+    "line": 221,
+    "path": "docs/GALADRIEL_PRODUCER.md",
+    "text": "a finite cleanup guarantee, not proof that queued evidence or a final heartbeat"
+  },
+  {
+    "line": 241,
+    "path": "docs/GALADRIEL_PRODUCER.md",
+    "text": "deployed integration claim additionally needs, for the exact executable,"
+  },
+  {
+    "line": 252,
+    "path": "docs/GALADRIEL_PRODUCER.md",
+    "text": "- verified router and receiver payload-size limits at least as large as every"
+  },
+  {
+    "line": 13,
+    "path": "docs/HAZARD_LOG.md",
+    "text": "- **controlled:** every referenced control is marked verified and covered by"
+  },
+  {
+    "line": 15,
+    "path": "docs/HAZARD_LOG.md",
+    "text": "  record and its content-hashed JSON artifact must agree on the exact hazard,"
+  },
+  {
+    "line": 24,
+    "path": "docs/HAZARD_LOG.md",
+    "text": "| HAZ-001 | Motion through an authority bypass | P0 | open | Sole native applier; exact Gate identity/route; bypass campaign |"
+  },
+  {
+    "line": 25,
+    "path": "docs/HAZARD_LOG.md",
+    "text": "| HAZ-002 | Required safe action is lost or omitted | P0 | open | Plant watchdog plus independent FCU failsafe |"
+  },
+  {
+    "line": 26,
+    "path": "docs/HAZARD_LOG.md",
+    "text": "| HAZ-003 | Delayed command remains active | P0 | partial | Passive expiry, an unwired receipt-anchored one-worker/one-slot active deadline monitor, and a post-health-load single-reference-instant requested-lifetime observation exist; trusted admission, command-content binding, output invalidation, approved TTL policy, an immediately-before-write check, scheduler/latency evidence, and safe action remain absent |"
+  },
+  {
+    "line": 28,
+    "path": "docs/HAZARD_LOG.md",
+    "text": "| HAZ-005 | Correct vector is applied in the wrong frame or unit | P0 | partial | Profile-neutral same-frame-instance ENU/NED and FLU/FRD velocity-axis corpus exists; the apply observation adds no evidence because its command has no local-frame-instance identity; frame-instance proof, approved profile, remaining semantics, and live interpretation are absent |"
+  },
+  {
+    "line": 30,
+    "path": "docs/HAZARD_LOG.md",
+    "text": "| HAZ-007 | Generic Hold/ESTOP causes an unsafe physical action | P0 | open | ODD/vehicle safe-action matrix and guarded reset; an opaque no-default dispatch candidate exists but does not classify state or approve a physical response |"
+  },
+  {
+    "line": 32,
+    "path": "docs/HAZARD_LOG.md",
+    "text": "| HAZ-009 | Estimator/fusion divergence appears nominal | P1 | partial | Immutable effective config, exact-time frozen-prior ledger, bounded inputs, invalid-gate refusal, divergence state, conservative invalidation |"
+  },
+  {
+    "line": 36,
+    "path": "docs/HAZARD_LOG.md",
+    "text": "| HAZ-013 | Restart or reconnect resurrects stale authority | P0 | partial | Process-local generation guards, caller-reported monitor generation mismatch, and an explicit key-safe producer-epoch input exist; the apply observation adds no evidence because generation equality neither binds its command to the health vehicle/frame instance nor proves durable currentness; deployment-proven epoch uniqueness, autonomous rotation observation, durable boot/session anti-rollback, and topology restart test"
+  },
+  {
+    "line": 47,
+    "path": "docs/HAZARD_LOG.md",
+    "text": "watchdog, authoritative safe-action classifier, approved/content-bound policy,"
+  },
+  {
+    "line": 52,
+    "path": "docs/HAZARD_LOG.md",
+    "text": "The passive expiry guard narrows HAZ-003 mechanics only: exact-deadline,"
+  },
+  {
+    "line": 55,
+    "path": "docs/HAZARD_LOG.md",
+    "text": "immediately-before-write coupling, scheduler jitter, or expiry-to-safe-action"
+  },
+  {
+    "line": 59,
+    "path": "docs/HAZARD_LOG.md",
+    "text": "ticket derives its immutable absolute deadline from the validated command's"
+  },
+  {
+    "line": 62,
+    "path": "docs/HAZARD_LOG.md",
+    "text": "the same exact profile/session/generation and a strictly greater sequence."
+  },
+  {
+    "line": 63,
+    "path": "docs/HAZARD_LOG.md",
+    "text": "Current clock regression or exact/past deadline wins before replacement,"
+  },
+  {
+    "line": 69,
+    "path": "docs/HAZARD_LOG.md",
+    "text": "poisoned synchronization makes no exact active-key claim. The"
+  },
+  {
+    "line": 72,
+    "path": "docs/HAZARD_LOG.md",
+    "text": "invalidate output at apply time, select/apply a safe action, qualify suspend"
+  },
+  {
+    "line": 81,
+    "path": "docs/HAZARD_LOG.md",
+    "text": "cover exact ENU\u2194NED and FLU\u2194FRD velocity-axis mappings and reject every"
+  },
+  {
+    "line": 93,
+    "path": "docs/HAZARD_LOG.md",
+    "text": "atomically exposes one coherent commit plus eight exact ages. A separate"
+  },
+  {
+    "line": 95,
+    "path": "docs/HAZARD_LOG.md",
+    "text": "exact-profile mismatch, and reports whether each captured age is strictly below"
+  },
+  {
+    "line": 103,
+    "path": "docs/HAZARD_LOG.md",
+    "text": "policy, healthy/safe verdict, authorizing immediately-before-write"
+  },
+  {
+    "line": 116,
+    "path": "docs/HAZARD_LOG.md",
+    "text": "relations. Exact profile or command/lifecycle"
+  },
+  {
+    "line": 124,
+    "path": "docs/HAZARD_LOG.md",
+    "text": "authorization token, command content, velocity, action, output revocation, safe"
+  },
+  {
+    "line": 139,
+    "path": "docs/HAZARD_LOG.md",
+    "text": "The separate safe-action situation-dispatch candidate narrows only part of the"
+  },
+  {
+    "line": 141,
+    "path": "docs/HAZARD_LOG.md",
+    "text": "caller-proposed unique nonzero opaque codes, requires an exact full profile"
+  },
+  {
+    "line": 147,
+    "path": "docs/HAZARD_LOG.md",
+    "text": "inhibit, or ground disarm is safe in a situation. HAZ-007 and HAZ-002 remain"
+  },
+  {
+    "line": 149,
+    "path": "docs/HAZARD_LOG.md",
+    "text": "`TEST-PLANT-SAFE-ACTION-POLICY-V1` is partial component evidence only."
+  },
+  {
+    "line": 153,
+    "path": "docs/HAZARD_LOG.md",
+    "text": "freezes one prior per frame, requires exact advancing/per-channel-monotonic time"
+  },
+  {
+    "line": 161,
+    "path": "docs/HAZARD_LOG.md",
+    "text": "heartbeats, and requires an explicit key-safe process epoch. Deployment remains"
+  },
+  {
+    "line": 165,
+    "path": "docs/HAZARD_LOG.md",
+    "text": "authenticated principal binding, proven router/receiver receive-size policy,"
+  },
+  {
+    "line": 24,
+    "path": "docs/L1_ODD.md",
+    "text": "| ODD-01 | Vehicle | One quadrotor SITL model; simulated mass 1.5\u20132.5 kg; no payload | Provisional; exact model/image digest pending |"
+  },
+  {
+    "line": 25,
+    "path": "docs/L1_ODD.md",
+    "text": "| ODD-02 | FCU | PX4 SITL with named image, parameters, estimator, geofence, data-link and offboard failsafes | Exact version and parameter attestation pending |"
+  },
+  {
+    "line": 28,
+    "path": "docs/L1_ODD.md",
+    "text": "| ODD-05 | Commands | Velocity plus state-dependent Hold/Land/RTL only; no mission upload, set-current, `AUTO.MISSION`, arbitrary mode, raw motor, or in-air disarm | General contract-v1 candidate admits velocity only and rejects the other named proposals. A separate inert candidate can dispatch a caller-supplied opaque situation code under an exact profile identity to a closed inhibit/hold/land/RTL/ground-disarm intent, but it does not classify authoritative state/triggers, bind rows into the pr"
+  },
+  {
+    "line": 29,
+    "path": "docs/L1_ODD.md",
+    "text": "| ODD-06 | Timing | Nominal command rate 20 Hz; command age \u2264150 ms at apply; plant watchdog safe transition \u2264250 ms | Contract v1 structurally bounds requested TTL and separates producer/local time; an unwired component detects receipt-anchored absolute deadlines with one worker/slot and strict same-stream replacement. A separate unwired observation loads one coherent health snapshot before minting one private monotonic reference instant for health ages and the command's requested-lifetime rela"
+  },
+  {
+    "line": 33,
+    "path": "docs/L1_ODD.md",
+    "text": "| ODD-10 | Network | Isolated virtual network; authenticated identities and exact ACLs; one-way p99 \u226450 ms; partition/reorder/loss are fail-safe | Live mTLS/ACL and impairment evidence pending |"
+  },
+  {
+    "line": 37,
+    "path": "docs/L1_ODD.md",
+    "text": "| ODD-14 | Evidence | Accepted, rejected, authorized, attempted, FCU-accepted, observed, expired and safe-state stages are bounded and replayable | Joined evidence pipeline pending |"
+  },
+  {
+    "line": 44,
+    "path": "docs/L1_ODD.md",
+    "text": "## Safe-action matrix"
+  },
+  {
+    "line": 46,
+    "path": "docs/L1_ODD.md",
+    "text": "This matrix remains a draft requirement. The current safe-action candidate does"
+  },
+  {
+    "line": 48,
+    "path": "docs/L1_ODD.md",
+    "text": "its caller and performs only exact-profile, no-default lookup over a"
+  },
+  {
+    "line": 57,
+    "path": "docs/L1_ODD.md",
+    "text": "or authorizing verdict, permit, action, or safe-action selection. Its API has no"
+  },
+  {
+    "line": 65,
+    "path": "docs/L1_ODD.md",
+    "text": "| Airborne, local position healthy, battery/fence nominal, brief authority loss | FCU position/altitude hold | Hold mode available and estimator fresh | Controlled land if loss exceeds approved dwell | Watchdog deadline and stable observed hold |"
+  },
+  {
+    "line": 68,
+    "path": "docs/L1_ODD.md",
+    "text": "| Critical battery | Controlled land at safe reachable site | Attitude/height estimate usable | FCU battery failsafe | Battery threshold and landing evidence |"
+  },
+  {
+    "line": 82,
+    "path": "docs/L1_ODD.md",
+    "text": "The exact PX4 image/parameters, SITL vehicle/world, Haldir deployment, NCP ACL,"
+  },
+  {
+    "line": 83,
+    "path": "docs/L1_ODD.md",
+    "text": "plant governor, adapter, timing results, safe-action transitions, and evidence"
+  },
+  {
+    "line": 44,
+    "path": "docs/MANUAL_SMOKE_TEST.md",
+    "text": "| Native detector benchmark (only when retaining a numeric claim) | Archive clean commit, exact command/report and digest, approved model/fixture digests, external target-runtime context, trusted baseline digest, and pre-approved threshold per `NATIVE_DETECTOR_BENCHMARK.md` | \ud83d\udfe1 harness logic tests only; real target run manual |  |"
+  },
+  {
+    "line": 53,
+    "path": "docs/MANUAL_SMOKE_TEST.md",
+    "text": "| Raw camera schema | `rgba8`/`bgra8`/`rgb8`/`bgr8`/`mono8` valid fixture renders; invalid dimensions, step, exact length, timestamp, or >64 MiB frame fails safely | \u2705 transport parser tests; live rendering manual |  |"
+  },
+  {
+    "line": 55,
+    "path": "docs/MANUAL_SMOKE_TEST.md",
+    "text": "| CameraInfo | Finite K9/R9/P12 and correct standard/custom D lengths work; malformed arrays are rejected on both transports | \u2705 rosbridge/CDR parser tests |  |"
+  },
+  {
+    "line": 62,
+    "path": "docs/MANUAL_SMOKE_TEST.md",
+    "text": "| NCP action/control feature | Default UI exposes no NCP control; missing `NCP_ZENOH_CONFIG` fails secure connect; quiet development is explicit; lifecycle replies require `ok`; stale/invalid commands HOLD; raw ESTOP latches; stop drops the subscriber and requests final HOLD | \u2705 feature/unit contract; live Engram/TLS/ACL evidence absent by default |  |"
+  },
+  {
+    "line": 63,
+    "path": "docs/MANUAL_SMOKE_TEST.md",
+    "text": "| Galadriel default-off gates | Default release lacks `ncp`; a non-feature binary with `ENABLE=1` fails; an `ncp` build with switch absent/`0` opens no producer; any ambiguous switch fails | \u2705 component startup-policy tests; inspect exact artifact/features manually |  |"
+  },
+  {
+    "line": 64,
+    "path": "docs/MANUAL_SMOKE_TEST.md",
+    "text": "| Galadriel pin preflight | Empty/oversized/unknown-field fusion config, registry/config/software digest mismatch, absent frame/context, invalid capacity/deadline, or missing secure config fails before a producer session; exact post-package executable/effective config/registry pins succeed; active `fusion_init` ignores renderer defaults as readiness-only and config replacement accepts only the same digest | \u2705 parser/digest/identity/config-immutability component tests; post-package artifact manua"
+  },
+  {
+    "line": 65,
+    "path": "docs/MANUAL_SMOKE_TEST.md",
+    "text": "| Galadriel exact routes / ACL | Producer principal can put only `{realm}/session/{epoch}/sensor/galadriel-pid` and `.../galadriel-monitor`; wildcard, command, action, service, final-route, and wrong-principal writes are denied | \ud83d\udfe1 route golden tests; live TLS/principal/router allow+deny campaign required |  |"
+  },
+  {
+    "line": 66,
+    "path": "docs/MANUAL_SMOKE_TEST.md",
+    "text": "| Galadriel frame/time evidence | Matching already-canonical ENU `source_frame_id` with an empty transform chain and an advancing frame-equal/per-channel-newer sensor timestamp can carry v1/projection; duplicate, OOSM, mixed-old, missing/different identity, or any transform chain remains explicitly incomparable; zero initializes the clock and deleted tracks lose timestamp state | \u2705 identity/exact-time/component purge tests; sensor provenance/calibration remain external |  |"
+  },
+  {
+    "line": 68,
+    "path": "docs/MANUAL_SMOKE_TEST.md",
+    "text": "| Galadriel computational envelope | Reject >512 inputs, >1,024 live-track growth, excessive position/range/velocity/covariance/metadata/string values, non-wire-safe loss counts, and invalid internal gate scores before evidence mutation; track-cap overflow discards whole clusters and the next bounded frame recovers | \u2705 input/capacity/invalid-gate component tests; target combined-load/deadline trace pending |  |"
+  },
+  {
+    "line": 73,
+    "path": "docs/MANUAL_SMOKE_TEST.md",
+    "text": "| Vite-dev NCP harness | Manual `window.__ncpDrone` active command uses exact finite m/s vec3 and bounded horizon; malformed/null calls do not move; drone streams stay independent; ESTOP reset requires a fresh command | \u2705 unit contract; transport-free browser injection only |  |"
+  },
+  {
+    "line": 5,
+    "path": "docs/MODEL_CONTRACTS.md",
+    "text": "preprocessing, postprocessing, and class mapping have been verified."
+  },
+  {
+    "line": 16,
+    "path": "docs/MODEL_CONTRACTS.md",
+    "text": "| Class mapping | Complete model index-to-label table and the explicit mapping into CREBAIN's tactical taxonomy |"
+  },
+  {
+    "line": 19,
+    "path": "docs/MODEL_CONTRACTS.md",
+    "text": "| Benchmark context | Hardware, OS, backend, exact model digest, thresholds, and command |"
+  },
+  {
+    "line": 48,
+    "path": "docs/MODEL_CONTRACTS.md",
+    "text": "| Native CoreML | Use a validated `.mlmodelc` directory. Confirm Vision/CoreML input handling, model labels, coordinate conversion, and fixture results. |"
+  },
+  {
+    "line": 51,
+    "path": "docs/MODEL_CONTRACTS.md",
+    "text": "| MLX | Experimental opt-in path. `CREBAIN_MLX_MODEL` must be a validated `.safetensors` file; `CREBAIN_MLX_MODEL_SHA256` may pin its digest. No release evidence without artifact provenance, tensor/class fixtures, and target-hardware benchmarks. |"
+  },
+  {
+    "line": 56,
+    "path": "docs/MODEL_CONTRACTS.md",
+    "text": "2. The exact input and output shapes match the selected implementation before postprocessing."
+  },
+  {
+    "line": 22,
+    "path": "docs/NATIVE_DETECTOR_BENCHMARK.md",
+    "text": "The output path must be a new `.json` file. Backend/model pairs are exact at"
+  },
+  {
+    "line": 53,
+    "path": "docs/NATIVE_DETECTOR_BENCHMARK.md",
+    "text": "runtime bytes are not hashed or attested. These checks detect stable accidental"
+  },
+  {
+    "line": 125,
+    "path": "docs/NATIVE_DETECTOR_BENCHMARK.md",
+    "text": "For a numeric claim, archive the clean source commit, exact command/report and"
+  },
+  {
+    "line": 17,
+    "path": "docs/NCP_BRIDGE_HANDOFF.md",
+    "text": "| Rust `src-tauri/src/ncp/mod.rs` | Compiles only with the off-by-default `ncp` feature; provides `NcpBridge`, validated feature-neuron RPCs, and a wired fail-closed `CommandPlant` action loop as library APIs |"
+  },
+  {
+    "line": 19,
+    "path": "docs/NCP_BRIDGE_HANDOFF.md",
+    "text": "| Rust Galadriel producer | Compiles with `ncp`; managed by the app only when `CREBAIN_GALADRIEL_ENABLE=1`, an explicit key-safe process epoch is supplied, and all registry/config/executable pins pass; writes only two named perception evidence routes |"
+  },
+  {
+    "line": 23,
+    "path": "docs/NCP_BRIDGE_HANDOFF.md",
+    "text": "| Live CREBAIN\u2192Galadriel deployed correlation | Producer component is integrated; compatible receiver, security/topology, and end-to-end evidence remain unproved |"
+  },
+  {
+    "line": 37,
+    "path": "docs/NCP_BRIDGE_HANDOFF.md",
+    "text": "All four files must move together. Wire compatibility is validated by the SDK;"
+  },
+  {
+    "line": 47,
+    "path": "docs/NCP_BRIDGE_HANDOFF.md",
+    "text": "positive/negative exact-key ACL tests in the owning deployment before a live"
+  },
+  {
+    "line": 57,
+    "path": "docs/NCP_BRIDGE_HANDOFF.md",
+    "text": "Native connect defaults to `Secure`: `NCP_ZENOH_CONFIG` must name a readable"
+  },
+  {
+    "line": 61,
+    "path": "docs/NCP_BRIDGE_HANDOFF.md",
+    "text": "correct."
+  },
+  {
+    "line": 63,
+    "path": "docs/NCP_BRIDGE_HANDOFF.md",
+    "text": "`NcpBridge::subscribe_commands` feeds wire-validated frames into `CommandPlant`"
+  },
+  {
+    "line": 83,
+    "path": "docs/NCP_BRIDGE_HANDOFF.md",
+    "text": "This remains an action/control library guarantee, not a product deployment"
+  },
+  {
+    "line": 90,
+    "path": "docs/NCP_BRIDGE_HANDOFF.md",
+    "text": "only after an exact runtime opt-in and fail-closed deployment preflight. It pins"
+  },
+  {
+    "line": 92,
+    "path": "docs/NCP_BRIDGE_HANDOFF.md",
+    "text": "and actual running executable before opening secure-mode Zenoh. Registered"
+  },
+  {
+    "line": 98,
+    "path": "docs/NCP_BRIDGE_HANDOFF.md",
+    "text": "This is component evidence, not proof of an authenticated deployment. Secure"
+  },
+  {
+    "line": 131,
+    "path": "docs/NCP_BRIDGE_HANDOFF.md",
+    "text": "4. Design and review a separate narrow native plant adapter for the validated"
+  },
+  {
+    "line": 136,
+    "path": "docs/NCP_BRIDGE_HANDOFF.md",
+    "text": "6. Supply and audit the secure Zenoh configuration, identities, and certificates;"
+  },
+  {
+    "line": 141,
+    "path": "docs/NCP_BRIDGE_HANDOFF.md",
+    "text": "The Galadriel producer does not complete any item in this action/authority list."
+  },
+  {
+    "line": 143,
+    "path": "docs/NCP_BRIDGE_HANDOFF.md",
+    "text": "tap/assembler on the exact topology and retain registry-agreement evidence;"
+  },
+  {
+    "line": 146,
+    "path": "docs/NCP_BRIDGE_HANDOFF.md",
+    "text": "and shutdown evidence on the exact topology."
+  },
+  {
+    "line": 10,
+    "path": "docs/PHASE0_BASELINE.md",
+    "text": "| Target declared as secure deterministic single-vehicle SITL | Defined as L1; not achieved |"
+  },
+  {
+    "line": 16,
+    "path": "docs/PHASE0_BASELINE.md",
+    "text": "| External source/toolchain/config baseline | Remote `main` identities and exact commit-object configuration digests recorded; dirty sibling working-tree bytes were excluded; CREBAIN commit is intentionally resolved by later release evidence |"
+  },
+  {
+    "line": 19,
+    "path": "docs/PHASE0_BASELINE.md",
+    "text": "| Headless plant-authority foundation | Inactive draft command validation, profile-neutral digest-bound ENU/NED + FLU/FRD velocity-axis conventions, closed context-bound vehicle-health/captured-age mechanics, exact-profile opaque-situation safe-action dispatch, lifecycle, bounded channels, passive expiry, an unwired receipt-anchored active deadline monitor, and a non-authorizing apply-check observation are component-tested in an inert package. The observation first loads one generation-checked c"
+  },
+  {
+    "line": 21,
+    "path": "docs/PHASE0_BASELINE.md",
+    "text": "| Inactive captured-read age classifier | [`PLANT_FRESHNESS_V1.md`](PLANT_FRESHNESS_V1.md) defines exact-profile binding, eight named nonzero exclusive limits, and per-point exclusive relations tested below, at, and above each boundary while retaining the coherent observed commit; it does not read current time, implement the draft ODD's inclusive `<=200 ms` condition, aggregate health, or enforce anything at apply time |"
+  },
+  {
+    "line": 22,
+    "path": "docs/PHASE0_BASELINE.md",
+    "text": "| Inactive safe-action dispatch candidate | [`PLANT_SAFE_ACTION_V1.md`](PLANT_SAFE_ACTION_V1.md) defines an owned fixed table from nonzero opaque situation codes to a closed intent vocabulary, exact full-profile matching, duplicate rejection, and no fallback/default. It is caller-proposed, not content-bound or approved, and has no health/state/trigger classifier, precedence, lifecycle/time input, action conversion, adapter call, or physical-effect evidence |"
+  },
+  {
+    "line": 23,
+    "path": "docs/PHASE0_BASELINE.md",
+    "text": "| Active deadline-monitor candidate | [`PLANT_WATCHDOG_V1.md`](PLANT_WATCHDOG_V1.md) defines receipt-derived immutable tickets, one named worker, one active slot/no queue, strict same-profile/session/generation sequence advancement, due-before-control precedence, caller-reported generation mismatch, sticky terminal evidence, and fail-closed poison/panic/shutdown handling. Poisoned synchronization carries no exact active key, and start failure retains its initial context. It is unwired and is not"
+  },
+  {
+    "line": 25,
+    "path": "docs/PHASE0_BASELINE.md",
+    "text": "| Galadriel evidence producer | Feature/runtime-gated component integrated with immutable strict registry and actual config/executable pins, readiness-only active initialization, two exact evidence routes, exact-time/projection eligibility, bounded measurement/live-track/assignment behavior, upstream/capacity/NCP loss degradation, heartbeat generation, and finite owned-task shutdown; numeric upstream loss is not wire-visible, receiver/TLS/ACL/receive-size/deadline/combined-load/calibration evide"
+  },
+  {
+    "line": 50,
+    "path": "docs/PHASE0_BASELINE.md",
+    "text": "`git ls-remote origin refs/heads/main` and hashed named files from those exact"
+  },
+  {
+    "line": 67,
+    "path": "docs/PHASE0_BASELINE.md",
+    "text": "hazard unless every referenced control has typed evidence bound to that exact"
+  },
+  {
+    "line": 89,
+    "path": "docs/PHASE0_BASELINE.md",
+    "text": "inventory separately requires the two exact feature/runtime-gated Galadriel NCP"
+  },
+  {
+    "line": 118,
+    "path": "docs/PHASE0_BASELINE.md",
+    "text": "locks one private freshness module, exact profile/observation ownership, eight"
+  },
+  {
+    "line": 120,
+    "path": "docs/PHASE0_BASELINE.md",
+    "text": "boolean or aggregate verdict. The same check locks one private safe-action"
+  },
+  {
+    "line": 125,
+    "path": "docs/PHASE0_BASELINE.md",
+    "text": "ticket construction borrows a validated candidate and derives an immutable"
+  },
+  {
+    "line": 127,
+    "path": "docs/PHASE0_BASELINE.md",
+    "text": "slot/no queue; replacement requires the exact profile/session/generation and a"
+  },
+  {
+    "line": 131,
+    "path": "docs/PHASE0_BASELINE.md",
+    "text": "apply-observation module. Exact profile and generation checks precede one"
+  },
+  {
+    "line": 138,
+    "path": "docs/PHASE0_BASELINE.md",
+    "text": "velocity/action/adapter conversion, output revocation, safe action, I/O, or"
+  },
+  {
+    "line": 143,
+    "path": "docs/PHASE0_BASELINE.md",
+    "text": "compile-fail doctests, and 231 static fixtures (64 health/freshness, 51 safe"
+  },
+  {
+    "line": 149,
+    "path": "docs/PHASE0_BASELINE.md",
+    "text": "health/safe-action policy, content binding of caller-proposed rows,"
+  },
+  {
+    "line": 153,
+    "path": "docs/PHASE0_BASELINE.md",
+    "text": "with JavaScript and Rust. It proves exact ENU/NED and FLU/FRD velocity-axis"
+  },
+  {
+    "line": 12,
+    "path": "docs/PLANT_APPLY_OBSERVATION_V1.md",
+    "text": "- a structurally validated `VelocityCommandCandidateV1`;"
+  },
+  {
+    "line": 15,
+    "path": "docs/PLANT_APPLY_OBSERVATION_V1.md",
+    "text": "- one exact-profile `VehicleHealthCapturedAgePolicyV1`."
+  },
+  {
+    "line": 38,
+    "path": "docs/PLANT_APPLY_OBSERVATION_V1.md",
+    "text": "`ApplyCheckObservationCandidateV1::capture` fails closed in this stable order:"
+  },
+  {
+    "line": 51,
+    "path": "docs/PLANT_APPLY_OBSERVATION_V1.md",
+    "text": "command/lifecycle generation mismatch, the complete typed vehicle-health read"
+  },
+  {
+    "line": 64,
+    "path": "docs/PLANT_APPLY_OBSERVATION_V1.md",
+    "text": "- command age and the structurally validated requested lifetime; and"
+  },
+  {
+    "line": 77,
+    "path": "docs/PLANT_APPLY_OBSERVATION_V1.md",
+    "text": "its exact age/limit pair. There is no aggregate or authorizing combination of"
+  },
+  {
+    "line": 85,
+    "path": "docs/PLANT_APPLY_OBSERVATION_V1.md",
+    "text": "`LocalFrameInstanceIdentity`. Exact command/policy/health `ProfileIdentity`"
+  },
+  {
+    "line": 93,
+    "path": "docs/PLANT_APPLY_OBSERVATION_V1.md",
+    "text": "validated command candidate is copyable and `capture` can be called repeatedly,"
+  },
+  {
+    "line": 96,
+    "path": "docs/PLANT_APPLY_OBSERVATION_V1.md",
+    "text": "complete command body: copyable candidates with those same values can carry"
+  },
+  {
+    "line": 123,
+    "path": "docs/PLANT_APPLY_OBSERVATION_V1.md",
+    "text": "proposed action, safe-action intent, output-revocation operation, or adapter"
+  },
+  {
+    "line": 129,
+    "path": "docs/PLANT_APPLY_OBSERVATION_V1.md",
+    "text": "It also does not consume deadline-monitor terminal evidence or the safe-action"
+  },
+  {
+    "line": 131,
+    "path": "docs/PLANT_APPLY_OBSERVATION_V1.md",
+    "text": "revoke output, classify a situation, select a safe action, or call an FCU"
+  },
+  {
+    "line": 167,
+    "path": "docs/PLANT_APPLY_OBSERVATION_V1.md",
+    "text": "- authoritative safe-action classification, an approved content-bound policy,"
+  },
+  {
+    "line": 185,
+    "path": "docs/PLANT_APPLY_OBSERVATION_V1.md",
+    "text": "covers a coherent health load before one exact reference instant is minted for"
+  },
+  {
+    "line": 200,
+    "path": "docs/PLANT_APPLY_OBSERVATION_V1.md",
+    "text": "health/freshness, 51 safe-action, 72 deadline-monitor, and 44 apply-observation"
+  },
+  {
+    "line": 14,
+    "path": "docs/PLANT_CONTRACT_V1.md",
+    "text": "safe-action selection, apply-time checks, adapter acceptance, and observed"
+  },
+  {
+    "line": 15,
+    "path": "docs/PLANT_CONTRACT_V1.md",
+    "text": "vehicle effect remain separate required gates. Here, \u201csafe-action selection\u201d means authoritative"
+  },
+  {
+    "line": 37,
+    "path": "docs/PLANT_CONTRACT_V1.md",
+    "text": "| General action | Velocity only | Hold/Land/RTL remain reserved for a future approved state-dependent plant policy; a separate inert candidate can return closed safe-action intents from opaque caller-supplied situation codes but cannot admit or convert them here; arm/disarm/takeoff/mission/mode/raw-motor proposals are rejected |"
+  },
+  {
+    "line": 61,
+    "path": "docs/PLANT_CONTRACT_V1.md",
+    "text": "envelope, session, freshness, authorization, or authority. Its exact"
+  },
+  {
+    "line": 66,
+    "path": "docs/PLANT_CONTRACT_V1.md",
+    "text": "The exact shared corpus is"
+  },
+  {
+    "line": 90,
+    "path": "docs/PLANT_CONTRACT_V1.md",
+    "text": "`CommandDeadlineTicketV1` only from a validated candidate, a caller-supplied"
+  },
+  {
+    "line": 99,
+    "path": "docs/PLANT_CONTRACT_V1.md",
+    "text": "replacement must be another validated ticket with the same exact profile,"
+  },
+  {
+    "line": 108,
+    "path": "docs/PLANT_CONTRACT_V1.md",
+    "text": "an output, classify state, choose a safe action, or call an adapter. It does"
+  },
+  {
+    "line": 115,
+    "path": "docs/PLANT_CONTRACT_V1.md",
+    "text": "`ApplyCheckObservationCandidateV1::capture` borrows a validated command, the"
+  },
+  {
+    "line": 116,
+    "path": "docs/PLANT_CONTRACT_V1.md",
+    "text": "lifecycle machine, the canonical health reader, and an exact-profile captured-"
+  },
+  {
+    "line": 135,
+    "path": "docs/PLANT_CONTRACT_V1.md",
+    "text": "command content, velocity, action, safe-action conversion, output revocation,"
+  },
+  {
+    "line": 138,
+    "path": "docs/PLANT_CONTRACT_V1.md",
+    "text": "`LocalFrameInstanceIdentity`, so exact profile/generation equality can compose"
+  },
+  {
+    "line": 151,
+    "path": "docs/PLANT_CONTRACT_V1.md",
+    "text": "the exact PX4 SITL image/parameters and canonical local frame; review and bind"
+  },
+  {
+    "line": 152,
+    "path": "docs/PLANT_CONTRACT_V1.md",
+    "text": "the exact v1 corpus digest plus remaining transform semantics into the profile"
+  },
+  {
+    "line": 160,
+    "path": "docs/PLANT_CONTRACT_V1.md",
+    "text": "apply-time race. A separate safe-action candidate now proves only fixed,"
+  },
+  {
+    "line": 161,
+    "path": "docs/PLANT_CONTRACT_V1.md",
+    "text": "no-default, exact-profile dispatch mechanics over caller-proposed opaque"
+  },
+  {
+    "line": 165,
+    "path": "docs/PLANT_CONTRACT_V1.md",
+    "text": "deadline-monitor integration, approved safe-action classifier/policy,"
+  },
+  {
+    "line": 184,
+    "path": "docs/PLANT_CONTRACT_V1.md",
+    "text": "The tests cover exact draft boundaries, version/profile/session mismatch, zero"
+  },
+  {
+    "line": 187,
+    "path": "docs/PLANT_CONTRACT_V1.md",
+    "text": "sequence, body-frame profile rejection, exact ENU/NED and FLU/FRD axes,"
+  },
+  {
+    "line": 190,
+    "path": "docs/PLANT_CONTRACT_V1.md",
+    "text": "before one exact reference instant is minted for health and command ages,"
+  },
+  {
+    "line": 193,
+    "path": "docs/PLANT_CONTRACT_V1.md",
+    "text": "and forbidden verdict/action/adapter conversions. The complete plant suite has"
+  },
+  {
+    "line": 23,
+    "path": "docs/PLANT_FRESHNESS_V1.md",
+    "text": "interpret FCU state, transition lifecycle, classify a safe-action situation,"
+  },
+  {
+    "line": 32,
+    "path": "docs/PLANT_FRESHNESS_V1.md",
+    "text": "detect and timestamp a validated command candidate's absolute"
+  },
+  {
+    "line": 47,
+    "path": "docs/PLANT_FRESHNESS_V1.md",
+    "text": "`VehicleHealthCapturedAgePolicyV1` retains one exact `ProfileIdentity` and one"
+  },
+  {
+    "line": 49,
+    "path": "docs/PLANT_FRESHNESS_V1.md",
+    "text": "configuration reports the first zero in the stable point order above. The"
+  },
+  {
+    "line": 67,
+    "path": "docs/PLANT_FRESHNESS_V1.md",
+    "text": "exact profile identity before producing any comparison. A successful"
+  },
+  {
+    "line": 69,
+    "path": "docs/PLANT_FRESHNESS_V1.md",
+    "text": "borrows the exact policy, preventing a caller from constructing an assessment"
+  },
+  {
+    "line": 76,
+    "path": "docs/PLANT_FRESHNESS_V1.md",
+    "text": "- the exact exclusive limit."
+  },
+  {
+    "line": 84,
+    "path": "docs/PLANT_FRESHNESS_V1.md",
+    "text": "aggregate, boolean conversion, `all_fresh`, `healthy`, `safe`, `eligible`, or"
+  },
+  {
+    "line": 101,
+    "path": "docs/PLANT_FRESHNESS_V1.md",
+    "text": "carries no `VehicleIdentity` or `LocalFrameInstanceIdentity`, so exact profile/"
+  },
+  {
+    "line": 122,
+    "path": "docs/PLANT_FRESHNESS_V1.md",
+    "text": "  authoritative safe-action classification and approved/content-bound policy,"
+  },
+  {
+    "line": 142,
+    "path": "docs/PLANT_FRESHNESS_V1.md",
+    "text": "zero-limit rejection, exact profile mismatch, all eight age mappings,"
+  },
+  {
+    "line": 148,
+    "path": "docs/PLANT_FRESHNESS_V1.md",
+    "text": "authorizing verdict. The complete plant suite has 123 unit/integration tests and"
+  },
+  {
+    "line": 9,
+    "path": "docs/PLANT_HEALTH_V1.md",
+    "text": "vehicle-health value validated in memory by the inert headless plant foundation. It is a"
+  },
+  {
+    "line": 13,
+    "path": "docs/PLANT_HEALTH_V1.md",
+    "text": "deadline monitor, governor, authoritative safe-action classifier or approved"
+  },
+  {
+    "line": 28,
+    "path": "docs/PLANT_HEALTH_V1.md",
+    "text": "A separate safe-action component can look up a caller-proposed opaque situation"
+  },
+  {
+    "line": 29,
+    "path": "docs/PLANT_HEALTH_V1.md",
+    "text": "code under an exact profile identity; see"
+  },
+  {
+    "line": 33,
+    "path": "docs/PLANT_HEALTH_V1.md",
+    "text": "safe-action classifier and approved policy are still absent."
+  },
+  {
+    "line": 35,
+    "path": "docs/PLANT_HEALTH_V1.md",
+    "text": "A separate fixed-state deadline component can detect and timestamp a validated"
+  },
+  {
+    "line": 39,
+    "path": "docs/PLANT_HEALTH_V1.md",
+    "text": "autonomously, revoke output, select a safe action, or close the apply-time"
+  },
+  {
+    "line": 49,
+    "path": "docs/PLANT_HEALTH_V1.md",
+    "text": "- the exact candidate profile identity, including its ENU or NED semantics;"
+  },
+  {
+    "line": 91,
+    "path": "docs/PLANT_HEALTH_V1.md",
+    "text": "safe/unsafe mode names."
+  },
+  {
+    "line": 94,
+    "path": "docs/PLANT_HEALTH_V1.md",
+    "text": "metres per second in the profile's exact local frame. Available battery values"
+  },
+  {
+    "line": 109,
+    "path": "docs/PLANT_HEALTH_V1.md",
+    "text": "One reader load returns a coherent immutable commit and exact ages for receipt,"
+  },
+  {
+    "line": 125,
+    "path": "docs/PLANT_HEALTH_V1.md",
+    "text": "limits to one exact profile identity. It refuses exact-profile mismatch before"
+  },
+  {
+    "line": 127,
+    "path": "docs/PLANT_HEALTH_V1.md",
+    "text": "borrows the exact policy."
+  },
+  {
+    "line": 131,
+    "path": "docs/PLANT_HEALTH_V1.md",
+    "text": "Those limits are not approved or proven to belong to the profile artifact. The"
+  },
+  {
+    "line": 139,
+    "path": "docs/PLANT_HEALTH_V1.md",
+    "text": "The validated snapshot contains only closed value types, fixed arrays, numeric"
+  },
+  {
+    "line": 173,
+    "path": "docs/PLANT_HEALTH_V1.md",
+    "text": "- the exact PX4 image, parameters, vehicle, source principal, and profile"
+  },
+  {
+    "line": 181,
+    "path": "docs/PLANT_HEALTH_V1.md",
+    "text": "  aggregate health, and safe-action policy;"
+  },
+  {
+    "line": 183,
+    "path": "docs/PLANT_HEALTH_V1.md",
+    "text": "- current/apply-time generation, age, and state enforcement plus physical safe"
+  },
+  {
+    "line": 201,
+    "path": "docs/PLANT_HEALTH_V1.md",
+    "text": "The complete plant suite has 123 unit/integration tests and 24 compile-fail"
+  },
+  {
+    "line": 1,
+    "path": "docs/PLANT_SAFE_ACTION_V1.md",
+    "text": "# Inactive Safe-Action Situation Dispatch Candidate V1"
+  },
+  {
+    "line": 4,
+    "path": "docs/PLANT_SAFE_ACTION_V1.md",
+    "text": "mechanics, not a vehicle-state classifier, an approved safe-action table, an"
+  },
+  {
+    "line": 18,
+    "path": "docs/PLANT_SAFE_ACTION_V1.md",
+    "text": "- request the exact profile's physical Hold behavior;"
+  },
+  {
+    "line": 23,
+    "path": "docs/PLANT_SAFE_ACTION_V1.md",
+    "text": "These names do not make any intent safe in a particular state. Inhibit is the"
+  },
+  {
+    "line": 33,
+    "path": "docs/PLANT_SAFE_ACTION_V1.md",
+    "text": "detect and timestamp a validated command candidate's absolute"
+  },
+  {
+    "line": 35,
+    "path": "docs/PLANT_SAFE_ACTION_V1.md",
+    "text": "that terminal event to a situation code or safe-action intent exists; see"
+  },
+  {
+    "line": 42,
+    "path": "docs/PLANT_SAFE_ACTION_V1.md",
+    "text": "classify a situation, consume this table, return a safe-action intent, or turn"
+  },
+  {
+    "line": 48,
+    "path": "docs/PLANT_SAFE_ACTION_V1.md",
+    "text": "one candidate policy can contain at most the complete 255-code nonzero space."
+  },
+  {
+    "line": 60,
+    "path": "docs/PLANT_SAFE_ACTION_V1.md",
+    "text": "code cannot be passed to the selector. Exact semantic kind and artifact digest"
+  },
+  {
+    "line": 68,
+    "path": "docs/PLANT_SAFE_ACTION_V1.md",
+    "text": "It rejects, in stable order:"
+  },
+  {
+    "line": 76,
+    "path": "docs/PLANT_SAFE_ACTION_V1.md",
+    "text": "exact profile-bound situation and selected intent while borrowing the exact"
+  },
+  {
+    "line": 90,
+    "path": "docs/PLANT_SAFE_ACTION_V1.md",
+    "text": "- an approved PX4/vehicle/ODD profile and canonical safe-action table;"
+  },
+  {
+    "line": 108,
+    "path": "docs/PLANT_SAFE_ACTION_V1.md",
+    "text": "`TEST-SAFE-ACTION-STATE-MATRIX` is not satisfied. The focused component test is"
+  },
+  {
+    "line": 109,
+    "path": "docs/PLANT_SAFE_ACTION_V1.md",
+    "text": "`TEST-PLANT-SAFE-ACTION-POLICY-V1`."
+  },
+  {
+    "line": 121,
+    "path": "docs/PLANT_SAFE_ACTION_V1.md",
+    "text": "isolation mechanics. The complete plant suite has 123 unit/integration tests"
+  },
+  {
+    "line": 123,
+    "path": "docs/PLANT_SAFE_ACTION_V1.md",
+    "text": "fixtures (51 safe-action and 44 apply-observation mutations among them). These"
+  },
+  {
+    "line": 124,
+    "path": "docs/PLANT_SAFE_ACTION_V1.md",
+    "text": "checks do not classify authoritative state or establish a safe physical"
+  },
+  {
+    "line": 5,
+    "path": "docs/PLANT_WATCHDOG_V1.md",
+    "text": "or evidence of a safe physical response."
+  },
+  {
+    "line": 10,
+    "path": "docs/PLANT_WATCHDOG_V1.md",
+    "text": "ticket from a structurally validated `VelocityCommandCandidateV1` and can run"
+  },
+  {
+    "line": 21,
+    "path": "docs/PLANT_WATCHDOG_V1.md",
+    "text": "evidence only: it does not classify vehicle state, choose a safe action, call"
+  },
+  {
+    "line": 39,
+    "path": "docs/PLANT_WATCHDOG_V1.md",
+    "text": "- a previously validated velocity-command candidate;"
+  },
+  {
+    "line": 42,
+    "path": "docs/PLANT_WATCHDOG_V1.md",
+    "text": "  validated requested lifetime."
+  },
+  {
+    "line": 51,
+    "path": "docs/PLANT_WATCHDOG_V1.md",
+    "text": "The ticket retains an exact key containing profile, command session, stream"
+  },
+  {
+    "line": 55,
+    "path": "docs/PLANT_WATCHDOG_V1.md",
+    "text": "validated candidate itself is copyable, a caller can derive multiple tickets"
+  },
+  {
+    "line": 69,
+    "path": "docs/PLANT_WATCHDOG_V1.md",
+    "text": "`submit_next` can replace the active ticket only with a separately validated"
+  },
+  {
+    "line": 72,
+    "path": "docs/PLANT_WATCHDOG_V1.md",
+    "text": "- has the same exact profile, command session, and lifecycle generation;"
+  },
+  {
+    "line": 76,
+    "path": "docs/PLANT_WATCHDOG_V1.md",
+    "text": "An accepted replacement records the previous and accepted keys, exact skipped"
+  },
+  {
+    "line": 107,
+    "path": "docs/PLANT_WATCHDOG_V1.md",
+    "text": "Deadline outcomes can carry the exact key, scheduled TTL, age when the ticket"
+  },
+  {
+    "line": 120,
+    "path": "docs/PLANT_WATCHDOG_V1.md",
+    "text": "state cannot support an exact active-slot claim, `SynchronizationFailed`"
+  },
+  {
+    "line": 134,
+    "path": "docs/PLANT_WATCHDOG_V1.md",
+    "text": "  health, freshness, situation classification, and safe-action policy;"
+  },
+  {
+    "line": 140,
+    "path": "docs/PLANT_WATCHDOG_V1.md",
+    "text": "  timing, and deadline-to-safe-action latency;"
+  },
+  {
+    "line": 163,
+    "path": "docs/PLANT_WATCHDOG_V1.md",
+    "text": "strict replacement and receipt ordering, exact-deadline precedence, already-"
+  },
+  {
+    "line": 166,
+    "path": "docs/PLANT_WATCHDOG_V1.md",
+    "text": "synchronization without an exact-key claim, and worker panic. Public-path tests"
+  },
+  {
+    "line": 167,
+    "path": "docs/PLANT_WATCHDOG_V1.md",
+    "text": "also compose two validated candidates through ticket construction and strict"
+  },
+  {
+    "line": 170,
+    "path": "docs/PLANT_WATCHDOG_V1.md",
+    "text": "target-scheduler qualification. The complete plant suite has 123"
+  },
+  {
+    "line": 18,
+    "path": "docs/RELEASE_ACCEPTANCE.md",
+    "text": "| Models | Exact artifact digest, model path, input/output tensors, preprocessing, postprocessing, class map, fixtures, and rights are recorded; MLX safetensors inputs receive the same review | Assuming a five-class `[1,9,N]` exporter fits the native COCO-80 `[1,84,N]`/`[1,N,84]` parser; unverified model |"
+  },
+  {
+    "line": 23,
+    "path": "docs/RELEASE_ACCEPTANCE.md",
+    "text": "| Transport authority boundary | Present executable Vite/Cargo/Tauri inputs and the release workflow are pinned; root Cargo config, Vite environment/config alternatives, and Tauri platform merge configs are explicitly locked absent; tracked build/release invocations reject `--config` and `TAURI_CONFIG`; comment-stripped Rust must contain exactly one real Tauri handler list; AST/token checks cover literal, split, template, array-joined, aliased, reflective, descriptor/global destructuring, dynami"
+  },
+  {
+    "line": 24,
+    "path": "docs/RELEASE_ACCEPTANCE.md",
+    "text": "| Inert plant foundation | `crebain-plant-authority` remains a separate zero-dependency workspace package and the Tauri application does not link it; command/frame/health/captured-age/safe-action tests pass; apply-observation tests prove that one generation-checked coherent health snapshot is loaded before one private reference instant is minted, health ages are computed before command receipt age relative to that same instant, requested-lifetime equality remains outside, neutral lifecycle state"
+  },
+  {
+    "line": 25,
+    "path": "docs/RELEASE_ACCEPTANCE.md",
+    "text": "| Hazard promotion evidence | A controlled hazard has exact hazard/control-bound test declarations plus a typed content-hashed JSON artifact recording the passing command/result and candidate commit | Status-only promotion, unrelated selector/path, missing control coverage, failed command, placeholder commit, or artifact/hash/binding mismatch |"
+  },
+  {
+    "line": 26,
+    "path": "docs/RELEASE_ACCEPTANCE.md",
+    "text": "| Zenoh limitations | Every ROS telemetry topic/plain-key topology and both NCP evidence keys are documented/tested separately; unsupported services/custom arrays remain explicit; a re-key bridge is present for direct `rmw_zenoh_cpp` claims | Treating `RMW_IMPLEMENTATION=rmw_zenoh_cpp` alone as interoperability, treating secure config loading as TLS/ACL proof, or widening the evidence writer into generic publish/service authority |"
+  },
+  {
+    "line": 27,
+    "path": "docs/RELEASE_ACCEPTANCE.md",
+    "text": "| Sensor fusion | Config plus 512-measurement/1,024-live-track and numeric/string/metadata envelopes pass; newest-preserving upstream/registry admission, whole-cluster track-cap rejection, strict sensor-clock/exact-time rules, deleted-channel purge, invalid-gate refusal, sparse components, and all-infinite assignment are exercised; disconnect/coast/expiry behavior remains covered | Invalid config, unbounded growth, false hit credit, stale track/time state, overlapping cycles, rejected input pois"
+  },
+  {
+    "line": 28,
+    "path": "docs/RELEASE_ACCEPTANCE.md",
+    "text": "| NCP action/control opt-in | Default runtime remains independent; NCP feature compiles/tests; missing secure config fails closed; quiet development is explicit; lifecycle `ok`, payload/command bounds, subscriber cleanup, raw ESTOP, malformed dev-call HOLD, per-entity sequencing, TTL, and final-HOLD failure reporting are tested | Registering/invoking dormant action paths accidentally, accepting inferred success, sharing action state across entities, or claiming a live Engram/action/TLS-secure lo"
+  },
+  {
+    "line": 29,
+    "path": "docs/RELEASE_ACCEPTANCE.md",
+    "text": "| Galadriel producer opt-in | Default artifacts omit `ncp`; non-feature `ENABLE=1` fails; feature build absent/`0` opens no producer; exact `1` validates an explicit key-safe process epoch, strict bounded registry/config and global immutable content identities, selected IDs, canonical registry pin, actual effective-config and executable three-way pins; active initialization is readiness-only and replacement requires the same digest; frozen routes/codecs, exact-time/projection eligibility, upstre"
+  },
+  {
+    "line": 32,
+    "path": "docs/RELEASE_ACCEPTANCE.md",
+    "text": "| Performance claims | Clean exact source plus the release-command report and its digest, approved model/fixture identities, external target hardware/runtime record, trusted baseline digest, pre-approved threshold, and raw samples are archived | Any numeric claim without candidate-specific evidence; treating declared source/hardware or a provider label as attestation; baseline digest obtained from the file under test; reusing a result across materially different identities |"
+  },
+  {
+    "line": 40,
+    "path": "docs/RELEASE_ACCEPTANCE.md",
+    "text": "2. the evidence log names that exact commit and hosted runs without placeholder counts;"
+  },
+  {
+    "line": 42,
+    "path": "docs/RELEASE_ACCEPTANCE.md",
+    "text": "4. experimental and dormant paths cannot masquerade as validated product capability; and"
+  },
+  {
+    "line": 43,
+    "path": "docs/RELEASE_ACCEPTANCE.md",
+    "text": "5. every external input path is validated, tested, or explicitly ruled out of scope."
+  },
+  {
+    "line": 9,
+    "path": "docs/RELEASE_EVIDENCE.md",
+    "text": "No release candidate is currently sealed. The exact executable source under"
+  },
+  {
+    "line": 13,
+    "path": "docs/RELEASE_EVIDENCE.md",
+    "text": "exact-profile-bound captured-read age classifier, opaque-situation safe-action"
+  },
+  {
+    "line": 18,
+    "path": "docs/RELEASE_EVIDENCE.md",
+    "text": "TTL, or content-bound safe-action policy, authoritative currentness or state"
+  },
+  {
+    "line": 28,
+    "path": "docs/RELEASE_EVIDENCE.md",
+    "text": "| Hosted CodeQL | [CodeQL 29273670797](https://github.com/sepahead/crebain/actions/runs/29273670797) passed for Rust and JavaScript/TypeScript on the exact source on attempt 1 |"
+  },
+  {
+    "line": 29,
+    "path": "docs/RELEASE_EVIDENCE.md",
+    "text": "| Additional hosted policy | [OpenSSF Scorecard 29273670861](https://github.com/sepahead/crebain/actions/runs/29273670861) passed on the exact source on attempt 1 |"
+  },
+  {
+    "line": 30,
+    "path": "docs/RELEASE_EVIDENCE.md",
+    "text": "| Local `bun run validate:all` | Passed on the exact source: 305 frontend tests; 123 plant unit/integration tests plus 24 compile-fail doctests; 320 default all-target Rust tests plus 1 ignored generator; 411 NCP-feature all-target Rust tests plus 1 ignored generator; strict default/NCP/plant Clippy and Rustfmt; 133 inventoried surfaces, 17 hazards, 155 production files, 31 pinned configs, 114 Phase-0 fail-closed fixtures, 20 frame mutations, 231 plant-boundary mutations (64 health/freshness, 51"
+  },
+  {
+    "line": 32,
+    "path": "docs/RELEASE_EVIDENCE.md",
+    "text": "| Frontend test/coverage/bundle result | 45 files and 305 local tests passed; exact-source `bun run check:bundle` passed at 432.3/700.0 kB gzipped with 29 production-boundary fixtures; hosted frontend and coverage jobs passed inside CI 29273670742 |"
+  },
+  {
+    "line": 33,
+    "path": "docs/RELEASE_EVIDENCE.md",
+    "text": "| Rust default/NCP/feature result | Local default and NCP all-target suites passed with 320 and 411 tests respectively, each plus one ignored fixture generator; exact-source plant tests and self-check passed; hosted Linux/macOS default/NCP jobs and Linux feature gates passed |"
+  },
+  {
+    "line": 36,
+    "path": "docs/RELEASE_EVIDENCE.md",
+    "text": "| Boundary focus | Pinned NCP wire 0.8, complete renderer command mediation, serialized negative IPC mechanics, native benchmark mechanics, and the generic renderer/ROS publish prohibition remain in source. The exact-opt-in Galadriel routes, immutable configuration, exact-time/projection eligibility, computational envelopes, and upstream/capacity degradation are inventoried, but the wire summary still lacks numeric upstream/cluster-loss detail. The inert plant package has a sealed closed immutab"
+  },
+  {
+    "line": 46,
+    "path": "docs/RELEASE_EVIDENCE.md",
+    "text": "Its exact local validation covered 297 frontend tests, 273 default and 311"
+  },
+  {
+    "line": 58,
+    "path": "docs/RELEASE_EVIDENCE.md",
+    "text": "had the following exact evidence. These results preserve provenance for the"
+  },
+  {
+    "line": 65,
+    "path": "docs/RELEASE_EVIDENCE.md",
+    "text": "| Hosted CI | [CI 29231759604](https://github.com/sepahead/crebain/actions/runs/29231759604) passed on the exact snapshot source |"
+  },
+  {
+    "line": 72,
+    "path": "docs/RELEASE_EVIDENCE.md",
+    "text": "| Evidence boundary | The one production Tauri handler list drove mock-runtime negative IPC tests for scene, detector, fusion, and transport inputs. The isolated inert plant package covered bounded command/output channels, retained whole-value snapshots, passive generation-bound monotonic expiry, and inactive contract-v1 validation for a closed ENU/NED profile kind and artifact digest, frame-retaining SI velocity, session/generation/sequence, producer correlation time, plant-local receipt time, "
+  },
+  {
+    "line": 77,
+    "path": "docs/RELEASE_EVIDENCE.md",
+    "text": "commit `266ff810256d9a9563c3a3a1e976e81f81067aeb` had the following exact evidence."
+  },
+  {
+    "line": 104,
+    "path": "docs/RELEASE_EVIDENCE.md",
+    "text": "| Version coherence | Metadata/tag guard on candidate | Local exact-source and hosted CI checks passed; no release tag exists |"
+  },
+  {
+    "line": 105,
+    "path": "docs/RELEASE_EVIDENCE.md",
+    "text": "| Frontend validation | Typecheck, lint, format, and tests | Local exact-source checks and hosted frontend job passed; 45 files / 305 tests |"
+  },
+  {
+    "line": 107,
+    "path": "docs/RELEASE_EVIDENCE.md",
+    "text": "| Rust default | fmt, check, all-target tests, and clippy on Linux/macOS | Local exact-source suite and hosted Linux/macOS jobs passed |"
+  },
+  {
+    "line": 108,
+    "path": "docs/RELEASE_EVIDENCE.md",
+    "text": "| NCP bridge/producer feature | Locked NCP clippy and all-target tests on Linux/macOS, including registry/config/executable pins, readiness-only config immutability, exact-time/channel state, bounded measurement/track admission, invalid-gate refusal, sparse/all-infinite assignment, codecs, upstream/queue degradation, heartbeat, lifecycle, and JSONL archive failure semantics | Local 411-test suite plus one ignored generator and hosted Linux/macOS jobs passed; component complexity tests are not ta"
+  },
+  {
+    "line": 109,
+    "path": "docs/RELEASE_EVIDENCE.md",
+    "text": "| Inert plant foundation | Dependency boundary, exact crate-root/API inventory, sealed-health/freshness/safe-action/deadline-monitor/apply-observation static mutation checks, compile-fail endpoint/ownership/conversion/ticket/monitor/observation checks, strict Clippy, property/stress/headless/retained-snapshot/expiry/contract/frame/health/freshness/safe-action/deadline/apply-observation tests, digest-bound cross-language frame corpus, and self-check | Exact source passed locally and in the hosted"
+  },
+  {
+    "line": 110,
+    "path": "docs/RELEASE_EVIDENCE.md",
+    "text": "| Serialized native IPC | Same production handler list plus negative structured invokes for scene, detector, fusion, and transport input boundaries | Exact-source local suite and hosted frontend/Rust checks passed; `InvokeRequest` mock-runtime evidence does not replace raw webview conversion, packaged-origin/CSP/capability, positive-path, or target-platform smoke evidence |"
+  },
+  {
+    "line": 111,
+    "path": "docs/RELEASE_EVIDENCE.md",
+    "text": "| Native detector benchmark mechanics | All-target/focused tests cover bounds, failure propagation, model/fixture identity, ONNX Runtime loading records and configured-Linux-library identity, raw-sample summaries, exact millisecond-to-FPS conversion, trusted-baseline digest binding/comparability, and no-overwrite report persistence | The exact-source default and NCP suites each passed all 22 logic tests; no approved model, target-hardware run, baseline, threshold, or numeric result exists |"
+  },
+  {
+    "line": 112,
+    "path": "docs/RELEASE_EVIDENCE.md",
+    "text": "| Rust feature gates | `cuda,tensorrt` and `--no-default-features` checks | Hosted exact-source Linux feature-gate job passed |"
+  },
+  {
+    "line": 114,
+    "path": "docs/RELEASE_EVIDENCE.md",
+    "text": "| Static analysis | CodeQL JavaScript/TypeScript and Rust | Exact-source CodeQL 29273670797 passed for both languages on attempt 1 |"
+  },
+  {
+    "line": 125,
+    "path": "docs/RELEASE_EVIDENCE.md",
+    "text": "| Galadriel producer deployment | Exact post-package executable/config/registry; two-key TLS principal/ACL allow+deny and CN\u2192`producer_id` binding; router/receiver receive-size allow+oversize-deny; receiver decode/join; heartbeat/loss/reorder/restart/saturation/clock/combined-load/shutdown traces; producer logs for numeric upstream/track-cap loss | Pending external topology |"
+  },
+  {
+    "line": 126,
+    "path": "docs/RELEASE_EVIDENCE.md",
+    "text": "| Plant health and effect boundary | Authenticated FCU collector/source; multi-message coherence with oldest-constituent time; frame-reset identity; durable epoch ownership; approved freshness/TTL policy plus authoritative situation classification and a content-bound safe-action matrix; immediately-before-write generation/health checks and output revocation; operational watchdog, governor, adapter, and SITL/HIL traces | Pending external vehicle/profile/topology and later plant components; the op"
+  },
+  {
+    "line": 136,
+    "path": "docs/RELEASE_EVIDENCE.md",
+    "text": "  compatible Engram/realm/ACL deployment before any live action-loop claim."
+  },
+  {
+    "line": 138,
+    "path": "docs/RELEASE_EVIDENCE.md",
+    "text": "  needs an authenticated exact-route topology, verified receive-size policy, and"
+  },
+  {
+    "line": 139,
+    "path": "docs/RELEASE_EVIDENCE.md",
+    "text": "  compatible receiver-side assembler/registry/deadline/loss evidence before a"
+  },
+  {
+    "line": 148,
+    "path": "docs/RELEASE_EVIDENCE.md",
+    "text": "  coherent age mechanics, while the separate exact-profile-bound classifier"
+  },
+  {
+    "line": 153,
+    "path": "docs/RELEASE_EVIDENCE.md",
+    "text": "  ownership, approved freshness/safe-action policy, apply-time checks,"
+  },
+  {
+    "line": 155,
+    "path": "docs/RELEASE_EVIDENCE.md",
+    "text": "- The safe-action situation-dispatch candidate owns a bounded no-default table"
+  },
+  {
+    "line": 161,
+    "path": "docs/RELEASE_EVIDENCE.md",
+    "text": "  Land, RTL, inhibit, or ground disarm is safe in any operational state."
+  },
+  {
+    "line": 178,
+    "path": "docs/RELEASE_EVIDENCE.md",
+    "text": "  boolean and conveys no authorization. Exact structural profile and generation"
+  },
+  {
+    "line": 96,
+    "path": "docs/SENSOR_FUSION.md",
+    "text": "    C --> D[\"3. UPDATE<br/>fuse associated measurements,<br/>correct state + covariance\"]"
+  },
+  {
+    "line": 108,
+    "path": "docs/SENSOR_FUSION.md",
+    "text": "3. **Update** \u2014 associated measurements correct the track's state and shrink its"
+  },
+  {
+    "line": 260,
+    "path": "docs/SENSOR_FUSION.md",
+    "text": "moment-matched combined estimate. The likelihood uses the correct 3-D"
+  },
+  {
+    "line": 416,
+    "path": "docs/SENSOR_FUSION.md",
+    "text": "> both engines \u2014 not `drone` \u2014 because the shared mapping is exact-match. Extending"
+  },
+  {
+    "line": 485,
+    "path": "docs/SENSOR_FUSION.md",
+    "text": "| `particle_count` | `100` | Particles per track (PF only) | \u2191 accuracy at `O(N)` cost; the default is a real-time compromise |"
+  },
+  {
+    "line": 486,
+    "path": "docs/SENSOR_FUSION.md",
+    "text": "| `emit_innovations` | `false` | Emit compatible observations into the legacy drain/local-JSONL buffer | The explicit live `process_frame` evidence API constructs frozen-v1 observations independently; PF/IMM still emit none |"
+  },
+  {
+    "line": 510,
+    "path": "docs/SENSOR_FUSION.md",
+    "text": "track limit it drops complete deterministic overflow birth clusters before the"
+  },
+  {
+    "line": 562,
+    "path": "docs/SENSOR_FUSION.md",
+    "text": "| 5 | **Per-measurement timestamps / OOSM** \u2014 baseline filter uses one monotonic frame time | \u2b1c **Open** \u2014 live v1/projection now requires exact advancing same-time stamps and rejects duplicate/OOSM evidence, but per-measurement prediction and retrodiction remain deferred |"
+  },
+  {
+    "line": 659,
+    "path": "docs/SENSOR_FUSION.md",
+    "text": "configured sink. The worker validates and serializes the complete batch before"
+  },
+  {
+    "line": 661,
+    "path": "docs/SENSOR_FUSION.md",
+    "text": "a mid-write OS failure can leave part of the already-validated batch. Exit waits"
+  },
+  {
+    "line": 667,
+    "path": "docs/SENSOR_FUSION.md",
+    "text": "exact runtime opt-in are both active, `fusion_process` instead also wraps the"
+  },
+  {
+    "line": 668,
+    "path": "docs/SENSOR_FUSION.md",
+    "text": "same compatible observations in strict sidecar envelopes and emits a complete"
+  },
+  {
+    "line": 682,
+    "path": "docs/SENSOR_FUSION.md",
+    "text": "  has no single compatible innovation covariance for them."
+  },
+  {
+    "line": 16,
+    "path": "docs/SYSTEM_CONTEXT.md",
+    "text": "exact runtime opt-in and registry/config/executable preflight, emit advisory"
+  },
+  {
+    "line": 29,
+    "path": "docs/SYSTEM_CONTEXT.md",
+    "text": "exact-profile safe-action situation-dispatch candidate over a closed intent vocabulary."
+  },
+  {
+    "line": 34,
+    "path": "docs/SYSTEM_CONTEXT.md",
+    "text": "JavaScript/Rust corpus cover exact ENU\u2194NED and FLU\u2194FRD velocity-axis"
+  },
+  {
+    "line": 43,
+    "path": "docs/SYSTEM_CONTEXT.md",
+    "text": "exact-profile mismatch, and reports only whether each captured age is strictly"
+  },
+  {
+    "line": 53,
+    "path": "docs/SYSTEM_CONTEXT.md",
+    "text": "without interpreting that state, and all eight health-age relations. Exact"
+  },
+  {
+    "line": 62,
+    "path": "docs/SYSTEM_CONTEXT.md",
+    "text": "revocation, safe action, adapter operation, I/O, or runtime wiring, although"
+  },
+  {
+    "line": 70,
+    "path": "docs/SYSTEM_CONTEXT.md",
+    "text": "safe-action candidate copies caller-proposed opaque nonzero situation codes"
+  },
+  {
+    "line": 72,
+    "path": "docs/SYSTEM_CONTEXT.md",
+    "text": "proposal, requires an exact full profile match, and has no default row. It does"
+  },
+  {
+    "line": 77,
+    "path": "docs/SYSTEM_CONTEXT.md",
+    "text": "operational watchdog integration, approved and content-bound safe-action policy"
+  },
+  {
+    "line": 82,
+    "path": "docs/SYSTEM_CONTEXT.md",
+    "text": "or adapter hook. The separate active monitor derives tickets only from validated"
+  },
+  {
+    "line": 84,
+    "path": "docs/SYSTEM_CONTEXT.md",
+    "text": "One named worker owns one active slot/no queue; replacement requires the exact"
+  },
+  {
+    "line": 91,
+    "path": "docs/SYSTEM_CONTEXT.md",
+    "text": "shutdown; poisoned synchronization carries no exact active key. It does not"
+  },
+  {
+    "line": 93,
+    "path": "docs/SYSTEM_CONTEXT.md",
+    "text": "rotation autonomously, revoke output, select/apply a safe action, call an"
+  },
+  {
+    "line": 130,
+    "path": "docs/SYSTEM_CONTEXT.md",
+    "text": "| NCP router | Exact identity/route transport and bounded delivery | Policy inference or actuator access |"
+  },
+  {
+    "line": 135,
+    "path": "docs/SYSTEM_CONTEXT.md",
+    "text": "| Fusion/perception producer | Telemetry and derived evidence on exact routes after deployment opt-in | Command authority, generic publisher, or final-route credentials |"
+  },
+  {
+    "line": 137,
+    "path": "docs/SYSTEM_CONTEXT.md",
+    "text": "| Simulation tools | Separate dev-sim binary/profile/identity | Presence or credentials in secure SITL/HIL/field artifacts |"
+  },
+  {
+    "line": 138,
+    "path": "docs/SYSTEM_CONTEXT.md",
+    "text": "| Evidence store | Bounded asynchronous append/verification | Ability to block plant watchdog or safe action |"
+  },
+  {
+    "line": 153,
+    "path": "docs/SYSTEM_CONTEXT.md",
+    "text": "| Accepted | The receiver validated the message/profile/session. |"
+  },
+  {
+    "line": 159,
+    "path": "docs/SYSTEM_CONTEXT.md",
+    "text": "| Safe state | The ODD-selected action was requested and observed, or the independent FCU fallback was observed. |"
+  },
+  {
+    "line": 160,
+    "path": "docs/SYSTEM_CONTEXT.md",
+    "text": "| HIL-tested / field-tested | Executed only under the named hardware/configuration and approved ODD. |"
+  },
+  {
+    "line": 44,
+    "path": "docs/archive/SENSOR_FUSION_AGENT_SPECS.md",
+    "text": "(2) UNKNOWN/unclassified: keep TS behavior = level 3 if conf > 0.7 else 2, NOT Rust's flat 2. A high-confidence track that resists classification (good track quality, no class match) is exactly the 'pending-identification' case air-defense doctrine treats cautiously: a confidently-tracked-but-unidentified object near protected airspace warrants elevated (3) attention, not the same baseline as a positively-classified manned aircraft. A low-confidence unknown stays at 2 to avoid noise. This makes "
+  },
+  {
+    "line": 86,
+    "path": "docs/archive/SENSOR_FUSION_AGENT_SPECS.md",
+    "text": "> **Editor's note (superseded):** the shipped `map_to_detection_class` *does* include the `kite`/`frisbee` remap, so it is byte-for-byte identical to `mapToDetectionClass` for **all** labels (not only the canonical enum values). Full parity was preferred over minimizing the Rust match arms, and is locked by the `calculate_threat_level_matches_canonical_table` Rust test and `threatLevel.test.ts`."
+  },
+  {
+    "line": 121,
+    "path": "docs/archive/SENSOR_FUSION_AGENT_SPECS.md",
+    "text": "- CROSS-PARITY (documentation/optional harness): for the 5 enum classes x confidences {0.3,0.5,0.6,0.7,0.8,0.9}, the Rust table and TS getThreatLevel produce identical levels (with Rust fed the lowercase enum string, e.g. \"drone\",\"aircraft\",\"helicopter\",\"bird\",\"unknown\" -> Rust 'unknown' falls into else branch)."
+  },
+  {
+    "line": 130,
+    "path": "docs/archive/SENSOR_FUSION_AGENT_SPECS.md",
+    "text": "- No conflict with class-string handling elsewhere: do NOT 'fix' the Rust/TS normalization asymmetry by routing Rust through a port of mapToDetectionClass - the Rust engine is intentionally fed raw ROS classification strings and substring matching is correct there. Porting mapToDetectionClass would be a larger, out-of-scope change and risks breaking ROS classification strings that are not COCO labels."
+  },
+  {
+    "line": 148,
+    "path": "docs/archive/SENSOR_FUSION_AGENT_SPECS.md",
+    "text": "Why squared + chi-square: the normalized innovation squared NIS = v^T S^-1 v with v = z - Hx and S = H P H^T + R is, under the linear-Gaussian/correct-association assumption, chi-square distributed with dof = measurement dimension (here position dim = 3). The standard tracking validation gate accepts a measurement iff NIS <= gamma where gamma is the upper-alpha chi-square quantile, giving a calibrated gate probability P_G = 1 - alpha. The current code takes a sqrt and compares against 10.0, whic"
+  },
+  {
+    "line": 150,
+    "path": "docs/archive/SENSOR_FUSION_AGENT_SPECS.md",
+    "text": "EXACT chi-square(dof=3) quantiles to document in code as named constants:"
+  },
+  {
+    "line": 178,
+    "path": "docs/archive/SENSOR_FUSION_AGENT_SPECS.md",
+    "text": "   /// under correct association, so gating d2 <= one of these gives a calibrated"
+  },
+  {
+    "line": 219,
+    "path": "docs/archive/SENSOR_FUSION_AGENT_SPECS.md",
+    "text": "7) validate_fusion_config (lines 1215-1220): MAX_ASSOCIATION_THRESHOLD = 100_000.0 (line 24) already accommodates 11.345, so the bound does NOT block the change \u2014 confirmed. RECOMMENDED tightening for sanity: lower MAX_ASSOCIATION_THRESHOLD to 1000.0 (well above chi2(0.999,3)=16.27 yet rejecting absurd values), since d2 for dof=3 has no legitimate use above ~30. This is optional; if kept at 100_000.0 the change is still correct. Lower bound f64::EPSILON is fine. Update the inline default comment"
+  },
+  {
+    "line": 236,
+    "path": "docs/archive/SENSOR_FUSION_AGENT_SPECS.md",
+    "text": "4) Line 42 (the initFusion default-injection assertion): the test asserts initFusion({algorithm:'IMM'}) injects association_threshold: 10. Since initFusion's default now becomes 11.345, change the EXPECTED value at line 42 from `association_threshold: 10,` to `association_threshold: 11.345,`. This is the correct migration: the test pins initFusion's default-filling behavior, so the expectation must track the new default."
+  },
+  {
+    "line": 237,
+    "path": "docs/archive/SENSOR_FUSION_AGENT_SPECS.md",
+    "text": "5) Line 151 (a hand-built FusionConfig passed to setFusionConfig in a command-routing test): this value is supplied by the test author, not defaulted. It can stay 10 (the routing test only checks the command name sequence, not the numeric value) OR be updated to 11.345 for consistency. RECOMMEND update to 11.345 to keep the codebase's example configs coherent and avoid a stray legacy value. Verify by reading the assertion block following line 159 \u2014 it asserts invokeMock call NAMES (line 164 onwa"
+  },
+  {
+    "line": 263,
+    "path": "docs/archive/SENSOR_FUSION_AGENT_SPECS.md",
+    "text": "- ORDERING/CONFLICT with item #6 (Global nearest-neighbour Hungarian/auction): #6 will REWRITE associate_measurements to build a cost matrix. The chi-square gate must be applied there too: set cost = d2 and forbid (INF cost) any cell with d2 > association_threshold. If #3 lands first, #6 must preserve the squared-d2 + chi2 cutoff (do NOT reintroduce sqrt). Coordinate so both use the SAME association_threshold field in d2-units. Recommend landing #3 first (smaller) so #6 builds on the correct uni"
+  },
+  {
+    "line": 287,
+    "path": "docs/archive/SENSOR_FUSION_AGENT_SPECS.md",
+    "text": "WHY THIS IS CORRECT (linear-Gaussian, KF/EKF-Cartesian/UKF/IMM paths): For conditionally independent measurements z_i with z_i = H x + v_i, v_i ~ N(0, R_i), the joint likelihood factorizes, so the batch update with stacked z=[z_1;...;z_m], stacked H, and block-diagonal R=blkdiag(R_1,...,R_m) is mathematically IDENTICAL to applying the m updates sequentially (each on the posterior of the previous). In information form the posterior is x_post = (P_prior^-1 + \u03a3_i H^T R_i^-1 H)^-1 (P_prior^-1 x_prio"
+  },
+  {
+    "line": 289,
+    "path": "docs/archive/SENSOR_FUSION_AGENT_SPECS.md",
+    "text": "ORDERING: For the linear-Gaussian KF/Cartesian-EKF/UKF/IMM paths the result is ORDER-INDEPENDENT (exactly, in exact arithmetic; to round-off in practice). For the nonlinear EKF polar path order matters slightly because each update re-linearizes H at the new state; process measurements in a deterministic order (sort meas_indices, e.g. by ascending trace(R_i) so the most-informative/lowest-noise measurement is applied first, which best linearizes subsequent ones). Determinism also keeps tests repr"
+  },
+  {
+    "line": 293,
+    "path": "docs/archive/SENSOR_FUSION_AGENT_SPECS.md",
+    "text": "EKF POLAR (radar) INTERACTION: Radar measurements are polar; only `measurement_position_polar` returns Some for Radar, and `ekf.update_polar` already takes a per-measurement R built from meas.covariance ([m\u00b2, rad\u00b2, rad\u00b2]). In the sequential loop, for the ExtendedKalman algorithm, dispatch PER MEASUREMENT: if measurement_position_polar(meas) is Some, call ekf.update_polar with R=diag(meas.covariance); else call kf.update with measurement_position_cartesian(meas) and r_override=diag(meas.covarianc"
+  },
+  {
+    "line": 340,
+    "path": "docs/archive/SENSOR_FUSION_AGENT_SPECS.md",
+    "text": "- test_sequential_update_order_independent_kf: same two measurements, two orderings via process_measurements with reversed Vec; assert identical track.state and track.covariance within 1e-9 (KF/Cartesian path)."
+  },
+  {
+    "line": 341,
+    "path": "docs/archive/SENSOR_FUSION_AGENT_SPECS.md",
+    "text": "- test_per_measurement_R_respected_kf: single low-noise lidar z=[5,0,0] R=diag(0.01,0.01,0.01) vs single high-noise acoustic z=[5,0,0] R=diag(10,10,10) on identical priors; assert the lidar case collapses P[0,0] far more than the acoustic case (posterior trace strictly smaller), proving R is used (old averaging used a fixed self.kf.r and would give equal results)."
+  },
+  {
+    "line": 351,
+    "path": "docs/archive/SENSOR_FUSION_AGENT_SPECS.md",
+    "text": "- Ordering dependency / CONFLICT with the global-assignment item (#6, Hungarian/auction): that item changes associate_measurements so a track may receive a DIFFERENT set of meas_indices (and 1-best vs multi). This item assumes meas_indices may contain >1 measurement and processes all of them. They edit the SAME function boundary (associate -> update_track). Coordinate: global-assignment decides WHICH measurements map to a track; this item decides HOW multiple mapped measurements are fused. Keep "
+  },
+  {
+    "line": 355,
+    "path": "docs/archive/SENSOR_FUSION_AGENT_SPECS.md",
+    "text": "- IMM kf_cv.r and kf_ca.r are constructed from the SAME measurement_noise; passing per-measurement R to both models is correct (both observe the same z with the same R), but if the IMM motion-models item (#7, CV+CT) changes model count from 2 to 3, the r-threading loop over models must not hardcode index 0/1 \u2014 write it as a loop. Coordinate array sizing with #7."
+  },
+  {
+    "line": 376,
+    "path": "docs/archive/SENSOR_FUSION_AGENT_SPECS.md",
+    "text": "Keep `age` and `missed_detections` as-is (age still increments on hit in update_track; missed_detections still tracks the CONSECUTIVE-miss count) so TrackOutput.age and the TS bridge are unchanged. The M-of-N window drives state transitions; missed_detections is retained only for Coasting (which is intentionally a consecutive-miss concept: a track that is being predicted forward right now), and age is retained as a display/telemetry field. This keeps the change minimal and the public TrackOutput"
+  },
+  {
+    "line": 512,
+    "path": "docs/archive/SENSOR_FUSION_AGENT_SPECS.md",
+    "text": "Recommendation summary asked for in the prompt: choose Hungarian over Bertsekas auction (auction needs epsilon-scaling tuning to terminate cleanly and is fiddly to get bit-exact/deterministic; Hungarian is deterministic and the matrix form is ~60 lines). Choose CLUSTER-FIRST over allow-duplicates-per-track, because duplicates-per-track is order-dependent and produces the very coalescing GNN is meant to remove."
+  },
+  {
+    "line": 519,
+    "path": "docs/archive/SENSOR_FUSION_AGENT_SPECS.md",
+    "text": "- `Integer quantization for exact Hungarian: c_rc = round(d2 * 1000) as i64 for in-gate; INF = i64::MAX/4 for out-of-gate (avoids overflow when potentials u[i]+v[j] accumulate).`"
+  },
+  {
+    "line": 532,
+    "path": "docs/archive/SENSOR_FUSION_AGENT_SPECS.md",
+    "text": "   - Phase B cost matrix: rows R = track_ids.len(), cols C = clusters.len(). `cost[r][c]` = min over members m in cluster c of squared Mahalanobis d2(track r, meas m), reusing the EXISTING gate math at lines 1422-1460 (S = pos_cov + R_m; d2 = diff^T S^{-1} diff; singular fallback (||diff||/NOMINAL_ASSOCIATION_SIGMA_M)^2). NOTE: the existing code gates on non-squared d < association_threshold (10.0). Keep that exact gate semantics for THIS item: out-of-gate iff sqrt(d2) >= association_threshold -"
+  },
+  {
+    "line": 533,
+    "path": "docs/archive/SENSOR_FUSION_AGENT_SPECS.md",
+    "text": "   - Quantize to i64 for an integer Hungarian: `let q = (d2 * 1000.0).round() as i64` for in-gate, and `const INF: i64 = i64::MAX / 4;` for out-of-gate (divide to avoid overflow when potentials add). Integer costs make the solver exact and avoid float-equality bugs in the potential updates."
+  },
+  {
+    "line": 555,
+    "path": "docs/archive/SENSOR_FUSION_AGENT_SPECS.md",
+    "text": "- deterministic_assignment_repeatability: run the same crossing-target frame 50 times (or with shuffled measurement/track insertion order) and assert identical association result every time (proves HashMap-order nondeterminism is gone)."
+  },
+  {
+    "line": 578,
+    "path": "docs/archive/SENSOR_FUSION_AGENT_SPECS.md",
+    "text": "**Recommended approach.** Choose option (b): a fixed-turn-rate CT model, NOT state augmentation (avoids 7-D ripple) and NOT online omega estimation (extra nonlinearity, fragile). Keep the IMM exactly 2 modes to minimize blast radius: mode 0 = the existing CV KalmanFilter; mode 1 = a new CoordinatedTurnFilter that applies a single |omega| but adapts its SIGN from the current velocity (turn direction) each predict step, so one CT mode covers both left and right turns without growing the mode count"
+  },
+  {
+    "line": 580,
+    "path": "docs/archive/SENSOR_FUSION_AGENT_SPECS.md",
+    "text": "CT transition (horizontal x,y,vx,vy only; z,vz stay constant-velocity). Grounded in Bar-Shalom Estimation with Applications to Tracking and Navigation Eq. 11.7.1-4 and MATLAB constturn. With w = signed turn rate (rad/s), dt = sample interval, and s=sin(w*dt), c=cos(w*dt):\\n  x'  = x  + vx*(s/w)        + vy*((c-1)/w)\\n  y'  = y  + vx*((1-c)/w)    + vy*(s/w)\\n  vx' = vx*c - vy*s\\n  vy' = vx*s + vy*c\\n  z'  = z + vz*dt ;  vz' = vz   (unchanged)\\nNote MATLAB writes x' = x + vx*s/w + vy*(1-c)/w with "
+  },
+  {
+    "line": 585,
+    "path": "docs/archive/SENSOR_FUSION_AGENT_SPECS.md",
+    "text": "- `Covariance predict (both modes): P' = F P F^T + Q*dt, identical structure to existing KalmanFilter::predict_raw, only F differs for the CT mode.`"
+  },
+  {
+    "line": 605,
+    "path": "docs/archive/SENSOR_FUSION_AGENT_SPECS.md",
+    "text": "- `omega*dt CV-fallback threshold` = `1e-4` \u2014 Below |omega*dt|=1e-4 the s/w and (1-c)/w terms lose precision (0/0); fall back to the exact CV transition. At OMEGA_CT=0.3 and dt>=1e-3 s this never triggers in normal operation, it is purely a numerical guard."
+  },
+  {
+    "line": 612,
+    "path": "docs/archive/SENSOR_FUSION_AGENT_SPECS.md",
+    "text": "- test_imm_ct_beats_cv_cv_on_turning_target (the headline test, place alongside test_constant_velocity_estimate_tracks_moving_target ~1960): simulate a target executing a circular/turning trajectory in the x-y plane (e.g. constant speed 5 m/s, true turn rate 0.3 rad/s, generate ground-truth positions for 30 frames at dt=0.1, add small measurement noise). Run TWO MultiSensorFusion engines with FilterAlgorithm::IMM: (A) the new CV+CT, (B) a CV+CV baseline (you can construct B by temporarily forcin"
+  },
+  {
+    "line": 642,
+    "path": "docs/archive/SENSOR_FUSION_AGENT_SPECS.md",
+    "text": "Why ray-distance over epipolar/Sampson: The engine already manufactures metric world-space rays via rayFromDetection (origin = camera.position, direction = world-space unit dir from bbox-center NDC through FOV/aspect), and CameraParams carries full extrinsics (position + rotation). A fundamental matrix F is the right tool ONLY when you have raw 2D point matches and uncalibrated/unknown relative pose; here we already have calibrated rays in a common world frame, so the natural, exact geometric re"
+  },
+  {
+    "line": 738,
+    "path": "docs/archive/SENSOR_FUSION_AGENT_SPECS.md",
+    "text": "- rayFromDetection collapses to the camera FORWARD axis when frameWidth/frameHeight are missing (lines 83-85). If the geometric gate ran in that case, two distinct same-class drones near boresight would share near-identical forward-axis rays and falsely pass. MITIGATION: only run the geometric gate when BOTH detections have valid frame dims; otherwise keep legacy class/conf/time behavior (specified). This also preserves any existing tests that omit frame dims."
+  },
+  {
+    "line": 6,
+    "path": "ros/README.md",
+    "text": "keys directly compatible with an `rmw_zenoh_cpp` graph."
+  },
+  {
+    "line": 135,
+    "path": "ros/README.md",
+    "text": "  `1..=8192`; `step >= width * bytes_per_pixel`; exact `height * step`; maximum"
+  },
+  {
+    "line": 13,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "plant-local time domains, a nonzero stream sequence, and an immutable validated"
+  },
+  {
+    "line": 16,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "than-150-ms requested lifetime, a frame other than the exact identity-bound"
+  },
+  {
+    "line": 22,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "authoritative state-to-safe-action selection, adapter operation, or lifecycle"
+  },
+  {
+    "line": 29,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "`frame_conventions` provides a finite m/s value type and exact ENU\u2194NED and"
+  },
+  {
+    "line": 38,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "The exact permutations require one unchanged physical frame instance: the same"
+  },
+  {
+    "line": 51,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "kernel health path. One sealed channel pair is bound to an exact candidate"
+  },
+  {
+    "line": 56,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "It validates the exact profile-local frame, metres, metres per second,"
+  },
+  {
+    "line": 63,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "links, and all group times. Checked readers expose exact ages computed from one"
+  },
+  {
+    "line": 67,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "governor, authoritative safe-action classification and approved policy, and"
+  },
+  {
+    "line": 74,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "exact profile plus named caller-proposed limits for receipt, FCU state,"
+  },
+  {
+    "line": 76,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "nonzero. Exact-profile mismatch fails before classification, and the resulting"
+  },
+  {
+    "line": 77,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "assessment owns the observation while borrowing the exact policy so bare ages"
+  },
+  {
+    "line": 83,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "expose a boolean/aggregate fresh, healthy, safe, eligible, or authorized"
+  },
+  {
+    "line": 92,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "`apply_observation` borrows a structurally validated command, lifecycle"
+  },
+  {
+    "line": 93,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "machine, canonical health reader, and exact-profile age policy. It checks"
+  },
+  {
+    "line": 112,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "command content, velocity, action, output revocation, safe action, adapter"
+  },
+  {
+    "line": 118,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "`LocalFrameInstanceIdentity`, so exact profile and generation equality can"
+  },
+  {
+    "line": 130,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "## Inactive safe-action situation dispatch candidate v1"
+  },
+  {
+    "line": 140,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "exact-profile mismatch and missing rows fail before any intent is returned."
+  },
+  {
+    "line": 142,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "and intent while borrowing the exact immutable policy candidate."
+  },
+  {
+    "line": 157,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "| Captured-read age assessment | One owned coherent observation plus one borrowed exact policy | Compares eight captured ages with named nonzero exclusive limits; does not refresh time, aggregate health, or authorize action |"
+  },
+  {
+    "line": 158,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "| Apply-check observation candidate | One validated command reference, one immutable lifecycle borrow, one coherent health snapshot loaded before the reference instant, and one borrowed exact age policy | Evaluates command receipt age and all health ages relative to one later private monotonic instant; records strict relations and neutral lifecycle facts without an aggregate/authorizing verdict, command-content or vehicle/frame-instance binding, permit, command/action conversion, I/O, or write |"
+  },
+  {
+    "line": 159,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "| Safe-action situation dispatch candidate | Fixed 255-slot owned table plus one borrowed exact policy per selection | Rejects zero codes, empty/oversized/duplicate proposals, exact-profile mismatch, and missing rows; does not classify state, default an intent, or produce an adapter action |"
+  },
+  {
+    "line": 160,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "| Active command deadline monitor candidate | One owned worker, one fixed profile/session/generation, one active ticket slot, and one sticky terminal outcome | Accepts only a separately validated higher-sequence ticket with non-regressing receipt time; has no queue, reset, refresh, extension, rearm, output revocation, safe-action conversion, or adapter effect |"
+  },
+  {
+    "line": 166,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "allocation. Poisoned state, allocation failure, and exact sequence/loss-counter"
+  },
+  {
+    "line": 172,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "stores each complete value behind `Arc`, so repeated loads never consume or"
+  },
+  {
+    "line": 194,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "timer, callback, command payload, raw timestamp, state-to-safe-action"
+  },
+  {
+    "line": 198,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "FCU-safe-action timing."
+  },
+  {
+    "line": 203,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "deadline from a validated command candidate's opaque plant-local receipt time"
+  },
+  {
+    "line": 207,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "currentness. The ticket exposes its exact profile/session/sequence/generation"
+  },
+  {
+    "line": 215,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "slot with no queue. A separately validated ticket can replace that slot only"
+  },
+  {
+    "line": 216,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "under the same exact profile, session, and lifecycle generation, with a"
+  },
+  {
+    "line": 227,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "exact active key because the state is poisoned; worker-start failure retains the"
+  },
+  {
+    "line": 234,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "safe-action dispatch, an output path, or an adapter. Its terminal value is"
+  },
+  {
+    "line": 235,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "evidence only and cannot revoke a command or convert into a safe-action intent."
+  },
+  {
+    "line": 253,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "approved/content-bound safe-action profile, authoritative situation classifier,"
+  },
+  {
+    "line": 263,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "comparison, safe-action profile/code binding, fixed no-default dispatch table,"
+  },
+  {
+    "line": 264,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "non-cloneable selection, validated-candidate-only deadline tickets, fixed"
+  },
+  {
+    "line": 277,
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "text": "health/freshness, 51 safe action, 72 deadline monitor, and 44 apply observation."
+  },
+  {
+    "line": 21,
+    "path": "src-tauri/src/ncp/README.md",
+    "text": "the evidence producer after its separate exact runtime opt-in and deployment-pin"
+  },
+  {
+    "line": 37,
+    "path": "src-tauri/src/ncp/README.md",
+    "text": "on one compatible NCP release. Do not copy a wire version from an external"
+  },
+  {
+    "line": 70,
+    "path": "src-tauri/src/ncp/README.md",
+    "text": "`NcpBridge::connect` and the dormant `ncp_connect` command default to `Secure`."
+  },
+  {
+    "line": 81,
+    "path": "src-tauri/src/ncp/README.md",
+    "text": "always requests secure mode. That remains a configuration request, not evidence"
+  },
+  {
+    "line": 87,
+    "path": "src-tauri/src/ncp/README.md",
+    "text": "- realm, session ID, and model name are limited to 128 bytes and safe key/name"
+  },
+  {
+    "line": 134,
+    "path": "src-tauri/src/ncp/README.md",
+    "text": "(`calibrated_posterior=false`, `is_simulation_output=true`), not a validated"
+  },
+  {
+    "line": 6,
+    "path": "src/neuro/README.md",
+    "text": "`guardReplyVersion`, CREBAIN's strict transport wrapper for compatible reply"
+  },
+  {
+    "line": 56,
+    "path": "src/neuro/README.md",
+    "text": "The guard always throws when a success reply lacks a compatible `ncp_version`,"
+  },
+  {
+    "line": 79,
+    "path": "src/neuro/README.md",
+    "text": "native plant adapter for the validated `CommandPlant` proposal. The current"
+  },
+  {
+    "line": 86,
+    "path": "src/neuro/README.md",
+    "text": "(`calibrated_posterior=false`, `is_simulation_output=true`), not a validated"
+  }
+]

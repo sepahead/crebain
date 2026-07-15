@@ -9,9 +9,27 @@ README and treated as unverified until measured on target hardware.
 
 ## [Unreleased]
 
-Open-source readiness and quality hardening.
+No changes yet.
+
+## [0.9.0] - 2026-07-15
+
+Research-only prerelease. This release is a research prototype with no
+operational, deployment, vehicle-authority, model-accuracy, or cross-repository
+1.0 claim. It has no DOI or Zenodo record; those may be added after review.
+
+Open-source readiness, evidence, and quality hardening.
 
 ### Added
+- **Exact production renderer-vendor boundary.** Production builds now pin and
+  pre-transform Spark 0.1.10, Rapier 0.19.3, and Three 0.182.0, leaving zero
+  vendor `fetch` references and guarding Three's remaining local image
+  assignment. Spark/Rapier retain digest-bound embedded-byte WebAssembly
+  initialization and Spark retains its byte-fed scene path. Three keeps
+  product-validated bufferView and canonical PNG/JPEG data-image GLB textures
+  on a local `TextureLoader` path while other loader/manifest URI paths fail
+  closed. `bun run check:production-vendors` binds package/module/payload/AST
+  shapes, adversarial mutations, and the local byte/texture runtimes; the build
+  report also records exact vendor-module membership for finalized-chunk checks.
 - **Unwired single-reference-instant apply-check observation candidate.** One
   generation-checked coherent health snapshot is loaded first. Only then is a
   private plant-monotonic reference instant minted, with health ages computed
@@ -202,6 +220,15 @@ Open-source readiness and quality hardening.
   Tauri `useDetectionLoop` path and native CoreML/ONNX backends remain.
 
 ### Fixed
+- **NCP action timeout warnings omit external session identifiers.** The timeout
+  warning records only the stop/abort condition, so a caller-provided identifier
+  is not copied into that log entry.
+- **Patch-level Rust lock maintenance.** Updated `anyhow` to 1.0.103, `memmap2`
+  to 0.9.11, `rand` 0.8 to 0.8.6, and `rand` 0.9 to 0.9.3. A fresh audit reports
+  no vulnerability advisories, while still reporting the transitive `glib`
+  0.18 and `rand` 0.7.3 unsoundness warnings inherited through Tauri's GTK3 and
+  legacy `phf` chains; neither has an in-chain patch available without an
+  upstream dependency migration, so both remain tracked rather than hidden.
 - **Declared Rust MSRV matches the locked graph.** The manifest and contributor
   guide now require Rust 1.89 because the existing locked `nalgebra`/`wide`
   dependency path no longer compiles on 1.88; development and CI remain pinned
@@ -255,16 +282,38 @@ Open-source readiness and quality hardening.
 - **Scene and asset restoration is bounded and completion-aware.** Browser and
   native scene reads enforce the 10 MiB ceiling before parsing, migration precedes
   strict schema validation, native saves replace atomically, and restore now
-  cancels stale work and reports partial asset failure. Splat, self-contained GLB,
+  cancels stale work; any ordinary nested failure rolls back all partial objects
+  and applied UI settings, leaves physics paused, and cannot let an older
+  generation clear or commit newer work. Splat, self-contained GLB,
   embedded texture, aggregate-scene, and floor-image byte/pixel/time budgets are
-  enforced during streaming and parsing.
-- **ROS/Gazebo boundaries are consistent across the Tauri camera command and its
-  native rosbridge/Zenoh transports.** Camera subscriptions carry an explicit
-  raw/compressed schema, validate bounded base64/CDR data and CameraInfo matrices,
-  and inspect PNG/JPEG headers. ROS 1
-  Gazebo Classic service replies are ID-correlated, timed out, and require
-  mutation success; caller XML is bounded and privileged directives are rejected
-  except for the fixed bundled frontend model or explicit trusted native opt-in.
+  enforced during streaming and parsing. Direct dropped string sources and
+  restored sources now share the same explicit relative/HTTPS/HTTP-loopback,
+  credential, control-character, and supported-format policy before any fetch.
+- **ROS camera boundaries are consistent across native rosbridge and Zenoh
+  transports.** Camera subscriptions carry an explicit raw/compressed schema,
+  validate bounded base64/CDR data and CameraInfo matrices, and inspect PNG/JPEG
+  headers. Native ingress uses one process-wide 384 MiB weighted drop-new
+  envelope, readiness events carry only canonical nonzero-u64 decimal strings
+  for the delivery ID, subscription ID, and lifecycle generation, and one frame per topic is pulled and
+  acknowledged without releasing its immutable permit early. The renderer
+  serializes each full pull/listener/acknowledgement cycle and retains at most
+  one prevalidated small descriptor pending without pulling it early.
+  Event-listener registration and native declaration share one 12-second setup
+  bound with late-handle cleanup; 10/8/4-second
+  pull/listener/acknowledgement deadlines fit inside the 30-second monotonic
+  native delivery lease. Lost readiness or acknowledgement expires atomically
+  and triggers bounded exact undeclaration; a cleanup failure retains
+  quarantine for explicit retry, and lifecycle rotation or reopen fences stale
+  cleanup. Non-settling listeners are quarantined without removing healthy
+  peers, and failed/stale setup, malformed readiness, late/duplicate
+  acknowledgement, and explicit reopen use exact identities and fail closed. A
+  proven unsubscribe or lifecycle rotation releases an untaken matching frame,
+  while an in-flight frame remains reserved until exact acknowledgement or
+  expiry. Browser decoding is latest-pending and single-flight with generation
+  fencing and a two-worker stale/current bound. The former renderer/native
+  Gazebo mutation surfaces, fixed bundled drone model, and unsafe XML bypass are
+  removed; ROS launch/service files remain reference definitions rather than product
+  commands.
 - **The optional NCP action receiver now enforces fail-safe output continuously.**
   Wire-valid commands feed a bounded 50 Hz `CommandPlant`; sequence, TTL, horizon,
   unit, and speed failures HOLD at zero, and stop/close emits a final HOLD. The
@@ -317,7 +366,7 @@ Open-source readiness and quality hardening.
   - The DEV-only `__ncpDrone` bridge (`useDroneController.ts`) now delegates its
     safety-critical decision to the SDK's `ActionBuffer` — `seq >= 1` discipline,
     the `ttl_ms` deadline, the active-mode allowlist, and a **latching ESTOP**
-    (with a supervisor `reset()`) — keeping only CREBAIN's kinematic velocity/dt
+    (with an explicit `reset()`) — keeping only CREBAIN's kinematic velocity/dt
     clamps and altitude floor on top.
   - The native Rust command tap (`src-tauri/src/ncp/mod.rs`) now accepts frames
     through `ncp_core::decode_validated`, dropping a version-less / incompatible /
@@ -374,8 +423,9 @@ Open-source readiness and quality hardening.
   audit (cargo-deny + bun audit), tag-triggered Tauri release, Nix flake check,
   and ROS-definition validation.
 - Supply-chain policy via `src-tauri/deny.toml` (advisories/licenses/bans/
-  sources), enforced in CI. Dependencies are reviewed and updated periodically
-  rather than via automated Dependabot PRs.
+  sources), enforced in CI. Dependabot opens weekly grouped update PRs for Bun,
+  Cargo, and GitHub Actions; human review and supply-chain gates remain required
+  before merge.
 - Governance: `CODEOWNERS`, structured issue forms, `SUPPORT.md`, `CHANGELOG.md`,
   `CITATION.cff`, and a committed `flake.lock`.
 - NCP TypeScript peer (`src/neuro`): local contract tests for the re-exported
@@ -523,5 +573,6 @@ Stabilization baseline.
 - Initial Tauri + React + Three.js prototype with Gaussian Splatting scene
   rendering.
 
-[Unreleased]: https://github.com/sepahead/crebain/compare/v0.4.0...HEAD
-[0.4.0]: https://github.com/sepahead/crebain/releases/tag/v0.4.0
+[Unreleased]: https://github.com/sepahead/crebain/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/sepahead/crebain/releases/tag/v0.9.0
+[0.4.0]: https://github.com/sepahead/crebain/commit/8ceea521b452df6cbd3b16f04fd244c79b08f1d0

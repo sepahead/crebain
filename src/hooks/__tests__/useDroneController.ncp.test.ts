@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ActionBuffer, NCP_VERSION } from '@sepahead/ncp'
 import {
   DevNcpCommandStream,
   boundedDevNcpElapsed,
+  commitSimulationPauseState,
   ingestDevNcpCommand,
   normalizeDevNcpCommand,
 } from '../useDroneController'
@@ -31,6 +32,22 @@ function activeCommand(seq = 1) {
 }
 
 describe('dev NCP command ingress', () => {
+  it('commits pause transitions from a synchronous snapshot without replayable side effects', () => {
+    const pauseState = { current: true }
+    const commit = vi.fn<(paused: boolean) => void>()
+    const resetTime = vi.fn<() => void>()
+
+    commitSimulationPauseState(pauseState, commit, resetTime, false)
+    commitSimulationPauseState(pauseState, commit, resetTime, false)
+    commitSimulationPauseState(pauseState, commit, resetTime, true)
+    commitSimulationPauseState(pauseState, commit, resetTime, false)
+
+    expect(pauseState.current).toBe(false)
+    expect(commit.mock.calls.map(([paused]) => paused)).toEqual([false, false, true, false])
+    expect(commit.mock.calls.every(([paused]) => typeof paused === 'boolean')).toBe(true)
+    expect(resetTime).toHaveBeenCalledTimes(2)
+  })
+
   it('accepts a complete published wire-0.8 command', () => {
     const command = normalizeDevNcpCommand(activeCommand())
     expect(command.mode).toBe('active')

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { InterceptionSystem } from '../InterceptionSystem'
+import { InterceptionSystem, MAX_TRAJECTORY_POINTS } from '../InterceptionSystem'
 
 function createSystem() {
   const system = new InterceptionSystem()
@@ -35,6 +35,26 @@ describe('InterceptionSystem', () => {
     ])
     expect(system.predictTargetPosition('missing', 5)).toBeNull()
     expect(system.predictTargetTrajectory('missing', 1)).toEqual([])
+  })
+
+  it('rejects invalid or unbounded trajectory allocations before sampling', () => {
+    const system = createSystem()
+
+    for (const [duration, step] of [
+      [0, 0.5],
+      [1, 0],
+      [Number.NaN, 0.5],
+      [1, Number.POSITIVE_INFINITY],
+      [Number.POSITIVE_INFINITY, 0.5],
+      [1, Number.MIN_VALUE],
+    ]) {
+      expect(system.predictTargetTrajectory('target-1', duration, step)).toEqual([])
+    }
+
+    const atBound = system.predictTargetTrajectory('target-1', MAX_TRAJECTORY_POINTS - 1, 1)
+    expect(atBound).toHaveLength(MAX_TRAJECTORY_POINTS)
+    expect(atBound.at(-1)?.time).toBe(MAX_TRAJECTORY_POINTS - 1)
+    expect(system.predictTargetTrajectory('target-1', MAX_TRAJECTORY_POINTS, 1)).toEqual([])
   })
 
   it('creates, activates, updates, and completes missions', () => {
@@ -85,21 +105,53 @@ describe('InterceptionSystem', () => {
     expect(Math.hypot(guidance!.x, guidance!.y, guidance!.z)).toBeLessThanOrEqual(20)
   })
 
-  it('releases interceptors when missions are aborted or targets are removed', () => {
+  it('aborts and releases pending and active missions when their target is removed', () => {
     const system = createSystem()
-    const mission = system.createMission('interceptor-1', 'target-1', 'LEAD')
-    system.activateMission(mission!.id)
+    const pendingMission = system.createMission('interceptor-1', 'target-1', 'LEAD')!
+    const activeMission = system.createMission('interceptor-2', 'target-1', 'LEAD')!
+    system.activateMission(activeMission.id)
 
-    expect(system.getAvailableInterceptors().map((interceptor) => interceptor.id)).not.toContain(
-      'interceptor-1'
-    )
+    expect(system.getAvailableInterceptors()).toEqual([])
     system.removeTarget('target-1')
 
-    expect(system.getMission(mission!.id)).toEqual(expect.objectContaining({ status: 'ABORTED' }))
-    expect(system.getAvailableInterceptors().map((interceptor) => interceptor.id)).toContain(
-      'interceptor-1'
+    expect(system.getMission(pendingMission.id)).toEqual(
+      expect.objectContaining({ status: 'ABORTED' })
     )
+    expect(system.getMission(activeMission.id)).toEqual(
+      expect.objectContaining({ status: 'ABORTED' })
+    )
+    expect(
+      system
+        .getAvailableInterceptors()
+        .map((interceptor) => interceptor.id)
+        .sort()
+    ).toEqual(['interceptor-1', 'interceptor-2'])
     expect(system.getGuidanceCommand('interceptor-1')).toBeNull()
+    expect(system.getGuidanceCommand('interceptor-2')).toBeNull()
+  })
+
+  it('aborts only a live matching reservation and preserves terminal mission history', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(1_000)
+    const system = createSystem()
+    const completed = system.createMission('interceptor-1', 'target-1', 'LEAD')!
+    system.activateMission(completed.id)
+    system.updateInterceptor('interceptor-1', { x: 40, y: 0, z: 0 }, { x: 0, y: 0, z: 0 })
+    system.updateMission(completed.id)
+
+    const newer = system.createMission('interceptor-1', 'target-1', 'LEAD')!
+    expect(system.abortMission(completed.id)).toBe(false)
+    expect(completed.status).toBe('COMPLETED')
+    expect(system.getInterceptor('interceptor-1')?.currentMission?.id).toBe(newer.id)
+
+    vi.setSystemTime(2_000)
+    expect(system.abortMission(newer.id)).toBe(true)
+    expect(newer).toMatchObject({ status: 'ABORTED', lastUpdate: 2_000 })
+    expect(system.getInterceptor('interceptor-1')?.currentMission).toBeNull()
+
+    vi.setSystemTime(3_000)
+    expect(system.abortMission(newer.id)).toBe(false)
+    expect(newer.lastUpdate).toBe(2_000)
   })
 
   it('closes the along-track gap for PARALLEL intercepts', () => {

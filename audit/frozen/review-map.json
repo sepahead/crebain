@@ -1,0 +1,325 @@
+{
+  "schema_version": 1,
+  "packet_reviews": {
+    "lane-1": {
+      "reviewer": "separate-agent:file-review-lane-1",
+      "review_status": "SEPARATE_AGENT_REVIEWED",
+      "requirements": "T002; assigned path-group review; L01-L20",
+      "assumptions": "Static review of the frozen Git blob; no runtime, deployment, hardware, rights, or independence claim",
+      "tests": "Frozen baseline evidence and path-specific static counterexamples; see review report",
+      "evidence": "audit/frozen/REVIEW_REPORT.md",
+      "disposition": "NO_P0_OR_P1_OBSERVED",
+      "completed_at": "2026-07-14"
+    },
+    "lane-2": {
+      "reviewer": "separate-agent:file-review-lane-2",
+      "review_status": "SEPARATE_AGENT_REVIEWED",
+      "requirements": "T002; assigned path-group review; L01-L20",
+      "assumptions": "Static review of the frozen Git blob; no runtime, deployment, hardware, rights, or independence claim",
+      "tests": "Frozen baseline evidence and path-specific static counterexamples; see review report",
+      "evidence": "audit/frozen/REVIEW_REPORT.md",
+      "disposition": "NO_P0_OR_P1_OBSERVED",
+      "completed_at": "2026-07-14"
+    },
+    "lane-3": {
+      "reviewer": "separate-agent:repo-gap-audit",
+      "review_status": "SEPARATE_AGENT_REVIEWED",
+      "requirements": "T002; assigned path-group review; L01-L20",
+      "assumptions": "Static review of the frozen Git blob; no runtime, deployment, hardware, rights, or independence claim",
+      "tests": "Frozen baseline evidence and path-specific static counterexamples; see review report",
+      "evidence": "audit/frozen/REVIEW_REPORT.md",
+      "disposition": "NO_P0_OR_P1_OBSERVED",
+      "completed_at": "2026-07-14"
+    }
+  },
+  "files": [
+    {
+      "path": "src/lib/glbValidation.ts",
+      "defects": "F001; S001",
+      "disposition": "FIX_REQUIRED_OR_CLAIM_REMOVAL"
+    },
+    {
+      "path": "scripts/check-production-authority-boundary.mjs",
+      "defects": "F002",
+      "disposition": "FIX_REQUIRED_OR_CLAIM_REMOVAL"
+    },
+    {
+      "path": "src-tauri/src/transport/rosbridge.rs",
+      "defects": "F003; F004; F005",
+      "disposition": "FIX_REQUIRED_OR_CLAIM_REMOVAL"
+    },
+    {
+      "path": "src-tauri/src/transport/mod.rs",
+      "defects": "F005; F010",
+      "disposition": "FIX_REQUIRED_OR_CLAIM_REMOVAL"
+    },
+    {
+      "path": "src/ros/ZenohBridge.ts",
+      "defects": "F005; S011",
+      "disposition": "FIX_REQUIRED_OR_CLAIM_REMOVAL"
+    },
+    {
+      "path": "src-tauri/src/onnx_detector.rs",
+      "defects": "F006",
+      "disposition": "FIX_REQUIRED_OR_CLAIM_REMOVAL"
+    },
+    {
+      "path": "src-tauri/src/common/yolo.rs",
+      "defects": "F006",
+      "disposition": "FIX_REQUIRED_OR_CLAIM_REMOVAL"
+    },
+    {
+      "path": "src/simulation/InterceptionSystem.ts",
+      "defects": "F007",
+      "disposition": "FIX_REQUIRED_OR_CLAIM_REMOVAL"
+    },
+    {
+      "path": "src/physics/SensorSimulation.ts",
+      "defects": "F008; S002",
+      "disposition": "FIX_REQUIRED_OR_CLAIM_REMOVAL"
+    },
+    {
+      "path": "src-tauri/src/transport/commands.rs",
+      "defects": "F009",
+      "disposition": "FIX_REQUIRED_OR_CLAIM_REMOVAL"
+    },
+    {
+      "path": "ros/launch/simulation.launch",
+      "defects": "F011",
+      "disposition": "FIX_REQUIRED_OR_CLAIM_REMOVAL"
+    },
+    {
+      "path": "ros/launch/rosbridge.launch",
+      "defects": "S022",
+      "disposition": "FIX_REQUIRED_OR_CLAIM_REMOVAL"
+    },
+    {
+      "path": "CITATION.cff",
+      "defects": "F012",
+      "disposition": "RELEASE_METADATA_UPDATE_REQUIRED"
+    },
+    {
+      "path": "package.json",
+      "defects": "F012",
+      "disposition": "RELEASE_METADATA_UPDATE_REQUIRED"
+    },
+    {
+      "path": "src-tauri/Cargo.toml",
+      "defects": "F012",
+      "disposition": "RELEASE_METADATA_UPDATE_REQUIRED"
+    },
+    {
+      "path": "src-tauri/Cargo.lock",
+      "defects": "F012; post-freeze yanked spin dependency",
+      "disposition": "RELEASE_METADATA_AND_SUPPLY_CHAIN_UPDATE_REQUIRED"
+    },
+    {
+      "path": "src-tauri/tauri.conf.json",
+      "defects": "F012",
+      "disposition": "RELEASE_METADATA_UPDATE_REQUIRED"
+    },
+    {
+      "path": "src/components/AboutModal.tsx",
+      "defects": "F012",
+      "disposition": "RELEASE_METADATA_UPDATE_REQUIRED"
+    },
+    {
+      "path": "review.html",
+      "defects": "F012",
+      "disposition": "ARCHIVE_OR_REGENERATE"
+    },
+    {
+      "path": "ros/package.xml",
+      "defects": "F012; S004",
+      "disposition": "FIX_REQUIRED_OR_CLAIM_REMOVAL"
+    },
+    {
+      "path": "ros/msg/DroneTarget.msg",
+      "defects": "F013",
+      "disposition": "FIX_REQUIRED_OR_VERSIONED_ADAPTER"
+    },
+    {
+      "path": "ros/msg/InterceptionCommand.msg",
+      "defects": "F013",
+      "disposition": "FIX_REQUIRED_OR_VERSIONED_ADAPTER"
+    },
+    {
+      "path": "public/models/maverick-drone.glb",
+      "public_surface": "YES",
+      "security_critical": "YES",
+      "science_critical": "YES",
+      "defects": "F014",
+      "disposition": "REMOVE_UNLESS_RIGHTS_PROVEN"
+    },
+    {
+      "path": "src-tauri/src/sensor_fusion.rs",
+      "defects": "F015; F016; F017; F018",
+      "disposition": "FIX_REQUIRED_OR_ACCURACY_CLAIM_REMOVAL"
+    },
+    {
+      "path": "src-tauri/src/galadriel_producer.rs",
+      "defects": "F019",
+      "disposition": "FIX_REQUIRED_OR_EVIDENCE_CLAIM_REMOVAL"
+    },
+    {
+      "path": "src-tauri/src/lib.rs",
+      "defects": "F020",
+      "disposition": "FIX_REQUIRED_OR_CLAIM_REMOVAL"
+    },
+    {
+      "path": "src/ros/TransformManager.ts",
+      "defects": "F021",
+      "disposition": "FIX_REQUIRED_OR_TEMPORAL_CLAIM_REMOVAL"
+    },
+    {
+      "path": "src/ros/ROSCameraStream.ts",
+      "defects": "F022",
+      "disposition": "FIX_REQUIRED_OR_DEVELOPMENT_ONLY_CLAIM"
+    },
+    {
+      "path": "src/ros/ROSBridge.ts",
+      "defects": "F023; F024",
+      "disposition": "FIX_REQUIRED_OR_DEVELOPMENT_ONLY_CLAIM"
+    },
+    {
+      "path": "flake.nix",
+      "defects": "F025",
+      "disposition": "FIX_REQUIRED_OR_PACKAGE_CLAIM_REMOVAL"
+    },
+    {
+      "path": ".github/workflows/nix.yml",
+      "defects": "F025",
+      "disposition": "FIX_REQUIRED_OR_PACKAGE_CLAIM_REMOVAL"
+    },
+    {
+      "path": "src-tauri/src/common/path.rs",
+      "defects": "F026",
+      "disposition": "FIX_REQUIRED_OR_MODEL_LOADING_CLAIM_REMOVAL"
+    },
+    {
+      "path": "src/physics/DronePhysics.ts",
+      "defects": "F027; F028",
+      "disposition": "FIX_REQUIRED_OR_PHYSICS_CLAIM_REMOVAL"
+    },
+    {
+      "path": ".github/workflows/release.yml",
+      "defects": "F029",
+      "disposition": "FIX_REQUIRED_BEFORE_TAG"
+    },
+    {
+      "path": "src/neuro/versionGuard.ts",
+      "defects": "S006",
+      "disposition": "DOCUMENTATION_FIX_REQUIRED"
+    },
+    {
+      "path": "src/detection/SensorFusion.ts",
+      "defects": "F031; F032",
+      "disposition": "FIX_REQUIRED_OR_BROWSER_FUSION_CLAIM_REMOVAL"
+    },
+    {
+      "path": "src/components/CrebainViewer.tsx",
+      "defects": "F033; F034",
+      "disposition": "FIX_REQUIRED_OR_STATUS_CLAIM_REMOVAL"
+    },
+    {
+      "path": "scripts/verify-phase0-baseline.mjs",
+      "defects": "F035",
+      "disposition": "FIX_REQUIRED_BEFORE_RELEASE_EVIDENCE"
+    },
+    {
+      "path": "src-tauri/src/transport/zenoh.rs",
+      "defects": "F036; S019",
+      "disposition": "FIX_REQUIRED_OR_RECONNECT_UNSUPPORTED"
+    },
+    {
+      "path": "src/ros/useROSSensors.ts",
+      "defects": "F037; S020",
+      "disposition": "FIX_REQUIRED_OR_RECONNECT_CLAIM_REMOVAL"
+    },
+    {
+      "path": "src/ros/ROSPerformanceMonitor.ts",
+      "defects": "F038",
+      "disposition": "FIX_REQUIRED_OR_HEALTH_CLAIM_REMOVAL"
+    },
+    {
+      "path": "scripts/check-version-coherence.sh",
+      "defects": "F039",
+      "disposition": "FIX_REQUIRED_BEFORE_TAG"
+    },
+    {
+      "path": "src-tauri/src/inference/mlx.rs",
+      "defects": "S007; S009",
+      "disposition": "EXPERIMENTAL_ONLY_PENDING_FIX"
+    },
+    {
+      "path": "src-tauri/src/inference/tensorrt.rs",
+      "defects": "S008; S009; S021",
+      "disposition": "FIX_REQUIRED_OR_BACKEND_CLAIM_REMOVAL"
+    },
+    {
+      "path": "src-tauri/src/common/nms.rs",
+      "defects": "S009",
+      "disposition": "PARITY_EVIDENCE_REQUIRED"
+    },
+    {
+      "path": "src/detection/AdvancedSensorFusion.ts",
+      "defects": "S010",
+      "disposition": "FIX_REQUIRED_OR_TIME_CLAIM_REMOVAL"
+    },
+    {
+      "path": "src/detection/nativeDetectionResult.ts",
+      "defects": "S008",
+      "disposition": "FIX_REQUIRED"
+    },
+    {
+      "path": "src/ros/MessageRegistry.ts",
+      "defects": "S012",
+      "disposition": "FIX_REQUIRED_OR_API_CLAIM_REMOVAL"
+    },
+    {
+      "path": "src/hooks/useObjectSelection.ts",
+      "defects": "S013",
+      "disposition": "FIX_REQUIRED"
+    },
+    {
+      "path": "src/ros/GuidanceController.ts",
+      "defects": "S014",
+      "disposition": "FIX_REQUIRED"
+    },
+    {
+      "path": "src/hooks/useDraggable3D.ts",
+      "defects": "S015",
+      "disposition": "FIX_REQUIRED"
+    },
+    {
+      "path": "src/hooks/useKeyboardControls.ts",
+      "defects": "S013; S016",
+      "disposition": "FIX_REQUIRED"
+    },
+    {
+      "path": "src/components/DroneSpawnPanel.tsx",
+      "defects": "S017",
+      "disposition": "FIX_REQUIRED"
+    },
+    {
+      "path": "src/components/ROSConnectionPanel.tsx",
+      "defects": "S018",
+      "disposition": "FIX_REQUIRED"
+    },
+    {
+      "path": "src/components/ObjectTransformControls.tsx",
+      "defects": "S023",
+      "disposition": "UI_DOCUMENTATION_FIX_REQUIRED"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "defects": "S024",
+      "disposition": "DOCUMENTATION_RECONCILIATION_REQUIRED"
+    },
+    {
+      "path": "scripts/check-bundle-size.mjs",
+      "defects": "S025",
+      "disposition": "FIX_REQUIRED_OR_SINGLE_ENTRY_ASSUMPTION_REQUIRED"
+    }
+  ]
+}

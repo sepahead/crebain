@@ -11,7 +11,8 @@
 
   <!-- Rosbridge for WebSocket communication -->
   <arg name="rosbridge_port" default="9090"/>
-  <arg name="rosbridge_address" default=""/>
+  <arg name="rosbridge_address" default="127.0.0.1"/>
+  <arg name="rosbridge_enable_rosapi" default="false"/>
 
   <!-- Drone configuration -->
   <arg name="num_interceptors" default="2"/>
@@ -26,10 +27,11 @@
     <arg name="debug" value="$(arg debug)"/>
   </include>
 
-  <!-- Launch rosbridge_suite -->
-  <include file="$(find rosbridge_server)/launch/rosbridge_websocket.launch">
+  <!-- Launch the CREBAIN loopback-only development reference. -->
+  <include file="$(find crebain_msgs)/launch/rosbridge.launch">
     <arg name="port" value="$(arg rosbridge_port)"/>
     <arg name="address" value="$(arg rosbridge_address)"/>
+    <arg name="enable_rosapi" value="$(arg rosbridge_enable_rosapi)"/>
   </include>
 
   <!-- TF2 buffer server for transform lookups -->

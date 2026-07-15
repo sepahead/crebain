@@ -1,108 +1,101 @@
 #!/usr/bin/env bash
-# check-version-coherence.sh — assert this repo's release version is coherent
-# across every place it is recorded, and (optionally) that a release tag points
-# at the commit it claims to.
-#
-# READ-ONLY: this script never writes to the repo, runs no builds, and performs
-# no network calls. It only reads tracked files and (for the optional tag check)
-# the local git object database.
-#
-# What "coherent" means here:
-#   - the Cargo workspace package version (Cargo.toml [workspace.package].version,
-#     falling back to [package].version for a single-crate repo)
-#   - the npm package.json "version" (where a package.json is present)
-#   - the CITATION.cff "version"
-#   - the Tauri config version (src-tauri/tauri.conf.json "version")
-#   must all be byte-equal. A release that bumps one but forgets another is the
-#   classic "moved tag / stale metadata" footgun this guard exists to catch.
-#
-# With an optional <tag> argument it additionally asserts:
-#   - the annotated-tag object PEELS (^{commit}) to a commit that is exactly the
-#     commit the tag ref resolves to (a lightweight tag peels to itself; an
-#     annotated tag peels through its tag object) — i.e. the tag has not been
-#     moved/re-pointed since it was cut, and
-#   - the version embedded in the tag name (the numeric part of e.g. v0.2.8)
-#     equals the coherent in-tree version, so no lockfile/manifest disagrees
-#     with the tag.
-#
-# Usage:
-#   scripts/check-version-coherence.sh [tag]
-#
-# Exit codes: 0 = coherent; 1 = mismatch / missing required file; 2 = bad usage.
+# Assert that every public CREBAIN version agrees and, for a release tag, that
+# an annotated tag directly names the expected commit. This script is read-only.
 
 set -euo pipefail
 
 usage() {
   cat <<'EOF'
-check-version-coherence.sh — assert release-version coherence (read-only).
+Usage: scripts/check-version-coherence.sh [--expected-commit REV] [TAG]
 
-Usage:
-  check-version-coherence.sh [tag]
-
-  tag   Optional. A release tag (e.g. v0.2.8). When given, the script also
-        verifies the tag peels to the commit it points at (no moved tag) and
-        that the tag's version matches the in-tree version.
-
-With no tag, the script only asserts internal coherence at HEAD.
-
-Exit codes: 0 = coherent; 1 = mismatch / missing required file; 2 = bad usage.
+Without TAG, validates in-tree version coherence. With TAG, additionally
+requires an exact vMAJOR.MINOR.PATCH annotated tag which directly targets REV.
+REV defaults to HEAD and is useful in CI as --expected-commit "$GITHUB_SHA".
 EOF
 }
 
-TAG=""
-for arg in "$@"; do
-  case "$arg" in
-    -h|--help) usage; exit 0 ;;
-    -*)        echo "ERROR: unknown option '$arg'" >&2; echo >&2; usage >&2; exit 2 ;;
+TAG=''
+EXPECTED_COMMIT=''
+while (($#)); do
+  case "$1" in
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --expected-commit)
+      if (($# < 2)) || [[ -z "$2" ]]; then
+        echo 'ERROR: --expected-commit requires a revision' >&2
+        exit 2
+      fi
+      EXPECTED_COMMIT="$2"
+      shift 2
+      ;;
+    -*)
+      echo "ERROR: unknown option '$1'" >&2
+      usage >&2
+      exit 2
+      ;;
     *)
       if [[ -n "$TAG" ]]; then
-        echo "ERROR: too many arguments" >&2; echo >&2; usage >&2; exit 2
+        echo 'ERROR: at most one tag may be supplied' >&2
+        exit 2
       fi
-      TAG="$arg" ;;
+      TAG="$1"
+      shift
+      ;;
   esac
 done
+
+if [[ -n "$EXPECTED_COMMIT" && -z "$TAG" ]]; then
+  echo 'ERROR: --expected-commit is only valid with TAG' >&2
+  exit 2
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# --- version extractors (read-only; first match wins) -----------------------
+require_file() {
+  if [[ ! -f "$REPO_ROOT/$1" ]]; then
+    echo "ERROR: required version source is missing: $1" >&2
+    exit 1
+  fi
+}
 
-# Cargo: prefer the workspace package version, else a single-crate [package].
-# We look in the repo-root Cargo.toml first, then src-tauri/Cargo.toml (Tauri
-# apps keep the crate manifest there).
+for source in \
+  package.json \
+  src-tauri/Cargo.toml \
+  src-tauri/tauri.conf.json \
+  CITATION.cff \
+  ros/package.xml \
+  flake.nix; do
+  require_file "$source"
+done
+
 cargo_version() {
-  local f
-  for f in "$REPO_ROOT/Cargo.toml" "$REPO_ROOT/src-tauri/Cargo.toml"; do
-    [[ -f "$f" ]] || continue
-    # Pull version from [workspace.package] or [package], whichever appears.
-    awk '
-      /^\[workspace\.package\]/ { sec="wp"; next }
-      /^\[package\]/            { sec="pkg"; next }
-      /^\[/                     { sec="" ; next }
-      (sec=="wp" || sec=="pkg") && /^[[:space:]]*version[[:space:]]*=/ {
-        line=$0
-        sub(/^[^=]*=[[:space:]]*/, "", line)
-        gsub(/["\x27]/, "", line)        # strip both " and '"'"'
-        sub(/[[:space:]].*$/, "", line)  # drop trailing comment/space
-        print line
-        exit
-      }
-    ' "$f"
-    return
-  done
+  awk '
+    /^\[package\]/ { package=1; next }
+    /^\[/ { package=0 }
+    package && /^[[:space:]]*version[[:space:]]*=/ {
+      line=$0
+      sub(/^[^=]*=[[:space:]]*/, "", line)
+      gsub(/["\x27]/, "", line)
+      sub(/[[:space:]]*(#.*)?$/, "", line)
+      print line
+      exit
+    }
+  ' "$REPO_ROOT/src-tauri/Cargo.toml"
 }
 
-# npm: package.json "version": "x.y.z"
-npm_version() {
-  local f="$REPO_ROOT/package.json"
-  [[ -f "$f" ]] || return
-  awk -F'"' '/^[[:space:]]*"version"[[:space:]]*:/ { print $4; exit }' "$f"
+json_version() {
+  node -e '
+    const fs = require("node:fs");
+    const document = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    if (typeof document.version !== "string") process.exit(1);
+    process.stdout.write(document.version);
+  ' "$1"
 }
 
-# CITATION.cff: a top-level `version:` key. Values may be quoted or bare.
 cff_version() {
-  local f="$REPO_ROOT/CITATION.cff"
-  [[ -f "$f" ]] || return
   awk '
     /^version[[:space:]]*:/ {
       line=$0
@@ -113,103 +106,112 @@ cff_version() {
       print line
       exit
     }
-  ' "$f"
+  ' "$REPO_ROOT/CITATION.cff"
 }
 
-# Tauri: src-tauri/tauri.conf.json top-level "version": "x.y.z"
-tauri_version() {
-  local f="$REPO_ROOT/src-tauri/tauri.conf.json"
-  [[ -f "$f" ]] || return
-  awk -F'"' '/^[[:space:]]*"version"[[:space:]]*:/ { print $4; exit }' "$f"
+ros_version() {
+  awk '
+    match($0, /<version>[[:space:]]*[^<]+[[:space:]]*<\/version>/) {
+      line=substr($0, RSTART, RLENGTH)
+      sub(/^<version>[[:space:]]*/, "", line)
+      sub(/[[:space:]]*<\/version>$/, "", line)
+      print line
+      exit
+    }
+  ' "$REPO_ROOT/ros/package.xml"
 }
 
-CARGO_VER="$(cargo_version || true)"
-NPM_VER="$(npm_version || true)"
-CFF_VER="$(cff_version || true)"
-TAURI_VER="$(tauri_version || true)"
+flake_version() {
+  awk '
+    /^[[:space:]]*pname[[:space:]]*=[[:space:]]*"crebain";/ { crebain=1; next }
+    crebain && /^[[:space:]]*version[[:space:]]*=/ {
+      line=$0
+      sub(/^[^=]*=[[:space:]]*"/, "", line)
+      sub(/";[[:space:]]*$/, "", line)
+      print line
+      exit
+    }
+  ' "$REPO_ROOT/flake.nix"
+}
 
-echo "Version coherence (repo: $REPO_ROOT)"
-echo
-printf '  %-22s %s\n' "Cargo (workspace/pkg)" "${CARGO_VER:-<not present>}"
-printf '  %-22s %s\n' "npm (package.json)"     "${NPM_VER:-<not present>}"
-printf '  %-22s %s\n' "CITATION.cff"           "${CFF_VER:-<not present>}"
-printf '  %-22s %s\n' "tauri.conf.json"        "${TAURI_VER:-<not present>}"
-echo
+labels=(
+  'package.json'
+  'src-tauri/Cargo.toml'
+  'src-tauri/tauri.conf.json'
+  'CITATION.cff'
+  'ros/package.xml'
+  'flake.nix'
+)
+values=(
+  "$(json_version "$REPO_ROOT/package.json")"
+  "$(cargo_version)"
+  "$(json_version "$REPO_ROOT/src-tauri/tauri.conf.json")"
+  "$(cff_version)"
+  "$(ros_version)"
+  "$(flake_version)"
+)
 
+canonical="${values[0]}"
+semver_pattern='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
 problems=()
 
-# Collect the versions that are actually present; require at least one source
-# of truth and that all present sources agree.
-present_labels=()
-present_values=()
-[[ -n "$CARGO_VER" ]] && { present_labels+=("Cargo"); present_values+=("$CARGO_VER"); }
-[[ -n "$NPM_VER"   ]] && { present_labels+=("npm");   present_values+=("$NPM_VER"); }
-[[ -n "$CFF_VER"   ]] && { present_labels+=("CITATION.cff"); present_values+=("$CFF_VER"); }
-[[ -n "$TAURI_VER" ]] && { present_labels+=("tauri.conf.json"); present_values+=("$TAURI_VER"); }
-
-if [[ "${#present_values[@]}" -eq 0 ]]; then
-  echo "ERROR: no version source found (no Cargo.toml / package.json / CITATION.cff version)" >&2
-  exit 1
+if [[ ! "$canonical" =~ $semver_pattern ]]; then
+  problems+=("package.json version '$canonical' is not canonical MAJOR.MINOR.PATCH")
 fi
 
-CANON="${present_values[0]}"
-for i in "${!present_values[@]}"; do
-  if [[ "${present_values[$i]}" != "$CANON" ]]; then
-    problems+=("${present_labels[$i]} version '${present_values[$i]}' != '${CANON}' (${present_labels[0]})")
+echo "Version coherence (repo: $REPO_ROOT)"
+for index in "${!labels[@]}"; do
+  printf '  %-28s %s\n' "${labels[$index]}" "${values[$index]:-<missing>}"
+  if [[ -z "${values[$index]}" ]]; then
+    problems+=("${labels[$index]} has no readable version")
+  elif [[ "${values[$index]}" != "$canonical" ]]; then
+    problems+=("${labels[$index]} version '${values[$index]}' != '$canonical'")
   fi
 done
 
-# --- optional tag check -----------------------------------------------------
 if [[ -n "$TAG" ]]; then
-  if ! git -C "$REPO_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    echo "ERROR: not inside a git work tree; cannot check tag '$TAG'" >&2
-    exit 1
+  if [[ ! "$TAG" =~ ^v${semver_pattern#\^} ]]; then
+    problems+=("tag '$TAG' must exactly match vMAJOR.MINOR.PATCH")
+  elif [[ "${TAG#v}" != "$canonical" ]]; then
+    problems+=("tag '$TAG' does not match in-tree version '$canonical'")
   fi
-  if ! git -C "$REPO_ROOT" rev-parse -q --verify "refs/tags/$TAG" >/dev/null 2>&1 \
-     && ! git -C "$REPO_ROOT" rev-parse -q --verify "$TAG" >/dev/null 2>&1; then
-    problems+=("tag '$TAG' does not exist in this repository")
+
+  tag_ref="refs/tags/$TAG"
+  if ! git -C "$REPO_ROOT" rev-parse -q --verify "$tag_ref" >/dev/null; then
+    problems+=("exact tag ref '$tag_ref' does not exist")
   else
-    # The ref as it stands (for an annotated tag this is the tag OBJECT sha).
-    ref_target="$(git -C "$REPO_ROOT" rev-parse "$TAG")"
-    # Peel to the commit it ultimately names.
-    peeled_commit="$(git -C "$REPO_ROOT" rev-list -n1 "${TAG}^{commit}")"
-    # What the tag ref points to, peeled the same way via the ref object.
-    deref_commit="$(git -C "$REPO_ROOT" rev-parse "${TAG}^{commit}")"
-
-    echo "  tag '$TAG':"
-    printf '    ref target       %s\n' "$ref_target"
-    printf '    peeled commit    %s\n' "$peeled_commit"
-    echo
-
-    if [[ "$peeled_commit" != "$deref_commit" ]]; then
-      problems+=("tag '$TAG' peels inconsistently ($peeled_commit vs $deref_commit) — moved/corrupt tag")
-    fi
-
-    # Compare the tag's embedded version to the in-tree version. Strip a leading
-    # 'v' and an optional crate-name prefix like 'pid-rs-v0.2.0'.
-    tag_ver="$TAG"
-    tag_ver="${tag_ver##*v}"   # drop everything up to & including the last 'v'
-    if [[ "$tag_ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
-      if [[ "$tag_ver" != "$CANON" ]]; then
-        problems+=("tag '$TAG' encodes version '$tag_ver' but in-tree version is '$CANON' (lockfile/manifest disagrees)")
-      fi
+    tag_object="$(git -C "$REPO_ROOT" rev-parse "$tag_ref")"
+    object_type="$(git -C "$REPO_ROOT" cat-file -t "$tag_object")"
+    if [[ "$object_type" != 'tag' ]]; then
+      problems+=("tag '$TAG' is lightweight; an annotated tag object is required")
     else
-      echo "  note: tag '$TAG' has no parseable semver; skipping version-vs-tag check"
-      echo
+      target_object="$(git -C "$REPO_ROOT" cat-file -p "$tag_object" | awk '$1 == "object" { print $2; exit }')"
+      target_type="$(git -C "$REPO_ROOT" cat-file -p "$tag_object" | awk '$1 == "type" { print $2; exit }')"
+      expected_revision="${EXPECTED_COMMIT:-HEAD}"
+      if ! expected="$(git -C "$REPO_ROOT" rev-parse --verify "${expected_revision}^{commit}" 2>/dev/null)"; then
+        problems+=("expected revision '$expected_revision' is not a commit")
+      elif [[ "$target_type" != 'commit' ]]; then
+        problems+=("annotated tag '$TAG' targets '$target_type', not a commit")
+      elif [[ "$target_object" != "$expected" ]]; then
+        problems+=("tag '$TAG' targets '$target_object', expected '$expected'")
+      fi
+
+      peeled="$(git -C "$REPO_ROOT" rev-parse --verify "${tag_ref}^{commit}")"
+      if [[ -n "${expected:-}" && "$peeled" != "$expected" ]]; then
+        problems+=("tag '$TAG' peels to '$peeled', expected '$expected'")
+      fi
     fi
   fi
 fi
 
-if [[ "${#problems[@]}" -ne 0 ]]; then
-  echo "MISMATCH:" >&2
-  for p in "${problems[@]}"; do
-    echo "  - $p" >&2
-  done
+if ((${#problems[@]})); then
+  echo 'MISMATCH:' >&2
+  printf '  - %s\n' "${problems[@]}" >&2
   exit 1
 fi
 
 if [[ -n "$TAG" ]]; then
-  echo "OK: versions coherent at '$CANON' and tag '$TAG' is consistent"
+  echo "OK: version $canonical and annotated tag $TAG target the expected commit"
 else
-  echo "OK: versions coherent at '$CANON'"
+  echo "OK: all required version sources agree at $canonical"
 fi

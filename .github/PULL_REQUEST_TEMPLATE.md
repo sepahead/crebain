@@ -24,7 +24,7 @@ Describe what changed and why.
 | `bun run validate` | not run |  |
 | `bun run validate:all` | not run | Required for Rust, plant-authority, IPC, transport, model-loading, or integration changes |
 | Native detector evidence bundle | not applicable | Required only for a retained numeric detector-performance claim |
-| Manual smoke checklist | not run | Required before release-candidate claims |
+| Manual smoke checklist | not run | Required for demo, operational/deployment, or 1.0 readiness claims; the research-only 0.9 exception must cite `docs/NARROWED_GO_0.9.0.md` |
 
 ## Checklist
 

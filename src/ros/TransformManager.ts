@@ -14,13 +14,20 @@ import type {
   Vector3,
   Time,
   TFMessage,
+  Quaternion,
 } from './types'
-import { timeToDate, createTime } from './types'
+import { createTime } from './types'
 import {
   multiplyQuaternions,
   inverseQuaternion,
   rotateVectorByQuaternion,
 } from '../lib/mathUtils'
+import {
+  isValidTfFrameId,
+  normalizeComputedTfQuaternion,
+  normalizeComputedTfTransform,
+  normalizeIngressTransformStamped,
+} from './tfValidation'
 
 // Re-export TFMessage for convenience
 export type { TFMessage }
@@ -31,9 +38,8 @@ export type { TFMessage }
 
 export interface CachedTransform {
   transform: TransformStamped
-  /** The transform's own header.stamp in ms — index for time-based lookups
-   *  (works for sim time, where wall clock and ROS time diverge) */
-  stampMs: number
+  /** Exact ROS header stamp — index for time-based lookups. */
+  stampNanoseconds: bigint
   /** Wall-clock arrival time in ms — used only for cache expiry */
   receivedAtMs: number
   isStatic: boolean
@@ -53,6 +59,11 @@ export interface TransformManagerConfig {
   throttleRateMs: number
   /** Maximum cache size per frame pair (default: 100) */
   maxCacheSize: number
+}
+
+interface TransformTimeRange {
+  earliestNanoseconds: bigint
+  latestNanoseconds: bigint
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -171,7 +182,13 @@ export class TransformManager {
   private handleTFMessage(msg: TFMessage, isStatic: boolean): void {
     const receivedAtMs = Date.now()
 
-    for (const tf of msg.transforms) {
+    for (const incomingTf of msg.transforms) {
+      // Apply the same reject-then-normalize policy used by ROSBridge. Keeping
+      // this check here protects direct/native ingestion and test harnesses too.
+      const tf = normalizeIngressTransformStamped(incomingTf)
+      if (!tf) continue
+      const stampNanoseconds = this.timeToNanoseconds(tf.header.stamp)
+      if (stampNanoseconds === null) continue
       const key = this.makeKey(tf.header.frame_id, tf.child_frame_id)
 
       // Update frame tree
@@ -179,7 +196,7 @@ export class TransformManager {
 
       const cached: CachedTransform = {
         transform: tf,
-        stampMs: timeToDate(tf.header.stamp).getTime(),
+        stampNanoseconds,
         receivedAtMs,
         isStatic,
       }
@@ -195,7 +212,25 @@ export class TransformManager {
           this.transformCache.set(key, cache)
         }
 
-        cache.push(cached)
+        // ROS delivery is not guaranteed to be timestamp ordered. Keep each
+        // edge ordered by its sensor stamp so interpolation and common-time
+        // lookup do not depend on arrival order. A repeated stamp replaces the
+        // older sample instead of making selection ambiguous.
+        const duplicateIndex = cache.findIndex(
+          (candidate) => candidate.stampNanoseconds === cached.stampNanoseconds
+        )
+        if (duplicateIndex >= 0) {
+          cache[duplicateIndex] = cached
+        } else {
+          const insertionIndex = cache.findIndex(
+            (candidate) => candidate.stampNanoseconds > cached.stampNanoseconds
+          )
+          if (insertionIndex < 0) {
+            cache.push(cached)
+          } else {
+            cache.splice(insertionIndex, 0, cached)
+          }
+        }
 
         // Limit cache size
         if (cache.length > this.config.maxCacheSize) {
@@ -222,6 +257,18 @@ export class TransformManager {
     sourceFrame: string,
     time?: Time
   ): TransformLookupResult {
+    if (!isValidTfFrameId(targetFrame) || !isValidTfFrameId(sourceFrame)) {
+      return {
+        transform: {
+          translation: { x: 0, y: 0, z: 0 },
+          rotation: { x: 0, y: 0, z: 0, w: 1 },
+        },
+        timestamp: time || createTime(),
+        valid: false,
+        error: 'Invalid or empty TF frame ID',
+      }
+    }
+
     // Same frame - identity transform
     if (targetFrame === sourceFrame) {
       return {
@@ -239,7 +286,7 @@ export class TransformManager {
     if (direct) {
       return {
         transform: direct.transform.transform,
-        timestamp: direct.transform.header.stamp,
+        timestamp: time || direct.transform.header.stamp,
         valid: true,
       }
     }
@@ -247,10 +294,13 @@ export class TransformManager {
     // Try inverse lookup
     const inverse = this.getDirectTransform(sourceFrame, targetFrame, time)
     if (inverse) {
-      return {
-        transform: this.invertTransform(inverse.transform.transform),
-        timestamp: inverse.transform.header.stamp,
-        valid: true,
+      const inverted = this.invertTransform(inverse.transform.transform)
+      if (inverted) {
+        return {
+          transform: inverted,
+          timestamp: time || inverse.transform.header.stamp,
+          valid: true,
+        }
       }
     }
 
@@ -270,7 +320,9 @@ export class TransformManager {
       },
       timestamp: time || createTime(),
       valid: false,
-      error: `No transform from ${sourceFrame} to ${targetFrame}`,
+      error:
+        `No temporally coherent transform from ${sourceFrame} to ${targetFrame}` +
+        (time ? ' at the requested ROS time (dynamic extrapolation is disabled)' : ''),
     }
   }
 
@@ -301,21 +353,62 @@ export class TransformManager {
       return cache[cache.length - 1]
     }
 
-    // Find the transform whose own header stamp is closest to the requested
-    // time — comparing against ROS time keeps sim-time lookups meaningful.
-    const targetMs = timeToDate(time).getTime()
-    let closest = cache[0]
-    let minDiff = Math.abs(closest.stampMs - targetMs)
+    // Explicit-time lookups interpolate only between samples that bracket the
+    // requested ROS time. There is deliberately no forward or backward
+    // extrapolation: returning a nearest sample would silently label stale or
+    // future geometry as if it existed at the requested instant.
+    const targetNanoseconds = this.timeToNanoseconds(time)
+    if (targetNanoseconds === null) return null
 
-    for (let i = 1; i < cache.length; i++) {
-      const diff = Math.abs(cache[i].stampMs - targetMs)
-      if (diff < minDiff) {
-        minDiff = diff
-        closest = cache[i]
-      }
+    const exact = cache.find(
+      (candidate) => candidate.stampNanoseconds === targetNanoseconds
+    )
+    if (exact) return exact
+
+    const upperIndex = cache.findIndex(
+      (candidate) => candidate.stampNanoseconds > targetNanoseconds
+    )
+    if (upperIndex <= 0) {
+      return null
     }
 
-    return closest
+    const before = cache[upperIndex - 1]
+    const after = cache[upperIndex]
+    const intervalNanoseconds = after.stampNanoseconds - before.stampNanoseconds
+    if (intervalNanoseconds <= 0n) return null
+
+    const alpha =
+      Number(targetNanoseconds - before.stampNanoseconds) / Number(intervalNanoseconds)
+    if (!Number.isFinite(alpha) || alpha < 0 || alpha > 1) return null
+    const interpolated = this.interpolateTransform(
+      before.transform.transform,
+      after.transform.transform,
+      alpha
+    )
+    if (!interpolated) return null
+    return {
+      transform: {
+        ...before.transform,
+        header: {
+          ...before.transform.header,
+          stamp: time,
+        },
+        transform: interpolated,
+      },
+      stampNanoseconds: targetNanoseconds,
+      receivedAtMs: Math.max(before.receivedAtMs, after.receivedAtMs),
+      isStatic: false,
+    }
+  }
+
+  private getDynamicTimeRange(parent: string, child: string): TransformTimeRange | null {
+    if (this.staticTransforms.has(this.makeKey(parent, child))) return null
+    const cache = this.transformCache.get(this.makeKey(parent, child))
+    if (!cache || cache.length === 0) return null
+    return {
+      earliestNanoseconds: cache[0].stampNanoseconds,
+      latestNanoseconds: cache[cache.length - 1].stampNanoseconds,
+    }
   }
 
   /**
@@ -375,30 +468,59 @@ export class TransformManager {
     chain: Array<{ parent: string; child: string; inverse: boolean }>,
     time?: Time
   ): TransformLookupResult | null {
+    let evaluationTime = time
+    if (!evaluationTime) {
+      // "Latest" for a multi-hop chain means the latest instant contained in
+      // every dynamic edge's history. Selecting each edge's independent latest
+      // sample produces a transform that never existed at one coherent time.
+      const ranges = chain
+        .map((link) => this.getDynamicTimeRange(link.parent, link.child))
+        .filter((range): range is TransformTimeRange => range !== null)
+
+      if (ranges.length > 0) {
+        const earliestCommonNanoseconds = ranges.reduce(
+          (latest, range) =>
+            range.earliestNanoseconds > latest ? range.earliestNanoseconds : latest,
+          ranges[0].earliestNanoseconds
+        )
+        const latestCommonNanoseconds = ranges.reduce(
+          (earliest, range) =>
+            range.latestNanoseconds < earliest ? range.latestNanoseconds : earliest,
+          ranges[0].latestNanoseconds
+        )
+        if (latestCommonNanoseconds < earliestCommonNanoseconds) return null
+        evaluationTime = this.nanosecondsToTime(latestCommonNanoseconds)
+      }
+    }
+
     let result: Transform = {
       translation: { x: 0, y: 0, z: 0 },
       rotation: { x: 0, y: 0, z: 0, w: 1 },
     }
 
     for (const link of chain) {
-      const tf = this.getDirectTransform(link.parent, link.child, time)
+      const tf = this.getDirectTransform(link.parent, link.child, evaluationTime)
       if (!tf) return null
 
       let transform = tf.transform.transform
       if (link.inverse) {
-        transform = this.invertTransform(transform)
+        const inverted = this.invertTransform(transform)
+        if (!inverted) return null
+        transform = inverted
       }
 
       // The chain is ordered source -> ... -> target. We need
       // T_target_source = step_n ∘ … ∘ step_1 ∘ step_0 with the source-side step
       // applied FIRST. composeTransforms(A, B) applies B before A, so the newest
       // (target-ward) step goes on the LEFT.
-      result = this.composeTransforms(transform, result)
+      const composed = this.composeTransforms(transform, result)
+      if (!composed) return null
+      result = composed
     }
 
     return {
       transform: result,
-      timestamp: time || createTime(),
+      timestamp: evaluationTime || createTime(),
       valid: true,
     }
   }
@@ -410,35 +532,122 @@ export class TransformManager {
   /**
    * Invert a transform
    */
-  private invertTransform(tf: Transform): Transform {
-    const invRotation = inverseQuaternion(tf.rotation)
+  private invertTransform(tf: Transform): Transform | null {
+    const normalized = normalizeComputedTfTransform(tf)
+    if (!normalized) return null
+    const invRotation = inverseQuaternion(normalized.rotation)
     const invTranslation = rotateVectorByQuaternion(
-      { x: -tf.translation.x, y: -tf.translation.y, z: -tf.translation.z },
+      {
+        x: -normalized.translation.x,
+        y: -normalized.translation.y,
+        z: -normalized.translation.z,
+      },
       invRotation
     )
 
-    return {
+    return normalizeComputedTfTransform({
       translation: invTranslation,
       rotation: invRotation,
-    }
+    })
   }
 
   /**
    * Compose two transforms: result = tf1 * tf2
    */
-  private composeTransforms(tf1: Transform, tf2: Transform): Transform {
+  private composeTransforms(tf1: Transform, tf2: Transform): Transform | null {
+    const first = normalizeComputedTfTransform(tf1)
+    const second = normalizeComputedTfTransform(tf2)
+    if (!first || !second) return null
+
     // Combined rotation
-    const rotation = multiplyQuaternions(tf1.rotation, tf2.rotation)
+    const rotation = multiplyQuaternions(first.rotation, second.rotation)
 
     // Combined translation: tf1.translation + tf1.rotation * tf2.translation
-    const rotatedTranslation = rotateVectorByQuaternion(tf2.translation, tf1.rotation)
+    const rotatedTranslation = rotateVectorByQuaternion(second.translation, first.rotation)
     const translation = {
-      x: tf1.translation.x + rotatedTranslation.x,
-      y: tf1.translation.y + rotatedTranslation.y,
-      z: tf1.translation.z + rotatedTranslation.z,
+      x: first.translation.x + rotatedTranslation.x,
+      y: first.translation.y + rotatedTranslation.y,
+      z: first.translation.z + rotatedTranslation.z,
     }
 
-    return { translation, rotation }
+    return normalizeComputedTfTransform({ translation, rotation })
+  }
+
+  private interpolateTransform(
+    before: Transform,
+    after: Transform,
+    alpha: number
+  ): Transform | null {
+    const rotation = this.slerpQuaternion(before.rotation, after.rotation, alpha)
+    if (!rotation) return null
+    return normalizeComputedTfTransform({
+      translation: {
+        x: before.translation.x + (after.translation.x - before.translation.x) * alpha,
+        y: before.translation.y + (after.translation.y - before.translation.y) * alpha,
+        z: before.translation.z + (after.translation.z - before.translation.z) * alpha,
+      },
+      rotation,
+    })
+  }
+
+  private slerpQuaternion(
+    before: Quaternion,
+    after: Quaternion,
+    alpha: number
+  ): Quaternion | null {
+    const start = normalizeComputedTfQuaternion(before)
+    const normalizedEnd = normalizeComputedTfQuaternion(after)
+    if (!start || !normalizedEnd || !Number.isFinite(alpha) || alpha < 0 || alpha > 1) return null
+    let end = normalizedEnd
+    let dot = start.x * end.x + start.y * end.y + start.z * end.z + start.w * end.w
+
+    // q and -q represent the same rotation; choose the shortest arc.
+    if (dot < 0) {
+      dot = -dot
+      end = { x: -end.x, y: -end.y, z: -end.z, w: -end.w }
+    }
+
+    if (dot > 0.9995) {
+      return normalizeComputedTfQuaternion({
+        x: start.x + alpha * (end.x - start.x),
+        y: start.y + alpha * (end.y - start.y),
+        z: start.z + alpha * (end.z - start.z),
+        w: start.w + alpha * (end.w - start.w),
+      })
+    }
+
+    const theta = Math.acos(Math.min(1, Math.max(-1, dot)))
+    const sinTheta = Math.sin(theta)
+    if (!(sinTheta > 0) || !Number.isFinite(sinTheta)) return null
+    const startWeight = Math.sin((1 - alpha) * theta) / sinTheta
+    const endWeight = Math.sin(alpha * theta) / sinTheta
+    return normalizeComputedTfQuaternion({
+      x: start.x * startWeight + end.x * endWeight,
+      y: start.y * startWeight + end.y * endWeight,
+      z: start.z * startWeight + end.z * endWeight,
+      w: start.w * startWeight + end.w * endWeight,
+    })
+  }
+
+  private timeToNanoseconds(time: Time): bigint | null {
+    if (
+      !Number.isSafeInteger(time.secs) ||
+      time.secs < 0 ||
+      !Number.isSafeInteger(time.nsecs) ||
+      time.nsecs < 0 ||
+      time.nsecs >= 1_000_000_000
+    ) {
+      return null
+    }
+    return BigInt(time.secs) * 1_000_000_000n + BigInt(time.nsecs)
+  }
+
+  private nanosecondsToTime(nanoseconds: bigint): Time {
+    const seconds = nanoseconds / 1_000_000_000n
+    return {
+      secs: Number(seconds),
+      nsecs: Number(nanoseconds % 1_000_000_000n),
+    }
   }
 
   /**
@@ -450,17 +659,19 @@ export class TransformManager {
     sourceFrame: string,
     time?: Time
   ): Point | null {
+    if (![point.x, point.y, point.z].every(Number.isFinite)) return null
     const lookup = this.lookupTransform(targetFrame, sourceFrame, time)
     if (!lookup.valid) return null
 
     const tf = lookup.transform
     const rotated = rotateVectorByQuaternion(point, tf.rotation)
 
-    return {
+    const result = {
       x: rotated.x + tf.translation.x,
       y: rotated.y + tf.translation.y,
       z: rotated.z + tf.translation.z,
     }
+    return [result.x, result.y, result.z].every(Number.isFinite) ? result : null
   }
 
   /**
@@ -472,10 +683,12 @@ export class TransformManager {
     sourceFrame: string,
     time?: Time
   ): Vector3 | null {
+    if (![vector.x, vector.y, vector.z].every(Number.isFinite)) return null
     const lookup = this.lookupTransform(targetFrame, sourceFrame, time)
     if (!lookup.valid) return null
 
-    return rotateVectorByQuaternion(vector, lookup.transform.rotation)
+    const result = rotateVectorByQuaternion(vector, lookup.transform.rotation)
+    return [result.x, result.y, result.z].every(Number.isFinite) ? result : null
   }
 
   // ───────────────────────────────────────────────────────────────────────────

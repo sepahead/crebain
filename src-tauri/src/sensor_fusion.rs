@@ -17,12 +17,11 @@ use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::f64::consts::PI;
 
-/// Upper bound on the timestamp gap (seconds) integrated by substepped
-/// prediction in one frame. Beyond this a coasting track's covariance has
-/// long since inflated toward the divergence gate; the cap also bounds the
-/// substep loop under wall-clock jumps (suspend/resume, replays).
-const MAX_PREDICT_GAP_S: f64 = 60.0;
-
+/// Upper bound on the timestamp gap (milliseconds) integrated by substepped
+/// prediction in one frame. Longer gaps expire the prior track epoch, which
+/// both prevents a partially integrated state from receiving a far-future
+/// timestamp and bounds work after suspend/resume or a feed jump.
+const MAX_PREDICT_GAP_MS: u64 = 60_000;
 pub const MAX_FUSION_MEASUREMENTS_PER_BATCH: usize = 512;
 pub const MAX_FUSION_TRACKS: usize = 1024;
 pub const MAX_FUSION_PARTICLE_COUNT: usize = 1000;
@@ -144,6 +143,92 @@ pub struct SensorMeasurement {
     pub class_label: String,
     /// Additional sensor-specific data
     pub metadata: HashMap<String, f64>,
+}
+
+fn exact_f64_array<const N: usize>(left: &[f64; N], right: &[f64; N]) -> bool {
+    left.iter()
+        .zip(right)
+        .all(|(left, right)| left.to_bits() == right.to_bits())
+}
+
+fn exact_optional_f64_array<const N: usize>(
+    left: &Option<[f64; N]>,
+    right: &Option<[f64; N]>,
+) -> bool {
+    match (left, right) {
+        (Some(left), Some(right)) => exact_f64_array(left, right),
+        (None, None) => true,
+        _ => false,
+    }
+}
+
+fn measurements_are_exact_duplicates(left: &SensorMeasurement, right: &SensorMeasurement) -> bool {
+    left.sensor_id == right.sensor_id
+        && left.modality == right.modality
+        && left.timestamp_ms == right.timestamp_ms
+        && left.source_frame_id == right.source_frame_id
+        && exact_f64_array(&left.position, &right.position)
+        && exact_optional_f64_array(&left.velocity, &right.velocity)
+        && exact_f64_array(&left.covariance, &right.covariance)
+        && left.confidence.to_bits() == right.confidence.to_bits()
+        && left.class_label == right.class_label
+        && left.metadata.len() == right.metadata.len()
+        && left.metadata.iter().all(|(key, value)| {
+            right
+                .metadata
+                .get(key)
+                .is_some_and(|candidate| candidate.to_bits() == value.to_bits())
+        })
+}
+
+/// Keep the first occurrence of every bit-exact measurement payload.
+///
+/// The input is already capped at 512 records, so the allocation-free-key
+/// quadratic comparison remains bounded and avoids probabilistic hash
+/// collisions. Same-sensor/same-time detections remain distinct whenever any
+/// payload field (including position) differs.
+pub(crate) fn deduplicate_sensor_measurements(
+    measurements: Vec<SensorMeasurement>,
+) -> (Vec<SensorMeasurement>, usize) {
+    let mut unique = Vec::with_capacity(measurements.len());
+    let mut duplicate_count = 0_usize;
+    for measurement in measurements {
+        if unique
+            .iter()
+            .any(|candidate| measurements_are_exact_duplicates(candidate, &measurement))
+        {
+            duplicate_count += 1;
+        } else {
+            unique.push(measurement);
+        }
+    }
+    (unique, duplicate_count)
+}
+
+fn source_frame_domains_match(left: Option<&str>, right: Option<&str>) -> bool {
+    // Legacy missing-frame inputs remain usable, but only inside their own
+    // explicit None domain; they never compare equal to an identified frame.
+    left == right
+}
+
+fn measurements_share_correlation_identity(
+    left: &SensorMeasurement,
+    right: &SensorMeasurement,
+) -> bool {
+    left.sensor_id == right.sensor_id
+        && left.modality == right.modality
+        && left.timestamp_ms == right.timestamp_ms
+        && left.source_frame_id == right.source_frame_id
+}
+
+fn total_cmp_f64_arrays<const N: usize>(left: &[f64; N], right: &[f64; N]) -> std::cmp::Ordering {
+    for (left, right) in left.iter().zip(right) {
+        let ordering = left.total_cmp(right);
+        if !ordering.is_eq() {
+            return ordering;
+        }
+    }
+    std::cmp::Ordering::Equal
 }
 
 fn polar_to_cartesian(range: f64, azimuth: f64, elevation: f64) -> Vector3<f64> {
@@ -285,6 +370,9 @@ pub struct TrackState {
     pub id: String,
     /// Classification
     pub class_label: String,
+    /// Coordinate-frame domain inherited at track birth. `None` is the isolated
+    /// legacy missing-frame domain and never mixes with an identified frame.
+    pub source_frame_id: Option<String>,
     /// Fused confidence from all sensors
     pub confidence: f64,
     /// Contributing sensor modalities
@@ -1101,9 +1189,18 @@ impl ParticleFilter {
 
     /// Initialize particles around an initial state
     pub fn initialize(&mut self, initial_state: &Vector6<f64>, initial_cov: &Matrix6<f64>) {
+        let mut rng = rand::rng();
+        self.initialize_with_rng(initial_state, initial_cov, &mut rng);
+    }
+
+    fn initialize_with_rng<R: Rng + ?Sized>(
+        &mut self,
+        initial_state: &Vector6<f64>,
+        initial_cov: &Matrix6<f64>,
+        rng: &mut R,
+    ) {
         self.particles.clear();
         let weight = 1.0 / self.num_particles as f64;
-        let mut rng = rand::rng();
 
         // Precompute standard deviations for each state dimension
         // Use fallback std=1.0 if variance is invalid (negative or NaN)
@@ -1121,7 +1218,7 @@ impl ParticleFilter {
         for _p in 0..self.num_particles {
             let mut state = *initial_state;
             for i in 0..6 {
-                let sample: f64 = StandardNormal.sample(&mut rng);
+                let sample: f64 = StandardNormal.sample(&mut *rng);
                 state[i] += sample * stds[i];
             }
             self.particles.push(Particle { state, weight });
@@ -1130,6 +1227,11 @@ impl ParticleFilter {
 
     /// Predict step - propagate particles
     pub fn predict(&mut self, dt: f64) {
+        let mut rng = rand::rng();
+        self.predict_with_rng(dt, &mut rng);
+    }
+
+    fn predict_with_rng<R: Rng + ?Sized>(&mut self, dt: f64, rng: &mut R) {
         // Ensure process_noise is valid for standard-normal scaling
         let noise_std = if self.process_noise > 0.0 && self.process_noise.is_finite() {
             self.process_noise
@@ -1140,16 +1242,14 @@ impl ParticleFilter {
             );
             1.0
         };
-        let mut rng = rand::rng();
-
         for particle in &mut self.particles {
             // Constant velocity motion model with noise
-            let position_noise_x: f64 = StandardNormal.sample(&mut rng);
-            let position_noise_y: f64 = StandardNormal.sample(&mut rng);
-            let position_noise_z: f64 = StandardNormal.sample(&mut rng);
-            let velocity_noise_x: f64 = StandardNormal.sample(&mut rng);
-            let velocity_noise_y: f64 = StandardNormal.sample(&mut rng);
-            let velocity_noise_z: f64 = StandardNormal.sample(&mut rng);
+            let position_noise_x: f64 = StandardNormal.sample(&mut *rng);
+            let position_noise_y: f64 = StandardNormal.sample(&mut *rng);
+            let position_noise_z: f64 = StandardNormal.sample(&mut *rng);
+            let velocity_noise_x: f64 = StandardNormal.sample(&mut *rng);
+            let velocity_noise_y: f64 = StandardNormal.sample(&mut *rng);
+            let velocity_noise_z: f64 = StandardNormal.sample(&mut *rng);
             particle.state[0] += particle.state[3] * dt + position_noise_x * noise_std * dt * 0.1;
             particle.state[1] += particle.state[4] * dt + position_noise_y * noise_std * dt * 0.1;
             particle.state[2] += particle.state[5] * dt + position_noise_z * noise_std * dt * 0.1;
@@ -1212,13 +1312,17 @@ impl ParticleFilter {
 
     /// Resample particles using systematic resampling
     pub fn resample(&mut self) {
+        let mut rng = rand::rng();
+        self.resample_with_rng(&mut rng);
+    }
+
+    fn resample_with_rng<R: Rng + ?Sized>(&mut self, rng: &mut R) {
         // Calculate effective sample size
         let weight_sq_sum: f64 = self.particles.iter().map(|p| p.weight * p.weight).sum();
         let n_eff = 1.0 / weight_sq_sum;
 
         // Only resample if effective sample size is too low
         if n_eff < self.num_particles as f64 / 2.0 {
-            let mut rng = rand::rng();
             let mut cumulative = Vec::with_capacity(self.num_particles);
             let mut sum = 0.0;
             for particle in &self.particles {
@@ -1613,18 +1717,20 @@ pub struct FusionFrameEvidence {
 }
 
 #[cfg(feature = "ncp")]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct FrozenOpportunityTrack {
     pub track_id: u64,
     pub class: DetectionClassKind,
+    pub source_frame_id: Option<String>,
 }
 
 #[cfg(feature = "ncp")]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct OpportunityInput {
     pub measurement_index: u32,
     pub modality: SensorModality,
     pub class: DetectionClassKind,
+    pub source_frame_id: Option<String>,
 }
 
 #[cfg(feature = "ncp")]
@@ -2002,6 +2108,13 @@ impl MultiSensorFusion {
         measurements: Vec<SensorMeasurement>,
         timestamp_ms: u64,
     ) -> Result<Vec<TrackOutput>, String> {
+        let (measurements, duplicate_count) = deduplicate_sensor_measurements(measurements);
+        if duplicate_count > 0 {
+            log::warn!(
+                "[fusion] ignored {duplicate_count} bit-exact duplicate measurements in one frame"
+            );
+        }
+        self.validate_measurement_times(&measurements, timestamp_ms)?;
         self.begin_frame(timestamp_ms)?;
 
         // Step 2: Associate measurements to tracks
@@ -2019,7 +2132,7 @@ impl MultiSensorFusion {
         let mut hit_this_frame: std::collections::HashSet<String> =
             std::collections::HashSet::new();
         for (track_id, meas_indices) in associations {
-            if self.update_track(&track_id, &measurements, &meas_indices, timestamp_ms) {
+            if self.update_track(&track_id, &measurements, &meas_indices) {
                 hit_this_frame.insert(track_id);
             }
         }
@@ -2029,7 +2142,7 @@ impl MultiSensorFusion {
             if self.tracks.len() >= MAX_FUSION_TRACKS {
                 break;
             }
-            let _ = self.create_track(&measurements[meas_idx], timestamp_ms);
+            let _ = self.create_track(&measurements[meas_idx]);
         }
 
         // A track born this frame (an ID not present before Step 3) registers its
@@ -2046,10 +2159,45 @@ impl MultiSensorFusion {
         self.update_hit_history(&hit_this_frame);
 
         // Step 5: Handle missed detections and prune dead tracks
-        self.handle_missed_detections(timestamp_ms);
+        self.handle_missed_detections(&hit_this_frame);
 
         // Step 6: Return track outputs
         Ok(self.tracks.values().map(TrackOutput::from).collect())
+    }
+
+    fn validate_measurement_times(
+        &self,
+        measurements: &[SensorMeasurement],
+        fusion_timestamp_ms: u64,
+    ) -> Result<(), String> {
+        if self.prediction_clock_initialized && fusion_timestamp_ms < self.last_predict_ms {
+            return Err(format!(
+                "fusion timestamp {fusion_timestamp_ms} is older than fusion high-water {}",
+                self.last_predict_ms
+            ));
+        }
+        for (index, measurement) in measurements.iter().enumerate() {
+            if measurement.timestamp_ms > fusion_timestamp_ms {
+                return Err(format!(
+                    "measurements[{index}].timestamp_ms {} is newer than fusion timestamp {fusion_timestamp_ms}",
+                    measurement.timestamp_ms
+                ));
+            }
+            if measurement.timestamp_ms < fusion_timestamp_ms {
+                return Err(format!(
+                    "measurements[{index}].timestamp_ms {} is older than fusion timestamp {fusion_timestamp_ms}; exact-time fusion requires equality",
+                    measurement.timestamp_ms,
+                ));
+            }
+            if self.prediction_clock_initialized && measurement.timestamp_ms <= self.last_predict_ms
+            {
+                return Err(format!(
+                    "measurements[{index}].timestamp_ms {} is not newer than fusion high-water {}",
+                    measurement.timestamp_ms, self.last_predict_ms
+                ));
+            }
+        }
+        Ok(())
     }
 
     fn begin_frame(&mut self, timestamp_ms: u64) -> Result<u64, String> {
@@ -2065,24 +2213,22 @@ impl MultiSensorFusion {
         // duplicates, out-of-order replays) yield dt = 0: no phantom predict / Q
         // inflation, and the predict clock only ever advances monotonically.
         //
-        // A gap longer than one frame is integrated in ≤1 s SUBSTEPS rather than
-        // truncated: the old `min(gap, 1.0)` clamp advanced the clock by the full
-        // gap but the state by at most 1 s, leaving the covariance uninflated for
-        // the unmodeled remainder — after a multi-second dropout the next
-        // association then gated against a mis-timed, overconfident prior.
-        // Substepping keeps each linearization step small while covering the
-        // whole gap (for the linear CV model the transition composes exactly and
-        // Q accumulates per substep). The total is capped: a track coasting
-        // longer than MAX_PREDICT_GAP_S has Q-inflated toward the
-        // covariance-volume divergence gate anyway, and the cap bounds work on
-        // wall-clock jumps (suspend/resume).
-        let gap_s = if self.prediction_clock_initialized && timestamp_ms > self.last_predict_ms {
-            ((timestamp_ms - self.last_predict_ms) as f64 / 1000.0).min(MAX_PREDICT_GAP_S)
+        // Gaps through the bounded work horizon are integrated in ≤1 s
+        // substeps. Anything beyond the horizon expires the old track epoch
+        // before the clock advances; retaining a 60-second prediction while
+        // labeling it at an hour/day timestamp would create a mis-timed prior.
+        let gap_ms = if self.prediction_clock_initialized && timestamp_ms > self.last_predict_ms {
+            timestamp_ms - self.last_predict_ms
         } else {
-            0.0
+            0
         };
         self.last_predict_ms = self.last_predict_ms.max(timestamp_ms);
         self.prediction_clock_initialized = true;
+        if gap_ms > MAX_PREDICT_GAP_MS {
+            self.expire_tracks_for_time_gap(gap_ms);
+            return Ok(next_frame);
+        }
+        let gap_s = gap_ms as f64 / 1000.0;
         let mut remaining_s = gap_s;
         while remaining_s > 0.0 {
             let dt = remaining_s.min(1.0);
@@ -2090,6 +2236,20 @@ impl MultiSensorFusion {
             remaining_s -= dt;
         }
         Ok(next_frame)
+    }
+
+    fn expire_tracks_for_time_gap(&mut self, gap_ms: u64) {
+        if !self.tracks.is_empty() {
+            log::warn!(
+                "[fusion] expiring {} tracks after {gap_ms} ms exceeded the {MAX_PREDICT_GAP_MS} ms prediction horizon",
+                self.tracks.len()
+            );
+        }
+        self.tracks.clear();
+        self.particle_filters.clear();
+        self.imm_filters.clear();
+        #[cfg(feature = "ncp")]
+        self.last_pid_timestamp_by_channel.clear();
     }
 
     /// Process one frame and return its complete Galadriel evidence ledger.
@@ -2133,6 +2293,14 @@ impl MultiSensorFusion {
                 measurement.timestamp_ms
             ));
         }
+        let (deduplicated, duplicate_count) = deduplicate_sensor_measurements(measurements);
+        measurements = deduplicated;
+        if duplicate_count > 0 {
+            log::warn!(
+                "[fusion] ignored {duplicate_count} bit-exact duplicate measurements before Galadriel evidence assembly"
+            );
+        }
+        self.validate_measurement_times(&measurements, timestamp_ms)?;
         if prior_id == 0 || prior_id > JSON_SAFE_INTEGER_MAX {
             return Err(format!(
                 "prior_id must be within 1..={JSON_SAFE_INTEGER_MAX}"
@@ -2144,6 +2312,8 @@ impl MultiSensorFusion {
                 self.last_evidence_prior_id
             ));
         }
+        let prior_tracks_expire = self.prediction_clock_initialized
+            && timestamp_ms.saturating_sub(self.last_predict_ms) > MAX_PREDICT_GAP_MS;
 
         let frame = registry
             .frame(frame_id)
@@ -2178,11 +2348,14 @@ impl MultiSensorFusion {
                 policy.max_frame_inputs()
             ));
         }
-        let active_track_count = self
-            .tracks
-            .values()
-            .filter(|track| track.state_label != TrackStateLabel::Lost)
-            .count();
+        let active_track_count = if prior_tracks_expire {
+            0
+        } else {
+            self.tracks
+                .values()
+                .filter(|track| track.state_label != TrackStateLabel::Lost)
+                .count()
+        };
         if active_track_count > policy.max_active_tracks() as usize {
             return Err(format!(
                 "active track count {active_track_count} exceeds registry maximum {}",
@@ -2219,6 +2392,7 @@ impl MultiSensorFusion {
             &expected_modalities,
             policy.max_attempts_per_track_modality(),
             policy.max_outcomes_per_frame(),
+            prior_tracks_expire,
         )?;
 
         // A projection is comparable only when this frame advances the actual
@@ -2259,6 +2433,7 @@ impl MultiSensorFusion {
             .map(|((_, track), track_id)| FrozenOpportunityTrack {
                 track_id,
                 class: map_to_detection_class(&track.class_label),
+                source_frame_id: track.source_frame_id.clone(),
             })
             .collect();
         let birth_capacity = (policy.max_active_tracks() as usize)
@@ -2305,6 +2480,7 @@ impl MultiSensorFusion {
                         .map_err(|_| "measurement index exceeds u32".to_string())?,
                     modality: measurement.modality,
                     class: map_to_detection_class(&measurement.class_label),
+                    source_frame_id: measurement.source_frame_id.clone(),
                 })
             })
             .collect::<Result<Vec<_>, String>>()?;
@@ -2318,12 +2494,7 @@ impl MultiSensorFusion {
         let mut hit_this_frame = std::collections::HashSet::new();
         let mut update_reports = HashMap::new();
         for (track_id, measurement_indices) in &plan.associations {
-            let report = self.update_track_report(
-                track_id,
-                &measurements,
-                measurement_indices,
-                timestamp_ms,
-            );
+            let report = self.update_track_report(track_id, &measurements, measurement_indices);
             if report.any_applied {
                 hit_this_frame.insert(track_id.clone());
             }
@@ -2333,7 +2504,7 @@ impl MultiSensorFusion {
         let mut births = Vec::with_capacity(plan.unassociated.len());
         for &measurement_index in &plan.unassociated {
             let track_id = self
-                .create_track(&measurements[measurement_index], timestamp_ms)
+                .create_track(&measurements[measurement_index])
                 .ok_or_else(|| {
                     "track capacity exhausted while creating evidence birth".to_string()
                 })?;
@@ -2342,7 +2513,7 @@ impl MultiSensorFusion {
         }
 
         self.update_hit_history(&hit_this_frame);
-        self.handle_missed_detections(timestamp_ms);
+        self.handle_missed_detections(&hit_this_frame);
 
         let (pid_observations, selected_v1) = self.build_frame_pid_observations(
             &measurements,
@@ -2448,32 +2619,39 @@ impl MultiSensorFusion {
         expected_modalities: &[SensorModality],
         max_attempts_per_pair: u32,
         max_outcomes_per_frame: u32,
+        prior_tracks_expire: bool,
     ) -> Result<(), String> {
         let mut upper_bound = measurements.len(); // every input could be a birth
-        for track in self
-            .tracks
-            .values()
-            .filter(|track| track.state_label != TrackStateLabel::Lost)
-        {
-            for modality in expected_modalities {
-                let candidates = measurements
-                    .iter()
-                    .filter(|measurement| {
-                        measurement.modality == *modality
-                            && map_to_detection_class(&measurement.class_label)
-                                == map_to_detection_class(&track.class_label)
-                    })
-                    .count();
-                if candidates > max_attempts_per_pair as usize {
-                    return Err(format!(
-                        "track {} modality {modality:?} has {candidates} attempts, registry maximum {max_attempts_per_pair}",
-                        track.id
-                    ));
+        if !prior_tracks_expire {
+            for track in self
+                .tracks
+                .values()
+                .filter(|track| track.state_label != TrackStateLabel::Lost)
+            {
+                for modality in expected_modalities {
+                    let candidates = measurements
+                        .iter()
+                        .filter(|measurement| {
+                            measurement.modality == *modality
+                                && map_to_detection_class(&measurement.class_label)
+                                    == map_to_detection_class(&track.class_label)
+                                && source_frame_domains_match(
+                                    measurement.source_frame_id.as_deref(),
+                                    track.source_frame_id.as_deref(),
+                                )
+                        })
+                        .count();
+                    if candidates > max_attempts_per_pair as usize {
+                        return Err(format!(
+                            "track {} modality {modality:?} has {candidates} attempts, registry maximum {max_attempts_per_pair}",
+                            track.id
+                        ));
+                    }
+                    // One outcome per candidate and at most one aggregate miss.
+                    upper_bound = upper_bound
+                        .checked_add(candidates + 1)
+                        .ok_or_else(|| "frame evidence bound overflow".to_string())?;
                 }
-                // One outcome per candidate and at most one aggregate miss.
-                upper_bound = upper_bound
-                    .checked_add(candidates + 1)
-                    .ok_or_else(|| "frame evidence bound overflow".to_string())?;
             }
         }
         if upper_bound > max_outcomes_per_frame as usize {
@@ -2701,6 +2879,10 @@ impl MultiSensorFusion {
                     .filter(|&index| {
                         map_to_detection_class(&measurements[index].class_label)
                             == map_to_detection_class(&frozen_track.class_label)
+                            && source_frame_domains_match(
+                                measurements[index].source_frame_id.as_deref(),
+                                frozen_track.source_frame_id.as_deref(),
+                            )
                     })
                     .collect();
                 let in_gate_count = candidates
@@ -2990,7 +3172,12 @@ impl MultiSensorFusion {
         }
         for i in 0..n {
             for j in (i + 1)..n {
-                if measurements[i].class_label != measurements[j].class_label {
+                if measurements[i].class_label != measurements[j].class_label
+                    || !source_frame_domains_match(
+                        measurements[i].source_frame_id.as_deref(),
+                        measurements[j].source_frame_id.as_deref(),
+                    )
+                {
                     continue;
                 }
                 let diff = meas_pos[i] - meas_pos[j];
@@ -3046,10 +3233,20 @@ impl MultiSensorFusion {
         let gate_decisions: Vec<Vec<GateDecision>> = frozen_tracks
             .iter()
             .map(|(_, track)| {
-                meas_pos
+                measurements
                     .iter()
+                    .zip(&meas_pos)
                     .zip(&r_carts)
-                    .map(|(position, covariance)| self.gate_decision(track, position, covariance))
+                    .map(|((measurement, position), covariance)| {
+                        let mut decision = self.gate_decision(track, position, covariance);
+                        if !source_frame_domains_match(
+                            measurement.source_frame_id.as_deref(),
+                            track.source_frame_id.as_deref(),
+                        ) {
+                            decision.accepted = false;
+                        }
+                        decision
+                    })
                     .collect()
             })
             .collect();
@@ -3099,6 +3296,57 @@ impl MultiSensorFusion {
                 .expect("clusters are non-empty")
         };
 
+        // A co-located cluster may contain several slightly different records
+        // derived from one sensor capture (for example, repeated post-processing
+        // of the same detector output). Such records are correlated and cannot be
+        // treated as conditionally independent observations. Keep one effective
+        // return for each sensor/modality/time/frame-domain identity, preferring
+        // the smallest Cartesian covariance trace. The remaining tie-breakers
+        // make the selected update independent of input order whenever fields
+        // that affect an existing-track update differ.
+        let one_effective_return_per_correlation_identity = |members: Vec<usize>| -> Vec<usize> {
+            let preferred = |left: usize, right: usize| {
+                r_carts[left]
+                    .trace()
+                    .total_cmp(&r_carts[right].trace())
+                    .then_with(|| {
+                        measurements[right]
+                            .confidence
+                            .total_cmp(&measurements[left].confidence)
+                    })
+                    .then_with(|| {
+                        total_cmp_f64_arrays(
+                            &measurements[left].covariance,
+                            &measurements[right].covariance,
+                        )
+                    })
+                    .then_with(|| {
+                        total_cmp_f64_arrays(
+                            &measurements[left].position,
+                            &measurements[right].position,
+                        )
+                    })
+                    .then(left.cmp(&right))
+            };
+            let mut effective = Vec::with_capacity(members.len());
+            for member in members {
+                if let Some(group) = effective.iter().position(|&candidate| {
+                    measurements_share_correlation_identity(
+                        &measurements[candidate],
+                        &measurements[member],
+                    )
+                }) {
+                    if preferred(member, effective[group]).is_lt() {
+                        effective[group] = member;
+                    }
+                } else {
+                    effective.push(member);
+                }
+            }
+            effective.sort_unstable();
+            effective
+        };
+
         if track_ids.is_empty() {
             for cl in &clusters {
                 unassociated.push(cluster_representative(cl));
@@ -3125,7 +3373,12 @@ impl MultiSensorFusion {
                     .iter()
                     .zip(&cluster_kinds)
                     .map(|(cl, &cluster_kind)| {
-                        if cluster_kind != track_kind {
+                        if cluster_kind != track_kind
+                            || !source_frame_domains_match(
+                                measurements[cl[0]].source_frame_id.as_deref(),
+                                track.source_frame_id.as_deref(),
+                            )
+                        {
                             return ASSIGNMENT_INF;
                         }
                         cl.iter()
@@ -3162,6 +3415,7 @@ impl MultiSensorFusion {
                     if members.is_empty() {
                         members.push(cluster_representative(&clusters[c]));
                     }
+                    let members = one_effective_return_per_correlation_identity(members);
                     associations.push((track_ids[r].clone(), members));
                     cluster_used[c] = true;
                 }
@@ -3209,9 +3463,8 @@ impl MultiSensorFusion {
         track_id: &str,
         measurements: &[SensorMeasurement],
         meas_indices: &[usize],
-        timestamp_ms: u64,
     ) -> bool {
-        self.update_track_report(track_id, measurements, meas_indices, timestamp_ms)
+        self.update_track_report(track_id, measurements, meas_indices)
             .any_applied
     }
 
@@ -3220,7 +3473,6 @@ impl MultiSensorFusion {
         track_id: &str,
         measurements: &[SensorMeasurement],
         meas_indices: &[usize],
-        timestamp_ms: u64,
     ) -> TrackUpdateReport {
         let track = match self.tracks.get_mut(track_id) {
             Some(t) => t,
@@ -3233,19 +3485,32 @@ impl MultiSensorFusion {
             }
         };
 
-        // Sequential per-sensor information-form fusion. Apply each associated
-        // measurement ONE AT A TIME through the active filter, each with its OWN
+        let compatible_indices = meas_indices
+            .iter()
+            .copied()
+            .filter(|&index| {
+                source_frame_domains_match(
+                    measurements[index].source_frame_id.as_deref(),
+                    track.source_frame_id.as_deref(),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        // Sequential per-sensor information-form fusion. Apply each independent
+        // associated return ONE AT A TIME through the active filter, each with its OWN
         // measurement noise R — not a single confidence-weighted average. Detector
         // confidence is no longer a fusion weight (confidence ≠ precision): a
         // centimetre-accurate lidar and a coarse acoustic return are now combined by
         // their covariances, not by which detector was more confident. For the
         // linear-Gaussian case, sequentially applying conditionally-independent
-        // measurements equals the batch information-form fuse and is order-independent;
-        // we still order lowest-noise-first for deterministic, well-linearized results.
+        // measurements equals the batch information-form fuse and is order-independent.
+        // Association has already reduced each co-located sensor/modality/time/frame
+        // correlation identity to one effective return. We still order independent
+        // returns lowest-noise-first for deterministic, well-linearized results.
         let mut sensor_sources: Vec<SensorModality> = Vec::new();
         let mut max_confidence: f64 = 0.0;
         let mut best_label: Option<&str> = None;
-        for &idx in meas_indices {
+        for &idx in &compatible_indices {
             let meas = &measurements[idx];
             if !sensor_sources.contains(&meas.modality) {
                 sensor_sources.push(meas.modality);
@@ -3256,7 +3521,7 @@ impl MultiSensorFusion {
             max_confidence = max_confidence.max(meas.confidence);
         }
 
-        let mut ordered = meas_indices.to_vec();
+        let mut ordered = compatible_indices;
         // Order lowest-noise-first by the CARTESIAN R trace: summing the raw
         // covariance triple compared radar's [m², rad², rad²] against Cartesian
         // [m², m², m²], making radar look near-noiseless and win the
@@ -3266,7 +3531,7 @@ impl MultiSensorFusion {
             let pos = measurement_position_cartesian(meas);
             measurement_r_cartesian(meas, &pos).trace()
         };
-        let traces: std::collections::HashMap<usize, f64> = meas_indices
+        let traces: std::collections::HashMap<usize, f64> = ordered
             .iter()
             .map(|&idx| (idx, cartesian_trace(idx)))
             .collect();
@@ -3281,6 +3546,7 @@ impl MultiSensorFusion {
         // reports success separately. Missing per-track state is a failed update,
         // never evidence for the lifecycle hit window.
         let mut any_applied = false;
+        let mut latest_applied_timestamp_ms = None;
         let mut attempts = Vec::with_capacity(ordered.len());
         // The galadriel sidecar contract keys per-channel streams by (track,
         // modality) with strictly increasing `seq`, and `seq` is stamped with the
@@ -3343,11 +3609,6 @@ impl MultiSensorFusion {
                     (None, applied)
                 }
                 FilterAlgorithm::IMM => {
-                    // NOTE: each call re-runs the IMM mode-probability update, so
-                    // fusing many co-located returns in one frame can over-concentrate
-                    // the model probabilities (the per-model KF states stay correct).
-                    // Acceptable for the common 1-2 returns/track; a per-frame single
-                    // mode update is future work.
                     let applied = if let Some(imm) = self.imm_filters.get_mut(track_id) {
                         let rc = measurement_r_cartesian(meas, &pos);
                         imm.update(&pos, Some(&rc))
@@ -3359,6 +3620,13 @@ impl MultiSensorFusion {
             };
 
             any_applied |= applied;
+            if applied {
+                latest_applied_timestamp_ms = Some(
+                    latest_applied_timestamp_ms.map_or(meas.timestamp_ms, |latest: u64| {
+                        latest.max(meas.timestamp_ms)
+                    }),
+                );
+            }
             attempts.push(MeasurementUpdateResult {
                 measurement_index: idx,
                 stats,
@@ -3443,8 +3711,18 @@ impl MultiSensorFusion {
                 any_applied: false,
             };
         }
+        let Some(latest_applied_timestamp_ms) = latest_applied_timestamp_ms else {
+            log::error!(
+                "[fusion] track {track_id}: update reported success without a measurement timestamp"
+            );
+            return TrackUpdateReport {
+                track_id: track_id.to_string(),
+                attempts,
+                any_applied: false,
+            };
+        };
         track.sensor_sources = sensor_sources;
-        track.last_update_ms = timestamp_ms;
+        track.last_update_ms = latest_applied_timestamp_ms;
         track.age += 1;
         track.missed_detections = 0;
 
@@ -3476,11 +3754,7 @@ impl MultiSensorFusion {
         }
     }
 
-    fn create_track(
-        &mut self,
-        measurement: &SensorMeasurement,
-        timestamp_ms: u64,
-    ) -> Option<String> {
+    fn create_track(&mut self, measurement: &SensorMeasurement) -> Option<String> {
         if self.tracks.len() >= MAX_FUSION_TRACKS {
             return None;
         }
@@ -3528,9 +3802,10 @@ impl MultiSensorFusion {
             state: initial_state,
             covariance: initial_cov,
             class_label: measurement.class_label.clone(),
+            source_frame_id: measurement.source_frame_id.clone(),
             confidence: measurement.confidence,
             sensor_sources: vec![measurement.modality],
-            last_update_ms: timestamp_ms,
+            last_update_ms: measurement.timestamp_ms,
             age: 1,
             missed_detections: 0,
             // Step 4.5 (update_hit_history) is the SOLE writer of the window and
@@ -3619,7 +3894,7 @@ impl MultiSensorFusion {
     /// Unified lifecycle pass: applies the sliding-window M-of-N confirmation and
     /// deletion rules plus the covariance-volume deletion guard, and prunes dead
     /// tracks. Runs AFTER update_hit_history so the window is current.
-    fn handle_missed_detections(&mut self, timestamp_ms: u64) {
+    fn handle_missed_detections(&mut self, hit_this_frame: &std::collections::HashSet<String>) {
         let mut tracks_to_remove = Vec::new();
 
         let n = self.config.confirmation_window;
@@ -3631,16 +3906,9 @@ impl MultiSensorFusion {
                 continue;
             }
 
-            // Only increment missed_detections (CONSECUTIVE-miss count) for tracks
-            // that were NOT updated this frame. update_track resets it to 0 and sets
-            // last_update_ms = timestamp_ms, so any track with a different
-            // last_update_ms was not successfully updated this frame. (This consecutive-miss
-            // counter — which only drives Coasting — intentionally keys off
-            // last_update_ms, NOT the sliding window's per-frame hit set; the two
-            // agree for all monotonic-timestamp frames and differ only under
-            // degenerate same-timestamp replays, where Coasting timing follows
-            // last_update_ms while the M-of-N window stays robust.)
-            if track.last_update_ms != timestamp_ms {
+            // Freshness remains the newest exact-time applied measurement
+            // timestamp; the explicit frame hit set drives lifecycle accounting.
+            if !hit_this_frame.contains(track_id) {
                 track.missed_detections += 1;
             }
 
@@ -4079,6 +4347,7 @@ mod tests {
             state: Vector6::new(0.0, 0.0, 0.0, 1.0, 0.0, 0.0),
             covariance: Matrix6::identity(),
             class_label: "drone".to_string(),
+            source_frame_id: None,
             confidence: 0.9,
             sensor_sources: vec![SensorModality::Visual],
             last_update_ms: 0,
@@ -4097,12 +4366,15 @@ mod tests {
 
     #[test]
     fn test_particle_filter() {
+        use rand::{rngs::StdRng, SeedableRng};
+
         let mut pf = ParticleFilter::new(100, 1.0, 1.0);
         let initial_state = Vector6::new(0.0, 0.0, 0.0, 1.0, 0.0, 0.0);
         let initial_cov = Matrix6::identity();
+        let mut rng = StdRng::seed_from_u64(0x4352_4542_4149_4E09);
 
-        pf.initialize(&initial_state, &initial_cov);
-        pf.predict(1.0);
+        pf.initialize_with_rng(&initial_state, &initial_cov, &mut rng);
+        pf.predict_with_rng(1.0, &mut rng);
 
         let (mean, _cov) = pf.get_estimate();
 
@@ -4158,39 +4430,54 @@ mod tests {
 
     #[test]
     fn same_particle_algorithm_config_change_reseeds_existing_tracks() {
-        let mut fusion = MultiSensorFusion::new(FusionConfig {
-            algorithm: FilterAlgorithm::Particle,
-            particle_count: 8,
-            process_noise: 0.5,
-            measurement_noise: 1.5,
-            ..FusionConfig::default()
-        });
-        fusion.process_measurements(m_of_n_meas(1000, [10.0, 0.0, 5.0]), 1000);
-        let track_id = fusion.tracks.keys().next().expect("track created").clone();
+        // Repeat across independent production-entropy initializations. None of
+        // the assertions below depends on a sampled posterior value.
+        for _case in 0..100 {
+            let mut fusion = MultiSensorFusion::new(FusionConfig {
+                algorithm: FilterAlgorithm::Particle,
+                particle_count: 8,
+                process_noise: 0.5,
+                measurement_noise: 1.5,
+                ..FusionConfig::default()
+            });
+            fusion.process_measurements(m_of_n_meas(1000, [10.0, 0.0, 5.0]), 1000);
+            let track_id = fusion.tracks.keys().next().expect("track created").clone();
 
-        fusion.set_config(FusionConfig {
-            algorithm: FilterAlgorithm::Particle,
-            particle_count: 16,
-            process_noise: 2.5,
-            measurement_noise: 3.5,
-            ..FusionConfig::default()
-        });
+            fusion.set_config(FusionConfig {
+                algorithm: FilterAlgorithm::Particle,
+                particle_count: 16,
+                process_noise: 2.5,
+                measurement_noise: 3.5,
+                ..FusionConfig::default()
+            });
 
-        let particle_filter = fusion
-            .particle_filters
-            .get(&track_id)
-            .expect("existing track reseeded");
-        assert_eq!(particle_filter.num_particles, 16);
-        assert_eq!(particle_filter.particles.len(), 16);
-        assert_eq!(particle_filter.process_noise, 2.5);
-        assert_eq!(particle_filter.measurement_noise, 3.5);
+            let particle_filter = fusion
+                .particle_filters
+                .get(&track_id)
+                .expect("existing track reseeded");
+            assert_eq!(particle_filter.num_particles, 16);
+            assert_eq!(particle_filter.particles.len(), 16);
+            assert_eq!(particle_filter.process_noise, 2.5);
+            assert_eq!(particle_filter.measurement_noise, 3.5);
 
-        let tracks = fusion.process_measurements(m_of_n_meas(1000, [10.0, 0.0, 5.0]), 1000);
-        assert_eq!(
-            tracks.len(),
-            1,
-            "reseeded particle track must keep updating"
-        );
+            // Exercise the update seam directly. End-to-end association and track
+            // pruning legitimately depend on the sampled posterior; they are not the
+            // invariant under test and made this release gate stochastic. A missing
+            // reseed deterministically reports no applied update here, while the
+            // correctly reseeded filter must advance the existing track metadata.
+            let measurement = m_of_n_meas(1100, [10.0, 0.0, 5.0])
+                .pop()
+                .expect("one update measurement");
+            let report = fusion.update_track_report(&track_id, &[measurement], &[0]);
+            assert!(
+                report.any_applied,
+                "reseeded particle track must accept an update"
+            );
+            assert_eq!(report.attempts.len(), 1);
+            assert!(report.attempts[0].applied);
+            assert_eq!(fusion.tracks[&track_id].last_update_ms, 1100);
+            assert_eq!(fusion.tracks[&track_id].age, 2);
+        }
     }
 
     #[test]
@@ -4226,7 +4513,7 @@ mod tests {
         assert_eq!(imm.ct.q[(3, 3)], 6.0);
         assert_eq!(imm.ct.r[(0, 0)], 7.0);
 
-        let tracks = fusion.process_measurements(m_of_n_meas(1000, [10.0, 0.0, 5.0]), 1000);
+        let tracks = fusion.process_measurements(m_of_n_meas(1100, [10.0, 0.0, 5.0]), 1100);
         assert_eq!(tracks.len(), 1, "reseeded IMM track must keep updating");
     }
 
@@ -4243,12 +4530,13 @@ mod tests {
             .get_mut(&track_id)
             .expect("track exists")
             .covariance = Matrix6::zeros();
+        fusion.kf.q = Matrix6::zeros();
 
         // Fault injection below intentionally bypasses IPC validation: P = 0 and
         // R = 0 make S singular, exercising the process-level skipped-update path.
-        let mut singular_measurement = m_of_n_meas(1000, [10.0, 0.0, 5.0]);
+        let mut singular_measurement = m_of_n_meas(1100, [10.0, 0.0, 5.0]);
         singular_measurement[0].covariance = [0.0; 3];
-        fusion.process_measurements(singular_measurement, 1000);
+        fusion.process_measurements(singular_measurement, 1100);
 
         let track = fusion.tracks.get(&track_id).expect("track remains live");
         assert_eq!(
@@ -4775,6 +5063,7 @@ mod tests {
             state: Vector6::new(10.0, 0.0, 5.0, 1.0, 0.0, 0.0),
             covariance: Matrix6::identity() * 0.1,
             class_label: "drone".to_string(),
+            source_frame_id: None,
             confidence: 0.9,
             sensor_sources: vec![SensorModality::Radar],
             last_update_ms: 1000,
@@ -5021,6 +5310,7 @@ mod tests {
             state: Vector6::zeros(),
             covariance: Matrix6::zeros(),
             class_label: "drone".to_string(),
+            source_frame_id: None,
             confidence: 0.9,
             sensor_sources: vec![SensorModality::Visual],
             last_update_ms: 1_000,
@@ -5252,11 +5542,12 @@ mod tests {
 
         // Create tracks in different states
         for i in 0..5 {
+            let timestamp_ms = 1000 + i * 100;
             let m = vec![SensorMeasurement {
                 sensor_id: format!("cam{}", i),
                 modality: SensorModality::Visual,
-                timestamp_ms: 1000,
-                source_frame_id: None,
+                timestamp_ms,
+                source_frame_id: Some(format!("stats-frame-{i}")),
                 position: [i as f64 * 100.0, 0.0, 5.0],
                 velocity: None,
                 covariance: [1.0, 1.0, 1.0],
@@ -5264,12 +5555,13 @@ mod tests {
                 class_label: "drone".to_string(),
                 metadata: HashMap::new(),
             }];
-            fusion.process_measurements(m, 1000);
+            fusion.process_measurements(m, timestamp_ms);
         }
 
         let stats = fusion.get_stats();
         assert_eq!(stats.total_tracks, 5);
-        assert_eq!(stats.tentative_tracks, 5);
+        assert_eq!(stats.tentative_tracks, 2);
+        assert_eq!(stats.coasting_tracks, 3);
         assert_eq!(stats.confirmed_tracks, 0);
         assert_eq!(stats.frame_count, 5);
     }
@@ -6112,18 +6404,36 @@ mod tests {
             }],
             2000,
         );
-        let before = fusion.tracks.values().next().expect("track born").state;
+        let before = fusion.tracks.values().next().expect("track born").clone();
+        let before_frame_count = fusion.frame_count;
 
-        // Older and duplicate timestamps must not predict (the old dt = 0.1
-        // fallback moved x by 1 m per frame at vx = 10) nor rewind the clock.
-        fusion.process_measurements(Vec::new(), 1500);
+        // An older closure is rejected before any sequence, filter, or lifecycle
+        // mutation. Previously it avoided prediction but still shifted hit history
+        // and could delete the track after repeated stale empty frames.
+        let error = fusion
+            .try_process_measurements(Vec::new(), 1500)
+            .unwrap_err();
+        assert!(error.contains("older than fusion high-water"));
         assert_eq!(fusion.last_predict_ms, 2000, "clock must not rewind");
-        let after = fusion.tracks.values().next().expect("track alive").state;
-        assert_eq!(before, after, "no phantom predict on out-of-order frame");
+        assert_eq!(fusion.frame_count, before_frame_count);
+        let after = fusion.tracks.values().next().expect("track alive");
+        assert_eq!(after.state, before.state);
+        assert_eq!(after.covariance, before.covariance);
+        assert_eq!(after.age, before.age);
+        assert_eq!(after.missed_detections, before.missed_detections);
+        assert_eq!(after.hit_history, before.hit_history);
+        assert_eq!(after.opportunities, before.opportunities);
+        assert_eq!(after.state_label, before.state_label);
 
+        // An equal empty closure is intentional: it records one association
+        // opportunity without predicting or moving the monotonic clock.
         fusion.process_measurements(Vec::new(), 2000);
         let after = fusion.tracks.values().next().expect("track alive").state;
-        assert_eq!(before, after, "no phantom predict on duplicate timestamp");
+        assert_eq!(
+            before.state, after,
+            "no phantom predict on duplicate timestamp"
+        );
+        assert_eq!(fusion.frame_count, before_frame_count + 1);
     }
 
     #[test]
@@ -6354,6 +6664,7 @@ mod tests {
             state: Vector6::zeros(),
             covariance: Matrix6::identity() * 0.01,
             class_label: "drone".to_string(),
+            source_frame_id: None,
             confidence: 0.9,
             sensor_sources: vec![SensorModality::Lidar],
             last_update_ms: 1000,
@@ -6529,6 +6840,391 @@ mod tests {
             serde_json::from_str(json).expect("legacy config must deserialize");
         assert_eq!(config.confirmation_window, 5);
         assert_eq!(config.max_position_cov_volume, 1e6);
+    }
+
+    fn hardening_measurement(
+        timestamp_ms: u64,
+        position: [f64; 3],
+        source_frame_id: Option<&str>,
+    ) -> SensorMeasurement {
+        SensorMeasurement {
+            sensor_id: "hardening-camera".to_string(),
+            modality: SensorModality::Visual,
+            timestamp_ms,
+            source_frame_id: source_frame_id.map(str::to_string),
+            position,
+            velocity: Some([0.0, 0.0, 0.0]),
+            covariance: [0.1, 0.1, 0.1],
+            confidence: 0.9,
+            class_label: "drone".to_string(),
+            metadata: HashMap::new(),
+        }
+    }
+
+    fn assert_track_unchanged(before: &TrackState, after: &TrackState) {
+        assert_eq!(after.id, before.id);
+        assert_eq!(after.state, before.state);
+        assert_eq!(after.covariance, before.covariance);
+        assert_eq!(after.class_label, before.class_label);
+        assert_eq!(after.source_frame_id, before.source_frame_id);
+        assert_eq!(after.confidence, before.confidence);
+        assert_eq!(after.sensor_sources, before.sensor_sources);
+        assert_eq!(after.last_update_ms, before.last_update_ms);
+        assert_eq!(after.age, before.age);
+        assert_eq!(after.missed_detections, before.missed_detections);
+        assert_eq!(after.hit_history, before.hit_history);
+        assert_eq!(after.opportunities, before.opportunities);
+        assert_eq!(after.state_label, before.state_label);
+    }
+
+    fn assert_time_rejection_has_no_side_effects(
+        fusion: &mut MultiSensorFusion,
+        measurements: Vec<SensorMeasurement>,
+        fusion_timestamp_ms: u64,
+        expected_error: &str,
+        before: &TrackState,
+    ) {
+        let frame_count = fusion.frame_count;
+        let last_predict_ms = fusion.last_predict_ms;
+        let next_track_id = fusion.next_track_id;
+        let particle_filter_count = fusion.particle_filters.len();
+        let imm_filter_count = fusion.imm_filters.len();
+        let pid_buffer_len = fusion.pid_buffer.len();
+
+        let error = fusion
+            .try_process_measurements(measurements, fusion_timestamp_ms)
+            .expect_err("invalid measurement time must reject the whole frame");
+
+        assert!(error.contains(expected_error), "unexpected error: {error}");
+        assert_eq!(fusion.frame_count, frame_count);
+        assert_eq!(fusion.last_predict_ms, last_predict_ms);
+        assert_eq!(fusion.next_track_id, next_track_id);
+        assert_eq!(fusion.particle_filters.len(), particle_filter_count);
+        assert_eq!(fusion.imm_filters.len(), imm_filter_count);
+        assert_eq!(fusion.pid_buffer.len(), pid_buffer_len);
+        assert_track_unchanged(
+            before,
+            fusion
+                .tracks
+                .get(&before.id)
+                .expect("track remains present"),
+        );
+    }
+
+    #[test]
+    fn future_replayed_and_time_inexact_measurements_are_side_effect_free_for_every_filter() {
+        let algorithms = [
+            FilterAlgorithm::Kalman,
+            FilterAlgorithm::ExtendedKalman,
+            FilterAlgorithm::UnscentedKalman,
+            FilterAlgorithm::Particle,
+            FilterAlgorithm::IMM,
+        ];
+        for algorithm in algorithms {
+            let mut fusion = MultiSensorFusion::new(FusionConfig {
+                algorithm,
+                ..FusionConfig::default()
+            });
+            fusion
+                .try_process_measurements(
+                    vec![hardening_measurement(1_000, [10.0, 0.0, 5.0], None)],
+                    1_000,
+                )
+                .expect("birth frame succeeds");
+            let before = fusion
+                .tracks
+                .get("TRK-00001")
+                .expect("birth creates a track")
+                .clone();
+
+            assert_time_rejection_has_no_side_effects(
+                &mut fusion,
+                vec![
+                    hardening_measurement(1_100, [10.0, 0.0, 5.0], None),
+                    hardening_measurement(1_200, [10.0, 0.0, 5.0], None),
+                ],
+                1_100,
+                "newer than fusion timestamp",
+                &before,
+            );
+            assert_time_rejection_has_no_side_effects(
+                &mut fusion,
+                vec![hardening_measurement(1_000, [10.0, 0.0, 5.0], None)],
+                1_000,
+                "not newer than fusion high-water",
+                &before,
+            );
+            assert_time_rejection_has_no_side_effects(
+                &mut fusion,
+                vec![hardening_measurement(1_050, [10.0, 0.0, 5.0], None)],
+                1_100,
+                "exact-time fusion requires equality",
+                &before,
+            );
+        }
+    }
+
+    #[test]
+    fn lagged_measurement_is_rejected_before_prediction() {
+        let mut fusion = MultiSensorFusion::new(FusionConfig::default());
+        fusion
+            .try_process_measurements(
+                vec![hardening_measurement(1_000, [10.0, 0.0, 5.0], None)],
+                1_000,
+            )
+            .expect("birth frame succeeds");
+        let before = fusion.tracks["TRK-00001"].clone();
+
+        assert_time_rejection_has_no_side_effects(
+            &mut fusion,
+            vec![hardening_measurement(1_050, [10.0, 0.0, 5.0], None)],
+            1_100,
+            "exact-time fusion requires equality",
+            &before,
+        );
+    }
+
+    #[test]
+    fn exact_duplicate_payload_is_one_effective_update_but_distinct_targets_remain() {
+        let original = hardening_measurement(1_100, [10.0, 0.0, 5.0], None);
+        let (unique, duplicate_count) =
+            deduplicate_sensor_measurements(vec![original.clone(), original.clone()]);
+        assert_eq!(duplicate_count, 1);
+        assert_eq!(unique.len(), 1);
+
+        let distinct = SensorMeasurement {
+            position: [20.0, 0.0, 5.0],
+            ..original.clone()
+        };
+        let (unique, duplicate_count) =
+            deduplicate_sensor_measurements(vec![original.clone(), distinct]);
+        assert_eq!(duplicate_count, 0);
+        assert_eq!(unique.len(), 2);
+
+        let config = FusionConfig {
+            algorithm: FilterAlgorithm::Kalman,
+            ..FusionConfig::default()
+        };
+        let mut single = MultiSensorFusion::new(config.clone());
+        let mut duplicated = MultiSensorFusion::new(config);
+        for fusion in [&mut single, &mut duplicated] {
+            fusion
+                .try_process_measurements(
+                    vec![hardening_measurement(1_000, [10.0, 0.0, 5.0], None)],
+                    1_000,
+                )
+                .expect("birth frame succeeds");
+        }
+        single
+            .try_process_measurements(vec![original.clone()], 1_100)
+            .expect("single update succeeds");
+        duplicated
+            .try_process_measurements(vec![original.clone(), original], 1_100)
+            .expect("duplicate frame succeeds after dedupe");
+
+        assert_track_unchanged(
+            single.tracks.get("TRK-00001").expect("single track"),
+            duplicated
+                .tracks
+                .get("TRK-00001")
+                .expect("deduplicated track"),
+        );
+    }
+
+    #[test]
+    fn correlated_same_capture_returns_match_one_effective_posterior() {
+        for algorithm in [FilterAlgorithm::Kalman, FilterAlgorithm::IMM] {
+            let config = FusionConfig {
+                algorithm,
+                ..FusionConfig::default()
+            };
+            let mut single = MultiSensorFusion::new(config.clone());
+            let mut correlated = MultiSensorFusion::new(config);
+            for fusion in [&mut single, &mut correlated] {
+                fusion
+                    .try_process_measurements(
+                        vec![hardening_measurement(1_000, [10.0, 0.0, 5.0], None)],
+                        1_000,
+                    )
+                    .expect("birth frame succeeds");
+            }
+
+            let mut effective = hardening_measurement(1_100, [10.2, 0.0, 5.0], None);
+            effective.confidence = 0.8;
+            let mut correlated_shadow = effective.clone();
+            correlated_shadow.position = [10.25, 0.0, 5.0];
+            correlated_shadow.covariance = [0.4, 0.4, 0.4];
+            correlated_shadow.confidence = 0.99;
+
+            single
+                .try_process_measurements(vec![effective.clone()], 1_100)
+                .expect("single effective return updates");
+            correlated
+                .try_process_measurements(vec![correlated_shadow, effective], 1_100)
+                .expect("correlated returns update once");
+
+            assert_track_unchanged(&single.tracks["TRK-00001"], &correlated.tracks["TRK-00001"]);
+            if algorithm == FilterAlgorithm::IMM {
+                assert_eq!(
+                    single.imm_filters["TRK-00001"].get_model_probabilities(),
+                    correlated.imm_filters["TRK-00001"].get_model_probabilities(),
+                    "a repeated capture must not over-concentrate IMM mode probabilities"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn independent_same_time_sensors_both_reduce_posterior_covariance() {
+        let config = FusionConfig {
+            algorithm: FilterAlgorithm::Kalman,
+            ..FusionConfig::default()
+        };
+        let mut single = MultiSensorFusion::new(config.clone());
+        let mut independent = MultiSensorFusion::new(config);
+        for fusion in [&mut single, &mut independent] {
+            fusion
+                .try_process_measurements(
+                    vec![hardening_measurement(1_000, [10.0, 0.0, 5.0], None)],
+                    1_000,
+                )
+                .expect("birth frame succeeds");
+        }
+
+        let first = hardening_measurement(1_100, [10.2, 0.0, 5.0], None);
+        let mut second = first.clone();
+        second.sensor_id = "independent-camera".to_string();
+        single
+            .try_process_measurements(vec![first.clone()], 1_100)
+            .expect("one sensor updates");
+        independent
+            .try_process_measurements(vec![first, second], 1_100)
+            .expect("independent sensors both update");
+
+        assert!(
+            independent.tracks["TRK-00001"].covariance[(0, 0)]
+                < single.tracks["TRK-00001"].covariance[(0, 0)],
+            "a distinct sensor identity must retain its independent information"
+        );
+    }
+
+    #[test]
+    fn source_frame_domains_never_cluster_or_update_across_boundaries() {
+        let mut fusion = MultiSensorFusion::new(FusionConfig::default());
+        fusion
+            .try_process_measurements(
+                vec![
+                    hardening_measurement(1_000, [10.0, 0.0, 5.0], Some("map_enu")),
+                    hardening_measurement(1_000, [10.0, 0.0, 5.0], Some("odom_enu")),
+                ],
+                1_000,
+            )
+            .expect("co-located frame-domain births succeed");
+        assert_eq!(fusion.tracks.len(), 2);
+        assert!(fusion
+            .tracks
+            .values()
+            .any(|track| track.source_frame_id.as_deref() == Some("map_enu")));
+        assert!(fusion
+            .tracks
+            .values()
+            .any(|track| track.source_frame_id.as_deref() == Some("odom_enu")));
+
+        let map_track_id = fusion
+            .tracks
+            .values()
+            .find(|track| track.source_frame_id.as_deref() == Some("map_enu"))
+            .expect("map track exists")
+            .id
+            .clone();
+        fusion
+            .try_process_measurements(
+                vec![hardening_measurement(
+                    1_100,
+                    [10.0, 0.0, 5.0],
+                    Some("sensor_local"),
+                )],
+                1_100,
+            )
+            .expect("third frame domain births separately");
+        assert_eq!(fusion.tracks.len(), 3);
+        assert_eq!(fusion.tracks[&map_track_id].last_update_ms, 1_000);
+    }
+
+    #[test]
+    fn legacy_missing_frame_domain_updates_only_itself() {
+        let mut fusion = MultiSensorFusion::new(FusionConfig::default());
+        fusion
+            .try_process_measurements(
+                vec![hardening_measurement(1_000, [10.0, 0.0, 5.0], None)],
+                1_000,
+            )
+            .expect("legacy birth succeeds");
+        fusion
+            .try_process_measurements(
+                vec![hardening_measurement(1_100, [10.0, 0.0, 5.0], None)],
+                1_100,
+            )
+            .expect("legacy domain updates itself");
+        assert_eq!(fusion.tracks.len(), 1);
+        assert_eq!(fusion.tracks["TRK-00001"].last_update_ms, 1_100);
+
+        fusion
+            .try_process_measurements(
+                vec![hardening_measurement(
+                    1_200,
+                    [10.0, 0.0, 5.0],
+                    Some("map_enu"),
+                )],
+                1_200,
+            )
+            .expect("identified frame births outside legacy domain");
+        assert_eq!(fusion.tracks.len(), 2);
+        assert_eq!(fusion.tracks["TRK-00001"].last_update_ms, 1_100);
+    }
+
+    fn horizon_extrema_config() -> FusionConfig {
+        FusionConfig {
+            max_missed_detections: MAX_MISSED_DETECTIONS,
+            min_confirmation_hits: MAX_CONFIRMATION_HITS,
+            confirmation_window: MAX_CONFIRMATION_WINDOW,
+            max_position_cov_volume: f64::MAX,
+            ..FusionConfig::default()
+        }
+    }
+
+    #[test]
+    fn prediction_horizon_boundary_is_integrated_but_longer_gaps_expire_tracks() {
+        let mut boundary = MultiSensorFusion::new(horizon_extrema_config());
+        boundary
+            .try_process_measurements(
+                vec![hardening_measurement(1_000, [10.0, 0.0, 5.0], None)],
+                1_000,
+            )
+            .expect("boundary track birth succeeds");
+        boundary
+            .try_process_measurements(Vec::new(), 1_000 + MAX_PREDICT_GAP_MS)
+            .expect("exact work horizon is integrated");
+        assert_eq!(boundary.tracks.len(), 1);
+
+        for gap_ms in [61_000_u64, 3_600_000, 86_400_000] {
+            let mut fusion = MultiSensorFusion::new(horizon_extrema_config());
+            fusion
+                .try_process_measurements(
+                    vec![hardening_measurement(1_000, [10.0, 0.0, 5.0], None)],
+                    1_000,
+                )
+                .expect("long-gap track birth succeeds");
+
+            fusion
+                .try_process_measurements(Vec::new(), 1_000 + gap_ms)
+                .expect("long empty frame closes");
+
+            assert!(fusion.tracks.is_empty(), "gap {gap_ms} ms retained a track");
+            assert!(fusion.particle_filters.is_empty());
+            assert!(fusion.imm_filters.is_empty());
+            assert_eq!(fusion.last_predict_ms, 1_000 + gap_ms);
+        }
     }
 
     #[cfg(feature = "ncp")]
@@ -6713,13 +7409,14 @@ mod tests {
         }
 
         #[test]
-        fn missing_or_wrong_common_frame_is_incomparable_but_keeps_baseline_v1() {
+        fn missing_or_wrong_source_frame_births_without_cross_domain_update() {
             let registry = registry();
             let mut fusion = MultiSensorFusion::new(FusionConfig::default());
             birth_visual_track(&mut fusion, &registry);
 
             for (prior_id, source_frame) in [(2, None), (3, Some("camera_optical"))] {
                 let timestamp_ms = 900 + prior_id * 100;
+                let previous_track_count = fusion.tracks.len();
                 let evidence = fusion
                     .process_frame(
                         vec![visual(timestamp_ms, 10.0, source_frame)],
@@ -6729,59 +7426,87 @@ mod tests {
                         11,
                         prior_id,
                     )
-                    .expect("baseline update remains processable");
+                    .expect("different frame domain births separately");
                 let outcome = evidence
                     .modality_outcomes
                     .iter()
-                    .find(|outcome| outcome.modality == SensorModality::Visual)
-                    .expect("visual outcome exists");
-                assert_eq!(outcome.outcome, ModalityOutcomeKind::IncomparableProjection);
-                assert!(outcome.v1_expected);
+                    .find(|outcome| outcome.outcome == ModalityOutcomeKind::TrackBirth)
+                    .expect("cross-domain input creates a birth");
+                assert_eq!(evidence.tracks.len(), previous_track_count + 1);
+                assert!(!outcome.v1_expected);
                 assert!(outcome.consistency_projection.is_none());
-                assert_eq!(evidence.pid_observations.len(), 1);
-                assert!(evidence.pid_observations[0]
-                    .consistency_projection
-                    .is_none());
+                assert!(evidence.pid_observations.is_empty());
             }
+            assert_eq!(fusion.tracks["TRK-00001"].last_update_ms, 1_000);
         }
 
         #[test]
-        fn unsynchronized_or_nonmonotonic_inputs_never_claim_v1() {
+        fn unsynchronized_or_nonmonotonic_inputs_are_rejected_without_mutation() {
             let registry = registry();
             let mut fusion = MultiSensorFusion::new(FusionConfig::default());
             birth_visual_track(&mut fusion, &registry);
 
-            for (prior_id, measurement_timestamp_ms, frame_timestamp_ms) in [
-                (2, 1_099, 1_100),
-                (3, 1_201, 1_200),
-                (4, 1_300, 1_300),
-                (5, 1_300, 1_300),
-                (6, 1_250, 1_250),
+            let stable_frame_count = fusion.frame_count;
+            let stable_prior_id = fusion.last_evidence_prior_id;
+            let stable_track = fusion.tracks["TRK-00001"].clone();
+            for (measurement_timestamp_ms, frame_timestamp_ms, expected_error) in [
+                (1_099, 1_100, "exact-time fusion requires equality"),
+                (1_201, 1_200, "newer than fusion timestamp"),
+                (1_000, 1_000, "not newer than fusion high-water"),
             ] {
-                let evidence = fusion
+                let error = fusion
                     .process_frame(
                         vec![visual(measurement_timestamp_ms, 10.0, Some("map_enu"))],
                         frame_timestamp_ms,
                         &registry,
                         7,
                         11,
-                        prior_id,
+                        3,
                     )
-                    .expect("time-misaligned baseline frame remains processable");
-                let outcome = evidence
-                    .modality_outcomes
-                    .iter()
-                    .find(|outcome| outcome.modality == SensorModality::Visual)
-                    .expect("visual outcome exists");
-                let should_emit = prior_id == 4;
-                assert_eq!(outcome.v1_expected, should_emit);
-                assert_eq!(evidence.pid_observations.len(), usize::from(should_emit));
-                assert_eq!(outcome.consistency_projection.is_some(), should_emit);
+                    .expect_err("invalid measurement time rejects before mutation");
+                assert!(error.contains(expected_error), "unexpected error: {error}");
+                assert_eq!(fusion.frame_count, stable_frame_count);
+                assert_eq!(fusion.last_evidence_prior_id, stable_prior_id);
+                assert_track_unchanged(&stable_track, &fusion.tracks["TRK-00001"]);
+            }
+
+            let synchronized = fusion
+                .process_frame(
+                    vec![visual(1_100, 10.0, Some("map_enu"))],
+                    1_100,
+                    &registry,
+                    7,
+                    11,
+                    2,
+                )
+                .expect("synchronized frame succeeds");
+            assert_eq!(synchronized.pid_observations.len(), 1);
+            assert!(synchronized.modality_outcomes.iter().any(|outcome| {
+                outcome.v1_expected && outcome.consistency_projection.is_some()
+            }));
+
+            let stable_frame_count = fusion.frame_count;
+            let stable_prior_id = fusion.last_evidence_prior_id;
+            let stable_track = fusion.tracks["TRK-00001"].clone();
+            for (measurement_timestamp_ms, frame_timestamp_ms) in [(1_100, 1_100), (1_050, 1_050)] {
+                assert!(fusion
+                    .process_frame(
+                        vec![visual(measurement_timestamp_ms, 10.0, Some("map_enu"),)],
+                        frame_timestamp_ms,
+                        &registry,
+                        7,
+                        11,
+                        3,
+                    )
+                    .is_err());
+                assert_eq!(fusion.frame_count, stable_frame_count);
+                assert_eq!(fusion.last_evidence_prior_id, stable_prior_id);
+                assert_track_unchanged(&stable_track, &fusion.tracks["TRK-00001"]);
             }
         }
 
         #[test]
-        fn duplicate_zero_epoch_timestamp_never_claims_v1() {
+        fn duplicate_zero_epoch_timestamp_is_rejected_without_mutation() {
             let registry = registry();
             let mut fusion = MultiSensorFusion::new(FusionConfig::default());
             fusion
@@ -6795,7 +7520,10 @@ mod tests {
                 )
                 .expect("zero-epoch birth succeeds");
 
-            let evidence = fusion
+            let stable_track = fusion.tracks["TRK-00001"].clone();
+            let stable_frame_count = fusion.frame_count;
+            let stable_prior_id = fusion.last_evidence_prior_id;
+            let error = fusion
                 .process_frame(
                     vec![visual(0, 10.0, Some("map_enu"))],
                     0,
@@ -6804,15 +7532,54 @@ mod tests {
                     11,
                     2,
                 )
-                .expect("duplicate zero-epoch frame remains processable");
-            let outcome = evidence
-                .modality_outcomes
-                .iter()
-                .find(|outcome| outcome.modality == SensorModality::Visual)
-                .expect("visual outcome exists");
-            assert!(!outcome.v1_expected);
-            assert!(evidence.pid_observations.is_empty());
-            assert!(outcome.consistency_projection.is_none());
+                .expect_err("duplicate zero-epoch measurement is a replay");
+            assert!(error.contains("not newer than fusion high-water"));
+            assert_eq!(fusion.frame_count, stable_frame_count);
+            assert_eq!(fusion.last_evidence_prior_id, stable_prior_id);
+            assert_track_unchanged(&stable_track, &fusion.tracks["TRK-00001"]);
+        }
+
+        #[test]
+        fn duplicate_payload_is_removed_before_evidence_accounting() {
+            let registry = registry();
+            let mut fusion = MultiSensorFusion::new(FusionConfig::default());
+            let measurement = visual(1_000, 10.0, Some("map_enu"));
+
+            let evidence = fusion
+                .process_frame(
+                    vec![measurement.clone(), measurement],
+                    1_000,
+                    &registry,
+                    7,
+                    11,
+                    1,
+                )
+                .expect("deduplicated evidence frame succeeds");
+
+            assert_eq!(evidence.frame_summary.input_count, 1);
+            assert_eq!(evidence.opportunity_inputs.len(), 1);
+            assert_eq!(evidence.tracks.len(), 1);
+            assert!(!evidence.frame_summary.degraded);
+            assert!(!evidence.frame_summary.truncated);
+        }
+
+        #[test]
+        fn expired_prior_tracks_do_not_consume_new_frame_attempt_bounds() {
+            let registry = registry();
+            let mut fusion = MultiSensorFusion::new(FusionConfig::default());
+            birth_visual_track(&mut fusion, &registry);
+            let measurements = (0..9)
+                .map(|index| visual(62_000, 10.0 + f64::from(index) * 0.01, Some("map_enu")))
+                .collect::<Vec<_>>();
+
+            let evidence = fusion
+                .process_frame(measurements, 62_000, &registry, 7, 11, 2)
+                .expect("61-second gap expires the old opportunity epoch");
+
+            assert!(evidence.frozen_track_ids.is_empty());
+            assert_eq!(evidence.frame_summary.input_count, 9);
+            assert_eq!(evidence.tracks.len(), 1);
+            assert_eq!(evidence.tracks[0].id, "TRK-00002");
         }
 
         #[test]
@@ -6962,14 +7729,13 @@ mod tests {
             let mut fusion = MultiSensorFusion::new(FusionConfig::default());
             birth_visual_track(&mut fusion, &registry);
             let track = fusion.tracks.values_mut().next().expect("track exists");
-            for axis in 0..3 {
-                track.covariance[(axis, axis)] = -0.1;
-            }
+            track.covariance = Matrix6::identity() * -0.1;
+            fusion.ekf.kf.q = Matrix6::zeros();
 
             let evidence = fusion
                 .process_frame(
-                    vec![visual(1_000, 10.0, Some("map_enu"))],
-                    1_000,
+                    vec![visual(1_100, 10.0, Some("map_enu"))],
+                    1_100,
                     &registry,
                     7,
                     11,
@@ -7000,6 +7766,7 @@ mod tests {
                 covariance: Matrix6::zeros(),
                 id: "TRK-00001".to_string(),
                 class_label: "drone".to_string(),
+                source_frame_id: None,
                 confidence: 1.0,
                 sensor_sources: Vec::new(),
                 last_update_ms: 0,
@@ -7095,10 +7862,10 @@ mod tests {
 
             let mut fusion = MultiSensorFusion::new(FusionConfig::default());
             let first = fusion
-                .create_track(&visual(0, 0.0, Some("map_enu")), 0)
+                .create_track(&visual(0, 0.0, Some("map_enu")))
                 .expect("first track");
             let second = fusion
-                .create_track(&visual(0, 100.0, Some("map_enu")), 0)
+                .create_track(&visual(0, 100.0, Some("map_enu")))
                 .expect("second track");
             assert_eq!(
                 (first.as_str(), second.as_str()),

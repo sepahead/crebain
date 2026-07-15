@@ -7,21 +7,23 @@
 //! rosbridge v2.0 protocol using JSON messages over WebSocket.
 //! See: https://github.com/RobotWebTools/rosbridge_suite
 
+use super::camera_work::{shared_camera_work_budget, CameraWorkBudget, CameraWorkPermit};
 use super::{
-    CameraFrame, CameraInfoData, CameraStreamKind, ImuData, ModelStates, PoseData, Result,
-    Transport, TransportError, TransportStats, VelocityCmd,
+    CameraFrame, CameraFrameDelivery, CameraInfoData, CameraStreamKind, ImuData, ModelStates,
+    PoseData, Result, Transport, TransportError, TransportStats, VelocityCmd,
 };
 use base64::{engine::general_purpose, Engine as _};
 use futures_util::{SinkExt, StreamExt};
 use serde::de::{DeserializeSeed, MapAccess, SeqAccess, Visitor};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::future::Future;
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Semaphore};
 use tokio_tungstenite::connect_async_with_config;
 use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
 use tokio_tungstenite::tungstenite::Message;
@@ -31,6 +33,10 @@ const DEFAULT_ROSBRIDGE_URL: &str = "ws://localhost:9090";
 /// Maximum queued subscription-protocol messages before sends fail fast instead of
 /// buffering without bound against a slow/stalled server.
 const WRITE_QUEUE_CAPACITY: usize = 256;
+/// Maximum callbacks executing concurrently. Reader ingress never waits for a
+/// user callback; excess telemetry is dropped rather than creating an
+/// unbounded task backlog.
+const MAX_CONCURRENT_CALLBACKS: usize = 8;
 /// How long disconnect() waits for the write task to flush a Close frame.
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(1);
 /// Camera models use a variable number of distortion coefficients. Bound the
@@ -48,13 +54,11 @@ const MAX_INCOMING_WS_MESSAGE_BYTES: usize =
 const MAX_INCOMING_JSON_SEQUENCE_ITEMS: usize = 10_000;
 const MAX_INCOMING_JSON_OBJECT_FIELDS: usize = 1_024;
 
-/// Read a ROS2 `builtin_interfaces/Time` header stamp as seconds.
+/// Read a ROS header stamp as seconds.
 ///
-/// ROS2 names the fields `sec` (int32) and `nanosec` (uint32); ROS1 used
-/// `secs`/`nsecs`. Every topic here is declared as a ROS2 (`/msg/`) type, so a
-/// real rosbridge_server serializes `sec`/`nanosec` — reading only `secs` made
-/// every timestamp fall back to 0 and dropped the sub-second part. We read the
-/// ROS2 names first and fall back to the ROS1 names for compatibility.
+/// ROS2 names the fields `sec` (int32) and `nanosec` (uint32); ROS1 uses
+/// `secs`/`nsecs`. The fallback accepts both wire shapes, reading ROS2 names first
+/// and ROS1 names second rather than silently dropping sub-second timestamps.
 #[cfg(test)]
 fn ros2_stamp_seconds(msg: &serde_json::Value) -> f64 {
     let Some(stamp) = msg.get("header").and_then(|h| h.get("stamp")) else {
@@ -209,6 +213,11 @@ impl<'de> Visitor<'de> for RosbridgeValueVisitor {
     {
         let mut values = serde_json::Map::new();
         while let Some(key) = object.next_key::<String>()? {
+            if values.contains_key(&key) {
+                return Err(serde::de::Error::custom(format!(
+                    "duplicate JSON object key {key:?}"
+                )));
+            }
             if values.len() >= MAX_INCOMING_JSON_OBJECT_FIELDS {
                 return Err(serde::de::Error::custom(format!(
                     "JSON object exceeds {MAX_INCOMING_JSON_OBJECT_FIELDS} fields"
@@ -303,7 +312,7 @@ fn validate_topic(topic: &str) -> Result<()> {
 
 /// Shared so the read task can clone a callback out of the subscriptions map
 /// and invoke it without holding the map's lock across the call.
-type SubscriptionCallback = Arc<dyn Fn(serde_json::Value) + Send + Sync>;
+type SubscriptionCallback = Arc<dyn Fn(serde_json::Value, CameraWorkPermit) + Send + Sync>;
 
 /// Lock a mutex, recovering the guard if the mutex was poisoned by a panic in
 /// another thread. The subscription map only holds callback handles, so a prior
@@ -475,28 +484,34 @@ fn parse_camera_info(msg: &serde_json::Value) -> Result<CameraInfoData> {
     })
 }
 
-fn parse_rosbridge_bytes(msg: &serde_json::Value, field: &str) -> Result<Vec<u8>> {
-    let value = msg.get(field).ok_or_else(|| {
+fn take_rosbridge_bytes(msg: &mut serde_json::Value, field: &str) -> Result<(String, Vec<u8>)> {
+    let value = msg.get_mut(field).ok_or_else(|| {
         TransportError::DecodingError(format!("Missing byte array field {field}"))
     })?;
-
-    let encoded = value.as_str().ok_or_else(|| {
-        TransportError::DecodingError(format!(
-            "{field} must be bounded base64 text; JSON byte arrays are not accepted"
-        ))
-    })?;
+    let encoded = match value.take() {
+        serde_json::Value::String(encoded) => encoded,
+        _ => {
+            return Err(TransportError::DecodingError(format!(
+                "{field} must be bounded base64 text; JSON byte arrays are not accepted"
+            )));
+        }
+    };
     crate::common::image::validate_base64_image_len(encoded.len())
         .map_err(TransportError::DecodingError)?;
-    let decoded = general_purpose::STANDARD.decode(encoded).map_err(|error| {
-        TransportError::DecodingError(format!("Invalid base64 {field}: {error}"))
-    })?;
+    // STANDARD requires canonical padding and zero trailing bits, so the
+    // validated input can be moved into CameraFrame without a second encode.
+    let decoded = general_purpose::STANDARD
+        .decode(&encoded)
+        .map_err(|error| {
+            TransportError::DecodingError(format!("Invalid base64 {field}: {error}"))
+        })?;
     if decoded.len() > crate::common::image::MAX_IMAGE_SIZE_BYTES {
         return Err(TransportError::DecodingError(format!(
             "{field} exceeds maximum decoded size {}",
             crate::common::image::MAX_IMAGE_SIZE_BYTES
         )));
     }
-    Ok(decoded)
+    Ok((encoded, decoded))
 }
 
 fn parse_camera_dimensions(msg: &serde_json::Value) -> Result<(u32, u32)> {
@@ -524,9 +539,9 @@ fn raw_bytes_per_pixel(encoding: &str) -> Option<usize> {
     }
 }
 
-fn parse_raw_camera_frame(msg: &serde_json::Value) -> Result<CameraFrame> {
-    let (timestamp, frame_id) = parse_ros_header(msg)?;
-    let (width, height) = parse_camera_dimensions(msg)?;
+fn parse_raw_camera_frame(mut msg: serde_json::Value) -> Result<CameraFrame> {
+    let (timestamp, frame_id) = parse_ros_header(&msg)?;
+    let (width, height) = parse_camera_dimensions(&msg)?;
     let encoding = msg
         .get("encoding")
         .and_then(serde_json::Value::as_str)
@@ -567,7 +582,7 @@ fn parse_raw_camera_frame(msg: &serde_json::Value) -> Result<CameraFrame> {
             crate::common::image::MAX_IMAGE_SIZE_BYTES
         )));
     }
-    let bytes = parse_rosbridge_bytes(msg, "data")?;
+    let (data, bytes) = take_rosbridge_bytes(&mut msg, "data")?;
     if bytes.len() != expected_len {
         return Err(TransportError::DecodingError(format!(
             "Image data length {} does not match height * step {expected_len}",
@@ -576,7 +591,7 @@ fn parse_raw_camera_frame(msg: &serde_json::Value) -> Result<CameraFrame> {
     }
 
     Ok(CameraFrame {
-        data: general_purpose::STANDARD.encode(bytes),
+        data,
         width,
         height,
         encoding,
@@ -587,8 +602,8 @@ fn parse_raw_camera_frame(msg: &serde_json::Value) -> Result<CameraFrame> {
     })
 }
 
-fn parse_compressed_camera_frame(msg: &serde_json::Value) -> Result<CameraFrame> {
-    let (timestamp, frame_id) = parse_ros_header(msg)?;
+fn parse_compressed_camera_frame(mut msg: serde_json::Value) -> Result<CameraFrame> {
+    let (timestamp, frame_id) = parse_ros_header(&msg)?;
     let format = msg
         .get("format")
         .and_then(serde_json::Value::as_str)
@@ -596,7 +611,7 @@ fn parse_compressed_camera_frame(msg: &serde_json::Value) -> Result<CameraFrame>
             TransportError::DecodingError("CompressedImage.format must be a string".to_string())
         })?;
     let format = normalize_compressed_format(format)?;
-    let bytes = parse_rosbridge_bytes(msg, "data")?;
+    let (data, bytes) = take_rosbridge_bytes(&mut msg, "data")?;
     let (detected_format, width, height) = crate::common::image::inspect_encoded_image(&bytes)
         .map_err(TransportError::DecodingError)?;
     if declared_compressed_format(&format) != Some(detected_format) {
@@ -611,7 +626,7 @@ fn parse_compressed_camera_frame(msg: &serde_json::Value) -> Result<CameraFrame>
     };
 
     Ok(CameraFrame {
-        data: general_purpose::STANDARD.encode(bytes),
+        data,
         width,
         height,
         encoding,
@@ -670,6 +685,28 @@ fn parse_quaternion_components(value: &serde_json::Value) -> Result<[f64; 4]> {
     ])
 }
 
+fn parse_imu_covariance(msg: &serde_json::Value, field: &str) -> Result<[f64; 9]> {
+    let values = msg
+        .get(field)
+        .and_then(serde_json::Value::as_array)
+        .filter(|covariance| covariance.len() == 9)
+        .ok_or_else(|| {
+            TransportError::DecodingError(format!("imu.{field} must contain exactly 9 values"))
+        })?;
+    let mut covariance = [0.0; 9];
+    for (index, value) in values.iter().enumerate() {
+        covariance[index] = value
+            .as_f64()
+            .filter(|value| value.is_finite())
+            .ok_or_else(|| {
+                TransportError::DecodingError(format!(
+                    "imu.{field}[{index}] must be a finite number"
+                ))
+            })?;
+    }
+    Ok(covariance)
+}
+
 fn parse_pose_value(
     value: &serde_json::Value,
     timestamp: f64,
@@ -709,26 +746,8 @@ fn parse_twist_value(value: &serde_json::Value) -> Result<VelocityCmd> {
 fn parse_imu(msg: &serde_json::Value) -> Result<ImuData> {
     let (timestamp, frame_id) = parse_ros_header(msg)?;
     let orientation_value = msg.get("orientation").unwrap_or(&serde_json::Value::Null);
-    let orientation_covariance = msg
-        .get("orientation_covariance")
-        .and_then(serde_json::Value::as_array)
-        .filter(|covariance| covariance.len() == 9)
-        .ok_or_else(|| {
-            TransportError::DecodingError(
-                "imu.orientation_covariance must contain exactly 9 values".to_string(),
-            )
-        })?;
-    for (index, value) in orientation_covariance.iter().enumerate() {
-        if !value
-            .as_f64()
-            .is_some_and(|component| component.is_finite())
-        {
-            return Err(TransportError::DecodingError(format!(
-                "imu.orientation_covariance[{index}] must be a finite number"
-            )));
-        }
-    }
-    let orientation_unavailable = orientation_covariance[0].as_f64() == Some(-1.0);
+    let orientation_covariance = parse_imu_covariance(msg, "orientation_covariance")?;
+    let orientation_unavailable = orientation_covariance[0] == -1.0;
     let orientation = if orientation_unavailable {
         parse_quaternion_components(orientation_value)?
     } else {
@@ -739,15 +758,21 @@ fn parse_imu(msg: &serde_json::Value) -> Result<ImuData> {
             .unwrap_or(&serde_json::Value::Null),
         "imu.angular_velocity",
     )?;
+    let angular_velocity_covariance = parse_imu_covariance(msg, "angular_velocity_covariance")?;
     let linear_acceleration = parse_vector3(
         msg.get("linear_acceleration")
             .unwrap_or(&serde_json::Value::Null),
         "imu.linear_acceleration",
     )?;
+    let linear_acceleration_covariance =
+        parse_imu_covariance(msg, "linear_acceleration_covariance")?;
     Ok(ImuData {
         orientation,
+        orientation_covariance,
         angular_velocity,
+        angular_velocity_covariance,
         linear_acceleration,
+        linear_acceleration_covariance,
         timestamp,
         frame_id,
     })
@@ -817,19 +842,86 @@ struct RosbridgeInner {
     /// the write task's `recv()` returns `None` and the task exits.
     write_tx: Mutex<Option<mpsc::Sender<String>>>,
     connected: AtomicBool,
+    /// Monotonic connection generation. A callback captured from an older
+    /// generation must never run after shutdown.
+    generation: AtomicU64,
     messages_received: AtomicU64,
     messages_sent: AtomicU64,
     bytes_received: AtomicU64,
     bytes_sent: AtomicU64,
     connect_time: Instant,
     subscriptions: Mutex<HashMap<String, SubscriptionCallback>>,
+    camera_work_budget: CameraWorkBudget,
 }
 
 impl RosbridgeInner {
     fn mark_disconnected(&self) {
-        self.connected.store(false, Ordering::Relaxed);
+        if self.connected.swap(false, Ordering::AcqRel) {
+            let _ =
+                self.generation
+                    .fetch_update(Ordering::AcqRel, Ordering::Acquire, |generation| {
+                        Some(generation.saturating_add(1))
+                    });
+        }
         lock_recover(&self.subscriptions).clear();
     }
+
+    fn is_generation_active(&self, generation: u64) -> bool {
+        self.connected.load(Ordering::Acquire)
+            && self.generation.load(Ordering::Acquire) == generation
+    }
+}
+
+fn invoke_subscription_callback(
+    callback: &SubscriptionCallback,
+    value: serde_json::Value,
+    work_permit: CameraWorkPermit,
+) -> bool {
+    catch_unwind(AssertUnwindSafe(|| callback(value, work_permit))).is_ok()
+}
+
+fn dispatch_subscription_callback(
+    inner: &Arc<RosbridgeInner>,
+    topic: String,
+    callback: SubscriptionCallback,
+    value: serde_json::Value,
+    work_permit: CameraWorkPermit,
+    permits: &Arc<Semaphore>,
+    active_topics: &Arc<Mutex<HashSet<String>>>,
+) {
+    let generation = inner.generation.load(Ordering::Acquire);
+    if !inner.is_generation_active(generation) {
+        return;
+    }
+    {
+        let mut active_topics = lock_recover(active_topics);
+        if !active_topics.insert(topic.clone()) {
+            // Preserve per-topic order by dropping a newer sample while that
+            // topic's prior callback is still running. Other topics retain
+            // independent callback capacity.
+            log::debug!("[Rosbridge] Dropping callback for busy topic {topic}");
+            return;
+        }
+    }
+    let Ok(permit) = Arc::clone(permits).try_acquire_owned() else {
+        lock_recover(active_topics).remove(&topic);
+        log::debug!(
+            "[Rosbridge] Dropping callback dispatch because {} callbacks are already running",
+            MAX_CONCURRENT_CALLBACKS
+        );
+        return;
+    };
+    let inner = Arc::clone(inner);
+    let active_topics = Arc::clone(active_topics);
+    let _task = tokio::task::spawn_blocking(move || {
+        if inner.is_generation_active(generation)
+            && !invoke_subscription_callback(&callback, value, work_permit)
+        {
+            log::error!("[Rosbridge] Subscription callback panicked; callback isolated");
+        }
+        lock_recover(&active_topics).remove(&topic);
+        drop(permit);
+    });
 }
 
 pub struct RosbridgeTransport {
@@ -858,12 +950,14 @@ impl RosbridgeTransport {
         let inner = Arc::new(RosbridgeInner {
             write_tx: Mutex::new(Some(write_tx)),
             connected: AtomicBool::new(true),
+            generation: AtomicU64::new(1),
             messages_received: AtomicU64::new(0),
             messages_sent: AtomicU64::new(0),
             bytes_received: AtomicU64::new(0),
             bytes_sent: AtomicU64::new(0),
             connect_time: Instant::now(),
             subscriptions: Mutex::new(HashMap::new()),
+            camera_work_budget: shared_camera_work_budget(),
         });
 
         // Weak: the write task must not keep `inner` (which owns the only
@@ -900,17 +994,30 @@ impl RosbridgeTransport {
         });
 
         let inner_clone = Arc::clone(&inner);
+        let callback_permits = Arc::new(Semaphore::new(MAX_CONCURRENT_CALLBACKS));
+        let active_callback_topics = Arc::new(Mutex::new(HashSet::new()));
 
         // Read task
         let read_task = tokio::spawn(async move {
             while let Some(msg) = read.next().await {
                 match msg {
                     Ok(Message::Text(text)) => {
-                        let len = text.len() as u64;
+                        let wire_len = text.len();
+                        let len = wire_len as u64;
                         inner_clone.bytes_received.fetch_add(len, Ordering::Relaxed);
                         inner_clone
                             .messages_received
                             .fetch_add(1, Ordering::Relaxed);
+
+                        let Some(work_permit) = inner_clone
+                            .camera_work_budget
+                            .try_reserve_rosbridge(wire_len)
+                        else {
+                            log::debug!(
+                                "[Rosbridge] Dropping inbound frame because the shared camera-work budget is full"
+                            );
+                            continue;
+                        };
 
                         match parse_incoming_rosbridge_json(&text) {
                             Ok(value) => {
@@ -922,7 +1029,15 @@ impl RosbridgeTransport {
                                         .get(topic)
                                         .cloned();
                                     if let Some(callback) = callback {
-                                        callback(value);
+                                        dispatch_subscription_callback(
+                                            &inner_clone,
+                                            topic.to_string(),
+                                            callback,
+                                            value,
+                                            work_permit,
+                                            &callback_permits,
+                                            &active_callback_topics,
+                                        );
                                     }
                                 }
                             }
@@ -1095,14 +1210,14 @@ impl Transport for RosbridgeTransport {
             self.install_subscription(
                 topic,
                 message_type,
-                Arc::new(move |value: serde_json::Value| {
-                    if let Some(msg) = value.get("msg") {
+                Arc::new(move |mut value: serde_json::Value, work_permit| {
+                    if let Some(msg) = value.get_mut("msg").map(serde_json::Value::take) {
                         let result = match stream_kind {
                             CameraStreamKind::Raw => parse_raw_camera_frame(msg),
                             CameraStreamKind::Compressed => parse_compressed_camera_frame(msg),
                         };
                         match result {
-                            Ok(frame) => callback(frame),
+                            Ok(frame) => callback(CameraFrameDelivery::new(frame, work_permit)),
                             Err(error) => {
                                 log::warn!("[Rosbridge] Failed to decode camera frame: {error}")
                             }
@@ -1124,7 +1239,7 @@ impl Transport for RosbridgeTransport {
             self.install_subscription(
                 topic,
                 "sensor_msgs/CameraInfo",
-                Arc::new(move |value: serde_json::Value| {
+                Arc::new(move |value: serde_json::Value, _work_permit| {
                     if let Some(msg) = value.get("msg") {
                         match parse_camera_info(msg) {
                             Ok(info) => callback(info),
@@ -1149,7 +1264,7 @@ impl Transport for RosbridgeTransport {
             self.install_subscription(
                 topic,
                 "sensor_msgs/Imu",
-                Arc::new(move |value: serde_json::Value| {
+                Arc::new(move |value: serde_json::Value, _work_permit| {
                     if let Some(msg) = value.get("msg") {
                         match parse_imu(msg) {
                             Ok(imu) => callback(imu),
@@ -1172,7 +1287,7 @@ impl Transport for RosbridgeTransport {
             self.install_subscription(
                 topic,
                 "geometry_msgs/PoseStamped",
-                Arc::new(move |value: serde_json::Value| {
+                Arc::new(move |value: serde_json::Value, _work_permit| {
                     if let Some(msg) = value.get("msg") {
                         match parse_pose_stamped(msg) {
                             Ok(pose) => callback(pose),
@@ -1195,7 +1310,7 @@ impl Transport for RosbridgeTransport {
             self.install_subscription(
                 topic,
                 "gazebo_msgs/ModelStates",
-                Arc::new(move |value: serde_json::Value| {
+                Arc::new(move |value: serde_json::Value, _work_permit| {
                     if let Some(msg) = value.get("msg") {
                         match parse_model_states(msg) {
                             Ok(states) => callback(states),
@@ -1246,12 +1361,14 @@ mod tests {
         let inner = Arc::new(RosbridgeInner {
             write_tx: Mutex::new(Some(write_tx)),
             connected: AtomicBool::new(true),
+            generation: AtomicU64::new(1),
             messages_received: AtomicU64::new(0),
             messages_sent: AtomicU64::new(0),
             bytes_received: AtomicU64::new(0),
             bytes_sent: AtomicU64::new(0),
             connect_time: Instant::now(),
             subscriptions: Mutex::new(HashMap::new()),
+            camera_work_budget: shared_camera_work_budget(),
         });
         (
             RosbridgeTransport {
@@ -1303,7 +1420,9 @@ mod tests {
             "orientation": { "x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0 },
             "orientation_covariance": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
             "angular_velocity": { "x": 0.1, "y": 0.2, "z": 0.3 },
-            "linear_acceleration": { "x": 0.0, "y": 0.0, "z": 9.81 }
+            "angular_velocity_covariance": [1.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 3.0],
+            "linear_acceleration": { "x": 0.0, "y": 0.0, "z": 9.81 },
+            "linear_acceleration_covariance": [4.0, 0.0, 0.0, 0.0, 5.0, 0.0, 0.0, 0.0, 6.0]
         })
     }
 
@@ -1433,7 +1552,7 @@ mod tests {
             "data": general_purpose::STANDARD.encode([1, 2, 3, 4, 5, 6])
         });
 
-        let frame = parse_raw_camera_frame(&message).unwrap();
+        let frame = parse_raw_camera_frame(message).unwrap();
 
         assert_eq!((frame.width, frame.height, frame.step), (2, 1, 6));
         assert_eq!(
@@ -1442,6 +1561,32 @@ mod tests {
         );
         assert_eq!(frame.encoding, "rgb8");
         assert!((frame.timestamp - 1.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn parse_raw_camera_frame_moves_canonical_base64_allocation() {
+        let mut message = serde_json::json!({
+            "header": { "stamp": { "sec": 1, "nanosec": 0 }, "frame_id": "camera" },
+            "height": 1,
+            "width": 1,
+            "encoding": "rgba8",
+            "is_bigendian": 0,
+            "step": 4,
+            "data": null
+        });
+        let mut encoded = general_purpose::STANDARD.encode([1_u8, 2, 3, 4]);
+        encoded.reserve_exact(256);
+        message["data"] = serde_json::Value::String(encoded);
+        let original_allocation = message["data"].as_str().unwrap().as_ptr();
+        let original_capacity = match &message["data"] {
+            serde_json::Value::String(encoded) => encoded.capacity(),
+            _ => unreachable!("test fixture inserts a string"),
+        };
+
+        let frame = parse_raw_camera_frame(message).unwrap();
+
+        assert_eq!(frame.data.as_ptr(), original_allocation);
+        assert_eq!(frame.data.capacity(), original_capacity);
     }
 
     #[test]
@@ -1456,16 +1601,16 @@ mod tests {
             "data": general_purpose::STANDARD.encode([1, 2, 3])
         });
 
-        let error = parse_raw_camera_frame(&message).unwrap_err();
+        let error = parse_raw_camera_frame(message).unwrap_err();
 
         assert!(error.to_string().contains("does not match"), "{error}");
     }
 
     #[test]
     fn parse_camera_frame_rejects_json_byte_arrays() {
-        let message = serde_json::json!({ "data": [1, 2, 3] });
+        let mut message = serde_json::json!({ "data": [1, 2, 3] });
 
-        let error = parse_rosbridge_bytes(&message, "data").unwrap_err();
+        let error = take_rosbridge_bytes(&mut message, "data").unwrap_err();
 
         assert!(error.to_string().contains("JSON byte arrays"), "{error}");
     }
@@ -1489,6 +1634,18 @@ mod tests {
     }
 
     #[test]
+    fn inbound_json_rejects_duplicate_keys_at_every_object_depth() {
+        for message in [
+            r#"{"op":"publish","topic":"/safe","topic":"/other","msg":{}}"#,
+            r#"{"op":"publish","topic":"/safe","msg":{"header":{},"header":{}}}"#,
+            r#"{"op":"publish","topic":"/safe","msg":{"data":"AQID","d\u0061ta":"BAUG"}}"#,
+        ] {
+            let error = parse_incoming_rosbridge_json(message).unwrap_err();
+            assert!(error.to_string().contains("duplicate JSON object key"));
+        }
+    }
+
+    #[test]
     fn parse_compressed_camera_frame_checks_declared_codec_and_dimensions() {
         let message = serde_json::json!({
             "header": { "stamp": { "sec": 2, "nanosec": 0 }, "frame_id": "camera" },
@@ -1496,14 +1653,14 @@ mod tests {
             "data": tiny_png_base64()
         });
 
-        let frame = parse_compressed_camera_frame(&message).unwrap();
+        let frame = parse_compressed_camera_frame(message.clone()).unwrap();
 
         assert_eq!((frame.width, frame.height), (2, 3));
         assert_eq!(frame.encoding, "rgb8; png compressed rgb8");
 
         let mut mismatch = message;
         mismatch["format"] = serde_json::Value::String("jpeg".to_string());
-        assert!(parse_compressed_camera_frame(&mismatch).is_err());
+        assert!(parse_compressed_camera_frame(mismatch).is_err());
     }
 
     #[test]
@@ -1514,11 +1671,11 @@ mod tests {
             "data": tiny_jpeg_base64()
         });
 
-        let frame = parse_compressed_camera_frame(&message).unwrap();
+        let frame = parse_compressed_camera_frame(message.clone()).unwrap();
         assert_eq!(frame.encoding, "jpeg");
 
         message["data"] = serde_json::Value::String(tiny_png_base64());
-        assert!(parse_compressed_camera_frame(&message).is_err());
+        assert!(parse_compressed_camera_frame(message).is_err());
     }
 
     #[test]
@@ -1529,9 +1686,89 @@ mod tests {
 
         let imu = parse_imu(&message).unwrap();
         assert_eq!(imu.orientation, [0.0; 4]);
+        assert_eq!(imu.orientation_covariance[0], -1.0);
+        assert_eq!(imu.angular_velocity_covariance[4], 2.0);
+        assert_eq!(imu.linear_acceleration_covariance[8], 6.0);
 
         message["orientation_covariance"][0] = serde_json::json!(0.0);
         assert!(parse_imu(&message).is_err());
+    }
+
+    #[test]
+    fn subscription_callback_panics_are_isolated() {
+        let callback: SubscriptionCallback = Arc::new(|_, _| panic!("simulated callback panic"));
+        let work_permit = CameraWorkBudget::default()
+            .try_reserve_rosbridge(1)
+            .unwrap();
+
+        assert!(!invoke_subscription_callback(
+            &callback,
+            serde_json::Value::Null,
+            work_permit,
+        ));
+    }
+
+    #[test]
+    fn slow_callback_does_not_block_other_topics() {
+        use std::sync::atomic::AtomicBool;
+
+        tauri::async_runtime::block_on(async {
+            let (transport, _write_rx) = test_transport();
+            let permits = Arc::new(Semaphore::new(2));
+            let active_topics = Arc::new(Mutex::new(HashSet::new()));
+            let slow_started = Arc::new(AtomicBool::new(false));
+            let release_slow = Arc::new(AtomicBool::new(false));
+            let fast_finished = Arc::new(AtomicBool::new(false));
+
+            let slow_started_for_callback = Arc::clone(&slow_started);
+            let release_slow_for_callback = Arc::clone(&release_slow);
+            dispatch_subscription_callback(
+                &transport.inner,
+                "/slow".to_string(),
+                Arc::new(move |_, _| {
+                    slow_started_for_callback.store(true, Ordering::Release);
+                    while !release_slow_for_callback.load(Ordering::Acquire) {
+                        std::thread::yield_now();
+                    }
+                }),
+                serde_json::Value::Null,
+                transport
+                    .inner
+                    .camera_work_budget
+                    .try_reserve_rosbridge(1)
+                    .unwrap(),
+                &permits,
+                &active_topics,
+            );
+
+            let deadline = Instant::now() + Duration::from_secs(1);
+            while !slow_started.load(Ordering::Acquire) && Instant::now() < deadline {
+                tokio::task::yield_now().await;
+            }
+            assert!(slow_started.load(Ordering::Acquire));
+
+            let fast_finished_for_callback = Arc::clone(&fast_finished);
+            dispatch_subscription_callback(
+                &transport.inner,
+                "/fast".to_string(),
+                Arc::new(move |_, _| fast_finished_for_callback.store(true, Ordering::Release)),
+                serde_json::Value::Null,
+                transport
+                    .inner
+                    .camera_work_budget
+                    .try_reserve_rosbridge(1)
+                    .unwrap(),
+                &permits,
+                &active_topics,
+            );
+            let deadline = Instant::now() + Duration::from_secs(1);
+            while !fast_finished.load(Ordering::Acquire) && Instant::now() < deadline {
+                tokio::task::yield_now().await;
+            }
+            release_slow.store(true, Ordering::Release);
+
+            assert!(fast_finished.load(Ordering::Acquire));
+        });
     }
 
     #[test]
@@ -1554,7 +1791,7 @@ mod tests {
     fn register_subscription_installs_callback_before_send() {
         let (transport, _write_rx) = test_transport();
         let topic = "/camera".to_string();
-        let callback: SubscriptionCallback = Arc::new(|_| {});
+        let callback: SubscriptionCallback = Arc::new(|_, _| {});
 
         let result = transport.register_subscription_before_send(topic.clone(), callback, |subs| {
             assert!(subs.contains_key(&topic));
@@ -1568,7 +1805,7 @@ mod tests {
     fn register_subscription_rolls_back_when_send_fails() {
         let (transport, _write_rx) = test_transport();
         let topic = "/camera".to_string();
-        let callback: SubscriptionCallback = Arc::new(|_| {});
+        let callback: SubscriptionCallback = Arc::new(|_, _| {});
 
         let result = transport.register_subscription_before_send(topic.clone(), callback, |_| {
             Err(TransportError::SendFailed("send failed".to_string()))

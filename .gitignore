@@ -59,6 +59,10 @@ $RECYCLE.BIN/
 .codex/
 .cursor/
 .playwright-mcp/
+.superstack/
+
+# Local review output
+/review.html
 
 # Tauri - Rust
 src-tauri/target/
@@ -72,6 +76,9 @@ public/splats/*
 *.ksplat
 *.spz
 public/**/*.ply
+
+# Local 3D asset without reviewed redistribution provenance
+/public/models/maverick-drone.glb
 
 # Native binaries & ML models (build/download locally)
 src-tauri/binaries/
@@ -106,6 +113,10 @@ logs/
 
 # Testing
 coverage/
+
+# Python tooling caches
+__pycache__/
+*.py[cod]
 
 # Temporary
 .cache/

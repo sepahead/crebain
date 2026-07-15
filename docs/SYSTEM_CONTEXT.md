@@ -105,7 +105,7 @@ and are why the current claim remains L0.
 flowchart LR
   C[Controller] -->|signed typed intent| H[Haldir Gate]
   O[Operator UI] -->|signed intent only| H
-  H -->|authenticated exclusive NCP 0.8 route| R[Router]
+  H -->|authenticated exclusive final NCP route; version pending convergence| R[Router]
   R --> P[Native CREBAIN plant]
   P --> G[Safety governor]
   G --> A[Typed PX4 adapter]

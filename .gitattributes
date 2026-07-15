@@ -1,0 +1,16 @@
+# These files preserve byte-exact received or crates.io archive content.
+audit/frozen/FILE_REVIEW_LEDGER.csv -whitespace
+src-tauri/vendor-compat/buddy_system_allocator-0.10.0/** -whitespace
+src-tauri/vendor-compat/flume-0.11.1/** -whitespace
+src-tauri/vendor-compat/uhlc-0.8.2/** -whitespace
+src-tauri/vendor-compat/zenoh-transport-1.9.0/** -whitespace
+
+# Keep generated evidence and byte-exact upstream compatibility sources from
+# distorting GitHub's language summary or textual-diff heuristics.
+audit/frozen/INPUT_MANIFEST.json linguist-generated=true
+audit/frozen/TRACKED_FILE_MANIFEST.json linguist-generated=true
+audit/frozen/review-map.json linguist-generated=true
+audit/generated/** linguist-generated=true
+bun.nix linguist-generated=true
+src-tauri/vendor-compat/** linguist-vendored=true
+src-tauri/vendor-compat/upstream-archives/*.crate binary

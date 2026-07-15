@@ -26,10 +26,21 @@ export interface ThroughputSample {
   timestamp: number
 }
 
+interface MessageSample {
+  byteCount: number
+  timestamp: number
+}
+
 export interface TopicStats {
   topic: string
+  /** Lifetime messages since construction/reset. */
   messageCount: number
+  /** Lifetime bytes since construction/reset. */
   byteCount: number
+  /** Messages retained in the current rolling window. */
+  windowMessageCount: number
+  /** Bytes retained in the current rolling window. */
+  windowByteCount: number
   lastReceived: number
   avgLatencyMs: number
   minLatencyMs: number
@@ -96,8 +107,9 @@ const DEFAULT_CONFIG: PerformanceConfig = {
 export class ROSPerformanceMonitor {
   private config: PerformanceConfig
   private topicLatencies: Map<string, CircularBuffer<LatencySample>> = new Map()
-  private topicMessageCounts: Map<string, number> = new Map()
-  private topicByteCounts: Map<string, number> = new Map()
+  private topicMessageSamples: Map<string, CircularBuffer<MessageSample>> = new Map()
+  private topicLifetimeMessageCounts: Map<string, number> = new Map()
+  private topicLifetimeByteCounts: Map<string, number> = new Map()
   private topicLastReceived: Map<string, number> = new Map()
   private alertCallbacks: Set<AlertCallback> = new Set()
   private startTime: number = Date.now()
@@ -116,6 +128,8 @@ export class ROSPerformanceMonitor {
    * Start the performance monitor
    */
   start(): void {
+    if (this.updateIntervalId !== null) return
+
     this.startTime = Date.now()
 
     // Start periodic stats calculation and alert checking
@@ -128,7 +142,7 @@ export class ROSPerformanceMonitor {
    * Stop the performance monitor
    */
   stop(): void {
-    if (this.updateIntervalId) {
+    if (this.updateIntervalId !== null) {
       clearInterval(this.updateIntervalId)
       this.updateIntervalId = null
     }
@@ -139,8 +153,9 @@ export class ROSPerformanceMonitor {
    */
   reset(): void {
     this.topicLatencies.clear()
-    this.topicMessageCounts.clear()
-    this.topicByteCounts.clear()
+    this.topicMessageSamples.clear()
+    this.topicLifetimeMessageCounts.clear()
+    this.topicLifetimeByteCounts.clear()
     this.topicLastReceived.clear()
     this.droppedMessages = 0
     this.startTime = Date.now()
@@ -151,18 +166,27 @@ export class ROSPerformanceMonitor {
   // ───────────────────────────────────────────────────────────────────────────
 
   /**
-   * Record a received message
+   * Record a received message. `sentTimestamp` is an epoch-millisecond clock
+   * reading comparable to Date.now(); callers with an already measured
+   * duration must use recordLatency().
    */
   recordMessage(topic: string, messageSize: number, sentTimestamp?: number): void {
     const now = Date.now()
 
     // Update message count
-    const count = this.topicMessageCounts.get(topic) || 0
-    this.topicMessageCounts.set(topic, count + 1)
+    const count = this.topicLifetimeMessageCounts.get(topic) || 0
+    this.topicLifetimeMessageCounts.set(topic, count + 1)
 
     // Update byte count
-    const bytes = this.topicByteCounts.get(topic) || 0
-    this.topicByteCounts.set(topic, bytes + messageSize)
+    const bytes = this.topicLifetimeByteCounts.get(topic) || 0
+    this.topicLifetimeByteCounts.set(topic, bytes + messageSize)
+
+    let messageBuffer = this.topicMessageSamples.get(topic)
+    if (!messageBuffer) {
+      messageBuffer = new CircularBuffer<MessageSample>(this.config.maxSamplesPerTopic)
+      this.topicMessageSamples.set(topic, messageBuffer)
+    }
+    messageBuffer.push({ byteCount: messageSize, timestamp: now })
 
     // Check for message gap
     const lastReceived = this.topicLastReceived.get(topic)
@@ -178,32 +202,15 @@ export class ROSPerformanceMonitor {
     }
     this.topicLastReceived.set(topic, now)
 
-    // Record latency if timestamp provided
-    if (sentTimestamp) {
-      const latencyMs = now - sentTimestamp
-
-      let buffer = this.topicLatencies.get(topic)
-      if (!buffer) {
-        buffer = new CircularBuffer<LatencySample>(this.config.maxSamplesPerTopic)
-        this.topicLatencies.set(topic, buffer)
-      }
-
-      buffer.push({
-        topic,
-        latencyMs,
-        timestamp: now,
-      })
-
-      // Check for high latency
-      if (latencyMs > this.config.highLatencyThresholdMs) {
-        this.emitAlert({
-          type: 'high_latency',
-          topic,
-          message: `High latency ${latencyMs.toFixed(1)}ms on ${topic}`,
-          severity: latencyMs > this.config.highLatencyThresholdMs * 2 ? 'error' : 'warning',
-          timestamp: now,
-        })
-      }
+    // This low-level API accepts an epoch timestamp. Public adapters that
+    // already measured a latency must call recordLatency() instead.
+    if (
+      sentTimestamp !== undefined &&
+      Number.isFinite(sentTimestamp) &&
+      sentTimestamp >= 0 &&
+      sentTimestamp <= now
+    ) {
+      this.recordLatencySample(topic, now - sentTimestamp, now)
     }
   }
 
@@ -211,8 +218,11 @@ export class ROSPerformanceMonitor {
    * Record a latency sample directly
    */
   recordLatency(topic: string, latencyMs: number): void {
-    const now = Date.now()
+    if (!Number.isFinite(latencyMs) || latencyMs < 0) return
+    this.recordLatencySample(topic, latencyMs, Date.now())
+  }
 
+  private recordLatencySample(topic: string, latencyMs: number, now: number): void {
     let buffer = this.topicLatencies.get(topic)
     if (!buffer) {
       buffer = new CircularBuffer<LatencySample>(this.config.maxSamplesPerTopic)
@@ -224,6 +234,16 @@ export class ROSPerformanceMonitor {
       latencyMs,
       timestamp: now,
     })
+
+    if (latencyMs > this.config.highLatencyThresholdMs) {
+      this.emitAlert({
+        type: 'high_latency',
+        topic,
+        message: `High latency ${latencyMs.toFixed(1)}ms on ${topic}`,
+        severity: latencyMs > this.config.highLatencyThresholdMs * 2 ? 'error' : 'warning',
+        timestamp: now,
+      })
+    }
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -234,14 +254,28 @@ export class ROSPerformanceMonitor {
    * Get statistics for a specific topic
    */
   getTopicStats(topic: string): TopicStats | null {
-    const messageCount = this.topicMessageCounts.get(topic) || 0
-    const byteCount = this.topicByteCounts.get(topic) || 0
+    const messageCount = this.topicLifetimeMessageCounts.get(topic) || 0
+    const byteCount = this.topicLifetimeByteCounts.get(topic) || 0
     const lastReceived = this.topicLastReceived.get(topic) || 0
     const latencyBuffer = this.topicLatencies.get(topic)
+    const messageBuffer = this.topicMessageSamples.get(topic)
 
     if (messageCount === 0) return null
 
-    const uptimeSeconds = (Date.now() - this.startTime) / 1000
+    const now = Date.now()
+    const cutoff = now - this.config.windowSizeMs
+    const messageSamples = messageBuffer?.filter((sample) => sample.timestamp >= cutoff) ?? []
+    const windowMessageCount = messageSamples.length
+    const windowByteCount = messageSamples.reduce((sum, sample) => sum + sample.byteCount, 0)
+    // Before one complete window has elapsed, divide by the observed duration;
+    // afterwards use the fixed configured window. Keep a positive denominator at
+    // startup without stretching a sub-second configured window.
+    const elapsedMs = Math.max(0, now - this.startTime)
+    const windowDurationMs = Math.min(
+      this.config.windowSizeMs,
+      Math.max(1, elapsedMs)
+    )
+    const windowDurationSeconds = windowDurationMs / 1000
 
     // Calculate latency stats
     let avgLatencyMs = 0
@@ -250,29 +284,33 @@ export class ROSPerformanceMonitor {
     let p95LatencyMs = 0
 
     if (latencyBuffer && latencyBuffer.length > 0) {
-      const latencies: number[] = []
-      latencyBuffer.forEach(sample => {
-        latencies.push(sample.latencyMs)
-      })
+      const latencies = latencyBuffer
+        .filter((sample) => sample.timestamp >= cutoff)
+        .map((sample) => sample.latencyMs)
 
-      latencies.sort((a, b) => a - b)
-      minLatencyMs = latencies[0]
-      maxLatencyMs = latencies[latencies.length - 1]
-      avgLatencyMs = latencies.reduce((a, b) => a + b, 0) / latencies.length
-      p95LatencyMs = latencies[Math.floor(latencies.length * 0.95)] || maxLatencyMs
+      if (latencies.length > 0) {
+        latencies.sort((a, b) => a - b)
+        minLatencyMs = latencies[0]
+        maxLatencyMs = latencies[latencies.length - 1]
+        avgLatencyMs = latencies.reduce((a, b) => a + b, 0) / latencies.length
+        const nearestRankIndex = Math.ceil(latencies.length * 0.95) - 1
+        p95LatencyMs = latencies[nearestRankIndex]
+      }
     }
 
     return {
       topic,
       messageCount,
       byteCount,
+      windowMessageCount,
+      windowByteCount,
       lastReceived,
       avgLatencyMs,
       minLatencyMs: minLatencyMs === Infinity ? 0 : minLatencyMs,
       maxLatencyMs,
       p95LatencyMs,
-      messagesPerSecond: messageCount / uptimeSeconds,
-      bytesPerSecond: byteCount / uptimeSeconds,
+      messagesPerSecond: windowMessageCount / windowDurationSeconds,
+      bytesPerSecond: windowByteCount / windowDurationSeconds,
     }
   }
 
@@ -281,7 +319,7 @@ export class ROSPerformanceMonitor {
    */
   getAllTopicStats(): TopicStats[] {
     const topics = new Set<string>([
-      ...this.topicMessageCounts.keys(),
+      ...this.topicLifetimeMessageCounts.keys(),
       ...this.topicLatencies.keys(),
     ])
 
@@ -330,6 +368,17 @@ export class ROSPerformanceMonitor {
     const expectedMps = this.config.minMessagesPerSecond * stats.length
     if (totalMessagesPerSecond < expectedMps) {
       score -= Math.min(30, (1 - totalMessagesPerSecond / expectedMps) * 30)
+    }
+
+    // A topic with no message in the complete rolling window is stale even when
+    // its lifetime average was once high. Penalize that condition separately so
+    // a fully frozen connection cannot remain "good".
+    const now = Date.now()
+    const staleTopicCount = stats.filter(
+      (stat) => now - stat.lastReceived >= this.config.windowSizeMs
+    ).length
+    if (staleTopicCount > 0) {
+      score -= (staleTopicCount / stats.length) * 50
     }
 
     // Dropped message penalty (up to -30 points)

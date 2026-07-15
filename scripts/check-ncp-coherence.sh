@@ -181,12 +181,9 @@ for relative in "${normative_docs[@]}"; do
     "$(sed -nE 's/^[[:space:]]*<!--[[:space:]]*ncp-pin:[[:space:]]*([^[:space:]]+)[[:space:]]*-->[[:space:]]*$/\1/p' "$file")")"
   [[ "$marker" == "$tag" ]] || die "$relative marker pins '$marker', expected '$tag'"
 
-  references="$(grep -Eo 'v[0-9]+\.[0-9]+\.[0-9]+' "$file" | sort -u || true)"
-  while IFS= read -r reference; do
-    [[ -n "$reference" ]] || continue
-    [[ "$reference" == "$tag" ]] \
-      || die "$relative contains stale NCP release reference '$reference' (expected '$tag')"
-  done <<< "$references"
+  # The explicit marker is the authoritative NCP release pin. These documents
+  # also describe CREBAIN releases and may legitimately contain other semantic
+  # versions, so a document-wide version scan would conflate independent pins.
 
   wire_references="$(grep -Eio 'wire[-[:space:]]+`?[0-9]+\.[0-9]+' "$file" \
     | grep -Eo '[0-9]+\.[0-9]+' | sort -u || true)"

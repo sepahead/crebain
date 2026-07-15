@@ -1,10 +1,10 @@
 <!-- CREBAIN Rosbridge Configuration Launch File -->
-<!-- Reference rosbridge_websocket settings for local development -->
+<!-- Loopback-only rosbridge_websocket settings for local development. -->
 
 <launch>
   <!-- WebSocket configuration -->
   <arg name="port" default="9090"/>
-  <arg name="address" default=""/>
+  <arg name="address" default="127.0.0.1"/>
   <arg name="ssl" default="false"/>
   <arg name="certfile" default=""/>
   <arg name="keyfile" default=""/>
@@ -15,8 +15,9 @@
   <arg name="max_message_size" default="10000000"/>
   <arg name="unregister_timeout" default="10.0"/>
 
-  <!-- Authentication (optional) -->
+  <!-- rosbridge authentication is not configured by this reference topology. -->
   <arg name="authenticate" default="false"/>
+  <arg name="enable_rosapi" default="false"/>
 
   <!-- Rosbridge WebSocket server -->
   <node name="rosbridge_websocket" pkg="rosbridge_server" type="rosbridge_websocket" output="screen">
@@ -33,7 +34,7 @@
   </node>
 
   <!-- Rosapi for service/topic introspection -->
-  <node name="rosapi" pkg="rosapi" type="rosapi_node">
+  <node name="rosapi" pkg="rosapi" type="rosapi_node" if="$(arg enable_rosapi)">
     <param name="topics_glob" value="[*]"/>
     <param name="services_glob" value="[*]"/>
     <param name="params_glob" value="[*]"/>

@@ -42,6 +42,20 @@ use candle_nn::{Conv2dConfig, VarBuilder};
 const INPUT_SIZE: usize = 640;
 const CONF_THRESHOLD: f32 = 0.25;
 const IOU_THRESHOLD: f32 = 0.45;
+const MLX_REG_MAX: usize = 16;
+const MLX_CLASS_COUNT: usize = 80;
+const MLX_OUTPUT_CHANNELS: usize = MLX_REG_MAX * 4 + MLX_CLASS_COUNT;
+const MLX_OUTPUT_ANCHORS: usize = 80 * 80 + 40 * 40 + 20 * 20;
+
+fn validate_mlx_output_shape(dims: &[usize]) -> Result<usize> {
+    if dims != [1, MLX_OUTPUT_CHANNELS, MLX_OUTPUT_ANCHORS] {
+        return Err(InferenceError::InferenceError(format!(
+            "MLX output contract mismatch: got {dims:?}, expected [1, {MLX_OUTPUT_CHANNELS}, {MLX_OUTPUT_ANCHORS}]"
+        )));
+    }
+
+    Ok(MLX_OUTPUT_ANCHORS)
+}
 
 /// MLX detector for Apple Silicon using Candle Metal backend
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
@@ -770,25 +784,35 @@ fn postprocess_output(
     orig_width: f32,
     orig_height: f32,
 ) -> Result<Vec<Detection>> {
-    const REG_MAX: usize = 16;
-    const NC: usize = 80;
-    const OUTPUT_CHANNELS: usize = REG_MAX * 4 + NC; // 64 + 80 = 144
-
-    let dims = output.dims();
-    if dims.len() != 3 || dims[1] != OUTPUT_CHANNELS {
-        return Ok(Vec::new());
+    if !orig_width.is_finite()
+        || !orig_height.is_finite()
+        || orig_width <= 0.0
+        || orig_height <= 0.0
+    {
+        return Err(InferenceError::InvalidInput(
+            "MLX output dimensions must be finite and positive".to_string(),
+        ));
     }
 
-    let num_anchors = dims[2];
+    let num_anchors = validate_mlx_output_shape(output.dims())?;
 
     let data = output
         .flatten_all()
         .map_err(|e| InferenceError::InferenceError(e.to_string()))?
         .to_vec1::<f32>()
         .map_err(|e| InferenceError::InferenceError(e.to_string()))?;
+    let expected_values = MLX_OUTPUT_CHANNELS
+        .checked_mul(num_anchors)
+        .ok_or_else(|| InferenceError::InferenceError("MLX output size overflowed".to_string()))?;
+    if data.len() != expected_values {
+        return Err(InferenceError::InferenceError(format!(
+            "MLX output data length mismatch: got {}, expected {expected_values}",
+            data.len()
+        )));
+    }
 
     // Precompute the DFL (Distribution Focal Loss) integration constants
-    let dfl_proj: Vec<f32> = (0..REG_MAX).map(|i| i as f32).collect();
+    let dfl_proj: Vec<f32> = (0..MLX_REG_MAX).map(|i| i as f32).collect();
 
     let mut detections: Vec<Detection> = Vec::new();
 
@@ -813,35 +837,48 @@ fn postprocess_output(
             let gx = (local_idx % grid_size) as f32;
 
             // Decode bounding box via DFL
-            let decode_coord = |base: usize| -> f32 {
+            let decode_coord = |base: usize| -> Result<f32> {
                 let mut sum = 0.0f32;
                 let mut max_val = -1e9f32;
-                for k in 0..REG_MAX {
+                for k in 0..MLX_REG_MAX {
                     let val = data[(base + k) * num_anchors + i];
+                    if !val.is_finite() {
+                        return Err(InferenceError::InferenceError(
+                            "MLX DFL output contains a non-finite value".to_string(),
+                        ));
+                    }
                     if val > max_val {
                         max_val = val;
                     }
                 }
                 // Softmax over the reg_max distribution
-                let mut exp_vals = [0.0f32; REG_MAX];
+                let mut exp_vals = [0.0f32; MLX_REG_MAX];
                 let mut exp_sum = 0.0f32;
-                for k in 0..REG_MAX {
+                for k in 0..MLX_REG_MAX {
                     let v = (data[(base + k) * num_anchors + i] - max_val).exp();
                     exp_vals[k] = v;
                     exp_sum += v;
                 }
-                if exp_sum > 0.0 {
-                    for k in 0..REG_MAX {
-                        sum += (exp_vals[k] / exp_sum) * dfl_proj[k];
-                    }
+                if !exp_sum.is_finite() || exp_sum <= 0.0 {
+                    return Err(InferenceError::InferenceError(
+                        "MLX DFL softmax produced an invalid normalization".to_string(),
+                    ));
                 }
-                sum
+                for k in 0..MLX_REG_MAX {
+                    sum += (exp_vals[k] / exp_sum) * dfl_proj[k];
+                }
+                if !sum.is_finite() {
+                    return Err(InferenceError::InferenceError(
+                        "MLX DFL decode produced a non-finite distance".to_string(),
+                    ));
+                }
+                Ok(sum)
             };
 
-            let l = decode_coord(0);
-            let t = decode_coord(REG_MAX);
-            let r = decode_coord(2 * REG_MAX);
-            let b = decode_coord(3 * REG_MAX);
+            let l = decode_coord(0)?;
+            let t = decode_coord(MLX_REG_MAX)?;
+            let r = decode_coord(2 * MLX_REG_MAX)?;
+            let b = decode_coord(3 * MLX_REG_MAX)?;
 
             // Decode the distribution distances (l,t,r,b) directly into box
             // corners in input-image pixels. The anchor center is (gx+0.5, gy+0.5)
@@ -857,10 +894,15 @@ fn postprocess_output(
             // Find max class score (sigmoid applied)
             let mut max_score = 0.0f32;
             let mut max_class = 0usize;
-            let box_base = REG_MAX * 4;
+            let box_base = MLX_REG_MAX * 4;
 
-            for c in 0..NC {
+            for c in 0..MLX_CLASS_COUNT {
                 let raw = data[(box_base + c) * num_anchors + i];
+                if !raw.is_finite() {
+                    return Err(InferenceError::InferenceError(
+                        "MLX class output contains a non-finite value".to_string(),
+                    ));
+                }
                 let score = 1.0 / (1.0 + (-raw).exp()); // sigmoid
                 if score > max_score {
                     max_score = score;
@@ -881,70 +923,22 @@ fn postprocess_output(
                 continue;
             }
 
-            detections.push(Detection {
+            let detection = Detection {
                 bbox: [x1, y1, x2, y2],
                 confidence: max_score,
                 class_id: max_class as u32,
                 class_label: coco::get_class_name_ref(max_class)
                     .unwrap_or("unknown")
                     .to_string(),
-            });
+            };
+            super::validate_backend_detection(&detection, orig_width as u32, orig_height as u32)?;
+            detections.push(detection);
         }
 
         anchor_offset = end;
     }
 
-    crate::common::nms::validate_nms_candidate_count(detections.len())
-        .map_err(InferenceError::InferenceError)?;
-    let detections = non_max_suppression(detections, IOU_THRESHOLD);
-    Ok(detections)
-}
-
-/// Non-maximum suppression
-#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-fn non_max_suppression(mut detections: Vec<Detection>, iou_threshold: f32) -> Vec<Detection> {
-    // Sort by confidence (descending)
-    // Use unwrap_or for NaN-safe comparison (NaN treated as less than any value)
-    detections.sort_by(|a, b| {
-        b.confidence
-            .partial_cmp(&a.confidence)
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
-
-    let mut keep = Vec::new();
-    let mut suppressed = vec![false; detections.len()];
-
-    for i in 0..detections.len() {
-        if suppressed[i] {
-            continue;
-        }
-
-        keep.push(detections[i].clone());
-
-        for j in (i + 1)..detections.len() {
-            if suppressed[j] {
-                continue;
-            }
-
-            // Only suppress same class
-            if detections[i].class_id != detections[j].class_id {
-                continue;
-            }
-
-            let iou = compute_iou(&detections[i].bbox, &detections[j].bbox);
-            if iou > iou_threshold {
-                suppressed[j] = true;
-            }
-        }
-    }
-
-    keep
-}
-
-/// Compute IoU between two bboxes — delegates to shared common/nms utility.
-#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-fn compute_iou(box1: &[f32; 4], box2: &[f32; 4]) -> f32 {
-    crate::common::nms::compute_iou_array(box1, box2)
+    super::apply_common_nms(detections, IOU_THRESHOLD)
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1009,6 +1003,22 @@ mod tests {
     }
 
     #[test]
+    fn mlx_output_shape_contract_accepts_only_the_exact_export_shape() {
+        assert_eq!(
+            validate_mlx_output_shape(&[1, MLX_OUTPUT_CHANNELS, MLX_OUTPUT_ANCHORS]).unwrap(),
+            MLX_OUTPUT_ANCHORS
+        );
+        for invalid in [
+            vec![1, MLX_OUTPUT_CHANNELS - 1, MLX_OUTPUT_ANCHORS],
+            vec![1, MLX_OUTPUT_CHANNELS, MLX_OUTPUT_ANCHORS - 1],
+            vec![2, MLX_OUTPUT_CHANNELS, MLX_OUTPUT_ANCHORS],
+        ] {
+            let error = validate_mlx_output_shape(&invalid).unwrap_err();
+            assert!(error.to_string().contains("output contract mismatch"));
+        }
+    }
+
+    #[test]
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     fn mlx_model_path_validation_rejects_wrong_extension_and_traversal() {
         let wrong_ext =
@@ -1049,13 +1059,13 @@ mod tests {
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     fn test_iou_computation() {
         let box1 = [0.0, 0.0, 10.0, 10.0];
-        assert!((compute_iou(&box1, &box1) - 1.0).abs() < 0.001);
+        assert!((crate::common::nms::compute_iou_array(&box1, &box1) - 1.0).abs() < 0.001);
 
         let box2 = [20.0, 20.0, 30.0, 30.0];
-        assert!(compute_iou(&box1, &box2) < 0.001);
+        assert!(crate::common::nms::compute_iou_array(&box1, &box2) < 0.001);
 
         let box3 = [5.0, 0.0, 15.0, 10.0];
-        let iou = compute_iou(&box1, &box3);
+        let iou = crate::common::nms::compute_iou_array(&box1, &box3);
         assert!(iou > 0.3 && iou < 0.4);
     }
 
@@ -1149,8 +1159,9 @@ mod tests {
     fn postprocess_rejects_wrong_output_channels() {
         let device = Device::Cpu;
         let output = Tensor::zeros(&[1, 84, 8400], DType::F32, &device).unwrap();
-        let detections = postprocess_output(&output, 640.0, 480.0).unwrap();
-        assert!(detections.is_empty());
+        let error = postprocess_output(&output, 640.0, 480.0).unwrap_err();
+
+        assert!(error.to_string().contains("output contract mismatch"));
     }
 
     #[test]
@@ -1158,8 +1169,9 @@ mod tests {
     fn postprocess_handles_empty_anchors() {
         let device = Device::Cpu;
         let output = Tensor::zeros(&[1, 144, 0], DType::F32, &device).unwrap();
-        let detections = postprocess_output(&output, 640.0, 480.0).unwrap();
-        assert!(detections.is_empty());
+        let error = postprocess_output(&output, 640.0, 480.0).unwrap_err();
+
+        assert!(error.to_string().contains("output contract mismatch"));
     }
 
     #[test]
@@ -1227,7 +1239,7 @@ mod tests {
     #[test]
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     fn nms_handles_empty_input() {
-        let result = non_max_suppression(Vec::new(), 0.45);
+        let result = crate::inference::apply_common_nms(Vec::new(), 0.45).unwrap();
         assert!(result.is_empty());
     }
 
@@ -1240,7 +1252,7 @@ mod tests {
             class_id: 0,
             class_label: "person".to_string(),
         };
-        let result = non_max_suppression(vec![det], 0.45);
+        let result = crate::inference::apply_common_nms(vec![det], 0.45).unwrap();
         assert_eq!(result.len(), 1);
     }
 

@@ -1,0 +1,1015 @@
+{
+  "cryptographic_signature": null,
+  "file_count": 166,
+  "files": [
+    {
+      "bytes": 10244,
+      "kind": "opaque",
+      "path": ".DS_Store",
+      "sha256": "c6a760d2828bd4397443b07b9223791cf062c8e36f0b741877f918560ca77aa3"
+    },
+    {
+      "bytes": 1398,
+      "kind": "text",
+      "path": "CDC_DIVERSE_VERIFIER_LOOP.md",
+      "sha256": "beac026fa01602fd1e2e45773848e75d44ffe15461733b190f329ff2661d1a53"
+    },
+    {
+      "bytes": 6619,
+      "kind": "text",
+      "path": "CREBAIN_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/ADVERSARIAL_20_LENS_STANDARD.md",
+      "sha256": "c1b951cb40a3fc1108abb243518c4df865e8e2163578b5a84a4b8fb10ab1d87e"
+    },
+    {
+      "bytes": 1599,
+      "kind": "text",
+      "path": "CREBAIN_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/CLAIM_EVIDENCE_MATRIX.md",
+      "sha256": "cd0d94e1a48340f0d5e8af8b0e26d37a7794fa315d33df7d74cabacd26580b42"
+    },
+    {
+      "bytes": 583,
+      "kind": "json",
+      "path": "CREBAIN_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/CURRENT_AUDIT_CUT.json",
+      "sha256": "182e3b9817f2c4a1d99d566269d2ec9a3e75914f171daa952b50cd8e820097df"
+    },
+    {
+      "bytes": 2730,
+      "kind": "text",
+      "path": "CREBAIN_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/CURRENT_STATE_AND_CRITICAL_FINDINGS.md",
+      "sha256": "e99c3f74cc40ce14370cc166db71207ad8a599c431a9204a22ac291dd6215abe"
+    },
+    {
+      "bytes": 1124,
+      "kind": "text",
+      "path": "CREBAIN_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/GO_NO_GO_CHECKLIST.md",
+      "sha256": "985e6827dbb97594ae288b0a78d9df93af41f568e1cc16a65caaffb21db77c48"
+    },
+    {
+      "bytes": 3511,
+      "kind": "text",
+      "path": "CREBAIN_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/LANGUAGE_SPECIFIC_REVIEW.md",
+      "sha256": "42e624f7769d2eb5b7924a5a86b5714c3d02dfaff7ac47dd24d46907750cc8f3"
+    },
+    {
+      "bytes": 1416,
+      "kind": "json",
+      "path": "CREBAIN_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/LOCAL_CONVERGENCE_SCHEMA.json",
+      "sha256": "f9cd8add229bf44ee1318530dcf19a5085410a638df7f02bff94b2226d26b2f1"
+    },
+    {
+      "bytes": 7742,
+      "kind": "text",
+      "path": "CREBAIN_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/MANDATORY_LINE_BY_LINE_AUDIT.md",
+      "sha256": "088732d580b0a3627c49707f340a5799864cebc4f11c194a04a53a5a2ac5063a"
+    },
+    {
+      "bytes": 1297225,
+      "kind": "text",
+      "path": "CREBAIN_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/MASTER_TASK_LEDGER.yaml",
+      "sha256": "5c1752beee10e4821d78aaa02d843cfd2af417b6e8bcf8b9d9aae7879fdd5dfb"
+    },
+    {
+      "bytes": 1980,
+      "kind": "text",
+      "path": "CREBAIN_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/NORMATIVE_ARCHITECTURE.md",
+      "sha256": "000e0db2e1fdaa2f57cd13edf70417259d0c9904bd9c9f02833677b615be5dfc"
+    },
+    {
+      "bytes": 721,
+      "kind": "text",
+      "path": "CREBAIN_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/PACKAGE_VALIDATION_REPORT.md",
+      "sha256": "04be29952051aab14c6b56d9798a6cb7d4b24fb525420d8cf5cf200917235bb7"
+    },
+    {
+      "bytes": 1780,
+      "kind": "text",
+      "path": "CREBAIN_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/README_FIRST.md",
+      "sha256": "dacf4b1fd7ad9e1a9302f97842eab80495b3e240c88084dd595240a67561d2b2"
+    },
+    {
+      "bytes": 876,
+      "kind": "json",
+      "path": "CREBAIN_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/RELEASE_MANIFEST_TEMPLATE.json",
+      "sha256": "ab70d25acba7d2d587f10f556cd9f698ca218237ea4ea7e2e423f72fb7176f74"
+    },
+    {
+      "bytes": 2083,
+      "kind": "text",
+      "path": "CREBAIN_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/SHA256SUMS.txt",
+      "sha256": "2dbf9221dfdd69ac4254d022e28dc282e6356a067d03a9be20f92b52fb82c2a6"
+    },
+    {
+      "bytes": 810,
+      "kind": "text",
+      "path": "CREBAIN_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/SUBAGENT_ASSIGNMENT_TEMPLATE.md",
+      "sha256": "d1b7c094582cb0a5ce8f1c9538032a1e6379c2042c7c164731bd64e1c5aa5c1e"
+    },
+    {
+      "bytes": 2859,
+      "kind": "text",
+      "path": "CREBAIN_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/THREAT_MISUSE_FAILURE_MODEL.md",
+      "sha256": "cf0cb551c79a6479cb31d2f4c0f582a1995c3d94c1f67298bb3d3d8079c5bad8"
+    },
+    {
+      "bytes": 8424,
+      "kind": "text",
+      "path": "CREBAIN_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/WAVE_EXECUTION_PLAN.md",
+      "sha256": "fa7feb5d2375e82c8f75f491c0384994fe4315f85f8f698e322d68d88649dd43"
+    },
+    {
+      "bytes": 271,
+      "kind": "text",
+      "path": "CREBAIN_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/README.md",
+      "sha256": "ad3ff80199eb3128192ce127b14e9f99594fcc5865ca49a683de23ca7a761a73"
+    },
+    {
+      "bytes": 2763,
+      "kind": "opaque",
+      "path": "CREBAIN_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/audit_tracked_files.py",
+      "sha256": "7cb7d510858c328cc485d9b8fa9ad849ec256e8db062303999c84049be9c5e51"
+    },
+    {
+      "bytes": 615,
+      "kind": "opaque",
+      "path": "CREBAIN_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/check_frozen_head.py",
+      "sha256": "337eb4c9a3d18ec99f804d35787874cabf02f85e8be90edb8cfd905359e5e72e"
+    },
+    {
+      "bytes": 931,
+      "kind": "opaque",
+      "path": "CREBAIN_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/make_review_packets.py",
+      "sha256": "465aefb74736beb044ff9fe2d961856ad83cae3d7d969069da23f4f817495ce7"
+    },
+    {
+      "bytes": 1030,
+      "kind": "opaque",
+      "path": "CREBAIN_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/scan_claim_language.py",
+      "sha256": "25c200dfaf91aac83cca25d5cd637921d0ad6d4e336118f5ad46bc9fe6e01618"
+    },
+    {
+      "bytes": 724,
+      "kind": "opaque",
+      "path": "CREBAIN_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/verify_evidence_manifest.py",
+      "sha256": "6aed5efe80782049c7ccc20a744c4f4f64bb683eb6858198fa4c51353a01ca3d"
+    },
+    {
+      "bytes": 48217,
+      "kind": "zip-archive",
+      "path": "CREBAIN_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF.zip",
+      "regular_members": 23,
+      "sha256": "c7c8a342e5a4b94c2d4c411299c63ed1c01163acff847d9bf7389ed8ea8c052a"
+    },
+    {
+      "bytes": 402,
+      "kind": "json",
+      "path": "CURRENT_HEADS.json",
+      "sha256": "dc393b47bac804fa9dd47215e6eced584d0b6863cf57b383ff5957bcbae4bbf6"
+    },
+    {
+      "bytes": 6619,
+      "kind": "text",
+      "path": "GALADRIEL_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/ADVERSARIAL_20_LENS_STANDARD.md",
+      "sha256": "c1b951cb40a3fc1108abb243518c4df865e8e2163578b5a84a4b8fb10ab1d87e"
+    },
+    {
+      "bytes": 1601,
+      "kind": "text",
+      "path": "GALADRIEL_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/CLAIM_EVIDENCE_MATRIX.md",
+      "sha256": "6057235fb7ff740d48570a7773e20a1a4737c37f4419788ee0e179f51fb124ce"
+    },
+    {
+      "bytes": 585,
+      "kind": "json",
+      "path": "GALADRIEL_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/CURRENT_AUDIT_CUT.json",
+      "sha256": "7602d01676d56181e8351289ca7b1674a85390807803a8ca2a68e134d504806a"
+    },
+    {
+      "bytes": 2727,
+      "kind": "text",
+      "path": "GALADRIEL_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/CURRENT_STATE_AND_CRITICAL_FINDINGS.md",
+      "sha256": "fb810b07a8c46d2896b03e74d368a9c32c865dc5a05393ceef8bfb96479effe9"
+    },
+    {
+      "bytes": 1126,
+      "kind": "text",
+      "path": "GALADRIEL_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/GO_NO_GO_CHECKLIST.md",
+      "sha256": "201f3540109d55b9661c887bddd011aad7ec9d455ef2900651112fa07e143fdf"
+    },
+    {
+      "bytes": 3511,
+      "kind": "text",
+      "path": "GALADRIEL_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/LANGUAGE_SPECIFIC_REVIEW.md",
+      "sha256": "42e624f7769d2eb5b7924a5a86b5714c3d02dfaff7ac47dd24d46907750cc8f3"
+    },
+    {
+      "bytes": 1418,
+      "kind": "json",
+      "path": "GALADRIEL_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/LOCAL_CONVERGENCE_SCHEMA.json",
+      "sha256": "b21696e1d0fcccf1ee7f4fc8a96256950c3c137f9215eb74eb0771c393bdfb61"
+    },
+    {
+      "bytes": 6239,
+      "kind": "text",
+      "path": "GALADRIEL_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/MANDATORY_LINE_BY_LINE_AUDIT.md",
+      "sha256": "d2efb82fe842f53d66b2b5d7f18aa47c94b441bf43b934e7e96a249105e392fd"
+    },
+    {
+      "bytes": 946424,
+      "kind": "text",
+      "path": "GALADRIEL_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/MASTER_TASK_LEDGER.yaml",
+      "sha256": "b7477290a798feaa00d636ef602e0c09f07d953fd556135478334994f0a03721"
+    },
+    {
+      "bytes": 1982,
+      "kind": "text",
+      "path": "GALADRIEL_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/NORMATIVE_ARCHITECTURE.md",
+      "sha256": "7355ccf10ac224d2986425e945ebad0535f22991360143485416ec69e0200e22"
+    },
+    {
+      "bytes": 723,
+      "kind": "text",
+      "path": "GALADRIEL_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/PACKAGE_VALIDATION_REPORT.md",
+      "sha256": "22106495c8b418daf2451bfc72a84ff02c53b011a7ad568cd3fe101d2adcec3b"
+    },
+    {
+      "bytes": 1784,
+      "kind": "text",
+      "path": "GALADRIEL_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/README_FIRST.md",
+      "sha256": "8661c61bf9a59957251470da4ad1bf3df2ef0df499fcf754ff05112e0910f85f"
+    },
+    {
+      "bytes": 880,
+      "kind": "json",
+      "path": "GALADRIEL_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/RELEASE_MANIFEST_TEMPLATE.json",
+      "sha256": "60d79da4af3a6a19c9e6f4009dc6be987c1e4534d9548eb52dc394f28e8160da"
+    },
+    {
+      "bytes": 2083,
+      "kind": "text",
+      "path": "GALADRIEL_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/SHA256SUMS.txt",
+      "sha256": "134a782d3baa88ec1d76c3fdf785d502b63869e7e2d8b3762c5fc5265b117b5d"
+    },
+    {
+      "bytes": 816,
+      "kind": "text",
+      "path": "GALADRIEL_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/SUBAGENT_ASSIGNMENT_TEMPLATE.md",
+      "sha256": "4a8e60ddac736a53c135265e032d40473c088c3922568157460de57f9ca9eeb5"
+    },
+    {
+      "bytes": 2822,
+      "kind": "text",
+      "path": "GALADRIEL_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/THREAT_MISUSE_FAILURE_MODEL.md",
+      "sha256": "8594a11b708c6f0c7e262acc2d3e87f7821aedc03598ed4f0c5207fa9facd570"
+    },
+    {
+      "bytes": 8168,
+      "kind": "text",
+      "path": "GALADRIEL_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/WAVE_EXECUTION_PLAN.md",
+      "sha256": "58333e6f43e83d6b206335acd1f4d59c624dfb7a23d33b46e066dfc46fe29f54"
+    },
+    {
+      "bytes": 273,
+      "kind": "text",
+      "path": "GALADRIEL_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/README.md",
+      "sha256": "55bf311352cdbef4000a1ba089b750bac1674eb01add217512b9230b397acb77"
+    },
+    {
+      "bytes": 2763,
+      "kind": "opaque",
+      "path": "GALADRIEL_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/audit_tracked_files.py",
+      "sha256": "7cb7d510858c328cc485d9b8fa9ad849ec256e8db062303999c84049be9c5e51"
+    },
+    {
+      "bytes": 615,
+      "kind": "opaque",
+      "path": "GALADRIEL_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/check_frozen_head.py",
+      "sha256": "337eb4c9a3d18ec99f804d35787874cabf02f85e8be90edb8cfd905359e5e72e"
+    },
+    {
+      "bytes": 931,
+      "kind": "opaque",
+      "path": "GALADRIEL_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/make_review_packets.py",
+      "sha256": "465aefb74736beb044ff9fe2d961856ad83cae3d7d969069da23f4f817495ce7"
+    },
+    {
+      "bytes": 1030,
+      "kind": "opaque",
+      "path": "GALADRIEL_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/scan_claim_language.py",
+      "sha256": "25c200dfaf91aac83cca25d5cd637921d0ad6d4e336118f5ad46bc9fe6e01618"
+    },
+    {
+      "bytes": 724,
+      "kind": "opaque",
+      "path": "GALADRIEL_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/verify_evidence_manifest.py",
+      "sha256": "6aed5efe80782049c7ccc20a744c4f4f64bb683eb6858198fa4c51353a01ca3d"
+    },
+    {
+      "bytes": 42255,
+      "kind": "zip-archive",
+      "path": "GALADRIEL_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF.zip",
+      "regular_members": 23,
+      "sha256": "41bd414e38e7f46a0417005d59e2b0c0eb5e139ec38cce632e006b60a750cd94"
+    },
+    {
+      "bytes": 6619,
+      "kind": "text",
+      "path": "HALDIR_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/ADVERSARIAL_20_LENS_STANDARD.md",
+      "sha256": "c1b951cb40a3fc1108abb243518c4df865e8e2163578b5a84a4b8fb10ab1d87e"
+    },
+    {
+      "bytes": 1598,
+      "kind": "text",
+      "path": "HALDIR_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/CLAIM_EVIDENCE_MATRIX.md",
+      "sha256": "9b681868fe3b6f94ab7ee3b91979f3f7d33ccfa0a3481c1b6fff29e16afccdd3"
+    },
+    {
+      "bytes": 582,
+      "kind": "json",
+      "path": "HALDIR_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/CURRENT_AUDIT_CUT.json",
+      "sha256": "b77dcffa56ec0eb0f80fbbd29ff6f7c98ebf8b894e23393f67685b952af80ca6"
+    },
+    {
+      "bytes": 2672,
+      "kind": "text",
+      "path": "HALDIR_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/CURRENT_STATE_AND_CRITICAL_FINDINGS.md",
+      "sha256": "f96659b5cdffd8448bdd2d0a5438422539212cb3661bd50792326c7222cbadd0"
+    },
+    {
+      "bytes": 1123,
+      "kind": "text",
+      "path": "HALDIR_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/GO_NO_GO_CHECKLIST.md",
+      "sha256": "e4bd837c5d9e1bd4638a6c7f604cc0b0d0b38dde484dcc5b05e35cc58d1a2189"
+    },
+    {
+      "bytes": 3511,
+      "kind": "text",
+      "path": "HALDIR_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/LANGUAGE_SPECIFIC_REVIEW.md",
+      "sha256": "42e624f7769d2eb5b7924a5a86b5714c3d02dfaff7ac47dd24d46907750cc8f3"
+    },
+    {
+      "bytes": 1415,
+      "kind": "json",
+      "path": "HALDIR_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/LOCAL_CONVERGENCE_SCHEMA.json",
+      "sha256": "daf72faee340176fd888f414d5c44767e951673052d742edac3e87a10980acf2"
+    },
+    {
+      "bytes": 6478,
+      "kind": "text",
+      "path": "HALDIR_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/MANDATORY_LINE_BY_LINE_AUDIT.md",
+      "sha256": "ce71372f1067d046884ab34df8d50b2944981f7cfdb09f98002956fd76c0c28b"
+    },
+    {
+      "bytes": 1027512,
+      "kind": "text",
+      "path": "HALDIR_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/MASTER_TASK_LEDGER.yaml",
+      "sha256": "891601e322f453499fc7a3375728d43f7cfb0eaa193be5b96b1a5d6c7aae0f40"
+    },
+    {
+      "bytes": 1979,
+      "kind": "text",
+      "path": "HALDIR_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/NORMATIVE_ARCHITECTURE.md",
+      "sha256": "d8a11d6b5c1883f7f139f5bf820ed72b3b9eff232074949394af12e837a1c275"
+    },
+    {
+      "bytes": 720,
+      "kind": "text",
+      "path": "HALDIR_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/PACKAGE_VALIDATION_REPORT.md",
+      "sha256": "ee7a58e59daa38c4108960b33024f9505d5f69d0b3d62c385cb2ec6ac19b5e09"
+    },
+    {
+      "bytes": 1778,
+      "kind": "text",
+      "path": "HALDIR_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/README_FIRST.md",
+      "sha256": "bf1d3ea1d830d60a5e8ea9d41b32e5845748165a28d124e52497610b8c3e6f47"
+    },
+    {
+      "bytes": 874,
+      "kind": "json",
+      "path": "HALDIR_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/RELEASE_MANIFEST_TEMPLATE.json",
+      "sha256": "b8d294732106a5e671d2c58324ab1773147939a92b3a3c5e801a6df0c666af77"
+    },
+    {
+      "bytes": 2083,
+      "kind": "text",
+      "path": "HALDIR_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/SHA256SUMS.txt",
+      "sha256": "5ed07cc488640d512342c8b3adc1feeda523f897f5f9734cdf62441766d216b0"
+    },
+    {
+      "bytes": 807,
+      "kind": "text",
+      "path": "HALDIR_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/SUBAGENT_ASSIGNMENT_TEMPLATE.md",
+      "sha256": "004b87bcfd1f63c1c3384296f2f765a05140640e9990eb7ac8d9032aa4d12452"
+    },
+    {
+      "bytes": 2694,
+      "kind": "text",
+      "path": "HALDIR_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/THREAT_MISUSE_FAILURE_MODEL.md",
+      "sha256": "34ea37d5dece3b3d68abffb14258a73acd1e378d6ba66743aac6afa6cdfe1a5f"
+    },
+    {
+      "bytes": 8225,
+      "kind": "text",
+      "path": "HALDIR_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/WAVE_EXECUTION_PLAN.md",
+      "sha256": "1a32b523eca100ab5c7d960eb907a1f9c42c977c2a7adf9ed13b4be94ee43fa6"
+    },
+    {
+      "bytes": 270,
+      "kind": "text",
+      "path": "HALDIR_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/README.md",
+      "sha256": "61eb8fe819b4c8f2678df3dbcc56c0e8406a65490aaa4f55f3eeb5493d38df5d"
+    },
+    {
+      "bytes": 2763,
+      "kind": "opaque",
+      "path": "HALDIR_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/audit_tracked_files.py",
+      "sha256": "7cb7d510858c328cc485d9b8fa9ad849ec256e8db062303999c84049be9c5e51"
+    },
+    {
+      "bytes": 615,
+      "kind": "opaque",
+      "path": "HALDIR_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/check_frozen_head.py",
+      "sha256": "337eb4c9a3d18ec99f804d35787874cabf02f85e8be90edb8cfd905359e5e72e"
+    },
+    {
+      "bytes": 931,
+      "kind": "opaque",
+      "path": "HALDIR_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/make_review_packets.py",
+      "sha256": "465aefb74736beb044ff9fe2d961856ad83cae3d7d969069da23f4f817495ce7"
+    },
+    {
+      "bytes": 1030,
+      "kind": "opaque",
+      "path": "HALDIR_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/scan_claim_language.py",
+      "sha256": "25c200dfaf91aac83cca25d5cd637921d0ad6d4e336118f5ad46bc9fe6e01618"
+    },
+    {
+      "bytes": 724,
+      "kind": "opaque",
+      "path": "HALDIR_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/verify_evidence_manifest.py",
+      "sha256": "6aed5efe80782049c7ccc20a744c4f4f64bb683eb6858198fa4c51353a01ca3d"
+    },
+    {
+      "bytes": 43202,
+      "kind": "zip-archive",
+      "path": "HALDIR_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF.zip",
+      "regular_members": 23,
+      "sha256": "1de5cfc2a577621c24ef10e97fd2319799d02b602cfb3de54954928a0d988efe"
+    },
+    {
+      "bytes": 1356,
+      "kind": "text",
+      "path": "MASTER_SHA256SUMS.txt",
+      "sha256": "0d4d1c19600bd8e5d930cb269fcaa204e80e9728914572664af7961566d3ba57"
+    },
+    {
+      "bytes": 1240,
+      "kind": "text",
+      "path": "MASTER_VALIDATION_REPORT.md",
+      "sha256": "e693dafd3d53ab031b499f358e3a680a5d2c5fd538023e83fd935f5fd020c777"
+    },
+    {
+      "bytes": 6619,
+      "kind": "text",
+      "path": "NCP_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/ADVERSARIAL_20_LENS_STANDARD.md",
+      "sha256": "c1b951cb40a3fc1108abb243518c4df865e8e2163578b5a84a4b8fb10ab1d87e"
+    },
+    {
+      "bytes": 1595,
+      "kind": "text",
+      "path": "NCP_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/CLAIM_EVIDENCE_MATRIX.md",
+      "sha256": "b1e85edeb27c3e255a966c64cb9422ceb34b9b6353913000baa8ac6abd6e10fe"
+    },
+    {
+      "bytes": 579,
+      "kind": "json",
+      "path": "NCP_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/CURRENT_AUDIT_CUT.json",
+      "sha256": "d27087951b45987f4744b8ca33e9b00b1795a1eb4063b97f458dc0c4064d9f56"
+    },
+    {
+      "bytes": 2740,
+      "kind": "text",
+      "path": "NCP_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/CURRENT_STATE_AND_CRITICAL_FINDINGS.md",
+      "sha256": "d90cf2402414c3866a107ffc844c5bc21b2ab78f321d96d855025ad4deef4837"
+    },
+    {
+      "bytes": 1120,
+      "kind": "text",
+      "path": "NCP_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/GO_NO_GO_CHECKLIST.md",
+      "sha256": "83eb026dac0453a13f71751bed9b8198c49d61898055ca76d9a7c2f2477937b3"
+    },
+    {
+      "bytes": 3511,
+      "kind": "text",
+      "path": "NCP_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/LANGUAGE_SPECIFIC_REVIEW.md",
+      "sha256": "42e624f7769d2eb5b7924a5a86b5714c3d02dfaff7ac47dd24d46907750cc8f3"
+    },
+    {
+      "bytes": 1412,
+      "kind": "json",
+      "path": "NCP_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/LOCAL_CONVERGENCE_SCHEMA.json",
+      "sha256": "61b9f7e7fe442c51d23b32da33419cfbaa36a47b86ae6adb7a06144ad9a25ec6"
+    },
+    {
+      "bytes": 7515,
+      "kind": "text",
+      "path": "NCP_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/MANDATORY_LINE_BY_LINE_AUDIT.md",
+      "sha256": "777799108447f33ba07b1e33676432432d35a61e42fdc98b4076626dd47f8040"
+    },
+    {
+      "bytes": 1190928,
+      "kind": "text",
+      "path": "NCP_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/MASTER_TASK_LEDGER.yaml",
+      "sha256": "9a411e41f1e44324311316af20404632b085b167e70eff1914aaff02ce65e947"
+    },
+    {
+      "bytes": 1976,
+      "kind": "text",
+      "path": "NCP_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/NORMATIVE_ARCHITECTURE.md",
+      "sha256": "ee85d680d8ea3c6e01561523f8cd67da6fc0b0e45b8f0475c239b39d7ead185a"
+    },
+    {
+      "bytes": 717,
+      "kind": "text",
+      "path": "NCP_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/PACKAGE_VALIDATION_REPORT.md",
+      "sha256": "9cbfd4327f7254f84523cf0c9d9a49e031385a10a2170048fe95086b8f31a31e"
+    },
+    {
+      "bytes": 1772,
+      "kind": "text",
+      "path": "NCP_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/README_FIRST.md",
+      "sha256": "18c5e32f8979c3cd6218da9331485937467ceac6f874047446689e0c8fa0efc2"
+    },
+    {
+      "bytes": 868,
+      "kind": "json",
+      "path": "NCP_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/RELEASE_MANIFEST_TEMPLATE.json",
+      "sha256": "90909bde389b405bd7119cd1a7e6a4ba3c86e4f2feeacbe7d79a0c903111f634"
+    },
+    {
+      "bytes": 2083,
+      "kind": "text",
+      "path": "NCP_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/SHA256SUMS.txt",
+      "sha256": "de453c9b98d3f543c5eb3abe8b45343d0fc6be2701cf99e7d53c65585c209031"
+    },
+    {
+      "bytes": 798,
+      "kind": "text",
+      "path": "NCP_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/SUBAGENT_ASSIGNMENT_TEMPLATE.md",
+      "sha256": "c8f887b0c70b13f201481364fd63565f191f4c134c05367509b3dc6383f1fcb2"
+    },
+    {
+      "bytes": 2835,
+      "kind": "text",
+      "path": "NCP_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/THREAT_MISUSE_FAILURE_MODEL.md",
+      "sha256": "e0e6c81f801029bdb68a185a7593828b4bfe90f273685ea7f23e312e0c0f74d1"
+    },
+    {
+      "bytes": 8342,
+      "kind": "text",
+      "path": "NCP_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/WAVE_EXECUTION_PLAN.md",
+      "sha256": "dfde37a26a2b554b3c0b983fab524e5f0034d877616e2185b7e1995d620c68f0"
+    },
+    {
+      "bytes": 267,
+      "kind": "text",
+      "path": "NCP_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/README.md",
+      "sha256": "2861c226b2f11af66aa62d00d193b4c4322b052c815e3721cba6723710fa690a"
+    },
+    {
+      "bytes": 2763,
+      "kind": "opaque",
+      "path": "NCP_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/audit_tracked_files.py",
+      "sha256": "7cb7d510858c328cc485d9b8fa9ad849ec256e8db062303999c84049be9c5e51"
+    },
+    {
+      "bytes": 615,
+      "kind": "opaque",
+      "path": "NCP_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/check_frozen_head.py",
+      "sha256": "337eb4c9a3d18ec99f804d35787874cabf02f85e8be90edb8cfd905359e5e72e"
+    },
+    {
+      "bytes": 931,
+      "kind": "opaque",
+      "path": "NCP_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/make_review_packets.py",
+      "sha256": "465aefb74736beb044ff9fe2d961856ad83cae3d7d969069da23f4f817495ce7"
+    },
+    {
+      "bytes": 1030,
+      "kind": "opaque",
+      "path": "NCP_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/scan_claim_language.py",
+      "sha256": "25c200dfaf91aac83cca25d5cd637921d0ad6d4e336118f5ad46bc9fe6e01618"
+    },
+    {
+      "bytes": 724,
+      "kind": "opaque",
+      "path": "NCP_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/verify_evidence_manifest.py",
+      "sha256": "6aed5efe80782049c7ccc20a744c4f4f64bb683eb6858198fa4c51353a01ca3d"
+    },
+    {
+      "bytes": 46369,
+      "kind": "zip-archive",
+      "path": "NCP_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF.zip",
+      "regular_members": 23,
+      "sha256": "661c5a9bd6a62a8a973bc953fd45ba1a58d44592985c871fc6b039c9cbdd333b"
+    },
+    {
+      "bytes": 1345,
+      "kind": "json",
+      "path": "PACKAGE_INDEX.json",
+      "sha256": "cec6b200866b0a34473c4429c74137c87790c1fe073a19453ed79e147e32411d"
+    },
+    {
+      "bytes": 6619,
+      "kind": "text",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/ADVERSARIAL_20_LENS_STANDARD.md",
+      "sha256": "c1b951cb40a3fc1108abb243518c4df865e8e2163578b5a84a4b8fb10ab1d87e"
+    },
+    {
+      "bytes": 1723,
+      "kind": "text",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/ASSUMPTION_GAP_AND_EXPERIMENTAL_REGISTER.md",
+      "sha256": "dea742d00165a329ad36c28e73e9ed390a7c0cf47a69d04b5ea51a58ba507625"
+    },
+    {
+      "bytes": 3415,
+      "kind": "text",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/BLIND_HOLDOUT_PROTOCOL.md",
+      "sha256": "2bca1b264372f05843418d3253617bc8810064c660d5690f80c5d8d2244ab81c"
+    },
+    {
+      "bytes": 1598,
+      "kind": "text",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/CLAIM_EVIDENCE_MATRIX.md",
+      "sha256": "945317c18278c460a1b3b22cd1a92469762e372f4ac21350b42f43a751047519"
+    },
+    {
+      "bytes": 582,
+      "kind": "json",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/CURRENT_AUDIT_CUT.json",
+      "sha256": "f4a4e049ac892b5ed5239a0780f2cc40c77f8a7b595f3669adb699cd89912bfc"
+    },
+    {
+      "bytes": 3435,
+      "kind": "text",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/CURRENT_STATE_AND_CRITICAL_FINDINGS.md",
+      "sha256": "4a0a851d5d22ca6c486306d04fdbea5e471eab98ed96d80f2352a1e8f6124ac0"
+    },
+    {
+      "bytes": 1973,
+      "kind": "text",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/FORMAL_ASSURANCE_MATRIX.csv",
+      "sha256": "8a74741bff270660eaf3a29556d0ba652cf2e9cc748445deeaf78e957c3f2f11"
+    },
+    {
+      "bytes": 6417,
+      "kind": "text",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/FORMAL_ASSURANCE_PROGRAM.md",
+      "sha256": "297da2150c5b5ef01bffb9aaf1f360b1207c1c46094e7709547676bc9d4b0ac0"
+    },
+    {
+      "bytes": 1123,
+      "kind": "text",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/GO_NO_GO_CHECKLIST.md",
+      "sha256": "2bb9d37602e2649dcc4412229299e3603a219f9cfa3d2a413a8fa82dd0e12fc5"
+    },
+    {
+      "bytes": 3511,
+      "kind": "text",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/LANGUAGE_SPECIFIC_REVIEW.md",
+      "sha256": "42e624f7769d2eb5b7924a5a86b5714c3d02dfaff7ac47dd24d46907750cc8f3"
+    },
+    {
+      "bytes": 1415,
+      "kind": "json",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/LOCAL_CONVERGENCE_SCHEMA.json",
+      "sha256": "210ff4545e9e484378ea91c84cd7ab1a18b6961331f3373008860d35255aaf40"
+    },
+    {
+      "bytes": 8157,
+      "kind": "text",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/MANDATORY_LINE_BY_LINE_AUDIT.md",
+      "sha256": "f3cb157f57c9ff008c4c6f1acd72641816961924c0cfebbd9859ac3c1cdd3290"
+    },
+    {
+      "bytes": 1301620,
+      "kind": "text",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/MASTER_TASK_LEDGER.yaml",
+      "sha256": "d1a03ea81d2dcb2a99f58c19c292bdcd62c5164273eea0e41704bfed21ed8b8d"
+    },
+    {
+      "bytes": 1979,
+      "kind": "text",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/NORMATIVE_ARCHITECTURE.md",
+      "sha256": "f699a0fa65fc76366ccd766ede28d467d8061aa0717f463f53acd4de548ee23f"
+    },
+    {
+      "bytes": 1106,
+      "kind": "text",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/PACKAGE_VALIDATION_REPORT.md",
+      "sha256": "8dc4295d1e2d0ce7dc303d86383e0408e082ca6e6fd38e0927128e03f658aebb"
+    },
+    {
+      "bytes": 2020,
+      "kind": "text",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/README_FIRST.md",
+      "sha256": "32464ab4b50e5c4e13895a8a1ae784eb38884203e26b0bd113f2d785dd6dd4d3"
+    },
+    {
+      "bytes": 874,
+      "kind": "json",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/RELEASE_MANIFEST_TEMPLATE.json",
+      "sha256": "bb6da01eeabf3b36403d0bd0460a3ef76beccab29a9e00f7549f536dec7f5d3c"
+    },
+    {
+      "bytes": 956,
+      "kind": "json",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/REPO_WORK_SELF_CHECK_REPORT.json",
+      "sha256": "12c5d165af423520fa6a4ed9cf3051663cbc34314356973cc0daafb16e039251"
+    },
+    {
+      "bytes": 4583,
+      "kind": "text",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/SHA256SUMS.txt",
+      "sha256": "d510728e286cbb0bd15357c53c7b75a2ea70b15981df4c9312379808f2723bb1"
+    },
+    {
+      "bytes": 807,
+      "kind": "text",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/SUBAGENT_ASSIGNMENT_TEMPLATE.md",
+      "sha256": "58101aaec859e8d91a1a1b2cc0675d79a5aadb7b7e4eb935af41c495f5fbb64c"
+    },
+    {
+      "bytes": 2309,
+      "kind": "text",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/SUPERVISOR_REVIEW_PACKET.md",
+      "sha256": "e80edd574439bf83d470e7907f0d7e84f7e46e816bb214182ab41b738ead2791"
+    },
+    {
+      "bytes": 6035,
+      "kind": "text",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/THEORY_AND_VIVA_DOSSIER.md",
+      "sha256": "5b91d5f5ed649f65b4a4da971b0e4aff7c5466b053c8a0d14284eb983f3a45d0"
+    },
+    {
+      "bytes": 3394,
+      "kind": "text",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/THREAT_MISUSE_FAILURE_MODEL.md",
+      "sha256": "c0ee5e3f227c38bcbbe2c67dc8913aa938507230d1ee816db1f5c1eccb9b6702"
+    },
+    {
+      "bytes": 8423,
+      "kind": "text",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/WAVE_EXECUTION_PLAN.md",
+      "sha256": "4c51db2181f0d9542959eb2b8df0ad222fd99d56988c4f4df15cf7da0f5d48c4"
+    },
+    {
+      "bytes": 270,
+      "kind": "text",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/README.md",
+      "sha256": "aa1a5223d70b46c11229642044f06d50c56c06a543aa118d503e0b1bd12db057"
+    },
+    {
+      "bytes": 2763,
+      "kind": "opaque",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/audit_tracked_files.py",
+      "sha256": "7cb7d510858c328cc485d9b8fa9ad849ec256e8db062303999c84049be9c5e51"
+    },
+    {
+      "bytes": 615,
+      "kind": "opaque",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/check_frozen_head.py",
+      "sha256": "337eb4c9a3d18ec99f804d35787874cabf02f85e8be90edb8cfd905359e5e72e"
+    },
+    {
+      "bytes": 448,
+      "kind": "opaque",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/lean/PidFormal/Pid2.lean",
+      "sha256": "db6b333161f9ee1918ff59cd3b8cbedda1ab1d9350edc76a3c8689e904c3a3fe"
+    },
+    {
+      "bytes": 22,
+      "kind": "opaque",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/lean/PidFormal.lean",
+      "sha256": "3866454b61e61af6c219488991d7a3d3a01288ba7f0abdc13d3db2eccbc22aa4"
+    },
+    {
+      "bytes": 533,
+      "kind": "text",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/lean/README.md",
+      "sha256": "78d7ca2002e42de67b6b9a42f42afabd20fefb0ec4546e50432f47de005eeb37"
+    },
+    {
+      "bytes": 183,
+      "kind": "opaque",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/lean/lakefile.lean",
+      "sha256": "1b8223d1f50d80a81878369c648a93b5c33379fbff02bf727e2a16c4c2b3690d"
+    },
+    {
+      "bytes": 25,
+      "kind": "opaque",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/lean/lean-toolchain",
+      "sha256": "2773c517aa90b66ea8a2c52bddddf84393157797f8341be0df45294fff7fd32e"
+    },
+    {
+      "bytes": 931,
+      "kind": "opaque",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/make_review_packets.py",
+      "sha256": "465aefb74736beb044ff9fe2d961856ad83cae3d7d969069da23f4f817495ce7"
+    },
+    {
+      "bytes": 429,
+      "kind": "opaque",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/pid_oracle/.hypothesis/.gitignore",
+      "sha256": "41e7ed0dbc23047cfa33374b5909f7b3c7875663fec73abdd23a22518567754a"
+    },
+    {
+      "bytes": 294,
+      "kind": "opaque",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/pid_oracle/.hypothesis/constants/15af728daf1f26ae",
+      "sha256": "c88d86f926aa6bb232b6049cee23145ef6433c2813e49216cbe08d54c15b5efc"
+    },
+    {
+      "bytes": 314,
+      "kind": "opaque",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/pid_oracle/.hypothesis/constants/93c6924a3f51198f",
+      "sha256": "3524035caefecf1ab3b875c50585d2b88c3e1effd2985bbf023d490446dc9e18"
+    },
+    {
+      "bytes": 100,
+      "kind": "opaque",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/pid_oracle/.hypothesis/constants/e68e8e13ad6502ae",
+      "sha256": "1f9d3d559a9af3abe6f7b84a3cad300ab57ca1c2c670693bd45366a0a6929e61"
+    },
+    {
+      "bytes": 4388,
+      "kind": "opaque",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/pid_oracle/blind_suite.py",
+      "sha256": "8e521db2b9c95d33eb7fd33468d6ecc71abe85c82a94785f3ee75b492e08e307"
+    },
+    {
+      "bytes": 1885,
+      "kind": "opaque",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/pid_oracle/formal_pid2_z3.py",
+      "sha256": "d1c1dcbcd3d0930ab37b583264f35e8b61ba567eabecd4678591590a37b0195e"
+    },
+    {
+      "bytes": 3702,
+      "kind": "opaque",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/pid_oracle/information_oracle.py",
+      "sha256": "1fbd0f26632d070081cfdb5ffcfaf5dc5014108308033ff8675279e0e7129223"
+    },
+    {
+      "bytes": 2445,
+      "kind": "opaque",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/pid_oracle/metamorphic_checks.py",
+      "sha256": "fa19999d3f2eb86ce12905c496843b79023986dd7d3491ac68bb23b86326e00c"
+    },
+    {
+      "bytes": 1561,
+      "kind": "opaque",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/pid_oracle/run_self_checks.py",
+      "sha256": "e01e8e9bc326620ce05381f1191db1983d9abcce34544cc68945057ba09491f5"
+    },
+    {
+      "bytes": 956,
+      "kind": "json",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/pid_oracle/self_check_report.json",
+      "sha256": "12c5d165af423520fa6a4ed9cf3051663cbc34314356973cc0daafb16e039251"
+    },
+    {
+      "bytes": 316,
+      "kind": "text",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/rust_verification/README.md",
+      "sha256": "e941fdf94ed75d1c26caf8077d6d481ce5d9c43a120c0a1e766a1e1500892b22"
+    },
+    {
+      "bytes": 729,
+      "kind": "opaque",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/rust_verification/kani_harnesses.rs",
+      "sha256": "f1767b75d41c0d5e24fb028b409a8572ddf078397b450a92d8ef05e315246014"
+    },
+    {
+      "bytes": 1030,
+      "kind": "opaque",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/scan_claim_language.py",
+      "sha256": "25c200dfaf91aac83cca25d5cd637921d0ad6d4e336118f5ad46bc9fe6e01618"
+    },
+    {
+      "bytes": 724,
+      "kind": "opaque",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF/repo_work/verify_evidence_manifest.py",
+      "sha256": "6aed5efe80782049c7ccc20a744c4f4f64bb683eb6858198fa4c51353a01ca3d"
+    },
+    {
+      "bytes": 73896,
+      "kind": "zip-archive",
+      "path": "PID_RS_V1_0_CURRENT_HEAD_MAX_EFFORT_HANDOFF.zip",
+      "regular_members": 47,
+      "sha256": "9fcdcaf1e5254942c8dbdf4cea3890f6a858674bd6fd613b14f353b2a60e4730"
+    },
+    {
+      "bytes": 3978,
+      "kind": "text",
+      "path": "PREVIOUS_HANDOFF_DEFECTS_AND_CORRECTIONS.md",
+      "sha256": "7d604e2a5eb44a358197b6df813a3b862ff7243685fab8a9d46d30cd0d52a8a4"
+    },
+    {
+      "bytes": 2473,
+      "kind": "text",
+      "path": "README_FIRST.md",
+      "sha256": "6d80a3d1742849e90fa86d6f65d3deb5b71a8d0b290f29bff5688050afa900b7"
+    },
+    {
+      "bytes": 552,
+      "kind": "text",
+      "path": "SEPAHEAD_V1_0_CURRENT_HEAD_CROSS_REPO_RECONCILIATION_HANDOFF/ADVERSARIAL_CAMPAIGN.md",
+      "sha256": "6a9963df9ad49a47cdfd61aa51f95a642644e797af6eafe7d8238ab6fcfdd5cc"
+    },
+    {
+      "bytes": 385,
+      "kind": "text",
+      "path": "SEPAHEAD_V1_0_CURRENT_HEAD_CROSS_REPO_RECONCILIATION_HANDOFF/CHANGE_REQUEST_TEMPLATE.md",
+      "sha256": "8b2f432c89e11c79ab046c51685b2791c47c682f170e40c1eedfe1e96f59d9d4"
+    },
+    {
+      "bytes": 252,
+      "kind": "text",
+      "path": "SEPAHEAD_V1_0_CURRENT_HEAD_CROSS_REPO_RECONCILIATION_HANDOFF/COMPATIBILITY_MATRIX_TEMPLATE.csv",
+      "sha256": "9eecb5cf15c86de90aec79ebd764a41399c5bd50f0735b2cc80c25cfeb5ab830"
+    },
+    {
+      "bytes": 1011,
+      "kind": "json",
+      "path": "SEPAHEAD_V1_0_CURRENT_HEAD_CROSS_REPO_RECONCILIATION_HANDOFF/CONTRACT_IDENTITY_SCHEMA.json",
+      "sha256": "18af3d7325db77839c47d8e3b38a42570b8e78d56ae7270cf20cf77a1659f815"
+    },
+    {
+      "bytes": 195760,
+      "kind": "text",
+      "path": "SEPAHEAD_V1_0_CURRENT_HEAD_CROSS_REPO_RECONCILIATION_HANDOFF/CROSS_REPO_TASK_LEDGER.yaml",
+      "sha256": "807d9e2087e932725513dba0eb0d9de252fed85fcce6b75d0121f252fd08f582"
+    },
+    {
+      "bytes": 401,
+      "kind": "json",
+      "path": "SEPAHEAD_V1_0_CURRENT_HEAD_CROSS_REPO_RECONCILIATION_HANDOFF/CURRENT_HEADS.json",
+      "sha256": "f43c85b88e71c002ef0f91b2f080526566b3f1e983ae0022f402eadc52efaffa"
+    },
+    {
+      "bytes": 459,
+      "kind": "json",
+      "path": "SEPAHEAD_V1_0_CURRENT_HEAD_CROSS_REPO_RECONCILIATION_HANDOFF/FINAL_MANIFEST_TEMPLATE.json",
+      "sha256": "9b3682630cee3cba18bbea0fca8eb1c2231bb42767926ac1b02d738046ef165e"
+    },
+    {
+      "bytes": 733,
+      "kind": "text",
+      "path": "SEPAHEAD_V1_0_CURRENT_HEAD_CROSS_REPO_RECONCILIATION_HANDOFF/GO_NO_GO_CHECKLIST.md",
+      "sha256": "3c501a89f6465f4223bc83919e26938cae9e954de0e835ed69d5dcb2882c7d66"
+    },
+    {
+      "bytes": 731,
+      "kind": "text",
+      "path": "SEPAHEAD_V1_0_CURRENT_HEAD_CROSS_REPO_RECONCILIATION_HANDOFF/README_FIRST.md",
+      "sha256": "5e11119238d9f08a619968f775f1d980e776753340e796e7f073e2fcedea6018"
+    },
+    {
+      "bytes": 813,
+      "kind": "text",
+      "path": "SEPAHEAD_V1_0_CURRENT_HEAD_CROSS_REPO_RECONCILIATION_HANDOFF/RELEASE_ORDER_AND_ROLLBACK.md",
+      "sha256": "49c88199b196f281006b94ea1c8108179327fd05e71ef311329f6c4f574855b1"
+    },
+    {
+      "bytes": 1006,
+      "kind": "text",
+      "path": "SEPAHEAD_V1_0_CURRENT_HEAD_CROSS_REPO_RECONCILIATION_HANDOFF/SHA256SUMS.txt",
+      "sha256": "40bd8855cb1ae574d7fb91688d8567a7267089bd80c739c8b1f3270a4efe42f6"
+    },
+    {
+      "bytes": 396,
+      "kind": "text",
+      "path": "SEPAHEAD_V1_0_CURRENT_HEAD_CROSS_REPO_RECONCILIATION_HANDOFF/VALIDATION_REPORT.md",
+      "sha256": "0aad44a81e0171fc3a315acab07ecad44dcc785eb06ce11738cdf19e4f14172f"
+    },
+    {
+      "bytes": 11647,
+      "kind": "zip-archive",
+      "path": "SEPAHEAD_V1_0_CURRENT_HEAD_CROSS_REPO_RECONCILIATION_HANDOFF.zip",
+      "regular_members": 12,
+      "sha256": "ae06b5525537e88de4ae37aa49b40de01893061bdc3096bcf1059c5c6d71e3d4"
+    },
+    {
+      "bytes": 2489,
+      "kind": "text",
+      "path": "THESIS_BOARD_CORRECTNESS_STRATEGY.md",
+      "sha256": "f4afbf346eb2915eb55ded3bb34d693f92a73ebdb5a90557ec5f1e20bb7ca33a"
+    }
+  ],
+  "frozen_crebain_commit": "4c311900ade5668200a48d56fb191be1916b884a",
+  "handoff_root": "SEPAHEAD_V1_0_CURRENT_HEAD_MAX_EFFORT_MASTER_HANDOFF",
+  "prepared": "2026-07-14",
+  "schema_version": 1,
+  "signature_status": "NOT_PROVIDED; SHA-256 inventory is integrity evidence, not signer identity",
+  "total_bytes": 6554750,
+  "zip_regular_member_count": 151
+}

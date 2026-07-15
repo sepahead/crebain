@@ -30,7 +30,7 @@ graph TB
 
         subgraph Platform["Platform Abstraction"]
             macOS["macOS<br/>CoreML default<br/>MLX experimental<br/>Metal GPU<br/>framework-managed CoreML placement"]
-            Linux["Linux (NixOS)<br/>CUDA / TensorRT<br/>NVIDIA GPU<br/>Vulkan"]
+            Linux["Linux / Nix<br/>ONNX Runtime default<br/>CPU fallback<br/>optional NVIDIA EPs"]
         end
     end
 
@@ -204,6 +204,42 @@ The three paths and when to use them:
   Gazebo mutation method. It speaks CREBAIN's own plain-key topic scheme — direct interop
   with an `rmw_zenoh_cpp` ROS 2 graph (which keys topics as
   `<domain>/<topic>/<type>/<hash>`) requires an explicit re-keying bridge.
+- **Native camera-work admission** — both native backends share one process-wide
+  384 MiB weighted, nonblocking envelope. Rosbridge reserves before JSON
+  expansion for retained wire/JSON, decoded bytes, base64 IPC output, and
+  callback bookkeeping; Zenoh reserves before CDR materialization for retained
+  wire/CDR, embedded image bytes, frame/IPC base64, and callback bookkeeping.
+  A frame is dropped when its weight would exceed the envelope. One worst-case
+  64 MiB frame is admitted, while another worst-case frame from a different
+  topic is backpressured. The topic event carries only a small delivery ID,
+  lifecycle generation, and exact subscription ID, each encoded as a canonical
+  positive-u64 decimal string across Tauri IPC; the renderer pulls the
+  large frame exactly once, and the native reservation and per-topic slot
+  remain owned until an identity-matched acknowledgement after every listener
+  settles or its eight-second deadline quarantines that listener. Event-listener
+  registration and native declaration share one twelve-second setup deadline;
+  a late listener handle is immediately released. Pull and acknowledgement
+  have separate ten- and four-second renderer deadlines. A 30-second native
+  monotonic lease covers a lost readiness event, renderer loss, and a rejected,
+  lost, or late acknowledgement; expiry atomically releases the exact slot and
+  permit and quarantines only the matching live declaration. Expiry then
+  performs a bounded exact undeclaration; cleanup failure retains quarantine
+  for explicit retry, while lifecycle rotation or a newer exact identity fences
+  stale cleanup. Lifecycle rotation discards an untaken stale-generation frame,
+  while a pulled frame remains reserved until exact acknowledgement or lease
+  expiry. A proven exact unsubscribe or reopen likewise retires only an untaken
+  matching frame; an in-flight frame keeps its immutable reservation. Each
+  camera subscription also carries a renderer-issued exact identity, so late
+  callbacks and cleanup from a closed subscription cannot enter or remove a
+  reopened topic, and an explicit reopen removes a quarantined declaration
+  before installing its new identity. The renderer admits only descriptors for
+  the current canonical nonzero-u64 lifecycle, delivery, and subscription IDs,
+  serializes one full
+  pull/listener/acknowledgement cycle per topic, and holds at most one prevalidated small descriptor pending; it
+  never pulls that pending delivery before the active acknowledgement settles.
+  Duplicate pulls or acknowledgements, malformed readiness events, deadline
+  failures, and overlapping topic deliveries fail closed; callback failures are
+  isolated and still reach bounded acknowledgement.
 - **Galadriel evidence producer (native NCP, optional)** — absent from default
   binaries and disabled unless an `ncp` build also receives exact runtime opt-in
   plus valid registry/config/executable pins. It can put frozen evidence only to
@@ -264,9 +300,10 @@ flowchart TB
 **Problem**: Different deployment targets expose different inference
 accelerators, model formats, and runtime constraints.
 
-**Solution**: Prefer the validated backend for the host platform, report
-backend availability in diagnostics, and keep experimental backends opt-in
-until their behavior is measured and complete.
+**Solution**: Prefer the supported default backend for the host platform, report
+backend availability in diagnostics, and keep experimental backends opt-in until
+their behavior is measured and complete. Backend support does not establish model
+accuracy, target-hardware performance, or deployment validation.
 
 ```rust
 // Automatic backend selection (simplified from src-tauri/src/inference/mod.rs)
@@ -369,7 +406,7 @@ hardware.
 | Multi-drone coordination   | Real sensor noise modeling     |
 | Safe failure mode testing  | Production deployment          |
 
-### 5. Reproducible builds
+### 5. Lock-pinned clean builds
 
 **Problem**: "Works on my machine" — different CUDA versions, missing
 dependencies.
@@ -378,18 +415,22 @@ dependencies.
 
 ```bash
 nix develop            # default dev shell
-nix develop .#cuda     # force the CUDA/TensorRT shell (NixOS + NVIDIA)
+nix develop .#cuda     # explicit CUDA shell (x86_64 NixOS + NVIDIA)
 nix develop .#cpu-only # Linux shell without CUDA
 ```
 
-Honest caveats: the flake's CUDA auto-detection probes host paths
-(`/dev/nvidia0`, …) that pure flake evaluation cannot see, so plain
-`nix develop` only auto-detects CUDA under `--impure` — NixOS CUDA users should
-use `nix develop .#cuda` directly. `nix build` currently builds only the Rust
-backend crate (no frontend build, no Tauri bundle) and is not exercised in CI
-(the Nix workflow runs `nix flake check --no-build`). The Linux shells pre-set
+Plain `nix develop` is intentionally the CPU/default-feature shell; the explicit
+`x86_64-linux` `.#cuda` shell never infers hardware availability and does not
+attest that a GPU or driver is present. The default package uses the checked-in
+`bun.nix` cache expression to install frontend dependencies offline, the exact
+Rust channel in `rust-toolchain.toml`, the Tauri-configured bounded production
+frontend build, and the clean flake source. The Nix workflow evaluates all
+systems and builds that default-feature package on Linux and macOS; a passing
+evaluation alone is not package evidence. The Linux shells and package set
 `ORT_DYLIB_PATH` (and `ORT_SKIP_DOWNLOAD=1`) to the nixpkgs
-`libonnxruntime.so`; override `ORT_DYLIB_PATH` if that version mismatches.
+`libonnxruntime.so`; override it only with a separately reviewed compatible
+runtime. Cargo's optional NCP packages remain fixed to the exact Git commit in
+`Cargo.lock`; the standard 0.9 package does not compile their feature.
 
 ## Directory map
 
@@ -467,10 +508,17 @@ projection only when the incoming `source_frame_id` already names the selected
 canonical ENU frame and the modality's transform chain is empty; otherwise the
 evidence is explicitly incomparable. Frame-name equality is not authenticated
 sensor provenance. V1 also requires an advancing fusion/frame timestamp and a
-strictly newer equal timestamp for that track/modality channel. The renderer
-keeps one sensor-clock high-water, reuses it for empty frames, and commits it only
-after native success. Duplicate, out-of-order, or mixed-old measurements can
-still use baseline fusion but cannot claim v1.
+strictly newer equal timestamp for that track/modality channel. All measurements
+in a nonempty native frame must equal the advancing frame timestamp; mixed-old,
+future, replayed/nonadvancing, and out-of-order input rejects before prediction or evidence
+mutation. The renderer keeps one sensor-clock high-water, reuses it for empty
+frames, and commits it only after native success.
+
+Within an assigned co-located cluster, native fusion admits one effective update
+per `(sensor_id, modality, timestamp_ms, source_frame_id)` correlation identity,
+using the deterministic lowest-Cartesian-noise representative. Independent
+sensors remain separate updates. This avoids treating repeated derivations from
+one capture as independent covariance or IMM evidence.
 
 Renderer/native input admission keeps the newest bounded measurements and turns
 malformed, buffer-overflow, registry-trim, or track-capacity loss into sticky

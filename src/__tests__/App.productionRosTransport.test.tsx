@@ -28,7 +28,21 @@ vi.mock('../ros/useROSSensors', () => ({
 vi.mock('../hooks/usePerformanceTracker', () => ({
   usePerformanceTracker: () => ({ currentData: null, history: [], recordSample: vi.fn() }),
 }))
-vi.mock('../components/CrebainViewer', () => ({ default: () => null }))
+vi.mock('../components/CrebainViewer', () => ({
+  default: ({
+    rosConnectionState,
+    rosTransport,
+  }: {
+    rosConnectionState: string
+    rosTransport: string
+  }) => (
+    <div
+      data-testid="viewer-ros-status"
+      data-connection-state={rosConnectionState}
+      data-transport={rosTransport}
+    />
+  ),
+}))
 vi.mock('../components/ErrorBoundary', () => ({
   default: ({ children }: { children: ReactNode }) => children,
 }))
@@ -112,6 +126,9 @@ describe('App packaged ROS transport policy', () => {
     expect(container.querySelector('[data-testid="production-transport"]')?.textContent).toBe(
       'zenoh'
     )
+    const viewerStatus = container.querySelector('[data-testid="viewer-ros-status"]')
+    expect(viewerStatus?.getAttribute('data-connection-state')).toBe('disconnected')
+    expect(viewerStatus?.getAttribute('data-transport')).toBe('zenoh')
 
     await act(async () => root.unmount())
   })

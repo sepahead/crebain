@@ -5,6 +5,7 @@
  */
 
 import type * as THREE from 'three'
+import type { GlbValidationSummary } from '../../lib/glbValidation'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RENDERER TYPES
@@ -33,6 +34,8 @@ export interface LoadedAsset {
   source?: string
   /** Primary source bytes retained for aggregate scene-budget accounting. */
   byteSize?: number
+  /** Preflight resource reservation retained for aggregate GLB scene accounting. */
+  glbValidation?: Readonly<GlbValidationSummary>
 }
 
 /** A message displayed in the tactical console overlay. */

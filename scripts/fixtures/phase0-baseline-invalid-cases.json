@@ -2,6 +2,25 @@
   "schema_version": 1,
   "cases": [
     {
+      "id": "missing-production-vendor-boundary-digest",
+      "mutation": {
+        "type": "remove-configuration-artifact",
+        "document": "ecosystem",
+        "value": "scripts/lib/production-vendor-boundary.mjs"
+      },
+      "expected_error": "production boundary artifact is not digest-pinned"
+    },
+    {
+      "id": "misleading-profile-semantics",
+      "mutation": {
+        "type": "set",
+        "document": "inventory",
+        "path": ["profile_semantics", "current"],
+        "value": "live-reachability"
+      },
+      "expected_error": "profile_semantics must distinguish group applicability from member reachability"
+    },
+    {
       "id": "unknown-classification",
       "mutation": {
         "type": "set",
@@ -403,6 +422,42 @@
       "expected_error": "undeclared renderer fetch capability"
     },
     {
+      "id": "xml-http-request-network-capability",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/lib/boundedFetch.ts",
+        "value": "\nconst request = new XMLHttpRequest(); request.open('POST', endpoint)\n"
+      },
+      "expected_error": "forbidden renderer network capability"
+    },
+    {
+      "id": "event-source-network-capability",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/lib/boundedFetch.ts",
+        "value": "\nconst events = new EventSource(endpoint)\n"
+      },
+      "expected_error": "forbidden renderer network capability"
+    },
+    {
+      "id": "send-beacon-network-capability",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/lib/boundedFetch.ts",
+        "value": "\nnavigator.sendBeacon(endpoint, payload)\n"
+      },
+      "expected_error": "forbidden renderer network capability"
+    },
+    {
+      "id": "web-transport-network-capability",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/lib/boundedFetch.ts",
+        "value": "\nconst transport = new WebTransport(endpoint)\n"
+      },
+      "expected_error": "forbidden renderer network capability"
+    },
+    {
       "id": "direct-development-adapter-import",
       "mutation": {
         "type": "append-source",
@@ -720,8 +775,8 @@
       "mutation": {
         "type": "replace-source",
         "file": ".github/workflows/release.yml",
-        "needle": "args: ${{ matrix.args }}",
-        "value": "args: --config src-tauri/alternate.json"
+        "needle": "bun run tauri:build -- --target \"$BUILD_TARGET\"",
+        "value": "bun run tauri:build -- --config src-tauri/alternate.json --target \"$BUILD_TARGET\""
       },
       "expected_error": "explicit configuration override is forbidden in tracked invocation file: .github/workflows/release.yml"
     },

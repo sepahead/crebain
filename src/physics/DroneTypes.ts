@@ -18,7 +18,7 @@ export interface DroneTypeDefinition {
   name: string
   category: DroneCategory
   description: string
-  modelPath: string // GLB/GLTF model path
+  modelPath: string | null // Optional GLB path; null selects the procedural model.
   thumbnailPath?: string // Preview image
   physics: DronePhysicsConfig
   sensors: DroneSensorConfig
@@ -83,7 +83,7 @@ export const DRONE_TYPES: Record<string, DroneTypeDefinition> = {
     name: 'Maverick Quadcopter',
     category: 'quadcopter',
     description: 'DJI-style consumer/prosumer quadcopter with 4K camera',
-    modelPath: '/models/maverick-drone.glb',
+    modelPath: null,
     physics: {
       mass: 0.9,
       dimensions: new THREE.Vector3(0.35, 0.1, 0.35),
@@ -123,7 +123,8 @@ export const DRONE_TYPES: Record<string, DroneTypeDefinition> = {
     name: 'Shahed-136 Loitering Munition',
     category: 'loitering_munition',
     description: 'Delta-wing loitering munition with pusher propeller',
-    modelPath: '/models/shahed-drone.glb', // Would need to be created/imported
+    // No redistributable model is bundled in 0.9; use the procedural mesh.
+    modelPath: null,
     physics: {
       mass: 200,
       dimensions: new THREE.Vector3(2.5, 0.5, 2.0),
@@ -164,7 +165,8 @@ export const DRONE_TYPES: Record<string, DroneTypeDefinition> = {
     name: 'FPV Racing Drone',
     category: 'quadcopter',
     description: 'High-speed FPV racing quadcopter',
-    modelPath: '/models/fpv-drone.glb',
+    // No redistributable model is bundled in 0.9; use the procedural mesh.
+    modelPath: null,
     physics: {
       mass: 0.5,
       dimensions: new THREE.Vector3(0.25, 0.08, 0.25),
@@ -203,7 +205,8 @@ export const DRONE_TYPES: Record<string, DroneTypeDefinition> = {
     name: 'Reconnaissance Hexacopter',
     category: 'hexacopter',
     description: 'Hexacopter profile for ISR-style simulation scenarios',
-    modelPath: '/models/recon-hex.glb',
+    // No redistributable model is bundled in 0.9; use the procedural mesh.
+    modelPath: null,
     physics: {
       mass: 8,
       dimensions: new THREE.Vector3(1.2, 0.4, 1.2),
@@ -246,7 +249,8 @@ export const DRONE_TYPES: Record<string, DroneTypeDefinition> = {
     name: 'Switchblade 600',
     category: 'loitering_munition',
     description: 'Tube-launched loitering munition',
-    modelPath: '/models/switchblade.glb',
+    // No redistributable model is bundled in 0.9; use the procedural mesh.
+    modelPath: null,
     physics: {
       mass: 23,
       dimensions: new THREE.Vector3(1.3, 0.15, 1.0),

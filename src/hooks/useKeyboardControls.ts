@@ -44,6 +44,25 @@ export interface DroneControlInput {
   throttle: number // 0 to 1 (up/down)
 }
 
+const REFERENCE_CONTROL_RATE_HZ = 60
+const REFERENCE_CONTROL_STEP_SECONDS = 1 / REFERENCE_CONTROL_RATE_HZ
+const THROTTLE_CHANGE_PER_SECOND = 0.6
+const MAX_CONTROL_STEP_SECONDS = 0.1
+const INPUT_DECAY_PER_REFERENCE_STEP = 0.25
+
+function elapsedControlSeconds(previousMs: number | null, nowMs: number): number {
+  if (!Number.isFinite(nowMs)) return 0
+  if (previousMs === null) return REFERENCE_CONTROL_STEP_SECONDS
+  if (!Number.isFinite(previousMs) || nowMs <= previousMs) return 0
+  return Math.min((nowMs - previousMs) / 1000, MAX_CONTROL_STEP_SECONDS)
+}
+
+function timeAdjustedFactor(perReferenceStep: number, elapsedSeconds: number): number {
+  if (!Number.isFinite(perReferenceStep) || perReferenceStep <= 0 || elapsedSeconds <= 0) return 0
+  if (perReferenceStep >= 1) return 1
+  return 1 - Math.pow(1 - perReferenceStep, elapsedSeconds * REFERENCE_CONTROL_RATE_HZ)
+}
+
 const createDefaultState = (): KeyboardState => ({
   forward: false,
   backward: false,
@@ -82,13 +101,13 @@ export function useKeyboardControls(options: UseKeyboardControlsOptions = {}) {
   const armedRef = useRef(false)
   const baseThrottleRef = useRef(0.5) // Hover throttle
   const smoothedInputRef = useRef({ pitch: 0, roll: 0, yaw: 0 })
-  const lastThrottleUpdateRef = useRef(0)
+  const lastControlUpdateRef = useRef<number | null>(null)
 
   const clearTransientControls = useCallback(() => {
     smoothedInputRef.current = { pitch: 0, roll: 0, yaw: 0 }
     baseThrottleRef.current = 0.5
-    lastThrottleUpdateRef.current = 0
-    setKeyState((prev) => ({ ...createDefaultState(), arm: prev.arm }))
+    lastControlUpdateRef.current = null
+    setKeyState({ ...createDefaultState(), arm: armedRef.current })
   }, [])
 
   // Handle keydown
@@ -114,6 +133,14 @@ export function useKeyboardControls(options: UseKeyboardControlsOptions = {}) {
       }
 
       if (!enabled || isTextInputTarget(e.target)) return
+
+      if (key === DRONE_CONTROL_SHORTCUTS.up) e.preventDefault()
+
+      let nextArmed: boolean | undefined
+      if (key === DRONE_CONTROL_SHORTCUTS.armToggle) {
+        nextArmed = !armedRef.current
+        armedRef.current = nextArmed
+      }
 
       setKeyState((prev) => {
         const newKeys = new Set(prev.activeKeys)
@@ -142,7 +169,6 @@ export function useKeyboardControls(options: UseKeyboardControlsOptions = {}) {
             break
           case DRONE_CONTROL_SHORTCUTS.up:
             newState.up = true
-            e.preventDefault()
             break
           case DRONE_CONTROL_SHORTCUTS.down:
             newState.down = true
@@ -151,19 +177,17 @@ export function useKeyboardControls(options: UseKeyboardControlsOptions = {}) {
             newState.cameraSwitch = true
             break
           case DRONE_CONTROL_SHORTCUTS.armToggle:
-            // Toggle arm state
-            armedRef.current = !armedRef.current
-            newState.arm = armedRef.current
-            if (armedRef.current) {
-              onArm?.()
-            } else {
-              onDisarm?.()
-            }
+            newState.arm = nextArmed ?? prev.arm
             break
         }
 
         return newState
       })
+
+      // User callbacks are effects, so keep them outside React's state updater.
+      // Strict Mode is allowed to invoke updater functions more than once.
+      if (nextArmed === true) onArm?.()
+      if (nextArmed === false) onDisarm?.()
     },
     [enabled, onArm, onDisarm, onEmergency]
   )
@@ -252,9 +276,9 @@ export function useKeyboardControls(options: UseKeyboardControlsOptions = {}) {
     if (!enabled) clearTransientControls()
   }, [clearTransientControls, enabled])
 
-  // Convert key state to drone control input with smoothing
-  // Track last call time to prevent throttle ramping at multiples of intended rate
-  // when getControlInput is called more than once per frame.
+  // Convert key state to time-based drone control input. Both throttle and
+  // smoothing are integrated by monotonic elapsed time, so a 30 Hz and a
+  // 144 Hz render loop produce the same command trajectory.
   const getControlInput = useCallback((): DroneControlInput => {
     let targetPitch = 0
     let targetRoll = 0
@@ -272,24 +296,25 @@ export function useKeyboardControls(options: UseKeyboardControlsOptions = {}) {
     if (keyState.yawLeft) targetYaw -= sensitivity
     if (keyState.yawRight) targetYaw += sensitivity
 
-    // Throttle — only mutate once per frame to avoid compounding on multiple calls
     const now = performance.now()
-    if (now - lastThrottleUpdateRef.current > 8) {
-      // ~120fps guard
-      lastThrottleUpdateRef.current = now
-      if (keyState.up) {
-        baseThrottleRef.current = Math.min(1, baseThrottleRef.current + 0.01)
-      }
-      if (keyState.down) {
-        baseThrottleRef.current = Math.max(0, baseThrottleRef.current - 0.01)
-      }
-    }
+    const elapsedSeconds = elapsedControlSeconds(lastControlUpdateRef.current, now)
+    lastControlUpdateRef.current = Number.isFinite(now) ? now : null
+
+    // Throttle changes at a fixed rate per second rather than per callback.
+    const throttleDirection = Number(keyState.up) - Number(keyState.down)
+    baseThrottleRef.current = Math.max(
+      0,
+      Math.min(
+        1,
+        baseThrottleRef.current + throttleDirection * THROTTLE_CHANGE_PER_SECOND * elapsedSeconds
+      )
+    )
     let throttle = baseThrottleRef.current
 
-    // Apply smoothing (exponential moving average)
-    // When no key pressed, decay quickly to 0
-    const decayFactor = 0.25
-    const rampFactor = smoothingFactor
+    // Preserve the configured 60 Hz response while making the exponential
+    // smoothing coefficient independent of actual callback frequency.
+    const rampFactor = timeAdjustedFactor(smoothingFactor, elapsedSeconds)
+    const decayFactor = timeAdjustedFactor(INPUT_DECAY_PER_REFERENCE_STEP, elapsedSeconds)
 
     smoothedInputRef.current.pitch +=
       (targetPitch - smoothedInputRef.current.pitch) *

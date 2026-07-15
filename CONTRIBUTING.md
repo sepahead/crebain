@@ -53,7 +53,7 @@ bun run tauri:dev
 Use the smallest check that is honest for the change:
 
 ```bash
-# Frontend typecheck + lint + format check + tests
+# Baselines/contracts/provenance + frontend typecheck/lint/format/tests
 bun run validate
 
 # NCP pin coherence + frontend + plant boundary/frame corpus + locked Rust default/NCP bridge/producer gates
@@ -66,14 +66,19 @@ bun run validate:all
 | NCP manifest, lockfile, or normative-doc changes | `bun run check:ncp-coherence` |
 | Galadriel producer registry/config/envelope/security/baseline changes | `bun run check:phase0-baseline` plus `bun run check:ncp-coherence`; use `bun run validate:all` for source behavior |
 | Frontend-only source/test changes | `bun run validate` |
+| Production renderer-vendor, GLB loader, or Vite artifact-boundary changes | `bun run check:production-vendors` and `bun run check:bundle`; use `bun run validate` for the complete frontend gate |
 | Rust, Tauri IPC, model loading, scene persistence, ROS, Zenoh, transport, or sensor fusion changes | `bun run validate:all` |
 | Headless plant package, command/health/captured-age/safe-action/deadline-monitor/apply-observation contract, frame corpus, lifecycle, or channel-policy changes | `bun run check:plant-boundary`, `bun run check:plant-frames`, and `bun run validate:all` |
-| Release-candidate claims | `bun run validate:all` plus `docs/MANUAL_SMOKE_TEST.md` |
+| 0.9 research/source/package prerelease | `bun run validate:all`; manual rows may remain explicitly pending only under the exclusions in `docs/NARROWED_GO_0.9.0.md` |
+| Demo, operational/deployment, or 1.0 readiness claims | `bun run validate:all` plus completed `docs/MANUAL_SMOKE_TEST.md` evidence |
 | Native detector performance claim | The release command and archived evidence bundle in `docs/NATIVE_DETECTOR_BENCHMARK.md` |
 
 For documentation-only changes, keep Markdown files aligned on validation commands, backend status, roadmap items, model assumptions, and security boundaries.
 
-`bun run validate:all` includes the inert plant boundary, closed in-memory
+`bun run validate` also verifies the exact pinned Spark/Rapier/Three production
+transform and local-byte/texture runtimes, product profiles, IPC registry, release
+and audit tools, vendor provenance, ROS definitions, and Bun-to-Nix dependency
+expression. `bun run validate:all` additionally includes the inert plant boundary, closed in-memory
 command/health, profile-bound captured-age/safe-action, receipt-anchored active
 deadline-monitor, and post-health-load single-reference-instant apply-check
 observation candidate tests,

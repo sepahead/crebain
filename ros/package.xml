@@ -1,17 +1,17 @@
 <?xml version="1.0"?>
 <package format="3">
   <name>crebain_msgs</name>
-  <version>0.4.0</version>
+  <version>0.9.0</version>
   <description>
-    CREBAIN ROS1-style reference message, service, and launch definitions for
-    adaptive spatial defense. Provides custom detection messages, interception
-    services, and multi-drone simulation launch files with MAVROS integration.
+    Research-only ROS 1 reference message, service, and launch definitions for
+    CREBAIN visualization and simulation. These definitions are not registered
+    product commands, deployment authority, or operational validation.
   </description>
 
-  <maintainer email="info@crebain.dev">CREBAIN Contributors</maintainer>
+  <maintainer email="sepmhn@gmail.com">Sepehr Mahmoudian</maintainer>
   <license>MIT OR Apache-2.0</license>
 
-  <author>CREBAIN Contributors</author>
+  <author email="sepmhn@gmail.com">Sepehr Mahmoudian</author>
 
   <buildtool_depend>catkin</buildtool_depend>
 
@@ -26,11 +26,14 @@
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>gazebo_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
   <exec_depend>gazebo_ros</exec_depend>
   <exec_depend>rosbridge_server</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
   <exec_depend>mavros</exec_depend>
   <exec_depend>mavlink</exec_depend>
+  <exec_depend>mavlink_sitl_gazebo</exec_depend>
 
   <export>
     <build_type>catkin</build_type>

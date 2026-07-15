@@ -195,7 +195,7 @@ export function useDetectionLoop(options: DetectionLoopOptions): void {
         maxDetections: DEFAULT_MAX_DETECTIONS,
       })
       if (!isCurrent() || !cameraIsStillActive()) return
-      const result = normalizeNativeDetectionResult(response)
+      const result = normalizeNativeDetectionResult(response, imageData.width, imageData.height)
 
       if (!result.success) {
         onErrorRef.current?.(result.error || 'Detection failed', camera.id)

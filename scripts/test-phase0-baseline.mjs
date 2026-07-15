@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 
-import { readFileSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { loadPhase0Baseline, verifyPhase0Baseline } from './verify-phase0-baseline.mjs'
+import { loadPhase0Baseline, verifyPhase0Baseline, walkFiles } from './verify-phase0-baseline.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const FIXTURE_PATH = resolve(ROOT, 'scripts/fixtures/phase0-baseline-invalid-cases.json')
@@ -22,6 +23,15 @@ function parentAt(root, path) {
 
 function applyDataMutation(documents, mutation) {
   const document = documents[mutation.document]
+  if (mutation.type === 'remove-configuration-artifact') {
+    const artifacts = document.crebain_configuration_artifacts
+    const index = artifacts.findIndex((artifact) => artifact.path === mutation.value)
+    if (index === -1) {
+      throw new Error(`Self-test could not locate configuration artifact '${mutation.value}'`)
+    }
+    artifacts.splice(index, 1)
+    return
+  }
   if (mutation.type === 'set') {
     parentAt(document, mutation.path)[mutation.path.at(-1)] = mutation.value
     return
@@ -97,6 +107,25 @@ const baseline = loadPhase0Baseline(ROOT)
 const positive = verifyPhase0Baseline({ root: ROOT, ...baseline })
 let passed = 0
 
+const symlinkRoot = mkdtempSync(join(tmpdir(), 'crebain-phase0-symlink-'))
+try {
+  mkdirSync(resolve(symlinkRoot, 'src'))
+  writeFileSync(resolve(symlinkRoot, 'outside.ts'), 'new WebSocket(url)\n')
+  symlinkSync('../outside.ts', resolve(symlinkRoot, 'src/alias.ts'))
+  let symlinkFailure = ''
+  try {
+    walkFiles(symlinkRoot, 'src')
+  } catch (error) {
+    symlinkFailure = error instanceof Error ? error.message : String(error)
+  }
+  if (!symlinkFailure.includes('production scan rejects symbolic link')) {
+    throw new Error(`production symlink fixture was accepted: ${symlinkFailure || '<no error>'}`)
+  }
+  passed += 1
+} finally {
+  rmSync(symlinkRoot, { recursive: true, force: true })
+}
+
 for (const testCase of fixture.cases) {
   const documents = clone(baseline)
   const sourceOverrides = {}
@@ -105,7 +134,7 @@ for (const testCase of fixture.cases) {
     throw new Error(`${testCase.id}: mutations must be a non-empty array`)
   }
   for (const mutation of mutations) {
-    if (['set', 'delete', 'copy'].includes(mutation.type)) {
+    if (['set', 'delete', 'copy', 'remove-configuration-artifact'].includes(mutation.type)) {
       applyDataMutation(documents, mutation)
     } else {
       applySourceMutation(sourceOverrides, mutation)

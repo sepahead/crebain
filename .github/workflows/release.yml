@@ -3,34 +3,131 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - 'v0.9.0'
 
 permissions:
   contents: read
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
+  qualify:
+    name: Locked automated qualification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.3.14
+      - uses: dtolnay/rust-toolchain@fa04a1451ff1842e2626ccb99004d0195b455a88 # master
+        with:
+          toolchain: 1.91.1
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: src-tauri
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+      - name: Prove annotated tag, expected commit, and metadata identity
+        run: scripts/check-version-coherence.sh --expected-commit "$GITHUB_SHA" "$GITHUB_REF_NAME"
+      - name: Capture exact tool and trigger context
+        run: |
+          mkdir -p qualification
+          {
+            echo "commit=$GITHUB_SHA"
+            echo "tag=$GITHUB_REF_NAME"
+            echo "workflow_run=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT"
+            echo "run_attempt=$GITHUB_RUN_ATTEMPT"
+            echo "runner_os=$RUNNER_OS"
+            echo "bun=$(bun --version)"
+            echo "rustc=$(rustc --version)"
+            echo "cargo=$(cargo --version)"
+            echo "node=$(node --version)"
+          } > qualification/context.txt
+      - name: Full frontend, Rust, NCP, and inert-plant gate
+        run: |
+          set -o pipefail
+          bun run validate:all 2>&1 | tee qualification/validate-all.log
+      - name: Coverage thresholds
+        run: |
+          set -o pipefail
+          bun run test:coverage 2>&1 | tee qualification/coverage.log
+      - name: Production bundle and size budget
+        run: |
+          set -o pipefail
+          bun run check:bundle 2>&1 | tee qualification/bundle.log
+      - name: ROS references, vendor provenance, and npm advisories
+        run: |
+          set -o pipefail
+          python3 scripts/validate_ros_defs.py 2>&1 | tee qualification/ros-definitions.log
+          python3 scripts/verify-vendor-compat.py 2>&1 | tee qualification/vendor-compat.log
+          bun audit 2>&1 | tee qualification/bun-audit.log
+      - name: Upload immutable qualification logs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-qualification-${{ github.sha }}-${{ github.run_id }}
+          path: qualification/
+          if-no-files-found: error
+          retention-days: 90
+          overwrite: true
+
+  cargo-deny:
+    name: Rust advisories, licenses, bans, and sources
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+      - run: python3 scripts/verify-vendor-compat.py
+      - uses: EmbarkStudios/cargo-deny-action@bb137d7af7e4fb67e5f82a49c4fce4fad40782fe # v2
+        with:
+          manifest-path: src-tauri/Cargo.toml
+          command: check
+
+  nix-package:
+    name: Clean Nix frontend and Tauri package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+      - uses: DeterminateSystems/nix-installer-action@a7ad9c4f0c65208097f4d34f3cfa1913b80cce5c # main
+      - uses: DeterminateSystems/magic-nix-cache-action@76aaf8814cdb385b86597c32b8c51b66b69b0839 # main
+      - run: nix flake check --no-build --all-systems
+      - run: nix build .#packages.x86_64-linux.default --print-build-logs
+
   build:
-    name: Build (${{ matrix.os }})
-    permissions:
-      contents: write # create the draft release and upload bundles
+    name: Build package (${{ matrix.os }})
+    needs: [qualify, cargo-deny, nix-package]
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: macos-latest
-            args: '--target aarch64-apple-darwin'
+            platform: macos
+            target: aarch64-apple-darwin
           - os: ubuntu-latest
-            args: ''
+            platform: linux
+            target: ''
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@fa04a1451ff1842e2626ccb99004d0195b455a88 # master
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@fa04a1451ff1842e2626ccb99004d0195b455a88 # master
         with:
           toolchain: 1.91.1
-          targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin' || '' }}
-
+          targets: ${{ matrix.target }}
       - name: Locate macOS clang runtime
         if: runner.os == 'macOS'
         run: |
@@ -38,37 +135,391 @@ jobs:
           test -e "$CLANG_RT_DIR/libclang_rt.osx.a"
           echo "RUSTFLAGS=-Lnative=$CLANG_RT_DIR" >> "$GITHUB_ENV"
           echo "LIBRARY_PATH=$CLANG_RT_DIR${LIBRARY_PATH:+:$LIBRARY_PATH}" >> "$GITHUB_ENV"
-
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           workspaces: src-tauri
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: 1.3.14
-
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-
-      - name: Install frontend dependencies
-        run: bun install --frozen-lockfile
-
-      # This intentionally builds the Cargo default feature set. It does not ship
-      # the off-by-default `ncp` bridge/Galadriel producer; such a deployment is a
-      # distinct executable with its own post-package digest and evidence record.
-      - name: Build default-feature artifact and draft release
-        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
+      - run: bun install --frozen-lockfile
+      - run: scripts/check-version-coherence.sh --expected-commit "$GITHUB_SHA" "$GITHUB_REF_NAME"
+      # The standard release artifact intentionally uses Cargo's default
+      # features. It omits the dormant NCP bridge and Galadriel producer.
+      - name: Build default-feature application packages
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BUILD_TARGET: ${{ matrix.target }}
+        run: |
+          if [[ -n "$BUILD_TARGET" ]]; then
+            bun run tauri:build -- --target "$BUILD_TARGET"
+          else
+            bun run tauri:build
+          fi
+      - name: Admit only the platform's expected package types
+        env:
+          BUILD_PLATFORM: ${{ matrix.platform }}
+          BUILD_TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          mkdir -p release-package
+          if [[ "$BUILD_PLATFORM" == macos ]]; then
+            packages=(src-tauri/target/"$BUILD_TARGET"/release/bundle/dmg/*.dmg)
+            test "${#packages[@]}" -eq 1
+          elif [[ "$BUILD_PLATFORM" == linux ]]; then
+            appimages=(src-tauri/target/release/bundle/appimage/*.AppImage)
+            debs=(src-tauri/target/release/bundle/deb/*.deb)
+            test "${#appimages[@]}" -eq 1
+            test "${#debs[@]}" -eq 1
+            packages=("${appimages[@]}" "${debs[@]}")
+          else
+            echo "unsupported build platform: $BUILD_PLATFORM" >&2
+            exit 1
+          fi
+          for package in "${packages[@]}"; do
+            test -f "$package"
+            test ! -L "$package"
+            name="${package##*/}"
+            [[ "$name" =~ ^[A-Za-z0-9._+-]+$ ]]
+            test ! -e "release-package/$name"
+            cp "$package" "release-package/$name"
+          done
+      - name: Upload immutable application packages
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'CREBAIN ${{ github.ref_name }}'
-          releaseBody: 'See CHANGELOG.md for release notes. Model weights are not bundled.'
-          releaseDraft: true
-          prerelease: false
-          args: ${{ matrix.args }}
+          name: release-package-${{ matrix.platform }}-${{ github.sha }}-${{ github.run_id }}
+          path: release-package/
+          if-no-files-found: error
+          retention-days: 90
+          overwrite: true
+
+  seal-evidence:
+    name: Seal checksums, SBOM, manifest, and evidence archive
+    needs: [qualify, cargo-deny, nix-package, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: release-qualification-${{ github.sha }}-${{ github.run_id }}
+          path: incoming/qualification
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: release-package-macos-${{ github.sha }}-${{ github.run_id }}
+          path: incoming/macos
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: release-package-linux-${{ github.sha }}-${{ github.run_id }}
+          path: incoming/linux
+      - name: Validate immutable inputs and stage exact application inventory
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          mkdir -p release-seal/application release-seal/evidence
+          for expected in \
+            context.txt validate-all.log coverage.log bundle.log \
+            ros-definitions.log vendor-compat.log bun-audit.log; do
+            test -f "incoming/qualification/$expected"
+            test ! -L "incoming/qualification/$expected"
+          done
+          test "$(find incoming/qualification -mindepth 1 -type f | wc -l)" -eq 7
+
+          macos_packages=(incoming/macos/*)
+          linux_packages=(incoming/linux/*)
+          test "${#macos_packages[@]}" -eq 1
+          test "${#linux_packages[@]}" -eq 2
+          for package in "${macos_packages[@]}"; do
+            [[ "$package" == *.dmg ]]
+          done
+          for package in "${linux_packages[@]}"; do
+            case "$package" in
+              *.AppImage | *.deb) ;;
+              *) echo "unsupported Linux release package: $package" >&2; exit 1 ;;
+            esac
+          done
+          for package in "${macos_packages[@]}" "${linux_packages[@]}"; do
+            test -f "$package"
+            test ! -L "$package"
+            test -s "$package"
+            name="${package##*/}"
+            [[ "$name" =~ ^[A-Za-z0-9._+-]+$ ]]
+            test ! -e "release-seal/application/$name"
+            cp "$package" "release-seal/application/$name"
+          done
+          test "$(find release-seal/application -maxdepth 1 -type f -name '*.dmg' | wc -l)" -eq 1
+          test "$(find release-seal/application -maxdepth 1 -type f -name '*.AppImage' | wc -l)" -eq 1
+          test "$(find release-seal/application -maxdepth 1 -type f -name '*.deb' | wc -l)" -eq 1
+          test "$(find release-seal/application -maxdepth 1 -type f | wc -l)" -eq 3
+
+          source_date_epoch="$(git show -s --format=%ct "$GITHUB_SHA")"
+          test "$source_date_epoch" -gt 0
+          tar --sort=name --mtime="@$source_date_epoch" --owner=0 --group=0 --numeric-owner \
+            --mode='u+rw,go+r-w,a+X' -cf - -C incoming/qualification . \
+            | gzip -n -9 > release-seal/evidence/qualification-logs.tar.gz
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.3.14
+      - uses: dtolnay/rust-toolchain@fa04a1451ff1842e2626ccb99004d0195b455a88 # master
+        with:
+          toolchain: 1.91.1
+      - run: bun install --frozen-lockfile
+      - name: Record the resolved Rust dependency graph
+        run: cargo metadata --locked --manifest-path src-tauri/Cargo.toml --all-features --format-version 1 > release-seal/evidence/cargo-metadata.json
+      - name: Generate source SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          path: .
+          format: spdx-json
+          syft-version: v1.46.0
+          output-file: release-seal/evidence/crebain-${{ github.ref_name }}.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+      - name: Seal and verify every evidence byte
+        run: |
+          set -euo pipefail
+          cp docs/NARROWED_GO_0.9.0.md release-seal/evidence/NARROWED_GO_0.9.0.md
+          cd release-seal
+          find application evidence -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum > SHA256SUMS
+          cd ..
+          python3 scripts/generate-release-evidence-manifest.py \
+            --root release-seal \
+            --output release-seal/RELEASE_EVIDENCE_MANIFEST.json \
+            --commit "$GITHUB_SHA"
+          python3 scripts/verify-evidence-manifest.py \
+            release-seal/RELEASE_EVIDENCE_MANIFEST.json \
+            --root release-seal \
+            --expected-commit "$GITHUB_SHA"
+          (cd release-seal && sha256sum --check SHA256SUMS)
+      - name: Build the hierarchy-preserving public evidence archive
+        run: |
+          set -euo pipefail
+          archive_name="crebain-${GITHUB_REF_NAME}-evidence.tar.gz"
+          source_date_epoch="$(git show -s --format=%ct "$GITHUB_SHA")"
+          mkdir -p release-output/application release-output/evidence-archive
+          cp release-seal/application/* release-output/application/
+          tar --sort=name --mtime="@$source_date_epoch" --owner=0 --group=0 --numeric-owner \
+            --mode='u+rw,go+r-w,a+X' -cf - -C release-seal . \
+            | gzip -n -9 > "release-output/evidence-archive/$archive_name"
+          (
+            cd release-output/evidence-archive
+            sha256sum "$archive_name" > "$archive_name.sha256"
+            sha256sum --check "$archive_name.sha256"
+          )
+          mkdir -p archive-check
+          tar -xzf "release-output/evidence-archive/$archive_name" -C archive-check
+          python3 scripts/verify-evidence-manifest.py \
+            archive-check/RELEASE_EVIDENCE_MANIFEST.json \
+            --root archive-check \
+            --expected-commit "$GITHUB_SHA"
+          (cd archive-check && sha256sum --check SHA256SUMS)
+      - name: Upload immutable sealed release output
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: sealed-release-output-${{ github.sha }}-${{ github.run_id }}
+          path: release-output/
+          if-no-files-found: error
+          retention-days: 90
+          overwrite: true
+
+  attest-packages:
+    name: Attest application and evidence provenance
+    needs: [seal-evidence]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: sealed-release-output-${{ github.sha }}-${{ github.run_id }}
+          path: release-output
+      - name: Attest application packages
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: 'release-output/application/*'
+      - name: Attest the hierarchy-preserving evidence archive
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: 'release-output/evidence-archive/*.tar.gz'
+
+  publish-prerelease:
+    name: Publish the verified research prerelease
+    needs: [seal-evidence, attest-packages]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: sealed-release-output-${{ github.sha }}-${{ github.run_id }}
+          path: release-output
+      - name: Validate the exact flat release-asset inventory
+        run: |
+          set -euo pipefail
+          archive_name="crebain-${GITHUB_REF_NAME}-evidence.tar.gz"
+          test -f "release-output/evidence-archive/$archive_name"
+          test -f "release-output/evidence-archive/$archive_name.sha256"
+          test "$(find release-output/application -maxdepth 1 -type f -name '*.dmg' | wc -l)" -eq 1
+          test "$(find release-output/application -maxdepth 1 -type f -name '*.AppImage' | wc -l)" -eq 1
+          test "$(find release-output/application -maxdepth 1 -type f -name '*.deb' | wc -l)" -eq 1
+          test "$(find release-output -mindepth 1 -type f | wc -l)" -eq 5
+          if find release-output -mindepth 1 ! -type d ! -type f -print -quit | grep -q .; then
+            echo 'sealed release output contains a non-regular entry' >&2
+            exit 1
+          fi
+          while IFS= read -r -d '' asset; do
+            name="${asset##*/}"
+            [[ "$name" =~ ^[A-Za-z0-9._+-]+$ ]]
+          done < <(find release-output -type f -print0)
+          find release-output -type f -exec basename {} \; | LC_ALL=C sort > /tmp/expected-assets.txt
+          test "$(uniq -d /tmp/expected-assets.txt | wc -l)" -eq 0
+          (
+            cd release-output/evidence-archive
+            sha256sum --check "$archive_name.sha256"
+          )
+      - name: Replace only an earlier draft for this exact tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$GITHUB_REF_NAME" > /tmp/tag-ref.json
+          jq -e --arg ref "refs/tags/$GITHUB_REF_NAME" \
+            '.ref == $ref and .object.type == "tag" and (.object.sha | test("^[0-9a-f]{40}$"))' \
+            /tmp/tag-ref.json > /dev/null
+          annotated_tag_sha="$(jq -r '.object.sha' /tmp/tag-ref.json)"
+          gh api "repos/$GITHUB_REPOSITORY/git/tags/$annotated_tag_sha" > /tmp/annotated-tag.json
+          jq -e --arg tag "$GITHUB_REF_NAME" --arg commit "$GITHUB_SHA" \
+            '.tag == $tag and .object.type == "commit" and .object.sha == $commit' \
+            /tmp/annotated-tag.json > /dev/null
+
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100" > /tmp/release-pages.json
+          jq --arg tag "$GITHUB_REF_NAME" '[.[][] | select(.tag_name == $tag)]' \
+            /tmp/release-pages.json > /tmp/tag-releases.json
+          release_count="$(jq length /tmp/tag-releases.json)"
+          test "$release_count" -le 1
+          if [[ "$release_count" -eq 1 ]]; then
+            test "$(jq -r '.[0].draft' /tmp/tag-releases.json)" = true
+            test "$(jq -r '.[0].prerelease' /tmp/tag-releases.json)" = true
+            release_id="$(jq -r '.[0].id' /tmp/tag-releases.json)"
+            test "$release_id" != null
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/$release_id"
+          fi
+      - name: Create a fresh draft research-only prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cat > /tmp/release-body.md <<'RELEASE_BODY'
+          Research-only 0.9.0 prerelease. No operational, deployment,
+          vehicle-authority, model-accuracy, field-validation, or cross-repository
+          1.0 claim is made. Model weights are not bundled. Manual and external
+          evidence remains listed in docs/NARROWED_GO_0.9.0.md. No DOI or Zenodo
+          record has been assigned yet.
+
+          The `crebain-<tag>-evidence.tar.gz` asset preserves the sealed
+          `application/` and `evidence/` hierarchy used by the digest manifest.
+          Verify its adjacent `.sha256` file first, then follow the exact-tag
+          instructions in docs/RELEASE_EVIDENCE.md.
+          RELEASE_BODY
+          mapfile -d '' assets < <(find release-output -type f -print0 | LC_ALL=C sort -z)
+          test "${#assets[@]}" -eq 5
+          gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --draft \
+            --prerelease \
+            --title "CREBAIN $GITHUB_REF_NAME (research prerelease)" \
+            --notes-file /tmp/release-body.md
+      - name: Prove the freshly uploaded draft matches the sealed output
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$GITHUB_REF_NAME" \
+            > /tmp/published-tag-ref.json
+          jq -e --arg ref "refs/tags/$GITHUB_REF_NAME" \
+            '.ref == $ref and .object.type == "tag" and (.object.sha | test("^[0-9a-f]{40}$"))' \
+            /tmp/published-tag-ref.json > /dev/null
+          annotated_tag_sha="$(jq -r '.object.sha' /tmp/published-tag-ref.json)"
+          gh api "repos/$GITHUB_REPOSITORY/git/tags/$annotated_tag_sha" \
+            > /tmp/published-annotated-tag.json
+          jq -e --arg tag "$GITHUB_REF_NAME" --arg commit "$GITHUB_SHA" \
+            '.tag == $tag and .object.type == "commit" and .object.sha == $commit' \
+            /tmp/published-annotated-tag.json > /dev/null
+
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            > /tmp/published-release-pages.json
+          jq --arg tag "$GITHUB_REF_NAME" '[.[][] | select(.tag_name == $tag)]' \
+            /tmp/published-release-pages.json > /tmp/published-tag-releases.json
+          test "$(jq length /tmp/published-tag-releases.json)" -eq 1
+          jq '.[0]' /tmp/published-tag-releases.json > /tmp/published-release.json
+          test "$(jq -r '.tag_name' /tmp/published-release.json)" = "$GITHUB_REF_NAME"
+          test "$(jq -r '.draft' /tmp/published-release.json)" = true
+          test "$(jq -r '.prerelease' /tmp/published-release.json)" = true
+          jq -r '.assets[].name' /tmp/published-release.json | LC_ALL=C sort > /tmp/actual-assets.txt
+          cmp /tmp/expected-assets.txt /tmp/actual-assets.txt
+          mkdir -p /tmp/uploaded-assets
+          while IFS=$'\t' read -r asset_id asset_name; do
+            [[ "$asset_name" =~ ^[A-Za-z0-9._+-]+$ ]]
+            local_asset="$(find release-output -type f -name "$asset_name" -print -quit)"
+            test -n "$local_asset"
+            gh api "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id" \
+              -H 'Accept: application/octet-stream' > "/tmp/uploaded-assets/$asset_name"
+            cmp "$local_asset" "/tmp/uploaded-assets/$asset_name"
+          done < <(jq -r '.assets[] | [.id, .name] | @tsv' /tmp/published-release.json)
+      - name: Publish only the verified research prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          release_id="$(jq -r '.id' /tmp/published-release.json)"
+          test "$release_id" != null
+          [[ "$release_id" =~ ^[1-9][0-9]*$ ]]
+          publication_attempted=false
+          rollback_publication() {
+            status="$?"
+            if [[ "$status" -ne 0 && "$publication_attempted" == true ]]; then
+              if [[ -s /tmp/public-release.json ]] && \
+                jq -e '.immutable == true' /tmp/public-release.json > /dev/null; then
+                echo '::warning::The immutable publication cannot be returned to draft; reconcile the exact release state manually.'
+              else
+                gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$release_id" \
+                  -F draft=true -F prerelease=true > /dev/null || true
+              fi
+            fi
+            exit "$status"
+          }
+          trap rollback_publication EXIT
+          publication_attempted=true
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$release_id" \
+            -H 'X-GitHub-Api-Version: 2026-03-10' \
+            -F draft=false \
+            -F prerelease=true \
+            -f make_latest=false \
+            > /tmp/public-release.json
+          jq -e --arg tag "$GITHUB_REF_NAME" --argjson release_id "$release_id" \
+            '.id == $release_id and .tag_name == $tag and .draft == false and .prerelease == true and .immutable == true' \
+            /tmp/public-release.json > /dev/null
+          jq -r '.assets[].name' /tmp/public-release.json | LC_ALL=C sort \
+            > /tmp/public-assets.txt
+          cmp /tmp/expected-assets.txt /tmp/public-assets.txt
+
+          gh api "repos/$GITHUB_REPOSITORY/releases/$release_id" \
+            -H 'X-GitHub-Api-Version: 2026-03-10' \
+            > /tmp/refetched-public-release.json
+          jq -e --arg tag "$GITHUB_REF_NAME" --argjson release_id "$release_id" \
+            '.id == $release_id and .tag_name == $tag and .draft == false and .prerelease == true and .immutable == true' \
+            /tmp/refetched-public-release.json > /dev/null
+          jq -r '.assets[].name' /tmp/refetched-public-release.json | LC_ALL=C sort \
+            > /tmp/refetched-public-assets.txt
+          cmp /tmp/expected-assets.txt /tmp/refetched-public-assets.txt
+          trap - EXIT

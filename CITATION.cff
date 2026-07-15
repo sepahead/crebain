@@ -1,8 +1,8 @@
 cff-version: 1.2.0
 title: CREBAIN - Adaptive Response & Awareness System (ARAS)
 message: >-
-  If you use this software in your research, please cite it using the
-  metadata from this file.
+  This research-only 0.9.0 prerelease has no DOI or Zenodo record yet. If you
+  use it, cite the repository commit and the metadata in this file.
 type: software
 authors:
   - family-names: Mahmoudian
@@ -19,10 +19,12 @@ keywords:
   - drone-detection
   - sensor-fusion
   - tauri
-  - ros2
+  - ros1
+  - zenoh
   - gaussian-splatting
   - computer-vision
 license:
   - MIT
   - Apache-2.0
-version: 0.4.0
+version: 0.9.0
+date-released: 2026-07-15
