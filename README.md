@@ -31,9 +31,15 @@ SparkJS/Three.js, and Rust.
 > context from your own deployment. Experimental backends are opt-in. See the
 > [Disclaimer](#disclaimer).
 
+> **0.9.0 research-only scope.** The release is NARROWED_GO only for a
+> research/source and automated-package review. It is NO_GO for operational,
+> deployment, authority, model-accuracy, field, or cross-repository 1.0 claims.
+> See the exact [release decision](docs/NARROWED_GO_0.9.0.md) and
+> [task disposition](audit/candidate/README.md).
+
 | Capability | Description | Status |
 | ---------- | ----------- | ------ |
-| **3D Visualization** | Gaussian Splatting + self-contained GLB models via Three.js (WebGL) | Prototype |
+| **3D Visualization** | Gaussian Splatting + operator-supplied self-contained GLB models via Three.js (WebGL); no third-party 3D model is bundled | Prototype |
 | **Multi-Camera Surveillance** | Up to 64 placeable cameras (static / PTZ / patrol); live feed thumbnails for the first 4 | Prototype |
 | **ML Detection** | Object detection pipeline with CoreML/ONNX paths and experimental backends | Prototype |
 | **Sensor Fusion** | 5 filter algorithms (KF/EKF/UKF/PF/IMM) for multi-modal tracking | Prototype |
@@ -41,13 +47,15 @@ SparkJS/Three.js, and Rust.
 | **ROS Integration** | Read-only Zenoh product telemetry + development/native rosbridge telemetry fallback | In Progress |
 | **Galadriel Evidence** | Feature-gated, exact-runtime-opt-in producer with immutable pinned registry/config/executable, two bounded NCP evidence routes, strict time/projection eligibility, upstream/capacity loss degradation, and heartbeat accounting; deployed receiver/security evidence remains pending | Component-tested |
 | **Plant Authority** | Dependency-free headless lifecycle/channel/passive-expiry foundation, inactive draft command contract with no command ingress, profile-neutral same-frame-instance ENU/NED + FLU/FRD velocity-axis corpus, closed context-bound health and captured-read age candidates, an unapproved exact-profile safe-action dispatch candidate, an unwired receipt-anchored active deadline-monitor candidate with one worker, one slot, strict same-stream advancement, and sticky terminal evidence, plus an unwired apply-check observation that loads coherent health before minting one shared age-reference instant; self-check only—the monitor neither observes lifecycle autonomously nor invalidates output, selects/applies a safe action, or proves wake latency, while the remintable observation lacks command-content and command-to-health vehicle/frame-instance binding and is neither a write-adjacent atomic transaction nor an aggregate/authorizing verdict, permit, output revocation, safe action, write-time governor, or FCU adapter | L0 Foundation |
-| **Cross-Platform** | macOS (Apple Silicon) + NixOS (CUDA) | In Progress |
+| **Cross-Platform** | macOS (Apple Silicon) + Linux/Nix; the default Linux package uses ONNX Runtime and can fall back to CPU, with NVIDIA execution providers optional | In Progress |
 
 ---
 
 ## Quickstart
 
 ### macOS (Apple Silicon)
+
+The 0.9.0 macOS application requires macOS 13.4 or later.
 
 ```bash
 # Prerequisites (rustup honors the repo's pinned toolchain; a brew-installed
@@ -68,19 +76,19 @@ cargo build --locked --manifest-path src-tauri/Cargo.toml --release
 bun run tauri:dev
 ```
 
-### NixOS (NVIDIA CUDA)
+### Linux/Nix (default, with optional NVIDIA acceleration)
 
 ```bash
 # Clone
 git clone https://github.com/sepahead/crebain.git
 
-# Enter the CUDA dev environment
-nix develop .#cuda
-#
-# Plain `nix develop` auto-detects CUDA only under impure evaluation
-# (`nix develop --impure`); the .#cuda shell is the reliable path.
-# The Nix shells set LD_LIBRARY_PATH for CUDA/TensorRT and driver libraries
-# and pre-set ORT_DYLIB_PATH to the nixpkgs libonnxruntime.so.
+# Enter the default CPU-capable development environment
+nix develop
+
+# Optional on x86_64-linux with a separately qualified NVIDIA stack:
+# nix develop .#cuda
+# The explicit CUDA shell sets CUDA and ONNX Runtime paths; it does not
+# infer hardware availability or attest that a GPU is present.
 
 # Install frontend deps and run
 bun install
@@ -90,14 +98,15 @@ bun run tauri:dev
 ### Model setup
 
 This repo does **not** ship model weights. Provide your own model files and
-ensure you have the rights to redistribute them. Without a model the app still
-runs — scenes, cameras, and simulation all work; the diagnostics UI reports
-which detection backend, if any, is available.
+ensure you have the rights to redistribute them. The app can launch without a
+model, leaving the non-detection scene, camera, and simulation features available;
+the diagnostics UI reports which detection backend, if any, is available. This is
+not a packaged-GUI or target-hardware qualification claim.
 
 | Platform | Model Path | Format |
 | -------- | ---------- | ------ |
 | macOS | `CREBAIN_MODEL_PATH=/path/to/model.mlmodelc` | CoreML (`.mlmodelc` directory) |
-| Linux (NVIDIA) | `CREBAIN_ONNX_MODEL=/path/to/model.onnx` | ONNX (CUDA/TensorRT via ONNX Runtime) |
+| Linux | `CREBAIN_ONNX_MODEL=/path/to/model.onnx` | ONNX Runtime (CPU fallback; optional CUDA/TensorRT execution providers) |
 
 For local development you can also drop models into these paths (ignored by
 git): `src-tauri/resources/yolov8s.mlmodelc/` (macOS) or
@@ -157,9 +166,9 @@ aesthetic and a project-specific 4-level threat scale (1=minimal, 2=guarded,
 
 ## ML detection
 
-- **Platform-native backends**: CoreML by default on macOS; TensorRT/CUDA on
-  Linux (NVIDIA); ONNX Runtime as the universal fallback, preferring
-  accelerated execution providers where available with CPU as last resort.
+- **Platform-native backends**: CoreML by default on macOS; ONNX Runtime on
+  Linux, preferring available TensorRT/CUDA execution providers but retaining
+  CPU fallback. The default Nix package does not attest an NVIDIA runtime.
 - **MLX is experimental, opt-in** (`CREBAIN_ENABLE_EXPERIMENTAL_MLX=1`,
   required even with `CREBAIN_BACKEND=mlx`): a Candle-on-Metal YOLOv8
   safetensors forward/postprocess path that still
@@ -172,9 +181,10 @@ aesthetic and a project-specific 4-level threat scale (1=minimal, 2=guarded,
 
 ## Sensor fusion
 
-CREBAIN runs two fusion engines: a native Rust multi-modal tracker
-(`src-tauri/src/sensor_fusion.rs`, the default — it is what the Sensor Fusion
-panel displays) and a browser-only multi-camera triangulation engine.
+CREBAIN's normative multi-modal tracker is the native Rust engine
+(`src-tauri/src/sensor_fusion.rs`; it is what the Sensor Fusion panel displays).
+The browser-only multi-camera module is a separate geometric estimator with a
+different contract, not a second implementation or parity oracle.
 Measurements from six modalities (visual, thermal, acoustic, radar, lidar,
 radio-frequency) are associated to tracks with a Mahalanobis gate and fused
 into persistent 3D tracks with a Tentative → Confirmed → Coasting → Lost
@@ -333,6 +343,7 @@ and asset limits, and the platform matrix are in
 | -------- | -------------- |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Design principles, transport trade-offs, backend selection, directory map |
 | [docs/SENSOR_FUSION.md](docs/SENSOR_FUSION.md) | Fusion math, coordinate contracts, tuning, known limitations |
+| [docs/FUSION_VALIDATION_PROTOCOL.md](docs/FUSION_VALIDATION_PROTOCOL.md) | Preregistered, not-yet-run fusion metrics and experiment protocol |
 | [docs/MODEL_CONTRACTS.md](docs/MODEL_CONTRACTS.md) | What a model must prove before its detections are trusted |
 | [docs/NATIVE_DETECTOR_BENCHMARK.md](docs/NATIVE_DETECTOR_BENCHMARK.md) | Release-command native detector latency artifact and evidence limits |
 | [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | Environment variables, settings, scene/asset limits |
@@ -349,6 +360,7 @@ and asset limits, and the platform matrix are in
 | [docs/RELEASE_ACCEPTANCE.md](docs/RELEASE_ACCEPTANCE.md) | Release-candidate evidence gates |
 | [docs/MANUAL_SMOKE_TEST.md](docs/MANUAL_SMOKE_TEST.md) | Manual smoke checklist |
 | [docs/RELEASE_EVIDENCE.md](docs/RELEASE_EVIDENCE.md) | Release evidence log |
+| [docs/NARROWED_GO_0.9.0.md](docs/NARROWED_GO_0.9.0.md) | Exact 0.9 release scope, exclusions, and blockers |
 | [docs/BACKLOG.md](docs/BACKLOG.md) | Current engineering backlog |
 | [SECURITY.md](SECURITY.md) | Security policy and threat model |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution workflow, prerequisites, validation matrix |
@@ -369,6 +381,10 @@ bun run validate:all
 # Focused checks
 bun run check:ncp-coherence
 bun run check:phase0-baseline
+bun run check:product-profiles
+bun run check:ipc-contracts
+bun run check:vendor-compat
+bun run check:ros-defs
 bun run check:plant-boundary
 bun run check:plant-frames
 bun run test:plant
@@ -382,9 +398,15 @@ bun run clippy:rust
 bun run benchmark:native-detector -- --help
 ```
 
-`bun run build` includes the production module-graph/chunk boundary proof, and
-Tauri uses that same command before packaging. `bun run validate:all` does not
-run the hosted bundle-size, coverage,
+`bun run build` includes exact pinned Spark 0.1.10, Rapier 0.19.3, and Three
+0.182.0 fail-closed transforms plus the production module-graph/chunk boundary
+proof. Spark and Rapier retain their pinned embedded-byte WebAssembly paths;
+Three rejects loader network paths while preserving validated bufferView and
+canonical PNG/JPEG data-image GLB textures through its local `TextureLoader`
+path. `bun run check:production-vendors` binds package/module/payload/AST
+shapes, mutation failures, and those local-byte runtimes; it is included in
+`validate` and `validate:all`. Tauri uses the same build command before
+packaging. Validation does not run the hosted bundle-size, coverage,
 feature-gate (`cuda,tensorrt` and `--no-default-features`), CodeQL, or
 supply-chain-audit jobs; release candidates require those hosted gates as
 specified in [docs/RELEASE_ACCEPTANCE.md](docs/RELEASE_ACCEPTANCE.md). The
@@ -425,7 +447,7 @@ Planned capability work:
 - [ ] PID JSONL regular-file enforcement, active archive saturation/drop health, and blocked-writer cleanup beyond the current two-second exit wait
 - [ ] Edge deployment (Jetson, Apple Silicon Mac Mini)
 - [ ] Recorded flight replay
-- [ ] AI-assisted threat assessment and C2 integration
+- [ ] Advisory-only threat-assessment research with no command/authority path
 
 Near-term engineering tasks are tracked in [docs/BACKLOG.md](docs/BACKLOG.md).
 
@@ -463,8 +485,14 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide.
 
 ## Citing
 
-If you use this software in your research, please cite it using the metadata
-in [CITATION.cff](CITATION.cff).
+CREBAIN 0.9.0 has no DOI or Zenodo record yet. If you use this research-only
+release, cite the exact repository commit and the metadata in
+[CITATION.cff](CITATION.cff). Do not infer a persistent identifier that has not
+been assigned.
+
+## Author
+
+CREBAIN 0.9.0 is authored and maintained by **Sepehr Mahmoudian**.
 
 ---
 

@@ -492,7 +492,7 @@ FILE: docs/SENSOR_FUSION.md
 **Citations.**
 - Radar tracker - track confirmation (M-of-N, M=3/N=5) and deletion (M-of-N misses, covariance grown beyond threshold) — https://en.wikipedia.org/wiki/Radar_tracker
 - Track algorithm - tentative/confirmed track states and M-of-N confirmation — https://en.wikipedia.org/wiki/Track_algorithm
-- CREBAIN sensor fusion design doc - existing track lifecycle and documented M-of-N roadmap limitation — file:///Users/torusprime/Development/sepahead-github/crebain/docs/SENSOR_FUSION.md
+- CREBAIN sensor fusion design doc - existing track lifecycle and documented M-of-N roadmap limitation — [`docs/SENSOR_FUSION.md`](../SENSOR_FUSION.md)
 
 ---
 
@@ -567,7 +567,7 @@ None. The Rust public API (process_measurements, TrackOutput, SensorMeasurement,
 - Radar tracker — gating, NN vs GNN vs JPDA/MHT, global assignment as the standard upgrade — https://en.wikipedia.org/wiki/Radar_tracker
 - Mahalanobis distance — chi-square gating quantiles and confidence ellipsoids (3 dof, 0.99 -> 11.345) — https://en.wikipedia.org/wiki/Mahalanobis_distance
 - Auction algorithm — Bertsekas alternative to Hungarian (epsilon-scaling tradeoffs) — https://en.wikipedia.org/wiki/Auction_algorithm
-- CREBAIN sensor fusion design doc — current greedy NN, roadmap item #1 global assignment, multi-sensor fusion semantics — file:///Users/torusprime/Development/sepahead-github/crebain/docs/SENSOR_FUSION.md
+- CREBAIN sensor fusion design doc — current greedy NN, roadmap item #1 global assignment, multi-sensor fusion semantics — [`docs/SENSOR_FUSION.md`](../SENSOR_FUSION.md)
 
 ---
 
@@ -660,7 +660,7 @@ NONE. This item is isolated to src/detection/SensorFusion.ts and src/detection/_
 
 **TS changes.**
 
-All edits in /Users/torusprime/Development/sepahead-github/crebain/src/detection/SensorFusion.ts.
+All edits in `src/detection/SensorFusion.ts`.
 
 1) Add module-level constants near DEFAULT_ASSUMED_TARGET_RANGE_M (line ~34):
    const DEFAULT_RAY_GATE_DISTANCE_M = 3.0   // max closest-approach distance between two cameras' rays to accept a correspondence (scene units/meters)

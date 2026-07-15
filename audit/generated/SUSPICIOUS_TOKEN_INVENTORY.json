@@ -1,0 +1,2708 @@
+[
+  {
+    "path": ".env.example",
+    "sample": ["Experimental", "fallback", "fallback", "default"],
+    "token_hits": 4
+  },
+  {
+    "path": ".github/CODEOWNERS",
+    "sample": ["Default", "deny"],
+    "token_hits": 2
+  },
+  {
+    "path": ".github/ISSUE_TEMPLATE/bug_report.yml",
+    "sample": ["expect", "experimental"],
+    "token_hits": 2
+  },
+  {
+    "path": ".github/workflows/audit.yml",
+    "sample": ["deny", "deny", "deny", "deny", "deny"],
+    "token_hits": 5
+  },
+  {
+    "path": ".github/workflows/ci.yml",
+    "sample": ["default", "default", "allow", "default", "default"],
+    "token_hits": 5
+  },
+  {
+    "path": ".github/workflows/codeql.yml",
+    "sample": ["deny"],
+    "token_hits": 1
+  },
+  {
+    "path": ".github/workflows/release.yml",
+    "sample": ["default", "default", "default"],
+    "token_hits": 3
+  },
+  {
+    "path": ".gitignore",
+    "sample": ["Temporary"],
+    "token_hits": 1
+  },
+  {
+    "path": ".superstack/security-reports/crebain-2026-07-10.md",
+    "sample": [
+      "deny",
+      "default",
+      "default",
+      "default",
+      "deny",
+      "default",
+      "unsafe",
+      "unsafe",
+      "deny",
+      "deny",
+      "default"
+    ],
+    "token_hits": 11
+  },
+  {
+    "path": "AGENTS.md",
+    "sample": [
+      "default",
+      "default",
+      "default",
+      "default",
+      "experimental",
+      "fallback",
+      "default",
+      "expect"
+    ],
+    "token_hits": 8
+  },
+  {
+    "path": "CHANGELOG.md",
+    "sample": [
+      "default",
+      "panic",
+      "default",
+      "Default",
+      "default",
+      "unreachable",
+      "fallback",
+      "fallback",
+      "fallback",
+      "ESTOP",
+      "ESTOP",
+      "ESTOP",
+      "ESTOP",
+      "panic",
+      "default",
+      "default",
+      "deny",
+      "deny",
+      "default",
+      "fallback",
+      "default",
+      "fallback",
+      "Experimental",
+      "fallback"
+    ],
+    "token_hits": 24
+  },
+  {
+    "path": "CONTRIBUTING.md",
+    "sample": ["default", "default", "default"],
+    "token_hits": 3
+  },
+  {
+    "path": "README.md",
+    "sample": [
+      "default",
+      "Experimental",
+      "experimental",
+      "fallback",
+      "default",
+      "fallback",
+      "experimental",
+      "default",
+      "default",
+      "default",
+      "Fallback",
+      "default",
+      "fallback",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default"
+    ],
+    "token_hits": 18
+  },
+  {
+    "path": "SECURITY.md",
+    "sample": [
+      "deny",
+      "allow",
+      "deny",
+      "default",
+      "fallback",
+      "default",
+      "default",
+      "default",
+      "ESTOP",
+      "default",
+      "panic",
+      "ESTOP",
+      "fallback"
+    ],
+    "token_hits": 13
+  },
+  {
+    "path": "brand.md",
+    "sample": ["default", "Experimental"],
+    "token_hits": 2
+  },
+  {
+    "path": "bun.lock",
+    "sample": ["expect", "expect", "expect", "expect", "expect", "expect"],
+    "token_hits": 6
+  },
+  {
+    "path": "docs/ARCHITECTURE.md",
+    "sample": [
+      "Fallback",
+      "default",
+      "experimental",
+      "default",
+      "fallback",
+      "fallback",
+      "fallback",
+      "default",
+      "default",
+      "deny",
+      "default",
+      "default",
+      "experimental",
+      "experimental",
+      "experimental",
+      "fallback",
+      "experimental",
+      "fallback",
+      "default",
+      "default",
+      "Experimental",
+      "fallback",
+      "fallback"
+    ],
+    "token_hits": 23
+  },
+  {
+    "path": "docs/BACKLOG.md",
+    "sample": [
+      "panic",
+      "default",
+      "fallback",
+      "experimental",
+      "allow",
+      "deny",
+      "allow",
+      "deny",
+      "default"
+    ],
+    "token_hits": 9
+  },
+  {
+    "path": "docs/COMPLETION_LEVELS.md",
+    "sample": ["unsafe"],
+    "token_hits": 1
+  },
+  {
+    "path": "docs/CONFIGURATION.md",
+    "sample": [
+      "experimental",
+      "fallback",
+      "fallback",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "Default",
+      "default",
+      "fallback",
+      "Default",
+      "temporary",
+      "default",
+      "experimental"
+    ],
+    "token_hits": 16
+  },
+  {
+    "path": "docs/CONTROLS.md",
+    "sample": ["default"],
+    "token_hits": 1
+  },
+  {
+    "path": "docs/GALADRIEL_PRODUCER.md",
+    "sample": ["default", "default", "default", "default", "Default", "default", "default"],
+    "token_hits": 7
+  },
+  {
+    "path": "docs/HAZARD_LOG.md",
+    "sample": [
+      "unsafe",
+      "unsafe",
+      "ESTOP",
+      "unsafe",
+      "default",
+      "unsafe",
+      "fallback",
+      "unsafe",
+      "panic",
+      "default"
+    ],
+    "token_hits": 10
+  },
+  {
+    "path": "docs/L1_ODD.md",
+    "sample": ["default", "Fallback", "fallback"],
+    "token_hits": 3
+  },
+  {
+    "path": "docs/MANUAL_SMOKE_TEST.md",
+    "sample": [
+      "Default",
+      "Default",
+      "ESTOP",
+      "default",
+      "default",
+      "Default",
+      "allow",
+      "deny",
+      "ESTOP",
+      "panic",
+      "panic",
+      "unsafe"
+    ],
+    "token_hits": 12
+  },
+  {
+    "path": "docs/MODEL_CONTRACTS.md",
+    "sample": ["experimental", "Experimental"],
+    "token_hits": 2
+  },
+  {
+    "path": "docs/NCP_BRIDGE_HANDOFF.md",
+    "sample": ["default", "default", "ESTOP", "default", "Default", "default"],
+    "token_hits": 6
+  },
+  {
+    "path": "docs/PHASE0_BASELINE.md",
+    "sample": ["fallback", "default", "panic", "unsafe", "default"],
+    "token_hits": 5
+  },
+  {
+    "path": "docs/PLANT_CONTRACT_V1.md",
+    "sample": ["default", "default"],
+    "token_hits": 2
+  },
+  {
+    "path": "docs/PLANT_FRESHNESS_V1.md",
+    "sample": ["default", "default"],
+    "token_hits": 2
+  },
+  {
+    "path": "docs/PLANT_HEALTH_V1.md",
+    "sample": ["unsafe"],
+    "token_hits": 1
+  },
+  {
+    "path": "docs/PLANT_SAFE_ACTION_V1.md",
+    "sample": ["fallback"],
+    "token_hits": 1
+  },
+  {
+    "path": "docs/PLANT_WATCHDOG_V1.md",
+    "sample": ["Default", "panic"],
+    "token_hits": 2
+  },
+  {
+    "path": "docs/RELEASE_ACCEPTANCE.md",
+    "sample": [
+      "default",
+      "default",
+      "default",
+      "default",
+      "deny",
+      "unsafe",
+      "panic",
+      "Default",
+      "ESTOP",
+      "Default",
+      "unsafe",
+      "fallback",
+      "experimental"
+    ],
+    "token_hits": 13
+  },
+  {
+    "path": "docs/RELEASE_EVIDENCE.md",
+    "sample": [
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "deny",
+      "allow",
+      "deny"
+    ],
+    "token_hits": 28
+  },
+  {
+    "path": "docs/SENSOR_FUSION.md",
+    "sample": [
+      "default",
+      "default",
+      "fallback",
+      "default",
+      "fallback",
+      "Default",
+      "Default",
+      "default",
+      "default",
+      "unsafe",
+      "default"
+    ],
+    "token_hits": 11
+  },
+  {
+    "path": "docs/SYSTEM_CONTEXT.md",
+    "sample": ["default", "default", "panic", "fallback"],
+    "token_hits": 4
+  },
+  {
+    "path": "docs/archive/SENSOR_FUSION_AGENT_SPECS.md",
+    "sample": [
+      "expect",
+      "default",
+      "default",
+      "DEFAULT",
+      "DEFAULT",
+      "fallback",
+      "Default",
+      "fallback",
+      "Default",
+      "fallback",
+      "default",
+      "DEFAULT",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "fallback",
+      "default",
+      "default",
+      "TODO"
+    ],
+    "token_hits": 77
+  },
+  {
+    "path": "docs/baselines/phase0-command-surfaces.json",
+    "sample": [
+      "DEFAULT",
+      "DEFAULT",
+      "deny",
+      "default",
+      "default",
+      "default",
+      "default",
+      "DEFAULT",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default"
+    ],
+    "token_hits": 27
+  },
+  {
+    "path": "docs/baselines/phase0-hazards.json",
+    "sample": [
+      "unsafe",
+      "unsafe",
+      "panic",
+      "unsafe",
+      "unsafe",
+      "unsafe",
+      "ESTOP",
+      "unsafe",
+      "unsafe",
+      "default",
+      "default",
+      "unsafe",
+      "Fallback",
+      "unsafe",
+      "unsafe",
+      "unsafe",
+      "unsafe",
+      "unsafe",
+      "unsafe",
+      "unsafe",
+      "unsafe",
+      "unsafe"
+    ],
+    "token_hits": 22
+  },
+  {
+    "path": "eslint.config.js",
+    "sample": ["default", "default", "unsafe", "unsafe", "unsafe", "unsafe", "unsafe"],
+    "token_hits": 7
+  },
+  {
+    "path": "flake.lock",
+    "sample": ["default", "default"],
+    "token_hits": 2
+  },
+  {
+    "path": "flake.nix",
+    "sample": [
+      "default",
+      "default",
+      "fallback",
+      "Default",
+      "default",
+      "default",
+      "fallback",
+      "default",
+      "default",
+      "default"
+    ],
+    "token_hits": 10
+  },
+  {
+    "path": "postcss.config.ts",
+    "sample": ["default"],
+    "token_hits": 1
+  },
+  {
+    "path": "public/models/README.md",
+    "sample": ["experimental"],
+    "token_hits": 1
+  },
+  {
+    "path": "public/splats/README.md",
+    "sample": ["default"],
+    "token_hits": 1
+  },
+  {
+    "path": "review.html",
+    "sample": ["default", "deny", "experimental"],
+    "token_hits": 3
+  },
+  {
+    "path": "ros/README.md",
+    "sample": ["expect", "fallback", "fallback", "fallback", "fallback", "unsafe"],
+    "token_hits": 6
+  },
+  {
+    "path": "ros/launch/multi_drone.launch",
+    "sample": ["default", "default", "default", "default", "default", "default"],
+    "token_hits": 6
+  },
+  {
+    "path": "ros/launch/rosbridge.launch",
+    "sample": [
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default"
+    ],
+    "token_hits": 10
+  },
+  {
+    "path": "ros/launch/simulation.launch",
+    "sample": [
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default"
+    ],
+    "token_hits": 9
+  },
+  {
+    "path": "ros/launch/single_drone.launch",
+    "sample": [
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default"
+    ],
+    "token_hits": 11
+  },
+  {
+    "path": "scripts/check-ncp-coherence.sh",
+    "sample": ["unsafe"],
+    "token_hits": 1
+  },
+  {
+    "path": "scripts/check-plant-authority-boundary.mjs",
+    "sample": [
+      "unsafe",
+      "unsafe",
+      "unsafe",
+      "unsafe",
+      "unsafe",
+      "expect",
+      "expect",
+      "expect",
+      "panic",
+      "unsafe",
+      "unsafe",
+      "unsafe",
+      "unsafe",
+      "default",
+      "fallback",
+      "panic",
+      "panic",
+      "panic",
+      "panic",
+      "panic",
+      "default",
+      "Default",
+      "default",
+      "default",
+      "Default"
+    ],
+    "token_hits": 73
+  },
+  {
+    "path": "scripts/check-production-authority-boundary.mjs",
+    "sample": ["unsafe", "unsafe"],
+    "token_hits": 2
+  },
+  {
+    "path": "scripts/fixtures/phase0-baseline-invalid-cases.json",
+    "sample": [
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "unwrap",
+      "unwrap",
+      "default"
+    ],
+    "token_hits": 9
+  },
+  {
+    "path": "scripts/perf-smoke.mjs",
+    "sample": ["default", "default"],
+    "token_hits": 2
+  },
+  {
+    "path": "scripts/verify-phase0-baseline.mjs",
+    "sample": ["unsafe", "deny", "unsafe", "unsafe", "unsafe"],
+    "token_hits": 5
+  },
+  {
+    "path": "src-tauri/Cargo.lock",
+    "sample": ["hack", "hack", "hack", "unsafe", "unsafe"],
+    "token_hits": 5
+  },
+  {
+    "path": "src-tauri/Cargo.toml",
+    "sample": [
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "unsafe",
+      "default",
+      "default",
+      "fallback",
+      "default",
+      "default",
+      "fallback"
+    ],
+    "token_hits": 13
+  },
+  {
+    "path": "src-tauri/capabilities/default.json",
+    "sample": ["default", "default", "default"],
+    "token_hits": 3
+  },
+  {
+    "path": "src-tauri/crates/plant-authority/Cargo.toml",
+    "sample": ["deny", "deny"],
+    "token_hits": 2
+  },
+  {
+    "path": "src-tauri/crates/plant-authority/README.md",
+    "sample": ["default", "default", "panic", "default"],
+    "token_hits": 4
+  },
+  {
+    "path": "src-tauri/crates/plant-authority/src/adapter.rs",
+    "sample": ["Default", "default"],
+    "token_hits": 2
+  },
+  {
+    "path": "src-tauri/crates/plant-authority/src/apply_observation.rs",
+    "sample": [
+      "todo",
+      "todo",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 30
+  },
+  {
+    "path": "src-tauri/crates/plant-authority/src/channels.rs",
+    "sample": [
+      "panic",
+      "unsafe",
+      "panic",
+      "expect",
+      "expect",
+      "expect",
+      "panic",
+      "Default",
+      "panic",
+      "panic",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "panic",
+      "expect",
+      "panic",
+      "expect"
+    ],
+    "token_hits": 36
+  },
+  {
+    "path": "src-tauri/crates/plant-authority/src/contract.rs",
+    "sample": ["expect", "expect", "expect", "expect", "expect", "expect", "expect"],
+    "token_hits": 7
+  },
+  {
+    "path": "src-tauri/crates/plant-authority/src/deadline_monitor.rs",
+    "sample": [
+      "panic",
+      "default",
+      "panic",
+      "panic",
+      "panic",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "unwrap",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 43
+  },
+  {
+    "path": "src-tauri/crates/plant-authority/src/expiry.rs",
+    "sample": ["expect", "expect", "expect", "expect", "expect", "expect", "expect"],
+    "token_hits": 7
+  },
+  {
+    "path": "src-tauri/crates/plant-authority/src/frame_conventions.rs",
+    "sample": ["expect", "expect", "expect", "expect", "expect", "expect", "expect", "expect"],
+    "token_hits": 8
+  },
+  {
+    "path": "src-tauri/crates/plant-authority/src/freshness.rs",
+    "sample": [
+      "default",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 22
+  },
+  {
+    "path": "src-tauri/crates/plant-authority/src/health.rs",
+    "sample": [
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "panic",
+      "panic",
+      "panic",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 56
+  },
+  {
+    "path": "src-tauri/crates/plant-authority/src/lib.rs",
+    "sample": ["deny"],
+    "token_hits": 1
+  },
+  {
+    "path": "src-tauri/crates/plant-authority/src/safe_action.rs",
+    "sample": [
+      "default",
+      "fallback",
+      "default",
+      "default",
+      "fallback",
+      "default",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 19
+  },
+  {
+    "path": "src-tauri/crates/plant-authority/tests/channel_stress.rs",
+    "sample": [
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "panic",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 59
+  },
+  {
+    "path": "src-tauri/crates/plant-authority/tests/frame_golden_vectors.rs",
+    "sample": ["panic", "panic", "panic", "panic", "expect", "expect", "expect", "expect"],
+    "token_hits": 8
+  },
+  {
+    "path": "src-tauri/crates/plant-authority/tests/headless.rs",
+    "sample": ["expect", "expect", "expect", "expect"],
+    "token_hits": 4
+  },
+  {
+    "path": "src-tauri/crates/plant-authority/tests/lifecycle_properties.rs",
+    "sample": ["expect", "expect", "expect", "expect", "expect", "expect"],
+    "token_hits": 6
+  },
+  {
+    "path": "src-tauri/deny.toml",
+    "sample": ["deny", "deny", "deny", "allow", "deny", "deny", "allow", "allow"],
+    "token_hits": 8
+  },
+  {
+    "path": "src-tauri/examples/native_detector_benchmark.rs",
+    "sample": [
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "temporary",
+      "temporary",
+      "temporary",
+      "temporary",
+      "temporary",
+      "temporary",
+      "temporary",
+      "temporary",
+      "temporary",
+      "default",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "expect",
+      "expect",
+      "unwrap"
+    ],
+    "token_hits": 87
+  },
+  {
+    "path": "src-tauri/src/common/error.rs",
+    "sample": ["Allow"],
+    "token_hits": 1
+  },
+  {
+    "path": "src-tauri/src/common/image.rs",
+    "sample": ["default", "unwrap", "unwrap", "unwrap"],
+    "token_hits": 4
+  },
+  {
+    "path": "src-tauri/src/common/path.rs",
+    "sample": [
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap"
+    ],
+    "token_hits": 18
+  },
+  {
+    "path": "src-tauri/src/common/yolo.rs",
+    "sample": [
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap"
+    ],
+    "token_hits": 9
+  },
+  {
+    "path": "src-tauri/src/coreml.rs",
+    "sample": [
+      "unsafe",
+      "unsafe",
+      "unsafe",
+      "unsafe",
+      "fallback",
+      "fallback",
+      "unsafe",
+      "Allow",
+      "fallback",
+      "unsafe",
+      "default"
+    ],
+    "token_hits": 11
+  },
+  {
+    "path": "src-tauri/src/galadriel_producer.rs",
+    "sample": [
+      "Default",
+      "Default",
+      "Default",
+      "default",
+      "default",
+      "unsafe",
+      "expect",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "unreachable",
+      "unreachable",
+      "unreachable",
+      "Default",
+      "unreachable",
+      "expect",
+      "unreachable",
+      "unreachable",
+      "Default",
+      "Default",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 90
+  },
+  {
+    "path": "src-tauri/src/galadriel_registry.rs",
+    "sample": [
+      "default",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 28
+  },
+  {
+    "path": "src-tauri/src/inference/coreml.rs",
+    "sample": ["fallback", "default", "fallback", "fallback"],
+    "token_hits": 4
+  },
+  {
+    "path": "src-tauri/src/inference/cuda.rs",
+    "sample": ["panic", "panic", "default"],
+    "token_hits": 3
+  },
+  {
+    "path": "src-tauri/src/inference/mlx.rs",
+    "sample": [
+      "experimental",
+      "Default",
+      "default",
+      "Default",
+      "default",
+      "panic",
+      "panic",
+      "default",
+      "panic",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap"
+    ],
+    "token_hits": 41
+  },
+  {
+    "path": "src-tauri/src/inference/mod.rs",
+    "sample": [
+      "fallback",
+      "fallback",
+      "default",
+      "Default",
+      "panic",
+      "panic",
+      "experimental",
+      "fallback",
+      "fallback",
+      "experimental",
+      "fallback",
+      "fallback",
+      "experimental",
+      "experimental",
+      "experimental",
+      "allow",
+      "allow",
+      "panic",
+      "panic",
+      "default",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap"
+    ],
+    "token_hits": 56
+  },
+  {
+    "path": "src-tauri/src/inference/onnx.rs",
+    "sample": ["fallback"],
+    "token_hits": 1
+  },
+  {
+    "path": "src-tauri/src/inference/tensorrt.rs",
+    "sample": [
+      "fallback",
+      "default",
+      "default",
+      "panic",
+      "panic",
+      "default",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap"
+    ],
+    "token_hits": 14
+  },
+  {
+    "path": "src-tauri/src/lib.rs",
+    "sample": [
+      "default",
+      "temporary",
+      "temporary",
+      "temporary",
+      "temporary",
+      "temporary",
+      "temporary",
+      "temporary",
+      "panic",
+      "panic",
+      "default",
+      "default",
+      "unreachable",
+      "unreachable",
+      "unreachable",
+      "unreachable",
+      "default",
+      "default",
+      "Deny",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap"
+    ],
+    "token_hits": 85
+  },
+  {
+    "path": "src-tauri/src/ncp/README.md",
+    "sample": ["default", "ESTOP", "ESTOP", "default", "default"],
+    "token_hits": 5
+  },
+  {
+    "path": "src-tauri/src/ncp/mod.rs",
+    "sample": [
+      "default",
+      "default",
+      "experimental",
+      "Default",
+      "default",
+      "unsafe",
+      "unsafe",
+      "Default",
+      "default",
+      "ESTOP",
+      "Default",
+      "default",
+      "Estop",
+      "Default",
+      "default",
+      "Estop",
+      "ESTOP",
+      "Default",
+      "Default",
+      "estop",
+      "ESTOP",
+      "default",
+      "default",
+      "default",
+      "Default"
+    ],
+    "token_hits": 130
+  },
+  {
+    "path": "src-tauri/src/onnx_detector.rs",
+    "sample": [
+      "fallback",
+      "fallback",
+      "panic",
+      "panic",
+      "default",
+      "default",
+      "panic",
+      "panic",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "panic",
+      "panic",
+      "default",
+      "default",
+      "Fallback",
+      "panic",
+      "panic"
+    ],
+    "token_hits": 20
+  },
+  {
+    "path": "src-tauri/src/pid_observation.rs",
+    "sample": [
+      "default",
+      "fallback",
+      "default",
+      "default",
+      "default",
+      "default",
+      "expect",
+      "unwrap",
+      "expect",
+      "unwrap",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "default",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 23
+  },
+  {
+    "path": "src-tauri/src/producer_monitor.rs",
+    "sample": [
+      "default",
+      "default",
+      "default",
+      "default",
+      "fallback",
+      "fallback",
+      "unsafe",
+      "unsafe",
+      "default",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unsafe"
+    ],
+    "token_hits": 17
+  },
+  {
+    "path": "src-tauri/src/sensor_fusion.rs",
+    "sample": [
+      "default",
+      "default",
+      "fallback",
+      "fallback",
+      "fallback",
+      "allow",
+      "allow",
+      "allow",
+      "fallback",
+      "fallback",
+      "Fallback",
+      "expect",
+      "allow",
+      "allow",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "allow",
+      "allow",
+      "allow",
+      "allow",
+      "allow",
+      "allow"
+    ],
+    "token_hits": 197
+  },
+  {
+    "path": "src-tauri/src/transport/commands.rs",
+    "sample": ["fallback"],
+    "token_hits": 1
+  },
+  {
+    "path": "src-tauri/src/transport/mod.rs",
+    "sample": ["fallback", "fallback", "Default", "fallback", "unwrap", "panic"],
+    "token_hits": 6
+  },
+  {
+    "path": "src-tauri/src/transport/rosbridge.rs",
+    "sample": [
+      "Fallback",
+      "panic",
+      "panic",
+      "panic",
+      "default",
+      "fallback",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap"
+    ],
+    "token_hits": 19
+  },
+  {
+    "path": "src-tauri/src/transport/zenoh.rs",
+    "sample": [
+      "panic",
+      "panic",
+      "default",
+      "default",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap",
+      "unwrap"
+    ],
+    "token_hits": 9
+  },
+  {
+    "path": "src-tauri/tauri.conf.json",
+    "sample": ["default", "unsafe", "default", "unsafe"],
+    "token_hits": 4
+  },
+  {
+    "path": "src/App.tsx",
+    "sample": ["default"],
+    "token_hits": 1
+  },
+  {
+    "path": "src/__tests__/App.productionRosTransport.test.tsx",
+    "sample": [
+      "expect",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 13
+  },
+  {
+    "path": "src/__tests__/App.rosTransport.test.tsx",
+    "sample": [
+      "expect",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 15
+  },
+  {
+    "path": "src/components/AboutModal.tsx",
+    "sample": ["Fallback"],
+    "token_hits": 1
+  },
+  {
+    "path": "src/components/BasePanel.tsx",
+    "sample": [
+      "default",
+      "Default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default",
+      "default"
+    ],
+    "token_hits": 11
+  },
+  {
+    "path": "src/components/CrebainViewer.tsx",
+    "sample": ["default", "Default"],
+    "token_hits": 2
+  },
+  {
+    "path": "src/components/DetectionOverlay.tsx",
+    "sample": ["default"],
+    "token_hits": 1
+  },
+  {
+    "path": "src/components/DroneSpawnPanel.tsx",
+    "sample": ["default"],
+    "token_hits": 1
+  },
+  {
+    "path": "src/components/ErrorBoundary.tsx",
+    "sample": ["fallback", "fallback", "fallback", "default"],
+    "token_hits": 4
+  },
+  {
+    "path": "src/components/ObjectTransformControls.tsx",
+    "sample": ["default"],
+    "token_hits": 1
+  },
+  {
+    "path": "src/components/PerformancePanel.tsx",
+    "sample": ["default"],
+    "token_hits": 1
+  },
+  {
+    "path": "src/components/ROSConnectionPanel.tsx",
+    "sample": ["default"],
+    "token_hits": 1
+  },
+  {
+    "path": "src/components/SaveLoadPanel.tsx",
+    "sample": ["default"],
+    "token_hits": 1
+  },
+  {
+    "path": "src/components/SensorFusionPanel.tsx",
+    "sample": ["default", "default"],
+    "token_hits": 2
+  },
+  {
+    "path": "src/components/__tests__/AboutModal.test.tsx",
+    "sample": ["expect", "expect", "expect", "expect", "expect", "expect", "expect"],
+    "token_hits": 7
+  },
+  {
+    "path": "src/components/__tests__/PerformancePanel.test.tsx",
+    "sample": ["expect", "expect", "expect"],
+    "token_hits": 3
+  },
+  {
+    "path": "src/components/__tests__/ROSConnectionPanel.test.tsx",
+    "sample": ["expect", "expect", "expect", "expect"],
+    "token_hits": 4
+  },
+  {
+    "path": "src/components/__tests__/SaveLoadPanel.test.tsx",
+    "sample": [
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 28
+  },
+  {
+    "path": "src/components/viewer/DetectionPanel.tsx",
+    "sample": ["default"],
+    "token_hits": 1
+  },
+  {
+    "path": "src/components/viewer/HeaderBar.tsx",
+    "sample": ["default"],
+    "token_hits": 1
+  },
+  {
+    "path": "src/components/viewer/ProceduralTerrain.ts",
+    "sample": ["default", "default", "default", "default", "default"],
+    "token_hits": 5
+  },
+  {
+    "path": "src/components/viewer/TacticalGrid.ts",
+    "sample": ["default", "default", "default"],
+    "token_hits": 3
+  },
+  {
+    "path": "src/components/viewer/__tests__/cameraCapture.test.ts",
+    "sample": [
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 18
+  },
+  {
+    "path": "src/components/viewer/__tests__/viewerPanels.test.tsx",
+    "sample": [
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 10
+  },
+  {
+    "path": "src/context/UIScaleContext.tsx",
+    "sample": ["DEFAULT", "default", "DEFAULT", "DEFAULT", "default"],
+    "token_hits": 5
+  },
+  {
+    "path": "src/detection/AdvancedSensorFusion.ts",
+    "sample": ["default", "default", "default", "default", "default", "DEFAULT", "default"],
+    "token_hits": 7
+  },
+  {
+    "path": "src/detection/SensorFusion.ts",
+    "sample": ["fallback", "default", "default", "Fallback", "default"],
+    "token_hits": 5
+  },
+  {
+    "path": "src/detection/__tests__/AdvancedSensorFusion.test.ts",
+    "sample": [
+      "expect",
+      "expect",
+      "expect",
+      "fallback",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 10
+  },
+  {
+    "path": "src/detection/__tests__/SensorFusion.test.ts",
+    "sample": [
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 24
+  },
+  {
+    "path": "src/detection/__tests__/scenarioFixtures.test.ts",
+    "sample": [
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 25
+  },
+  {
+    "path": "src/detection/__tests__/sensorFusionGeometry.test.ts",
+    "sample": [
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "default",
+      "DEFAULT",
+      "default",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 12
+  },
+  {
+    "path": "src/detection/__tests__/threatLevel.test.ts",
+    "sample": [
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 20
+  },
+  {
+    "path": "src/detection/types.ts",
+    "sample": ["Default", "Default", "Default"],
+    "token_hits": 3
+  },
+  {
+    "path": "src/hooks/__tests__/useDetectionLoop.test.ts",
+    "sample": [
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 43
+  },
+  {
+    "path": "src/hooks/__tests__/useDroneController.ncp.test.ts",
+    "sample": [
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "ESTOP",
+      "expect",
+      "estop"
+    ],
+    "token_hits": 40
+  },
+  {
+    "path": "src/hooks/__tests__/useGazeboDrones.test.tsx",
+    "sample": [
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 20
+  },
+  {
+    "path": "src/hooks/__tests__/useGazeboSimulation.test.tsx",
+    "sample": [
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 47
+  },
+  {
+    "path": "src/hooks/__tests__/useKeyboardControls.test.tsx",
+    "sample": [
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 22
+  },
+  {
+    "path": "src/hooks/__tests__/useRosBridge.test.tsx",
+    "sample": [
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 34
+  },
+  {
+    "path": "src/hooks/__tests__/useSceneState.test.tsx",
+    "sample": [
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 27
+  },
+  {
+    "path": "src/hooks/useDetectionLoop.ts",
+    "sample": ["default", "default", "default", "default"],
+    "token_hits": 4
+  },
+  {
+    "path": "src/hooks/useDraggable.ts",
+    "sample": ["default"],
+    "token_hits": 1
+  },
+  {
+    "path": "src/hooks/useDraggable3D.ts",
+    "sample": ["default", "default", "default", "default", "default"],
+    "token_hits": 5
+  },
+  {
+    "path": "src/hooks/useDraggablePanel.ts",
+    "sample": ["default"],
+    "token_hits": 1
+  },
+  {
+    "path": "src/hooks/useDroneController.ts",
+    "sample": [
+      "ESTOP",
+      "estop",
+      "estop",
+      "estop",
+      "ESTOP",
+      "ESTOP",
+      "ESTOP",
+      "ESTOP",
+      "ESTOP",
+      "unsafe",
+      "estop",
+      "estop",
+      "estop",
+      "ESTOP",
+      "default"
+    ],
+    "token_hits": 15
+  },
+  {
+    "path": "src/hooks/useGazeboDrones.ts",
+    "sample": ["DEFAULT", "unsafe", "default", "default"],
+    "token_hits": 4
+  },
+  {
+    "path": "src/hooks/useGazeboSimulation.ts",
+    "sample": ["default", "default", "default", "DEFAULT", "default"],
+    "token_hits": 5
+  },
+  {
+    "path": "src/hooks/useKeyboardControls.ts",
+    "sample": ["default"],
+    "token_hits": 1
+  },
+  {
+    "path": "src/hooks/useObjectSelection.ts",
+    "sample": ["default", "default", "default", "default", "default"],
+    "token_hits": 5
+  },
+  {
+    "path": "src/hooks/usePerformanceTracker.ts",
+    "sample": ["default"],
+    "token_hits": 1
+  },
+  {
+    "path": "src/hooks/useRosBridge.ts",
+    "sample": ["default", "default", "DEFAULT", "default"],
+    "token_hits": 4
+  },
+  {
+    "path": "src/hooks/useSceneState.ts",
+    "sample": ["default"],
+    "token_hits": 1
+  },
+  {
+    "path": "src/lib/__tests__/authorityNetworkBoundary.test.ts",
+    "sample": [
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 23
+  },
+  {
+    "path": "src/lib/__tests__/boundedFetch.test.ts",
+    "sample": ["expect", "expect", "expect", "expect", "expect", "expect", "expect", "expect"],
+    "token_hits": 8
+  },
+  {
+    "path": "src/lib/__tests__/ciWorkflow.test.ts",
+    "sample": [
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 55
+  },
+  {
+    "path": "src/lib/__tests__/diagnostics.test.ts",
+    "sample": [
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 18
+  },
+  {
+    "path": "src/lib/__tests__/glbValidation.test.ts",
+    "sample": ["expect", "expect", "expect", "expect", "expect", "expect", "expect"],
+    "token_hits": 7
+  },
+  {
+    "path": "src/lib/__tests__/shortcuts.test.ts",
+    "sample": [
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 26
+  },
+  {
+    "path": "src/lib/__tests__/tauriCommandRegistration.test.ts",
+    "sample": [
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 31
+  },
+  {
+    "path": "src/lib/__tests__/tauriCommands.test.ts",
+    "sample": [
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 11
+  },
+  {
+    "path": "src/lib/__tests__/transportEvents.test.ts",
+    "sample": ["expect", "expect", "expect", "expect", "expect", "expect"],
+    "token_hits": 6
+  },
+  {
+    "path": "src/lib/diagnostics.ts",
+    "sample": ["fallback", "fallback", "fallback"],
+    "token_hits": 3
+  },
+  {
+    "path": "src/lib/droneCategories.ts",
+    "sample": ["fallback", "fallback", "fallback"],
+    "token_hits": 3
+  },
+  {
+    "path": "src/lib/logger.ts",
+    "sample": ["default"],
+    "token_hits": 1
+  },
+  {
+    "path": "src/lib/three/__tests__/sceneObjects.test.ts",
+    "sample": ["expect", "expect", "expect", "expect", "expect", "expect", "expect"],
+    "token_hits": 7
+  },
+  {
+    "path": "src/lib/three/sceneObjects.ts",
+    "sample": ["allow", "fallback", "fallback", "fallback"],
+    "token_hits": 4
+  },
+  {
+    "path": "src/neuro/__tests__/neuro.test.ts",
+    "sample": [
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "default",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 43
+  },
+  {
+    "path": "src/physics/DronePhysics.ts",
+    "sample": ["fallback", "Allow", "default"],
+    "token_hits": 3
+  },
+  {
+    "path": "src/physics/DroneTypes.ts",
+    "sample": ["default", "default"],
+    "token_hits": 2
+  },
+  {
+    "path": "src/physics/SensorSimulation.ts",
+    "sample": ["default"],
+    "token_hits": 1
+  },
+  {
+    "path": "src/physics/__tests__/DronePhysics.test.ts",
+    "sample": [
+      "expect",
+      "fallback",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 67
+  },
+  {
+    "path": "src/physics/__tests__/SensorSimulation.test.ts",
+    "sample": [
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 19
+  },
+  {
+    "path": "src/ros/GuidanceController.ts",
+    "sample": ["default"],
+    "token_hits": 1
+  },
+  {
+    "path": "src/ros/MessageRegistry.ts",
+    "sample": ["default"],
+    "token_hits": 1
+  },
+  {
+    "path": "src/ros/ROSBridge.ts",
+    "sample": ["default", "allow"],
+    "token_hits": 2
+  },
+  {
+    "path": "src/ros/ROSCameraStream.ts",
+    "sample": ["fallback", "fallback", "fallback"],
+    "token_hits": 3
+  },
+  {
+    "path": "src/ros/ROSPerformanceMonitor.ts",
+    "sample": ["default", "default", "default", "default", "default", "DEFAULT"],
+    "token_hits": 6
+  },
+  {
+    "path": "src/ros/TransformManager.ts",
+    "sample": ["default", "default", "default", "DEFAULT"],
+    "token_hits": 4
+  },
+  {
+    "path": "src/ros/__tests__/GuidanceController.test.ts",
+    "sample": [
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 13
+  },
+  {
+    "path": "src/ros/__tests__/MessageRegistry.test.ts",
+    "sample": [
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 38
+  },
+  {
+    "path": "src/ros/__tests__/ROSBridge.test.ts",
+    "sample": [
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 21
+  },
+  {
+    "path": "src/ros/__tests__/ROSCameraStream.test.ts",
+    "sample": ["expect", "expect", "expect", "expect", "expect", "expect"],
+    "token_hits": 6
+  },
+  {
+    "path": "src/ros/__tests__/ROSPerformanceMonitor.test.ts",
+    "sample": [
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 18
+  },
+  {
+    "path": "src/ros/__tests__/TransformManager.test.ts",
+    "sample": ["expect", "expect", "expect", "expect"],
+    "token_hits": 4
+  },
+  {
+    "path": "src/ros/__tests__/ZenohBridge.test.ts",
+    "sample": [
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 21
+  },
+  {
+    "path": "src/ros/__tests__/useROSSensors.bridge.test.tsx",
+    "sample": [
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 76
+  },
+  {
+    "path": "src/ros/__tests__/useROSSensors.test.ts",
+    "sample": [
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 38
+  },
+  {
+    "path": "src/ros/__tests__/utils.test.ts",
+    "sample": ["expect", "expect", "expect", "expect", "expect", "expect", "expect", "expect"],
+    "token_hits": 8
+  },
+  {
+    "path": "src/ros/models.ts",
+    "sample": ["Fallback"],
+    "token_hits": 1
+  },
+  {
+    "path": "src/ros/useROSSensors.ts",
+    "sample": ["Default", "Default", "Default", "Default", "Default", "DEFAULT", "default"],
+    "token_hits": 7
+  },
+  {
+    "path": "src/simulation/InterceptionSystem.ts",
+    "sample": ["default"],
+    "token_hits": 1
+  },
+  {
+    "path": "src/simulation/__tests__/InterceptionSystem.test.ts",
+    "sample": [
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect"
+    ],
+    "token_hits": 43
+  },
+  {
+    "path": "src/state/SceneState.ts",
+    "sample": ["fallback", "fallback", "default", "default"],
+    "token_hits": 4
+  },
+  {
+    "path": "src/state/__tests__/SceneState.test.ts",
+    "sample": [
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "Fallback",
+      "fallback",
+      "expect",
+      "fallback",
+      "fallback",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "expect",
+      "Unsafe",
+      "expect"
+    ],
+    "token_hits": 59
+  },
+  {
+    "path": "src/vite-env.d.ts",
+    "sample": ["default"],
+    "token_hits": 1
+  },
+  {
+    "path": "vite.config.ts",
+    "sample": ["default", "unimplemented"],
+    "token_hits": 2
+  }
+]

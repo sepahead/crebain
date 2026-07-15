@@ -2,7 +2,10 @@
 description: Run the CREBAIN manual smoke checklist
 ---
 
-Use this workflow after automated validation passes and before tagging, demoing, or presenting a release candidate.
+Use this workflow after automated validation passes and before demoing or making
+operational, deployment, field, or 1.0 readiness claims. The research/source/package
+0.9 prerelease may be tagged with these rows explicitly pending only under the
+exclusions recorded in `docs/NARROWED_GO_0.9.0.md`.
 
 1. Record the current commit hash and intended app mode.
 // turbo

@@ -27,12 +27,6 @@ ignore = [
     # rand unsoundness only under a specific custom-global-logger interaction;
     # not triggered by CREBAIN's usage. Remove once a patched rand is published.
     "RUSTSEC-2026-0097",
-    # Zenoh 1.9 constrains an unconditional dependency declaration to
-    # lz4_flex 0.10, but the vulnerable block-decompression call is compiled
-    # only with Zenoh's `transport_compression` feature. CREBAIN deliberately
-    # disables Zenoh defaults and does not enable compression, so the affected
-    # function is absent from shipped binaries. Remove when Zenoh upgrades.
-    "RUSTSEC-2026-0041",
 ]
 
 [licenses]

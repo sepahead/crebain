@@ -21,14 +21,17 @@ use super::{Backend, Detection, Detector, InferenceError, Result};
 use crate::common::path;
 #[cfg(target_os = "linux")]
 use crate::common::{coco, yolo};
+use std::io::{self, Read};
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Stdio};
 #[cfg(target_os = "linux")]
 use std::sync::atomic::{AtomicU64, Ordering};
 #[cfg(target_os = "linux")]
 use std::sync::Mutex;
 #[cfg(target_os = "linux")]
 use std::time::Instant;
+
+const TRTEXEC_DIAGNOSTIC_LIMIT_BYTES: usize = 64 * 1024;
 
 #[cfg(target_os = "linux")]
 use ort::{
@@ -158,64 +161,6 @@ impl TensorRtDetector {
 
         output
     }
-
-    /// Non-maximum suppression
-    fn nms(&self, mut detections: Vec<Detection>, iou_threshold: f32) -> Vec<Detection> {
-        detections.sort_by(|a, b| {
-            b.confidence
-                .partial_cmp(&a.confidence)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
-
-        let mut keep = vec![true; detections.len()];
-
-        for i in 0..detections.len() {
-            if !keep[i] {
-                continue;
-            }
-
-            for j in (i + 1)..detections.len() {
-                if !keep[j] || detections[i].class_id != detections[j].class_id {
-                    continue;
-                }
-
-                let iou = compute_iou(&detections[i].bbox, &detections[j].bbox);
-                if iou > iou_threshold {
-                    keep[j] = false;
-                }
-            }
-        }
-
-        detections
-            .into_iter()
-            .enumerate()
-            .filter(|(i, _)| keep[*i])
-            .map(|(_, d)| d)
-            .collect()
-    }
-}
-
-/// Compute IoU between two bounding boxes
-#[cfg(target_os = "linux")]
-fn compute_iou(a: &[f32; 4], b: &[f32; 4]) -> f32 {
-    let inter_x1 = a[0].max(b[0]);
-    let inter_y1 = a[1].max(b[1]);
-    let inter_x2 = a[2].min(b[2]);
-    let inter_y2 = a[3].min(b[3]);
-
-    let inter_w = (inter_x2 - inter_x1).max(0.0);
-    let inter_h = (inter_y2 - inter_y1).max(0.0);
-    let inter_area = inter_w * inter_h;
-
-    let area_a = (a[2] - a[0]) * (a[3] - a[1]);
-    let area_b = (b[2] - b[0]) * (b[3] - b[1]);
-    let union_area = area_a + area_b - inter_area;
-
-    if union_area <= 0.0 {
-        0.0
-    } else {
-        inter_area / union_area
-    }
 }
 
 // COCO class names
@@ -275,6 +220,8 @@ impl Detector for TensorRtDetector {
             .map_err(InferenceError::InferenceError)?;
         yolo::validate_yolov8_output_len(layout, num_anchors, output_data.len())
             .map_err(InferenceError::InferenceError)?;
+        yolo::validate_yolov8_class_count(self.num_classes)
+            .map_err(InferenceError::InferenceError)?;
 
         let mut detections = Vec::new();
         let img_w = width as f32;
@@ -304,19 +251,17 @@ impl Detector for TensorRtDetector {
             let x2 = ((cx + w / 2.0) * img_w / self.input_width as f32).min(img_w);
             let y2 = ((cy + h / 2.0) * img_h / self.input_height as f32).min(img_h);
 
-            detections.push(Detection {
+            let detection = Detection {
                 bbox: [x1, y1, x2, y2],
                 confidence: max_score,
                 class_id: max_class,
                 class_label: coco::get_class_name(max_class as usize),
-            });
+            };
+            super::validate_backend_detection(&detection, width, height)?;
+            detections.push(detection);
         }
 
-        crate::common::nms::validate_nms_candidate_count(detections.len())
-            .map_err(InferenceError::InferenceError)?;
-
-        // Apply NMS
-        detections = self.nms(detections, 0.45);
+        detections = super::apply_common_nms(detections, 0.45)?;
 
         let elapsed_ms = start.elapsed().as_millis() as u64;
         self.inference_count.fetch_add(1, Ordering::Relaxed);
@@ -394,15 +339,30 @@ pub fn build_engine(onnx_path: &str, engine_path: &str, fp16: bool, int8: bool) 
 
     log::info!("[TensorRT] Running: {:?}", cmd);
 
-    let output = cmd
-        .output()
-        .map_err(|e| InferenceError::BackendError(format!("Failed to run trtexec: {}", e)))?;
+    cmd.stdout(Stdio::null()).stderr(Stdio::piped());
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| InferenceError::BackendError(format!("Failed to run trtexec: {e}")))?;
+    let stderr = child.stderr.take().ok_or_else(|| {
+        InferenceError::BackendError("Failed to capture trtexec diagnostics".to_string())
+    })?;
+    let stderr_reader = std::thread::spawn(move || read_bounded_diagnostics(stderr));
+    let status = child
+        .wait()
+        .map_err(|e| InferenceError::BackendError(format!("Failed to wait for trtexec: {e}")))?;
+    let diagnostics = stderr_reader
+        .join()
+        .map_err(|_| {
+            InferenceError::BackendError("trtexec diagnostic reader panicked".to_string())
+        })?
+        .map_err(|e| {
+            InferenceError::BackendError(format!("Failed to read trtexec diagnostics: {e}"))
+        })?;
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
+    if !status.success() {
         return Err(InferenceError::BackendError(format!(
             "trtexec failed: {}",
-            stderr
+            diagnostics.render()
         )));
     }
 
@@ -411,6 +371,43 @@ pub fn build_engine(onnx_path: &str, engine_path: &str, fp16: bool, int8: bool) 
         engine_path.display()
     );
     Ok(())
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct BoundedDiagnostics {
+    bytes: Vec<u8>,
+    truncated: bool,
+}
+
+impl BoundedDiagnostics {
+    fn render(&self) -> String {
+        let mut rendered = String::from_utf8_lossy(&self.bytes).into_owned();
+        if self.truncated {
+            rendered.push_str(&format!(
+                "\n[trtexec diagnostics truncated after {TRTEXEC_DIAGNOSTIC_LIMIT_BYTES} bytes]"
+            ));
+        }
+        rendered
+    }
+}
+
+fn read_bounded_diagnostics(mut reader: impl Read) -> io::Result<BoundedDiagnostics> {
+    let mut bytes = Vec::with_capacity(TRTEXEC_DIAGNOSTIC_LIMIT_BYTES);
+    let mut buffer = [0_u8; 8 * 1024];
+    let mut truncated = false;
+
+    loop {
+        let read = reader.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        let remaining = TRTEXEC_DIAGNOSTIC_LIMIT_BYTES.saturating_sub(bytes.len());
+        let retained = remaining.min(read);
+        bytes.extend_from_slice(&buffer[..retained]);
+        truncated |= retained < read;
+    }
+
+    Ok(BoundedDiagnostics { bytes, truncated })
 }
 
 fn validate_tensorrt_engine_output_path(engine_path: &str) -> Result<PathBuf> {
@@ -475,12 +472,12 @@ fn find_trtexec() -> Option<PathBuf> {
         }
     }
 
-    // Check PATH
-    if let Ok(output) = Command::new("which").arg("trtexec").output() {
-        if output.status.success() {
-            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if !path.is_empty() {
-                return Some(PathBuf::from(path));
+    // Check PATH without launching another process or buffering its output.
+    if let Some(path) = std::env::var_os("PATH") {
+        for directory in std::env::split_paths(&path) {
+            let candidate = directory.join("trtexec");
+            if candidate.is_file() {
+                return Some(candidate);
             }
         }
     }
@@ -599,7 +596,10 @@ mod tests {
 
         let valid = validate_tensorrt_model_path("test", model_path.to_str().unwrap());
 
-        assert_eq!(valid.as_deref(), Some(model_path.as_path()));
+        assert_eq!(
+            valid.as_deref(),
+            Some(model_path.canonicalize().unwrap().as_path())
+        );
 
         let _ = std::fs::remove_file(model_path);
     }
@@ -623,6 +623,17 @@ mod tests {
 
         assert!(error.contains("INT8"));
         assert!(error.contains("calibration"));
+    }
+
+    #[test]
+    fn trtexec_diagnostics_are_drained_but_retained_within_the_limit() {
+        let source = vec![b'x'; TRTEXEC_DIAGNOSTIC_LIMIT_BYTES + 17];
+
+        let diagnostics = read_bounded_diagnostics(source.as_slice()).unwrap();
+
+        assert_eq!(diagnostics.bytes.len(), TRTEXEC_DIAGNOSTIC_LIMIT_BYTES);
+        assert!(diagnostics.truncated);
+        assert!(diagnostics.render().contains("diagnostics truncated"));
     }
 
     #[test]

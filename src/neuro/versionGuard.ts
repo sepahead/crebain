@@ -3,7 +3,7 @@
  * `@sepahead/ncp`.
  *
  * The canonical `NeuroSimClient` stamps `ncp_version` on every request and wire
- * 0.7 validates success and typed-error replies internally. CREBAIN also gates
+ * 0.8 validates success and typed-error replies internally. CREBAIN also gates
  * the transport boundary so reply shape, scientific claims, and request
  * attribution fail closed before the canonical client consumes them.
  *

@@ -15,14 +15,21 @@ describe('ROSPerformanceMonitor', () => {
     monitor.recordMessage('/camera', 200, Date.now() - 20)
     monitor.recordMessage('/camera', 100, Date.now() - 40)
 
-    expect(monitor.getTopicStats('/camera')).toEqual(expect.objectContaining({
-      topic: '/camera',
-      messageCount: 2,
-      byteCount: 300,
-      avgLatencyMs: 30,
-      minLatencyMs: 20,
-      maxLatencyMs: 40,
-    }))
+    expect(monitor.getTopicStats('/camera')).toEqual(
+      expect.objectContaining({
+        topic: '/camera',
+        messageCount: 2,
+        byteCount: 300,
+        windowMessageCount: 2,
+        windowByteCount: 300,
+        messagesPerSecond: 2,
+        bytesPerSecond: 300,
+        avgLatencyMs: 30,
+        minLatencyMs: 20,
+        maxLatencyMs: 40,
+        p95LatencyMs: 40,
+      })
+    )
     expect(monitor.getAllTopicStats()).toHaveLength(1)
     expect(monitor.getConnectionQuality()).toEqual(expect.objectContaining({
       avgLatencyMs: 30,
@@ -84,6 +91,89 @@ describe('ROSPerformanceMonitor', () => {
       type: 'low_throughput',
       topic: '/model_states',
     }))
+  })
+
+  it('expires frozen traffic from rolling health while retaining lifetime totals', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(30_000)
+    const monitor = createPerformanceMonitor({ windowSizeMs: 1_000 })
+    vi.advanceTimersByTime(500)
+
+    monitor.recordMessage('/camera', 200, Date.now() - 20)
+    expect(monitor.getTopicStats('/camera')).toEqual(
+      expect.objectContaining({
+        messageCount: 1,
+        byteCount: 200,
+        windowMessageCount: 1,
+        windowByteCount: 200,
+      })
+    )
+
+    vi.advanceTimersByTime(1_001)
+
+    expect(monitor.getTopicStats('/camera')).toEqual(
+      expect.objectContaining({
+        messageCount: 1,
+        byteCount: 200,
+        windowMessageCount: 0,
+        windowByteCount: 0,
+        messagesPerSecond: 0,
+        bytesPerSecond: 0,
+        avgLatencyMs: 0,
+        p95LatencyMs: 0,
+      })
+    )
+    expect(monitor.getConnectionQuality().level).toBe('critical')
+  })
+
+  it('uses nearest-rank p95 for the rolling latency sample', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(40_000)
+    const monitor = createPerformanceMonitor()
+    vi.advanceTimersByTime(1_000)
+
+    for (let latencyMs = 1; latencyMs <= 100; latencyMs++) {
+      monitor.recordMessage('/pose', 1, Date.now() - latencyMs)
+    }
+
+    expect(monitor.getTopicStats('/pose')?.p95LatencyMs).toBe(95)
+  })
+
+  it('records direct latency durations and rejects invalid samples', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(45_000)
+    const monitor = createPerformanceMonitor({ highLatencyThresholdMs: 10 })
+    const alert = vi.fn()
+    monitor.onAlert(alert)
+    monitor.recordMessage('/pose', 1)
+
+    monitor.recordLatency('/pose', 20)
+    monitor.recordLatency('/pose', -1)
+    monitor.recordLatency('/pose', Number.POSITIVE_INFINITY)
+
+    expect(monitor.getTopicStats('/pose')).toEqual(
+      expect.objectContaining({ avgLatencyMs: 20, minLatencyMs: 20, maxLatencyMs: 20 })
+    )
+    expect(alert).toHaveBeenCalledOnce()
+    expect(alert).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'high_latency', topic: '/pose' })
+    )
+  })
+
+  it('starts idempotently without resetting uptime or leaking intervals', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(50_000)
+    const monitor = createPerformanceMonitor()
+
+    monitor.start()
+    vi.advanceTimersByTime(500)
+    monitor.start()
+
+    expect(monitor.getUptimeSeconds()).toBe(0.5)
+    expect(vi.getTimerCount()).toBe(1)
+
+    monitor.stop()
+    expect(vi.getTimerCount()).toBe(0)
   })
 
   it('resets statistics and supports config updates', () => {

@@ -20,6 +20,37 @@ import {
   type SensorMeasurement,
 } from '../AdvancedSensorFusion'
 
+function measurement(timestampMs: number): SensorMeasurement {
+  return {
+    sensor_id: 'camera-1',
+    modality: 'visual',
+    timestamp_ms: timestampMs,
+    position: [1, 2, 3],
+    covariance: [1, 1, 1],
+    confidence: 0.9,
+    class_label: 'drone',
+    metadata: {},
+  }
+}
+
+function track(overrides: Partial<FusedTrack> = {}): FusedTrack {
+  return {
+    id: 'track-1',
+    position: [1, 2, 3],
+    velocity: [0.1, 0.2, 0.3],
+    position_uncertainty: [0.5, 0.5, 0.5],
+    velocity_uncertainty: [0.1, 0.1, 0.1],
+    class_label: 'drone',
+    confidence: 0.95,
+    sensor_sources: ['visual', 'thermal'],
+    last_update_ms: 250,
+    age: 0,
+    state: 'Confirmed',
+    threat_level: 3,
+    ...overrides,
+  }
+}
+
 describe('AdvancedSensorFusion IPC', () => {
   beforeEach(() => {
     invokeMock.mockReset()
@@ -62,51 +93,44 @@ describe('AdvancedSensorFusion IPC', () => {
       metadata: {},
     }
 
-    await processMeasurements([measurement], 456, 7)
+    await processMeasurements([measurement], 123, 7)
 
     expect(invokeMock).toHaveBeenCalledWith('fusion_process', {
       measurements: [measurement],
-      timestampMs: 456,
+      timestampMs: 123,
       upstreamDroppedMeasurements: 7,
     })
   })
 
-  it('uses a deterministic clock fallback and returns fused tracks', async () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(1_700_000_000_000)
-    const track: FusedTrack = {
-      id: 'track-1',
-      position: [1, 2, 3],
-      velocity: [0.1, 0.2, 0.3],
-      position_uncertainty: [0.5, 0.5, 0.5],
-      velocity_uncertainty: [0.1, 0.1, 0.1],
-      class_label: 'drone',
-      confidence: 0.95,
-      sensor_sources: ['visual', 'thermal'],
-      last_update_ms: 1_700_000_000_000,
-      age: 0,
-      state: 'Confirmed',
-      threat_level: 3,
-    }
-    const measurement: SensorMeasurement = {
-      sensor_id: 'camera-1',
-      modality: 'visual',
-      timestamp_ms: 1_700_000_000_000,
-      position: [1, 2, 3],
-      covariance: [1, 1, 1],
-      confidence: 0.9,
-      class_label: 'drone',
-      metadata: {},
-    }
-    invokeMock.mockResolvedValue([track])
+  it('derives one exact frame time from co-temporal measurements', async () => {
+    const expectedTrack = track()
+    const measurements = [measurement(250), measurement(250)]
+    invokeMock.mockResolvedValue([expectedTrack])
 
-    await expect(processMeasurements([measurement])).resolves.toEqual([track])
+    await expect(processMeasurements(measurements)).resolves.toEqual([expectedTrack])
 
     expect(invokeMock).toHaveBeenCalledWith('fusion_process', {
-      measurements: [measurement],
-      timestampMs: 1_700_000_000_000,
+      measurements,
+      timestampMs: 250,
       upstreamDroppedMeasurements: 0,
     })
+  })
+
+  it('rejects mixed or explicitly mismatched measurement timestamps before IPC', async () => {
+    await expect(processMeasurements([measurement(100), measurement(250)])).rejects.toThrow(
+      'all measurements in one frame must have the same timestamp_ms'
+    )
+    await expect(processMeasurements([measurement(100)], 250)).rejects.toThrow(
+      'timestampMs must equal every measurement timestamp_ms'
+    )
+    expect(invokeMock).not.toHaveBeenCalled()
+  })
+
+  it('requires an explicit measurement-domain timestamp for an empty frame', async () => {
+    await expect(processMeasurements([])).rejects.toThrow(
+      'timestampMs is required when processing an empty measurement frame'
+    )
+    expect(invokeMock).not.toHaveBeenCalled()
   })
 
   it('rejects malformed fused track responses', async () => {
@@ -122,9 +146,28 @@ describe('AdvancedSensorFusion IPC', () => {
     }
     invokeMock.mockResolvedValue([{ id: 'track-1', position: [1, 2] }])
 
-    await expect(processMeasurements([measurement], 456)).rejects.toThrow(
+    await expect(processMeasurements([measurement], 123)).rejects.toThrow(
       'Invalid fusion response: tracks[0].sensor_sources must contain known modalities'
     )
+  })
+
+  it('rejects out-of-range track fields and oversized responses', async () => {
+    const input = measurement(123)
+    const cases: Array<[unknown, string]> = [
+      [[track({ confidence: 1.1 })], 'tracks[0].confidence must be between 0 and 1'],
+      [[track({ age: -1 })], 'tracks[0].age must be a safe integer'],
+      [[track({ threat_level: 2.5 })], 'tracks[0].threat_level must be a safe integer'],
+      [
+        [track({ position_uncertainty: [-1, 0, 0] })],
+        'tracks[0].position_uncertainty entries must be non-negative',
+      ],
+      [Array.from({ length: 1_025 }, () => track()), 'tracks must contain at most 1024 entries'],
+    ]
+
+    for (const [response, message] of cases) {
+      invokeMock.mockResolvedValueOnce(response)
+      await expect(processMeasurements([input], 123)).rejects.toThrow(message)
+    }
   })
 
   it('rejects malformed fusion stats responses', async () => {
@@ -132,6 +175,33 @@ describe('AdvancedSensorFusion IPC', () => {
 
     await expect(getFusionStats()).rejects.toThrow(
       'Invalid fusion response: stats.algorithm must be a known algorithm'
+    )
+  })
+
+  it('rejects fractional or internally inconsistent fusion statistics', async () => {
+    invokeMock
+      .mockResolvedValueOnce({
+        total_tracks: 1.5,
+        confirmed_tracks: 0,
+        tentative_tracks: 0,
+        coasting_tracks: 0,
+        multi_sensor_tracks: 0,
+        algorithm: 'ExtendedKalman',
+        frame_count: 1,
+      })
+      .mockResolvedValueOnce({
+        total_tracks: 2,
+        confirmed_tracks: 1,
+        tentative_tracks: 1,
+        coasting_tracks: 1,
+        multi_sensor_tracks: 0,
+        algorithm: 'ExtendedKalman',
+        frame_count: 1,
+      })
+
+    await expect(getFusionStats()).rejects.toThrow('stats.total_tracks must be a safe integer')
+    await expect(getFusionStats()).rejects.toThrow(
+      'stats state counts must not exceed stats.total_tracks'
     )
   })
 

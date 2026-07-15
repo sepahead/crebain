@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import * as THREE from 'three'
 import { useDraggable } from '../hooks/useDraggable'
+import { isTextInputTarget } from '../lib/shortcuts'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
@@ -142,12 +143,10 @@ export function ObjectTransformControls({
 
   // Keyboard shortcuts when object is selected
   useEffect(() => {
-    if (!object) return
+    if (!visible || !object) return
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
-        return
-      }
+      if (isTextInputTarget(event.target)) return
 
       // Only process if no modifier keys (except shift for direction)
       if (event.ctrlKey || event.metaKey || event.altKey) return
@@ -190,7 +189,7 @@ export function ObjectTransformControls({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [object, rotateX, rotateY, rotateZ, scaleUniform])
+  }, [object, rotateX, rotateY, rotateZ, scaleUniform, visible])
 
   if (!visible || !object) return null
 
@@ -363,9 +362,8 @@ export function ObjectTransformControls({
 
             {/* Keyboard hints */}
             <div className="text-[0.625em] text-[#404040] space-y-0.5">
-              <div>ROT: I/K J/L U/O</div>
+              <div>ROT: I/K J/L ,/.</div>
               <div>SKAL: +/−</div>
-              <div>LÖSCHEN: ⌫</div>
             </div>
           </div>
         )}

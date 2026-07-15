@@ -82,6 +82,21 @@
       "expected_error": "global property descriptor capability recovery"
     },
     {
+      "id": "object-descriptor-member-capability",
+      "source": "Object.getOwnPropertyDescriptor(bridge, 'publish').value(route, payload)",
+      "expected_error": "property descriptor capability reference publish"
+    },
+    {
+      "id": "bound-object-descriptor-member-capability",
+      "source": "const descriptor = Object.getOwnPropertyDescriptor.bind(Object); descriptor(bridge, 'publish').value(route, payload)",
+      "expected_error": "property descriptor capability reference publish"
+    },
+    {
+      "id": "aliased-key-object-descriptor-member-capability",
+      "source": "const key = 'publish'; Object.getOwnPropertyDescriptor(bridge, key).value(route, payload)",
+      "expected_error": "property descriptor capability reference publish"
+    },
+    {
       "id": "destructured-property-descriptor-method",
       "source": "const { ['getOwnProperty' + 'Descriptor']: descriptor } = Object; descriptor(globalThis, key)",
       "expected_error": "property descriptor method destructuring"
@@ -145,6 +160,264 @@
       "id": "aliased-eval-dynamic-capability",
       "source": "const dynamicEval = eval; dynamicEval(code)",
       "expected_error": "dynamic eval"
+    },
+    {
+      "id": "reflect-construct-function-value",
+      "source": "Reflect.construct(Function, ['return 1'])()",
+      "expected_error": "dynamic Function value"
+    },
+    {
+      "id": "reflect-apply-function-value",
+      "source": "Reflect.apply(Function, null, ['return 1'])()",
+      "expected_error": "dynamic Function value"
+    },
+    {
+      "id": "boxed-function-value",
+      "source": "[Function][0]('return 1')()",
+      "expected_error": "dynamic Function value"
+    },
+    {
+      "id": "global-function-value",
+      "source": "Reflect.construct(globalThis.Function, ['return 1'])()",
+      "expected_error": "dynamic global Function value"
+    },
+    {
+      "id": "reflect-construct-callable-constructor",
+      "source": "Reflect.construct((() => {}).constructor, ['return 1'])()",
+      "expected_error": "reflective dynamic callable.constructor"
+    },
+    {
+      "id": "reflect-construct-object-boxed-callable-constructor",
+      "source": "const box = { ctor: (() => {}).constructor }; Reflect.construct(box.ctor, [code])()",
+      "expected_error": "reflective dynamic callable.constructor"
+    },
+    {
+      "id": "reflect-construct-array-boxed-callable-constructor",
+      "source": "const box = [(() => {}).constructor]; Reflect.construct(box[0], [code])()",
+      "expected_error": "reflective dynamic callable.constructor"
+    },
+    {
+      "id": "direct-fetch-call",
+      "source": "fetch('/asset')",
+      "expected_error": "direct fetch"
+    },
+    {
+      "id": "optional-direct-fetch-call",
+      "source": "fetch?.('/asset')",
+      "expected_error": "optional fetch"
+    },
+    {
+      "id": "member-fetch-call",
+      "source": "window.fetch('/asset')",
+      "expected_error": "member fetch"
+    },
+    {
+      "id": "aliased-direct-fetch-call",
+      "source": "const networkRead = fetch; networkRead('/asset')",
+      "expected_error": "aliased fetch"
+    },
+    {
+      "id": "aliased-member-fetch-call",
+      "source": "const networkRead = window.fetch; networkRead('/asset')",
+      "expected_error": "aliased fetch"
+    },
+    {
+      "id": "wrapped-member-fetch-call",
+      "source": "window.fetch.call(window, '/asset')",
+      "expected_error": "wrapped fetch"
+    },
+    {
+      "id": "bound-member-fetch-call",
+      "source": "const networkRead = window.fetch.bind(window); networkRead('/asset')",
+      "expected_error": "aliased fetch"
+    },
+    {
+      "id": "sequence-direct-fetch-value",
+      "source": "(0, fetch)('/asset')",
+      "expected_error": "capability reference fetch"
+    },
+    {
+      "id": "reflect-apply-direct-fetch-value",
+      "source": "Reflect.apply(fetch, globalThis, ['/asset'])",
+      "expected_error": "capability reference fetch"
+    },
+    {
+      "id": "proxy-direct-fetch-value",
+      "source": "new Proxy(fetch, {})('/asset')",
+      "expected_error": "capability reference fetch"
+    },
+    {
+      "id": "array-boxed-direct-fetch-value",
+      "source": "[fetch][0]('/asset')",
+      "expected_error": "capability reference fetch"
+    },
+    {
+      "id": "object-boxed-direct-fetch-value",
+      "source": "({ run: fetch }).run('/asset')",
+      "expected_error": "capability reference fetch"
+    },
+    {
+      "id": "conditional-direct-fetch-value",
+      "source": "(enabled ? fetch : localRead)('/asset')",
+      "expected_error": "capability reference fetch"
+    },
+    {
+      "id": "conditional-direct-fetch-alias",
+      "source": "const networkRead = enabled ? fetch : localRead; networkRead('/asset')",
+      "expected_error": "capability reference fetch"
+    },
+    {
+      "id": "prototype-call-bound-direct-fetch-value",
+      "source": "const networkRead = Function.prototype.call.bind(fetch); networkRead(globalThis, '/asset')",
+      "expected_error": "capability reference fetch"
+    },
+    {
+      "id": "direct-publish-call",
+      "source": "publish(route, payload)",
+      "expected_error": "direct publish"
+    },
+    {
+      "id": "member-publish-call",
+      "source": "bridge.publish(route, payload)",
+      "expected_error": "member publish"
+    },
+    {
+      "id": "aliased-publish-call",
+      "source": "const write = bridge.publish; write(route, payload)",
+      "expected_error": "aliased publish"
+    },
+    {
+      "id": "nested-shadow-aliased-publish-call",
+      "source": "const write = bridge.publish; { const write = value => value; write(payload) } write(route, payload)",
+      "expected_error": "aliased publish"
+    },
+    {
+      "id": "destructured-aliased-publish-call",
+      "source": "const { publish: write } = bridge; write(route, payload)",
+      "expected_error": "aliased publish"
+    },
+    {
+      "id": "assigned-aliased-publish-call",
+      "source": "let write = value => value; write = bridge.publish; write(route, payload)",
+      "expected_error": "aliased publish"
+    },
+    {
+      "id": "conditional-member-publish-alias",
+      "source": "const write = enabled ? bridge.publish : localWrite; write(route, payload)",
+      "expected_error": "capability reference publish"
+    },
+    {
+      "id": "logical-member-publish-alias",
+      "source": "const write = bridge.publish || localWrite; write(route, payload)",
+      "expected_error": "capability reference publish"
+    },
+    {
+      "id": "sequence-member-publish-alias",
+      "source": "const write = (0, bridge.publish); write(route, payload)",
+      "expected_error": "capability reference publish"
+    },
+    {
+      "id": "sequence-member-publish-call",
+      "source": "(0, bridge.publish)(route, payload)",
+      "expected_error": "capability reference publish"
+    },
+    {
+      "id": "object-boxed-member-publish",
+      "source": "const box = { run: bridge.publish }; box.run(route, payload)",
+      "expected_error": "capability reference publish"
+    },
+    {
+      "id": "object-destructured-member-publish",
+      "source": "const { run } = { run: bridge.publish }; run(route, payload)",
+      "expected_error": "capability reference publish"
+    },
+    {
+      "id": "array-boxed-member-publish",
+      "source": "const box = [bridge.publish]; box[0](route, payload)",
+      "expected_error": "capability reference publish"
+    },
+    {
+      "id": "array-destructured-member-publish",
+      "source": "const [write] = [bridge.publish]; write(route, payload)",
+      "expected_error": "capability reference publish"
+    },
+    {
+      "id": "reflect-apply-member-publish",
+      "source": "Reflect.apply(bridge.publish, bridge, [route, payload])",
+      "expected_error": "capability reference publish"
+    },
+    {
+      "id": "parameter-forwarded-member-publish",
+      "source": "((write) => write(route, payload))(bridge.publish)",
+      "expected_error": "capability reference publish"
+    },
+    {
+      "id": "returned-member-publish",
+      "source": "const getWrite = () => bridge.publish; getWrite()(route, payload)",
+      "expected_error": "capability reference publish"
+    },
+    {
+      "id": "destructuring-assignment-member-publish",
+      "source": "let write; ({ publish: write } = bridge); write(route, payload)",
+      "expected_error": "capability reference publish"
+    },
+    {
+      "id": "non-call-member-capability-reference",
+      "source": "void bridge.publish; void bridge.callService; void bridge.sendCommand; void asset.fetch",
+      "expected_error": "capability reference publish"
+    },
+    {
+      "id": "shorthand-capability-value",
+      "source": "const publish = localWrite; const envelope = { publish }; consume(envelope)",
+      "expected_error": "capability reference publish"
+    },
+    {
+      "id": "member-service-call",
+      "source": "bridge.callService(name, args)",
+      "expected_error": "member callService"
+    },
+    {
+      "id": "aliased-command-call",
+      "source": "const command = bridge.sendCommand.bind(bridge); command(payload)",
+      "expected_error": "aliased sendCommand"
+    },
+    {
+      "id": "direct-xml-http-request",
+      "source": "const request = new XMLHttpRequest(); request.open('POST', endpoint)",
+      "expected_error": "XMLHttpRequest"
+    },
+    {
+      "id": "direct-event-source",
+      "source": "const events = new EventSource(endpoint)",
+      "expected_error": "EventSource"
+    },
+    {
+      "id": "direct-send-beacon",
+      "source": "navigator.sendBeacon(endpoint, payload)",
+      "expected_error": "sendBeacon"
+    },
+    {
+      "id": "direct-web-transport",
+      "source": "const transport = new WebTransport(endpoint)",
+      "expected_error": "WebTransport"
+    }
+  ],
+  "allowed_cases": [
+    {
+      "id": "protocol-data-keys",
+      "source": "const envelope = { fetch: 'asset', publish: 'telemetry', callService: false, sendCommand: null }; JSON.stringify(envelope)"
+    },
+    {
+      "id": "similarly-named-local-function",
+      "source": "function publishStatus(value) { return value }; publishStatus('ready')"
+    },
+    {
+      "id": "reserved-declaration-names-only",
+      "source": "const fetch = '/metadata'; function publish(value) { return value }; void 0"
+    },
+    {
+      "id": "reserved-property-keys-only",
+      "source": "const handlers = { fetch: 'asset', publish(value) { return value }, ['callService']: false }; consume(handlers)"
     }
   ]
 }

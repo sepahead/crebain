@@ -15,9 +15,6 @@ geometry_msgs/Point intercept_point
 # Estimated time to intercept
 duration time_to_intercept
 
-# Interception strategy
-uint8 STRATEGY_PURSUIT = 0
-uint8 STRATEGY_LEAD = 1
-uint8 STRATEGY_PARALLEL = 2
-uint8 STRATEGY_AMBUSH = 3
-uint8 strategy
+# Interception strategy: PURSUIT, LEAD, PARALLEL, or AMBUSH.
+# This reference contract mirrors the canonical TypeScript string union.
+string strategy

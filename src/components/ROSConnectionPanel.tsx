@@ -61,6 +61,8 @@ export function ROSConnectionPanel({
 
   const friendlyDrones = drones.filter((d) => d.type === 'friendly')
   const hostileDrones = drones.filter((d) => d.type === 'hostile')
+  const connectionBusy = connectionState === 'connecting' || connectionState === 'reconnecting'
+  const connectionConfigurationLocked = connectionState !== 'disconnected'
 
   return (
     <BasePanel
@@ -101,7 +103,7 @@ export function ROSConnectionPanel({
           <select
             value={transport}
             onChange={(e) => onTransportChange(e.target.value as 'websocket' | 'zenoh')}
-            disabled={connectionState === 'connected'}
+            disabled={connectionConfigurationLocked}
             className="w-full bg-black/50 border border-green-500/30 rounded px-2 py-1
                      text-green-400 font-mono text-sm focus:outline-none focus:border-green-500
                      disabled:opacity-50 disabled:cursor-not-allowed"
@@ -133,7 +135,7 @@ export function ROSConnectionPanel({
                 type="text"
                 value={rosUrl}
                 onChange={(e) => onUrlChange(e.target.value)}
-                disabled={connectionState === 'connected'}
+                disabled={connectionConfigurationLocked}
                 className="flex-1 bg-black/50 border border-green-500/30 rounded px-2 py-1
                          text-green-400 font-mono text-sm focus:outline-none focus:border-green-500
                          disabled:opacity-50 disabled:cursor-not-allowed"
@@ -150,7 +152,8 @@ export function ROSConnectionPanel({
               ) : (
                 <button
                   onClick={onConnect}
-                  disabled={connectionState === 'connecting'}
+                  disabled={connectionBusy}
+                  aria-busy={connectionBusy}
                   className="px-3 py-1 bg-green-600/20 border border-green-500/50 rounded
                            text-green-400 font-mono text-xs hover:bg-green-600/30 transition-colors
                            disabled:opacity-50 disabled:cursor-not-allowed"
@@ -175,7 +178,8 @@ export function ROSConnectionPanel({
             ) : (
               <button
                 onClick={onConnect}
-                disabled={connectionState === 'connecting'}
+                disabled={connectionBusy}
+                aria-busy={connectionBusy}
                 className="px-3 py-1 bg-green-600/20 border border-green-500/50 rounded
                          text-green-400 font-mono text-xs hover:bg-green-600/30 transition-colors
                          disabled:opacity-50 disabled:cursor-not-allowed"

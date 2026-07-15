@@ -35,6 +35,38 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
+function clipDetectionBox(
+  bbox: Detection['bbox'],
+  canvasWidth: number,
+  canvasHeight: number
+): { x: number; y: number; width: number; height: number } | null {
+  const [x1, y1, x2, y2] = bbox
+  if (
+    !Number.isFinite(canvasWidth) ||
+    !Number.isFinite(canvasHeight) ||
+    canvasWidth <= 0 ||
+    canvasHeight <= 0 ||
+    !Number.isFinite(x1) ||
+    !Number.isFinite(y1) ||
+    !Number.isFinite(x2) ||
+    !Number.isFinite(y2) ||
+    x2 <= x1 ||
+    y2 <= y1
+  ) {
+    return null
+  }
+
+  const clippedX1 = Math.max(0, Math.min(x1, canvasWidth))
+  const clippedY1 = Math.max(0, Math.min(y1, canvasHeight))
+  const clippedX2 = Math.max(0, Math.min(x2, canvasWidth))
+  const clippedY2 = Math.max(0, Math.min(y2, canvasHeight))
+  const width = clippedX2 - clippedX1
+  const height = clippedY2 - clippedY1
+  if (width <= 0 || height <= 0) return null
+
+  return { x: clippedX1, y: clippedY1, width, height }
+}
+
 /**
  * Draw a single detection bounding box with tactical styling
  */
@@ -47,7 +79,9 @@ function drawDetectionBox(
   showConfidence: boolean,
   showCornerMarkers: boolean
 ) {
-  const [x1, y1, x2, y2] = detection.bbox
+  const clippedBox = clipDetectionBox(detection.bbox, canvasWidth, canvasHeight)
+  if (!clippedBox) return
+  const { x: boxX, y: boxY, width: boxW, height: boxH } = clippedBox
 
   // Use shared threat logic if available, otherwise calculate it
   const threatLevel = detection.threatLevel ?? getThreatLevel(detection.class, detection.confidence)
@@ -58,14 +92,6 @@ function drawDetectionBox(
     fill: hexToRgba(baseColor, 0.1),
     text: baseColor,
   }
-
-  // Calculate box dimensions
-  const boxX = Math.max(0, Math.min(x1, canvasWidth))
-  const boxY = Math.max(0, Math.min(y1, canvasHeight))
-  const boxW = Math.min(x2 - x1, canvasWidth - boxX)
-  const boxH = Math.min(y2 - y1, canvasHeight - boxY)
-
-  if (boxW <= 0 || boxH <= 0) return
 
   ctx.save()
 

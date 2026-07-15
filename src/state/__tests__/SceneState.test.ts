@@ -8,7 +8,15 @@ vi.mock('@tauri-apps/api/core', () => ({
   isTauri: isTauriMock,
 }))
 
-import { MAX_SCENE_STATE_BYTES, SceneStateManager, type SceneState } from '../SceneState'
+import {
+  isReloadableGlbSource,
+  isReloadableSceneSource,
+  isReloadableSplatSource,
+  MAX_SCENE_STATE_BYTES,
+  SceneStateManager,
+  type SceneState,
+} from '../SceneState'
+import { MAX_ROUTE_WAYPOINTS } from '../../lib/routeLimits'
 
 function validScene(name = 'Valid Scene'): SceneState {
   return {
@@ -102,6 +110,45 @@ describe('SceneStateManager filesystem IPC', () => {
     isTauriMock.mockReset()
     isTauriMock.mockReturnValue(false)
     localStorage.clear()
+  })
+
+  it('accepts only explicit bounded scene-source schemes and supported formats', () => {
+    for (const source of [
+      '/models/scene.glb',
+      './splats/scene.splat',
+      '../splats/scene.spz',
+      'https://assets.example/scene.ply?revision=1',
+      'http://localhost:4173/scene.ksplat',
+      'http://127.0.0.1/model.glb',
+      'http://[::1]:8080/model.glb',
+    ]) {
+      expect(isReloadableSceneSource(source), source).toBe(true)
+    }
+
+    for (const source of [
+      '//assets.example/model.glb',
+      '//user:secret@assets.example/model.glb',
+      '/\\assets.example/model.glb',
+      ' data:model/gltf-binary;base64,AAAA',
+      'data:model/gltf-binary;base64,AAAA',
+      'file:///tmp/model.glb',
+      'http://assets.example/model.glb',
+      'https:assets.example/model.glb',
+      'https:///assets.example/model.glb',
+      'https://user:secret@assets.example/model.glb',
+      'https://assets.example/model.glb\n',
+      `/models/${'x'.repeat(2048)}.glb`,
+      '/models/model.glb\0suffix',
+    ]) {
+      expect(isReloadableSceneSource(source), source).toBe(false)
+    }
+
+    expect(isReloadableSplatSource('https://assets.example/scene.SPLAT?revision=1')).toBe(true)
+    expect(isReloadableSplatSource('/models/scene.glb')).toBe(false)
+    expect(isReloadableSplatSource('/models/scene.bin?name=scene.splat')).toBe(false)
+    expect(isReloadableGlbSource('/models/scene.GLB#view')).toBe(true)
+    expect(isReloadableGlbSource('/models/scene.gltf')).toBe(false)
+    expect(isReloadableGlbSource('//assets.example/scene.glb')).toBe(false)
   })
 
   it('saves current scene state through the Tauri filesystem command', async () => {
@@ -204,6 +251,71 @@ describe('SceneStateManager filesystem IPC', () => {
 
     expect(() => manager.deserialize(JSON.stringify(malformed))).toThrow('Invalid scene state file')
     expect(manager.getState()?.name).toBe('Current Scene')
+  })
+
+  it('rejects persisted drone routes above the shared waypoint cap', () => {
+    const manager = new SceneStateManager()
+    const oversizedRoute = validScene('Oversized Route')
+    oversizedRoute.drones[0].waypoints = Array.from(
+      { length: MAX_ROUTE_WAYPOINTS + 1 },
+      (_, index) => ({ x: index, y: 0, z: 0 })
+    )
+
+    expect(() => manager.deserialize(JSON.stringify(oversizedRoute))).toThrow(
+      'Invalid scene state file'
+    )
+  })
+
+  it('rejects persisted route altitudes that live admission cannot restore', () => {
+    const manager = new SceneStateManager()
+    const aboveGlobalCeiling = validScene('Above global route ceiling')
+    aboveGlobalCeiling.drones[0].type = 'unknown-profile'
+    aboveGlobalCeiling.drones[0].waypoints = [{ x: 0, y: 4_501, z: 0 }]
+    expect(() => manager.deserialize(JSON.stringify(aboveGlobalCeiling))).toThrow(
+      'Invalid scene state file'
+    )
+
+    const belowGround = validScene('Below-ground route')
+    belowGround.drones[0].waypoints = [{ x: 0, y: -1, z: 0 }]
+    expect(() => manager.deserialize(JSON.stringify(belowGround))).toThrow(
+      'Invalid scene state file'
+    )
+
+    const aboveMaverickCeiling = validScene('Above profile route ceiling')
+    aboveMaverickCeiling.drones[0].waypoints = [{ x: 0, y: 501, z: 0 }]
+    expect(() => manager.deserialize(JSON.stringify(aboveMaverickCeiling))).toThrow(
+      'Invalid scene state file'
+    )
+
+    const aboveTargetCeiling = validScene('Above target ceiling')
+    aboveTargetCeiling.drones[0].targetAltitude = 501
+    expect(() => manager.deserialize(JSON.stringify(aboveTargetCeiling))).toThrow(
+      'Invalid scene state file'
+    )
+  })
+
+  it('rejects contradictory persisted route lifecycle state', () => {
+    const manager = new SceneStateManager()
+    const activeWithoutWaypoints = validScene('Active empty route')
+    activeWithoutWaypoints.drones[0].waypoints = []
+    activeWithoutWaypoints.drones[0].routeMode = 'once'
+    activeWithoutWaypoints.drones[0].routeActive = true
+    expect(() => manager.deserialize(JSON.stringify(activeWithoutWaypoints))).toThrow(
+      'Invalid scene state file'
+    )
+
+    const disabledModeWithWaypoints = validScene('Disabled nonempty route')
+    disabledModeWithWaypoints.drones[0].routeMode = 'none'
+    expect(() => manager.deserialize(JSON.stringify(disabledModeWithWaypoints))).toThrow(
+      'Invalid scene state file'
+    )
+
+    const indexedEmptyRoute = validScene('Indexed empty route')
+    indexedEmptyRoute.drones[0].waypoints = []
+    indexedEmptyRoute.drones[0].routeCurrentWaypointIndex = 1
+    expect(() => manager.deserialize(JSON.stringify(indexedEmptyRoute))).toThrow(
+      'Invalid scene state file'
+    )
   })
 
   it('rejects non-reloadable asset URLs and invalid transforms', () => {

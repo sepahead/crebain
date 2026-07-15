@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as THREE from 'three'
-import { BarometerSensor, DEFAULT_GPS_CONFIG, GPSSensor, IMUSensor } from '../SensorSimulation'
+import {
+  BarometerSensor,
+  DEFAULT_BAROMETER_CONFIG,
+  DEFAULT_GPS_CONFIG,
+  GPSSensor,
+  IMUSensor,
+} from '../SensorSimulation'
 
 describe('SensorSimulation noise', () => {
   afterEach(() => {
@@ -114,5 +120,83 @@ describe('SensorSimulation update rate and latency', () => {
 
     now = DEFAULT_GPS_CONFIG.latencyMs + 1
     expect(gps.getDelayedReading()).not.toBeNull()
+  })
+
+  it('exposes a dropout only after its invalid GPS reading crosses the latency window', () => {
+    let now = 0
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5)
+    const gps = new GPSSensor({
+      ...DEFAULT_GPS_CONFIG,
+      latencyMs: 200,
+      dropoutProbability: 0.5,
+    })
+
+    const valid = gps.update(new THREE.Vector3(1, 2, 3), new THREE.Vector3(), 0.2)
+    expect(valid.valid).toBe(true)
+
+    now = 200
+    random.mockReturnValueOnce(0.05).mockReturnValueOnce(0)
+    const dropout = gps.update(new THREE.Vector3(4, 5, 6), new THREE.Vector3(), 0.2)
+    expect(dropout).toEqual(expect.objectContaining({ timestamp: 200, valid: false }))
+
+    now = 400
+    expect(gps.getDelayedReading()).toBe(dropout)
+  })
+
+  it('holds barometer output between configured sensor ticks', () => {
+    let now = 0
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
+    const barometer = new BarometerSensor({
+      ...DEFAULT_BAROMETER_CONFIG,
+      updateRate: 10,
+      altitudeNoiseStdDev: 0,
+      pressureNoiseStdDev: 0,
+    })
+
+    const first = barometer.update(100, 0.01)
+    now = 50
+    const held = barometer.update(200, 0.05)
+    now = 100
+    const next = barometer.update(200, 0.05)
+
+    expect(held).toBe(first)
+    expect(next).not.toBe(first)
+    expect(next.timestamp).toBe(100)
+  })
+
+  it('applies the configured temperature drift to pressure altitude', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.5)
+    const baseConfig = {
+      ...DEFAULT_BAROMETER_CONFIG,
+      altitudeNoiseStdDev: 0,
+      pressureNoiseStdDev: 0,
+      latencyMs: 0,
+    }
+    const withoutDrift = new BarometerSensor({ ...baseConfig, temperatureDrift: 0 })
+    const withDrift = new BarometerSensor({ ...baseConfig, temperatureDrift: 1 })
+
+    const baseline = withoutDrift.update(1_000)
+    const drifted = withDrift.update(1_000)
+    const expectedTemperatureOffset = Math.sqrt(-2 * Math.log(0.5)) * Math.cos(Math.PI) * 2
+
+    expect(drifted.altitude - baseline.altitude).toBeCloseTo(expectedTemperatureOffset, 8)
+  })
+
+  it('exposes barometer output only after its configured latency', () => {
+    let now = 0
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
+    const barometer = new BarometerSensor({
+      ...DEFAULT_BAROMETER_CONFIG,
+      latencyMs: 25,
+      altitudeNoiseStdDev: 0,
+      pressureNoiseStdDev: 0,
+    })
+
+    const reading = barometer.update(100)
+    now = 24
+    expect(barometer.getDelayedReading()).toBeNull()
+    now = 25
+    expect(barometer.getDelayedReading()).toBe(reading)
   })
 })

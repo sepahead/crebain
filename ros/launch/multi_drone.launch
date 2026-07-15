@@ -6,14 +6,10 @@
   <arg name="num_interceptors" default="2"/>
   <arg name="num_targets" default="1"/>
   <arg name="vehicle" default="iris"/>
-  <arg name="sdf" default="$(find mavlink_sitl_gazebo)/models/$(arg vehicle)/$(arg vehicle).sdf"/>
-
-  <!-- Base ports for MAVROS -->
-  <arg name="mavros_base_port" default="14540"/>
-  <arg name="fcu_base_port" default="14580"/>
+  <!-- Supported reference cardinalities: interceptors 0..2, targets 0..1. -->
 
   <!-- Spawn interceptor drones -->
-  <group ns="interceptor_0">
+  <group ns="interceptor_0" if="$(eval int(arg('num_interceptors')) >= 1)">
     <arg name="id" value="0"/>
     <arg name="x" value="0"/>
     <arg name="y" value="0"/>
@@ -30,7 +26,7 @@
     </include>
   </group>
 
-  <group ns="interceptor_1" if="$(eval arg('num_interceptors') >= 2)">
+  <group ns="interceptor_1" if="$(eval int(arg('num_interceptors')) >= 2)">
     <include file="$(dirname)/single_drone.launch">
       <arg name="namespace" value="interceptor_1"/>
       <arg name="vehicle" value="$(arg vehicle)"/>
@@ -43,7 +39,7 @@
   </group>
 
   <!-- Spawn target drones -->
-  <group ns="target_0">
+  <group ns="target_0" if="$(eval int(arg('num_targets')) >= 1)">
     <include file="$(dirname)/single_drone.launch">
       <arg name="namespace" value="target_0"/>
       <arg name="vehicle" value="$(arg vehicle)"/>

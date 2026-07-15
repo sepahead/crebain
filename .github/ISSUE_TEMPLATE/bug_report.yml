@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         Thanks for filing a report. For security vulnerabilities, do **not** open
-        a public issue — follow [SECURITY.md](../blob/main/SECURITY.md) instead.
+        a public issue — follow the [security policy](https://github.com/sepahead/crebain/security/policy) instead.
   - type: textarea
     id: description
     attributes:

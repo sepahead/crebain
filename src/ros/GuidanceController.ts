@@ -226,10 +226,8 @@ export class GuidanceController {
 
     const now = Date.now()
     const nominalDtSec = 1 / this.config.rateHz
-    const dt = Math.min(
-      (now - this.state.lastUpdate) / 1000,
-      nominalDtSec * MAX_DT_NOMINAL_PERIODS
-    )
+    const elapsedSec = Math.max(0, (now - this.state.lastUpdate) / 1000)
+    const dt = Math.min(elapsedSec, nominalDtSec * MAX_DT_NOMINAL_PERIODS)
     this.state.lastUpdate = now
 
     let proposal: GuidanceProposal
@@ -349,10 +347,20 @@ export class GuidanceController {
       dt
     )
 
+    if (magnitude(velocity) > 0) {
+      return {
+        authority: 'NoAuthority',
+        action: 'PreviewVelocity',
+        velocity,
+        distanceToTarget: 0,
+        estimatedTimeToArrival: 0,
+      }
+    }
+
     return {
       authority: 'NoAuthority',
       action: 'Hold',
-      velocity,
+      velocity: { x: 0, y: 0, z: 0 },
       distanceToTarget: 0,
       estimatedTimeToArrival: 0,
     }
@@ -363,7 +371,7 @@ export class GuidanceController {
    */
   private applyVelocityRamp(current: Vector3, target: Vector3, dt: number): Vector3 {
     // Bound the per-update velocity change by the acceleration limit (m/s² · s).
-    const maxChange = this.config.maxAcceleration * dt
+    const maxChange = this.config.maxAcceleration * Math.max(0, dt)
 
     const diff = subtract(target, current)
     const diffMag = magnitude(diff)
@@ -401,7 +409,7 @@ export class GuidanceController {
     this.config = { ...this.config, ...config }
 
     // Recreate only the control-loop interval on a rate change; a full
-    // A full stop/start cycle would discard the current preview state.
+    // stop/start cycle would discard the current preview state.
     if (config.rateHz && this.intervalId) {
       clearInterval(this.intervalId)
       this.intervalId = setInterval(() => this.update(), 1000 / this.config.rateHz)

@@ -198,6 +198,8 @@ export default function App() {
             onVisualTrack={onVisualTrack}
             performancePanelVisible={showPerformancePanel}
             onPerformancePanelVisibleChange={setShowPerformancePanel}
+            rosConnectionState={gazebo.connectionState}
+            rosTransport={gazebo.transport}
           />
           {showPerformancePanel && (
             <PerformancePanel

@@ -126,6 +126,42 @@ function calculateDrag(
   return velocity.clone().normalize().multiplyScalar(-dragMagnitude)
 }
 
+/**
+ * Convert a world-space torque into world-space angular acceleration while
+ * applying the configured principal moments in the drone body frame.
+ *
+ * `DroneState.angularVelocity` is world-space (matching Rapier's `angvel()` and
+ * the left-multiplied quaternion derivative below), so both angular velocity
+ * and torque are rotated into the body frame for Euler's rigid-body equation:
+ * I * omegaDot + omega x (I * omega) = torque.
+ */
+function calculateWorldAngularAcceleration(
+  torqueWorld: THREE.Vector3,
+  angularVelocityWorld: THREE.Vector3,
+  orientation: THREE.Quaternion,
+  principalInertia: THREE.Vector3
+): THREE.Vector3 {
+  const inverseOrientation = orientation.clone().invert()
+  const angularVelocityBody = angularVelocityWorld.clone().applyQuaternion(inverseOrientation)
+  const torqueBody = torqueWorld.clone().applyQuaternion(inverseOrientation)
+  const angularMomentumBody = new THREE.Vector3(
+    principalInertia.x * angularVelocityBody.x,
+    principalInertia.y * angularVelocityBody.y,
+    principalInertia.z * angularVelocityBody.z
+  )
+  const gyroscopicTorqueBody = new THREE.Vector3().crossVectors(
+    angularVelocityBody,
+    angularMomentumBody
+  )
+  const netTorqueBody = torqueBody.sub(gyroscopicTorqueBody)
+
+  return new THREE.Vector3(
+    netTorqueBody.x / principalInertia.x,
+    netTorqueBody.y / principalInertia.y,
+    netTorqueBody.z / principalInertia.z
+  ).applyQuaternion(orientation)
+}
+
 export class DronePhysicsBody {
   public id: string
   public params: QuadcopterParams
@@ -210,6 +246,7 @@ export class DronePhysicsBody {
     const thrustDir = new THREE.Vector3()
     const leverArm = new THREE.Vector3()
     const rotorTorque = new THREE.Vector3()
+    const reactionTorque = new THREE.Vector3()
     const thrustScaled = new THREE.Vector3()
 
     if (!state.armed) {
@@ -238,7 +275,10 @@ export class DronePhysicsBody {
         thrustScaled.copy(thrustDir).multiplyScalar(rotor.thrust)
         totalThrust.add(thrustScaled)
 
-        totalTorque.y += rotor.torque * rotor.direction
+        // Rotor reaction torque acts around the body thrust axis, so it must
+        // rotate with the drone just like thrust and lever-arm torque.
+        reactionTorque.copy(thrustDir).multiplyScalar(rotor.torque * rotor.direction)
+        totalTorque.add(reactionTorque)
 
         // thrustScaled already includes rotor.thrust; do not scale again.
         leverArm.copy(rotor.position).applyQuaternion(state.orientation)
@@ -257,10 +297,11 @@ export class DronePhysicsBody {
     state.velocity.add(state.acceleration.clone().multiplyScalar(dt))
     state.position.add(state.velocity.clone().multiplyScalar(dt))
 
-    const angularAccel = new THREE.Vector3(
-      totalTorque.x / params.momentOfInertia.x,
-      totalTorque.y / params.momentOfInertia.y,
-      totalTorque.z / params.momentOfInertia.z
+    const angularAccel = calculateWorldAngularAcceleration(
+      totalTorque,
+      state.angularVelocity,
+      state.orientation,
+      params.momentOfInertia
     )
 
     state.angularVelocity.add(angularAccel.multiplyScalar(dt))
@@ -384,6 +425,13 @@ export class DronePhysicsWorld {
     position?: THREE.Vector3,
     mesh?: THREE.Object3D
   ): DronePhysicsBody {
+    // Reject before constructing a replacement or allocating Rapier resources.
+    // Overwriting the Map entry would strand the old body in the physics world,
+    // where it would remain simulated and collidable but no longer removable.
+    if (this.drones.has(id)) {
+      throw new Error(`Drone with id "${id}" already exists`)
+    }
+
     const drone = new DronePhysicsBody(id, params, position)
     drone.mesh = mesh || null
 
@@ -395,8 +443,18 @@ export class DronePhysicsWorld {
 
       drone.rigidBody = this.world.createRigidBody(bodyDesc)
 
-      const colliderDesc = this.RAPIER.ColliderDesc.cuboid(0.2, 0.05, 0.2).setMass(
-        params?.mass || DEFAULT_QUADCOPTER_PARAMS.mass
+      // Use the same configured mass and body-frame principal inertia as the
+      // local integrator. The cuboid remains the collision shape; its inferred
+      // mass properties must not silently replace the flight-model parameters.
+      const colliderDesc = this.RAPIER.ColliderDesc.cuboid(0.2, 0.05, 0.2).setMassProperties(
+        drone.params.mass,
+        { x: 0, y: 0, z: 0 },
+        {
+          x: drone.params.momentOfInertia.x,
+          y: drone.params.momentOfInertia.y,
+          z: drone.params.momentOfInertia.z,
+        },
+        { x: 0, y: 0, z: 0, w: 1 }
       )
 
       drone.collider = this.world.createCollider(colliderDesc, drone.rigidBody)
@@ -507,6 +565,7 @@ export class DronePhysicsWorld {
     const thrustDir = new THREE.Vector3()
     const leverArm = new THREE.Vector3()
     const rotorTorque = new THREE.Vector3()
+    const reactionTorque = new THREE.Vector3()
     const thrustScaled = new THREE.Vector3()
     const commands = [
       drone.targetCommands.front_left,
@@ -528,7 +587,9 @@ export class DronePhysicsWorld {
       totalThrust.add(thrustScaled)
 
       rotor.torque = calculateTorque(rotor.rpm, params.torqueCoefficient)
-      totalTorque.y += rotor.torque * rotor.direction
+      rotor.torque = Math.min(rotor.torque, params.maxTorque)
+      reactionTorque.copy(thrustDir).multiplyScalar(rotor.torque * rotor.direction)
+      totalTorque.add(reactionTorque)
 
       // thrustScaled already includes rotor.thrust; do not scale again.
       leverArm.copy(rotor.position).applyQuaternion(state.orientation)

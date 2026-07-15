@@ -1519,7 +1519,11 @@ fn validate_and_finalize_batch(
             let expected_candidate_indices = batch
                 .opportunity_inputs
                 .iter()
-                .filter(|input| input.modality == *modality && input.class == track.class)
+                .filter(|input| {
+                    input.modality == *modality
+                        && input.class == track.class
+                        && input.source_frame_id == track.source_frame_id
+                })
                 .map(|input| input.measurement_index)
                 .collect::<Vec<_>>();
             let candidate_count = ledger.candidate_count.unwrap_or(0);
@@ -1594,6 +1598,12 @@ fn validate_and_finalize_batch(
             return Err(ProducerRuntimeError::InvalidFrame(format!(
                 "observation seq {} differs from fusion_seq {}",
                 observation.seq, batch.summary.fusion_seq
+            )));
+        }
+        if observation.timestamp_ms != batch.summary.fusion_timestamp_ms {
+            return Err(ProducerRuntimeError::InvalidFrame(format!(
+                "observation timestamp {} differs from fusion timestamp {}",
+                observation.timestamp_ms, batch.summary.fusion_timestamp_ms
             )));
         }
         if !expected_modalities.contains(&observation.modality) {
@@ -2324,7 +2334,11 @@ mod tests {
     }
 
     fn frozen_track(track_id: u64, class: DetectionClassKind) -> FrozenOpportunityTrack {
-        FrozenOpportunityTrack { track_id, class }
+        FrozenOpportunityTrack {
+            track_id,
+            class,
+            source_frame_id: None,
+        }
     }
 
     fn single_frozen_track() -> Vec<FrozenOpportunityTrack> {
@@ -2344,11 +2358,13 @@ mod tests {
                 measurement_index: 0,
                 modality: SensorModality::Visual,
                 class: DetectionClassKind::Drone,
+                source_frame_id: None,
             },
             OpportunityInput {
                 measurement_index: 1,
                 modality: SensorModality::Visual,
                 class: DetectionClassKind::Bird,
+                source_frame_id: None,
             },
         ]
     }
@@ -2956,6 +2972,69 @@ mod tests {
     }
 
     #[test]
+    fn observation_timestamp_mismatch_is_rejected_without_runtime_side_effects() {
+        run_async(async {
+            let recorder = RecordingPublisher::default();
+            let runtime = start_test_runtime(recorder, capacities(2, 2, 2, 1));
+            let handle = runtime.handle();
+            let before = handle.status();
+            let mut mismatched_observation = observation(7, 31, 5);
+            mismatched_observation.timestamp_ms = 1_499;
+
+            let error = handle
+                .admit_frame(FusionFrameBatch {
+                    frozen_track_ids: vec![5],
+                    frozen_opportunity_tracks: single_frozen_track(),
+                    opportunity_inputs: opportunity_inputs(),
+                    observations: vec![mismatched_observation],
+                    events: vec![updated(7, 31, 5, 0)],
+                    summary: summary_with_inputs(7, 31),
+                })
+                .expect_err("observation and summary timestamps must be identical");
+
+            assert!(matches!(
+                error,
+                ProducerRuntimeError::InvalidFrame(message)
+                    if message.contains("observation timestamp")
+            ));
+            assert_eq!(handle.status(), before);
+            runtime.shutdown().await;
+        });
+    }
+
+    #[test]
+    fn cross_frame_candidate_claim_is_rejected_without_runtime_side_effects() {
+        run_async(async {
+            let recorder = RecordingPublisher::default();
+            let runtime = start_test_runtime(recorder, capacities(2, 2, 2, 1));
+            let handle = runtime.handle();
+            let before = handle.status();
+            let mut frame_summary = summary(7, 31);
+            frame_summary.input_count = 1;
+
+            let error = handle
+                .admit_frame(FusionFrameBatch {
+                    frozen_track_ids: vec![5],
+                    frozen_opportunity_tracks: single_frozen_track(),
+                    opportunity_inputs: vec![OpportunityInput {
+                        measurement_index: 0,
+                        modality: SensorModality::Visual,
+                        class: DetectionClassKind::Drone,
+                        source_frame_id: Some("map_enu".to_string()),
+                    }],
+                    observations: vec![observation(7, 31, 5)],
+                    events: vec![updated(7, 31, 5, 0)],
+                    summary: frame_summary,
+                })
+                .expect_err("unequal source-frame domains cannot form a candidate pair");
+
+            assert!(matches!(error, ProducerRuntimeError::InvalidFrame(_)));
+            assert_eq!(handle.status(), before);
+            runtime.shutdown().await;
+        });
+    }
+
+    #[test]
     fn reused_prior_is_rejected_before_sequence_reservation() {
         run_async(async {
             let recorder = RecordingPublisher::default();
@@ -3079,6 +3158,7 @@ mod tests {
                         measurement_index: 0,
                         modality: SensorModality::Visual,
                         class: DetectionClassKind::Bird,
+                        source_frame_id: None,
                     }],
                     observations: Vec::new(),
                     events: vec![miss(7, 31, 5)],
@@ -3111,6 +3191,7 @@ mod tests {
                         measurement_index: 0,
                         modality: SensorModality::Visual,
                         class: DetectionClassKind::Drone,
+                        source_frame_id: None,
                     }],
                     observations: Vec::new(),
                     events: vec![false_miss_event],

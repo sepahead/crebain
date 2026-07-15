@@ -28,12 +28,14 @@
 //! let bridge = create_bridge().await?;
 //!
 //! // Subscribe to camera feed
-//! bridge.subscribe_camera("/drone1/camera/image_raw", CameraStreamKind::Raw, |frame| {
-//!     // Process frame
+//! bridge.subscribe_camera("/drone1/camera/image_raw", CameraStreamKind::Raw, |delivery| {
+//!     // Forward the owned delivery to the bounded IPC pull/ack state.
+//!     consume_delivery(delivery);
 //! }).await?;
 //!
 //! ```
 
+mod camera_work;
 pub mod commands;
 pub mod rosbridge;
 pub mod zenoh;
@@ -41,11 +43,13 @@ pub mod zenoh;
 use std::future::Future;
 use std::pin::Pin;
 
+use self::camera_work::CameraWorkPermit;
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // TYPES
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-/// Camera frame from ROS2
+/// Camera frame normalized from the native ROS/Zenoh transport.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct CameraFrame {
     /// Image bytes, base64-encoded for Tauri IPC.
@@ -69,6 +73,28 @@ pub struct CameraFrame {
     pub step: u32,
 }
 
+/// Internal camera frame plus its weighted native ingress reservation.
+///
+/// This type is public only because it crosses the object-safe [`Transport`]
+/// callback boundary. Product code hands it directly to the bounded IPC
+/// delivery state; the reservation is not serialized to the renderer.
+#[doc(hidden)]
+#[derive(Debug)]
+pub struct CameraFrameDelivery {
+    frame: CameraFrame,
+    permit: CameraWorkPermit,
+}
+
+impl CameraFrameDelivery {
+    pub(crate) fn new(frame: CameraFrame, permit: CameraWorkPermit) -> Self {
+        Self { frame, permit }
+    }
+
+    pub(crate) fn into_parts(self) -> (CameraFrame, CameraWorkPermit) {
+        (self.frame, self.permit)
+    }
+}
+
 /// Camera calibration and projection parameters
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CameraInfoData {
@@ -83,12 +109,18 @@ pub struct CameraInfoData {
     pub frame_id: String,
 }
 
-/// IMU data from ROS2
+/// IMU data normalized from the native ROS/Zenoh transport.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ImuData {
-    pub orientation: [f64; 4],         // Quaternion [x, y, z, w]
-    pub angular_velocity: [f64; 3],    // rad/s
+    pub orientation: [f64; 4], // Quaternion [x, y, z, w]
+    /// ROS covariance matrix. A first value of `-1` means that orientation is
+    /// unavailable; preserving that sentinel prevents a zero wire quaternion
+    /// from being misrepresented as a measured orientation.
+    pub orientation_covariance: [f64; 9],
+    pub angular_velocity: [f64; 3], // rad/s
+    pub angular_velocity_covariance: [f64; 9],
     pub linear_acceleration: [f64; 3], // m/s²
+    pub linear_acceleration_covariance: [f64; 9],
     pub timestamp: f64,
     pub frame_id: String,
 }
@@ -148,7 +180,7 @@ pub type Result<T> = std::result::Result<T, TransportError>;
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 /// Callback type aliases for object safety
-pub type CameraCallback = Box<dyn Fn(CameraFrame) + Send + Sync>;
+pub type CameraCallback = Box<dyn Fn(CameraFrameDelivery) + Send + Sync>;
 pub type CameraInfoCallback = Box<dyn Fn(CameraInfoData) + Send + Sync>;
 pub type ImuCallback = Box<dyn Fn(ImuData) + Send + Sync>;
 pub type PoseCallback = Box<dyn Fn(PoseData) + Send + Sync>;
@@ -244,9 +276,15 @@ pub struct TransportStats {
 
 /// Create the optimal transport for the current environment
 pub async fn create_bridge() -> Result<Box<dyn Transport>> {
-    let use_zenoh = std::env::var("CREBAIN_ZENOH")
-        .map(|v| parse_zenoh_enabled(&v))
-        .unwrap_or(true);
+    let use_zenoh = match std::env::var("CREBAIN_ZENOH") {
+        Ok(value) => parse_zenoh_enabled(&value)?,
+        Err(std::env::VarError::NotPresent) => true,
+        Err(std::env::VarError::NotUnicode(_)) => {
+            return Err(TransportError::ConnectionFailed(
+                "CREBAIN_ZENOH must contain valid UTF-8".to_string(),
+            ));
+        }
+    };
 
     if use_zenoh {
         log::info!("[Transport] Using Zenoh transport");
@@ -260,11 +298,14 @@ pub async fn create_bridge() -> Result<Box<dyn Transport>> {
     }
 }
 
-fn parse_zenoh_enabled(value: &str) -> bool {
-    matches!(
-        value.trim().to_ascii_lowercase().as_str(),
-        "1" | "true" | "yes" | "on"
-    )
+fn parse_zenoh_enabled(value: &str) -> Result<bool> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "1" | "true" | "yes" | "on" => Ok(true),
+        "0" | "false" | "no" | "off" => Ok(false),
+        _ => Err(TransportError::ConnectionFailed(format!(
+            "Invalid CREBAIN_ZENOH value {value:?}; expected one of 1/true/yes/on or 0/false/no/off"
+        ))),
+    }
 }
 
 #[cfg(test)]
@@ -284,13 +325,36 @@ mod tests {
 
     #[test]
     fn test_parse_zenoh_enabled() {
-        assert!(parse_zenoh_enabled("1"));
-        assert!(parse_zenoh_enabled("true"));
-        assert!(parse_zenoh_enabled(" YES "));
-        assert!(parse_zenoh_enabled("on"));
-        assert!(!parse_zenoh_enabled(""));
-        assert!(!parse_zenoh_enabled("0"));
-        assert!(!parse_zenoh_enabled("false"));
+        for value in ["1", "true", " YES ", "on"] {
+            assert!(parse_zenoh_enabled(value).unwrap(), "{value}");
+        }
+        for value in ["0", "false", " NO ", "off"] {
+            assert!(!parse_zenoh_enabled(value).unwrap(), "{value}");
+        }
+    }
+
+    #[test]
+    fn malformed_zenoh_selection_is_rejected_instead_of_selecting_fallback() {
+        for value in ["", "enabled", "2", "tru"] {
+            let error = parse_zenoh_enabled(value).unwrap_err();
+            assert!(error.to_string().contains("Invalid CREBAIN_ZENOH"));
+        }
+    }
+
+    #[test]
+    fn bridge_creation_rejects_malformed_zenoh_selection_before_network_access() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let original_zenoh = std::env::var("CREBAIN_ZENOH").ok();
+        std::env::set_var("CREBAIN_ZENOH", "automatic");
+
+        let result = tauri::async_runtime::block_on(create_bridge());
+        restore_env_var("CREBAIN_ZENOH", original_zenoh);
+        let error = match result {
+            Ok(_) => panic!("malformed selector unexpectedly created a bridge"),
+            Err(error) => error,
+        };
+
+        assert!(error.to_string().contains("Invalid CREBAIN_ZENOH"));
     }
 
     #[test]

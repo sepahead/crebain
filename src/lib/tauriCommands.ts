@@ -21,6 +21,8 @@ export const TAURI_COMMANDS = {
     connect: 'transport_connect',
     disconnect: 'transport_disconnect',
     subscribeCamera: 'transport_subscribe_camera',
+    takeCameraFrame: 'transport_take_camera_frame',
+    ackCameraFrame: 'transport_ack_camera_frame',
     subscribeCameraInfo: 'transport_subscribe_camera_info',
     subscribeImu: 'transport_subscribe_imu',
     subscribePose: 'transport_subscribe_pose',

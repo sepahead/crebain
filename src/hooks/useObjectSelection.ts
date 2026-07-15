@@ -126,6 +126,7 @@ export function useObjectSelection(config: ObjectSelectionConfig): ObjectSelecti
   } = config
 
   const [selectedObjects, setSelectedObjects] = useState<THREE.Object3D[]>([])
+  const selectedObjectsRef = useRef<THREE.Object3D[]>([])
   const selectionRingsRef = useRef<Map<string, THREE.Mesh>>(new Map())
   const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster())
   const mouseRef = useRef<THREE.Vector2>(new THREE.Vector2())
@@ -152,8 +153,10 @@ export function useObjectSelection(config: ObjectSelectionConfig): ObjectSelecti
 
       // Create and add new ring
       const ring = createSelectionRing(object, ringColor)
-      ring.position.x = object.position.x
-      ring.position.z = object.position.z
+      object.updateWorldMatrix(true, false)
+      const worldPosition = object.getWorldPosition(new THREE.Vector3())
+      ring.position.x = worldPosition.x
+      ring.position.z = worldPosition.z
       sceneRef.current.add(ring)
       selectionRingsRef.current.set(id, ring)
     },
@@ -186,18 +189,21 @@ export function useObjectSelection(config: ObjectSelectionConfig): ObjectSelecti
 
     // Track last known positions to avoid unnecessary updates
     const lastPositions = new Map<string, { x: number; z: number }>()
+    const worldPosition = new THREE.Vector3()
 
     const updateRings = () => {
       selectedObjects.forEach((obj) => {
         const id = getObjectId(obj)
         const ring = selectionRingsRef.current.get(id)
         if (ring) {
+          obj.updateWorldMatrix(true, false)
+          obj.getWorldPosition(worldPosition)
           const last = lastPositions.get(id)
           // Only update if position changed
-          if (!last || last.x !== obj.position.x || last.z !== obj.position.z) {
-            ring.position.x = obj.position.x
-            ring.position.z = obj.position.z
-            lastPositions.set(id, { x: obj.position.x, z: obj.position.z })
+          if (!last || last.x !== worldPosition.x || last.z !== worldPosition.z) {
+            ring.position.x = worldPosition.x
+            ring.position.z = worldPosition.z
+            lastPositions.set(id, { x: worldPosition.x, z: worldPosition.z })
           }
         }
       })
@@ -216,57 +222,67 @@ export function useObjectSelection(config: ObjectSelectionConfig): ObjectSelecti
     }
   }, [selectedObjects, getObjectId])
 
+  const commitSelection = useCallback(
+    (newSelection: THREE.Object3D[]) => {
+      selectedObjectsRef.current = newSelection
+      setSelectedObjects(newSelection)
+      onSelectionChange?.(newSelection)
+    },
+    [onSelectionChange]
+  )
+
   // Select an object
   const select = useCallback(
     (object: THREE.Object3D, addToSelection = false) => {
       if (!enabled) return
 
-      setSelectedObjects((prev) => {
-        let newSelection: THREE.Object3D[]
+      const previousSelection = selectedObjectsRef.current
+      let newSelection: THREE.Object3D[]
 
-        if (addToSelection && multiSelect) {
-          // Add to existing selection if not already selected
-          if (prev.some((obj) => getObjectId(obj) === getObjectId(object))) {
-            return prev
-          }
-          newSelection = [...prev, object]
-        } else {
-          // Clear previous selection rings
-          prev.forEach((obj) => removeSelectionRing(obj))
-          newSelection = [object]
+      if (addToSelection && multiSelect) {
+        // Add to existing selection if not already selected
+        if (previousSelection.some((obj) => getObjectId(obj) === getObjectId(object))) {
+          return
         }
+        newSelection = [...previousSelection, object]
+      } else {
+        // Clear previous selection rings
+        previousSelection.forEach((obj) => removeSelectionRing(obj))
+        newSelection = [object]
+      }
 
-        // Add selection ring
-        addSelectionRing(object)
-
-        onSelectionChange?.(newSelection)
-        return newSelection
-      })
+      // Scene mutations and callbacks must not run inside React state updaters:
+      // development Strict Mode may invoke updater functions more than once.
+      addSelectionRing(object)
+      commitSelection(newSelection)
     },
-    [enabled, multiSelect, getObjectId, addSelectionRing, removeSelectionRing, onSelectionChange]
+    [enabled, multiSelect, getObjectId, addSelectionRing, removeSelectionRing, commitSelection]
   )
 
   // Deselect an object
   const deselect = useCallback(
     (object: THREE.Object3D) => {
-      setSelectedObjects((prev) => {
-        const newSelection = prev.filter((obj) => getObjectId(obj) !== getObjectId(object))
-        removeSelectionRing(object)
-        onSelectionChange?.(newSelection)
-        return newSelection
-      })
+      const objectIdentifier = getObjectId(object)
+      const previousSelection = selectedObjectsRef.current
+      const selectedObject = previousSelection.find(
+        (candidate) => getObjectId(candidate) === objectIdentifier
+      )
+      if (!selectedObject) return
+
+      const newSelection = previousSelection.filter(
+        (candidate) => getObjectId(candidate) !== objectIdentifier
+      )
+      removeSelectionRing(selectedObject)
+      commitSelection(newSelection)
     },
-    [getObjectId, removeSelectionRing, onSelectionChange]
+    [getObjectId, removeSelectionRing, commitSelection]
   )
 
   // Clear all selections
   const clearSelection = useCallback(() => {
-    setSelectedObjects((prev) => {
-      prev.forEach((obj) => removeSelectionRing(obj))
-      onSelectionChange?.([])
-      return []
-    })
-  }, [removeSelectionRing, onSelectionChange])
+    selectedObjectsRef.current.forEach((obj) => removeSelectionRing(obj))
+    commitSelection([])
+  }, [removeSelectionRing, commitSelection])
 
   // Check if an object is selected
   const isSelected = useCallback(
@@ -280,14 +296,14 @@ export function useObjectSelection(config: ObjectSelectionConfig): ObjectSelecti
   const deleteSelected = useCallback(() => {
     if (!sceneRef.current) return
 
-    selectedObjects.forEach((obj) => {
+    const selection = [...selectedObjectsRef.current]
+    selection.forEach((obj) => {
       removeSelectionRing(obj)
       onDelete?.(obj)
     })
 
-    setSelectedObjects([])
-    onSelectionChange?.([])
-  }, [selectedObjects, sceneRef, removeSelectionRing, onDelete, onSelectionChange])
+    commitSelection([])
+  }, [sceneRef, removeSelectionRing, onDelete, commitSelection])
 
   // Click handler for selection
   useEffect(() => {
@@ -404,6 +420,7 @@ export function useObjectSelection(config: ObjectSelectionConfig): ObjectSelecti
         }
       })
       rings.clear()
+      selectedObjectsRef.current = []
     }
     // sceneRef is a stable ref; listed to satisfy the deps linter without re-running.
   }, [sceneRef])

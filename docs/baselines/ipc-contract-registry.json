@@ -1,0 +1,262 @@
+{
+  "schema_version": 2,
+  "release_target": "0.9.0",
+  "generated_from": [
+    {
+      "path": "src/lib/tauriCommands.ts",
+      "sha256": "69b88cd0802974fbb85ccfdb20dfaa8101560316b2b7ce19720ae5d7bddd92d8"
+    },
+    {
+      "path": "src-tauri/src/lib.rs",
+      "sha256": "fdf5e632e06abd86088664b1ddc4b381426e3e1d4420e88c3edb4b8f1fee0f14"
+    },
+    {
+      "path": "src-tauri/src/transport/commands.rs",
+      "sha256": "c1c384e5e4654c61062685a68b1df77ee2f3d4ad1e2c3aded62db9a7392b74a4"
+    },
+    {
+      "path": "src/lib/transportEvents.ts",
+      "sha256": "f6ffa998441609f4a785c65c83fce0eb5ddfc4afa84ed93003698d5b35fae328"
+    },
+    {
+      "path": "src/ros/ZenohBridge.ts",
+      "sha256": "0f55ffc41fbc8a2709df07cf1c3b2327eb1969d2454708a911ec15a586528528"
+    },
+    {
+      "path": "src/ros/MessageRegistry.ts",
+      "sha256": "5cbb6570636cc3305d8f0604e9804cf39deedc4d5f4c85f2af06a614e4ffb351"
+    },
+    {
+      "path": "src/ros/types.ts",
+      "sha256": "d94729fe7a5b0dca82e582d884c06147d37db39be5a6cd5f8511a85970e295b2"
+    }
+  ],
+  "transport_identity_contract": {
+    "lifecycle_generation": {
+      "wire_encoding": "canonical-positive-u64-decimal-string",
+      "native_encoding": "u64",
+      "connect_result_command": "transport_connect",
+      "input_commands": [
+        "transport_ack_camera_frame",
+        "transport_disconnect",
+        "transport_subscribe_camera",
+        "transport_subscribe_camera_info",
+        "transport_subscribe_imu",
+        "transport_subscribe_model_states",
+        "transport_subscribe_pose",
+        "transport_take_camera_frame",
+        "transport_unsubscribe"
+      ],
+      "camera_ready_event_field": "generation"
+    }
+  },
+  "commands": [
+    {
+      "name": "detect_native_raw",
+      "frontend_symbol": "TAURI_COMMANDS.detection.nativeRaw",
+      "domain": "detection",
+      "capability": "local-inference",
+      "authority": "none",
+      "backend_source": "src-tauri/src/lib.rs"
+    },
+    {
+      "name": "fusion_clear",
+      "frontend_symbol": "TAURI_COMMANDS.fusion.clear",
+      "domain": "fusion",
+      "capability": "local-state",
+      "authority": "none",
+      "backend_source": "src-tauri/src/lib.rs"
+    },
+    {
+      "name": "fusion_get_algorithms",
+      "frontend_symbol": "TAURI_COMMANDS.fusion.getAlgorithms",
+      "domain": "fusion",
+      "capability": "local-analysis",
+      "authority": "none",
+      "backend_source": "src-tauri/src/lib.rs"
+    },
+    {
+      "name": "fusion_get_modalities",
+      "frontend_symbol": "TAURI_COMMANDS.fusion.getModalities",
+      "domain": "fusion",
+      "capability": "local-analysis",
+      "authority": "none",
+      "backend_source": "src-tauri/src/lib.rs"
+    },
+    {
+      "name": "fusion_get_stats",
+      "frontend_symbol": "TAURI_COMMANDS.fusion.getStats",
+      "domain": "fusion",
+      "capability": "local-analysis",
+      "authority": "none",
+      "backend_source": "src-tauri/src/lib.rs"
+    },
+    {
+      "name": "fusion_get_tracks",
+      "frontend_symbol": "TAURI_COMMANDS.fusion.getTracks",
+      "domain": "fusion",
+      "capability": "local-analysis",
+      "authority": "none",
+      "backend_source": "src-tauri/src/lib.rs"
+    },
+    {
+      "name": "fusion_init",
+      "frontend_symbol": "TAURI_COMMANDS.fusion.init",
+      "domain": "fusion",
+      "capability": "local-analysis",
+      "authority": "none",
+      "backend_source": "src-tauri/src/lib.rs"
+    },
+    {
+      "name": "fusion_process",
+      "frontend_symbol": "TAURI_COMMANDS.fusion.process",
+      "domain": "fusion",
+      "capability": "local-analysis",
+      "authority": "none",
+      "backend_source": "src-tauri/src/lib.rs"
+    },
+    {
+      "name": "fusion_set_config",
+      "frontend_symbol": "TAURI_COMMANDS.fusion.setConfig",
+      "domain": "fusion",
+      "capability": "local-state",
+      "authority": "none",
+      "backend_source": "src-tauri/src/lib.rs"
+    },
+    {
+      "name": "get_system_info",
+      "frontend_symbol": "TAURI_COMMANDS.detection.systemInfo",
+      "domain": "detection",
+      "capability": "read-only-status",
+      "authority": "none",
+      "backend_source": "src-tauri/src/lib.rs"
+    },
+    {
+      "name": "scene_load_file",
+      "frontend_symbol": "TAURI_COMMANDS.scene.loadFile",
+      "domain": "scene",
+      "capability": "bounded-local-persistence",
+      "authority": "none",
+      "backend_source": "src-tauri/src/lib.rs"
+    },
+    {
+      "name": "scene_save_file",
+      "frontend_symbol": "TAURI_COMMANDS.scene.saveFile",
+      "domain": "scene",
+      "capability": "bounded-local-persistence",
+      "authority": "none",
+      "backend_source": "src-tauri/src/lib.rs"
+    },
+    {
+      "name": "transport_ack_camera_frame",
+      "frontend_symbol": "TAURI_COMMANDS.transport.ackCameraFrame",
+      "domain": "transport",
+      "capability": "bounded-camera-delivery",
+      "authority": "none",
+      "backend_source": "src-tauri/src/transport/commands.rs"
+    },
+    {
+      "name": "transport_connect",
+      "frontend_symbol": "TAURI_COMMANDS.transport.connect",
+      "domain": "transport",
+      "capability": "transport-lifecycle",
+      "authority": "none",
+      "backend_source": "src-tauri/src/transport/commands.rs"
+    },
+    {
+      "name": "transport_disconnect",
+      "frontend_symbol": "TAURI_COMMANDS.transport.disconnect",
+      "domain": "transport",
+      "capability": "transport-lifecycle",
+      "authority": "none",
+      "backend_source": "src-tauri/src/transport/commands.rs"
+    },
+    {
+      "name": "transport_get_stats",
+      "frontend_symbol": "TAURI_COMMANDS.transport.getStats",
+      "domain": "transport",
+      "capability": "read-only-status",
+      "authority": "none",
+      "backend_source": "src-tauri/src/transport/commands.rs"
+    },
+    {
+      "name": "transport_subscribe_camera",
+      "frontend_symbol": "TAURI_COMMANDS.transport.subscribeCamera",
+      "domain": "transport",
+      "capability": "read-only-subscription",
+      "authority": "none",
+      "backend_source": "src-tauri/src/transport/commands.rs"
+    },
+    {
+      "name": "transport_subscribe_camera_info",
+      "frontend_symbol": "TAURI_COMMANDS.transport.subscribeCameraInfo",
+      "domain": "transport",
+      "capability": "read-only-subscription",
+      "authority": "none",
+      "backend_source": "src-tauri/src/transport/commands.rs"
+    },
+    {
+      "name": "transport_subscribe_imu",
+      "frontend_symbol": "TAURI_COMMANDS.transport.subscribeImu",
+      "domain": "transport",
+      "capability": "read-only-subscription",
+      "authority": "none",
+      "backend_source": "src-tauri/src/transport/commands.rs"
+    },
+    {
+      "name": "transport_subscribe_model_states",
+      "frontend_symbol": "TAURI_COMMANDS.transport.subscribeModelStates",
+      "domain": "transport",
+      "capability": "read-only-subscription",
+      "authority": "none",
+      "backend_source": "src-tauri/src/transport/commands.rs"
+    },
+    {
+      "name": "transport_subscribe_pose",
+      "frontend_symbol": "TAURI_COMMANDS.transport.subscribePose",
+      "domain": "transport",
+      "capability": "read-only-subscription",
+      "authority": "none",
+      "backend_source": "src-tauri/src/transport/commands.rs"
+    },
+    {
+      "name": "transport_take_camera_frame",
+      "frontend_symbol": "TAURI_COMMANDS.transport.takeCameraFrame",
+      "domain": "transport",
+      "capability": "bounded-camera-delivery",
+      "authority": "none",
+      "backend_source": "src-tauri/src/transport/commands.rs"
+    },
+    {
+      "name": "transport_unsubscribe",
+      "frontend_symbol": "TAURI_COMMANDS.transport.unsubscribe",
+      "domain": "transport",
+      "capability": "read-only-subscription-lifecycle",
+      "authority": "none",
+      "backend_source": "src-tauri/src/transport/commands.rs"
+    }
+  ],
+  "events": [
+    {
+      "name": "show-about",
+      "kind": "static",
+      "direction": "rust-to-frontend",
+      "payload": "unit",
+      "authority": "none"
+    },
+    {
+      "name": "crebain:transport:{bijective-escaped-validated-topic}",
+      "kind": "bounded-dynamic-pattern",
+      "direction": "rust-to-frontend",
+      "payload": "validated registered telemetry schema, or exact camera-ready delivery descriptor with canonical-positive-u64-decimal-string generation, deliveryId, and cameraSubscriptionId fields for image subscriptions",
+      "authority": "none"
+    }
+  ],
+  "prohibited_capabilities": [
+    "generic publish",
+    "ROS service call",
+    "plant apply",
+    "Gazebo mutation through packaged IPC",
+    "dormant NCP action command registration"
+  ]
+}

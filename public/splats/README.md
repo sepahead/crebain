@@ -1,9 +1,10 @@
 # Gaussian Splat test assets (`public/splats/`)
 
 Local test scenes for the SparkJS (`@sparkjsdev/spark` v0.1.10) renderer in
-`CrebainViewer`. **This whole directory is git-ignored** — the files are large
-and are downloaded/generated locally, not committed. Re-create them with the
-commands below.
+`CrebainViewer`. The binary assets in this directory are git-ignored because
+they are large and are downloaded/generated locally; this README is the only
+tracked file. The commands below fetch optional local-evaluation inputs; they do
+not reconstruct a digest-pinned release artifact.
 
 Spark in this app parses `.ply` / `.compressed.ply` / `.spz` / `.splat` /
 `.ksplat` (see `isSplatFormat()` in `src/components/viewer/types.ts`). Load a
@@ -17,6 +18,11 @@ URL. In the running dev server each file is served at
 > `Unknown splat file type: undefined`.
 
 ## Direct downloads (single-file, `curl`-able)
+
+These upstream `main`/CDN URLs are mutable and their bytes are intentionally
+unverified. They were last reviewed on 2026-07-14, are excluded from Git and the
+0.9.0 release, and must be treated as untrusted local inputs. Record a SHA-256
+locally before comparing runs; do not infer reproducibility from the filenames.
 
 | file | format | size | scene | source | license |
 |------|--------|------|-------|--------|---------|
@@ -64,12 +70,12 @@ Conversion recipe (per scene id):
 ID=9b18007e BASE=https://d28zzqy0iyovbz.cloudfront.net/$ID/v1
 curl -sL -o meta.json $BASE/meta.json
 for f in $(grep -oE '[A-Za-z0-9_]+\.webp' meta.json | sort -u); do curl -sL -o "$f" "$BASE/$f"; done
-bunx @playcanvas/splat-transform@latest meta.json -H 0 out.compressed.ply
+bunx @playcanvas/splat-transform@3.0.0 meta.json -H 0 out.compressed.ply
 
 # 2. Single-file scenes (e.g. the radome): the CDN serves a gzip-wrapped compressed.ply
 curl -sL -o scene.gz https://d28zzqy0iyovbz.cloudfront.net/2a5b049f/v1/scene.compressed.ply
 gunzip -c scene.gz > scene.ply
-bunx @playcanvas/splat-transform@latest scene.ply -H 0 out.compressed.ply
+bunx @playcanvas/splat-transform@3.0.0 scene.ply -H 0 out.compressed.ply
 ```
 
 > The Stonehenge drone scene (`/scene/02a52a76`) was used during testing but is
@@ -78,6 +84,9 @@ bunx @playcanvas/splat-transform@latest scene.ply -H 0 out.compressed.ply
 > `splat-transform` writes SPZ **v4** (NGSP container), which Spark v0.1.10
 > cannot read (it expects the older gzip-wrapped SPZ). Use `.compressed.ply`
 > output for SuperSplat → Spark, not `.spz`.
+>
+> The CDN inputs remain mutable even with the transform version pinned, so these
+> conversion commands are convenience recipes rather than byte-reproducible evidence.
 
 ## Licensing
 

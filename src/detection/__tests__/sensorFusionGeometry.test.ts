@@ -8,7 +8,7 @@ function makeCameraParams(
   position: THREE.Vector3,
   target: THREE.Vector3
 ): CameraParams {
-  const obj = new THREE.Object3D()
+  const obj = new THREE.PerspectiveCamera(60, 640 / 480, 0.1, 1000)
   obj.position.copy(position)
   obj.lookAt(target)
   return {
@@ -114,6 +114,114 @@ describe('SensorFusion cross-camera geometric gate (#8)', () => {
     expect(tracks[0].contributingCameras.sort()).toEqual(['cam1', 'cam2'])
   })
 
+  it('rejects a non-transitive three-camera correspondence', () => {
+    // A intersects B at z=-10 and C at z=-100, but the B/C rays remain more
+    // than the 3 m correlation gate apart. Seed-only correlation would merge all
+    // three and promote a finite least-squares point unsupported by one ray pair.
+    const cameraA = makeCameraParams(
+      'camera-a',
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0, 0, -10)
+    )
+    const cameraB = makeCameraParams(
+      'camera-b',
+      new THREE.Vector3(5, 0, 0),
+      new THREE.Vector3(0, 0, -10)
+    )
+    const cameraC = makeCameraParams(
+      'camera-c',
+      new THREE.Vector3(0, 5, 0),
+      new THREE.Vector3(0, 0, -100)
+    )
+    const tracks = new SensorFusion({ correlationThreshold: 0.1 }).processFrame(
+      new Map<string, Detection[]>([
+        ['camera-a', [centeredDetection('a')]],
+        ['camera-b', [centeredDetection('b')]],
+        ['camera-c', [centeredDetection('c')]],
+      ]),
+      new Map<string, CameraParams>([
+        ['camera-a', cameraA],
+        ['camera-b', cameraB],
+        ['camera-c', cameraC],
+      ])
+    )
+
+    expect(tracks).toHaveLength(2)
+    expect(tracks.some((track) => track.contributingCameras.length === 3)).toBe(false)
+    expect(
+      tracks.some(
+        (track) =>
+          track.contributingCameras.includes('camera-a') &&
+          track.contributingCameras.includes('camera-b')
+      )
+    ).toBe(true)
+  })
+
+  it('rejects a triangulation beyond both cameras far planes', () => {
+    const cameraA = makeCameraParams(
+      'camera-a',
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0, 0, -7_000)
+    )
+    const cameraB = makeCameraParams(
+      'camera-b',
+      new THREE.Vector3(1, 0, 0),
+      new THREE.Vector3(0, 0, -7_000)
+    )
+    const tracks = new SensorFusion({ correlationThreshold: 0.1 }).processFrame(
+      new Map<string, Detection[]>([
+        ['camera-a', [centeredDetection('a')]],
+        ['camera-b', [centeredDetection('b')]],
+      ]),
+      new Map<string, CameraParams>([
+        ['camera-a', cameraA],
+        ['camera-b', cameraB],
+      ])
+    )
+
+    expect(tracks).toHaveLength(2)
+    expect(tracks.every((track) => !Number.isFinite(track.triangulationError))).toBe(true)
+  })
+
+  it('rejects an intersection behind both cameras', () => {
+    const cam1 = makeCameraParams('cam1', new THREE.Vector3(-1, 0, 5), new THREE.Vector3(-2, 0, 10))
+    const cam2 = makeCameraParams('cam2', new THREE.Vector3(1, 0, 5), new THREE.Vector3(2, 0, 10))
+    const fusion = new SensorFusion({ correlationThreshold: 0.1 })
+    const tracks = fusion.processFrame(
+      new Map<string, Detection[]>([
+        ['cam1', [centeredDetection('d1')]],
+        ['cam2', [centeredDetection('d2')]],
+      ]),
+      new Map<string, CameraParams>([
+        ['cam1', cam1],
+        ['cam2', cam2],
+      ])
+    )
+
+    expect(tracks).toHaveLength(2)
+    expect(tracks.every((track) => track.contributingCameras.length === 1)).toBe(true)
+  })
+
+  it('keeps equal detector IDs distinct across camera namespaces', () => {
+    const target = new THREE.Vector3(0, 0, 20)
+    const cam1 = makeCameraParams('cam1', new THREE.Vector3(-2, 0, 0), target)
+    const cam2 = makeCameraParams('cam2', new THREE.Vector3(2, 0, 0), target)
+    const fusion = new SensorFusion({ correlationThreshold: 0.1 })
+    const tracks = fusion.processFrame(
+      new Map<string, Detection[]>([
+        ['cam1', [movingDroneDetection('shared-id', cam1, target, 1)]],
+        ['cam2', [movingDroneDetection('shared-id', cam2, target, 1)]],
+      ]),
+      new Map<string, CameraParams>([
+        ['cam1', cam1],
+        ['cam2', cam2],
+      ])
+    )
+
+    expect(tracks).toHaveLength(1)
+    expect(tracks[0].contributingCameras.sort()).toEqual(['cam1', 'cam2'])
+  })
+
   it('falls back to class/temporal correlation when frame dims are missing', () => {
     // Without frameWidth/frameHeight the rays would collapse to the camera forward
     // axis, so the geometric gate is skipped and legacy class+temporal correlation
@@ -134,12 +242,7 @@ describe('SensorFusion cross-camera geometric gate (#8)', () => {
     expect(tracks).toHaveLength(1)
   })
 
-  it('continues a same-class track from other cameras at the default threshold', () => {
-    // Regression guard for the spatial-term rebalance: at the DEFAULT threshold
-    // (0.5), a same-class re-detection with NO shared cameras and far from the track
-    // (spatial term 0) must still match its track (continuation), not spawn a
-    // duplicate. The proximity term is an additive preference, not a hard gate, so
-    // the non-spatial floor must stay above 0.5.
+  it('creates a distinct track for a far same-class target on other cameras', () => {
     const c1 = makeCameraParams('cam1', new THREE.Vector3(-3, 0, 0), new THREE.Vector3(0, 0, 30))
     const c2 = makeCameraParams('cam2', new THREE.Vector3(3, 0, 0), new THREE.Vector3(0, 0, 30))
     const c3 = makeCameraParams('cam3', new THREE.Vector3(-3, 5, 0), new THREE.Vector3(0, 5, 60))
@@ -152,13 +255,13 @@ describe('SensorFusion cross-camera geometric gate (#8)', () => {
     ])
     const fusion = new SensorFusion() // default correlationThreshold = 0.5
     const p1 = new THREE.Vector3(0, 0, 30)
-    fusion.processFrame(
+    const firstTrack = fusion.processFrame(
       new Map<string, Detection[]>([
         ['cam1', [movingDroneDetection('a1', c1, p1, 1)]],
         ['cam2', [movingDroneDetection('a2', c2, p1, 1)]],
       ]),
       cameras
-    )
+    )[0]
     // Re-detection from cam3/cam4 (no shared cameras), >15 m away.
     const p2 = new THREE.Vector3(0, 5, 60)
     const tracks = fusion.processFrame(
@@ -168,7 +271,79 @@ describe('SensorFusion cross-camera geometric gate (#8)', () => {
       ]),
       cameras
     )
-    expect(tracks).toHaveLength(1) // continuation, not a duplicate
+    expect(tracks).toHaveLength(2)
+    expect(tracks.some((track) => track.id === firstTrack.id)).toBe(true)
+    expect(tracks.some((track) => track.id !== firstTrack.id)).toBe(true)
+  })
+
+  it('updates an existing track at most once when two groups compete for it', () => {
+    const target = new THREE.Vector3(0, 0, 20)
+    const camera = makeCameraParams('cam1', new THREE.Vector3(0, 0, 0), target)
+    const cameras = new Map<string, CameraParams>([['cam1', camera]])
+    const fusion = new SensorFusion({ correlationThreshold: 0.1 })
+
+    fusion.processFrame(
+      new Map<string, Detection[]>([['cam1', [movingDroneDetection('seed', camera, target, 1)]]]),
+      cameras
+    )
+    const tracks = fusion.processFrame(
+      new Map<string, Detection[]>([
+        [
+          'cam1',
+          [
+            movingDroneDetection('left', camera, new THREE.Vector3(-1, 0, 20), 2),
+            movingDroneDetection('right', camera, new THREE.Vector3(1, 0, 20), 2),
+          ],
+        ],
+      ]),
+      cameras
+    )
+
+    expect(tracks).toHaveLength(2)
+    expect(tracks.map((track) => track.detectionHistory.length).sort()).toEqual([1, 2])
+  })
+
+  it('keeps two crossing browser tracks one-to-one without claiming native identity parity', () => {
+    const center = new THREE.Vector3(0, 0, 30)
+    const cam1 = makeCameraParams('cam1', new THREE.Vector3(-6, 0, 0), center)
+    const cam2 = makeCameraParams('cam2', new THREE.Vector3(6, 0, 0), center)
+    const cameras = new Map<string, CameraParams>([
+      ['cam1', cam1],
+      ['cam2', cam2],
+    ])
+    const fusion = new SensorFusion({ positionSmoothing: 1 })
+    const frames = [
+      [new THREE.Vector3(-4, 0, 30), new THREE.Vector3(4, 0, 30)],
+      [new THREE.Vector3(-1, 0, 30), new THREE.Vector3(1, 0, 30)],
+      [new THREE.Vector3(2, 0, 30), new THREE.Vector3(-2, 0, 30)],
+    ]
+
+    frames.forEach(([a, b], frameIndex) => {
+      const timestamp = frameIndex + 1
+      const tracks = fusion.processFrame(
+        new Map<string, Detection[]>([
+          [
+            'cam1',
+            [
+              movingDroneDetection(`a-left-${frameIndex}`, cam1, a, timestamp),
+              movingDroneDetection(`b-left-${frameIndex}`, cam1, b, timestamp),
+            ],
+          ],
+          [
+            'cam2',
+            [
+              movingDroneDetection(`a-right-${frameIndex}`, cam2, a, timestamp),
+              movingDroneDetection(`b-right-${frameIndex}`, cam2, b, timestamp),
+            ],
+          ],
+        ]),
+        cameras
+      )
+
+      expect(tracks).toHaveLength(2)
+      expect(new Set(tracks.map((track) => track.id))).toHaveProperty('size', 2)
+      expect(tracks.every((track) => track.detectionHistory.length === frameIndex + 1)).toBe(true)
+    })
   })
 })
 

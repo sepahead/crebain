@@ -1,12 +1,13 @@
 import type { Pose, Twist } from './types'
 
 export const MAX_GAZEBO_MODEL_XML_BYTES = 256 * 1024
+export const MAX_GAZEBO_POSITION_MAGNITUDE_M = 1_000_000
+export const MAX_GAZEBO_LINEAR_SPEED_MPS = 100
+export const MAX_GAZEBO_ANGULAR_SPEED_RAD_S = 50
+export const MIN_GAZEBO_QUATERNION_NORM = 0.99
+export const MAX_GAZEBO_QUATERNION_NORM = 1.01
 const MAX_MODEL_NAME_BYTES = 128
 const MAX_GRAPH_NAME_BYTES = 256
-const MAX_LINEAR_SPEED_MPS = 100
-const MAX_ANGULAR_SPEED_RAD_S = 50
-const MAX_POSITION_MAGNITUDE_M = 1_000_000
-const QUATERNION_NORM_TOLERANCE = 0.01
 const SAFE_GRAPH_NAME = /^[A-Za-z0-9_./-]+$/
 const SAFE_FRAME_ID = /^[A-Za-z0-9_/]+$/
 const PRIVILEGED_XML_MARKERS = [
@@ -61,7 +62,11 @@ function validateVector(
 }
 
 export function validateGazeboPose(pose: Pose): void {
-  validateVector(pose.position, 'Gazebo position', MAX_POSITION_MAGNITUDE_M)
+  validateVector(
+    pose.position,
+    'Gazebo position',
+    MAX_GAZEBO_POSITION_MAGNITUDE_M
+  )
   const quaternion = [
     pose.orientation.x,
     pose.orientation.y,
@@ -72,14 +77,25 @@ export function validateGazeboPose(pose: Pose): void {
     throw new Error('Gazebo orientation must contain only finite values')
   }
   const norm = Math.hypot(...quaternion)
-  if (Math.abs(norm - 1) > QUATERNION_NORM_TOLERANCE) {
+  if (
+    norm < MIN_GAZEBO_QUATERNION_NORM ||
+    norm > MAX_GAZEBO_QUATERNION_NORM
+  ) {
     throw new Error('Gazebo orientation must be a unit quaternion')
   }
 }
 
 export function validateGazeboTwist(twist: Twist): void {
-  validateVector(twist.linear, 'Gazebo linear velocity', MAX_LINEAR_SPEED_MPS)
-  validateVector(twist.angular, 'Gazebo angular velocity', MAX_ANGULAR_SPEED_RAD_S)
+  validateVector(
+    twist.linear,
+    'Gazebo linear velocity',
+    MAX_GAZEBO_LINEAR_SPEED_MPS
+  )
+  validateVector(
+    twist.angular,
+    'Gazebo angular velocity',
+    MAX_GAZEBO_ANGULAR_SPEED_RAD_S
+  )
 }
 
 export function validateGazeboSpawn(

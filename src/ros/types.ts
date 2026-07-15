@@ -338,6 +338,7 @@ export interface LidarDetection {
   bbox_min: Point
   bbox_max: Point
   velocity: Vector3
+  covariance: [number, number, number]
   num_points: number
   confidence: number
   classification: string
@@ -487,7 +488,7 @@ export interface ROSBridgeUnsubscribe {
 
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting'
 
-export type ROSMessageCallback<T> = (message: T) => void
+export type ROSMessageCallback<T> = (message: T) => void | Promise<void>
 
 export interface TopicSubscription<T = unknown> {
   topic: string

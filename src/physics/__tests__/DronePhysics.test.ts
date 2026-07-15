@@ -95,11 +95,52 @@ function attachFakeRigidBody(
   drone.rigidBody = fake as unknown as NonNullable<DronePhysicsBody['rigidBody']>
 }
 
-function torqueFromMixedControls(roll: number, pitch: number, yaw: number): FakeVector {
+function installFakeRapierCreationWorld(world: DronePhysicsWorld) {
+  const bodyDescription = {
+    setTranslation: vi.fn(() => bodyDescription),
+    setLinearDamping: vi.fn(() => bodyDescription),
+    setAngularDamping: vi.fn(() => bodyDescription),
+  }
+  const colliderDescription = {
+    setMassProperties: vi.fn(() => colliderDescription),
+  }
+  const activeBodies = new Set<object>()
+  const fakeWorld = {
+    createRigidBody: vi.fn(() => {
+      const body = {}
+      activeBodies.add(body)
+      return body
+    }),
+    createCollider: vi.fn(() => ({})),
+    removeRigidBody: vi.fn((body: object) => {
+      activeBodies.delete(body)
+    }),
+  }
+  const fakeRapier = {
+    RigidBodyDesc: { dynamic: vi.fn(() => bodyDescription) },
+    ColliderDesc: { cuboid: vi.fn(() => colliderDescription) },
+  }
+  const internals = world as unknown as {
+    RAPIER: typeof fakeRapier | null
+    world: typeof fakeWorld | null
+  }
+  internals.RAPIER = fakeRapier
+  internals.world = fakeWorld
+
+  return { activeBodies, bodyDescription, colliderDescription, fakeWorld }
+}
+
+function torqueFromMixedControls(
+  roll: number,
+  pitch: number,
+  yaw: number,
+  orientation: THREE.Quaternion = new THREE.Quaternion()
+): FakeVector {
   const world = new DronePhysicsWorld() as unknown as WorldInternals
   world.RAPIER = {}
 
   const drone = new DronePhysicsBody(`mixed-${roll}-${pitch}-${yaw}`)
+  drone.state.orientation.copy(orientation)
   drone.setArmed(true)
   drone.setMotorCommands(mixQuadMotorCommands(0.5, roll, pitch, yaw))
   const fakeBody = createFakeRigidBody()
@@ -167,6 +208,19 @@ describe('canonical quad mixer', () => {
     expect(torque.x).toBeCloseTo(0, 12)
     expect(torque.z).toBeCloseTo(0, 12)
   })
+
+  it('rotates the complete Rapier torque vector with the drone orientation', () => {
+    const orientation = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.37, -0.29, 0.51))
+    const levelTorque = torqueFromMixedControls(0.07, -0.04, 0.1)
+    const rotatedTorque = torqueFromMixedControls(0.07, -0.04, 0.1, orientation)
+    const expected = new THREE.Vector3(levelTorque.x, levelTorque.y, levelTorque.z).applyQuaternion(
+      orientation
+    )
+
+    expect(rotatedTorque.x).toBeCloseTo(expected.x, 12)
+    expect(rotatedTorque.y).toBeCloseTo(expected.y, 12)
+    expect(rotatedTorque.z).toBeCloseTo(expected.z, 12)
+  })
 })
 
 describe('DronePhysicsBody local integrator', () => {
@@ -219,6 +273,37 @@ describe('DronePhysicsBody local integrator', () => {
     const expectedAngVelZ = ((-armLength * thrust) / momentOfInertia.z) * dt * 0.98
     expect(body.state.angularVelocity.x).toBeCloseTo(expectedAngVelX, 10)
     expect(body.state.angularVelocity.z).toBeCloseTo(expectedAngVelZ, 10)
+  })
+
+  it('keeps local angular dynamics equivariant under a world-frame rotation', () => {
+    const params = {
+      ...DEFAULT_QUADCOPTER_PARAMS,
+      dragCoefficient: 0,
+      momentOfInertia: DEFAULT_QUADCOPTER_PARAMS.momentOfInertia.clone(),
+    }
+    const orientation = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.42, -0.31, 0.27))
+    const bodyAngularVelocity = new THREE.Vector3(0.3, -0.4, 0.2)
+    const commands = mixQuadMotorCommands(0.5, 0.07, -0.04, 0.1)
+    const level = new DronePhysicsBody('equivariant-level', params)
+    const rotated = new DronePhysicsBody('equivariant-rotated', params)
+
+    level.setArmed(true)
+    level.setMotorCommands(commands)
+    level.state.angularVelocity.copy(bodyAngularVelocity)
+    rotated.setArmed(true)
+    rotated.setMotorCommands(commands)
+    rotated.state.orientation.copy(orientation)
+    rotated.state.angularVelocity.copy(bodyAngularVelocity).applyQuaternion(orientation)
+
+    level.updatePhysics(PHYSICS_FIXED_DT)
+    rotated.updatePhysics(PHYSICS_FIXED_DT)
+
+    const expectedAngularVelocity = level.state.angularVelocity.clone().applyQuaternion(orientation)
+    const expectedOrientation = orientation.clone().multiply(level.state.orientation)
+    expect(rotated.state.angularVelocity.x).toBeCloseTo(expectedAngularVelocity.x, 12)
+    expect(rotated.state.angularVelocity.y).toBeCloseTo(expectedAngularVelocity.y, 12)
+    expect(rotated.state.angularVelocity.z).toBeCloseTo(expectedAngularVelocity.z, 12)
+    expect(Math.abs(rotated.state.orientation.dot(expectedOrientation))).toBeCloseTo(1, 12)
   })
 })
 
@@ -328,6 +413,50 @@ describe('DronePhysicsWorld Rapier force application', () => {
     const torqueArg = fakeBody.addTorque.mock.calls[0][0]
     expect(torqueArg.x).toBeCloseTo(-armLength * thrust, 10)
     expect(torqueArg.z).toBeCloseTo(-armLength * thrust, 10)
+  })
+})
+
+describe('DronePhysicsWorld drone lifecycle', () => {
+  it('configures Rapier with the flight model mass and principal inertia', () => {
+    const world = new DronePhysicsWorld()
+    const { colliderDescription } = installFakeRapierCreationWorld(world)
+    const momentOfInertia = new THREE.Vector3(0.013, 0.024, 0.017)
+
+    world.createDrone('configured-mass', {
+      ...DEFAULT_QUADCOPTER_PARAMS,
+      mass: 2.4,
+      momentOfInertia,
+    })
+
+    expect(colliderDescription.setMassProperties).toHaveBeenCalledWith(
+      2.4,
+      { x: 0, y: 0, z: 0 },
+      { x: momentOfInertia.x, y: momentOfInertia.y, z: momentOfInertia.z },
+      { x: 0, y: 0, z: 0, w: 1 }
+    )
+  })
+
+  it('rejects duplicate IDs before allocating and removes the original Rapier body', () => {
+    const world = new DronePhysicsWorld()
+    const { activeBodies, fakeWorld } = installFakeRapierCreationWorld(world)
+
+    const original = world.createDrone('duplicate')
+    expect(activeBodies.size).toBe(1)
+    expect(activeBodies.has(original.rigidBody!)).toBe(true)
+
+    expect(() => world.createDrone('duplicate')).toThrowError(
+      'Drone with id "duplicate" already exists'
+    )
+    expect(fakeWorld.createRigidBody).toHaveBeenCalledTimes(1)
+    expect(fakeWorld.createCollider).toHaveBeenCalledTimes(1)
+    expect(activeBodies.size).toBe(1)
+    expect(world.getDrone('duplicate')).toBe(original)
+
+    world.removeDrone('duplicate')
+
+    expect(fakeWorld.removeRigidBody).toHaveBeenCalledWith(original.rigidBody)
+    expect(activeBodies.size).toBe(0)
+    expect(world.getDrone('duplicate')).toBeUndefined()
   })
 })
 

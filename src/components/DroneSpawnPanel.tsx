@@ -8,6 +8,13 @@ import * as THREE from 'three'
 import { DRONE_TYPES, type DroneTypeDefinition } from '../physics/DroneTypes'
 import { BasePanel } from './BasePanel'
 import { getCategoryIcon, getCategoryColor } from '../lib/droneCategories'
+import {
+  isAdmissibleRouteWaypoints,
+  MAX_ROUTE_ALTITUDE_M,
+  MAX_ROUTE_COORDINATE_MAGNITUDE_M,
+  MAX_ROUTE_WAYPOINTS,
+  parseWaypointInput,
+} from '../lib/routeLimits'
 import type { RouteMode, Waypoint, DroneRoute } from '../hooks/useDroneController'
 
 interface DroneSpawnPanelProps {
@@ -56,6 +63,13 @@ export function DroneSpawnPanel({
   const [editingName, setEditingName] = useState('')
 
   const droneTypes = Object.values(DRONE_TYPES)
+  const selectedDrone = activeDrones.find((drone) => drone.id === selectedDroneId)
+  const maxRouteAltitude =
+    (selectedDrone && DRONE_TYPES[selectedDrone.type]?.physics.maxAltitude) ?? MAX_ROUTE_ALTITUDE_M
+  const routeAdmissionLimits = { maxAltitude: maxRouteAltitude }
+  const parsedWaypointInput = parseWaypointInput(waypointInput, routeAdmissionLimits)
+  const waypointLimitReached = pendingWaypoints.length >= MAX_ROUTE_WAYPOINTS
+  const canAddWaypoint = parsedWaypointInput !== null && !waypointLimitReached
 
   const handleSpawn = useCallback(() => {
     onSpawnDrone(selectedType, customName || undefined)
@@ -64,31 +78,34 @@ export function DroneSpawnPanel({
   }, [selectedType, customName, onSpawnDrone])
 
   const handleAddWaypoint = useCallback(() => {
-    const x = parseFloat(waypointInput.x) || 0
-    const y = parseFloat(waypointInput.y) || 10
-    const z = parseFloat(waypointInput.z) || 0
+    const parsed = parseWaypointInput(waypointInput, { maxAltitude: maxRouteAltitude })
+    if (!parsed || pendingWaypoints.length >= MAX_ROUTE_WAYPOINTS) return
+    const { x, y, z } = parsed
 
     const waypoint: Waypoint = {
-      position: new THREE.Vector3(x, 0, z),
+      position: new THREE.Vector3(x, y, z),
       altitude: y,
     }
 
-    setPendingWaypoints((prev) => [...prev, waypoint])
+    setPendingWaypoints((prev) => (prev.length >= MAX_ROUTE_WAYPOINTS ? prev : [...prev, waypoint]))
     setWaypointInput({ x: String(x + 10), y: String(y), z: String(z) })
-  }, [waypointInput])
+  }, [waypointInput, pendingWaypoints.length, maxRouteAltitude])
 
   const handleApplyRoute = useCallback(() => {
-    if (selectedDroneId && onSetRoute && pendingWaypoints.length > 0) {
+    if (
+      selectedDroneId &&
+      onSetRoute &&
+      pendingWaypoints.length > 0 &&
+      isAdmissibleRouteWaypoints(pendingWaypoints, { maxAltitude: maxRouteAltitude })
+    ) {
       onSetRoute(selectedDroneId, pendingWaypoints, routeMode)
       setShowRouteEditor(false)
     }
-  }, [selectedDroneId, onSetRoute, pendingWaypoints, routeMode])
+  }, [selectedDroneId, onSetRoute, pendingWaypoints, routeMode, maxRouteAltitude])
 
   const handleClearPendingWaypoints = useCallback(() => {
     setPendingWaypoints([])
   }, [])
-
-  const selectedDrone = activeDrones.find((d) => d.id === selectedDroneId)
 
   return (
     <BasePanel
@@ -406,6 +423,8 @@ export function DroneSpawnPanel({
                     <label className="text-[#505050] text-[0.75em]">X</label>
                     <input
                       type="number"
+                      min={-MAX_ROUTE_COORDINATE_MAGNITUDE_M}
+                      max={MAX_ROUTE_COORDINATE_MAGNITUDE_M}
                       value={waypointInput.x}
                       onChange={(e) => setWaypointInput((prev) => ({ ...prev, x: e.target.value }))}
                       className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#c0c0c0] px-1 py-0.5"
@@ -415,6 +434,8 @@ export function DroneSpawnPanel({
                     <label className="text-[#505050] text-[0.75em]">HÖHE</label>
                     <input
                       type="number"
+                      min={0}
+                      max={maxRouteAltitude}
                       value={waypointInput.y}
                       onChange={(e) => setWaypointInput((prev) => ({ ...prev, y: e.target.value }))}
                       className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#c0c0c0] px-1 py-0.5"
@@ -424,6 +445,8 @@ export function DroneSpawnPanel({
                     <label className="text-[#505050] text-[0.75em]">Z</label>
                     <input
                       type="number"
+                      min={-MAX_ROUTE_COORDINATE_MAGNITUDE_M}
+                      max={MAX_ROUTE_COORDINATE_MAGNITUDE_M}
                       value={waypointInput.z}
                       onChange={(e) => setWaypointInput((prev) => ({ ...prev, z: e.target.value }))}
                       className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#c0c0c0] px-1 py-0.5"
@@ -432,10 +455,24 @@ export function DroneSpawnPanel({
                 </div>
                 <button
                   onClick={handleAddWaypoint}
-                  className="w-full mt-1 py-0.5 bg-[#1a2a1a] border border-[#2a4a2a] text-[#4aff4a] hover:bg-[#2a3a2a]"
+                  disabled={!canAddWaypoint}
+                  className={`w-full mt-1 py-0.5 border ${
+                    canAddWaypoint
+                      ? 'bg-[#1a2a1a] border-[#2a4a2a] text-[#4aff4a] hover:bg-[#2a3a2a]'
+                      : 'bg-[#1a1a1a] border-[#2a2a2a] text-[#404040] cursor-not-allowed'
+                  }`}
                 >
                   ➕ WEGPUNKT
                 </button>
+                <div className="mt-1 text-[0.75em] text-[#505050]">
+                  {pendingWaypoints.length} / {MAX_ROUTE_WAYPOINTS} WEGPUNKTE
+                </div>
+                {parsedWaypointInput === null && (
+                  <div role="alert" className="mt-1 text-[0.75em] text-[#ff6a6a]">
+                    X/Z MÜSSEN ±{MAX_ROUTE_COORDINATE_MAGNITUDE_M.toLocaleString()} UND HÖHE 0–
+                    {maxRouteAltitude.toLocaleString()} M EINHALTEN
+                  </div>
+                )}
               </div>
 
               {/* Pending Waypoints */}

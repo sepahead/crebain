@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fetchAssetWithLimit } from '../boundedFetch'
+import { fetchAssetWithLimit, readFileAsArrayBuffer } from '../boundedFetch'
 
 function streamingResponse(chunks: number[][], contentLength?: number): Response {
   const stream = new ReadableStream<Uint8Array>({
@@ -15,7 +15,10 @@ function streamingResponse(chunks: number[][], contentLength?: number): Response
 }
 
 describe('fetchAssetWithLimit', () => {
-  afterEach(() => vi.restoreAllMocks())
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
 
   it('streams a bounded asset and reports cumulative progress', async () => {
     const fetchMock = vi
@@ -57,5 +60,53 @@ describe('fetchAssetWithLimit', () => {
       fetchAssetWithLimit('/asset.glb', 0, new AbortController().signal)
     ).rejects.toThrow('positive safe integer')
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('aborts a superseded file read while a newer acquisition completes', async () => {
+    const readers: ControlledFileReader[] = []
+    class ControlledFileReader {
+      static readonly LOADING = 1
+      readyState = 0
+      result: ArrayBuffer | null = null
+      error: DOMException | null = null
+      onabort: ((event: ProgressEvent<FileReader>) => void) | null = null
+      onerror: ((event: ProgressEvent<FileReader>) => void) | null = null
+      onload: ((event: ProgressEvent<FileReader>) => void) | null = null
+      onprogress: ((event: ProgressEvent<FileReader>) => void) | null = null
+      abortCalls = 0
+
+      constructor() {
+        readers.push(this)
+      }
+
+      readAsArrayBuffer(): void {
+        this.readyState = ControlledFileReader.LOADING
+      }
+
+      abort(): void {
+        this.abortCalls += 1
+        this.readyState = 2
+        this.onabort?.(new ProgressEvent('abort') as ProgressEvent<FileReader>)
+      }
+
+      complete(bytes: Uint8Array): void {
+        this.result = bytes.slice().buffer
+        this.readyState = 2
+        this.onload?.(new ProgressEvent('load') as ProgressEvent<FileReader>)
+      }
+    }
+    vi.stubGlobal('FileReader', ControlledFileReader)
+    const firstController = new AbortController()
+    const secondController = new AbortController()
+    const file = new File([new Uint8Array([1, 2, 3])], 'scene.splat')
+
+    const first = readFileAsArrayBuffer(file, firstController.signal)
+    const second = readFileAsArrayBuffer(file, secondController.signal)
+    firstController.abort(new Error('superseded'))
+
+    await expect(first).rejects.toThrow('superseded')
+    expect(readers[0].abortCalls).toBe(1)
+    readers[1].complete(new Uint8Array([4, 5]))
+    await expect(second).resolves.toEqual(new Uint8Array([4, 5]).buffer)
   })
 })

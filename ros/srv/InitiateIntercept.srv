@@ -3,7 +3,7 @@
 
 # Request
 string target_id
-uint8 strategy  # See InterceptionCommand.msg for values
+string strategy  # PURSUIT, LEAD, PARALLEL, or AMBUSH
 
 ---
 

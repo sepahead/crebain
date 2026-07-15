@@ -33,8 +33,8 @@ source devel/setup.bash
 ```
 
 The multi-drone launch files also expect PX4/MAVROS and
-`mavlink_sitl_gazebo` model assets. They are reference topology, not a bundled
-autopilot distribution.
+`mavlink_sitl_gazebo` model assets. They support only 0–2 interceptors and 0–1
+target. They are reference topology, not a bundled autopilot distribution.
 
 ## Topic templates
 
@@ -103,9 +103,19 @@ bun run tauri:dev
 ```
 
 Alternatively launch `rosbridge.launch` against an already-running ROS 1 /
-Gazebo Classic graph. A Vite development build may select its read-only
+Gazebo Classic graph. The checked-in topology binds to `127.0.0.1`, disables
+rosapi by default, and does not configure rosbridge authentication. Do not set
+its address to a non-loopback interface as a security shortcut; a remote
+deployment needs a separately reviewed authenticated gateway, network policy,
+and transport protection. A Vite development build may select its read-only
 rosbridge telemetry adapter and connect to `ws://localhost:9090`; packaged
 builds do not expose that option.
+
+The custom `DroneTarget` threat scale is 1 (low) through 4 (critical), matching
+the TypeScript and native fusion contracts. `InterceptionCommand.strategy` is
+one of `PURSUIT`, `LEAD`, `PARALLEL`, or `AMBUSH`; unknown strings must be
+rejected by any external consumer. These messages and services remain
+reference contracts and are not registered product authority.
 
 ## Transport boundary
 
@@ -124,6 +134,14 @@ The native Zenoh adapter maps ROS-looking topic strings to CREBAIN plain keys.
 An `rmw_zenoh_cpp` graph uses DDS/RMW-qualified keys, so setting
 `RMW_IMPLEMENTATION=rmw_zenoh_cpp` is insufficient; deploy an explicit re-keying
 bridge.
+
+Pose-bearing telemetry is admitted only when its position-vector magnitude is
+at most 1,000,000 m and its finite quaternion norm is within the inclusive
+range `[0.99, 1.01]`. `ModelStates` twists, and the equivalent twist carried by
+development-only WebSocket odometry, additionally require linear-speed
+magnitude at most 100 m/s and angular-speed magnitude at most 50 rad/s. The
+same limits are enforced by the renderer WebSocket schemas, the native event
+registry, and native rosbridge/Zenoh decoders.
 
 ## Camera contract
 
@@ -145,6 +163,13 @@ inference. The native Rust rosbridge fallback and native Zenoh transport enforce
   a custom model; and
 - finite/non-negative header time with nanoseconds below `1,000,000,000` plus a
   bounded, control-character-free frame ID.
+
+The browser camera stream is latest-pending and single-flight per lifecycle
+generation. It permits at most two decode workers across the current and stale
+generations, validates both encoded and decoded dimensions, closes stale
+`ImageBitmap` results, and isolates callback failures. These mechanics bound
+browser decode work; live decode/render behavior remains a manual target-platform
+check.
 
 ROS sensor header frame IDs are forwarded into fusion as source-frame
 provenance. In the optional Galadriel producer, matching the configured

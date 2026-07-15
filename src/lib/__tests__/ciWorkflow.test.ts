@@ -6,10 +6,13 @@ const PACKAGE = JSON.parse(readFileSync(`${process.cwd()}/package.json`, 'utf8')
 }
 const WORKFLOW = readFileSync(`${process.cwd()}/.github/workflows/ci.yml`, 'utf8')
 const RELEASE_WORKFLOW = readFileSync(`${process.cwd()}/.github/workflows/release.yml`, 'utf8')
-const WORKFLOWS = readdirSync(`${process.cwd()}/.github/workflows`)
+const WORKFLOW_SOURCES = readdirSync(`${process.cwd()}/.github/workflows`)
   .filter((file) => file.endsWith('.yml') || file.endsWith('.yaml'))
-  .map((file) => readFileSync(`${process.cwd()}/.github/workflows/${file}`, 'utf8'))
-  .join('\n')
+  .map((file) => ({
+    file,
+    source: readFileSync(`${process.cwd()}/.github/workflows/${file}`, 'utf8'),
+  }))
+const WORKFLOWS = WORKFLOW_SOURCES.map(({ source }) => source).join('\n')
 const README = readFileSync(`${process.cwd()}/README.md`, 'utf8')
 const SECURITY = readFileSync(`${process.cwd()}/SECURITY.md`, 'utf8')
 const MODEL_README = readFileSync(`${process.cwd()}/public/models/README.md`, 'utf8')
@@ -61,6 +64,81 @@ describe('CI workflow', () => {
     }
   })
 
+  it('disables persisted credentials for every checkout step', () => {
+    for (const { file, source } of WORKFLOW_SOURCES) {
+      const lines = source.split('\n')
+      for (const [index, line] of lines.entries()) {
+        const checkout = line.match(/^(\s*)-\s+uses:\s+actions\/checkout@/)
+        if (!checkout) continue
+
+        const stepIndent = checkout[1].length
+        const nextStepOffset = lines
+          .slice(index + 1)
+          .findIndex((candidate) => new RegExp(`^\\s{${stepIndent}}-\\s+`).test(candidate))
+        const stepEnd = nextStepOffset === -1 ? lines.length : index + 1 + nextStepOffset
+        const step = lines.slice(index, stepEnd).join('\n')
+
+        expect(step, `${file}:${index + 1} must disable persisted credentials`).toContain(
+          'persist-credentials: false'
+        )
+      }
+    }
+  })
+
+  it('isolates release publication from builds and seals a strict package inventory', () => {
+    const buildJob = RELEASE_WORKFLOW.match(/\n {2}build:\n[\s\S]*?\n {2}seal-evidence:/)?.[0]
+    const sealJob = RELEASE_WORKFLOW.match(
+      /\n {2}seal-evidence:\n[\s\S]*?\n {2}attest-packages:/
+    )?.[0]
+    const publishJob = RELEASE_WORKFLOW.match(/\n {2}publish-prerelease:\n[\s\S]*$/)?.[0]
+
+    expect(buildJob).toBeTruthy()
+    expect(sealJob).toBeTruthy()
+    expect(publishJob).toBeTruthy()
+    expect(RELEASE_WORKFLOW.match(/contents: write/g)).toHaveLength(1)
+    expect(buildJob).not.toContain('contents: write')
+    expect(buildJob).not.toContain('GITHUB_TOKEN')
+    expect(buildJob).toContain(
+      'release-package-${{ matrix.platform }}-${{ github.sha }}-${{ github.run_id }}'
+    )
+    expect(RELEASE_WORKFLOW).toContain("- 'v0.9.0'")
+    expect(RELEASE_WORKFLOW).not.toContain("- 'v*'")
+    expect(RELEASE_WORKFLOW.match(/overwrite: true/g)).toHaveLength(3)
+    expect(sealJob).not.toContain('contents: write')
+    expect(sealJob).not.toContain('gh release')
+    expect(sealJob).toContain('crebain-${GITHUB_REF_NAME}-evidence.tar.gz')
+    expect(sealJob).toContain("-name '*.dmg'")
+    expect(sealJob).toContain("-name '*.AppImage'")
+    expect(sealJob).toContain("-name '*.deb'")
+    expect(publishJob).toContain('contents: write')
+    expect(publishJob).not.toContain('actions/checkout')
+    expect(publishJob).not.toContain('bun install')
+    expect(publishJob).toContain('sealed-release-output-${{ github.sha }}-${{ github.run_id }}')
+    expect(publishJob).toContain('gh api --method DELETE')
+    expect(publishJob).toContain('git/ref/tags/$GITHUB_REF_NAME')
+    expect(publishJob).toContain('git/tags/$annotated_tag_sha')
+    expect(publishJob?.match(/\.object\.sha == \$commit/g)).toHaveLength(2)
+    expect(publishJob).toContain('test "${#assets[@]}" -eq 5')
+    expect(publishJob).toContain('cmp "$local_asset"')
+    expect(publishJob).toContain('gh api --method PATCH')
+    expect(publishJob).toContain('-F draft=false')
+    expect(publishJob).toContain('-F prerelease=true')
+    expect(publishJob).toContain('-f make_latest=false')
+    expect(publishJob?.match(/X-GitHub-Api-Version: 2026-03-10/g)).toHaveLength(2)
+    expect(publishJob).toContain('.draft == false and .prerelease == true')
+    expect(publishJob?.match(/\.immutable == true/g)).toHaveLength(3)
+    expect(
+      publishJob?.match(
+        /\.id == \$release_id and \.tag_name == \$tag and \.draft == false and \.prerelease == true and \.immutable == true/g
+      )
+    ).toHaveLength(2)
+    expect(publishJob).toContain('cmp /tmp/expected-assets.txt /tmp/refetched-public-assets.txt')
+    expect(publishJob).toContain('trap rollback_publication EXIT')
+    expect(publishJob).toContain("jq -e '.immutable == true' /tmp/public-release.json")
+    expect(publishJob).toContain('immutable publication cannot be returned to draft')
+    expect(publishJob).toContain('-F draft=true -F prerelease=true')
+  })
+
   it('uses clang reported runtime path for macOS ONNX linking', () => {
     for (const workflow of [WORKFLOW, RELEASE_WORKFLOW]) {
       expect(workflow).toContain('xcrun clang --print-resource-dir')
@@ -100,7 +178,7 @@ describe('CI workflow', () => {
       expect(README).toContain(artifact)
     }
 
-    expect(RELEASE_ACCEPTANCE).toContain('Release Candidate Gate')
+    expect(RELEASE_ACCEPTANCE).toContain('Demo, operational, and 1.0 release-candidate gate')
     expect(MODEL_CONTRACTS).toContain('Required Model Record')
     expect(MANUAL_SMOKE).toContain('Environment Record')
     expect(RELEASE_EVIDENCE).toContain('Current Candidate')
@@ -113,7 +191,7 @@ describe('CI workflow', () => {
     expect(WORKFLOW).toContain('rust-check.log')
     expect(WORKFLOW).toContain('rust-clippy.log')
     expect(WORKFLOW).toContain('rust-test.log')
-    expect(RELEASE_EVIDENCE).toContain('GitHub Actions run')
+    expect(RELEASE_EVIDENCE).toContain('Hosted source gates')
   })
 
   it('keeps model documentation aligned with model contracts', () => {

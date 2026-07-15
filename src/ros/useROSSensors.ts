@@ -154,6 +154,14 @@ const INACTIVE_SENSOR_STATUS: ROSSensorState['sensorStatus'] = {
 // the browser buffer larger would clear and then reject an oversized batch,
 // silently losing every measurement in that cycle.
 const MAX_MEASUREMENTS_PER_CYCLE = 512
+const MAX_MEASUREMENT_VARIANCE = 1_000_000_000_000
+const MAX_MEASUREMENT_POSITION_ABS_M = 10_000_000
+const MAX_MEASUREMENT_VELOCITY_ABS_MPS = 100_000
+const MAX_MEASUREMENT_METADATA_ABS = 1_000_000_000_000
+const MAX_RADAR_AZIMUTH_RAD = 2 * Math.PI
+const MAX_RADAR_ELEVATION_RAD = Math.PI / 2
+const MAX_FUSION_STRING_BYTES = 256
+const MAX_LIDAR_POINT_COUNT = 0xffff_ffff
 
 export function clampFusionRateHz(rateHz: number): number {
   if (!Number.isFinite(rateHz)) return DEFAULT_ROS_SENSOR_CONFIG.fusionRateHz
@@ -185,6 +193,25 @@ function assertNonNegativeFinite(value: unknown, name: string): asserts value is
   }
 }
 
+function assertFiniteMagnitude(value: unknown, name: string, maximum: number): asserts value is number {
+  assertFiniteNumber(value, name)
+  if (Math.abs(value) > maximum) {
+    throw new Error(`${name} magnitude must not exceed ${maximum}`)
+  }
+}
+
+function assertFiniteRange(
+  value: unknown,
+  name: string,
+  minimum: number,
+  maximum: number
+): asserts value is number {
+  assertFiniteNumber(value, name)
+  if (value < minimum || value > maximum) {
+    throw new Error(`${name} must be within [${minimum}, ${maximum}]`)
+  }
+}
+
 function assertTimestampMs(value: unknown, name: string): asserts value is number {
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
     throw new Error(`${name} must be a safe non-negative integer`)
@@ -199,8 +226,13 @@ function assertConfidence(value: unknown, name: string): asserts value is number
 }
 
 function assertString(value: unknown, name: string): asserts value is string {
-  if (typeof value !== 'string' || value.trim().length === 0) {
-    throw new Error(`${name} must be a non-empty string`)
+  if (
+    typeof value !== 'string' ||
+    value.trim().length === 0 ||
+    value.includes('\0') ||
+    new TextEncoder().encode(value).byteLength > MAX_FUSION_STRING_BYTES
+  ) {
+    throw new Error(`${name} must be a non-empty string of at most 256 UTF-8 bytes without NUL`)
   }
 }
 
@@ -219,6 +251,26 @@ function assertPoint(
   assertFiniteNumber(record.x, `${name}.x`)
   assertFiniteNumber(record.y, `${name}.y`)
   assertFiniteNumber(record.z, `${name}.z`)
+}
+
+function assertBoundedPosition(
+  point: unknown,
+  name: string
+): asserts point is { x: number; y: number; z: number } {
+  assertPoint(point, name)
+  assertFiniteMagnitude(point.x, `${name}.x`, MAX_MEASUREMENT_POSITION_ABS_M)
+  assertFiniteMagnitude(point.y, `${name}.y`, MAX_MEASUREMENT_POSITION_ABS_M)
+  assertFiniteMagnitude(point.z, `${name}.z`, MAX_MEASUREMENT_POSITION_ABS_M)
+}
+
+function assertBoundedVelocity(
+  point: unknown,
+  name: string
+): asserts point is { x: number; y: number; z: number } {
+  assertPoint(point, name)
+  assertFiniteMagnitude(point.x, `${name}.x`, MAX_MEASUREMENT_VELOCITY_ABS_MPS)
+  assertFiniteMagnitude(point.y, `${name}.y`, MAX_MEASUREMENT_VELOCITY_ABS_MPS)
+  assertFiniteMagnitude(point.z, `${name}.z`, MAX_MEASUREMENT_VELOCITY_ABS_MPS)
 }
 
 function assertHeader(
@@ -301,6 +353,7 @@ function assertVector3Tuple(
 function pushValidatedMeasurements<T>(
   detections: unknown,
   modality: keyof ROSSensorState['sensorStatus'],
+  sensorId: string,
   convert: (det: T, sensorId: string) => SensorMeasurement
 ): { measurements: SensorMeasurement[]; dropped: number } {
   if (!Array.isArray(detections)) {
@@ -320,13 +373,34 @@ function pushValidatedMeasurements<T>(
   detections.slice(startIndex).forEach((det, relativeIndex) => {
     const index = startIndex + relativeIndex
     try {
-      measurements.push(convert(det as T, `${modality}_${index}`))
+      measurements.push(convert(det as T, sensorId))
     } catch (error) {
       dropped += 1
       log.warn('Dropping malformed ROS sensor detection', { modality, index, error })
     }
   })
   return { measurements, dropped }
+}
+
+interface ExactTimeMeasurementGroup {
+  timestampMs: number
+  measurements: SensorMeasurement[]
+}
+
+function groupMeasurementsByExactTime(
+  measurements: SensorMeasurement[]
+): ExactTimeMeasurementGroup[] {
+  const byTimestamp = new Map<number, SensorMeasurement[]>()
+  for (const measurement of measurements) {
+    const timestamp = measurement.timestamp_ms
+    const group = byTimestamp.get(timestamp)
+    if (group) group.push(measurement)
+    else byTimestamp.set(timestamp, [measurement])
+  }
+  return Array.from(byTimestamp, ([timestampMs, grouped]) => ({
+    timestampMs,
+    measurements: grouped,
+  })).sort((left, right) => left.timestampMs - right.timestampMs)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -336,10 +410,21 @@ function pushValidatedMeasurements<T>(
 export function thermalToMeasurement(det: ThermalDetection, sensorId: string): SensorMeasurement {
   assertString(sensorId, 'sensorId')
   assertRecord(det, 'thermal')
+  assertString(det.id, 'thermal.id')
   assertHeader(det.header, 'thermal.header')
-  assertPoint(det.position, 'thermal.position')
-  assertNonNegativeFinite(det.temperature_kelvin, 'thermal.temperature_kelvin')
-  assertNonNegativeFinite(det.signature_area, 'thermal.signature_area')
+  assertBoundedPosition(det.position, 'thermal.position')
+  assertFiniteRange(
+    det.temperature_kelvin,
+    'thermal.temperature_kelvin',
+    0,
+    MAX_MEASUREMENT_METADATA_ABS
+  )
+  assertFiniteRange(
+    det.signature_area,
+    'thermal.signature_area',
+    0,
+    MAX_MEASUREMENT_METADATA_ABS
+  )
   assertConfidence(det.confidence, 'thermal.confidence')
   assertString(det.classification, 'thermal.classification')
   const sourceFrameId = optionalSourceFrameId(det.header.frame_id, 'thermal.header.frame_id')
@@ -363,13 +448,38 @@ export function thermalToMeasurement(det: ThermalDetection, sensorId: string): S
 export function acousticToMeasurement(det: AcousticDetection, sensorId: string): SensorMeasurement {
   assertString(sensorId, 'sensorId')
   assertRecord(det, 'acoustic')
+  assertString(det.id, 'acoustic.id')
   assertHeader(det.header, 'acoustic.header')
-  assertFiniteNumber(det.azimuth, 'acoustic.azimuth')
-  assertFiniteNumber(det.elevation, 'acoustic.elevation')
-  assertNonNegativeFinite(det.range_estimate, 'acoustic.range_estimate')
-  assertNonNegativeFinite(det.spl_db, 'acoustic.spl_db')
-  assertNonNegativeFinite(det.dominant_frequency_hz, 'acoustic.dominant_frequency_hz')
-  assertFiniteNumber(det.doppler_hz, 'acoustic.doppler_hz')
+  assertFiniteRange(
+    det.azimuth,
+    'acoustic.azimuth',
+    -MAX_RADAR_AZIMUTH_RAD,
+    MAX_RADAR_AZIMUTH_RAD
+  )
+  assertFiniteRange(
+    det.elevation,
+    'acoustic.elevation',
+    -MAX_RADAR_ELEVATION_RAD,
+    MAX_RADAR_ELEVATION_RAD
+  )
+  assertFiniteRange(
+    det.range_estimate,
+    'acoustic.range_estimate',
+    0,
+    MAX_MEASUREMENT_POSITION_ABS_M
+  )
+  assertFiniteRange(det.spl_db, 'acoustic.spl_db', 0, MAX_MEASUREMENT_METADATA_ABS)
+  assertFiniteRange(
+    det.dominant_frequency_hz,
+    'acoustic.dominant_frequency_hz',
+    0,
+    MAX_MEASUREMENT_METADATA_ABS
+  )
+  assertFiniteMagnitude(
+    det.doppler_hz,
+    'acoustic.doppler_hz',
+    MAX_MEASUREMENT_METADATA_ABS
+  )
   assertConfidence(det.confidence, 'acoustic.confidence')
   assertString(det.classification, 'acoustic.classification')
   const sourceFrameId = optionalSourceFrameId(det.header.frame_id, 'acoustic.header.frame_id')
@@ -381,6 +491,9 @@ export function acousticToMeasurement(det: AcousticDetection, sensorId: string):
   const x = r * Math.cos(el) * Math.cos(az)
   const y = r * Math.cos(el) * Math.sin(az)
   const z = r * Math.sin(el)
+  assertFiniteMagnitude(x, 'acoustic.position.x', MAX_MEASUREMENT_POSITION_ABS_M)
+  assertFiniteMagnitude(y, 'acoustic.position.y', MAX_MEASUREMENT_POSITION_ABS_M)
+  assertFiniteMagnitude(z, 'acoustic.position.z', MAX_MEASUREMENT_POSITION_ABS_M)
 
   // Estimate radial velocity from the Doppler shift, but only when the carrier
   // frequency is known: v_radial = doppler_hz * c / f_carrier (c = speed of
@@ -396,6 +509,13 @@ export function acousticToMeasurement(det: AcousticDetection, sensorId: string):
       vRadial * Math.cos(el) * Math.sin(az),
       vRadial * Math.sin(el),
     ]
+    velocity.forEach((component, index) =>
+      assertFiniteMagnitude(
+        component,
+        `acoustic.velocity[${index}]`,
+        MAX_MEASUREMENT_VELOCITY_ABS_MPS
+      )
+    )
   }
 
   return {
@@ -421,12 +541,27 @@ export function acousticToMeasurement(det: AcousticDetection, sensorId: string):
 export function radarToMeasurement(det: RadarDetection, sensorId: string): SensorMeasurement {
   assertString(sensorId, 'sensorId')
   assertRecord(det, 'radar')
+  assertString(det.id, 'radar.id')
   assertHeader(det.header, 'radar.header')
-  assertNonNegativeFinite(det.range, 'radar.range')
-  assertFiniteNumber(det.azimuth, 'radar.azimuth')
-  assertFiniteNumber(det.elevation, 'radar.elevation')
-  assertFiniteNumber(det.radial_velocity, 'radar.radial_velocity')
-  assertFiniteNumber(det.rcs_dbsm, 'radar.rcs_dbsm')
+  assertFiniteRange(det.range, 'radar.range', 0, MAX_MEASUREMENT_POSITION_ABS_M)
+  assertFiniteRange(
+    det.azimuth,
+    'radar.azimuth',
+    -MAX_RADAR_AZIMUTH_RAD,
+    MAX_RADAR_AZIMUTH_RAD
+  )
+  assertFiniteRange(
+    det.elevation,
+    'radar.elevation',
+    -MAX_RADAR_ELEVATION_RAD,
+    MAX_RADAR_ELEVATION_RAD
+  )
+  assertFiniteMagnitude(
+    det.radial_velocity,
+    'radar.radial_velocity',
+    MAX_MEASUREMENT_VELOCITY_ABS_MPS
+  )
+  assertFiniteMagnitude(det.rcs_dbsm, 'radar.rcs_dbsm', MAX_MEASUREMENT_METADATA_ABS)
   assertConfidence(det.confidence, 'radar.confidence')
   assertString(det.classification, 'radar.classification')
   const sourceFrameId = optionalSourceFrameId(det.header.frame_id, 'radar.header.frame_id')
@@ -449,6 +584,13 @@ export function radarToMeasurement(det: RadarDetection, sensorId: string): Senso
     vRadial * Math.cos(el) * Math.sin(az),
     vRadial * Math.sin(el),
   ]
+  velocity.forEach((component, index) =>
+    assertFiniteMagnitude(
+      component,
+      `radar.velocity[${index}]`,
+      MAX_MEASUREMENT_VELOCITY_ABS_MPS
+    )
+  )
 
   // Measurement noise R in POLAR units to match `position`:
   // [range_m², azimuth_rad², elevation_rad²]. Radar resolves range well but
@@ -481,14 +623,26 @@ export function radarToMeasurement(det: RadarDetection, sensorId: string): Senso
 export function lidarToMeasurement(det: LidarDetection, sensorId: string): SensorMeasurement {
   assertString(sensorId, 'sensorId')
   assertRecord(det, 'lidar')
+  assertString(det.id, 'lidar.id')
   assertHeader(det.header, 'lidar.header')
-  assertPoint(det.centroid, 'lidar.centroid')
-  assertPoint(det.bbox_min, 'lidar.bbox_min')
-  assertPoint(det.bbox_max, 'lidar.bbox_max')
-  assertPoint(det.velocity, 'lidar.velocity')
+  assertBoundedPosition(det.centroid, 'lidar.centroid')
+  assertBoundedPosition(det.bbox_min, 'lidar.bbox_min')
+  assertBoundedPosition(det.bbox_max, 'lidar.bbox_max')
+  assertBoundedVelocity(det.velocity, 'lidar.velocity')
+  assertVector3Tuple(det.covariance, 'lidar.covariance')
+  det.covariance.forEach((variance, index) => {
+    if (variance <= 0 || variance > MAX_MEASUREMENT_VARIANCE) {
+      throw new Error(
+        `lidar.covariance[${index}] must be within (0, ${MAX_MEASUREMENT_VARIANCE}]`
+      )
+    }
+  })
   assertNonNegativeFinite(det.num_points, 'lidar.num_points')
   if (!Number.isSafeInteger(det.num_points)) {
     throw new Error('lidar.num_points must be a safe integer')
+  }
+  if (det.num_points > MAX_LIDAR_POINT_COUNT) {
+    throw new Error(`lidar.num_points must not exceed ${MAX_LIDAR_POINT_COUNT}`)
   }
   assertConfidence(det.confidence, 'lidar.confidence')
   assertString(det.classification, 'lidar.classification')
@@ -508,7 +662,7 @@ export function lidarToMeasurement(det: LidarDetection, sensorId: string): Senso
     source_frame_id: sourceFrameId,
     position: [det.centroid.x, det.centroid.y, det.centroid.z],
     velocity: [det.velocity.x, det.velocity.y, det.velocity.z],
-    covariance: [0.1, 0.1, 0.1], // LIDAR has very good position accuracy
+    covariance: [...det.covariance],
     confidence: det.confidence,
     class_label: det.classification,
     metadata: {
@@ -609,9 +763,12 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
   // Stay in the sensor/header clock domain. Zero is a valid neutral epoch for
   // pre-data closure frames; wall time must never advance the native predictor
   // ahead of a simulation or delayed sensor stream.
-  const lastFusionTimestampMsRef = useRef(0)
+  const lastFusionTimestampMsRef = useRef<number | null>(null)
   const previousExternalBridgeRef = useRef<ExternalROSSensorConnection['bridge']>(null)
   const externalWasConnectedRef = useRef(false)
+  const rosHeaderClockActiveRef = useRef(false)
+  const visualClockEpochActiveRef = useRef(false)
+  const sensorSessionGenerationRef = useRef(0)
   const sensorTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
 
   // Mark sensor as active (with timeout)
@@ -636,6 +793,7 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
   }, [])
 
   const removeSensorSubscriptions = useCallback(() => {
+    rosHeaderClockActiveRef.current = false
     const cleanups = subscriptionCleanupsRef.current.splice(0)
     for (const unsubscribe of cleanups) {
       try {
@@ -650,13 +808,15 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
     // Results from a cycle started before this reset no longer describe the
     // active sensor session and must not repopulate React state.
     fusionCycleGenerationRef.current += 1
+    sensorSessionGenerationRef.current += 1
     for (const timeout of sensorTimeoutsRef.current.values()) {
       clearTimeout(timeout)
     }
     sensorTimeoutsRef.current.clear()
     measurementBufferRef.current = []
     upstreamDroppedMeasurementsRef.current = 0
-    lastFusionTimestampMsRef.current = 0
+    lastFusionTimestampMsRef.current = null
+    visualClockEpochActiveRef.current = false
     fusionCycleRequestedRef.current = false
     setState((prev) => ({
       ...prev,
@@ -734,7 +894,19 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
   const installSensorSubscriptions = useCallback(
     (bridge: NonNullable<ExternalROSSensorConnection['bridge']>) => {
       removeSensorSubscriptions()
+      const sessionGeneration = ++sensorSessionGenerationRef.current
       const cleanups: Array<() => void> = []
+
+      const acceptBatch = (
+        modality: keyof ROSSensorState['sensorStatus'],
+        batch: { measurements: SensorMeasurement[]; dropped: number }
+      ) => {
+        if (sessionGeneration !== sensorSessionGenerationRef.current) return
+        // Malformed traffic is not evidence that a sensor is healthy. Mark a
+        // modality active only after at least one detection passes validation.
+        if (batch.measurements.length > 0) markSensorActive(modality)
+        appendMeasurements(batch.measurements, batch.dropped)
+      }
 
       try {
         if (fullConfig.topics.thermal) {
@@ -743,13 +915,14 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
               fullConfig.topics.thermal,
               'crebain_msgs/ThermalDetectionArray',
               (msg) => {
-                markSensorActive('thermal')
+                if (sessionGeneration !== sensorSessionGenerationRef.current) return
                 const batch = pushValidatedMeasurements(
                   msg?.detections,
                   'thermal',
+                  fullConfig.topics.thermal!,
                   thermalToMeasurement
                 )
-                appendMeasurements(batch.measurements, batch.dropped)
+                acceptBatch('thermal', batch)
               }
             )
           )
@@ -761,13 +934,14 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
               fullConfig.topics.acoustic,
               'crebain_msgs/AcousticDetectionArray',
               (msg) => {
-                markSensorActive('acoustic')
+                if (sessionGeneration !== sensorSessionGenerationRef.current) return
                 const batch = pushValidatedMeasurements(
                   msg?.detections,
                   'acoustic',
+                  fullConfig.topics.acoustic!,
                   acousticToMeasurement
                 )
-                appendMeasurements(batch.measurements, batch.dropped)
+                acceptBatch('acoustic', batch)
               }
             )
           )
@@ -779,13 +953,14 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
               fullConfig.topics.radar,
               'crebain_msgs/RadarDetectionArray',
               (msg) => {
-                markSensorActive('radar')
+                if (sessionGeneration !== sensorSessionGenerationRef.current) return
                 const batch = pushValidatedMeasurements(
                   msg?.detections,
                   'radar',
+                  fullConfig.topics.radar!,
                   radarToMeasurement
                 )
-                appendMeasurements(batch.measurements, batch.dropped)
+                acceptBatch('radar', batch)
               }
             )
           )
@@ -797,13 +972,14 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
               fullConfig.topics.lidar,
               'crebain_msgs/LidarDetectionArray',
               (msg) => {
-                markSensorActive('lidar')
+                if (sessionGeneration !== sensorSessionGenerationRef.current) return
                 const batch = pushValidatedMeasurements(
                   msg?.detections,
                   'lidar',
+                  fullConfig.topics.lidar!,
                   lidarToMeasurement
                 )
-                appendMeasurements(batch.measurements, batch.dropped)
+                acceptBatch('lidar', batch)
               }
             )
           )
@@ -816,6 +992,7 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
       }
 
       subscriptionCleanupsRef.current = cleanups
+      rosHeaderClockActiveRef.current = cleanups.length > 0
     },
     [appendMeasurements, fullConfig.topics, markSensorActive, removeSensorSubscriptions]
   )
@@ -843,52 +1020,109 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
           fusionCycleRequestedRef.current = false
           if (!fusionReadyRef.current || generation !== fusionCycleGenerationRef.current) break
 
-          // Every scheduled native cycle is a fusion frame, including an empty
-          // frame. The producer contract requires an explicit closure record for
-          // zero-input/zero-track frames; liveness must not be inferred from
-          // silence.
           const measurements = measurementBufferRef.current
           measurementBufferRef.current = []
-          const upstreamDroppedMeasurements = upstreamDroppedMeasurementsRef.current
+          let pendingDroppedMeasurements = upstreamDroppedMeasurementsRef.current
           upstreamDroppedMeasurementsRef.current = 0
-          const newestMeasurementTimestampMs = measurements.reduce(
-            (latest, measurement) => Math.max(latest, measurement.timestamp_ms),
-            0
-          )
-          const frameTimestampMs = Math.max(
-            lastFusionTimestampMsRef.current,
-            newestMeasurementTimestampMs
-          )
 
-          try {
-            const tracks = await processMeasurements(
-              measurements,
-              frameTimestampMs,
-              upstreamDroppedMeasurements
+          const initialHighWater = lastFusionTimestampMsRef.current
+          const exactTimeGroups: ExactTimeMeasurementGroup[] = []
+          let lateMeasurements = 0
+          for (const group of groupMeasurementsByExactTime(measurements)) {
+            if (initialHighWater !== null && group.timestampMs <= initialHighWater) {
+              lateMeasurements += group.measurements.length
+            } else {
+              exactTimeGroups.push(group)
+            }
+          }
+          if (lateMeasurements > 0) {
+            pendingDroppedMeasurements = Math.min(
+              Number.MAX_SAFE_INTEGER,
+              pendingDroppedMeasurements + lateMeasurements
             )
-            if (!fusionReadyRef.current || generation !== fusionCycleGenerationRef.current) break
-            // Commit the renderer high-water only after native admission. A
-            // preflight-rejected future stamp must not poison later valid sensor
-            // time, and a result from a cleared session must not restore it.
-            lastFusionTimestampMsRef.current = frameTimestampMs
+            log.warn('Dropping nonadvancing ROS measurements before native fusion', {
+              dropped: lateMeasurements,
+              highWaterTimestampMs: initialHighWater,
+            })
+          }
 
+          let latestTracks: FusedTrack[] | undefined
+          if (exactTimeGroups.length === 0) {
+            // Before the first admitted measurement there is no sensor-clock
+            // epoch to close. Sending an empty timestamp-zero frame would consume
+            // zero in the native monotonic clock and reject a legitimate first
+            // measurement at the same epoch.
+            if (initialHighWater !== null) {
+              try {
+                latestTracks = await processMeasurements(
+                  [],
+                  initialHighWater,
+                  pendingDroppedMeasurements
+                )
+                pendingDroppedMeasurements = 0
+              } catch (error) {
+                log.error('Fusion closure frame error', { error })
+              }
+            }
+          } else {
+            for (let groupIndex = 0; groupIndex < exactTimeGroups.length; groupIndex += 1) {
+              if (!fusionReadyRef.current || generation !== fusionCycleGenerationRef.current) break
+              const group = exactTimeGroups[groupIndex]
+              try {
+                latestTracks = await processMeasurements(
+                  group.measurements,
+                  group.timestampMs,
+                  pendingDroppedMeasurements
+                )
+                pendingDroppedMeasurements = 0
+                if (!fusionReadyRef.current || generation !== fusionCycleGenerationRef.current) {
+                  break
+                }
+                // Commit only an exact-time group admitted by native fusion.
+                lastFusionTimestampMsRef.current = group.timestampMs
+              } catch (error) {
+                const notAdmitted = exactTimeGroups
+                  .slice(groupIndex)
+                  .reduce((count, remaining) => count + remaining.measurements.length, 0)
+                pendingDroppedMeasurements = Math.min(
+                  Number.MAX_SAFE_INTEGER,
+                  pendingDroppedMeasurements + notAdmitted
+                )
+                log.error('Fusion exact-time group error', {
+                  error,
+                  timestampMs: group.timestampMs,
+                  dropped: notAdmitted,
+                })
+                break
+              }
+            }
+          }
+
+          if (fusionReadyRef.current && generation === fusionCycleGenerationRef.current) {
+            upstreamDroppedMeasurementsRef.current = Math.min(
+              Number.MAX_SAFE_INTEGER,
+              upstreamDroppedMeasurementsRef.current + pendingDroppedMeasurements
+            )
+          }
+
+          if (
+            latestTracks !== undefined &&
+            generation === fusionCycleGenerationRef.current &&
+            fusionReadyRef.current
+          ) {
             let stats: FusionStats | null | undefined
             try {
               stats = await getFusionStats()
             } catch (error) {
               log.error('Failed to read fusion statistics', { error })
             }
-
-            if (generation === fusionCycleGenerationRef.current && fusionReadyRef.current) {
-              setState((prev) => ({
-                ...prev,
-                tracks,
-                fusionStats: stats === undefined ? prev.fusionStats : stats,
-                lastUpdateMs: Date.now(),
-              }))
-            }
-          } catch (error) {
-            log.error('Fusion cycle error', { error })
+            const lastUpdateMs = Date.now()
+            setState((prev) => ({
+              ...prev,
+              tracks: latestTracks,
+              fusionStats: stats === undefined ? prev.fusionStats : stats,
+              lastUpdateMs,
+            }))
           }
         } while (fusionCycleRequestedRef.current)
       } finally {
@@ -981,9 +1215,12 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
   const disconnectOwnedBridge = useCallback(() => {
     removeSensorSubscriptions()
     resetSensorActivity()
-    if (ownedBridgeRef.current) {
-      ownedBridgeRef.current.disconnect()
-      ownedBridgeRef.current = null
+    const bridge = ownedBridgeRef.current
+    ownedBridgeRef.current = null
+    if (bridge) {
+      // Clear ownership before disconnect() emits its state callback so the
+      // intentional teardown cannot be mistaken for an involuntary outage.
+      bridge.disconnect()
     }
     if (fusionBackendAvailable) {
       void queueFusionMaintenance(clearTracks).catch((error) =>
@@ -1022,11 +1259,40 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
     }
 
     disconnectOwnedBridge()
+    let hasConnected = false
+    let subscriptionsInstalled = false
     const bridge = new ROSBridge({
       url: fullConfig.rosUrl,
       autoReconnect: true,
       onStateChange: (newState) => {
+        if (ownedBridgeRef.current !== bridge) return
         setState((prev) => ({ ...prev, connectionState: newState }))
+
+        if (newState === 'connected') {
+          if (hasConnected && !subscriptionsInstalled) {
+            try {
+              installSensorSubscriptions(bridge)
+              subscriptionsInstalled = true
+              setState((prev) => ({ ...prev, connectionError: null }))
+            } catch (error) {
+              const message = error instanceof Error ? error.message : String(error)
+              setState((prev) => ({ ...prev, connectionError: message }))
+            }
+          }
+          hasConnected = true
+          return
+        }
+
+        if (subscriptionsInstalled) {
+          subscriptionsInstalled = false
+          removeSensorSubscriptions()
+          resetSensorActivity()
+          if (fusionBackendAvailable) {
+            void queueFusionMaintenance(clearTracks).catch((error) =>
+              log.error('Failed to clear fusion tracks after ROS disconnect', { error })
+            )
+          }
+        }
       },
       onError: (error) => {
         setState((prev) => ({ ...prev, connectionError: error.message }))
@@ -1037,7 +1303,12 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
 
     try {
       await bridge.connect()
+      if (ownedBridgeRef.current !== bridge) {
+        bridge.disconnect()
+        throw new Error('ROS connection was superseded')
+      }
       installSensorSubscriptions(bridge)
+      subscriptionsInstalled = true
       setState((prev) => ({ ...prev, connectionError: null }))
     } catch (error) {
       removeSensorSubscriptions()
@@ -1060,8 +1331,11 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
     externalConnectionState,
     externalUnsupportedReason,
     fullConfig.rosUrl,
+    fusionBackendAvailable,
     installSensorSubscriptions,
+    queueFusionMaintenance,
     removeSensorSubscriptions,
+    resetSensorActivity,
     usesExternalConnection,
   ])
 
@@ -1096,7 +1370,6 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
         throw new Error(NATIVE_FUSION_BACKEND_REQUIRED)
       }
 
-      fusionCycleGenerationRef.current += 1
       fusionCycleRequestedRef.current = false
       try {
         await queueFusionMaintenance(() =>
@@ -1130,7 +1403,8 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
     fusionCycleGenerationRef.current += 1
     measurementBufferRef.current = []
     upstreamDroppedMeasurementsRef.current = 0
-    lastFusionTimestampMsRef.current = 0
+    lastFusionTimestampMsRef.current = null
+    visualClockEpochActiveRef.current = false
     fusionCycleRequestedRef.current = false
     if (fusionBackendAvailable) {
       await queueFusionMaintenance(clearTracks)
@@ -1149,10 +1423,24 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
     ) => {
       assertString(cameraId, 'cameraId')
       assertVector3Tuple(position, 'visual.position')
+      position.forEach((coordinate, index) =>
+        assertFiniteMagnitude(
+          coordinate,
+          `visual.position[${index}]`,
+          MAX_MEASUREMENT_POSITION_ABS_M
+        )
+      )
       assertConfidence(confidence, 'visual.confidence')
       assertString(classLabel, 'visual.classLabel')
       assertTimestampMs(timestampMs, 'visual.timestamp_ms')
       markSensorActive('visual')
+      if (rosHeaderClockActiveRef.current) {
+        // Browser detector timestamps use wall time; ROS/Gazebo may use a
+        // simulation/header clock. Never mix them in one native fusion epoch.
+        appendMeasurements([], 1)
+        return
+      }
+      visualClockEpochActiveRef.current = true
       appendMeasurements([{
         sensor_id: cameraId,
         modality: 'visual',
@@ -1179,7 +1467,9 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
       previousExternalBridgeRef.current !== externalBridge
     if (
       fusionBackendAvailable &&
-      ((externalWasConnectedRef.current && !externalIsConnected) || bridgeChanged)
+      ((externalWasConnectedRef.current && !externalIsConnected) ||
+        bridgeChanged ||
+        (externalIsConnected && visualClockEpochActiveRef.current))
     ) {
       void queueFusionMaintenance(clearTracks).catch((error) =>
         log.error('Failed to clear tracks after ROS connection change', { error })

@@ -1,8 +1,8 @@
 [package]
 name = "crebain"
-version = "0.4.0"
-description = "CREBAIN - Adaptive Response & Awareness System (ARAS)"
-authors = ["CREBAIN Contributors"]
+version = "0.9.0"
+description = "Research-only spatial visualization, simulation, and sensor-fusion prototype"
+authors = ["Sepehr Mahmoudian <sepmhn@gmail.com>"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/sepahead/crebain"
 edition = "2021"
@@ -154,3 +154,14 @@ shellexpand = "3.1"  # Path expansion for model search
 # Linux: Enable CUDA execution provider for ONNX Runtime
 [target.'cfg(target_os = "linux")'.dependencies]
 ort = { version = "2.0.0-rc.10", features = ["cuda", "load-dynamic"] }
+
+# Compatibility overlays for Zenoh 1.9 and its transitive crates. The selected
+# pre-0.12 `spin` releases were yanked after synchronization soundness fixes,
+# while Zenoh declares LZ4 unconditionally even when transport compression is
+# disabled. These directories are exact upstream crate archives except for the
+# documented manifest-only changes verified by scripts/verify-vendor-compat.py.
+[patch.crates-io]
+flume = { path = "vendor-compat/flume-0.11.1" }
+uhlc = { path = "vendor-compat/uhlc-0.8.2" }
+buddy_system_allocator = { path = "vendor-compat/buddy_system_allocator-0.10.0" }
+zenoh-transport = { path = "vendor-compat/zenoh-transport-1.9.0" }

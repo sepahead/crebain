@@ -6,34 +6,111 @@ smoke record.
 
 ## Current Candidate
 
-No release candidate is currently sealed. The exact executable source under
-evidence is `844e80a1aa76028814ecb012bb26269ae7a44410`; a later evidence-only
-commit records results without changing that source. This source combines the
-bounded Galadriel producer with the inert typed vehicle-health snapshot,
-exact-profile-bound captured-read age classifier, opaque-situation safe-action
-dispatch candidate, receipt-anchored fixed-state deadline monitor, and
-single-reference-instant post-health-load apply-check observation candidate.
-Its component evidence does not promote the system beyond L0 or substitute for
-deployed TLS/ACL/receiver, authenticated FCU collection, approved age/state,
-TTL, or content-bound safe-action policy, authoritative currentness or state
-classification, approved apply-time authorization and output revocation,
-scheduler/suspend/latency qualification, SITL, HIL, or field evidence.
+At preparation time for this source snapshot, no 0.9 release candidate had been
+sealed. The stabilization changes had not yet been committed as one immutable
+candidate source, tagged, or evaluated by candidate-specific hosted workflows.
+Consequently this source document embeds no candidate commit, run identifier,
+test count, bundle size, checksum, or package result. After tagging, the release
+page, exact-tag workflow, and sealed manifest are authoritative for those
+candidate-specific facts; historical results below remain provenance only.
+
+The intended release scope is the research-only prerelease defined by
+[`NARROWED_GO_0.9.0.md`](NARROWED_GO_0.9.0.md). It remains NO_GO for operational
+use, external-vehicle authority, safety assurance, model accuracy, numeric
+performance or fusion claims, deployment qualification, and 1.0 convergence.
 
 | Field | Evidence |
 |-------|----------|
-| Candidate source commit | `844e80a1aa76028814ecb012bb26269ae7a44410` |
-| Branch/tag | `main`; no release tag |
-| GitHub Actions run | [CI 29273670742](https://github.com/sepahead/crebain/actions/runs/29273670742) passed on attempt 1; version/Phase-0 coherence, Linux feature gates, the inert plant boundary, frontend validation/bundle, frontend coverage, and Linux/macOS default plus NCP Rust jobs all succeeded |
-| Hosted supply-chain audit | [Audit 29242246397](https://github.com/sepahead/crebain/actions/runs/29242246397) passed on `09dd5ec1556bd56e6934e1ef019f95de84cf9b4f`, the last dependency-manifest change; the candidate changes none of the workflow's manifest inputs |
-| Hosted CodeQL | [CodeQL 29273670797](https://github.com/sepahead/crebain/actions/runs/29273670797) passed for Rust and JavaScript/TypeScript on the exact source on attempt 1 |
-| Additional hosted policy | [OpenSSF Scorecard 29273670861](https://github.com/sepahead/crebain/actions/runs/29273670861) passed on the exact source on attempt 1 |
-| Local `bun run validate:all` | Passed on the exact source: 305 frontend tests; 123 plant unit/integration tests plus 24 compile-fail doctests; 320 default all-target Rust tests plus 1 ignored generator; 411 NCP-feature all-target Rust tests plus 1 ignored generator; strict default/NCP/plant Clippy and Rustfmt; 133 inventoried surfaces, 17 hazards, 155 production files, 31 pinned configs, 114 Phase-0 fail-closed fixtures, 20 frame mutations, 231 plant-boundary mutations (64 health/freshness, 51 safe-action, 72 deadline-monitor, and 44 apply-observation), and 29 production-boundary fixtures |
-| Local MSRV check | Rust 1.88 plant `cargo check --all-targets`, 123 all-target tests, and 24 compile-fail doctests passed; Rust 1.89 application `cargo check --locked --all-targets` passed; development and CI remain pinned to 1.91.1 |
-| Frontend test/coverage/bundle result | 45 files and 305 local tests passed; exact-source `bun run check:bundle` passed at 432.3/700.0 kB gzipped with 29 production-boundary fixtures; hosted frontend and coverage jobs passed inside CI 29273670742 |
-| Rust default/NCP/feature result | Local default and NCP all-target suites passed with 320 and 411 tests respectively, each plus one ignored fixture generator; exact-source plant tests and self-check passed; hosted Linux/macOS default/NCP jobs and Linux feature gates passed |
-| Hardware-WebGL performance smoke | Prior measurement is not candidate evidence; rerun if a numeric performance claim is proposed |
-| Manual smoke | Pending target-platform execution |
-| Boundary focus | Pinned NCP wire 0.8, complete renderer command mediation, serialized negative IPC mechanics, native benchmark mechanics, and the generic renderer/ROS publish prohibition remain in source. The exact-opt-in Galadriel routes, immutable configuration, exact-time/projection eligibility, computational envelopes, and upstream/capacity degradation are inventoried, but the wire summary still lacks numeric upstream/cluster-loss detail. The inert plant package has a sealed closed immutable in-memory vehicle-health path bound to exact candidate profile, vehicle, declared source/stream epoch, runtime generation, local-frame instance, frame/unit, and plant-local observation-time context. Its non-cloneable publisher requires mutable commits and strictly increasing source sequence within one channel; explicit unknown/unavailable state replaces prior nominal state, and checked reads expose one coherent commit and exact ages. The separate classifier consumes that coherent observation, requires exact structural profile identity, and exposes only eight named strict-exclusive age relations captured at the read. It reads no clock, emits no aggregate/boolean health or safety verdict, does not make recent unknown/unavailable state nominal, and does not implement the draft ODD's inclusive `<=200 ms` position/velocity clause. Its limits and profile binding are caller-proposed structural assertions, not authentication or approval. A separate safe-action candidate copies caller-proposed unique nonzero opaque situation rows into an owned fixed 255-slot table, requires the full structural profile identity, has no default, and returns one of five closed plant intents distinct from ingress actions. The profile digest does not content-bind the supplied rows; the candidate does not classify state/triggers, resolve precedence, consume health/lifecycle/time, convert an intent into an action, run in the headless process, call an adapter, or establish a physical response. CTL-007 remains planned and HAZ-007 remains open. The separate fixed-state deadline component derives a private absolute deadline from a structurally validated candidate's opaque receipt instant and a bounded caller-proposed TTL; each monitor owns one named worker and one active slot with no queue, enforces exact profile/session/generation plus increasing sequence on replacement, and records one sticky terminal outcome. A copyable candidate can mint multiple tickets, and neither monitor uniqueness nor the global monitor count is enforced; HAZ-012 remains partial. The supported claim is only that the component detects and timestamps its receipt-anchored deadline when its worker is scheduled. Caller-reported generation mismatch is not autonomous currentness, a poisoned state cannot attest an active key, and start failure preserves context without running a worker. The component is unwired and does not admit or apply commands, revoke output, choose or execute a safe action, establish scheduling or suspend behavior, bound detection-to-effect latency, or prove an operational watchdog. The apply-check observation loads one retained health snapshot before minting one private reference instant, then computes health ages, command age, and health-policy mismatch in that order. Success deliberately remains neutral when the command is expired, lifecycle is any state, or health is stale, unknown, or unavailable; the exposed facts are comparable but there is no direct aggregate boolean, authorization, action, adapter, or write adjacency. Exact structural profile and generation matching does not bind a command to the snapshot's declared vehicle or local-frame instance because commands carry neither identity. The remintable observation is also not command-content-bound: identical retained identifiers and TTL can describe different velocities, and it can become stale immediately after construction. It is partial CB-029/HAZ-003/HAZ-006/CTL-005 evidence only; CTL-003, `TEST-ATOMIC-STATE-STALENESS`, and `TEST-PLANT-LOCAL-TTL` remain planned. Source identity remains unauthenticated; recreated channels can reuse an epoch; real FCU sampling/aggregation and frame-reset attestation are unproved; and there is no parser/transport, durable command replay gate, durable restart anti-rollback, approved freshness/health gate, authoritative safe-action classifier or approved/content-bound policy, authorizing apply-time governor, adapter, or action path. The IPC harness is not packaged-origin/CSP/capability or positive smoke evidence; benchmark provider labels are not accelerator/per-operation attestation; and no approved model, target run, numeric claim, receiver/TLS/ACL/receive-size/deadline/combined-load evidence, or per-session action ownership exists. |
+| Candidate source commit | Pending final stabilization commit |
+| Branch/tag | `main`; an annotated `v0.9.0` tag starts the exact-tag package gate, and the release must remain draft/unpublished unless every gate passes |
+| Local validation | Pending final-candidate execution; do not infer a result from an earlier commit |
+| Hosted CI, audit, and CodeQL | Pending exact-candidate runs |
+| Release workflow and packages | Pending exact-tag prerelease run |
+| Manual and deployment evidence | Pending and explicitly outside the narrowed 0.9 claim; required before any operational/demo/1.0 readiness claim |
+
+## Verifying a published evidence archive
+
+GitHub presents release assets in one flat namespace. The release workflow
+therefore publishes exactly three standalone application packages (one `.dmg`,
+one `.AppImage`, and one `.deb`) plus a metadata-normalized, checksum-sealed
+`crebain-<tag>-evidence.tar.gz` archive and its adjacent `.sha256` file. Archive
+headers are normalized, but independently rebuilt packages, logs, and Syft
+generation metadata are not claimed byte-reproducible across workflow reruns.
+The archive preserves the sealed `application/` and `evidence/` directories,
+`SHA256SUMS`, and `RELEASE_EVIDENCE_MANIFEST.json`; no flat release asset is
+substituted for one of those manifest paths. GitHub attestations bind both the
+standalone packages and the sealed archive produced by the exact-tag workflow.
+
+From a system with Bash, GitHub CLI, Git, Node.js, Python 3, GNU `sha256sum`, and
+`tar`, the following verifies the archive checksum, exact tagged source identity,
+complete manifest inventory, internal checksums, and byte equality between the
+three standalone packages and their sealed archive copies:
+
+```bash
+set -euo pipefail
+TAG=v0.9.0
+VERIFY_DIR="$(mktemp -d)"
+ARCHIVE="crebain-${TAG}-evidence.tar.gz"
+mkdir -p "$VERIFY_DIR/assets" "$VERIFY_DIR/evidence-root"
+git clone --branch "$TAG" --depth 1 https://github.com/sepahead/crebain.git "$VERIFY_DIR/source"
+COMMIT="$(git -C "$VERIFY_DIR/source" rev-parse HEAD)"
+"$VERIFY_DIR/source/scripts/check-version-coherence.sh" --expected-commit "$COMMIT" "$TAG"
+test "$(gh release view "$TAG" --repo sepahead/crebain --json tagName --jq .tagName)" = "$TAG"
+test "$(gh release view "$TAG" --repo sepahead/crebain --json isDraft --jq .isDraft)" = false
+test "$(gh release view "$TAG" --repo sepahead/crebain --json isPrerelease --jq .isPrerelease)" = true
+gh api "repos/sepahead/crebain/releases/tags/$TAG" \
+  -H 'X-GitHub-Api-Version: 2026-03-10' > "$VERIFY_DIR/release-state.json"
+jq -e --arg tag "$TAG" \
+  '.tag_name == $tag and .draft == false and .prerelease == true and .immutable == true' \
+  "$VERIFY_DIR/release-state.json" > /dev/null
+gh release view "$TAG" --repo sepahead/crebain --json assets --jq '.assets[].name' \
+  | LC_ALL=C sort > "$VERIFY_DIR/release-assets.txt"
+test "$(wc -l < "$VERIFY_DIR/release-assets.txt" | tr -d ' ')" -eq 5
+test "$(grep -Ec '\.dmg$' "$VERIFY_DIR/release-assets.txt")" -eq 1
+test "$(grep -Ec '\.AppImage$' "$VERIFY_DIR/release-assets.txt")" -eq 1
+test "$(grep -Ec '\.deb$' "$VERIFY_DIR/release-assets.txt")" -eq 1
+test "$(grep -Fxc "$ARCHIVE" "$VERIFY_DIR/release-assets.txt")" -eq 1
+test "$(grep -Fxc "$ARCHIVE.sha256" "$VERIFY_DIR/release-assets.txt")" -eq 1
+gh release download "$TAG" --repo sepahead/crebain --dir "$VERIFY_DIR/assets" \
+  --pattern "$ARCHIVE" --pattern "$ARCHIVE.sha256" \
+  --pattern '*.dmg' --pattern '*.AppImage' --pattern '*.deb'
+gh attestation verify "$VERIFY_DIR/assets/$ARCHIVE" --repo sepahead/crebain \
+  --signer-workflow sepahead/crebain/.github/workflows/release.yml \
+  --source-ref "refs/tags/$TAG" --source-digest "$COMMIT" --deny-self-hosted-runners
+for package in "$VERIFY_DIR/assets"/*.dmg "$VERIFY_DIR/assets"/*.AppImage "$VERIFY_DIR/assets"/*.deb; do
+  gh attestation verify "$package" --repo sepahead/crebain \
+    --signer-workflow sepahead/crebain/.github/workflows/release.yml \
+    --source-ref "refs/tags/$TAG" --source-digest "$COMMIT" --deny-self-hosted-runners
+done
+(cd "$VERIFY_DIR/assets" && sha256sum --check "$ARCHIVE.sha256")
+tar -xzf "$VERIFY_DIR/assets/$ARCHIVE" -C "$VERIFY_DIR/evidence-root"
+python3 "$VERIFY_DIR/source/scripts/verify-evidence-manifest.py" \
+  "$VERIFY_DIR/evidence-root/RELEASE_EVIDENCE_MANIFEST.json" \
+  --root "$VERIFY_DIR/evidence-root" --expected-commit "$COMMIT"
+(cd "$VERIFY_DIR/evidence-root" && sha256sum --check SHA256SUMS)
+for package in "$VERIFY_DIR/evidence-root/application"/*; do
+  cmp "$package" "$VERIFY_DIR/assets/${package##*/}"
+done
+```
+
+The release remains a draft until its exact-tag workflow succeeds. A rerun
+never reads application or evidence bytes from an existing draft: it consumes
+only SHA/run-scoped artifacts from that workflow run. Partial failed-job reruns
+reuse successful predecessor artifacts under the same names; full reruns
+replace those same-run artifacts before dependents execute. The publisher
+removes only an earlier draft prerelease for the exact tag, creates a fresh
+draft, rechecks the annotated tag target, and compares every uploaded byte with
+the sealed run artifact. Only then does its final step publish the release as a
+non-latest prerelease. The PATCH response and an exact-ID refetch must both show
+`immutable: true` as well as the exact tag, public prerelease state, and five-asset
+inventory. This follows GitHub's
+[immutable-release workflow](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases):
+all bytes are attached and verified while the release is still a draft, before
+publication locks its assets and tag. If publication remains mutable or its
+state/inventory check fails, the job fails. A mutable or unknown publication
+gets a best-effort return-to-draft attempt; an immutable publication cannot be
+returned to draft, so the job emits a reconciliation warning and preserves the
+failure until the exact hosted state is reviewed.
 
 ## Pre-producer frame-convention snapshot (`49d7b36`, not current evidence)
 
@@ -91,16 +168,36 @@ none of these runs or counts may be reused for the current candidate.
 ## Historical Snapshot (`e89de5a`, not current evidence)
 
 The previous candidate passed [CI 29118711312](https://github.com/sepahead/crebain/actions/runs/29118711312),
-[Audit 29104945725](https://github.com/sepahead/crebain/actions/runs/29104945725),
 [CodeQL 29118711301](https://github.com/sepahead/crebain/actions/runs/29118711301),
-and [OpenSSF Scorecard 29118711298](https://github.com/sepahead/crebain/actions/runs/29118711298).
-Those results describe commit `e89de5acc2eb7d66b807f85dc407f3da0e35892c` and
-must not be reused as evidence for the current dependency or source tree.
+and [OpenSSF Scorecard 29118711298](https://github.com/sepahead/crebain/actions/runs/29118711298)
+on commit `e89de5acc2eb7d66b807f85dc407f3da0e35892c`. The separate
+[Supply-chain run 29104945725](https://github.com/sepahead/crebain/actions/runs/29104945725)
+ran on `5dec6037fe1fa461fae76083d682be35ae5352ab`; it is not attributed to the
+`e89de5a` source identity. None of these historical results may be reused as
+evidence for the current dependency or source tree.
 
-## Automated evidence required
+## Current 0.9 automated evidence required
 
-| Area | Required evidence | Current status |
-|------|-------------------|----------------|
+The final candidate must record exact results rather than copied counts or run
+identifiers. Until the stabilization tree is committed, every status below is
+pending.
+
+| Area | Required exact-candidate evidence | Current status |
+|------|-----------------------------------|----------------|
+| Source identity | Final commit, direct annotated `v0.9.0` tag, and coherent 0.9.0 metadata | Pending final commit and tag |
+| Local validation | `bun run validate:all`, `bun run test:coverage`, `bun run check:bundle`, `bun run check:vendor-compat`, `bun run check:nix-deps`, and `git diff --check` | Pending final-candidate run |
+| Hosted source gates | CI, ROS, audit, CodeQL, and Nix workflows on the exact candidate | Pending hosted runs |
+| Release gate | Locked validation, coverage, bundle, cargo-deny, Bun audit, vendor provenance, clean Nix package, Linux/macOS packages, SBOM, checksums, hierarchy-preserving digest-manifest archive, package/archive provenance attestations, fresh draft byte comparison, and post-publication native-immutability/state/inventory verification | Pending exact-tag prerelease run |
+| Evidence capture | Candidate-specific outputs, package identities, checksums, and hosted run URLs | Pending; no earlier count or run is current evidence |
+
+## Historical automated snapshot (`844e80a`, not current evidence)
+
+Every status in the table below applies only to commit
+`844e80a1aa76028814ecb012bb26269ae7a44410`. The requirements remain useful,
+but none of its results, counts, or hosted runs is evidence for the 0.9 tree.
+
+| Area | Required evidence | Historical status |
+|------|-------------------|-------------------|
 | Version coherence | Metadata/tag guard on candidate | Local exact-source and hosted CI checks passed; no release tag exists |
 | Frontend validation | Typecheck, lint, format, and tests | Local exact-source checks and hosted frontend job passed; 45 files / 305 tests |
 | Bundle and coverage | Hosted bundle budget and coverage thresholds | Local bundle passed at 432.3/700.0 kB gzipped; hosted coverage and bundle jobs passed |

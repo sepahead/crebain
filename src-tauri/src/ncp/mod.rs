@@ -641,9 +641,7 @@ impl NcpActionRuntime {
                 "NCP action loop for session {session_id:?} failed before final HOLD: {error}"
             )),
             Err(_) => {
-                log::warn!(
-                    "ncp: action loop for session {session_id:?} did not stop in time; aborting it"
-                );
+                log::warn!("ncp: action loop did not stop in time; aborting it");
                 task.handle.abort();
                 // Cancellation cannot pre-empt a synchronous user callback. The
                 // error tells the caller that final HOLD was not confirmed.

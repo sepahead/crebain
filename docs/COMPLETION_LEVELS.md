@@ -17,19 +17,23 @@ for one exact topology, source/configuration manifest, and ODD.
 | L0 — Research application | Visualization, algorithms, local physics, Gazebo integration, developer bridges | Reproducible component tests and explicit limitations | Secure authority, HIL, physical safety, field validity |
 | L1 — Secure SITL authority chain | One fully mediated authenticated vehicle-command chain in pinned SITL | Live Haldir/NCP/plant/FCU topology; sole-applier proof; bypass denial; plant-local expiry; safe-action, fault, restart, replay, overload, and staged evidence | HIL or physical-flight safety |
 | L2 — Target-hardware HIL | The L1 chain on named compute/network/FCU hardware inside a declared HIL envelope | Timing/WCET, power-cycle, overload, link, FCU, geofence, and emergency evidence on exact hardware | Safety outside the tested HIL envelope |
-| L3 — Supervised field experiment | Bounded experiment under an approved ODD | L2 exit, permits/range containment, trained operator, rehearsed abort, independent go/no-go, flight and incident records | General operational or certified use |
+| L3 — Controlled field experiment | Bounded experiment under an approved ODD | L2 exit, permits/range containment, trained operator, rehearsed abort, independent go/no-go, flight and incident records | General operational or certified use |
 | L4 — Named operational/certification target | Configuration-controlled product under a named regulatory and assurance basis | Domain-specific safety/security case, independent verification, continued airworthiness/security | Generic “certified” claims |
 
 ## L1 definition of done
 
-L1 means one controller, one live Haldir Gate, one authenticated NCP 0.8 final
-route, one native CREBAIN plant authority, and one separately qualified FCU
-adapter. The renderer has no generic command capability. Every command is fresh,
-session-bound, apply-time checked, and followed through accepted, attempted,
-FCU-accepted, and observed evidence. Galadriel, if enabled, is advisory only.
-CREBAIN's feature/runtime-gated producer is component-tested, but a local NCP
-put is not accepted/correlated Galadriel evidence and does not satisfy the live
-L1 topology, security, heartbeat, or joined-stage requirements.
+L1 means one controller, one live Haldir Gate, one authenticated exclusive final
+NCP route whose immutable version is selected by cross-repository convergence,
+one native CREBAIN plant authority, and one separately qualified FCU adapter. The
+current dormant NCP 0.8 pin is a component-integration baseline and does not qualify
+that future final route; CREBAIN 1.0 adoption requires the final NCP 1.0 artifacts
+listed in `CROSS_REPOSITORY_REQUIREMENTS_0.9.0.md`. The renderer has no generic
+command capability. Every command is fresh, session-bound, apply-time checked,
+and followed through accepted, attempted, FCU-accepted, and observed evidence.
+Galadriel, if enabled, is advisory only. CREBAIN's feature/runtime-gated producer
+is component-tested, but a local NCP put is not accepted/correlated Galadriel
+evidence and does not satisfy the live L1 topology, security, heartbeat, or
+joined-stage requirements.
 
 All L1 checks apply to the ODD in [`L1_ODD.md`](L1_ODD.md). PX4 is the initial
 adapter target; ArduPilot is a separate qualification and is outside the initial

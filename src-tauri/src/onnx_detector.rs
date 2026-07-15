@@ -79,6 +79,47 @@ pub struct OnnxDetector {
     backend_name: String,
 }
 
+fn scale_and_clip_bbox(
+    bbox: (f32, f32, f32, f32),
+    image_dimensions: (u32, u32),
+    input_dimensions: (u32, u32),
+) -> Result<Option<BoundingBox>, String> {
+    let (cx, cy, width, height) = bbox;
+    let (image_width, image_height) = image_dimensions;
+    let (input_width, input_height) = input_dimensions;
+    if !cx.is_finite() || !cy.is_finite() || !width.is_finite() || !height.is_finite() {
+        return Err("YOLO bounding box contains a non-finite value".to_string());
+    }
+    if width <= 0.0 || height <= 0.0 {
+        return Err("YOLO bounding box width and height must be positive".to_string());
+    }
+    if image_width == 0 || image_height == 0 || input_width == 0 || input_height == 0 {
+        return Err("YOLO bounding box dimensions must be positive".to_string());
+    }
+
+    let image_width = image_width as f32;
+    let image_height = image_height as f32;
+    let scale_x = image_width / input_width as f32;
+    let scale_y = image_height / input_height as f32;
+    let raw_x1 = (cx - width / 2.0) * scale_x;
+    let raw_y1 = (cy - height / 2.0) * scale_y;
+    let raw_x2 = (cx + width / 2.0) * scale_x;
+    let raw_y2 = (cy + height / 2.0) * scale_y;
+    if !raw_x1.is_finite() || !raw_y1.is_finite() || !raw_x2.is_finite() || !raw_y2.is_finite() {
+        return Err("YOLO bounding box scaling produced a non-finite value".to_string());
+    }
+
+    let x1 = raw_x1.clamp(0.0, image_width);
+    let y1 = raw_y1.clamp(0.0, image_height);
+    let x2 = raw_x2.clamp(0.0, image_width);
+    let y2 = raw_y2.clamp(0.0, image_height);
+    if x2 <= x1 || y2 <= y1 {
+        return Ok(None);
+    }
+
+    Ok(Some(BoundingBox { x1, y1, x2, y2 }))
+}
+
 static DETECTOR: OnceLock<OnnxDetector> = OnceLock::new();
 #[cfg(target_os = "linux")]
 static CUDA_DETECTOR: OnceLock<OnnxDetector> = OnceLock::new();
@@ -323,9 +364,9 @@ impl OnnxDetector {
         match result {
             Ok(inner) => inner,
             // ORT_DYLIB_PATH is only honored by load-dynamic builds (Linux);
-            // macOS links ONNX Runtime statically, so give macOS guidance.
+            // macOS links ONNX Runtime at build time, so give macOS guidance.
             Err(_) => Err(
-                "ONNX Runtime panicked while initializing (ONNX Runtime is statically linked on macOS; verify the model file is a valid ONNX model)"
+                "ONNX Runtime panicked while initializing (ONNX Runtime is linked at build time on macOS; verify the model file is a valid ONNX model)"
                     .to_string(),
             ),
         }
@@ -346,9 +387,9 @@ impl OnnxDetector {
         match result {
             Ok(inner) => inner,
             // ORT_DYLIB_PATH is only honored by load-dynamic builds (Linux);
-            // this platform links ONNX Runtime statically.
+            // this platform links ONNX Runtime at build time.
             Err(_) => Err(
-                "ONNX Runtime panicked while initializing (ONNX Runtime is statically linked on this platform; verify the model file is a valid ONNX model)"
+                "ONNX Runtime panicked while initializing (ONNX Runtime is linked at build time on this platform; verify the model file is a valid ONNX model)"
                     .to_string(),
             ),
         }
@@ -436,15 +477,21 @@ impl OnnxDetector {
             .try_extract_tensor::<f32>()
             .map_err(|e| format!("Failed to extract output tensor: {}", e))?;
 
-        let shape_dims: Vec<usize> = shape.iter().map(|&d| d as usize).collect();
+        let shape_dims = shape
+            .iter()
+            .map(|&dimension| {
+                usize::try_from(dimension).map_err(|_| {
+                    format!("YOLO output shape contains invalid dimension {dimension}")
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         let (layout, num_anchors) = yolo::infer_yolov8_output_layout(&shape_dims)?;
+        yolo::validate_yolov8_class_count(self.num_classes)?;
         yolo::validate_yolov8_output_len(layout, num_anchors, output_data.len())?;
 
         // Pre-allocate with reasonable capacity to avoid reallocations
         // Typical YOLO models produce 100-500 raw detections before NMS
         let mut detections = Vec::with_capacity(256);
-        let img_w = width as f32;
-        let img_h = height as f32;
 
         for i in 0..num_anchors {
             let (cx, cy, w, h) = yolo::read_bbox(layout, output_data, num_anchors, i)?;
@@ -464,11 +511,16 @@ impl OnnxDetector {
                 continue;
             }
 
-            // Convert to corner format and scale to image dimensions
-            let x1 = ((cx - w / 2.0) * img_w / self.input_width as f32).max(0.0);
-            let y1 = ((cy - h / 2.0) * img_h / self.input_height as f32).max(0.0);
-            let x2 = ((cx + w / 2.0) * img_w / self.input_width as f32).min(img_w);
-            let y2 = ((cy + h / 2.0) * img_h / self.input_height as f32).min(img_h);
+            let Some(bbox) = scale_and_clip_bbox(
+                (cx, cy, w, h),
+                (width, height),
+                (self.input_width, self.input_height),
+            )?
+            else {
+                continue;
+            };
+
+            nms::validate_nms_candidate_count(detections.len() + 1)?;
 
             let det_id = self
                 .detection_counter
@@ -479,7 +531,7 @@ impl OnnxDetector {
                 class_label: coco::get_class_name(max_class.max(0) as usize),
                 class_index: max_class,
                 confidence: max_score,
-                bbox: BoundingBox { x1, y1, x2, y2 },
+                bbox,
                 timestamp: std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
@@ -884,5 +936,28 @@ mod tests {
             ),
             (true, false, false)
         );
+    }
+
+    #[test]
+    fn scaled_bbox_clamps_both_endpoints_and_preserves_order() {
+        let bbox = scale_and_clip_bbox((10.0, 10.0, 40.0, 40.0), (100, 100), (100, 100))
+            .unwrap()
+            .unwrap();
+
+        assert_eq!((bbox.x1, bbox.y1, bbox.x2, bbox.y2), (0.0, 0.0, 30.0, 30.0));
+    }
+
+    #[test]
+    fn scaled_bbox_discards_boxes_fully_outside_the_image() {
+        let bbox = scale_and_clip_bbox((-20.0, 50.0, 10.0, 10.0), (100, 100), (100, 100)).unwrap();
+
+        assert!(bbox.is_none());
+    }
+
+    #[test]
+    fn scaled_bbox_rejects_non_finite_intermediate_geometry() {
+        let result = scale_and_clip_bbox((f32::MAX, 10.0, f32::MAX, 10.0), (100, 100), (100, 100));
+
+        assert!(result.is_err());
     }
 }

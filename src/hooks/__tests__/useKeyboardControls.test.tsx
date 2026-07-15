@@ -1,4 +1,4 @@
-import { act } from 'react'
+import { StrictMode, act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useKeyboardControls } from '../useKeyboardControls'
@@ -9,18 +9,31 @@ import { useKeyboardControls } from '../useKeyboardControls'
 
 let controls: ReturnType<typeof useKeyboardControls>
 
-function Harness({ enabled, onEmergency }: { enabled: boolean; onEmergency?: () => void }) {
-  controls = useKeyboardControls({ enabled, onEmergency })
+interface HarnessProps {
+  enabled: boolean
+  onEmergency?: () => void
+  onArm?: () => void
+  onDisarm?: () => void
+}
+
+function Harness({ enabled, onEmergency, onArm, onDisarm }: HarnessProps) {
+  controls = useKeyboardControls({ enabled, onEmergency, onArm, onDisarm })
   return null
 }
 
-async function renderControls(enabled = true, onEmergency?: () => void) {
+async function renderControls(
+  enabled = true,
+  onEmergency?: () => void,
+  callbacks: Pick<HarnessProps, 'onArm' | 'onDisarm'> = {},
+  strict = false
+) {
   const container = document.createElement('div')
   const root = createRoot(container)
 
   const render = async (nextEnabled: boolean) => {
     await act(async () => {
-      root.render(<Harness enabled={nextEnabled} onEmergency={onEmergency} />)
+      const harness = <Harness enabled={nextEnabled} onEmergency={onEmergency} {...callbacks} />
+      root.render(strict ? <StrictMode>{harness}</StrictMode> : harness)
     })
   }
 
@@ -129,5 +142,58 @@ describe('useKeyboardControls', () => {
     expect(controls.getControlInput()).toEqual({ pitch: 0, roll: 0, yaw: 0, throttle: 0.5 })
 
     await unmount(root)
+  })
+
+  it('invokes arm effects once under Strict Mode', async () => {
+    const onArm = vi.fn()
+    const onDisarm = vi.fn()
+    const { root } = await renderControls(true, undefined, { onArm, onDisarm }, true)
+
+    await act(async () => dispatchKey('keydown', 'r'))
+    expect(onArm).toHaveBeenCalledTimes(1)
+    expect(onDisarm).not.toHaveBeenCalled()
+    expect(controls.keyState.arm).toBe(true)
+
+    await act(async () => {
+      dispatchKey('keyup', 'r')
+      dispatchKey('keydown', 'r')
+    })
+    expect(onArm).toHaveBeenCalledTimes(1)
+    expect(onDisarm).toHaveBeenCalledTimes(1)
+    expect(controls.keyState.arm).toBe(false)
+
+    await unmount(root)
+  })
+
+  it('produces the same throttle and smoothed axes at different callback rates', async () => {
+    let nowMs = 0
+    vi.spyOn(performance, 'now').mockImplementation(() => nowMs)
+
+    const sampleAtRate = async (rateHz: number) => {
+      nowMs = 0
+      const { root } = await renderControls()
+      await act(async () => {
+        dispatchKey('keydown', 'w')
+        dispatchKey('keydown', ' ')
+      })
+
+      let sample = controls.getControlInput()
+      const steps = rateHz / 2
+      for (let step = 1; step <= steps; step += 1) {
+        nowMs = (step * 1000) / rateHz
+        sample = controls.getControlInput()
+      }
+      const duplicateAtSameTime = controls.getControlInput()
+      await unmount(root)
+      return { sample, duplicateAtSameTime }
+    }
+
+    const at30Hz = await sampleAtRate(30)
+    const at120Hz = await sampleAtRate(120)
+
+    expect(at30Hz.sample.throttle).toBeCloseTo(at120Hz.sample.throttle, 10)
+    expect(at30Hz.sample.pitch).toBeCloseTo(at120Hz.sample.pitch, 10)
+    expect(at30Hz.duplicateAtSameTime).toEqual(at30Hz.sample)
+    expect(at120Hz.duplicateAtSameTime).toEqual(at120Hz.sample)
   })
 })

@@ -19,10 +19,10 @@ string classification
 float64 confidence
 
 # Threat level
-uint8 THREAT_LOW = 0
-uint8 THREAT_MEDIUM = 1
-uint8 THREAT_HIGH = 2
-uint8 THREAT_CRITICAL = 3
+uint8 THREAT_LOW = 1
+uint8 THREAT_MEDIUM = 2
+uint8 THREAT_HIGH = 3
+uint8 THREAT_CRITICAL = 4
 uint8 threat_level
 
 # Is hostile flag

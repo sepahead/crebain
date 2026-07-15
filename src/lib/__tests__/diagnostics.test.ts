@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   calculateLatencyStats,
   getBackendHealth,
+  getBackendHealthLabel,
+  getConnectionStatusLabel,
   normalizeSystemInfo,
   summarizeSystemInfo,
 } from '../diagnostics'
@@ -17,6 +19,7 @@ describe('diagnostics', () => {
       mode: 'unknown',
       availableBackends: [],
       experimentalMlxEnabled: false,
+      inferenceReady: null,
     })
   })
 
@@ -38,6 +41,7 @@ describe('diagnostics', () => {
       mode: 'unknown',
       availableBackends: [],
       experimentalMlxEnabled: false,
+      inferenceReady: null,
       sensorFusion: { tracks: 0 },
     })
   })
@@ -63,6 +67,7 @@ describe('diagnostics', () => {
       mode: 'unknown',
       availableBackends: ['ONNX'],
       experimentalMlxEnabled: false,
+      inferenceReady: null,
       onnxDetector: undefined,
       sensorFusion: undefined,
     })
@@ -85,6 +90,47 @@ describe('diagnostics', () => {
     expect(
       getBackendHealth({ backend: 'Custom Backend', coremlAvailable: false, onnxAvailable: false })
     ).toBe('unknown')
+    expect(
+      getBackendHealth({
+        backend: 'Not Initialized',
+        coremlAvailable: true,
+        onnxAvailable: false,
+        inferenceReady: false,
+      })
+    ).toBe('initializing')
+    expect(
+      getBackendHealth({
+        backend: 'Inference Runtime Busy',
+        coremlAvailable: true,
+        onnxAvailable: true,
+        inferenceReady: false,
+      })
+    ).toBe('busy')
+    expect(
+      getBackendHealth({
+        backend: 'TensorRT',
+        coremlAvailable: false,
+        onnxAvailable: false,
+        inferenceReady: false,
+      })
+    ).toBe('unknown')
+    expect(
+      getBackendHealth({
+        backend: 'Unknown Backend',
+        coremlAvailable: false,
+        onnxAvailable: false,
+        inferenceReady: true,
+      })
+    ).toBe('ready')
+  })
+
+  it('provides honest labels for backend and telemetry states', () => {
+    expect(getBackendHealthLabel('initializing')).toBe('NICHT INITIALISIERT')
+    expect(getBackendHealthLabel('busy')).toBe('BESCHÄFTIGT')
+    expect(getConnectionStatusLabel('disconnected')).toBe('GETRENNT')
+    expect(getConnectionStatusLabel('connecting')).toBe('VERBINDE...')
+    expect(getConnectionStatusLabel('connected')).toBe('VERBUNDEN')
+    expect(getConnectionStatusLabel('reconnecting')).toBe('WIEDERVERBINDEN...')
   })
 
   it('summarizes system info for diagnostics UI', () => {
@@ -97,6 +143,7 @@ describe('diagnostics', () => {
         mode: 'raw-rgba',
         availableBackends: ['ONNX', 'CUDA'],
         experimentalMlxEnabled: true,
+        inferenceReady: true,
         sensorFusion: { algorithm: 'IMM' },
       })
     )

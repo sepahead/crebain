@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "release_target": "0.9.0",
+  "authority_invariant": "No CREBAIN 0.9.0 profile authorizes or applies output to an external plant.",
+  "profiles": [
+    {
+      "name": "Analysis",
+      "implementation_status": "documented-nonruntime",
+      "packaged": true,
+      "selectable": false,
+      "authority": "none",
+      "mutation_scope": "none",
+      "transport_scope": "none",
+      "required_features": [],
+      "forbidden_features": ["ncp"],
+      "claim": "Offline/source-level analysis and evidence inspection only; this name is not a runtime selector.",
+      "contract_digest": "64d21dc08ca89deb36bc16418fad82ca574133768eaf83fc331865c5c418813a"
+    },
+    {
+      "name": "SimulationNoAuthority",
+      "implementation_status": "implemented-research-prototype",
+      "packaged": true,
+      "selectable": true,
+      "authority": "none",
+      "mutation_scope": "local-simulation-only",
+      "transport_scope": "none",
+      "required_features": [],
+      "forbidden_features": ["ncp"],
+      "claim": "Local browser research simulation may mutate simulated state but has no external plant capability.",
+      "contract_digest": "3bdb5f057b62f35e05451c6f35a8c25bfe200305aad1171b7acf25bdf4ecb431"
+    },
+    {
+      "name": "ReadOnlyTelemetry",
+      "implementation_status": "component-tested",
+      "packaged": true,
+      "selectable": true,
+      "authority": "none",
+      "mutation_scope": "none",
+      "transport_scope": "subscription-only-native-telemetry",
+      "required_features": ["zenoh-transport"],
+      "forbidden_features": ["ncp"],
+      "claim": "Packaged native telemetry exposes bounded subscription surfaces only; no generic publish or service capability is registered.",
+      "contract_digest": "a76e3b4e78f16459715f93dd431ae63d6d53a039a1ce95eb848b06b2149590d7"
+    },
+    {
+      "name": "Observed",
+      "implementation_status": "component-tested-opt-in",
+      "packaged": false,
+      "selectable": false,
+      "authority": "none",
+      "mutation_scope": "none",
+      "transport_scope": "two-route-advisory-evidence-only",
+      "required_features": ["ncp"],
+      "forbidden_features": [],
+      "claim": "The dormant feature-gated Galadriel producer can emit advisory evidence only after exact runtime gates; no deployed receiver or security qualification is claimed.",
+      "contract_digest": "b2524a284b119cbbd5af4ddea7f1d6b63e261dde69b74be2f2bcdf58526e2686"
+    },
+    {
+      "name": "EngramFederated",
+      "implementation_status": "not-implemented-for-0.9.0",
+      "packaged": false,
+      "selectable": false,
+      "authority": "none",
+      "mutation_scope": "none",
+      "transport_scope": "none",
+      "required_features": [],
+      "forbidden_features": ["ncp"],
+      "claim": "Removed from 0.9.0 claims until exact final NCP/Engram artifacts and mixed-version/security evidence exist.",
+      "contract_digest": "63b7c08ec9b8e837e1a1593283f5b758102357c5ba17262a380bebb7e3d17cb4"
+    },
+    {
+      "name": "ExternalAuthority",
+      "implementation_status": "not-implemented-for-0.9.0",
+      "packaged": false,
+      "selectable": false,
+      "authority": "none",
+      "mutation_scope": "none",
+      "transport_scope": "none",
+      "required_features": [],
+      "forbidden_features": ["ncp"],
+      "claim": "No external authority adapter, receipt-to-apply path, or effect acknowledgement is shipped or claimed.",
+      "contract_digest": "193754cb382d30f91179fe63a232239344d2905c657ebaf6d40e269ebfca3694"
+    },
+    {
+      "name": "HaldirGate",
+      "implementation_status": "not-implemented-for-0.9.0",
+      "packaged": false,
+      "selectable": false,
+      "authority": "none",
+      "mutation_scope": "none",
+      "transport_scope": "none",
+      "required_features": [],
+      "forbidden_features": ["ncp"],
+      "claim": "No Haldir receipt/command validation or isolated plant adapter is wired into CREBAIN 0.9.0.",
+      "contract_digest": "f38eebe411d898dd404faee66b614f0d20ab5e3b7d95a149dab38f532547ea4e"
+    },
+    {
+      "name": "Development",
+      "implementation_status": "development-only",
+      "packaged": false,
+      "selectable": true,
+      "authority": "none",
+      "mutation_scope": "local-simulation-only",
+      "transport_scope": "development-rosbridge-subscriptions-only",
+      "required_features": [],
+      "forbidden_features": ["ncp"],
+      "claim": "Vite development may use the renderer rosbridge subscription adapter and local simulation; the module is excluded from production bundles.",
+      "contract_digest": "6001e2a8b685b0dd919b378a705513210b639e589077ce9a4b505dcc9d500046"
+    }
+  ]
+}
