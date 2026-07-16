@@ -6,6 +6,7 @@ const PACKAGE = JSON.parse(readFileSync(`${process.cwd()}/package.json`, 'utf8')
 }
 const WORKFLOW = readFileSync(`${process.cwd()}/.github/workflows/ci.yml`, 'utf8')
 const RELEASE_WORKFLOW = readFileSync(`${process.cwd()}/.github/workflows/release.yml`, 'utf8')
+const DEPENDABOT = readFileSync(`${process.cwd()}/.github/dependabot.yml`, 'utf8')
 const WORKFLOW_SOURCES = readdirSync(`${process.cwd()}/.github/workflows`)
   .filter((file) => file.endsWith('.yml') || file.endsWith('.yaml'))
   .map((file) => ({
@@ -53,6 +54,16 @@ describe('CI workflow', () => {
     expect(WORKFLOW).toContain('bun-version: 1.3.14')
     expect(WORKFLOW).toMatch(/dtolnay\/rust-toolchain@[0-9a-f]{40}/)
     expect(WORKFLOW).toContain('toolchain: 1.91.1')
+  })
+
+  it('keeps frozen compatibility overlays outside Cargo update scans', () => {
+    const cargoUpdates = DEPENDABOT.match(
+      /- package-ecosystem: cargo\n[\s\S]*?(?=\n {2}- package-ecosystem:|$)/
+    )?.[0]
+
+    expect(cargoUpdates).toBeTruthy()
+    expect(cargoUpdates).toContain('directory: /src-tauri')
+    expect(cargoUpdates).toContain("- 'vendor-compat/**'")
   })
 
   it('pins every third-party GitHub Action to an immutable commit', () => {
