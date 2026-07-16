@@ -16,8 +16,22 @@ const THREE_IMAGE_URL_ERROR =
   'Three ImageLoader accepts only local blob or validated raster data URLs in the production bundle'
 const THREE_GLTF_URI_ERROR =
   'Three GLTFLoader rejected a non-self-contained resource URI in the production bundle'
+const SPARK_EXTERNAL_WASM_ERROR_JAVASCRIPT_LITERAL =
+  '"Spark external WebAssembly loading is disabled in the production bundle"'
+const SPARK_URL_LOADING_ERROR_JAVASCRIPT_LITERAL =
+  '"Spark URL loading is disabled in the production bundle"'
+const RAPIER_EXTERNAL_WASM_ERROR_JAVASCRIPT_LITERAL =
+  '"Rapier external WebAssembly loading is disabled in the production bundle"'
+const THREE_FILE_LOADING_ERROR_JAVASCRIPT_LITERAL =
+  '"Three FileLoader network loading is disabled in the production bundle"'
+const THREE_IMAGE_BITMAP_LOADING_ERROR_JAVASCRIPT_LITERAL =
+  '"Three ImageBitmapLoader network loading is disabled in the production bundle"'
+const THREE_IMAGE_URL_ERROR_JAVASCRIPT_LITERAL =
+  '"Three ImageLoader accepts only local blob or validated raster data URLs in the production bundle"'
+const THREE_GLTF_URI_ERROR_JAVASCRIPT_LITERAL =
+  '"Three GLTFLoader rejected a non-self-contained resource URI in the production bundle"'
 const DATA_WASM_PREFIX = 'data:application/wasm;base64,'
-const THREE_LOCAL_IMAGE_GUARD_EXPRESSION = `url = typeof url === 'string' && (/^blob:[^\\s]+$/.test(url) || /^data:image\\/(?:png|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/.test(url)) ? url : (() => { throw new Error(${JSON.stringify(THREE_IMAGE_URL_ERROR)}) })()`
+const THREE_LOCAL_IMAGE_GUARD_EXPRESSION = `url = typeof url === 'string' && (/^blob:[^\\s]+$/.test(url) || /^data:image\\/(?:png|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/.test(url)) ? url : (() => { throw new Error(${THREE_IMAGE_URL_ERROR_JAVASCRIPT_LITERAL}) })()`
 const THREE_GLTF_URI_GUARD_SOURCE = `const productionResourceStack = [ json ];
 		const productionResourceVisitLimit = 262144;
 		let productionResourceVisits = 0;
@@ -32,7 +46,7 @@ const THREE_GLTF_URI_GUARD_SOURCE = `const productionResourceStack = [ json ];
 
 				if ( productionResource.length > productionResourceVisitLimit - productionResourceVisits - productionResourceStack.length ) {
 
-					if ( onError ) onError( new Error( ${JSON.stringify(THREE_GLTF_URI_ERROR)} ) );
+					if ( onError ) onError( new Error( ${THREE_GLTF_URI_ERROR_JAVASCRIPT_LITERAL} ) );
 					return;
 
 				}
@@ -53,7 +67,7 @@ const THREE_GLTF_URI_GUARD_SOURCE = `const productionResourceStack = [ json ];
 
 			if ( productionResourceEntries.length > productionResourceVisitLimit - productionResourceVisits - productionResourceStack.length ) {
 
-				if ( onError ) onError( new Error( ${JSON.stringify(THREE_GLTF_URI_ERROR)} ) );
+				if ( onError ) onError( new Error( ${THREE_GLTF_URI_ERROR_JAVASCRIPT_LITERAL} ) );
 				return;
 
 			}
@@ -62,7 +76,7 @@ const THREE_GLTF_URI_GUARD_SOURCE = `const productionResourceStack = [ json ];
 
 				if ( productionKey === 'uri' && ( typeof productionValue !== 'string' || ! /^data:image\\/(?:png|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/.test( productionValue ) ) ) {
 
-					if ( onError ) onError( new Error( ${JSON.stringify(THREE_GLTF_URI_ERROR)} ) );
+					if ( onError ) onError( new Error( ${THREE_GLTF_URI_ERROR_JAVASCRIPT_LITERAL} ) );
 					return;
 
 				}
@@ -152,6 +166,33 @@ function fail(message) {
 
 function assert(condition, message) {
   if (!condition) fail(message)
+}
+
+for (const [message, javascriptLiteral, label] of [
+  [
+    SPARK_EXTERNAL_WASM_ERROR,
+    SPARK_EXTERNAL_WASM_ERROR_JAVASCRIPT_LITERAL,
+    'Spark external WebAssembly error',
+  ],
+  [SPARK_URL_LOADING_ERROR, SPARK_URL_LOADING_ERROR_JAVASCRIPT_LITERAL, 'Spark URL error'],
+  [
+    RAPIER_EXTERNAL_WASM_ERROR,
+    RAPIER_EXTERNAL_WASM_ERROR_JAVASCRIPT_LITERAL,
+    'Rapier external WebAssembly error',
+  ],
+  [THREE_FILE_LOADING_ERROR, THREE_FILE_LOADING_ERROR_JAVASCRIPT_LITERAL, 'Three FileLoader error'],
+  [
+    THREE_IMAGE_BITMAP_LOADING_ERROR,
+    THREE_IMAGE_BITMAP_LOADING_ERROR_JAVASCRIPT_LITERAL,
+    'Three ImageBitmapLoader error',
+  ],
+  [THREE_IMAGE_URL_ERROR, THREE_IMAGE_URL_ERROR_JAVASCRIPT_LITERAL, 'Three ImageLoader error'],
+  [THREE_GLTF_URI_ERROR, THREE_GLTF_URI_ERROR_JAVASCRIPT_LITERAL, 'Three GLTFLoader error'],
+]) {
+  assert(
+    JSON.stringify(message) === javascriptLiteral,
+    `${label} JavaScript literal does not match its validated message`
+  )
 }
 
 function sha256(value) {
@@ -343,6 +384,14 @@ function sparkInitializerReplacements(source, sourceFile, expectedHash, expected
   )
   const base64 = urlInitializer.arguments[0].text.slice(DATA_WASM_PREFIX.length)
   validateEmbeddedWasm(base64, spec, `${label} embedded WebAssembly`)
+  const wasmUrlLiteral = urlInitializer.arguments[0]
+  const wasmUrlLiteralStart = wasmUrlLiteral.getStart(sourceFile)
+  const wasmUrlLiteralSource = wasmUrlLiteral.getText(sourceFile)
+  assert(
+    wasmUrlLiteralSource.startsWith(`"${DATA_WASM_PREFIX}`) && wasmUrlLiteralSource.endsWith('"'),
+    `${label} embedded WebAssembly URL literal shape drift`
+  )
+  const base64Start = wasmUrlLiteralStart + 1 + DATA_WASM_PREFIX.length
 
   const fetchCall = exactSingle(
     directCalls(sourceFile, 'fetch', initializer),
@@ -362,13 +411,23 @@ function sparkInitializerReplacements(source, sourceFile, expectedHash, expected
   return [
     {
       start: urlInitializer.getStart(sourceFile),
+      end: wasmUrlLiteralStart,
+      text: 'Uint8Array.from(atob(',
+    },
+    {
+      start: wasmUrlLiteralStart + 1,
+      end: base64Start,
+      text: '',
+    },
+    {
+      start: wasmUrlLiteral.end,
       end: urlInitializer.end,
-      text: `Uint8Array.from(atob(${JSON.stringify(base64)}), (character) => character.charCodeAt(0))`,
+      text: '), (character) => character.charCodeAt(0))',
     },
     {
       start: fetchCall.getStart(sourceFile),
       end: fetchCall.end,
-      text: `(() => { throw new Error(${JSON.stringify(SPARK_EXTERNAL_WASM_ERROR)}) })()`,
+      text: `(() => { throw new Error(${SPARK_EXTERNAL_WASM_ERROR_JAVASCRIPT_LITERAL}) })()`,
     },
   ]
 }
@@ -450,7 +509,7 @@ export function assertSparkProductionOutput(source) {
     namedFunctions(sourceFile, 'fetchWithProgress'),
     'transformed Spark URL helper'
   )
-  const expectedBody = `{ throw new Error(${JSON.stringify(SPARK_URL_LOADING_ERROR)}) }`
+  const expectedBody = `{ throw new Error(${SPARK_URL_LOADING_ERROR_JAVASCRIPT_LITERAL}) }`
   assert(
     fetchHelper.body?.getText(sourceFile) === expectedBody,
     'transformed Spark URL helper is not the exact fail-closed body'
@@ -512,7 +571,7 @@ export function transformSparkProductionSource(source) {
     {
       start: fetchHelper.body.getStart(sourceFile),
       end: fetchHelper.body.end,
-      text: `{ throw new Error(${JSON.stringify(SPARK_URL_LOADING_ERROR)}) }`,
+      text: `{ throw new Error(${SPARK_URL_LOADING_ERROR_JAVASCRIPT_LITERAL}) }`,
     },
     {
       start: worker.literal.getStart(sourceFile),
@@ -520,7 +579,7 @@ export function transformSparkProductionSource(source) {
       text: JSON.stringify(transformedWorker),
     },
   ]
-  assert(replacements.length === 4, 'Spark replacement count drift')
+  assert(replacements.length === 6, 'Spark replacement count drift')
   const output = applyReplacements(source, replacements, 'Spark module')
   assertSparkProductionOutput(output)
   return output
@@ -634,7 +693,7 @@ export function transformRapierProductionSource(source) {
       {
         start: fetchCall.getStart(sourceFile),
         end: fetchCall.end,
-        text: `(() => { throw new Error(${JSON.stringify(RAPIER_EXTERNAL_WASM_ERROR)}) })()`,
+        text: `(() => { throw new Error(${RAPIER_EXTERNAL_WASM_ERROR_JAVASCRIPT_LITERAL}) })()`,
       },
     ],
     'Rapier module'
@@ -902,12 +961,12 @@ export function transformThreeCoreProductionSource(source) {
       {
         start: shape.fileFetch.getStart(sourceFile),
         end: shape.fileFetch.end,
-        text: `Promise.reject(new Error(${JSON.stringify(THREE_FILE_LOADING_ERROR)}))`,
+        text: `Promise.reject(new Error(${THREE_FILE_LOADING_ERROR_JAVASCRIPT_LITERAL}))`,
       },
       {
         start: shape.imageBitmapFetch.getStart(sourceFile),
         end: shape.imageBitmapFetch.end,
-        text: `Promise.reject(new Error(${JSON.stringify(THREE_IMAGE_BITMAP_LOADING_ERROR)}))`,
+        text: `Promise.reject(new Error(${THREE_IMAGE_BITMAP_LOADING_ERROR_JAVASCRIPT_LITERAL}))`,
       },
       {
         start: shape.fetchSupportIf.getStart(sourceFile),

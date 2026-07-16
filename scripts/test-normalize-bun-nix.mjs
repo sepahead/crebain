@@ -13,6 +13,12 @@ const generated = `{
 `
 
 const normalized = normalizeBunNix(generated, lock)
+if (!normalized.includes('"github:sepahead-NCP-54008b1" = fetchFromGitHub')) {
+  throw new Error("normalizer omitted Bun's GitHub NCP cache identity")
+}
+if (normalized.includes('"@sepahead/ncp@github:sepahead/NCP#54008b1" =')) {
+  throw new Error('normalizer retained the invalid npm-style NCP cache identity')
+}
 if (!normalized.includes('2f5bd586d4bb20c90362bb6f5698b7f64057ba4e')) {
   throw new Error('normalizer omitted the full peeled NCP commit')
 }
@@ -36,6 +42,12 @@ for (const mutation of [
 const tracked = readFileSync('bun.nix', 'utf8')
 if (tracked.includes('registry.npmjs.org/@sepahead/ncp')) {
   throw new Error('tracked bun.nix retains the invalid generated NCP URL')
+}
+if (!tracked.includes('"github:sepahead-NCP-54008b1" = fetchFromGitHub')) {
+  throw new Error("tracked bun.nix omits Bun's GitHub NCP cache identity")
+}
+if (tracked.includes('"@sepahead/ncp@github:sepahead/NCP#54008b1" =')) {
+  throw new Error('tracked bun.nix retains the invalid npm-style NCP cache identity')
 }
 if (!tracked.includes('2f5bd586d4bb20c90362bb6f5698b7f64057ba4e')) {
   throw new Error('tracked bun.nix does not bind the full peeled NCP commit')

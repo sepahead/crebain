@@ -41,16 +41,23 @@ The archive preserves the sealed `application/` and `evidence/` directories,
 substituted for one of those manifest paths. GitHub attestations bind both the
 standalone packages and the sealed archive produced by the exact-tag workflow.
 
-From a system with Bash, GitHub CLI, Git, Node.js, Python 3, GNU `sha256sum`, and
-`tar`, the following verifies the archive checksum, exact tagged source identity,
-complete manifest inventory, internal checksums, and byte equality between the
-three standalone packages and their sealed archive copies:
+From a system with Bash, GitHub CLI, Git, `jq`, Node.js, Python 3, GNU
+`sha256sum`, and `tar`, the following verifies the archive checksum, exact tagged
+source identity, complete manifest inventory, internal checksums, and byte
+equality between the three standalone packages and their sealed archive copies:
 
 ```bash
 set -euo pipefail
 TAG=v0.9.0
+VERSION="${TAG#v}"
+test "$TAG" = "v$VERSION"
 VERIFY_DIR="$(mktemp -d)"
 ARCHIVE="crebain-${TAG}-evidence.tar.gz"
+PACKAGES=(
+  "crebain_${VERSION}_aarch64.dmg"
+  "crebain_${VERSION}_amd64.AppImage"
+  "crebain_${VERSION}_amd64.deb"
+)
 mkdir -p "$VERIFY_DIR/assets" "$VERIFY_DIR/evidence-root"
 git clone --branch "$TAG" --depth 1 https://github.com/sepahead/crebain.git "$VERIFY_DIR/source"
 COMMIT="$(git -C "$VERIFY_DIR/source" rev-parse HEAD)"
@@ -65,20 +72,17 @@ jq -e --arg tag "$TAG" \
   "$VERIFY_DIR/release-state.json" > /dev/null
 gh release view "$TAG" --repo sepahead/crebain --json assets --jq '.assets[].name' \
   | LC_ALL=C sort > "$VERIFY_DIR/release-assets.txt"
-test "$(wc -l < "$VERIFY_DIR/release-assets.txt" | tr -d ' ')" -eq 5
-test "$(grep -Ec '\.dmg$' "$VERIFY_DIR/release-assets.txt")" -eq 1
-test "$(grep -Ec '\.AppImage$' "$VERIFY_DIR/release-assets.txt")" -eq 1
-test "$(grep -Ec '\.deb$' "$VERIFY_DIR/release-assets.txt")" -eq 1
-test "$(grep -Fxc "$ARCHIVE" "$VERIFY_DIR/release-assets.txt")" -eq 1
-test "$(grep -Fxc "$ARCHIVE.sha256" "$VERIFY_DIR/release-assets.txt")" -eq 1
+printf '%s\n' "${PACKAGES[@]}" "$ARCHIVE" "$ARCHIVE.sha256" \
+  | LC_ALL=C sort > "$VERIFY_DIR/expected-assets.txt"
+cmp "$VERIFY_DIR/expected-assets.txt" "$VERIFY_DIR/release-assets.txt"
 gh release download "$TAG" --repo sepahead/crebain --dir "$VERIFY_DIR/assets" \
   --pattern "$ARCHIVE" --pattern "$ARCHIVE.sha256" \
-  --pattern '*.dmg' --pattern '*.AppImage' --pattern '*.deb'
+  --pattern "${PACKAGES[0]}" --pattern "${PACKAGES[1]}" --pattern "${PACKAGES[2]}"
 gh attestation verify "$VERIFY_DIR/assets/$ARCHIVE" --repo sepahead/crebain \
   --signer-workflow sepahead/crebain/.github/workflows/release.yml \
   --source-ref "refs/tags/$TAG" --source-digest "$COMMIT" --deny-self-hosted-runners
-for package in "$VERIFY_DIR/assets"/*.dmg "$VERIFY_DIR/assets"/*.AppImage "$VERIFY_DIR/assets"/*.deb; do
-  gh attestation verify "$package" --repo sepahead/crebain \
+for package in "${PACKAGES[@]}"; do
+  gh attestation verify "$VERIFY_DIR/assets/$package" --repo sepahead/crebain \
     --signer-workflow sepahead/crebain/.github/workflows/release.yml \
     --source-ref "refs/tags/$TAG" --source-digest "$COMMIT" --deny-self-hosted-runners
 done
@@ -88,8 +92,8 @@ python3 "$VERIFY_DIR/source/scripts/verify-evidence-manifest.py" \
   "$VERIFY_DIR/evidence-root/RELEASE_EVIDENCE_MANIFEST.json" \
   --root "$VERIFY_DIR/evidence-root" --expected-commit "$COMMIT"
 (cd "$VERIFY_DIR/evidence-root" && sha256sum --check SHA256SUMS)
-for package in "$VERIFY_DIR/evidence-root/application"/*; do
-  cmp "$package" "$VERIFY_DIR/assets/${package##*/}"
+for package in "${PACKAGES[@]}"; do
+  cmp "$VERIFY_DIR/evidence-root/application/$package" "$VERIFY_DIR/assets/$package"
 done
 ```
 

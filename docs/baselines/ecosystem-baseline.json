@@ -142,7 +142,7 @@
     },
     {
       "path": "src-tauri/Cargo.lock",
-      "sha256": "aeafe843a67f7a7e41e530a5c1b5b217a43c1360021335a77fdda841e92d8314"
+      "sha256": "7ae7a078fd2f49b3b64f62cf7d0d1aa8212b8f51bfaf712bbb734e2727986b17"
     },
     {
       "path": "src-tauri/crates/plant-authority/Cargo.toml",
@@ -214,7 +214,7 @@
     },
     {
       "path": "scripts/lib/production-vendor-boundary.mjs",
-      "sha256": "1971bb32e91c592796c299fd09fbc7282fc20ac55caf6efa6f8441cbe4c65598"
+      "sha256": "cd2a60941db3209126e310e707f5afa1ecc4d88a79e63526a91d3bf7f8df7b01"
     },
     {
       "path": "scripts/test-production-vendor-boundary.mjs",
@@ -234,7 +234,7 @@
     },
     {
       "path": ".github/workflows/release.yml",
-      "sha256": "93174a7de0d7a0a50faedb73065649d28fe8baf60e5f1f208aec90c8f40b90d4"
+      "sha256": "1aa21398cd10a69bffb7b8725fbc6d0649ec868dbb70f48cd0100b4e9096c843"
     },
     {
       "path": ".env.example",
@@ -258,7 +258,7 @@
     },
     {
       "path": "bun.nix",
-      "sha256": "e9a6c801995dc60559ac7983b64b7e02bb3dfba41ae446665d6380969081d3a5"
+      "sha256": "115e68c541ed36493311dfa3b7e67d17993250363b9272791e66ee348aed089a"
     },
     {
       "path": "flake.nix",
@@ -270,11 +270,11 @@
     },
     {
       "path": "CITATION.cff",
-      "sha256": "78db0e17e46b834e5f510b22544ff5db6e240d99021e2c75549e73610e78040b"
+      "sha256": "07f91e74e5461b1b01317caffd176dfb69f316263ebe793dafc7d2c157396771"
     },
     {
       "path": "src-tauri/deny.toml",
-      "sha256": "49749745df33aa3a3fbff59e6bee21b4fe51050f7c7a2b4c896f0b9ef0fc3c2b"
+      "sha256": "fb3151ce087b8badb046f0661b33be0a4be0a6c253787ac574e2f5d8f1ea29e1"
     },
     {
       "path": ".github/dependabot.yml",
@@ -338,11 +338,11 @@
     },
     {
       "path": "scripts/normalize-bun-nix.mjs",
-      "sha256": "ecde58ade4d57af341af9b2e530f900eeb1d9160ec441cc257da394728eaa82c"
+      "sha256": "53d0ae84ac7e79216debe0764ea16addaa44c9f0d64e6d0bfe8a871fba58ce85"
     },
     {
       "path": "scripts/test-normalize-bun-nix.mjs",
-      "sha256": "ec78bb4b7b343c8a7b2bb515e276ccae11b99af5f9e90f31f9fc5d0c4cb80564"
+      "sha256": "d3458449ba2602b9347fbb36ffa2e806cc847f3d180ebf47a5e60803f85e7011"
     },
     {
       "path": "src-tauri/vendor-compat/PROVENANCE.json",

@@ -107,9 +107,16 @@ describe('CI workflow', () => {
     expect(sealJob).not.toContain('contents: write')
     expect(sealJob).not.toContain('gh release')
     expect(sealJob).toContain('crebain-${GITHUB_REF_NAME}-evidence.tar.gz')
-    expect(sealJob).toContain("-name '*.dmg'")
-    expect(sealJob).toContain("-name '*.AppImage'")
-    expect(sealJob).toContain("-name '*.deb'")
+    for (const asset of [
+      'crebain_${version}_aarch64.dmg',
+      'crebain_${version}_amd64.AppImage',
+      'crebain_${version}_amd64.deb',
+    ]) {
+      expect(buildJob).toContain(asset)
+      expect(sealJob).toContain(asset)
+      expect(publishJob).toContain(asset)
+    }
+    expect(publishJob).toContain('cmp /tmp/expected-assets.txt /tmp/actual-assets.txt')
     expect(publishJob).toContain('contents: write')
     expect(publishJob).not.toContain('actions/checkout')
     expect(publishJob).not.toContain('bun install')

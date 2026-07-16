@@ -29,16 +29,20 @@ timing depends on severity.
   authentication, policy, and transport encryption.
 - Run the desktop app and simulator with least privilege.
 - Verify model provenance, rights, immutable digest, tensor contract, and fixtures.
-- Keep Rust dependency audits enabled. The current lock has no reported
-  vulnerability advisory, but audit tooling still reports transitive
-  unsoundness warnings for `glib` 0.18 in Tauri's GTK3 path and `rand` 0.7.3 in
-  Tauri's legacy `phf` build path. Neither has an in-chain patch available to
-  this project; retain the documented `cargo-deny` policy and migrate when the
-  upstream dependency chains permit it. Legacy transitive GUI/build crates also
-  produce unmaintained warnings; their count can change as the advisory database
-  evolves, so review the complete current audit and keep upstream migration
-  tracked rather than treating the two named unsoundness warnings as the whole
-  warning set.
+- Keep Rust dependency audits enabled. The root lock pins patched `openssl`
+  0.10.81, `serde_with` 3.21.0, `rustls-webpki` 0.103.13, and `rand` 0.8.6/0.9.3
+  where their dependency constraints permit it. Two upstream-constrained
+  advisories remain: `glib` 0.18.5 in Tauri's GTK3 runtime path and `rand` 0.7.3
+  in Tauri's legacy `phf` build path. CREBAIN does not call the affected
+  `VariantStrIter` API, and the legacy `phf` chain does not enable `rand`'s `log`
+  feature or use its affected thread-RNG/custom-logger path. Neither chain
+  currently accepts a patched version; reassess when Tauri migrates its GTK and
+  HTML-selector dependencies. Lockfiles nested under `vendor-compat/` are frozen
+  upstream provenance snapshots and are not used for workspace resolution;
+  dependency scanners can report their historical versions even when the root
+  lock resolves patched or absent crates. Legacy transitive GUI/build crates can
+  also produce unmaintained warnings, so review the complete current audit rather
+  than treating the two named constraints as the whole warning set.
 - Model validation rejects a final symlink, directory for regular-file formats,
   and special file. ONNX/CoreML/safetensors runtimes still reopen a validated
   path, so keep the model and every parent directory on a trusted,

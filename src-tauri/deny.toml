@@ -20,14 +20,7 @@ yanked = "deny"
 # deep transitive GUI stack pulled in by Tauri on Linux (gtk-rs, etc.) is not
 # something this project can fix and is tracked upstream.
 unmaintained = "workspace"
-# Transitive advisories with no actionable fix for this project. Each is
-# assessed as low-risk for a local desktop research prototype and tracked for
-# upstream resolution; cargo audit still reports them.
-ignore = [
-    # rand unsoundness only under a specific custom-global-logger interaction;
-    # not triggered by CREBAIN's usage. Remove once a patched rand is published.
-    "RUSTSEC-2026-0097",
-]
+ignore = []
 
 [licenses]
 version = 2

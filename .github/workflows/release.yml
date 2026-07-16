@@ -165,17 +165,19 @@ jobs:
           BUILD_TARGET: ${{ matrix.target }}
         run: |
           set -euo pipefail
-          shopt -s nullglob
           mkdir -p release-package
+          version="${GITHUB_REF_NAME#v}"
+          test "$GITHUB_REF_NAME" = "v$version"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           if [[ "$BUILD_PLATFORM" == macos ]]; then
-            packages=(src-tauri/target/"$BUILD_TARGET"/release/bundle/dmg/*.dmg)
-            test "${#packages[@]}" -eq 1
+            packages=(
+              "src-tauri/target/$BUILD_TARGET/release/bundle/dmg/crebain_${version}_aarch64.dmg"
+            )
           elif [[ "$BUILD_PLATFORM" == linux ]]; then
-            appimages=(src-tauri/target/release/bundle/appimage/*.AppImage)
-            debs=(src-tauri/target/release/bundle/deb/*.deb)
-            test "${#appimages[@]}" -eq 1
-            test "${#debs[@]}" -eq 1
-            packages=("${appimages[@]}" "${debs[@]}")
+            packages=(
+              "src-tauri/target/release/bundle/appimage/crebain_${version}_amd64.AppImage"
+              "src-tauri/target/release/bundle/deb/crebain_${version}_amd64.deb"
+            )
           else
             echo "unsupported build platform: $BUILD_PLATFORM" >&2
             exit 1
@@ -222,7 +224,6 @@ jobs:
       - name: Validate immutable inputs and stage exact application inventory
         run: |
           set -euo pipefail
-          shopt -s nullglob
           mkdir -p release-seal/application release-seal/evidence
           for expected in \
             context.txt validate-all.log coverage.log bundle.log \
@@ -232,20 +233,16 @@ jobs:
           done
           test "$(find incoming/qualification -mindepth 1 -type f | wc -l)" -eq 7
 
-          macos_packages=(incoming/macos/*)
-          linux_packages=(incoming/linux/*)
-          test "${#macos_packages[@]}" -eq 1
-          test "${#linux_packages[@]}" -eq 2
-          for package in "${macos_packages[@]}"; do
-            [[ "$package" == *.dmg ]]
-          done
-          for package in "${linux_packages[@]}"; do
-            case "$package" in
-              *.AppImage | *.deb) ;;
-              *) echo "unsupported Linux release package: $package" >&2; exit 1 ;;
-            esac
-          done
-          for package in "${macos_packages[@]}" "${linux_packages[@]}"; do
+          version="${GITHUB_REF_NAME#v}"
+          test "$GITHUB_REF_NAME" = "v$version"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          packages=(
+            "incoming/macos/crebain_${version}_aarch64.dmg"
+            "incoming/linux/crebain_${version}_amd64.AppImage"
+            "incoming/linux/crebain_${version}_amd64.deb"
+          )
+          test "$(find incoming/macos incoming/linux -mindepth 1 -type f | wc -l)" -eq 3
+          for package in "${packages[@]}"; do
             test -f "$package"
             test ! -L "$package"
             test -s "$package"
@@ -254,9 +251,9 @@ jobs:
             test ! -e "release-seal/application/$name"
             cp "$package" "release-seal/application/$name"
           done
-          test "$(find release-seal/application -maxdepth 1 -type f -name '*.dmg' | wc -l)" -eq 1
-          test "$(find release-seal/application -maxdepth 1 -type f -name '*.AppImage' | wc -l)" -eq 1
-          test "$(find release-seal/application -maxdepth 1 -type f -name '*.deb' | wc -l)" -eq 1
+          test -f "release-seal/application/crebain_${version}_aarch64.dmg"
+          test -f "release-seal/application/crebain_${version}_amd64.AppImage"
+          test -f "release-seal/application/crebain_${version}_amd64.deb"
           test "$(find release-seal/application -maxdepth 1 -type f | wc -l)" -eq 3
 
           source_date_epoch="$(git show -s --format=%ct "$GITHUB_SHA")"
@@ -366,11 +363,14 @@ jobs:
         run: |
           set -euo pipefail
           archive_name="crebain-${GITHUB_REF_NAME}-evidence.tar.gz"
+          version="${GITHUB_REF_NAME#v}"
+          test "$GITHUB_REF_NAME" = "v$version"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           test -f "release-output/evidence-archive/$archive_name"
           test -f "release-output/evidence-archive/$archive_name.sha256"
-          test "$(find release-output/application -maxdepth 1 -type f -name '*.dmg' | wc -l)" -eq 1
-          test "$(find release-output/application -maxdepth 1 -type f -name '*.AppImage' | wc -l)" -eq 1
-          test "$(find release-output/application -maxdepth 1 -type f -name '*.deb' | wc -l)" -eq 1
+          test -f "release-output/application/crebain_${version}_aarch64.dmg"
+          test -f "release-output/application/crebain_${version}_amd64.AppImage"
+          test -f "release-output/application/crebain_${version}_amd64.deb"
           test "$(find release-output -mindepth 1 -type f | wc -l)" -eq 5
           if find release-output -mindepth 1 ! -type d ! -type f -print -quit | grep -q .; then
             echo 'sealed release output contains a non-regular entry' >&2
@@ -380,8 +380,16 @@ jobs:
             name="${asset##*/}"
             [[ "$name" =~ ^[A-Za-z0-9._+-]+$ ]]
           done < <(find release-output -type f -print0)
-          find release-output -type f -exec basename {} \; | LC_ALL=C sort > /tmp/expected-assets.txt
-          test "$(uniq -d /tmp/expected-assets.txt | wc -l)" -eq 0
+          printf '%s\n' \
+            "crebain_${version}_aarch64.dmg" \
+            "crebain_${version}_amd64.AppImage" \
+            "crebain_${version}_amd64.deb" \
+            "$archive_name" \
+            "$archive_name.sha256" \
+            | LC_ALL=C sort > /tmp/expected-assets.txt
+          find release-output -type f -exec basename {} \; \
+            | LC_ALL=C sort > /tmp/actual-assets.txt
+          cmp /tmp/expected-assets.txt /tmp/actual-assets.txt
           (
             cd release-output/evidence-archive
             sha256sum --check "$archive_name.sha256"

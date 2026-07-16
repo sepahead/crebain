@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 
 const NCP_KEY = '@sepahead/ncp@github:sepahead/NCP#54008b1'
+const NCP_CACHE_KEY = 'github:sepahead-NCP-54008b1'
 const NCP_COMMIT = '2f5bd586d4bb20c90362bb6f5698b7f64057ba4e'
 const NCP_NAR_HASH = 'sha256-GaYmp35xnxlZ0TClyKsFNYswzulgyaCA+TPzF6bJMVk='
 const NCP_INTEGRITY =
@@ -29,8 +30,8 @@ export function normalizeBunNix(raw, lockText) {
   }
 
   const fixedBlock = `  # bun2nix 2.1.1 misclassifies Bun 1.3's four-field GitHub lock entry.
-  # Bind the package to the full peeled commit shared with Cargo.lock.
-  "${NCP_KEY}" = fetchFromGitHub {
+  # Bind Bun's GitHub cache key to the full peeled commit shared with Cargo.lock.
+  "${NCP_CACHE_KEY}" = fetchFromGitHub {
     owner = "sepahead";
     repo = "NCP";
     rev = "${NCP_COMMIT}";
@@ -39,6 +40,9 @@ export function normalizeBunNix(raw, lockText) {
   const normalized = raw.replace(invalidBlock, fixedBlock)
   if (normalized.includes('registry.npmjs.org/@sepahead/ncp')) {
     fail('invalid NCP registry URL remains after normalization')
+  }
+  if (normalized.includes(`"${NCP_KEY}" =`)) {
+    fail('invalid npm-style NCP cache key remains after normalization')
   }
   return normalized
 }

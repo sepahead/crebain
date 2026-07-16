@@ -11,7 +11,7 @@ README and treated as unverified until measured on target hardware.
 
 No changes yet.
 
-## [0.9.0] - 2026-07-15
+## [0.9.0] - 2026-07-16
 
 Research-only prerelease. This release is a research prototype with no
 operational, deployment, vehicle-authority, model-accuracy, or cross-repository

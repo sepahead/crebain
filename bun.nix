@@ -430,8 +430,8 @@
     hash = "sha512-BfzEnDJOt9T8M989/lA37EcJgat01wLRnoi5dQf3QzOH7jzpqTAzdDbVfRljVr5r+jzKqpbHeyOfAaXxAd0PAA==";
   };
   # bun2nix 2.1.1 misclassifies Bun 1.3's four-field GitHub lock entry.
-  # Bind the package to the full peeled commit shared with Cargo.lock.
-  "@sepahead/ncp@github:sepahead/NCP#54008b1" = fetchFromGitHub {
+  # Bind Bun's GitHub cache key to the full peeled commit shared with Cargo.lock.
+  "github:sepahead-NCP-54008b1" = fetchFromGitHub {
     owner = "sepahead";
     repo = "NCP";
     rev = "2f5bd586d4bb20c90362bb6f5698b7f64057ba4e";
