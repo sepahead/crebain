@@ -3,6 +3,35 @@
 This record preserves release identity after obsolete hosted objects are
 removed. A retired version or tag must never be recreated or moved.
 
+## 0.9.0 narrow history normalization
+
+Before the 0.9.0 tag was created, one legacy commit message was normalized to
+remove wording that is outside the repository's publication vocabulary. The
+reconstruction was deliberately narrow: every commit tree, parent order,
+author header, committer header, timestamp, and non-target message was
+preserved.
+
+- Hosted head before the transition:
+  `3e3ee5d0b75269b8f5f634485871069c89a9a474`
+- Validated candidate before reconstruction:
+  `9df0e07b4d1027c83fa0bd54639eed818557babf`
+- Reconstructed candidate:
+  `78575c0c2608310d6d5029ef1f5d7ed50ca51181`
+- Identical candidate tree:
+  `b64345ef5565e0e39c0c701ad02d93820c2959c1`
+- Normalized commit mapping:
+  `416101255bd861b2542407795d5876bddd3e70c4` to
+  `09c7c89e0867bc73fa008f0289aa84d8b69b3494`
+- Reachable commits: 202 total; 65 reconstructed because their parent identity
+  changed; 137 remained byte-identical.
+- Canonical commit-map SHA-256:
+  `e8bbff063d37754b8684494e2b7e36faa18f2f70696c4b2ef364af65817a2d3e`
+
+Three existing signature blocks were removed from reconstructed commits because
+their signed commit objects necessarily changed. No content, authorship, or
+timestamp was changed by that removal. The reconstructed graph passed strict
+Git object validation and exact reachable-set comparison before publication.
+
 ## `v0.4.0` — retired unpublished draft
 
 - Status: never published; the mutable GitHub draft, its assets, and the remote
