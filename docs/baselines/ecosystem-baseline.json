@@ -278,7 +278,7 @@
     },
     {
       "path": ".github/dependabot.yml",
-      "sha256": "fc3600236c7451690cb5828ed4f4f1d18b4cb247a459e33819282b5973b10aa0"
+      "sha256": "25b049ec61e34db7623c968b8e661adc8c3755f533dcb381dd682b1186de54d5"
     },
     {
       "path": ".github/workflows/audit.yml",

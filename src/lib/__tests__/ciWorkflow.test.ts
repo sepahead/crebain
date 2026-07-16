@@ -63,7 +63,7 @@ describe('CI workflow', () => {
 
     expect(cargoUpdates).toBeTruthy()
     expect(cargoUpdates).toContain('directory: /src-tauri')
-    expect(cargoUpdates).toContain("- 'vendor-compat/**'")
+    expect(cargoUpdates).toContain("- 'vendor-compat/**/Cargo.lock'")
   })
 
   it('pins every third-party GitHub Action to an immutable commit', () => {

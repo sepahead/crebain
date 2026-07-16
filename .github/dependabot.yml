@@ -13,10 +13,10 @@ updates:
 
   - package-ecosystem: cargo
     directory: /src-tauri
-    # Compatibility overlays are immutable provenance snapshots. The active
-    # workspace lock remains monitored from this directory.
+    # Keep path-patched overlay sources available for root graph resolution,
+    # while excluding only their immutable provenance lock snapshots.
     exclude-paths:
-      - 'vendor-compat/**'
+      - 'vendor-compat/**/Cargo.lock'
     schedule:
       interval: weekly
       day: monday
