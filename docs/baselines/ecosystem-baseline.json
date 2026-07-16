@@ -234,7 +234,7 @@
     },
     {
       "path": ".github/workflows/release.yml",
-      "sha256": "1aa21398cd10a69bffb7b8725fbc6d0649ec868dbb70f48cd0100b4e9096c843"
+      "sha256": "888896344c828945e0e285ec6a11522f741310382e462e7b6f0301d6461cbf74"
     },
     {
       "path": ".env.example",

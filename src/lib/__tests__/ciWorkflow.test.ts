@@ -97,12 +97,14 @@ describe('CI workflow', () => {
   })
 
   it('isolates release publication from builds and seals a strict package inventory', () => {
+    const qualifyJob = RELEASE_WORKFLOW.match(/\n {2}qualify:\n[\s\S]*?\n {2}cargo-deny:/)?.[0]
     const buildJob = RELEASE_WORKFLOW.match(/\n {2}build:\n[\s\S]*?\n {2}seal-evidence:/)?.[0]
     const sealJob = RELEASE_WORKFLOW.match(
       /\n {2}seal-evidence:\n[\s\S]*?\n {2}attest-packages:/
     )?.[0]
     const publishJob = RELEASE_WORKFLOW.match(/\n {2}publish-prerelease:\n[\s\S]*$/)?.[0]
 
+    expect(qualifyJob).toBeTruthy()
     expect(buildJob).toBeTruthy()
     expect(sealJob).toBeTruthy()
     expect(publishJob).toBeTruthy()
@@ -115,6 +117,12 @@ describe('CI workflow', () => {
     expect(RELEASE_WORKFLOW).toContain("- 'v0.9.0'")
     expect(RELEASE_WORKFLOW).not.toContain("- 'v*'")
     expect(RELEASE_WORKFLOW.match(/overwrite: true/g)).toHaveLength(3)
+    expect(qualifyJob).toContain(
+      'sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf'
+    )
+    expect(qualifyJob?.indexOf('sudo apt-get install -y')).toBeLessThan(
+      qualifyJob?.indexOf('bun run validate:all') ?? -1
+    )
     expect(sealJob).not.toContain('contents: write')
     expect(sealJob).not.toContain('gh release')
     expect(sealJob).toContain('crebain-${GITHUB_REF_NAME}-evidence.tar.gz')
