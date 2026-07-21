@@ -60,7 +60,7 @@ tauri-plugin-log = "2"
 
 # Encoding
 base64 = "0.22"
-sha2 = "0.10"
+sha2 = "0.11"
 
 # Atomic same-directory scene persistence.
 tempfile = "3.27"
@@ -74,8 +74,8 @@ image = { version = "0.25", default-features = false, features = ["jpeg", "png"]
 nalgebra = "0.35"
 
 # Random number generation (updated to 0.9.x series)
-rand = "0.9"
-rand_distr = "0.5"
+rand = "0.10"
+rand_distr = "0.6"
 
 # ONNX Runtime for cross-platform ML inference (fallback/universal backend)
 # Using the pinned 2.0.0 release-candidate API selected for this project.
@@ -107,7 +107,7 @@ pyo3 = { version = "0.29", features = ["abi3-py311"], optional = true }
 tokio = { version = "1.48", features = ["rt-multi-thread", "sync", "time"] }
 
 # WebSocket client for rosbridge fallback transport
-tokio-tungstenite = { version = "0.29", features = ["connect"] }
+tokio-tungstenite = { version = "0.30", features = ["connect"] }
 futures-util = "0.3"
 
 # CDR (Common Data Representation) for ROS2 message serialization
@@ -145,9 +145,9 @@ objc = "0.2"
 
 # MLX-style inference on Apple Silicon using Candle with Metal backend
 # Updated to 0.9.x series for latest features
-candle-core = { version = "0.9", features = ["metal"] }
-candle-nn = "0.9"
-safetensors = "0.6"
+candle-core = { version = "0.11", features = ["metal"] }
+candle-nn = "0.11"
+safetensors = "0.8"
 half = "2.6"  # FP16 support for Metal GPU
 shellexpand = "3.1"  # Path expansion for model search
 
