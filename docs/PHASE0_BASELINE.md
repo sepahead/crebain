@@ -1,6 +1,6 @@
 # Phase 0 baseline
 
-Recaptured: 2026-07-13T14:05:44+02:00. This bundle freezes vocabulary and
+Recaptured: 2026-07-24T19:26:08+02:00. This bundle freezes vocabulary and
 scope. It does not promote CREBAIN beyond L0.
 
 ## Status
@@ -52,13 +52,14 @@ machine-readable `profile_semantics` field locks that interpretation.
 - [`baselines/plant-frame-conventions-v1.json`](baselines/plant-frame-conventions-v1.json)
 - [`baselines/plant-frame-golden-v1.tsv`](baselines/plant-frame-golden-v1.tsv)
 
-The 13 July ecosystem capture resolved each required sibling with
-`git ls-remote origin refs/heads/main` and hashed named files from those exact
-commit objects. It did not hash Haldir, Galadriel, or Engram working-tree bytes;
-Galadriel's live `main` was used instead of its local feature-branch checkout.
-The local verifier checks the recorded schema, identities, and CREBAIN artifact
-bytes but deliberately does not contact those remotes, so this is an immutable
-capture statement rather than continuous remote-freshness or runtime evidence.
+The 24 July ecosystem capture resolved each required sibling from GitHub's
+remote `main` reference and hashed named files from those exact commit objects.
+It did not hash sibling working-tree bytes. The current heads do not change
+CREBAIN's exact NCP `v0.8.0` dependency or establish cross-repository
+compatibility. The local verifier checks the recorded schema, identities, and
+CREBAIN artifact bytes but deliberately does not contact those remotes. This is
+an immutable capture statement, not continuous remote-freshness or runtime
+evidence.
 
 ## Read-only checks
 

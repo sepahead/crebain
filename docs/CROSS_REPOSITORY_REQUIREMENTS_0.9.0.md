@@ -19,6 +19,23 @@ Other agents may advance those repositories independently. CREBAIN 0.9 does
 not silently adopt such work and places no request to rewrite or retag their
 0.9 candidates.
 
+## Current upstream status
+
+The 2026-07-24 recapture records these exact remote `main` identities. These
+identities update the audit baseline. They do not update a CREBAIN dependency.
+
+| Repository | Current `main` | Verified status |
+|---|---|---|
+| NCP | `10492c81ac671ef1909962a9f1fede33781b9933` | `1.0.0-rc.1` remains unreleased and release-blocked. `v0.8.0` remains the latest immutable compatible release. No consumer is certified for native wire 1.0. |
+| Haldir | `555108666cb82e8a36dcd4b08b5b30c62367a6f4` | The release audit reports `NO_GO`. It does not authorize a tag or GitHub release. Production hardware, timing, live control-plane, and deployment-package evidence remain incomplete. |
+| Galadriel | `80506dd2ce52b33c3334c7d1760a8155c7631241` | The repository freezes 0.9.0 candidate inputs. It has component and in-process NCP 0.8 evidence, but no immutable 0.9 release, external actual-binary mTLS/ACL campaign, NCP 1.0 proof, qualified downstream integration, independent review, or publication. |
+| pid-rs | `e50c12e0af2cc79682a87e5ac65c4fe1d8cf2b94` | `v0.9.0` is the latest immutable release. The 1.0 scope is proposed for external review. Maintainer and independent scientific-review approvals remain pending. |
+
+Engram `main` was also identified at
+`a4ce6ab9897dd3f1265b4cacc53f0afc349087cd`. Engram remains outside the
+required four-repository baseline. CREBAIN has no live Engram integration
+evidence.
+
 ## Current exact dependency
 
 CREBAIN's dormant opt-in NCP paths remain pinned to annotated tag `v0.8.0`:

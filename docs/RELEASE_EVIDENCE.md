@@ -4,15 +4,21 @@ This log records release-readiness evidence for stabilization batches. It does
 not replace the acceptance matrix, model contract, security policy, or manual
 smoke record.
 
-## Current candidate
+## Released 0.9 baseline
 
-At preparation time for this source snapshot, no 0.9 release candidate had been
-sealed. The stabilization changes had not yet been committed as one immutable
-candidate source, tagged, or evaluated by candidate-specific hosted workflows.
-Consequently this source document embeds no candidate commit, run identifier,
-test count, bundle size, checksum, or package result. After tagging, the release
-page, exact-tag workflow, and sealed manifest are authoritative for those
-candidate-specific facts. Historical results below remain provenance only.
+CREBAIN 0.9.0 was published on 2026-07-16 as an immutable, non-latest
+prerelease. Annotated tag object
+`750af36db1384d083a989eb137197969cf80ecb5` peels to source commit
+`0a58a5b8dd799884ddb06f1308b1748216fab322`. The exact-tag
+[release workflow](https://github.com/sepahead/crebain/actions/runs/29514366996)
+passed and published the three platform packages, sealed evidence archive, and
+adjacent archive checksum. The
+[release page](https://github.com/sepahead/crebain/releases/tag/v0.9.0) is the
+authority for the immutable asset bytes and attestations.
+
+The source tree that contains this document is newer than the immutable tag.
+Post-release maintenance must pass its own source checks and does not alter or
+extend the 0.9.0 release evidence.
 
 The intended release scope is the research-only prerelease defined by
 [`NARROWED_GO_0.9.0.md`](NARROWED_GO_0.9.0.md). It remains NO_GO for operational
@@ -21,11 +27,11 @@ performance or fusion claims, deployment qualification, and 1.0 convergence.
 
 | Field | Evidence |
 |-------|----------|
-| Candidate source commit | Pending final stabilization commit |
-| Branch/tag | `main`; an annotated `v0.9.0` tag starts the exact-tag package gate, and the release must remain draft/unpublished unless every gate passes |
-| Local validation | Pending final-candidate execution; do not infer a result from an earlier commit |
-| Hosted CI, audit, and CodeQL | Pending exact-candidate runs |
-| Release workflow and packages | Pending exact-tag prerelease run |
+| Released source commit | `0a58a5b8dd799884ddb06f1308b1748216fab322` |
+| Branch/tag | Direct annotated `v0.9.0`; immutable public prerelease |
+| Locked qualification | `validate:all`, coverage, bundle, ROS, vendor provenance, and Bun audit passed in release run 29514366996 |
+| Hosted source gates | [CI 29514367118](https://github.com/sepahead/crebain/actions/runs/29514367118), [ROS 29512362378](https://github.com/sepahead/crebain/actions/runs/29512362378), [audit 29512362357](https://github.com/sepahead/crebain/actions/runs/29512362357), [CodeQL 29512362366](https://github.com/sepahead/crebain/actions/runs/29512362366), [Nix 29512362434](https://github.com/sepahead/crebain/actions/runs/29512362434), and [Scorecard 29512362411](https://github.com/sepahead/crebain/actions/runs/29512362411) passed on the released commit |
+| Release workflow and packages | Release run 29514366996 passed; the public immutable prerelease has exactly one `.dmg`, one `.AppImage`, one `.deb`, one sealed evidence archive, and its checksum |
 | Manual and deployment evidence | Pending and explicitly outside the narrowed 0.9 claim; required before any operational/demo/1.0 readiness claim |
 
 ## Verifying a published evidence archive
@@ -180,19 +186,19 @@ ran on `5dec6037fe1fa461fae76083d682be35ae5352ab`; it is not attributed to the
 `e89de5a` source identity. None of these historical results may be reused as
 evidence for the current dependency or source tree.
 
-## Current 0.9 automated evidence required
+## Released 0.9 automated evidence
 
-The final candidate must record exact results rather than copied counts or run
-identifiers. Until the stabilization tree is committed, every status below is
-pending.
+The exact released source and hosted runs satisfy the automated 0.9 package
+gate. They do not satisfy the manual, deployment, operational, safety, model,
+performance, or 1.0 gates.
 
 | Area | Required exact-candidate evidence | Current status |
 |------|-----------------------------------|----------------|
-| Source identity | Final commit, direct annotated `v0.9.0` tag, and coherent 0.9.0 metadata | Pending final commit and tag |
-| Local validation | `bun run validate:all`, `bun run test:coverage`, `bun run check:bundle`, `bun run check:vendor-compat`, `bun run check:nix-deps`, and `git diff --check` | Pending final-candidate run |
-| Hosted source gates | CI, ROS, audit, CodeQL, and Nix workflows on the exact candidate | Pending hosted runs |
-| Release gate | Locked validation, coverage, bundle, cargo-deny, Bun audit, vendor provenance, clean Nix package, Linux/macOS packages, SBOM, checksums, hierarchy-preserving digest-manifest archive, package/archive provenance attestations, fresh draft byte comparison, and post-publication native-immutability/state/inventory verification | Pending exact-tag prerelease run |
-| Evidence capture | Candidate-specific outputs, package identities, checksums, and hosted run URLs | Pending; no earlier count or run is current evidence |
+| Source identity | Final commit, direct annotated `v0.9.0` tag, and coherent 0.9.0 metadata | Passed for tag object `750af36d…` and commit `0a58a5b…` |
+| Automated qualification | `bun run validate:all`, `bun run test:coverage`, `bun run check:bundle`, vendor provenance, ROS validation, and Bun audit | Passed in exact-tag release run 29514366996 |
+| Hosted source gates | CI, ROS, audit, CodeQL, Nix, and Scorecard workflows on the exact candidate | Passed in the exact-commit runs linked above |
+| Release gate | Locked validation, coverage, bundle, cargo-deny, Bun audit, vendor provenance, clean Nix package, Linux/macOS packages, SBOM, checksums, hierarchy-preserving digest-manifest archive, package/archive provenance attestations, fresh draft byte comparison, and post-publication native-immutability/state/inventory verification | Passed in release run 29514366996 |
+| Evidence capture | Candidate-specific outputs, package identities, checksums, attestations, and hosted run URLs | Published in the immutable `v0.9.0` prerelease and its sealed evidence archive |
 
 ## Historical automated snapshot (`844e80a`, not current evidence)
 
