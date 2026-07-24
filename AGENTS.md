@@ -1,6 +1,6 @@
-# CREBAIN Development Guide
+# CREBAIN development guide
 
-## Build and Validation Commands
+## Build and validation commands
 
 ```bash
 # Frontend development
@@ -48,12 +48,13 @@ bun run test:rust:ncp    # locked tests for bridge/producer feature, including a
 cargo build --locked --manifest-path src-tauri/Cargo.toml
 ```
 
-## Code Style
+## Code style
 
 ### TypeScript / React
 
 - ESLint (typescript-eslint type-checked + react-hooks) and Prettier are
-  enforced; run `bun run lint` and `bun run format:check` (or `bun run validate`)
+  enforced. Run `bun run lint` and `bun run format:check` (or
+  `bun run validate`).
 - Use functional components with hooks
 - Prefer `useMemo` and `useCallback` for expensive computations
 - Use `useRef` for mutable values that do not trigger re-renders
@@ -68,7 +69,7 @@ cargo build --locked --manifest-path src-tauri/Cargo.toml
 - Validate all external inputs, including paths, scene files, model files, IPC payloads, ROS URLs, Zenoh topics, and CDR payload metadata
 - Use `spawn_blocking` for CPU-intensive operations in async contexts
 
-## Architecture Notes
+## Architecture notes
 
 ### Frontend (`src/`)
 
@@ -85,12 +86,24 @@ cargo build --locked --manifest-path src-tauri/Cargo.toml
 - `common/` - Shared detection, NMS, YOLO, error, and path validation utilities
 - `inference/` - ML abstraction layer with CoreML default on macOS, experimental MLX YOLOv8 safetensors path, CUDA/TensorRT on Linux, and ONNX fallback
 - `transport/` - Zenoh-oriented transport, CDR validation, and Tauri transport commands
-- `crates/plant-authority/` - Separate zero-dependency inert plant foundation, including an unwired receipt-anchored one-worker/one-slot active deadline-monitor candidate and an unwired post-health-load single-reference-instant apply-check observation candidate; it is not linked into Tauri, tied to a write, or able to authorize, revoke, or apply output
-- `ncp/` - Dormant NCP Engram action/control adapter behind the off-by-default `ncp` feature; its Tauri commands remain unregistered. The feature also compiles the separately exact-runtime-gated `galadriel_producer.rs`, strict `galadriel_registry.rs`, and frozen `producer_monitor.rs` evidence path. Do not describe secure config loading as TLS/ACL proof or local puts as receiver delivery. See `src-tauri/src/ncp/README.md` and `docs/GALADRIEL_PRODUCER.md`. (The dormant TypeScript peer is `src/neuro/`; Vite dev separately exposes the transport-free `window.__ncpDrone` harness.)
-- `sensor_fusion.rs` - Kalman/EKF/UKF/Particle/IMM filters plus the feature-gated exact-time frozen-prior Galadriel ledger, bounded upstream/capacity accounting, and sparse assignment; registry transforms are not executed and component load tests are not deployment deadline evidence
+- `crates/plant-authority/` - Separate zero-dependency inert plant foundation.
+  It includes unwired deadline-monitor and apply-observation candidates. It is
+  not linked into Tauri or tied to a write. It cannot authorize, revoke, or
+  apply output.
+- `ncp/` - Dormant NCP Engram action/control adapter behind the off-by-default
+  `ncp` feature. Its Tauri commands remain unregistered. The feature also
+  compiles the separately gated Galadriel evidence path. Do not describe secure
+  configuration loading as TLS or ACL proof. Do not describe local puts as
+  receiver delivery. See `src-tauri/src/ncp/README.md` and
+  `docs/GALADRIEL_PRODUCER.md`. The dormant TypeScript peer is `src/neuro/`.
+  Vite development exposes the transport-free `window.__ncpDrone` harness.
+- `sensor_fusion.rs` - Kalman, EKF, UKF, particle, and IMM filters. It also
+  contains the feature-gated exact-time Galadriel ledger, bounded accounting,
+  and sparse assignment. Registry transforms are not executed. Component load
+  tests are not deployment deadline evidence.
 - `lib.rs` - Tauri IPC commands and app setup
 
-## Performance Guidelines
+## Performance guidelines
 
 - Use `CircularBuffer` for high-frequency position data
 - Prefer squared distance comparisons (avoid `sqrt()`)
@@ -106,15 +119,56 @@ Test files use Vitest. Place tests in `__tests__/` directories or use `.test.ts`
 import { describe, expect, it } from 'vitest'
 ```
 
-Before committing, prefer `bun run validate:all` unless the change is documentation-only and clearly cannot affect code.
+Before you commit a code or behavior change, prefer `bun run validate:all`. For
+a documentation-only change that cannot affect code, use the documentation
+checks below.
 
 Do not add Claude, AI assistants, or agents as commit/PR co-authors — no `Co-Authored-By:` trailer and no "Generated with Claude Code" / 🤖 line in commit messages or pull-request descriptions.
 
-## Documentation Consistency
+## Documentation style
 
-Tracked Markdown files should agree on validation commands, backend status, roadmap items, model assumptions, and security boundaries. Keep these files synchronized when behavior changes:
+Use the principles of [ASD-STE100 Simplified Technical English, Issue 9](https://www.asd-ste100.org/assets/files/ASD-STE100_ISSUE9.pdf)
+for new or changed technical prose. The
+[official ASD-STE100 site](https://www.asd-ste100.org/) identifies Issue 9,
+dated January 15, 2025, as the current standard. These rules are the CREBAIN
+house-style adaptation. Do not claim that a document fully conforms to
+ASD-STE100 unless a qualified review verifies it.
 
-- `README.md`, `AGENTS.md`, `CONTRIBUTING.md`, `SECURITY.md`, and `CODE_OF_CONDUCT.md`
+- Use American English and approved project terminology. Use one technical
+  term for one concept.
+- Write short, direct sentences. Use no more than 20 words in a procedural
+  sentence and 25 words in a descriptive sentence when practical.
+- Give one instruction in each numbered step. Use the imperative form for
+  instructions.
+- Put a condition before the action that depends on it.
+- Use active voice. Use passive voice only when the actor is unknown or the
+  actor is less important than the action.
+- Give one topic in each sentence. Keep related sentences in one paragraph,
+  and use no more than six sentences in a paragraph when practical.
+- Use a vertical list for complex information. Do not use semicolons in prose.
+- Define each abbreviation at its first use. Do not change exact identifiers,
+  command names, code, protocol terms, quoted text, or required legal text.
+- Use requirement words consistently: `must` states a requirement, `must not`
+  states a prohibition, `may` gives permission, and `can` states capability.
+  Do not replace these words if the replacement changes the contract.
+- Use `WARNING` for a risk of injury or death. Use `CAUTION` for a risk of
+  damage. Start the safety instruction with a command or condition, then state
+  the possible result.
+- Do not use slang, unexplained jargon, Latin abbreviations, or a word-for-word
+  substitution that changes the meaning. Rewrite the sentence when necessary.
+- Treat CREBAIN names, source identifiers, API names, and domain-specific
+  vocabulary as technical terms. Keep their spelling consistent.
+- Preserve the meaning of historical records, frozen evidence, generated
+  files, vendored documentation, quotations, licenses, and codes of conduct.
+
+## Documentation consistency
+
+Tracked Markdown files must agree on validation commands, backend status,
+roadmap items, model assumptions, and security boundaries. When behavior
+changes, keep these files synchronized:
+
+- `README.md`, `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `SECURITY.md`, and
+  `CODE_OF_CONDUCT.md`
 - `docs/*.md`
 - `public/models/README.md`
 - `ros/README.md`

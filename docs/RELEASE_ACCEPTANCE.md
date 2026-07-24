@@ -1,9 +1,9 @@
-# CREBAIN Release Acceptance Matrix
+# CREBAIN release acceptance matrix
 
-This matrix defines evidence required before a stabilization batch, demo build,
-or release candidate is called ready. Numeric performance, accuracy, transport,
-scientific, and safety claims require measurements from the candidate in its
-target environment.
+Use this matrix to decide if a stabilization batch, demo build, or release
+candidate is ready. Numeric performance, accuracy, transport, scientific, and
+safety claims require measurements from the candidate in its target
+environment.
 
 The strict manual and target-environment gates in this matrix apply to demo,
 operational-readiness, deployment, and 1.0 claims. The research-only 0.9.0

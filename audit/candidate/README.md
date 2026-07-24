@@ -5,7 +5,7 @@ CREBAIN 1.0 handoff. The handoff's own completion rule says a task remains open
 unless every acceptance/evidence item passes or its claim is removed. It also
 defines a strict dependency chain through external final contracts, hardware,
 independent review, and cross-repository convergence that do not exist here.
-Accordingly, every `ledger_1_0_status` is honestly `OPEN`.
+Thus, every `ledger_1_0_status` is `OPEN`.
 
 The separate `release_0_9_disposition` records what was implemented, reviewed,
 preregistered, narrowed, not run, or externally blocked for the requested 0.9

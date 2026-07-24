@@ -1,9 +1,10 @@
-# Phase 0 Hazard Log
+# Phase 0 hazard log
 
 The normative structured log is
-[`baselines/phase0-hazards.json`](baselines/phase0-hazards.json). It uses an
-STPA-style unsafe-control-action view: an action may be provided when unsafe,
-omitted, mistimed/reordered, or applied too long.
+[`baselines/phase0-hazards.json`](baselines/phase0-hazards.json). It uses a
+Systems-Theoretic Process Analysis (STPA) unsafe-control-action view. An action
+can be unsafe when it is provided, omitted, mistimed, reordered, or applied for
+too long.
 
 ## Status semantics
 

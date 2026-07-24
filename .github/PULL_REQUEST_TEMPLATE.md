@@ -2,7 +2,7 @@
 
 Describe what changed and why.
 
-## Type of Change
+## Type of change
 
 - [ ] Bug fix
 - [ ] New feature
@@ -11,7 +11,7 @@ Describe what changed and why.
 - [ ] Refactor / maintenance
 - [ ] Test-only change
 
-## Risk and Scope
+## Risk and scope
 
 - **Primary area**: frontend / Rust backend / Tauri IPC / ML / ROS / Zenoh / sensor fusion / docs
 - **External inputs touched**: none / paths / model files / scene files / IPC payloads / ROS URLs / transport topics / CDR payload metadata
@@ -29,12 +29,12 @@ Describe what changed and why.
 ## Checklist
 
 - [ ] Code follows project style guidelines
-- [ ] Relevant tests were added or updated
-- [ ] Documentation was updated where behavior, commands, status, or security boundaries changed
-- [ ] README, AGENTS, CONTRIBUTING, SECURITY, ROS/model docs, and templates remain aligned
+- [ ] Relevant tests cover the change
+- [ ] Documentation describes changes to behavior, commands, status, or security boundaries
+- [ ] README, AGENTS, CLAUDE, CONTRIBUTING, SECURITY, ROS/model docs, and templates remain aligned
 - [ ] New performance, safety, ML, ROS, or transport claims are measured, sourced, or clearly labeled as assumptions
 - [ ] New external input paths validate null bytes, traversal, size/range limits, and unsupported modes as appropriate
 
-## Related Issues
+## Related issues
 
 Fixes #

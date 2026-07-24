@@ -1,4 +1,4 @@
-# CREBAIN Completion Levels
+# CREBAIN completion levels
 
 ## Current and target claims
 
@@ -26,7 +26,7 @@ L1 means one controller, one live Haldir Gate, one authenticated exclusive final
 NCP route whose immutable version is selected by cross-repository convergence,
 one native CREBAIN plant authority, and one separately qualified FCU adapter. The
 current dormant NCP 0.8 pin is a component-integration baseline and does not qualify
-that future final route; CREBAIN 1.0 adoption requires the final NCP 1.0 artifacts
+that future final route. CREBAIN 1.0 adoption requires the final NCP 1.0 artifacts
 listed in `CROSS_REPOSITORY_REQUIREMENTS_0.9.0.md`. The renderer has no generic
 command capability. Every command is fresh, session-bound, apply-time checked,
 and followed through accepted, attempted, FCU-accepted, and observed evidence.
@@ -36,7 +36,7 @@ evidence and does not satisfy the live L1 topology, security, heartbeat, or
 joined-stage requirements.
 
 All L1 checks apply to the ODD in [`L1_ODD.md`](L1_ODD.md). PX4 is the initial
-adapter target; ArduPilot is a separate qualification and is outside the initial
+adapter target. ArduPilot is a separate qualification and is outside the initial
 claim unless its own complete evidence bundle passes.
 
 ## Promotion and demotion

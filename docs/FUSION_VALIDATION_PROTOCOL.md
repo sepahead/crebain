@@ -60,10 +60,10 @@ candidate run and cannot be selected from observed CREBAIN results.
 | Processing latency | Wall and CPU time per fusion cycle after warm-up; report p50, p95, p99, maximum, and over-deadline count. |
 | Resource maxima | Peak resident memory, live tracks, admitted/rejected measurements, assignment component size, queue depth, and dropped/truncated counts. |
 
-The truth-to-track scoring gate, assignment algorithm, and maximum match distance
-must be fixed in the truth fixture before results. Report cardinality and
-localization error separately (GOSPA or an equivalently versioned definition);
-do not let a favorable localization average hide false or missed tracks.
+The truth fixture must fix the scoring gate, assignment algorithm, and maximum
+match distance before the test. Report cardinality and localization error
+separately. Use GOSPA or an equivalently versioned definition. Do not let a
+favorable localization average hide false or missed tracks.
 
 ## Decisions and multiplicity
 
@@ -76,9 +76,17 @@ post hoc and cannot satisfy a preregistered acceptance limit.
 
 ## Evidence required for a result
 
-A result package must contain the exact source/config/truth identities; raw
-measurements, truth, tracks, and timing/resource records; deterministic replay
-command; environment and hardware description; trial/exclusion ledger;
-calculation code and tests; aggregate tables/plots; checksums; and a review by a
-person independent of the implementation. Until that package exists, CREBAIN
-makes no numeric fusion-quality or deployment-timing claim.
+A result package must contain:
+
+- exact source, configuration, and truth identities
+- raw measurements, truth, tracks, timing records, and resource records
+- a deterministic replay command
+- the environment and hardware description
+- the trial and exclusion ledger
+- calculation code and tests
+- aggregate tables and plots
+- checksums
+- a review by a person who is independent of the implementation
+
+Until that package exists, CREBAIN makes no numeric fusion-quality or
+deployment-timing claim.

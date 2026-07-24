@@ -1,4 +1,4 @@
-# CREBAIN Security Policy
+# CREBAIN security policy
 
 CREBAIN handles local files, model and asset paths, Tauri IPC, ROS/rosbridge,
 Zenoh CDR, optional telemetry sinks, deployment registries/configuration, and a
@@ -20,8 +20,8 @@ or the repository's Security Advisories page.
 
 Include the impact, reproduction steps, affected commit/platform/app mode,
 backend or transport path, and a suggested fix if known. The project targets an
-acknowledgment within 48 hours and an initial assessment within 7 days; remediation
-timing depends on severity.
+acknowledgment within 48 hours and an initial assessment within 7 days.
+Remediation timing depends on severity.
 
 ## Deployment practices
 

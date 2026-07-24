@@ -1,4 +1,4 @@
-# L1 Operational Design Domain
+# L1 operational design domain
 
 Status: **draft and unapproved**. The limits below are target constraints, not
 measured capability. Missing evidence keeps CREBAIN at L0.
@@ -10,7 +10,8 @@ router, one native plant, one PX4 SITL instance, one MAVROS link, and optional
 read-only Galadriel observation on an isolated test network. CREBAIN now has a
 component-tested, feature/runtime-gated producer for two advisory evidence keys,
 but no qualified receiver, identity/ACL topology, registry agreement, deadline,
-or impairment evidence; that does not satisfy this ODD. It excludes
+or impairment evidence. Thus, the producer does not satisfy this ODD. L1
+excludes
 physical propulsion, HIL, multiple vehicles, fixed-wing flight, payload release,
 formation flight, public networks, arbitrary missions, and field operation.
 

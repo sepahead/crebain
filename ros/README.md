@@ -1,4 +1,4 @@
-# CREBAIN ROS 1 / Gazebo Classic references
+# CREBAIN ROS 1 and Gazebo Classic references
 
 This directory is a catkin package named `crebain_msgs`. It contains ROS 1
 message/service definitions plus Gazebo Classic, MAVROS, and rosbridge launch
@@ -22,7 +22,7 @@ ros/
 
 ## Build
 
-Copy or symlink this directory into a ROS 1 catkin workspace, then install the
+Copy or symlink this directory into a ROS 1 catkin workspace. Then, install the
 runtime packages referenced by `package.xml`:
 
 ```bash

@@ -3,8 +3,8 @@
 This is an explicit requirements handoff, **not** the 1.0 local convergence
 manifest. The supplied convergence schema requires all 159 local tasks,
 independent evidence, a clean exact commit, ten completed waves, and
-`ready_for_cross_repo_reconciliation: true`. Those conditions are false and no
-conforming manifest is fabricated.
+`ready_for_cross_repo_reconciliation: true`. Those conditions are false.
+CREBAIN does not fabricate a conforming manifest.
 
 The master handoff froze these external audit cuts on 2026-07-14:
 
@@ -24,7 +24,7 @@ not silently adopt such work and places no request to rewrite or retag their
 CREBAIN's dormant opt-in NCP paths remain pinned to annotated tag `v0.8.0`:
 the tag object is `54008b16ea0c195a4ccc9691cb533dd1153bf7f0` and its peeled Cargo commit is
 `2f5bd586d4bb20c90362bb6f5698b7f64057ba4e`. The TypeScript lock records the
-tag object abbreviation and Cargo.lock records the peeled commit. Default 0.9
+tag-object abbreviation. `Cargo.lock` records the peeled commit. Default 0.9
 packages omit the NCP feature. This is not an NCP 1.0 or ecosystem-convergence
 claim.
 

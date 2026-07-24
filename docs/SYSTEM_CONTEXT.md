@@ -1,13 +1,14 @@
-# System Context, Trust Boundaries, and Claims
+# System context, trust boundaries, and claims
 
 ## Current L0 reality
 
 The renderer owns visualization and local physics. Its ROS connection surface is
-a frozen telemetry-only facade; generic renderer/ROS Zenoh publish, service, setpoint,
-mode, arm, takeoff, and land methods have been removed. Guidance is a disabled-
-by-default local preview whose proposals explicitly carry `NoAuthority`; the UI
-exposes no intercept or abort action. Former Waypoint and Gazebo controllers,
-native transport write/spawn handlers, and their registrations are removed.
+a frozen telemetry-only facade. Generic renderer and ROS Zenoh publish,
+service, setpoint, mode, arm, takeoff, and land methods have been removed.
+Guidance is a disabled-by-default local preview. Its proposals explicitly carry
+`NoAuthority`. The user interface exposes no intercept or abort action. Former
+Waypoint and Gazebo controllers are removed. Native transport write and spawn
+handlers and their registrations are also removed.
 
 Gazebo/model-state subscriptions, local scene/physics mutations, and the
 development NCP scene hook remain available for simulation and are not flight
@@ -27,10 +28,10 @@ passive generation-bound monotonic expiry guard. It also provides an unwired
 post-health-load single-reference-instant apply-check observation candidate, an
 unwired receipt-anchored active command deadline-monitor candidate, and an inert
 exact-profile safe-action situation-dispatch candidate over a closed intent vocabulary.
-Contract v1
-uses closed action/frame/unit types, distinct producer and plant-local time,
-and draft instantaneous-speed/TTL bounds, but has no wire format and its profile/frame are
-unapproved. A separate profile-neutral finite-m/s kernel and digest-bound
+Contract v1 uses closed action, frame, and unit types. It also uses distinct
+producer and plant-local time and draft instantaneous-speed and TTL bounds.
+It has no wire format, and its profile and frame are unapproved. A separate
+profile-neutral finite-m/s kernel and digest-bound
 JavaScript/Rust corpus cover exact ENU↔NED and FLU↔FRD velocity-axis
 conventions only at the same local origin/datum or rigid-body reference point,
 and reject local↔body routes without attitude. They carry no frame-instance

@@ -1,7 +1,7 @@
-# Plant Contract V1 Candidate
+# Plant contract V1 candidate
 
 Status: **inactive and unapproved**. This document records component semantics
-for review; it does not authorize a deployment, enable command ingress, or
+for review. It does not authorize a deployment, enable command ingress, or
 change CREBAIN's L0 claim.
 
 ## Purpose

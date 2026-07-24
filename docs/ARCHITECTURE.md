@@ -1,10 +1,13 @@
-# CREBAIN Architecture
+# CREBAIN architecture
 
-Design rationale and system structure for CREBAIN. For the sensor-fusion
-deep-dive see [SENSOR_FUSION.md](SENSOR_FUSION.md); for model requirements see
-[MODEL_CONTRACTS.md](MODEL_CONTRACTS.md); for runtime settings and limits see
-[CONFIGURATION.md](CONFIGURATION.md); for the optional advisory producer see
-[GALADRIEL_PRODUCER.md](GALADRIEL_PRODUCER.md).
+This document gives the CREBAIN design rationale and system structure. Use
+these documents for detailed information:
+
+- [SENSOR_FUSION.md](SENSOR_FUSION.md) for sensor fusion
+- [MODEL_CONTRACTS.md](MODEL_CONTRACTS.md) for model requirements
+- [CONFIGURATION.md](CONFIGURATION.md) for runtime settings and limits
+- [GALADRIEL_PRODUCER.md](GALADRIEL_PRODUCER.md) for the optional advisory
+  producer
 
 ## System overview
 

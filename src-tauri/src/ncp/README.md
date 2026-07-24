@@ -9,11 +9,11 @@ dependencies in [`src-tauri/Cargo.toml`](../../Cargo.toml).
 
 This action/control adapter is **dormant in the product runtime**:
 
-- the `ncp` Cargo feature is off by default;
-- `NcpHandle` is not managed by the Tauri builder;
+- the `ncp` Cargo feature is off by default
+- `NcpHandle` is not managed by the Tauri builder
 - `ncp_connect`, `ncp_open_feature_neuron`, `ncp_step_feature_neuron`, and
-  `ncp_close` are not registered in `generate_handler!`; and
-- no frontend hook runs a perception/action loop.
+  `ncp_close` are not registered in `generate_handler!`
+- no frontend hook runs a perception/action loop
 
 Compiling this module does not make CREBAIN an always-on Engram body.
 The same Cargo feature also compiles sibling Galadriel registry, envelope, and
@@ -44,7 +44,7 @@ as deployment evidence.
 - `sensor_frame_from_pose`: pose + body velocity to NCP `SensorFrame`.
   It returns `Result` and rejects a wire-invalid sequence.
 - `velocity_from_command`: strict one-frame conversion to
-  `VelocitySetpointProposal`; only a valid active `velocity_setpoint` in `m/s`
+  `VelocitySetpointProposal`. Only a valid active `velocity_setpoint` in `m/s`
   can produce a nonzero local proposal, while HOLD/ESTOP produce zero velocity.
 - `CommandPlant`: wraps the SDK `ActionBuffer`, validates active commands, replays
   a bounded predictive horizon, enforces monotonic sequence and TTL, and returns

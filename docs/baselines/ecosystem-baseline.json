@@ -242,7 +242,7 @@
     },
     {
       "path": "docs/GALADRIEL_PRODUCER.md",
-      "sha256": "bbda5a64930e65787fb38454fe53a1bd52657477b1688ad70436dd2ca580eaa8"
+      "sha256": "fe01a5aca24181fa891d192330bb886ace31ccf2ff39593f565dc95f3a7856c4"
     },
     {
       "path": "scripts/fixtures/phase0-evidence-artifact-valid.json",
@@ -302,7 +302,7 @@
     },
     {
       "path": "docs/NARROWED_GO_0.9.0.md",
-      "sha256": "eb0d63b5b60d7434ec686e75aeaf06dc1494a8b0ffd40626dfd1e296ad4953dd"
+      "sha256": "a175a7e86bab1c9af79ae3e9e1221ce711146a47044a0b76e51611d16952069d"
     },
     {
       "path": "docs/baselines/product-profiles-0.9.0.json",

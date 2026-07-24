@@ -1,14 +1,14 @@
-# Gaussian Splat test assets (`public/splats/`)
+# Gaussian-splat test assets (`public/splats/`)
 
 Local test scenes for the SparkJS (`@sparkjsdev/spark` v0.1.10) renderer in
 `CrebainViewer`. The binary assets in this directory are git-ignored because
-they are large and are downloaded/generated locally; this README is the only
-tracked file. The commands below fetch optional local-evaluation inputs; they do
+they are large and are downloaded or generated locally. This README is the only
+tracked file. The commands below fetch optional local-evaluation inputs. They do
 not reconstruct a digest-pinned release artifact.
 
 Spark in this app parses `.ply` / `.compressed.ply` / `.spz` / `.splat` /
 `.ksplat` (see `isSplatFormat()` in `src/components/viewer/types.ts`). Load a
-scene by dragging the file onto the viewer, via `Ctrl/Cmd+O`, or by dropping a
+scene by dragging the file onto the viewer, with `Ctrl/Cmd+O`, or by dropping a
 URL. In the running dev server each file is served at
 `http://localhost:5173/splats/<name>`.
 
@@ -22,7 +22,8 @@ URL. In the running dev server each file is served at
 These upstream `main`/CDN URLs are mutable and their bytes are intentionally
 unverified. They were last reviewed on 2026-07-14, are excluded from Git and the
 0.9.0 release, and must be treated as untrusted local inputs. Record a SHA-256
-locally before comparing runs; do not infer reproducibility from the filenames.
+locally before you compare runs. Do not infer reproducibility from the
+filenames.
 
 | file | format | size | scene | source | license |
 |------|--------|------|-------|--------|---------|
@@ -46,12 +47,12 @@ curl -sL -e https://projects.markkellogg.org/threejs/demo_gaussian_splats_3d.php
 curl -sL -e https://projects.markkellogg.org/threejs/demo_gaussian_splats_3d.php -o garden.ksplat https://projects.markkellogg.org/threejs/assets/data/garden/garden.ksplat
 ```
 
-## SuperSplat scenes (city / area / landmark — converted from SOGS)
+## SuperSplat scenes converted from SOGS
 
 SuperSplat (`superspl.at`) publishes scenes as a **SOGS** bundle (a `meta.json`
 manifest + `*.webp` textures) streamed from
 `https://d28zzqy0iyovbz.cloudfront.net/<scene-id>/v1/`. The app's `loadSplat()`
-pulls a single `fileBytes` blob and can't follow the multi-file manifest, so
+pulls a single `fileBytes` blob and cannot follow the multi-file manifest. Thus,
 these are converted to a single `.compressed.ply` with PlayCanvas
 `splat-transform` (`-H 0` strips spherical harmonics to keep them small).
 
@@ -72,7 +73,7 @@ curl -sL -o meta.json $BASE/meta.json
 for f in $(grep -oE '[A-Za-z0-9_]+\.webp' meta.json | sort -u); do curl -sL -o "$f" "$BASE/$f"; done
 bunx @playcanvas/splat-transform@3.0.0 meta.json -H 0 out.compressed.ply
 
-# 2. Single-file scenes (e.g. the radome): the CDN serves a gzip-wrapped compressed.ply
+# 2. Single-file scenes (for example, the radome): the CDN serves a gzip-wrapped compressed.ply
 curl -sL -o scene.gz https://d28zzqy0iyovbz.cloudfront.net/2a5b049f/v1/scene.compressed.ply
 gunzip -c scene.gz > scene.ply
 bunx @playcanvas/splat-transform@3.0.0 scene.ply -H 0 out.compressed.ply

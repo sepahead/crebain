@@ -18,12 +18,13 @@ action/control loop.
 
 NCP wire types, enums, `NeuroSimClient`, and `WebSocketNeuroSim` are owned by
 [`sepahead/NCP`](https://github.com/sepahead/NCP). CREBAIN consumes the
-`@sepahead/ncp` Git tag pinned in `package.json`; Rust pins `ncp-core` and
+`@sepahead/ncp` Git tag pinned in `package.json`. Rust pins `ncp-core` and
 `ncp-zenoh` to the same tag in `src-tauri/Cargo.toml`.
 
 Keep `package.json`, `bun.lock`, `src-tauri/Cargo.toml`, and
 `src-tauri/Cargo.lock` coherent when upgrading. Do not use incompatible older
-external Engram examples as the version source; the current CREBAIN pin is `v0.8.0`.
+external Engram examples as the version source. The current CREBAIN pin is
+`v0.8.0`.
 
 ## Guarded example
 
@@ -53,12 +54,12 @@ const spikeCount = obs.records.spk.times.length
 await engram.close('uav3-percept')
 ```
 
-The guard always throws when a success reply lacks a compatible `ncp_version`,
-the expected kind/session, an explicit successful boolean `ok` where applicable,
-or valid carried scientific-boundary fields. Wire-0.8 typed errors are versioned;
-their optional `request_kind` and `session_id` must match the originating request
-when present, and the SDK then surfaces the denial. There is no permissive or
-warning-only mode.
+The guard always throws when a success reply lacks a compatible `ncp_version`.
+It also throws when the reply lacks the expected kind or session, an explicit
+successful `ok` value, or valid scientific-boundary fields. Wire-0.8 typed
+errors are versioned. When present, `request_kind` and `session_id` must match
+the originating request. The SDK then surfaces the denial. There is no
+permissive or warning-only mode.
 
 ## Transport choices are integration work
 
@@ -67,8 +68,8 @@ warning-only mode.
 - A TypeScript Zenoh `Send` adapter is not implemented here. CREBAIN's robotics
   `ZenohBridge` cannot be assumed to implement NCP query/reply merely because both
   use Zenoh.
-- The native Rust NCP module provides a separate feature-gated Zenoh adapter; its
-  action/control Tauri commands also remain unregistered. The same Cargo feature
+- The native Rust NCP module provides a separate feature-gated Zenoh adapter.
+  Its action/control Tauri commands also remain unregistered. The same Cargo feature
   contains an independently gated two-route Galadriel evidence producer. See
   [`src-tauri/src/ncp/README.md`](../../src-tauri/src/ncp/README.md).
 - Vite development builds separately expose `window.__ncpDrone`, a manual

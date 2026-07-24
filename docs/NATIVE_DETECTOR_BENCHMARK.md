@@ -1,7 +1,7 @@
-# Native Detector Benchmark
+# Native detector benchmark
 
 CREBAIN provides a release-command, single-fixture, sequential microbenchmark
-for the native detector runtime. It produces a content-identified JSON report;
+for the native detector runtime. It produces a content-identified JSON report.
 the repository contains no approved model, fixture, baseline, threshold, or
 numeric result.
 

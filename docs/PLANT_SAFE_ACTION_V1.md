@@ -1,4 +1,4 @@
-# Inactive Safe-Action Situation Dispatch Candidate V1
+# Inactive safe-action situation-dispatch candidate V1
 
 Status: **inactive and unapproved**. This is bounded structural dispatch
 mechanics, not a vehicle-state classifier, an approved safe-action table, an
@@ -14,11 +14,11 @@ adapter operation, zero-velocity vector, or physical effect.
 
 The five candidate intents are:
 
-- inhibit plant output;
-- request the exact profile's physical Hold behavior;
-- request a controlled-land transaction;
-- request a return-to-launch transaction; and
-- request a separately guarded ground-disarm transaction.
+- inhibit plant output
+- request the exact profile's physical Hold behavior
+- request a controlled-land transaction
+- request a return-to-launch transaction
+- request a separately guarded ground-disarm transaction
 
 These names do not make any intent safe in a particular state. Inhibit is the
 absence of plant output, not proof of FCU containment. Hold is neither zero
@@ -32,12 +32,12 @@ Nothing in it can transition lifecycle, authorize motion, or affect a vehicle.
 The separate active deadline monitor emits terminal evidence only. It can
 detect and timestamp a validated command candidate's absolute
 receipt-anchored deadline when its worker is scheduled, but no conversion from
-that terminal event to a situation code or safe-action intent exists; see
+that terminal event to a situation code or safe-action intent exists. See
 [`PLANT_WATCHDOG_V1.md`](PLANT_WATCHDOG_V1.md).
 
 The separate apply-check observation first loads one coherent health snapshot,
 then records its health ages, command receipt age, and neutral lifecycle state/
-generation relative to one later private age-reference instant; see
+generation relative to one later private age-reference instant. See
 [`PLANT_APPLY_OBSERVATION_V1.md`](PLANT_APPLY_OBSERVATION_V1.md). It does not
 classify a situation, consume this table, return a safe-action intent, or turn
 an observation into output revocation or an adapter call.

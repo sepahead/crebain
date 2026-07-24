@@ -1,4 +1,4 @@
-# Inactive Captured-Read Vehicle-Health Age Classifier V1
+# Inactive captured-read vehicle-health age classifier V1
 
 Status: **inactive and unapproved**. This is an age-comparison component, not
 an approved freshness policy, a health or safety verdict, an apply-time gate,
@@ -10,20 +10,20 @@ or authority evidence.
 inside one checked [`ObservedVehicleHealthV1`](../src-tauri/crates/plant-authority/src/health.rs)
 read:
 
-- local receipt;
-- FCU state;
-- estimator;
-- local position;
-- local velocity;
-- battery;
-- fence; and
-- links.
+- local receipt
+- FCU state
+- estimator
+- local position
+- local velocity
+- battery
+- fence
+- links
 
 The classifier does not read a clock, load health, authenticate a source,
 interpret FCU state, transition lifecycle, classify a safe-action situation,
 or call an adapter. A separate inert no-default candidate can look up an opaque
 caller-supplied situation code, but it does not consume this assessment or
-establish an approved state-to-action mapping; see
+establish an approved state-to-action mapping. See
 [`PLANT_SAFE_ACTION_V1.md`](PLANT_SAFE_ACTION_V1.md). The Tauri application does
 not link the plant package. Nothing in either component can authorize or apply
 motion.

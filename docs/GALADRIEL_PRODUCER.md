@@ -1,4 +1,4 @@
-# Galadriel Evidence Producer
+# Galadriel evidence producer
 
 CREBAIN contains an optional native producer for Galadriel-compatible fusion
 evidence. It is an advisory evidence path, not a controller, plant, actuator, or
@@ -21,7 +21,7 @@ feature `ncp`. In such a binary, runtime publication is still disabled unless
 
 The standard release workflow currently builds the default feature set and does
 not include `ncp`. A deployment must record whether its exact executable was
-built with the feature; setting an environment variable cannot add it later.
+built with the feature. An environment variable cannot add the feature later.
 
 ## Enabled deployment configuration
 

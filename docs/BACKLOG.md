@@ -1,8 +1,8 @@
-# CREBAIN Engineering Backlog
+# CREBAIN engineering backlog
 
 The next high-leverage engineering tasks after the current stabilization
-baseline. Shipped work is recorded in [../CHANGELOG.md](../CHANGELOG.md);
-release gates live in [RELEASE_ACCEPTANCE.md](RELEASE_ACCEPTANCE.md).
+baseline are listed here. [../CHANGELOG.md](../CHANGELOG.md) records shipped
+work. [RELEASE_ACCEPTANCE.md](RELEASE_ACCEPTANCE.md) defines the release gates.
 
 ## Open
 

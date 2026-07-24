@@ -1,10 +1,10 @@
-# CREBAIN Model Contracts
+# CREBAIN model contracts
 
 CREBAIN does not ship model weights. Treat every demo, benchmark, or release
 model as untrusted external input until its provenance, tensor contract,
-preprocessing, postprocessing, and class mapping have been verified.
+preprocessing, postprocessing, and class mapping are verified.
 
-## Required Model Record
+## Required model record
 
 | Field | Required information |
 |-------|----------------------|
@@ -24,10 +24,10 @@ preprocessing, postprocessing, and class mapping have been verified.
 The shared native YOLOv8 ONNX/TensorRT postprocessor is not class-count
 agnostic. It accepts one batch with exactly 84 features per anchor:
 
-- `[1, 84, N]` or `[1, N, 84]`;
-- four box values `(cx, cy, w, h)` followed by 80 class scores;
-- the repository's fixed COCO-80 index order; and
-- the backend's documented 640×640 preprocessing path.
+- `[1, 84, N]` or `[1, N, 84]`
+- four box values `(cx, cy, w, h)` followed by 80 class scores
+- the repository's fixed COCO-80 index order
+- the backend's documented 640×640 preprocessing path
 
 CREBAIN's five tactical labels (`drone`, `bird`, `aircraft`, `helicopter`, and
 `unknown`) are downstream application categories. They do not change this tensor

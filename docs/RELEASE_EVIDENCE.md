@@ -1,10 +1,10 @@
-# CREBAIN Release Evidence Log
+# CREBAIN release evidence log
 
 This log records release-readiness evidence for stabilization batches. It does
 not replace the acceptance matrix, model contract, security policy, or manual
 smoke record.
 
-## Current Candidate
+## Current candidate
 
 At preparation time for this source snapshot, no 0.9 release candidate had been
 sealed. The stabilization changes had not yet been committed as one immutable
@@ -12,7 +12,7 @@ candidate source, tagged, or evaluated by candidate-specific hosted workflows.
 Consequently this source document embeds no candidate commit, run identifier,
 test count, bundle size, checksum, or package result. After tagging, the release
 page, exact-tag workflow, and sealed manifest are authoritative for those
-candidate-specific facts; historical results below remain provenance only.
+candidate-specific facts. Historical results below remain provenance only.
 
 The intended release scope is the research-only prerelease defined by
 [`NARROWED_GO_0.9.0.md`](NARROWED_GO_0.9.0.md). It remains NO_GO for operational
@@ -169,7 +169,7 @@ none of these runs or counts may be reused for the current candidate.
 | Frontend/bundle | Local tests and `bun run check:bundle` passed; hosted validation, coverage, artifact scanner, and bundle budget passed; initial bundle 431.8/700 KiB |
 | Rust feature matrix | Local default/NCP all-target suites and hosted Linux/macOS default/NCP jobs passed; Linux `cuda,tensorrt` and `--no-default-features` checks passed |
 | Evidence boundary | The production handler list drove negative mock-runtime IPC tests for scene, detector, fusion, and transport inputs. Native benchmark mechanics covered bounded inputs, model/fixture/runtime identity, raw samples, trusted-baseline digest binding, p95 comparison, and atomic no-overwrite reports. No approved model, target-hardware run, baseline, threshold, numeric result, packaged-origin/CSP/capability proof, positive path, or target-platform smoke was established. |
-## Historical Snapshot (`e89de5a`, not current evidence)
+## Historical snapshot (`e89de5a`, not current evidence)
 
 The previous candidate passed [CI 29118711312](https://github.com/sepahead/crebain/actions/runs/29118711312),
 [CodeQL 29118711301](https://github.com/sepahead/crebain/actions/runs/29118711301),

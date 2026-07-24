@@ -1,4 +1,4 @@
-# CREBAIN Plant Authority Foundation
+# CREBAIN plant-authority foundation
 
 `crebain-plant-authority` is an inert, headless Rust package. It establishes a
 process and dependency boundary for the future L1 plant without enabling a
@@ -18,10 +18,17 @@ local ENU or NED frame, non-SI units, nonfinite components, horizontal magnitude
 above 5 m/s, or absolute vertical speed above 2 m/s.
 
 The profile, limits, and canonical local frame remain unapproved. The module
-has no serialization, transport, stateful replay admission, timer, health gate,
-authoritative state-to-safe-action selection, adapter operation, or lifecycle
-transition. The separate opaque situation-dispatch candidate described below
-does not satisfy that missing gate. See
+does not provide:
+
+- serialization or transport
+- stateful replay admission
+- a timer or health gate
+- authoritative state-to-safe-action selection
+- an adapter operation
+- a lifecycle transition
+
+The separate opaque situation-dispatch candidate below does not satisfy that
+missing gate. See
 [`docs/PLANT_CONTRACT_V1.md`](../../../docs/PLANT_CONTRACT_V1.md).
 
 ## Profile-neutral frame conventions

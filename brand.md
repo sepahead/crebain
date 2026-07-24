@@ -1,4 +1,4 @@
-# CREBAIN Interface Brand
+# CREBAIN interface brand
 
 _Status: inherited from the existing product UI_
 
@@ -11,7 +11,8 @@ with compact movable panels, German-first labels, and restrained status color.
 - Canvas: `#0a0a0a`
 - Panel: `#0c0c0c`
 - Raised panel/header: `#101010` to `#141414`
-- Hairline border: `#1a1a1a`; interactive border: `#303030` to `#505050`
+- Hairline border: `#1a1a1a`
+- Interactive border: `#303030` to `#505050`
 - Primary text: `#c0c0c0` to `#d0d0d0`
 - Secondary text: `#808080` to `#a0a0a0`
 - Muted text: `#505050` to `#707070`
@@ -20,8 +21,8 @@ with compact movable panels, German-first labels, and restrained status color.
 - Destructive/error: `#8b4a4a`
 - Informational action: `#5a8a9b`
 
-Color communicates state; it is not decorative. Every status also needs a text
-label, and focus indicators must remain visible against the dark surfaces.
+Color communicates state. It is not decorative. Every status also needs a text
+label. Focus indicators must remain visible against the dark surfaces.
 
 ## Typography and density
 

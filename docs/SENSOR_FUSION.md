@@ -1,13 +1,14 @@
-# Sensor Fusion
+# Sensor fusion
 
-> Design reference for CREBAIN's multi-target tracking and sensor-fusion subsystems —
-> the math, the data contracts, the tuning knobs, and the known limitations.
+> Design reference for CREBAIN's multi-target tracking and sensor-fusion
+> subsystems. It describes the mathematics, data contracts, tuning parameters,
+> and known limitations.
 
 CREBAIN fuses detections from heterogeneous sensors (visual, thermal, acoustic,
-radar, lidar, RF) into a small set of persistent **tracks** — each an estimate of a
-target's 3D position, velocity, classification, uncertainty, and threat level. This
-document explains how that works, why it is built the way it is, and where the
-edges are.
+radar, lidar, and radio frequency) into a small set of persistent **tracks**.
+Each track estimates a target's 3D position, velocity, classification,
+uncertainty, and threat level. This document explains the design, operation,
+and limitations.
 
 It is written to be read alongside the code. Primary sources:
 
@@ -22,7 +23,7 @@ It is written to be read alongside the code. Primary sources:
 
 ---
 
-## Table of Contents
+## Table of contents
 
 - [Normative engine and separate camera estimator](#normative-engine-and-separate-camera-estimator)
 - [The estimation pipeline](#the-estimation-pipeline)
@@ -56,7 +57,7 @@ graph LR
         TSF --> TSTracks["FusedTrack[]<br/>(THREE.Vector3)"]
     end
 
-    subgraph Native["Native engine (Rust, via Tauri)"]
+    subgraph Native["Native engine (Rust, through Tauri)"]
         ROS["ROS sensor topics<br/>(thermal/acoustic/radar/lidar)"] --> Bridge["useROSSensors.ts<br/>+ AdvancedSensorFusion.ts"]
         Visual["CoreML / YOLO<br/>visual detections"] --> Bridge
         Bridge -->|"invoke('fusion_process')"| Engine["MultiSensorFusion<br/>predict → associate → update → lifecycle"]
@@ -308,7 +309,7 @@ the origin (`range = max(√(x²+y²+z²), 1e-6)`), and wraps the azimuth innova
 The IMM runs a two-model bank — a **constant-velocity (CV)** model and a
 **coordinated-turn (CT)** model (fixed turn-rate magnitude `OMEGA_CT ≈ 0.3 rad/s`,
 with the rotation degenerating exactly to CV when `|ω·dt|` is below a small guard so
-straight-line motion is unaffected). It mixes their estimates each cycle via a fixed
+straight-line motion is unaffected). It mixes their estimates each cycle with a fixed
 Markov transition matrix (`[[0.95, 0.05], [0.10, 0.90]]`), updates the mode
 probabilities from each model's Gaussian innovation likelihood, and outputs a
 moment-matched combined estimate. The likelihood uses the correct 3-D
@@ -345,7 +346,7 @@ stays on the same unitless scale as the Mahalanobis branch.
 The gate runs in the **Cartesian** position frame, so each measurement's noise `R`
 must be supplied in that frame. Cartesian modalities use their diagonal covariance
 directly; radar's noise is polar `[m², rad², rad²]`, so it is propagated into
-Cartesian via the polar→Cartesian Jacobian
+Cartesian through the polar→Cartesian Jacobian
 (`R_cart = J⁻¹ R J⁻ᵀ`, `J = ∂(range,az,el)/∂(x,y,z)`) before being folded into `S`.
 Skipping this conversion would add `rad²` to `m²` and badly under-estimate
 cross-range uncertainty — an angular 1σ at range `R` spans ≈ `R·σ_angle` in

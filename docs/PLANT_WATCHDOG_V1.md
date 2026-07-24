@@ -1,4 +1,4 @@
-# Plant Active Deadline Monitor V1 Candidate
+# Plant active deadline-monitor V1 candidate
 
 Status: **inactive, unwired, and unapproved**. This is a fixed-state command
 deadline component, not an operational watchdog, an apply-time authority gate,
@@ -23,8 +23,8 @@ an adapter, or cause I/O or a physical effect.
 
 A separate inactive apply-check observation can load one coherent health
 snapshot first, then measure its health ages and a command's receipt age
-relative to one later private plant-monotonic reference instant;
-see [`PLANT_APPLY_OBSERVATION_V1.md`](PLANT_APPLY_OBSERVATION_V1.md). It does
+relative to one later private plant-monotonic reference instant. See
+[`PLANT_APPLY_OBSERVATION_V1.md`](PLANT_APPLY_OBSERVATION_V1.md). It does
 not consume a monitor ticket or terminal event, and the monitor does not consume
 the observation. Neither component supplies the missing write-adjacent atomic
 transaction. Matching profile/session/sequence/generation and TTL values must
@@ -36,8 +36,8 @@ with those retained values can carry different velocity.
 
 `CommandDeadlineTicketV1::try_from_candidate` accepts only:
 
-- a previously validated velocity-command candidate;
-- a caller-supplied expected lifecycle generation; and
+- a previously validated velocity-command candidate
+- a caller-supplied expected lifecycle generation
 - a nonzero local TTL proposal no greater than the candidate's structurally
   validated requested lifetime.
 

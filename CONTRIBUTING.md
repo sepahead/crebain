@@ -1,21 +1,26 @@
-# CREBAIN Contributing Guide
+# CREBAIN contributing guide
 
-Thank you for contributing to CREBAIN. This guide keeps changes reviewable, reproducible, and aligned with the project’s safety, validation, and documentation boundaries.
+Thank you for contributing to CREBAIN. This guide keeps changes reviewable and
+reproducible. It also keeps changes within the project safety, validation, and
+documentation boundaries.
 
-## Code of Conduct
+## Code of conduct
 
-Please be respectful and constructive in all interactions. CREBAIN follows the standards in [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
+Be respectful and constructive in all interactions. Follow the standards in
+[`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
 
-## Getting Started
+## Getting started
 
 ### Prerequisites
 
-- **Bun** 1.3.14+ for project scripts; **Node.js** 20.19+ for Node-based tooling
-- **Rust** 1.89+ with `cargo` (MSRV per `src-tauri/Cargo.toml`); `rust-toolchain.toml` pins 1.91.1 for development and CI
+- **Bun** 1.3.14+ for project scripts
+- **Node.js** 20.19+ for Node-based tooling
+- **Rust** 1.89+ with `cargo` (MSRV per `src-tauri/Cargo.toml`)
+- `rust-toolchain.toml` pins Rust 1.91.1 for development and CI
 - **macOS**: Xcode Command Line Tools
 - **Linux**: CUDA Toolkit and NVIDIA runtime libraries when testing CUDA/TensorRT paths
 
-### Development Setup
+### Development setup
 
 ```bash
 # Clone the repository
@@ -31,16 +36,16 @@ bun run dev
 bun run tauri:dev
 ```
 
-## Development Workflow
+## Development workflow
 
-### Branch Naming
+### Branch naming
 
 - `feature/description` - New features
 - `fix/description` - Bug fixes
 - `docs/description` - Documentation changes
 - `refactor/description` - Refactoring or maintenance
 
-### Making Changes
+### Making changes
 
 1. Fork the repository
 2. Create a feature branch from `main`
@@ -48,9 +53,9 @@ bun run tauri:dev
 4. Run the relevant validation commands
 5. Submit a pull request
 
-### Validation Requirements
+### Validation requirements
 
-Use the smallest check that is honest for the change:
+Use the narrowest check that covers the change:
 
 ```bash
 # Baselines/contracts/provenance + frontend typecheck/lint/format/tests
@@ -75,29 +80,40 @@ bun run validate:all
 
 For documentation-only changes, keep Markdown files aligned on validation commands, backend status, roadmap items, model assumptions, and security boundaries.
 
-`bun run validate` also verifies the exact pinned Spark/Rapier/Three production
-transform and local-byte/texture runtimes, product profiles, IPC registry, release
-and audit tools, vendor provenance, ROS definitions, and Bun-to-Nix dependency
-expression. `bun run validate:all` additionally includes the inert plant boundary, closed in-memory
-command/health, profile-bound captured-age/safe-action, receipt-anchored active
-deadline-monitor, and post-health-load single-reference-instant apply-check
-observation candidate tests,
-digest-bound JavaScript/Rust frame corpus,
-scoped Rustfmt, check, all-target tests (including
-the native benchmark's logic tests), strict Clippy, and headless self-check
-gates. Every default/NCP Rust package acceptance script uses the checked-in
-Cargo lockfile (`--locked`). It does not run a real model benchmark, the
-bundle budget, coverage thresholds,
-`cuda,tensorrt` / `--no-default-features` feature checks, CodeQL, or supply-chain
-audits. Release candidates require those hosted workflows as defined in
+`bun run validate` also verifies:
+
+- the exact pinned Spark, Rapier, and Three production transforms
+- the local-byte and texture runtimes
+- the product profiles and IPC registry
+- the release and audit tools
+- the vendor provenance and ROS definitions
+- the Bun-to-Nix dependency expression
+
+`bun run validate:all` also runs:
+
+- the inert plant boundary and closed in-memory contract tests
+- the captured-age, safe-action, deadline-monitor, and apply-observation tests
+- the digest-bound JavaScript and Rust frame corpus
+- Rustfmt, Cargo check, all-target tests, strict Clippy, and the headless
+  self-check
+
+Each Rust package acceptance script uses the checked-in Cargo lockfile with
+`--locked`. These commands do not run:
+
+- a real model benchmark
+- the bundle budget or coverage thresholds
+- the `cuda,tensorrt` or `--no-default-features` checks
+- CodeQL or supply-chain audits
+
+Release candidates require those hosted workflows. See
 `docs/RELEASE_ACCEPTANCE.md`.
 
-### Code Style
+### Code style
 
 #### TypeScript/React
 
 - ESLint and Prettier are enforced (`bun run lint`, `bun run format:check`, both
-  part of `bun run validate`); fix findings before opening a PR
+  part of `bun run validate`). Fix findings before you open a pull request.
 - Use functional components with hooks
 - Prefer `useMemo` and `useCallback` for expensive computations
 - Use `useRef` for mutable values that do not trigger re-renders
@@ -112,7 +128,7 @@ audits. Release candidates require those hosted workflows as defined in
 - Validate all external inputs, including paths, model files, scene JSON, IPC payloads, ROS URLs, transport topics, and CDR payload metadata
 - Use `spawn_blocking` for CPU-intensive operations in async contexts
 
-### Commit Messages
+### Commit messages
 
 Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
@@ -124,25 +140,30 @@ fix(ros): handle disconnection gracefully
 docs(readme): update installation instructions
 ```
 
-## Pull Request Process
+## Pull request process
 
-1. Keep the change focused and explain the risk.
-2. Add or update tests for behavior changes.
-3. Update documentation when behavior, commands, backend status, model assumptions, or security boundaries change.
-4. Ensure relevant checks pass (`bun run validate` for frontend-only changes; `bun run validate:all` for Rust, IPC, integration, or cross-cutting changes).
-5. Request review and address feedback promptly.
+1. Keep the change focused.
+2. Explain the risk.
+3. Add or update tests for behavior changes.
+4. Update documentation when behavior, commands, backend status, model
+   assumptions, or security boundaries change.
+5. Run `bun run validate` for frontend-only changes.
+6. Run `bun run validate:all` for Rust, IPC, integration, or cross-cutting
+   changes.
+7. Request review.
+8. Address feedback promptly.
 
-## Reporting Issues
+## Reporting issues
 
-When reporting bugs, please include:
+When you report a bug, include:
 
 - Operating system, hardware, app mode, and commit/version
 - Steps to reproduce
-- Expected vs actual behavior
-- Backend/model/ROS/Zenoh context where relevant
+- Expected behavior and actual behavior
+- Backend, model, ROS, or Zenoh context where relevant
 - Relevant logs, screenshots, or validation output
 
-## Feature Requests
+## Feature requests
 
 Open an issue with:
 
@@ -152,10 +173,10 @@ Open an issue with:
 - Security, model, ROS/Zenoh, and performance assumptions
 - Proposed implementation, if known
 
-## Questions?
+## Questions
 
 Open a [discussion](https://github.com/sepahead/crebain/discussions) for general questions.
 
 ---
 
-Thank you for contributing to CREBAIN!
+Thank you for contributing to CREBAIN.

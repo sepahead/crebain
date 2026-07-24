@@ -1,4 +1,4 @@
-# CREBAIN Keyboard Controls
+# CREBAIN keyboard controls
 
 The authoritative machine source is `src/lib/shortcuts.ts` (plus the literal
 bindings in `CrebainViewer.tsx`, `ObjectTransformControls.tsx`, and
@@ -16,10 +16,10 @@ bindings in `CrebainViewer.tsx`, `ObjectTransformControls.tsx`, and
 | Space    | Emergency stop (zero velocity)                            |
 | R        | Reset camera to the default view (home position, looking at the origin) |
 
-Navigation keys are suppressed while a drone is selected — the drone control
-scheme below owns them.
+When a drone is selected, CREBAIN suppresses the navigation keys. The drone
+control scheme below uses those keys.
 
-## Camera System
+## Camera system
 
 | Key | Action                   |
 | --- | ------------------------ |
@@ -29,7 +29,7 @@ scheme below owns them.
 | Tab | Cycle through cameras    |
 | V   | Toggle camera feeds      |
 
-## Panels & UI
+## Panels and user interface
 
 | Key        | Action                                                        |
 | ---------- | ------------------------------------------------------------- |
@@ -44,7 +44,7 @@ scheme below owns them.
 | Ctrl/Cmd+O | Open scene file                                               |
 | Esc        | Cancel placement / clear selection                            |
 
-## Drone Control (drone selected)
+## Drone control (drone selected)
 
 | Key     | Action                       |
 | ------- | ---------------------------- |
@@ -61,7 +61,7 @@ a text field — and it fires in addition to (not instead of) the Esc "cancel
 placement / clear selection" action above. A `C` camera-switch binding is
 reserved in the shortcut constants but is not currently wired to any behavior.
 
-## Object Transform (object selected)
+## Object transform (object selected)
 
 | Key           | Action              |
 | ------------- | ------------------- |

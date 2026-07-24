@@ -1,4 +1,4 @@
-# Inactive Apply-Check Observation Candidate V1
+# Inactive apply-check observation candidate V1
 
 Status: **inactive, unwired, and unapproved**. This is a single-reference-
 instant age observation, not an immediately-before-write governor, an authority
@@ -9,10 +9,10 @@ decision, or evidence of an FCU effect.
 `crebain-plant-authority::apply_observation` can form one
 `ApplyCheckObservationCandidateV1` from:
 
-- a structurally validated `VelocityCommandCandidateV1`;
-- an immutably borrowed `LifecycleMachine`;
-- the canonical checked `VehicleHealthReaderV1`; and
-- one exact-profile `VehicleHealthCapturedAgePolicyV1`.
+- a structurally validated `VelocityCommandCandidateV1`
+- an immutably borrowed `LifecycleMachine`
+- the canonical checked `VehicleHealthReaderV1`
+- one exact-profile `VehicleHealthCapturedAgePolicyV1`
 
 After the profile and generation prechecks, the component first loads one
 generation-checked coherent health snapshot. Only after that load succeeds does
@@ -21,7 +21,7 @@ all eight health ages are then evaluated relative to that same instant. The raw
 instant is not exposed. Loading the snapshot before the reference instant does
 not make the command, lifecycle, and health load one atomic capture. Lifecycle
 state and generation are retained as neutral facts while the lifecycle machine
-is immutably borrowed; the component does not claim that lifecycle is a
+is immutably borrowed. The component does not claim that lifecycle is a
 separately timestamped atomic source.
 
 `Ok` means only that those facts were captured without a structural or clock

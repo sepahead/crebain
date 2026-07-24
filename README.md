@@ -15,21 +15,24 @@
   </picture>
 </p>
 
-CREBAIN is a research prototype for studying tactical visualization and
-autonomy: a Tauri desktop app that renders Gaussian-splat 3D scenes, places
-simulated surveillance cameras in them, runs ML object detection on the camera
-feeds through platform-native backends, fuses multi-modal sensor measurements
-into persistent 3D tracks in Rust, and talks to ROS/Gazebo for drone
-simulation. An off-by-default native NCP feature can emit narrowly scoped,
-Galadriel-compatible advisory evidence. Built with Tauri 2, React 19,
-SparkJS/Three.js, and Rust.
+CREBAIN is a research prototype for tactical visualization and autonomy. This
+Tauri desktop application:
+
+- renders Gaussian-splat 3D scenes
+- places simulated surveillance cameras in the scenes
+- runs machine learning (ML) object detection through native backends
+- fuses multi-modal sensor measurements into persistent 3D tracks
+- connects to ROS and Gazebo for drone simulation
+
+An off-by-default native NCP feature can emit narrowly scoped,
+Galadriel-compatible advisory evidence. CREBAIN uses Tauri 2, React 19,
+SparkJS, Three.js, and Rust.
 
 > **Project status.** This is a research prototype, not a product. No model
 > weights ship with the repository. Capability statuses below are tracked here
-> and treated as unverified until measured on target hardware — performance
-> claims require a recorded model, fixture, backend, invocation, and hardware
-> context from your own deployment. Experimental backends are opt-in. See the
-> [Disclaimer](#disclaimer).
+> and are unverified until they are measured on target hardware. A performance
+> claim requires a recorded model, fixture, backend, invocation, and hardware
+> context. Experimental backends are opt-in. See the [Disclaimer](#disclaimer).
 
 > **0.9.0 research-only scope.** The release is NARROWED_GO only for a
 > research/source and automated-package review. It is NO_GO for operational,
@@ -39,15 +42,15 @@ SparkJS/Three.js, and Rust.
 
 | Capability | Description | Status |
 | ---------- | ----------- | ------ |
-| **3D Visualization** | Gaussian Splatting + operator-supplied self-contained GLB models via Three.js (WebGL); no third-party 3D model is bundled | Prototype |
-| **Multi-Camera Surveillance** | Up to 64 placeable cameras (static / PTZ / patrol); live feed thumbnails for the first 4 | Prototype |
+| **3D Visualization** | Gaussian Splatting and operator-supplied self-contained GLB models through Three.js (WebGL). No third-party 3D model is bundled. | Prototype |
+| **Multi-Camera Surveillance** | Up to 64 placeable cameras (static, PTZ, or patrol). Live feed thumbnails for the first four cameras. | Prototype |
 | **ML Detection** | Object detection pipeline with CoreML/ONNX paths and experimental backends | Prototype |
 | **Sensor Fusion** | 5 filter algorithms (KF/EKF/UKF/PF/IMM) for multi-modal tracking | Prototype |
 | **Drone Physics** | 120Hz quadcopter aerodynamics simulation | In Progress |
 | **ROS Integration** | Read-only Zenoh product telemetry + development/native rosbridge telemetry fallback | In Progress |
-| **Galadriel Evidence** | Feature-gated, exact-runtime-opt-in producer with immutable pinned registry/config/executable, two bounded NCP evidence routes, strict time/projection eligibility, upstream/capacity loss degradation, and heartbeat accounting; deployed receiver/security evidence remains pending | Component-tested |
-| **Plant Authority** | Dependency-free headless lifecycle/channel/passive-expiry foundation, inactive draft command contract with no command ingress, profile-neutral same-frame-instance ENU/NED + FLU/FRD velocity-axis corpus, closed context-bound health and captured-read age candidates, an unapproved exact-profile safe-action dispatch candidate, an unwired receipt-anchored active deadline-monitor candidate with one worker, one slot, strict same-stream advancement, and sticky terminal evidence, plus an unwired apply-check observation that loads coherent health before minting one shared age-reference instant; self-check only—the monitor neither observes lifecycle autonomously nor invalidates output, selects/applies a safe action, or proves wake latency, while the remintable observation lacks command-content and command-to-health vehicle/frame-instance binding and is neither a write-adjacent atomic transaction nor an aggregate/authorizing verdict, permit, output revocation, safe action, write-time governor, or FCU adapter | L0 Foundation |
-| **Cross-Platform** | macOS (Apple Silicon) + Linux/Nix; the default Linux package uses ONNX Runtime and can fall back to CPU, with NVIDIA execution providers optional | In Progress |
+| **Galadriel Evidence** | Feature-gated, exact-runtime-opt-in producer with immutable pinned registry, configuration, and executable. It has two bounded NCP evidence routes, strict time and projection eligibility, loss degradation, and heartbeat accounting. Deployed receiver and security evidence remains pending. | Component-tested |
+| **Plant Authority** | Dependency-free headless lifecycle, channel, and passive-expiry foundation with inactive and unwired contract candidates. The self-check does not prove autonomous lifecycle observation, output invalidation, safe action, wake latency, command binding, or an FCU adapter. See the detailed plant documents. | L0 Foundation |
+| **Cross-Platform** | macOS on Apple Silicon and Linux/Nix. The default Linux package uses ONNX Runtime and can fall back to the CPU. NVIDIA execution providers are optional. | In Progress |
 
 ---
 
@@ -97,22 +100,22 @@ bun run tauri:dev
 
 ### Model setup
 
-This repo does **not** ship model weights. Provide your own model files and
-ensure you have the rights to redistribute them. The app can launch without a
-model, leaving the non-detection scene, camera, and simulation features available;
-the diagnostics UI reports which detection backend, if any, is available. This is
-not a packaged-GUI or target-hardware qualification claim.
+This repository does **not** ship model weights. Provide your own model files.
+Make sure that you have the right to use and redistribute them. The application
+can start without a model. The scene, camera, and simulation features remain
+available. The diagnostics interface reports the available detection backend.
+This behavior is not a packaged-GUI or target-hardware qualification claim.
 
 | Platform | Model Path | Format |
 | -------- | ---------- | ------ |
 | macOS | `CREBAIN_MODEL_PATH=/path/to/model.mlmodelc` | CoreML (`.mlmodelc` directory) |
-| Linux | `CREBAIN_ONNX_MODEL=/path/to/model.onnx` | ONNX Runtime (CPU fallback; optional CUDA/TensorRT execution providers) |
+| Linux | `CREBAIN_ONNX_MODEL=/path/to/model.onnx` | ONNX Runtime with CPU fallback and optional CUDA or TensorRT execution providers |
 
 For local development you can also drop models into these paths (ignored by
 git): `src-tauri/resources/yolov8s.mlmodelc/` (macOS) or
 `src-tauri/resources/yolov8s.onnx` (Linux). The shared ONNX/TensorRT
-postprocessor expects YOLOv8 COCO-80 output shaped `[1,84,N]` or `[1,N,84]`;
-the CoreML path uses Vision and needs an NMS-wrapped `.mlmodelc`. See
+postprocessor expects YOLOv8 COCO-80 output shaped `[1,84,N]` or `[1,N,84]`.
+The CoreML path uses Vision and needs an NMS-wrapped `.mlmodelc`. See
 [docs/MODEL_CONTRACTS.md](docs/MODEL_CONTRACTS.md) for what a model must
 satisfy before its detections are trusted.
 
@@ -126,17 +129,16 @@ file onto the viewer or open it with `Ctrl/Cmd+O`.
 
 ## Using the app
 
-1. **Launch the app**: `bun run tauri:dev`
-2. **Load a scene**: Drag and drop a `.spz`/`.ply`/`.splat`/`.ksplat` file (or
-   a `.glb` model / image floor texture), or use Ctrl+O (Cmd+O on macOS)
-3. **Place cameras**: Press 1/2/3 to enter camera placement mode, click to place
-4. **Enable detection**: Detection runs automatically on camera feeds in the
-   native app (toggle with Y)
-5. **View performance**: Press P to toggle the performance panel
-6. **Sensor fusion**: Press U to expand/collapse the sensor fusion panel
-7. **Connect ROS**: Press N to open the ROS connection panel
-8. **Splat performance mode**: Press M to toggle a 1.5M splat cap (reloads the
-   current splat; press again for full quality)
+1. Start the application with `bun run tauri:dev`.
+2. Load a supported scene file with drag-and-drop or `Ctrl+O` (`Cmd+O` on
+   macOS).
+3. Press `1`, `2`, or `3` to enter a camera-placement mode.
+4. Click to place the camera.
+5. Press `Y` to enable or disable detection.
+6. Press `P` to show or hide the performance panel.
+7. Press `U` to show or hide the sensor-fusion panel.
+8. Press `N` to open the ROS connection panel.
+9. Press `M` to enable or disable the 1.5-million-splat limit.
 
 Essential keys — the full keymap lives in [docs/CONTROLS.md](docs/CONTROLS.md):
 
@@ -151,10 +153,10 @@ Essential keys — the full keymap lives in [docs/CONTROLS.md](docs/CONTROLS.md)
 | N | ROS connection panel |
 | Esc | Cancel placement / clear selection (also emergency-disarms all drones) |
 
-Scene JSON is bounded to 10 MiB; splats to 256 MiB; GLB models must be
-self-contained GLB 2.0 (embedded buffers and PNG/JPEG textures only —
-standalone `.gltf` and external-resource references are rejected). The full
-enforced limits are in
+Scene JSON has a 10 MiB limit. Splat files have a 256 MiB limit. A GLB model
+must be a self-contained GLB 2.0 file. It can contain embedded buffers and
+PNG or JPEG textures. CREBAIN rejects standalone `.gltf` files and external
+resource references. The full enforced limits are in
 [docs/CONFIGURATION.md](docs/CONFIGURATION.md#scene-and-asset-limits).
 
 The interface is German-first by design (camera types: SK = static camera,
@@ -166,9 +168,10 @@ aesthetic and a project-specific 4-level threat scale (1=minimal, 2=guarded,
 
 ## ML detection
 
-- **Platform-native backends**: CoreML by default on macOS; ONNX Runtime on
-  Linux, preferring available TensorRT/CUDA execution providers but retaining
-  CPU fallback. The default Nix package does not attest an NVIDIA runtime.
+- **Platform-native backends**: CoreML is the default on macOS. ONNX Runtime is
+  the default on Linux. Linux prefers available TensorRT or CUDA providers and
+  retains a CPU fallback. The default Nix package does not attest an NVIDIA
+  runtime.
 - **MLX is experimental, opt-in** (`CREBAIN_ENABLE_EXPERIMENTAL_MLX=1`,
   required even with `CREBAIN_BACKEND=mlx`): a Candle-on-Metal YOLOv8
   safetensors forward/postprocess path that still
@@ -181,8 +184,8 @@ aesthetic and a project-specific 4-level threat scale (1=minimal, 2=guarded,
 
 ## Sensor fusion
 
-CREBAIN's normative multi-modal tracker is the native Rust engine
-(`src-tauri/src/sensor_fusion.rs`; it is what the Sensor Fusion panel displays).
+CREBAIN's normative multi-modal tracker is the native Rust engine in
+`src-tauri/src/sensor_fusion.rs`. The Sensor Fusion panel displays its output.
 The browser-only multi-camera module is a separate geometric estimator with a
 different contract, not a second implementation or parity oracle.
 Measurements from six modalities (visual, thermal, acoustic, radar, lidar,
@@ -243,11 +246,11 @@ graph TB
     GaladrielProducer -. two named evidence keys .-> Galadriel
 ```
 
-The frontend captures camera-feed frames from WebGL render targets, sends them
-over Tauri IPC to the Rust backend for detection, and overlays the results;
-sensor measurements flow into the Rust fusion engine the same way. Gazebo runs
-headless — physics and sensor generation only — while all user-facing
-rendering happens in Three.js. Design rationale, transport trade-offs, the
+The frontend captures camera-feed frames from WebGL render targets. It sends
+the frames to the Rust detection backend through Tauri IPC and overlays the
+results. Sensor measurements enter the Rust fusion engine through the same
+interface. Gazebo runs headless and provides physics and sensor data. Three.js
+provides the user-visible rendering. Design rationale, transport trade-offs, the
 backend-selection logic, and the annotated directory map live in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
@@ -266,11 +269,11 @@ crebain/
 
 ---
 
-## ROS / Gazebo simulation
+## ROS and Gazebo simulation
 
 ```bash
-# Terminal 1: Gazebo Classic + rosbridge via the packaged launch
-# (see ros/README.md; gui:=false is the documented headless mode)
+# Terminal 1: Start Gazebo Classic and rosbridge with the packaged launch.
+# See ros/README.md. gui:=false is the documented headless mode.
 roslaunch crebain_msgs simulation.launch gui:=false
 
 # ...or run your own world headless with a standalone rosbridge:
@@ -284,8 +287,8 @@ bun run tauri:dev
 
 Packaged builds expose only the native read-only telemetry path and default to
 **Zenoh (Tauri)**. Vite development builds may additionally select a
-TypeScript rosbridge WebSocket adapter for telemetry experiments; production
-aliases that adapter to a network-free fail-closed stub and the packaged CSP
+TypeScript rosbridge WebSocket adapter for telemetry experiments. Production
+aliases that adapter to a network-free fail-closed stub. The packaged CSP
 does not permit rosbridge sockets. The native Rust rosbridge fallback selected
 with `CREBAIN_ZENOH=0` is also subscription-only. None of these ROS telemetry
 paths can publish pose/twist/setpoints, call ROS/Gazebo services, spawn models,
@@ -304,16 +307,16 @@ chunk before it can succeed. Bounded renderer asset downloads remain confined
 to the documented relative, HTTPS, and HTTP-loopback source policy; passive
 image URLs do not receive a general HTTPS CSP allowance.
 
-The native Zenoh transport speaks CREBAIN's own plain-key scheme; direct
-interop with an `rmw_zenoh_cpp` ROS 2 graph requires an explicit re-keying
+The native Zenoh transport uses CREBAIN's plain-key scheme. Direct
+interoperation with an `rmw_zenoh_cpp` ROS 2 graph requires an explicit re-keying
 bridge. Topic templates, reference-only message/service definitions and launch
 files, and the camera wire contract are documented in
 [ros/README.md](ros/README.md).
 
 An optional, off-by-default NCP (Engram) bridge exists behind the Rust `ncp`
-feature; its Tauri commands are not registered in the product runtime and
+feature. Its Tauri commands are not registered in the product runtime, and
 there is no always-on CREBAIN↔Engram control loop. The same feature also contains
-the separately gated Galadriel evidence producer; its component wiring does not
+the separately gated Galadriel evidence producer. Its component wiring does not
 prove a deployed Galadriel receiver, TLS/mTLS identities, ACLs, or delivery. See
 [docs/NCP_BRIDGE_HANDOFF.md](docs/NCP_BRIDGE_HANDOFF.md) and
 [docs/GALADRIEL_PRODUCER.md](docs/GALADRIEL_PRODUCER.md).
@@ -328,8 +331,8 @@ prove a deployed Galadriel receiver, TLS/mTLS identities, ACLs, or delivery. See
 | `CREBAIN_ONNX_MODEL` | ONNX model path (Linux) |
 | `CREBAIN_BACKEND` | Force a backend: `coreml`, `mlx`, `tensorrt`, `cuda`, `onnx` |
 | `CREBAIN_ENABLE_EXPERIMENTAL_MLX` | Required gate for any MLX use |
-| `CREBAIN_GALADRIEL_ENABLE` | Exact runtime gate (`1`) for a Galadriel producer compiled with `ncp`; enabled startup also requires the documented registry/config/executable/NCP pins |
-| `CREBAIN_GALADRIEL_EPOCH` | Required enabled, operator-provisioned key-safe process-session identity; deployment must make it unique per process lifetime |
+| `CREBAIN_GALADRIEL_ENABLE` | Exact runtime gate (`1`) for a Galadriel producer compiled with `ncp`. Enabled startup also requires the documented registry, configuration, executable, and NCP pins. |
+| `CREBAIN_GALADRIEL_EPOCH` | Required operator-provisioned, key-safe process-session identity. The deployment must make it unique for each process lifetime. |
 
 The full environment-variable reference, detection/guidance settings, scene
 and asset limits, and the platform matrix are in
@@ -365,6 +368,8 @@ and asset limits, and the platform matrix are in
 | [SECURITY.md](SECURITY.md) | Security policy and threat model |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution workflow, prerequisites, validation matrix |
 | [SUPPORT.md](SUPPORT.md) | Where to ask questions |
+| [AGENTS.md](AGENTS.md) | Repository development instructions and the ASD-STE100-based documentation house style |
+| [CLAUDE.md](CLAUDE.md) | Claude entry point for the repository instructions and documentation house style |
 
 ---
 
@@ -400,15 +405,15 @@ bun run benchmark:native-detector -- --help
 
 `bun run build` includes exact pinned Spark 0.1.10, Rapier 0.19.3, and Three
 0.182.0 fail-closed transforms plus the production module-graph/chunk boundary
-proof. Spark and Rapier retain their pinned embedded-byte WebAssembly paths;
+proof. Spark and Rapier retain their pinned embedded-byte WebAssembly paths.
 Three rejects loader network paths while preserving validated bufferView and
 canonical PNG/JPEG data-image GLB textures through its local `TextureLoader`
 path. `bun run check:production-vendors` binds package/module/payload/AST
-shapes, mutation failures, and those local-byte runtimes; it is included in
+shapes, mutation failures, and those local-byte runtimes. It is included in
 `validate` and `validate:all`. Tauri uses the same build command before
 packaging. Validation does not run the hosted bundle-size, coverage,
 feature-gate (`cuda,tensorrt` and `--no-default-features`), CodeQL, or
-supply-chain-audit jobs; release candidates require those hosted gates as
+supply-chain-audit jobs. Release candidates require those hosted gates as
 specified in [docs/RELEASE_ACCEPTANCE.md](docs/RELEASE_ACCEPTANCE.md). The
 authoritative pass/fail status lives in the
 [CI runs](https://github.com/sepahead/crebain/actions/workflows/ci.yml).
@@ -420,15 +425,15 @@ sharing precautions are defined in
 
 Contributions follow [CONTRIBUTING.md](CONTRIBUTING.md) (workflow, branch
 naming, per-change validation matrix) and
-[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md); agent-facing build/style notes live
+[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). Agent-facing build and style notes are
 in [AGENTS.md](AGENTS.md).
 
 ---
 
 ## Status and roadmap
 
-Verified engineering baseline (enforced by CI doc-sync tests; full history in
-[CHANGELOG.md](CHANGELOG.md)):
+CI document-synchronization tests enforce the verified engineering baseline.
+See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
 - [x] Local no-authority guidance-preview tests and reset/hold checks
 - [x] End-to-end detection/fusion smoke tests with mocked model outputs
@@ -457,8 +462,8 @@ Near-term engineering tasks are tracked in [docs/BACKLOG.md](docs/BACKLOG.md).
 
 - **No detections appear** — detection needs the native Tauri app (not the
   browser-only dev server) plus a model you provide (see
-  [Model setup](#model-setup)); check the diagnostics panel for backend
-  availability, and confirm detection is toggled on (`Y`).
+  [Model setup](#model-setup)). Check the diagnostics panel for backend
+  availability. Make sure that detection is enabled with `Y`.
 - **ONNX Runtime load/version error on Linux** — point `ORT_DYLIB_PATH` at a
   compatible `libonnxruntime.so` (the Nix shells pre-set it).
 - **ROS panel has no WebSocket option** — packaged builds intentionally expose
@@ -466,7 +471,7 @@ Near-term engineering tasks are tracked in [docs/BACKLOG.md](docs/BACKLOG.md).
   on `ws://localhost:9090` before selecting the development-only adapter.
 - **Low FPS on large splats** — press `M` to toggle splat performance mode
   (1.5M splat cap).
-- **Labels are in German** — intentional; see the design note in
+- **Labels are in German** — This is intentional. See the design note in
   [Using the app](#using-the-app).
 
 ---
@@ -499,14 +504,14 @@ CREBAIN 0.9.0 is authored and maintained by **Sepehr Mahmoudian**.
 ## Disclaimer
 
 This software is provided for **research and educational purposes only**.
-CREBAIN is a technical demonstration and research platform for studying sensor
-fusion, multi-modal tracking, and autonomous systems visualization. The
-contributors do not endorse or encourage any specific application of this
-technology and assume no liability for actions taken with it. Users are solely
-responsible for compliance with all applicable laws and regulations in their
-jurisdiction — including aviation regulations, privacy laws, export controls,
-and restrictions on autonomous systems or surveillance technology. By using
-this software, you accept full responsibility for your use of it.
+CREBAIN is a technical demonstration and research platform. It supports studies
+of sensor fusion, multi-modal tracking, and autonomous-systems visualization.
+The contributors do not endorse or encourage a specific use of this technology.
+They assume no liability for actions taken with it. Users are responsible for
+compliance with all applicable laws and regulations. These can include aviation
+regulations, privacy laws, export controls, and restrictions on autonomous
+systems or surveillance technology. By using this software, you accept full
+responsibility for your use of it.
 
 ---
 

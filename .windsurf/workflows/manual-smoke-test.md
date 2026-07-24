@@ -2,10 +2,10 @@
 description: Run the CREBAIN manual smoke checklist
 ---
 
-Use this workflow after automated validation passes and before demoing or making
-operational, deployment, field, or 1.0 readiness claims. The research/source/package
-0.9 prerelease may be tagged with these rows explicitly pending only under the
-exclusions recorded in `docs/NARROWED_GO_0.9.0.md`.
+Use this workflow after automated validation passes. Use it before a demo or an
+operational, deployment, field, or 1.0 readiness claim. The 0.9 research
+prerelease can have pending rows only under the exclusions in
+`docs/NARROWED_GO_0.9.0.md`.
 
 1. Record the current commit hash and intended app mode.
 // turbo
@@ -18,16 +18,32 @@ exclusions recorded in `docs/NARROWED_GO_0.9.0.md`.
      runtime env, registry/config/executable pins, and deployment-controlled
      `NCP_ZENOH_CONFIG` (never reuse placeholder values from `.env.example`)
 5. Execute each checklist row in `docs/MANUAL_SMOKE_TEST.md`.
-6. For detector or benchmark results, record model file, digest, backend, hardware, fixture inputs, threshold settings, and the exact invocation or UI action.
-7. For ROS/Zenoh checks, record whether the run used rosbridge WebSocket mode,
-   telemetry Zenoh mode, or Galadriel NCP mode. For the producer also record the
-   exact two keys, producer epoch/identity, registry and effective-config digests,
-   sensor-clock behavior, upstream/track-cap and queue/drop/degraded state,
-   heartbeat observations, receiver/topology receive-size limits, and
-   positive/negative ACL and oversize results. A local put is not receiver
-   delivery, and numeric upstream loss is currently log-only.
-8. Classify each finding as release-blocking, needs measurement, documentation follow-up, or non-blocking observation.
-9. Stop the app and confirm no dev server, transport subscription, Galadriel
-   producer task, PID JSONL archive writer, or simulator process remains
-   unexpectedly active; record any writer that exceeds its two-second exit wait.
-10. If docs changed during the smoke test, run `git diff --check`; run `bun run validate:all` for Rust, IPC, transport, model-loading, or integration-affecting changes.
+6. For detector or benchmark results, record:
+   - the model file and digest
+   - the backend and hardware
+   - the fixture inputs and threshold settings
+   - the exact invocation or user-interface action
+7. For ROS or Zenoh checks, record the transport mode. Use one of these values:
+   - rosbridge WebSocket
+   - Zenoh telemetry
+   - Galadriel NCP
+8. For the Galadriel producer, also record:
+   - the two exact keys and producer epoch or identity
+   - the registry and effective-configuration digests
+   - the sensor-clock behavior
+   - the upstream limit, track limit, queue state, drop state, and degraded state
+   - the heartbeat observations
+   - the receiver and topology receive-size limits
+   - the positive and negative ACL and oversize results
+9. Do not treat a local put as receiver delivery. Numeric upstream loss is
+   currently available only in logs.
+10. Classify each finding as release-blocking, needs measurement,
+    documentation follow-up, or a non-blocking observation.
+11. Stop the app.
+12. Make sure that no related process remains unexpectedly active. This check
+    includes the dev server, transport subscription, producer, archive writer,
+    and simulator.
+13. Record each writer that exceeds its two-second exit wait.
+14. If documentation changed during the test, run `git diff --check`.
+15. For Rust, IPC, transport, model-loading, or integration changes, run
+    `bun run validate:all`.

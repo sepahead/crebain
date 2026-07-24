@@ -1,7 +1,7 @@
-# Inactive Vehicle Health Contract V1
+# Inactive vehicle-health contract V1
 
-Status: **inactive and unapproved**. This is an in-memory component contract,
-not authenticated FCU state or authority evidence.
+Status: **inactive and unapproved**. This is an in-memory component contract.
+It is not authenticated FCU state or authority evidence.
 
 ## Scope
 

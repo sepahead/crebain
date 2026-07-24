@@ -1,9 +1,9 @@
-# CREBAIN Configuration Reference
+# CREBAIN configuration reference
 
 Environment variables, runtime settings, and enforced scene/asset limits.
-Sensor-fusion tuning lives in [SENSOR_FUSION.md](SENSOR_FUSION.md); model
-requirements in [MODEL_CONTRACTS.md](MODEL_CONTRACTS.md); security semantics of
-the trust-sensitive variables in [../SECURITY.md](../SECURITY.md).
+For sensor-fusion tuning, see [SENSOR_FUSION.md](SENSOR_FUSION.md). For model
+requirements, see [MODEL_CONTRACTS.md](MODEL_CONTRACTS.md). For the security
+semantics of trust-sensitive variables, see [../SECURITY.md](../SECURITY.md).
 
 ## Environment variables
 

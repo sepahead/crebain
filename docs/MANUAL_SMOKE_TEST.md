@@ -1,10 +1,10 @@
-# CREBAIN Manual Smoke Test
+# CREBAIN manual smoke test
 
-Run this checklist after automated validation for a release candidate, demo, or
-cross-cutting stabilization batch. Do not reuse results from another commit,
-model, platform, or ROS/Zenoh topology.
+For a release candidate, demo, or cross-cutting stabilization batch, first run
+the automated validation. Then, run this checklist. Do not reuse results from a
+different commit, model, platform, or ROS or Zenoh topology.
 
-## Environment Record
+## Environment record
 
 | Field | Value |
 |-------|-------|

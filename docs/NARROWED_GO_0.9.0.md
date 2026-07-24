@@ -7,7 +7,7 @@ Decision owner and author: Sepehr Mahmoudian. Decision date: 2026-07-14.
 This is simultaneously **NO_GO** for operational use, deployment qualification,
 external-vehicle authority, safety assurance, model accuracy, numeric fusion or
 latency claims, field validation, and SEPAHEAD cross-repository 1.0 convergence.
-The narrower decision is intentional; it is not an intermediate 1.0 acceptance.
+The narrower decision is intentional. It is not an intermediate 1.0 acceptance.
 
 ## What 0.9.0 may claim
 
@@ -15,7 +15,7 @@ The narrower decision is intentional; it is not an intermediate 1.0 acceptance.
   and read in three separate agent review contexts. Those contexts share one
   coordinator and are not independent human or organizational review.
 - The 0.9 product-profile registry gives every profile `authority: none`.
-  Packaged transport is bounded telemetry; local simulation may mutate only
+  Packaged transport is bounded telemetry. Local simulation may mutate only
   simulated state. The plant-authority package remains separate, inert, and
   unwired.
 - The frontend/backend IPC registry, Phase-0 source inventory, production module
@@ -24,7 +24,7 @@ The narrower decision is intentional; it is not an intermediate 1.0 acceptance.
 - Automated source, parser, estimator, transport, lifecycle, physics, scene,
   supply-chain, coverage, and package-build gates are reproducible commands.
   Candidate-specific outputs and checksums belong to the hosted release evidence
-  manifest; this document does not predict their result.
+  manifest. This document does not predict their result.
 - No model weights or third-party 3D model are bundled. The built-in drone visual
   is procedural.
 
@@ -64,6 +64,7 @@ clean Nix package, Linux/macOS package, checksum, SBOM, digest-manifest, and
 provenance steps. The hosted release remains a prerelease and must preserve this
 decision text. Any failed gate returns the candidate to NO_GO.
 
-Manual/deployment rows in `RELEASE_ACCEPTANCE.md` and `MANUAL_SMOKE_TEST.md`
-remain pending. A later DOI/Zenodo update or 1.0 effort must be a new immutable
-version; it must not move or recreate the 0.9.0 tag.
+Manual and deployment rows in `RELEASE_ACCEPTANCE.md` and
+`MANUAL_SMOKE_TEST.md` remain pending. A later DOI or Zenodo update must use a
+new immutable version. A 1.0 effort must also use a new immutable version.
+Neither change can move or recreate the 0.9.0 tag.

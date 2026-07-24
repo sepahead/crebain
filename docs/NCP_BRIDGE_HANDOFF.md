@@ -5,7 +5,7 @@
 This is the current implementation handoff for CREBAIN's optional
 Neuro-Cybernetic Protocol integrations: a dormant Engram/action adapter and a
 separately gated live Galadriel evidence producer. It replaces the former
-extraction plan; the sibling-path dependency problem is historical and fixed.
+extraction plan. The sibling-path dependency problem is historical and fixed.
 
 ## Product boundary
 
@@ -24,17 +24,17 @@ standalone. NCP is not on the default runtime path:
 
 No Engram process or sibling checkout is required to run CREBAIN. Cargo's pinned
 Git dependencies must still be network/cache-resolvable when resolving or building
-the NCP feature; “no sibling checkout” does not mean “no dependency resolution.”
+the NCP feature. “No sibling checkout” does not mean “no dependency resolution.”
 
 ## Current dependency contract
 
 The canonical NCP SDK lives at `github.com/sepahead/NCP`. CREBAIN pins tag
 `v0.8.0` in:
 
-- `ncp-core` and `ncp-zenoh` in `src-tauri/Cargo.toml` / `Cargo.lock`; and
-- `@sepahead/ncp` in `package.json` / `bun.lock`.
+- `ncp-core` and `ncp-zenoh` in `src-tauri/Cargo.toml` and `Cargo.lock`
+- `@sepahead/ncp` in `package.json` and `bun.lock`
 
-All four files must move together. Wire compatibility is validated by the SDK;
+All four files must move together. The SDK validates wire compatibility.
 CREBAIN does not coerce incompatible or missing versions into success. External
 Engram examples that show an older incompatible wire contract, old package scopes,
 or `std_msgs` profiles are stale integration material and must be corrected in their owning

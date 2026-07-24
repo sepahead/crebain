@@ -1,7 +1,7 @@
-# Phase 0 Baseline
+# Phase 0 baseline
 
 Recaptured: 2026-07-13T14:05:44+02:00. This bundle freezes vocabulary and
-scope; it does not promote CREBAIN beyond L0.
+scope. It does not promote CREBAIN beyond L0.
 
 ## Status
 
