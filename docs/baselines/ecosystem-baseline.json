@@ -130,11 +130,11 @@
     },
     {
       "path": "package.json",
-      "sha256": "67792f5d4e253778e64a6d1a5e3231559de9d86ee38baeae8b3c00d3038870b9"
+      "sha256": "43a0f6c9546644334ee24ffeaf24180e60a8f61e49556ae0f7563f85c662f64d"
     },
     {
       "path": "bun.lock",
-      "sha256": "1c661b5f7576875d9fde27cc3c5533cafc2aad131cfd54399c49331b00372ed5"
+      "sha256": "839c307c529e87d18bff18b6d7ce7acb8a8e6da42394b037d79a3062051e34ce"
     },
     {
       "path": "src-tauri/Cargo.toml",
@@ -258,7 +258,7 @@
     },
     {
       "path": "bun.nix",
-      "sha256": "9f997888efe1c1d7a3beed68f3c149aee16c3fd73bbe94a0ec258e284fe03f5c"
+      "sha256": "ac73253d42589232b82dd49a7b00032c740c71b1c70984354136085843a888ff"
     },
     {
       "path": "flake.nix",
