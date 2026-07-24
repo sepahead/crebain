@@ -162,7 +162,7 @@
     },
     {
       "path": "vite.config.ts",
-      "sha256": "d5f08a94dd37409af137b1802a08b4278da8643abb911fed794788d34f45c2b3"
+      "sha256": "e41be84cce9af0866ea34921022a9d43c177797c80daef618233bbd28455e4db"
     },
     {
       "path": "docs/baselines/phase0-command-surfaces.json",

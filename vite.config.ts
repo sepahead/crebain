@@ -152,13 +152,29 @@ export default defineConfig(({ command, mode }) => ({
     // Emit dist/.vite/manifest.json so scripts/check-bundle-size.mjs can measure
     // the initial (eager) load and exclude the lazy Rapier chunk.
     manifest: true,
-    rollupOptions: {
+    rolldownOptions: {
       output: {
-        manualChunks: {
-          three: ['three'],
-          spark: ['@sparkjsdev/spark'],
-          rapier: ['@dimforge/rapier3d-compat'],
-          'react-vendor': ['react', 'react-dom'],
+        // Vite 8 removed the object form of manualChunks. Match exact package
+        // boundaries with Rolldown's supported code-splitting groups instead.
+        codeSplitting: {
+          groups: [
+            {
+              name: 'three',
+              test: /(?:^|[\\/])node_modules[\\/]three(?:[\\/]|$)/,
+            },
+            {
+              name: 'spark',
+              test: /(?:^|[\\/])node_modules[\\/]@sparkjsdev[\\/]spark(?:[\\/]|$)/,
+            },
+            {
+              name: 'rapier',
+              test: /(?:^|[\\/])node_modules[\\/]@dimforge[\\/]rapier3d-compat(?:[\\/]|$)/,
+            },
+            {
+              name: 'react-vendor',
+              test: /(?:^|[\\/])node_modules[\\/](?:react|react-dom)(?:[\\/]|$)/,
+            },
+          ],
         },
       },
     },
