@@ -205,9 +205,9 @@ describe('CI workflow', () => {
     }
 
     expect(RELEASE_ACCEPTANCE).toContain('Demo, operational, and 1.0 release-candidate gate')
-    expect(MODEL_CONTRACTS).toContain('Required Model Record')
-    expect(MANUAL_SMOKE).toContain('Environment Record')
-    expect(RELEASE_EVIDENCE).toContain('Current Candidate')
+    expect(MODEL_CONTRACTS).toContain('Required model record')
+    expect(MANUAL_SMOKE).toContain('Environment record')
+    expect(RELEASE_EVIDENCE).toContain('Current candidate')
     expect(MANUAL_SMOKE_WORKFLOW).toContain('docs/MANUAL_SMOKE_TEST.md')
   })
 

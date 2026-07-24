@@ -73,7 +73,7 @@ image = { version = "0.25", default-features = false, features = ["jpeg", "png"]
 # Linear algebra for Kalman filters
 nalgebra = "0.35"
 
-# Random number generation (updated to 0.9.x series)
+# Random number generation
 rand = "0.10"
 rand_distr = "0.6"
 
@@ -143,11 +143,11 @@ debug = 1
 # before it can replace the current, extensively SAFETY-documented FFI.
 objc = "0.2"
 
-# MLX-style inference on Apple Silicon using Candle with Metal backend
-# Updated to 0.9.x series for latest features
-candle-core = { version = "0.11", features = ["metal"] }
-candle-nn = "0.11"
-safetensors = "0.8"
+# MLX-style inference on Apple Silicon using Candle with Metal backend.
+# Candle 0.11 requires unstable ARM f16 features; 0.9 supports pinned stable Rust 1.91.1.
+candle-core = { version = "0.9", features = ["metal"] }
+candle-nn = "0.9"
+safetensors = "0.6"
 half = "2.6"  # FP16 support for Metal GPU
 shellexpand = "3.1"  # Path expansion for model search
 

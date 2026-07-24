@@ -78,7 +78,7 @@ impl DeploymentRegistry {
 
         let canonical_json = serde_json::to_vec(&document)
             .map_err(|error| RegistryError::Encode(error.to_string()))?;
-        let digest = format!("{:x}", Sha256::digest(&canonical_json));
+        let digest = crate::common::lower_hex(Sha256::digest(&canonical_json));
 
         Ok(Self {
             document,
@@ -1737,7 +1737,7 @@ mod tests {
     fn committed_galadriel_fixture_raw_bytes_are_frozen() {
         let actual = (
             RAW_GALADRIEL_FIXTURE.len(),
-            format!("{:x}", Sha256::digest(RAW_GALADRIEL_FIXTURE)),
+            crate::common::lower_hex(Sha256::digest(RAW_GALADRIEL_FIXTURE)),
         );
 
         assert_eq!(

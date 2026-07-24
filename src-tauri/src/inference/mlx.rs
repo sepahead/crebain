@@ -678,7 +678,7 @@ fn validate_model_checksum(path: &str, data: &[u8]) -> Result<()> {
         ));
     }
 
-    let actual = format!("{:x}", Sha256::digest(data));
+    let actual = crate::common::lower_hex(Sha256::digest(data));
     if actual != expected {
         return Err(InferenceError::ModelLoadError(format!(
             "MLX model checksum mismatch for {}: expected {}, got {}",

@@ -777,7 +777,7 @@ fn sha256_file(path: &std::path::Path) -> Result<String, String> {
         }
         hasher.update(&buffer[..read]);
     }
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(common::lower_hex(hasher.finalize()))
 }
 
 #[cfg(feature = "ncp")]

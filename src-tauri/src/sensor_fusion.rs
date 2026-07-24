@@ -9,7 +9,7 @@
 //! - Interacting Multiple Model (IMM) - Maneuvering target tracking
 
 use nalgebra::{DMatrix, DVector, Matrix3, Matrix6, Vector3, Vector6};
-use rand::Rng;
+use rand::{Rng, RngExt};
 use rand_distr::{Distribution, StandardNormal};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "ncp")]
@@ -1781,7 +1781,7 @@ impl FusionConfig {
         validate_fusion_config(self)?;
         let canonical = serde_json::to_vec(self)
             .map_err(|error| format!("failed to encode fusion configuration: {error}"))?;
-        Ok(format!("{:x}", Sha256::digest(canonical)))
+        Ok(crate::common::lower_hex(Sha256::digest(canonical)))
     }
 }
 
