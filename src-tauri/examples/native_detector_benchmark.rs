@@ -6,8 +6,9 @@ use std::io::{Read, Write};
 use std::path::{Component, Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
-use crebain_lib::common::image::{
-    decode_image_with_limits, inspect_encoded_image, MAX_IMAGE_SIZE_BYTES,
+use crebain_lib::common::{
+    image::{decode_image_with_limits, inspect_encoded_image, MAX_IMAGE_SIZE_BYTES},
+    lower_hex,
 };
 use crebain_lib::inference::{
     create_detector_with_backend, Backend, Detection, DetectionPolicy, Detector, DetectorRuntime,
@@ -342,7 +343,7 @@ fn hash_model_tree(root: &Path) -> BenchResult<ModelIdentity> {
     Ok(ModelIdentity {
         kind: "directory-tree".to_string(),
         digest_algorithm: "sha256-tree-v1".to_string(),
-        sha256: format!("{:x}", hasher.finalize()),
+        sha256: lower_hex(hasher.finalize()),
         entry_count: entries.len(),
         byte_count,
     })
@@ -482,7 +483,7 @@ fn hash_regular_file(path: &Path, max_bytes: u64, label: &str) -> BenchResult<(S
     }
     let mut hasher = Sha256::new();
     let byte_count = hash_file_contents(path, metadata.len(), max_bytes, &mut hasher)?;
-    Ok((format!("{:x}", hasher.finalize()), byte_count))
+    Ok((lower_hex(hasher.finalize()), byte_count))
 }
 
 fn hash_file_contents(
@@ -622,7 +623,7 @@ fn format_name(format: image::ImageFormat) -> &'static str {
 }
 
 fn sha256_bytes(bytes: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(bytes))
+    lower_hex(Sha256::digest(bytes))
 }
 
 fn reject_symlink(path: &Path, label: &str) -> BenchResult<()> {
