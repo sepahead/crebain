@@ -130,19 +130,19 @@
     },
     {
       "path": "package.json",
-      "sha256": "43a0f6c9546644334ee24ffeaf24180e60a8f61e49556ae0f7563f85c662f64d"
+      "sha256": "e6787558f60e45b89954ff2966829b544c747c449a0e84031ad388868a974749"
     },
     {
       "path": "bun.lock",
-      "sha256": "839c307c529e87d18bff18b6d7ce7acb8a8e6da42394b037d79a3062051e34ce"
+      "sha256": "c315b41d1dd80ba4f7de064f7f80db065ec95c0725b951e00566c6d7a6ac6f02"
     },
     {
       "path": "src-tauri/Cargo.toml",
-      "sha256": "8eee49d2e58e913626d2ac9baad238cdd0868cc1cf226838dcfba898e7c6c10d"
+      "sha256": "95f886ae5969646c949be2ecd3ce0c458ec909dc20f36a90b0015a7f87d8bbff"
     },
     {
       "path": "src-tauri/Cargo.lock",
-      "sha256": "25b71f8583f156b94028965c42092da7bb2fde1cf9e45585bd914ba6f055092d"
+      "sha256": "dadaea91064d557f5c6d06ff4957c328395359494e549374c0b4cb2fa36b6689"
     },
     {
       "path": "src-tauri/crates/plant-authority/Cargo.toml",
@@ -258,7 +258,7 @@
     },
     {
       "path": "bun.nix",
-      "sha256": "ac73253d42589232b82dd49a7b00032c740c71b1c70984354136085843a888ff"
+      "sha256": "89ecfcd39d8329c6dd183c3f45a4477f9d58dad3def6f5dd0e4d6eb981472fab"
     },
     {
       "path": "flake.nix",
@@ -278,7 +278,7 @@
     },
     {
       "path": ".github/dependabot.yml",
-      "sha256": "25b049ec61e34db7623c968b8e661adc8c3755f533dcb381dd682b1186de54d5"
+      "sha256": "d8f654e9d764e2c8257719041cac5bd0d28642e3652e8001f98887e15e00bb1c"
     },
     {
       "path": ".github/workflows/audit.yml",
@@ -286,7 +286,7 @@
     },
     {
       "path": ".github/workflows/codeql.yml",
-      "sha256": "6231dbf7859bda321f6afa0b705fffe8ba36f9090421d6710cf6da8db9fd2cfe"
+      "sha256": "6f2dd3d8ae0e4cbc54c15aaf7b86a41785bbc2d51af8a23ef99e160ae47007b1"
     },
     {
       "path": ".github/workflows/nix.yml",
@@ -298,7 +298,7 @@
     },
     {
       "path": ".github/workflows/scorecard.yml",
-      "sha256": "6703dafd5fbb974bc41647a4d8125b64328a55b6fed8de2d1c290054da0ae4b3"
+      "sha256": "8663563dafe636e1f67f0e5fbea48e8b88f1de65cc2a7bae18909ed94f0a8383"
     },
     {
       "path": "docs/NARROWED_GO_0.9.0.md",

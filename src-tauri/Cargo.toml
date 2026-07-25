@@ -59,7 +59,7 @@ log = "0.4"
 tauri-plugin-log = "2"
 
 # Encoding
-base64 = "0.22"
+base64 = "0.23"
 sha2 = "0.11"
 
 # Atomic same-directory scene persistence.

@@ -6,6 +6,21 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 10
+    ignore:
+      # Spark 2 and Three 0.183 exceed the exact production vendor boundary.
+      - dependency-name: '@sparkjsdev/spark'
+        versions:
+          - '>=2.0.0'
+      - dependency-name: 'three'
+        versions:
+          - '>=0.183.0'
+      - dependency-name: '@types/three'
+        versions:
+          - '>=0.183.0'
+      # typescript-eslint supports TypeScript versions below 6.1.
+      - dependency-name: 'typescript'
+        versions:
+          - '>=6.1.0'
     groups:
       frontend-dependencies:
         patterns:
@@ -13,14 +28,25 @@ updates:
 
   - package-ecosystem: cargo
     directory: /src-tauri
-    # Keep path-patched overlay sources available for root graph resolution,
-    # while excluding only their immutable provenance lock snapshots.
+    # Do not update byte-exact crates.io compatibility overlays.
     exclude-paths:
-      - 'vendor-compat/**/Cargo.lock'
+      - 'vendor-compat/**'
     schedule:
       interval: weekly
       day: monday
     open-pull-requests-limit: 10
+    ignore:
+      # Candle 0.11 needs unstable ARM f16 support on the pinned stable toolchain.
+      - dependency-name: 'candle-core'
+        versions:
+          - '>=0.11.0'
+      - dependency-name: 'candle-nn'
+        versions:
+          - '>=0.11.0'
+      # safetensors 0.8 is part of the blocked Candle 0.11 upgrade.
+      - dependency-name: 'safetensors'
+        versions:
+          - '>=0.8.0'
     groups:
       rust-dependencies:
         patterns:

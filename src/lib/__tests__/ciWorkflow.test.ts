@@ -63,7 +63,36 @@ describe('CI workflow', () => {
 
     expect(cargoUpdates).toBeTruthy()
     expect(cargoUpdates).toContain('directory: /src-tauri')
-    expect(cargoUpdates).toContain("- 'vendor-compat/**/Cargo.lock'")
+    expect(cargoUpdates).toContain("- 'vendor-compat/**'")
+  })
+
+  it('keeps incompatible dependency upgrades outside grouped update pull requests', () => {
+    const bunUpdates = DEPENDABOT.match(
+      /- package-ecosystem: bun\n[\s\S]*?(?=\n {2}- package-ecosystem:|$)/
+    )?.[0]
+    const cargoUpdates = DEPENDABOT.match(
+      /- package-ecosystem: cargo\n[\s\S]*?(?=\n {2}- package-ecosystem:|$)/
+    )?.[0]
+
+    expect(bunUpdates).toBeTruthy()
+    expect(cargoUpdates).toBeTruthy()
+    for (const [dependency, firstBlockedVersion] of [
+      ['@sparkjsdev/spark', '>=2.0.0'],
+      ['three', '>=0.183.0'],
+      ['@types/three', '>=0.183.0'],
+      ['typescript', '>=6.1.0'],
+    ]) {
+      expect(bunUpdates).toContain(`dependency-name: '${dependency}'`)
+      expect(bunUpdates).toContain(`- '${firstBlockedVersion}'`)
+    }
+    for (const [dependency, firstBlockedVersion] of [
+      ['candle-core', '>=0.11.0'],
+      ['candle-nn', '>=0.11.0'],
+      ['safetensors', '>=0.8.0'],
+    ]) {
+      expect(cargoUpdates).toContain(`dependency-name: '${dependency}'`)
+      expect(cargoUpdates).toContain(`- '${firstBlockedVersion}'`)
+    }
   })
 
   it('pins every third-party GitHub Action to an immutable commit', () => {
