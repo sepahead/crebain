@@ -39,10 +39,12 @@ Remediation timing depends on severity.
   currently accepts a patched version; reassess when Tauri migrates its GTK and
   HTML-selector dependencies. Lockfiles nested under `vendor-compat/` are frozen
   upstream provenance snapshots and are not used for workspace resolution;
-  dependency scanners can report their historical versions even when the root
-  lock resolves patched or absent crates. Legacy transitive GUI/build crates can
-  also produce unmaintained warnings, so review the complete current audit rather
-  than treating the two named constraints as the whole warning set.
+  dependency scanners can report their historical versions. The frozen
+  `zenoh-transport` snapshot records `quinn-proto` 0.11.14. The workspace
+  root resolves patched 0.11.16 and does not use the snapshot lock. Legacy
+  transitive GUI/build crates can also produce unmaintained warnings. Review
+  the complete current audit instead of treating the two named constraints as
+  the whole warning set.
 - Model validation rejects a final symlink, directory for regular-file formats,
   and special file. ONNX/CoreML/safetensors runtimes still reopen a validated
   path, so keep the model and every parent directory on a trusted,

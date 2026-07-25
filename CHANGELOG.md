@@ -23,6 +23,8 @@ README and treated as unverified until measured on target hardware.
 - Added narrow Dependabot limits for incompatible production-vendor,
   TypeScript, Candle, and safetensors upgrades.
 - Excluded byte-exact vendor compatibility overlays from Dependabot scans.
+- Documented scanner alerts for build-only `rand` and the inert vendored
+  `quinn-proto` lock snapshot.
 
 ## [0.9.0] - 2026-07-16
 
