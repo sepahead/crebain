@@ -11,8 +11,8 @@ README and treated as unverified until measured on target hardware.
 
 ### Changed
 
-- Updated React to 19.2.8, Vite React plugin to 6.0.4, and related development
-  tools to compatible patch releases.
+- Updated React to 19.2.8, Vite React plugin to 6.0.4, ESLint to 10.8.0,
+  Playwright to 1.62.0, and related development tools to compatible releases.
 - Updated the direct Rust `base64` dependency to 0.23.0.
 - Updated CodeQL to 4.37.3 and OpenSSF Scorecard to 2.4.4 by immutable commit.
 
