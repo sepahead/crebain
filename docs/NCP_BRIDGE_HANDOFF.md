@@ -19,7 +19,7 @@ standalone. NCP is not on the default runtime path:
 | Rust Galadriel producer | Compiles with `ncp`; managed by the app only when `CREBAIN_GALADRIEL_ENABLE=1`, an explicit key-safe process epoch is supplied, and all registry/config/executable pins pass; writes only two named perception evidence routes |
 | TypeScript `src/neuro` | Thin guarded re-export of `@sepahead/ncp`; imported by no product component/hook |
 | Vite-dev `window.__ncpDrone` | Manual in-browser wire-shaped command injection. It opens no NCP transport or session. It is absent from production builds and Engram embedded mode. |
-| Engram restricted UI host | Read-only `engram.host.v1` readiness, status, bounded context, heartbeat, and native-IPC accessibility messages. Embedded mode disables native access, external telemetry, artifact exchange, and all NCP command ingress. |
+| Engram restricted UI host | Read-only `engram.host.v1` readiness, status, bounded context, heartbeat, and native-IPC accessibility messages. Embedded mode disables the CREBAIN native backend, local simulation, scene mutation, external telemetry, artifact exchange, and all NCP command ingress. |
 | Live CREBAIN↔Engram action/control loop | Not implemented or enabled |
 | Live CREBAIN→Galadriel deployed correlation | Producer component is integrated; compatible receiver, security/topology, and end-to-end evidence remain unproved |
 

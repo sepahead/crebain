@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
   isTauri: vi.fn(() => false),
   listen: vi.fn(async () => vi.fn()),
   performancePanel: vi.fn(() => null),
-  sensorFusionPanel: vi.fn(() => null),
+  sensorFusionPanel: vi.fn((_props: Record<string, unknown>) => null),
   useGazeboSimulation: vi.fn(),
   useROSSensors: vi.fn(),
 }))
@@ -172,7 +172,9 @@ describe('App ROS transport ownership', () => {
     window.history.replaceState({}, '', '/?engramHost=1&hostOrigin=invalid&hostNonce=invalid')
     mocks.isTauri.mockReturnValue(true)
     const gazebo = gazeboReturn()
+    const sensors = sensorReturn()
     mocks.useGazeboSimulation.mockReturnValue(gazebo)
+    mocks.useROSSensors.mockReturnValue(sensors)
 
     try {
       const { container, root } = await renderApp()
@@ -188,9 +190,21 @@ describe('App ROS transport ownership', () => {
         undefined
       )
       expect(mocks.sensorFusionPanel).toHaveBeenCalledWith(
-        expect.objectContaining({ isExpanded: false }),
+        expect.objectContaining({
+          fusionAvailable: false,
+          isExpanded: false,
+          onOpenConnection: undefined,
+          readOnly: true,
+        }),
         undefined
       )
+      const fusionPanelCall = mocks.sensorFusionPanel.mock.calls.at(-1)
+      expect(fusionPanelCall).toBeDefined()
+      const fusionPanelProps = fusionPanelCall?.[0] as unknown as {
+        onAlgorithmChange: (algorithm: 'Particle') => Promise<void>
+      }
+      await act(async () => fusionPanelProps.onAlgorithmChange('Particle'))
+      expect(sensors.setAlgorithm).not.toHaveBeenCalled()
       await act(async () => {
         window.dispatchEvent(new KeyboardEvent('keydown', { key: 'n' }))
       })

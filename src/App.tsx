@@ -74,10 +74,11 @@ export default function App() {
   const { addVisualDetection, setAlgorithm } = sensors
   const handleFusionAlgorithmChange = useCallback(
     async (algorithm: FilterAlgorithm) => {
+      if (embeddedInEngram) return
       await setAlgorithm(algorithm)
       setFusionAlgorithm(algorithm)
     },
-    [setAlgorithm]
+    [embeddedInEngram, setAlgorithm]
   )
 
   const onVisualTrack = useCallback(
@@ -228,6 +229,7 @@ export default function App() {
             />
           )}
           <SensorFusionPanel
+            readOnly={embeddedInEngram}
             tracks={sensors.tracks}
             stats={sensors.fusionStats}
             sensorStatus={sensors.sensorStatus}
@@ -237,16 +239,19 @@ export default function App() {
             selectedTrackId={selectedTrackId}
             connectionState={sensors.connectionState}
             connectionError={sensors.fusionError ?? sensors.connectionError}
-            onOpenConnection={() => {
-              if (embeddedInEngram) return
-              if (RENDERER_ROSBRIDGE_AVAILABLE && gazebo.transport !== 'websocket') {
-                gazebo.setTransport('websocket')
-              }
-              setShowROSPanel(true)
-            }}
+            onOpenConnection={
+              embeddedInEngram
+                ? undefined
+                : () => {
+                    if (RENDERER_ROSBRIDGE_AVAILABLE && gazebo.transport !== 'websocket') {
+                      gazebo.setTransport('websocket')
+                    }
+                    setShowROSPanel(true)
+                  }
+            }
             algorithm={fusionAlgorithm}
             onAlgorithmChange={handleFusionAlgorithmChange}
-            fusionAvailable={sensors.fusionAvailable}
+            fusionAvailable={!embeddedInEngram && sensors.fusionAvailable}
           />
           <AboutModal isOpen={showAbout} onClose={handleCloseAbout} />
           {embeddedInEngram && (

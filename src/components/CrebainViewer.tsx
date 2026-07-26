@@ -172,6 +172,7 @@ export default function CrebainViewer({
   rosTransport = 'zenoh',
 }: CrebainViewerProps) {
   const { increaseScale, decreaseScale, scalePercent, isAtMin, isAtMax, cssVar } = useUIScale()
+  const embeddedInEngram = useMemo(() => isEngramEmbeddedMode(), [])
 
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -267,13 +268,20 @@ export default function CrebainViewer({
 
   const [currentTime, setCurrentTime] = useState(new Date())
   const [threatLevel, setThreatLevel] = useState<ThreatLevel>(1)
+  const handleThreatLevelChange = useCallback(
+    (level: ThreatLevel) => {
+      if (embeddedInEngram) return
+      setThreatLevel(level)
+    },
+    [embeddedInEngram]
+  )
   const [showGrid, setShowGrid] = useState(true)
   const simulatedOperatorPosition = { lat: 52.52, lon: 13.405, alt: 34 }
   const [bearing, setBearing] = useState(0)
   const [altitude, setAltitude] = useState(0)
 
   // Detection system state
-  const [detectionEnabled, setDetectionEnabled] = useState(true)
+  const [detectionEnabled, setDetectionEnabled] = useState(() => !embeddedInEngram)
   const [cameraDetections, setCameraDetections] = useState<Map<string, Detection[]>>(new Map())
   const cameraDetectionsRef = useRef<Map<string, Detection[]>>(new Map())
   const [fusedTracks, setFusedTracks] = useState<FusedTrack[]>([])
@@ -418,6 +426,7 @@ export default function CrebainViewer({
   }, [])
 
   useEffect(() => {
+    if (embeddedInEngram) return
     if (!sensorFusionRef.current) {
       sensorFusionRef.current = new SensorFusion({
         correlationThreshold: 0.5,
@@ -428,7 +437,7 @@ export default function CrebainViewer({
     return () => {
       sensorFusionRef.current = null
     }
-  }, [])
+  }, [embeddedInEngram])
 
   const resetVisualFusion = useCallback((clearTracks: boolean): void => {
     if (fusionBatchTimerRef.current !== null) {
@@ -478,7 +487,6 @@ export default function CrebainViewer({
   // plain browser (e.g. the Vite dev server) the IPC bridge is absent and every
   // `invoke` rejects with "Failed to fetch". Detect that up front so the UI can
   // disable the native buttons and show a clear message instead.
-  const embeddedInEngram = useMemo(() => isEngramEmbeddedMode(), [])
   const nativeAvailable = useMemo(() => isNativeBackendAvailable(), [])
 
   const refreshSystemInfo = useCallback(async () => {
@@ -524,7 +532,7 @@ export default function CrebainViewer({
     resetSimulation,
   } = useDroneController({
     scene: sceneRef.current,
-    enabled: true,
+    enabled: !embeddedInEngram,
   })
   const { saveCurrentState } = useSceneState({ autosaveInterval: 0 })
 
@@ -538,42 +546,47 @@ export default function CrebainViewer({
 
   const handleSpawnRequest = useCallback(
     (typeId: string, name?: string) => {
+      if (embeddedInEngram) return
       pendingDroneType.current = typeId
       pendingDroneName.current = name || null
       setDronePlacementMode(true)
       setCameraPlacementMode(null) // Cancel other modes
       addMessage('tactical', 'DROHNE PLATZIEREN: ZIEL WÄHLEN')
     },
-    [addMessage]
+    [addMessage, embeddedInEngram]
   )
 
-  const handleDetection = useCallback((cameraId: string, detections: Detection[]) => {
-    const updated = new Map(cameraDetectionsRef.current)
-    updated.set(cameraId, detections)
-    cameraDetectionsRef.current = updated
-    setCameraDetections(updated)
+  const handleDetection = useCallback(
+    (cameraId: string, detections: Detection[]) => {
+      if (embeddedInEngram) return
+      const updated = new Map(cameraDetectionsRef.current)
+      updated.set(cameraId, detections)
+      cameraDetectionsRef.current = updated
+      setCameraDetections(updated)
 
-    // Display retention and fusion work are deliberately separate. A camera
-    // result enters this one-shot batcher exactly once; later React renders may
-    // continue to show it without replaying it into the tracker.
-    const enqueueStatus = fusionBatcherRef.current.enqueue(cameraId, detections, Date.now())
-    if (enqueueStatus !== 'accepted') {
-      log.warn('Visual fusion pending queue applied its bounded input policy', {
-        cameraId,
-        status: enqueueStatus,
-      })
-    }
-    if (enqueueStatus === 'rejected_invalid' || enqueueStatus === 'rejected_capacity') {
-      return
-    }
-    if (fusionBatchTimerRef.current === null) {
-      fusionBatchTimerRef.current = window.setTimeout(() => {
-        fusionBatchTimerRef.current = null
-        fusionBatchDispatchSequenceRef.current += 1
-        setFusionBatchDispatch(fusionBatchDispatchSequenceRef.current)
-      }, BROWSER_FUSION_BATCH_WINDOW_MS)
-    }
-  }, [])
+      // Display retention and fusion work are deliberately separate. A camera
+      // result enters this one-shot batcher exactly once; later React renders may
+      // continue to show it without replaying it into the tracker.
+      const enqueueStatus = fusionBatcherRef.current.enqueue(cameraId, detections, Date.now())
+      if (enqueueStatus !== 'accepted') {
+        log.warn('Visual fusion pending queue applied its bounded input policy', {
+          cameraId,
+          status: enqueueStatus,
+        })
+      }
+      if (enqueueStatus === 'rejected_invalid' || enqueueStatus === 'rejected_capacity') {
+        return
+      }
+      if (fusionBatchTimerRef.current === null) {
+        fusionBatchTimerRef.current = window.setTimeout(() => {
+          fusionBatchTimerRef.current = null
+          fusionBatchDispatchSequenceRef.current += 1
+          setFusionBatchDispatch(fusionBatchDispatchSequenceRef.current)
+        }, BROWSER_FUSION_BATCH_WINDOW_MS)
+      }
+    },
+    [embeddedInEngram]
+  )
 
   const handlePerformance = useCallback(
     (metrics: {
@@ -583,6 +596,7 @@ export default function CrebainViewer({
       detectionCount: number
       cameraId: string
     }) => {
+      if (embeddedInEngram) return
       if (onDetectionComplete) {
         onDetectionComplete({
           inferenceTimeMs: metrics.inferenceTimeMs,
@@ -592,18 +606,20 @@ export default function CrebainViewer({
         })
       }
     },
-    [onDetectionComplete]
+    [embeddedInEngram, onDetectionComplete]
   )
 
   useEffect(() => {
+    if (embeddedInEngram) return
     const win = window as Window & { crebainDetectionHandler?: typeof handleDetection }
     win.crebainDetectionHandler = handleDetection
     return () => {
       delete win.crebainDetectionHandler
     }
-  }, [handleDetection])
+  }, [embeddedInEngram, handleDetection])
 
   useEffect(() => {
+    if (embeddedInEngram) return
     if (fusionBatchDispatch === lastFusionBatchDispatchRef.current) return
     lastFusionBatchDispatchRef.current = fusionBatchDispatch
 
@@ -647,7 +663,7 @@ export default function CrebainViewer({
         setThreatLevel((current) => (current < 3 ? 3 : current))
       }
     }
-  }, [fusionBatchDispatch])
+  }, [embeddedInEngram, fusionBatchDispatch])
 
   const totalDetections = useMemo(() => {
     let count = 0
@@ -725,6 +741,7 @@ export default function CrebainViewer({
 
   const placeCamera = useCallback(
     (position: THREE.Vector3, type: CameraType, restored?: CameraState) => {
+      if (embeddedInEngram) return
       if (!sceneRef.current || !rendererRef.current) return
 
       const resolution: [number, number] = restored?.resolution ?? [640, 360]
@@ -803,18 +820,20 @@ export default function CrebainViewer({
       addMessage('tactical', `${designation} AKTIVIERT`)
       return newCamera
     },
-    [createCameraMesh, addMessage]
+    [addMessage, createCameraMesh, embeddedInEngram]
   )
 
   const updateCameraPTZ = useCallback(
     (cameraId: string, pan?: number, tilt?: number, zoom?: number) => {
+      if (embeddedInEngram) return
       updateSurveillanceCameraPtz(camerasRef, setCameras, cameraId, pan, tilt, zoom)
     },
-    []
+    [embeddedInEngram]
   )
 
   const removeCamera = useCallback(
     (cameraId: string) => {
+      if (embeddedInEngram) return
       removeSurveillanceCameraOnce(sceneRef.current, camerasRef, setCameras, cameraId, (camera) =>
         addMessage('system', `${camera.name} DEAKTIVIERT`)
       )
@@ -837,10 +856,11 @@ export default function CrebainViewer({
         setCameraDetections(next)
       }
     },
-    [addMessage]
+    [addMessage, embeddedInEngram]
   )
 
   const clearAllCameras = useCallback(() => {
+    if (embeddedInEngram) return
     disposeAllSurveillanceCamerasOnce(sceneRef.current, camerasRef, setCameras)
     resetVisualFusion(true)
     setSelectedCamera(null)
@@ -850,17 +870,21 @@ export default function CrebainViewer({
     feedLastRenderAtRef.current.clear()
     cameraDetectionsRef.current = new Map()
     setCameraDetections(new Map())
-  }, [resetVisualFusion])
+  }, [embeddedInEngram, resetVisualFusion])
 
-  const renameCamera = useCallback((cameraId: string, newName: string) => {
-    const current = camerasRef.current
-    if (!current.some((camera) => camera.id === cameraId)) return
-    const next = current.map((camera) =>
-      camera.id === cameraId ? { ...camera, name: newName } : camera
-    )
-    camerasRef.current = next
-    setCameras(next)
-  }, [])
+  const renameCamera = useCallback(
+    (cameraId: string, newName: string) => {
+      if (embeddedInEngram) return
+      const current = camerasRef.current
+      if (!current.some((camera) => camera.id === cameraId)) return
+      const next = current.map((camera) =>
+        camera.id === cameraId ? { ...camera, name: newName } : camera
+      )
+      camerasRef.current = next
+      setCameras(next)
+    },
+    [embeddedInEngram]
+  )
 
   // GPU pixel readback is synchronous; the Promise contract is kept for API
   // stability and to match async camera-capture backends. Reuses the pooled
@@ -1201,7 +1225,7 @@ export default function CrebainViewer({
   useDetectionLoop({
     cameras: detectionCameras,
     exportCameraFeed,
-    enabled: nativeAvailable && detectionEnabled && cameras.length > 0,
+    enabled: !embeddedInEngram && nativeAvailable && detectionEnabled && cameras.length > 0,
     intervalMs: 100,
     confidenceThreshold: 0.25,
     onDetection: handleDetection,
@@ -1226,6 +1250,7 @@ export default function CrebainViewer({
 
   const handleDeleteSelectedObject = useCallback(
     (object: THREE.Object3D) => {
+      if (embeddedInEngram) return
       const camera = cameras.find((c) => c.mesh === object)
       if (camera) {
         removeCamera(camera.id)
@@ -1249,7 +1274,7 @@ export default function CrebainViewer({
         addMessage('system', `ENTFERNT: ${asset.name}`)
       }
     },
-    [cameras, managedDrones, loadedAssets, removeCamera, removeDrone, addMessage]
+    [addMessage, cameras, embeddedInEngram, loadedAssets, managedDrones, removeCamera, removeDrone]
   )
 
   const { selectedObjects, primarySelection, clearSelection } = useObjectSelection({
@@ -1267,7 +1292,7 @@ export default function CrebainViewer({
       }
     },
     onDelete: handleDeleteSelectedObject,
-    enabled: !cameraPlacementMode,
+    enabled: !embeddedInEngram && !cameraPlacementMode,
   })
 
   const { isDragging: isDragging3D } = useDraggable3D({
@@ -1305,11 +1330,12 @@ export default function CrebainViewer({
         }
       }
     },
-    enabled: !cameraPlacementMode && selectedObjects.length > 0,
+    enabled: !embeddedInEngram && !cameraPlacementMode && selectedObjects.length > 0,
   })
 
   const handleTransformChange = useCallback(
     (object: THREE.Object3D) => {
+      if (embeddedInEngram) return
       const cam = cameras.find((c) => c.mesh === object)
       if (cam) {
         cam.camera.position.copy(object.position)
@@ -1329,7 +1355,7 @@ export default function CrebainViewer({
         }
       }
     },
-    [cameras, managedDrones, physicsWorld]
+    [cameras, embeddedInEngram, managedDrones, physicsWorld]
   )
 
   const loadSplat = useCallback(
@@ -1864,6 +1890,7 @@ export default function CrebainViewer({
 
   const handleSetFloorType = useCallback(
     (type: FloorStyle) => {
+      if (embeddedInEngram) return
       if (!sceneRef.current) return
       floorLoadGenerationRef.current += 1
       floorAbortControllerRef.current?.abort(new Error('Floor texture replaced'))
@@ -1890,7 +1917,7 @@ export default function CrebainViewer({
       floorMeshRef.current = mesh
       addMessage('success', `BODEN: ${type.toUpperCase()}`)
     },
-    [addMessage, finishLoading]
+    [addMessage, embeddedInEngram, finishLoading]
   )
 
   const handleFileSelect = useCallback(
@@ -1973,6 +2000,7 @@ export default function CrebainViewer({
 
   const handleSceneClick = useCallback(
     (event: MouseEvent) => {
+      if (embeddedInEngram) return
       if (
         (!cameraPlacementMode && !dronePlacementMode) ||
         !containerRef.current ||
@@ -2017,7 +2045,7 @@ export default function CrebainViewer({
         }
       }
     },
-    [cameraPlacementMode, dronePlacementMode, placeCamera, spawnDrone, addMessage]
+    [addMessage, cameraPlacementMode, dronePlacementMode, embeddedInEngram, placeCamera, spawnDrone]
   )
 
   useEffect(() => {
@@ -2413,6 +2441,31 @@ export default function CrebainViewer({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isTextInputTarget(e.target)) return
 
+      if (embeddedInEngram) {
+        switch (e.key.toLowerCase()) {
+          case VIEWER_SHORTCUTS.resetCamera:
+            resetCamera()
+            break
+          case VIEWER_SHORTCUTS.focusContent:
+            focusOnContent()
+            break
+          case VIEWER_SHORTCUTS.toggleGrid:
+            setShowGrid((prev) => !prev)
+            break
+          case VIEWER_SHORTCUTS.toggleCameraFeeds:
+            setShowCameraFeeds((prev) => !prev)
+            break
+          case VIEWER_SHORTCUTS.toggleDetectionPanel:
+            setShowDetectionPanel((prev) => !prev)
+            break
+          case VIEWER_SHORTCUTS.cycleCamera:
+            e.preventDefault()
+            cycleCamera()
+            break
+        }
+        return
+      }
+
       switch (e.key.toLowerCase()) {
         case VIEWER_SHORTCUTS.resetCamera:
           // With a drone selected, R belongs to the drone arm/disarm toggle.
@@ -2473,7 +2526,7 @@ export default function CrebainViewer({
         case 'o':
           if (e.ctrlKey || e.metaKey) {
             e.preventDefault()
-            if (!embeddedInEngram) fileInputRef.current?.click()
+            fileInputRef.current?.click()
           }
           break
       }
@@ -2491,15 +2544,17 @@ export default function CrebainViewer({
   ])
 
   useEffect(() => {
+    if (embeddedInEngram) return
     if (!cameraPlacementMode && !dronePlacementMode) return
     const container = containerRef.current
     if (!container) return
     container.addEventListener('click', handleSceneClick)
     return () => container.removeEventListener('click', handleSceneClick)
-  }, [cameraPlacementMode, dronePlacementMode, handleSceneClick])
+  }, [cameraPlacementMode, dronePlacementMode, embeddedInEngram, handleSceneClick])
 
   useEffect(() => {
-    if (!rendererRef.current || !sceneRef.current || cameras.length === 0) return
+    if (embeddedInEngram || !rendererRef.current || !sceneRef.current || cameras.length === 0)
+      return
     const renderer = rendererRef.current
     const scene = sceneRef.current
     let isUpdating = false
@@ -2632,7 +2687,7 @@ export default function CrebainViewer({
 
     const intervalId = setInterval(updateFeeds, CAMERA_FEED_INTERVAL_MS)
     return () => clearInterval(intervalId)
-  }, [cameras, showCameraFeeds])
+  }, [cameras, embeddedInEngram, showCameraFeeds])
 
   useEffect(() => {
     if (embeddedInEngram) return
@@ -3096,26 +3151,28 @@ export default function CrebainViewer({
       />
 
       {/* DRONE SPAWN PANEL */}
-      <DroneSpawnPanel
-        onSpawnDrone={handleSpawnRequest}
-        onSelectDrone={selectDrone}
-        onRemoveDrone={removeDrone}
-        onRenameDrone={renameDrone}
-        onSetRoute={setRoute}
-        onClearRoute={clearRoute}
-        onToggleRoute={toggleRoute}
-        activeDrones={managedDrones.map((d) => ({
-          id: d.id,
-          type: d.type,
-          name: d.name,
-          armed: d.physicsBody.state.armed,
-          battery: d.physicsBody.state.battery,
-          route: d.route,
-        }))}
-        selectedDroneId={selectedDroneId}
-        isExpanded={showDronePanel}
-        onToggleExpand={() => setShowDronePanel((prev) => !prev)}
-      />
+      {!embeddedInEngram && (
+        <DroneSpawnPanel
+          onSpawnDrone={handleSpawnRequest}
+          onSelectDrone={selectDrone}
+          onRemoveDrone={removeDrone}
+          onRenameDrone={renameDrone}
+          onSetRoute={setRoute}
+          onClearRoute={clearRoute}
+          onToggleRoute={toggleRoute}
+          activeDrones={managedDrones.map((d) => ({
+            id: d.id,
+            type: d.type,
+            name: d.name,
+            armed: d.physicsBody.state.armed,
+            battery: d.physicsBody.state.battery,
+            route: d.route,
+          }))}
+          selectedDroneId={selectedDroneId}
+          isExpanded={showDronePanel}
+          onToggleExpand={() => setShowDronePanel((prev) => !prev)}
+        />
+      )}
 
       {/* SAVE/LOAD PANEL */}
       {!embeddedInEngram && (
@@ -3133,7 +3190,7 @@ export default function CrebainViewer({
       )}
 
       {/* 3D OBJECT TRANSFORM CONTROLS */}
-      {primarySelection && (
+      {!embeddedInEngram && primarySelection && (
         <ObjectTransformControls
           object={primarySelection}
           onDelete={handleDeleteSelectedObject}
@@ -3146,8 +3203,9 @@ export default function CrebainViewer({
       {/* KOPFZEILE */}
       <HeaderBar
         backendStatusColor={backendStatusColor}
+        readOnly={embeddedInEngram}
         threatLevel={threatLevel}
-        onThreatLevelChange={setThreatLevel}
+        onThreatLevelChange={handleThreatLevelChange}
         scalePercent={scalePercent}
         isAtMin={isAtMin}
         isAtMax={isAtMax}
@@ -3184,13 +3242,57 @@ export default function CrebainViewer({
             className="h-7 border-b border-[#1a1a1a] flex items-center justify-between px-3 bg-[#101010] cursor-grab select-none"
             onClick={handleControlPanelHeaderClick}
           >
-            <span className="text-[0.875em] text-[#909090] tracking-[0.2em]">STEUERUNG</span>
-            <button className="text-[#505050] hover:text-[#707070]">
+            <span className="text-[0.875em] text-[#909090] tracking-[0.2em]">
+              {embeddedInEngram ? 'STATUS' : 'STEUERUNG'}
+            </span>
+            <button type="button" className="text-[#505050] hover:text-[#707070]">
               {showControlPanel ? '▼' : '▶'}
             </button>
           </div>
 
-          {showControlPanel && (
+          {showControlPanel && embeddedInEngram && (
+            <div
+              data-testid="engram-hosted-read-only-panel"
+              className="space-y-3 p-3 text-[0.875em]"
+            >
+              <div
+                role="status"
+                className="border border-[#8a6a2f] bg-[#151108] px-2 py-2 text-[#d5ad5c]"
+              >
+                HOSTED READ-ONLY VIEW
+              </div>
+              <div className="space-y-1 border border-[#1a1a1a] bg-[#0e0e0e] p-2 text-[#606060]">
+                <div>
+                  Diagnose: <span className="text-[#a0a0a0]">{backendStatusText}</span>
+                </div>
+                <div>
+                  Simulation: <span className="text-[#a0a0a0]">OFF</span>
+                </div>
+                <div>
+                  Native backend: <span className="text-[#a0a0a0]">OFF</span>
+                </div>
+                <div>
+                  External telemetry: <span className="text-[#a0a0a0]">OFF</span>
+                </div>
+                <div>
+                  Artifact exchange: <span className="text-[#a0a0a0]">OFF</span>
+                </div>
+                <div>
+                  NCP control: <span className="text-[#a0a0a0]">OFF</span>
+                </div>
+                <div>
+                  {rosTransportText}:{' '}
+                  <span className={rosConnectionStatusColor}>{rosConnectionStatusText}</span>
+                </div>
+              </div>
+              <p className="text-[#707070]">
+                Orbit, view navigation, grid, feed display, camera reset, and focus remain
+                available.
+              </p>
+            </div>
+          )}
+
+          {showControlPanel && !embeddedInEngram && (
             <>
               <div className="flex border-b border-[#1a1a1a]">
                 {(['sensoren', 'objekte', 'system'] as const).map((tab) => (
@@ -3682,7 +3784,7 @@ export default function CrebainViewer({
                 )}
               </div>
             </div>
-            {selectedCameraData.type === 'ptz' && (
+            {!embeddedInEngram && selectedCameraData.type === 'ptz' && (
               <div className="p-3 space-y-3">
                 {[
                   {
@@ -3726,7 +3828,7 @@ export default function CrebainViewer({
                 ))}
               </div>
             )}
-            {selectedCameraData.type !== 'ptz' && (
+            {(embeddedInEngram || selectedCameraData.type !== 'ptz') && (
               <div className="p-3 text-[0.875em] text-[#606060]">
                 <div>
                   Position:{' '}
@@ -3885,19 +3987,25 @@ export default function CrebainViewer({
           <span>
             STOP: <span className="text-[#707070]">␣</span>
           </span>
-          <span className="text-[#303030]">│</span>
-          <span>
-            CAM: <span className="text-[#707070]">1/2/3</span>
-          </span>
+          {!embeddedInEngram && (
+            <>
+              <span className="text-[#303030]">│</span>
+              <span>
+                CAM: <span className="text-[#707070]">1/2/3</span>
+              </span>
+            </>
+          )}
           <span>
             WECHS: <span className="text-[#707070]">⇥</span>
           </span>
           <span>
             FEEDS: <span className="text-[#707070]">V</span>
           </span>
-          <span>
-            DETEK: <span className="text-[#707070]">T</span>
-          </span>
+          {!embeddedInEngram && (
+            <span>
+              DETEK: <span className="text-[#707070]">T</span>
+            </span>
+          )}
           <span className="text-[#303030]">│</span>
           <span>
             RESET: <span className="text-[#707070]">R</span>
@@ -3912,21 +4020,25 @@ export default function CrebainViewer({
           )}
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={togglePause}
-            className={`px-2 py-1 border text-[0.875em] transition-all ${isPaused ? 'bg-[#1a3a1a] border-[#3a6b4a] text-[#3a6b4a]' : 'bg-[#101010] border-[#252525] text-[#606060] hover:border-[#404040] hover:text-[#909090]'}`}
-          >
-            {isPaused ? '▶ START SIM' : '⏸ PAUSE'}
-          </button>
-          <button
-            onClick={() => {
-              resetSimulation()
-              addMessage('system', 'SIMULATION ZURÜCKGESETZT')
-            }}
-            className="px-2 py-1 bg-[#101010] border border-[#252525] text-[0.875em] text-[#606060] hover:border-[#404040] hover:text-[#909090] transition-all"
-          >
-            SIM-RESET
-          </button>
+          {!embeddedInEngram && (
+            <>
+              <button
+                onClick={togglePause}
+                className={`px-2 py-1 border text-[0.875em] transition-all ${isPaused ? 'bg-[#1a3a1a] border-[#3a6b4a] text-[#3a6b4a]' : 'bg-[#101010] border-[#252525] text-[#606060] hover:border-[#404040] hover:text-[#909090]'}`}
+              >
+                {isPaused ? '▶ START SIM' : '⏸ PAUSE'}
+              </button>
+              <button
+                onClick={() => {
+                  resetSimulation()
+                  addMessage('system', 'SIMULATION ZURÜCKGESETZT')
+                }}
+                className="px-2 py-1 bg-[#101010] border border-[#252525] text-[0.875em] text-[#606060] hover:border-[#404040] hover:text-[#909090] transition-all"
+              >
+                SIM-RESET
+              </button>
+            </>
+          )}
           <button
             onClick={() => setShowCameraFeeds((prev) => !prev)}
             className={`px-2 py-1 border text-[0.875em] transition-all ${showCameraFeeds ? 'bg-[#1a2a1a] border-[#3a6b4a] text-[#3a6b4a]' : 'bg-[#101010] border-[#252525] text-[#606060] hover:border-[#404040] hover:text-[#909090]'}`}
@@ -3948,7 +4060,7 @@ export default function CrebainViewer({
         </div>
       </div>
 
-      {isDragging && (
+      {!embeddedInEngram && isDragging && (
         <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none">
           <div className="absolute inset-0 border-2 border-dashed border-[#404040] bg-black/30" />
           <div className="px-6 py-3 bg-[#0c0c0c] border border-[#404040] text-[#909090] text-[1.125em] tracking-wider">

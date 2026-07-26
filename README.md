@@ -328,14 +328,18 @@ must add `engramHost=1`, `hostOrigin`, and `hostNonce` to the entry URL.
 `hostOrigin` must be an exact loopback or Tauri origin. The nonce must be a
 bounded URL-safe value.
 
-Embedded mode keeps the browser visualization available. It disables Tauri
-commands, native detection, native fusion, native Zenoh, and the development
-NCP command harness. It also disables external telemetry and artifact exchange.
-Invalid host parameters do not restore these paths. The restriction remains
-latched for the document lifetime after same-document URL changes.
+Embedded mode keeps the browser visualization available. It disables CREBAIN
+Tauri commands, native detection, native fusion, native Zenoh, and the
+development NCP command harness. It also disables external telemetry and
+artifact exchange. It does not initialize drone physics or expose simulation,
+sensor-placement, scene-editing, or deployment controls. View navigation,
+orbit, focus, grid, and read-only panels remain available. Invalid host
+parameters do not restore disabled paths. The restriction remains latched for
+the document lifetime after same-document URL changes.
 
 The `engram.host.v1` bridge sends bounded readiness and read-only status. It
 accepts only bounded `host.context` messages from the exact parent and origin.
+It revokes after 32 expected-peer messages in one monotonic one-second window.
 Each loaded frame document must echo a fresh context nonce in its status. A
 status from an older document cannot complete the current handshake. The
 bridge does not accept commands. It cannot activate NCP or plant control.
@@ -349,7 +353,10 @@ must keep the frame locked unless native Engram inter-process communication
 The nonce and challenge correlate one document. They do not authenticate or
 attest the CREBAIN process, source revision, or build. Engram disables this
 remote iframe on Linux and Android. Tauri cannot isolate iframe IPC from the
-parent window on those targets.
+parent window on those targets. CREBAIN accepts only user-agent-trusted
+`postMessage` events. The parser copies exact primitive fields into a local
+envelope before byte serialization. Browser message cloning occurs before
+parsing and is not resource isolation.
 
 The Performance and Sensor Fusion panels start collapsed in embedded mode.
 Their standalone defaults remain expanded. The Performance disclosure is a

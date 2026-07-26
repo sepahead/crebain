@@ -353,6 +353,7 @@ export interface DroneSpawnState {
 
 interface UseDroneControllerOptions {
   scene: THREE.Scene | null
+  /** If false, skip physics initialization and make every mutation callback inert. */
   enabled?: boolean
   onDroneStateChange?: (drones: ManagedDrone[]) => void
 }
@@ -463,14 +464,18 @@ export function useDroneController(options: UseDroneControllerOptions) {
     onDroneStateChange?.(dronesList)
   }, [onDroneStateChange])
 
-  const setSimulationPaused = useCallback((paused: boolean) => {
-    commitSimulationPauseState(
-      isPausedRef,
-      setIsPaused,
-      () => physicsWorldRef.current?.resetTime(),
-      paused
-    )
-  }, [])
+  const setSimulationPaused = useCallback(
+    (paused: boolean) => {
+      if (!enabled) return
+      commitSimulationPauseState(
+        isPausedRef,
+        setIsPaused,
+        () => physicsWorldRef.current?.resetTime(),
+        paused
+      )
+    },
+    [enabled]
+  )
 
   const togglePause = useCallback(() => {
     setSimulationPaused(!isPausedRef.current)
@@ -478,6 +483,7 @@ export function useDroneController(options: UseDroneControllerOptions) {
 
   const resetSimulation = useCallback(
     (pausedAfterReset = false) => {
+      if (!enabled) return
       // Invalidate model loads that began before this reset. The world and scene
       // objects intentionally keep their identity, so identity checks alone
       // cannot distinguish a stale spawn from the new simulation generation.
@@ -495,12 +501,13 @@ export function useDroneController(options: UseDroneControllerOptions) {
       isPausedRef.current = pausedAfterReset
       setIsPaused(pausedAfterReset)
     },
-    [updateDronesList]
+    [enabled, updateDronesList]
   )
 
   const { keyState, getControlInput, setArmed } = useKeyboardControls({
     enabled: enabled && selectedDroneId !== null,
     onArm: () => {
+      if (!enabled) return
       const drone = selectedDroneId ? dronesRef.current.get(selectedDroneId) : null
       if (drone) {
         drone.physicsBody.setArmed(true)
@@ -508,6 +515,7 @@ export function useDroneController(options: UseDroneControllerOptions) {
       }
     },
     onDisarm: () => {
+      if (!enabled) return
       const drone = selectedDroneId ? dronesRef.current.get(selectedDroneId) : null
       if (drone) {
         drone.physicsBody.setArmed(false)
@@ -515,6 +523,7 @@ export function useDroneController(options: UseDroneControllerOptions) {
       }
     },
     onEmergency: () => {
+      if (!enabled) return
       dronesRef.current.forEach((drone) => {
         drone.physicsBody.setArmed(false)
       })
@@ -522,6 +531,8 @@ export function useDroneController(options: UseDroneControllerOptions) {
     },
   })
   useEffect(() => {
+    if (!enabled) return
+
     let mounted = true
     // Stable Map identity snapshotted for the cleanup (the ref is never
     // reassigned, only mutated).
@@ -557,7 +568,7 @@ export function useDroneController(options: UseDroneControllerOptions) {
       physicsWorldRef.current = null
       setPhysicsReady(false)
     }
-  }, [])
+  }, [enabled])
 
   const loadDroneModel = useCallback(
     async (droneType: DroneTypeDefinition): Promise<THREE.Object3D | null> => {
@@ -647,6 +658,7 @@ export function useDroneController(options: UseDroneControllerOptions) {
       position?: THREE.Vector3,
       initialState?: DroneSpawnState
     ): Promise<string | null> => {
+      if (!enabled) return null
       const initialWorld = physicsWorldRef.current
       const initialScene = sceneRef.current
       const spawnGeneration = spawnGenerationRef.current
@@ -745,11 +757,12 @@ export function useDroneController(options: UseDroneControllerOptions) {
 
       return id
     },
-    [loadDroneModel, updateDronesList]
+    [enabled, loadDroneModel, updateDronesList]
   )
 
   const removeDrone = useCallback(
     (id: string) => {
+      if (!enabled) return
       const drone = dronesRef.current.get(id)
       if (!drone) return
 
@@ -768,11 +781,12 @@ export function useDroneController(options: UseDroneControllerOptions) {
         setSelectedDroneId(remaining.length > 0 ? remaining[0] : null)
       }
     },
-    [selectedDroneId, updateDronesList]
+    [enabled, selectedDroneId, updateDronesList]
   )
 
   const selectDrone = useCallback(
     (id: string | null) => {
+      if (!enabled) return
       setSelectedDroneId(id)
 
       if (id) {
@@ -782,18 +796,19 @@ export function useDroneController(options: UseDroneControllerOptions) {
         }
       }
     },
-    [setArmed]
+    [enabled, setArmed]
   )
 
   const renameDrone = useCallback(
     (id: string, newName: string) => {
+      if (!enabled) return
       const drone = dronesRef.current.get(id)
       if (!drone) return
 
       drone.name = newName
       updateDronesList()
     },
-    [updateDronesList]
+    [enabled, updateDronesList]
   )
 
   const setRoute = useCallback(
@@ -803,6 +818,7 @@ export function useDroneController(options: UseDroneControllerOptions) {
       mode: RouteMode,
       restored?: { isActive?: boolean; currentWaypointIndex?: number }
     ) => {
+      if (!enabled) return false
       const drone = dronesRef.current.get(droneId)
       if (!drone) return false
       const maxAltitude = DRONE_TYPES[drone.type]?.physics.maxAltitude
@@ -839,11 +855,12 @@ export function useDroneController(options: UseDroneControllerOptions) {
       updateDronesList()
       return true
     },
-    [updateDronesList]
+    [enabled, updateDronesList]
   )
 
   const addWaypoint = useCallback(
     (droneId: string, waypoint: Waypoint) => {
+      if (!enabled) return
       const drone = dronesRef.current.get(droneId)
       if (!drone) return
       const maxAltitude = DRONE_TYPES[drone.type]?.physics.maxAltitude
@@ -856,11 +873,12 @@ export function useDroneController(options: UseDroneControllerOptions) {
       drone.route.waypoints.push(waypoint)
       updateDronesList()
     },
-    [updateDronesList]
+    [enabled, updateDronesList]
   )
 
   const clearRoute = useCallback(
     (droneId: string) => {
+      if (!enabled) return
       const drone = dronesRef.current.get(droneId)
       if (!drone) return
 
@@ -873,11 +891,12 @@ export function useDroneController(options: UseDroneControllerOptions) {
       }
       updateDronesList()
     },
-    [updateDronesList]
+    [enabled, updateDronesList]
   )
 
   const toggleRoute = useCallback(
     (droneId: string, active?: boolean) => {
+      if (!enabled) return
       const drone = dronesRef.current.get(droneId)
       if (!drone || drone.route.waypoints.length === 0) return
 
@@ -887,7 +906,7 @@ export function useDroneController(options: UseDroneControllerOptions) {
       }
       updateDronesList()
     },
-    [updateDronesList]
+    [enabled, updateDronesList]
   )
 
   // Route control input through a ref: getControlInput's identity changes with
@@ -1081,7 +1100,7 @@ export function useDroneController(options: UseDroneControllerOptions) {
   // src-tauri/src/ncp); it exists to verify that NCP action-plane input visibly
   // moves a real drone. Exposed on window only under Vite dev.
   useEffect(() => {
-    if (!import.meta.env.DEV || isEngramEmbeddedMode()) return
+    if (!enabled || !import.meta.env.DEV || isEngramEmbeddedMode()) return
     // Safety limits for NCP-driven actuation (the kinematic layer the SDK does
     // not own; the SDK ActionBuffer owns seq/ttl/mode/latch).
     const MAX_NCP_VELOCITY_MS = 10 // per-axis velocity clamp (m/s)
@@ -1221,7 +1240,7 @@ export function useDroneController(options: UseDroneControllerOptions) {
       commandStreams.clear()
       delete w.__ncpDrone
     }
-  }, [spawnDrone])
+  }, [enabled, spawnDrone])
 
   return {
     drones,

@@ -34,9 +34,10 @@
     "desktop_command": "bun run tauri:dev"
   },
   "boundaries": [
-    "Embedded mode disables every Tauri and native backend path.",
+    "Embedded mode disables every CREBAIN Tauri command and native backend path.",
     "The host must deny Engram native IPC before the embedded view becomes interactive.",
     "Embedded mode disables external telemetry connections.",
+    "Embedded mode disables local simulation and scene mutation.",
     "Embedded mode accepts and produces no artifacts.",
     "The host bridge accepts bounded context only.",
     "The host bridge cannot activate NCP or plant control."

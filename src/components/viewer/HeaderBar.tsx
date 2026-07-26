@@ -4,6 +4,8 @@ import { formatZuluTime, formatCoordinate } from './types'
 
 interface HeaderBarProps {
   backendStatusColor: string
+  /** Render threat levels as status values instead of controls. */
+  readOnly?: boolean
   threatLevel: ThreatLevel
   onThreatLevelChange: (level: ThreatLevel) => void
   scalePercent: number
@@ -32,6 +34,7 @@ interface HeaderBarProps {
  */
 export default function HeaderBar({
   backendStatusColor,
+  readOnly = false,
   threatLevel,
   onThreatLevelChange,
   scalePercent,
@@ -73,23 +76,37 @@ export default function HeaderBar({
 
         <div className="flex items-center gap-2 pointer-events-auto">
           <span className="text-[0.875em] text-[#606060] tracking-wider mr-1">STUFE</span>
-          {([1, 2, 3, 4] as ThreatLevel[]).map((level) => (
-            <button
-              key={level}
-              onClick={() => onThreatLevelChange(level)}
-              className={`w-6 h-5 text-[1.125em] font-bold border transition-all ${
-                threatLevel === level
-                  ? level <= 2
-                    ? 'bg-[#1a1a1a] border-[#404040] text-[#c0c0c0]'
-                    : level === 3
-                      ? 'bg-[#1a1408] border-[#a08040] text-[#a08040]'
-                      : 'bg-[#1a0808] border-[#8b4a4a] text-[#8b4a4a]'
-                  : 'bg-[#0c0c0c] border-[#1a1a1a] text-[#404040] hover:border-[#303030]'
-              }`}
-            >
-              {level}
-            </button>
-          ))}
+          {([1, 2, 3, 4] as ThreatLevel[]).map((level) => {
+            const levelClass = `w-6 h-5 text-[1.125em] font-bold border transition-all ${
+              threatLevel === level
+                ? level <= 2
+                  ? 'bg-[#1a1a1a] border-[#404040] text-[#c0c0c0]'
+                  : level === 3
+                    ? 'bg-[#1a1408] border-[#a08040] text-[#a08040]'
+                    : 'bg-[#1a0808] border-[#8b4a4a] text-[#8b4a4a]'
+                : `bg-[#0c0c0c] border-[#1a1a1a] text-[#404040] ${
+                    readOnly ? '' : 'hover:border-[#303030]'
+                  }`
+            }`
+            return readOnly ? (
+              <span
+                key={level}
+                className={`${levelClass} flex items-center justify-center`}
+                aria-label={`Threat level ${level}${threatLevel === level ? ', current' : ''}`}
+              >
+                {level}
+              </span>
+            ) : (
+              <button
+                key={level}
+                type="button"
+                onClick={() => onThreatLevelChange(level)}
+                className={levelClass}
+              >
+                {level}
+              </button>
+            )
+          })}
         </div>
 
         <div className="w-px h-6 bg-[#1a1a1a] mx-4" />

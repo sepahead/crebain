@@ -9,6 +9,8 @@ import manifestSource from '../../../integrations/engram/manifest.json?raw'
 import {
   CREBAIN_EXTENSION_ID,
   ENGRAM_HOST_MESSAGE_MAX_BYTES,
+  ENGRAM_HOST_PEER_MESSAGE_RATE_MAX,
+  ENGRAM_HOST_PEER_MESSAGE_RATE_WINDOW_MS,
   ENGRAM_HOST_PROTOCOL,
   assertArtifactExchangeAllowed,
   assertExternalTelemetryAllowed,
@@ -51,8 +53,8 @@ function createHostWindow(search = hostSearch()) {
   return {
     hostWindow,
     parent,
-    emit(data: unknown, origin = HOST_ORIGIN, source: unknown = parent) {
-      const event = { data, origin, source } as MessageEvent
+    emit(data: unknown, origin = HOST_ORIGIN, source: unknown = parent, isTrusted = true) {
+      const event = { data, origin, source, isTrusted } as MessageEvent
       for (const listener of listeners) listener(event)
     },
     listenerCount: () => listeners.size,
@@ -91,9 +93,10 @@ describe('Engram embedded runtime boundary', () => {
         desktop_command: 'bun run tauri:dev',
       },
       boundaries: [
-        'Embedded mode disables every Tauri and native backend path.',
+        'Embedded mode disables every CREBAIN Tauri command and native backend path.',
         'The host must deny Engram native IPC before the embedded view becomes interactive.',
         'Embedded mode disables external telemetry connections.',
+        'Embedded mode disables local simulation and scene mutation.',
         'Embedded mode accepts and produces no artifacts.',
         'The host bridge accepts bounded context only.',
         'The host bridge cannot activate NCP or plant control.',
@@ -106,7 +109,7 @@ describe('Engram embedded runtime boundary', () => {
       schema_version: 1,
       id: CREBAIN_EXTENSION_ID,
       hash_revision: 'file_bytes_v1',
-      sha256: 'd6779b8653cb1e4901530c9acf66da87e4b600c73606d2a52fc1dd5fd7b0d811',
+      sha256: 'b7f80f0414f22e7210905e26c59fe8eb16a108aa269282c3551b05149e702eca',
     })
     expect(createHash('sha256').update(manifestSource).digest('hex')).toBe(manifestLock.sha256)
   })
@@ -255,6 +258,14 @@ describe('Engram postMessage bridge', () => {
         throw new Error('malicious accessor')
       },
     })
+    const customPrototypeEnvelope = Object.setPrototypeOf(contextEnvelope(), { inherited: true })
+    const cyclicEnvelope = contextEnvelope({
+      payload: { ...protocolVector.host_context.payload },
+    })
+    ;(cyclicEnvelope.payload as Record<string, unknown>).ncp = cyclicEnvelope
+    const toJsonEnvelope = contextEnvelope()
+    const toJson = vi.fn(() => protocolVector.host_context)
+    Object.defineProperty(toJsonEnvelope, 'toJSON', { value: toJson })
 
     const invalidCases: Array<{
       data: unknown
@@ -293,12 +304,16 @@ describe('Engram postMessage bridge', () => {
       { data: contextEnvelope({ payload: { text: 'x'.repeat(ENGRAM_HOST_MESSAGE_MAX_BYTES) } }) },
       { data: contextEnvelope({ payload: { value: Number.NaN } }) },
       { data: throwingEnvelope },
+      { data: customPrototypeEnvelope },
+      { data: cyclicEnvelope },
+      { data: toJsonEnvelope },
     ]
 
     for (const invalid of invalidCases) {
       host.emit(invalid.data, invalid.origin, invalid.source)
     }
     expect(host.parent.postMessage).toHaveBeenCalledTimes(initialPosts)
+    expect(toJson).not.toHaveBeenCalled()
 
     host.emit(contextEnvelope())
     expect(host.parent.postMessage).toHaveBeenCalledTimes(initialPosts + 1)
@@ -323,6 +338,124 @@ describe('Engram postMessage bridge', () => {
       })
     )
     expect(host.parent.postMessage).toHaveBeenCalledTimes(initialPosts + 2)
+  })
+
+  it('rejects untrusted synthetic events before reading their data', () => {
+    const host = createHostWindow()
+    startEngramHostBridge(host.hostWindow)
+    const initialPosts = host.parent.postMessage.mock.calls.length
+    let reads = 0
+    const syntheticEnvelope = contextEnvelope()
+    Object.defineProperty(syntheticEnvelope, 'protocol', {
+      enumerable: true,
+      get: () => {
+        reads += 1
+        return ENGRAM_HOST_PROTOCOL
+      },
+    })
+
+    host.emit(syntheticEnvelope, HOST_ORIGIN, host.parent, false)
+
+    expect(reads).toBe(0)
+    expect(host.parent.postMessage).toHaveBeenCalledTimes(initialPosts)
+  })
+
+  it('rejects an extra wide context without traversing its values', () => {
+    const host = createHostWindow()
+    startEngramHostBridge(host.hostWindow)
+    const initialPosts = host.parent.postMessage.mock.calls.length
+    let leafReads = 0
+    const leaf: Record<string, unknown> = {}
+    for (let index = 0; index < 32; index += 1) {
+      Object.defineProperty(leaf, `leaf${index}`, {
+        enumerable: true,
+        get: () => {
+          leafReads += 1
+          return true
+        },
+      })
+    }
+    const branch = Object.fromEntries(
+      Array.from({ length: 32 }, (_, index) => [`branch${index}`, leaf])
+    )
+    const wideTree = Object.fromEntries(
+      Array.from({ length: 32 }, (_, index) => [`root${index}`, branch])
+    )
+
+    host.emit(
+      contextEnvelope({
+        payload: {
+          ...protocolVector.host_context.payload,
+          unexpected: wideTree,
+        },
+      })
+    )
+
+    expect(leafReads).toBe(0)
+    expect(host.parent.postMessage).toHaveBeenCalledTimes(initialPosts)
+  })
+
+  it('revokes the bridge after an expected peer floods invalid messages', () => {
+    let monotonicNow = 10
+    const host = createHostWindow()
+    const bridge = startEngramHostBridge(host.hostWindow, {
+      monotonicNow: () => monotonicNow,
+    })
+    const initialPosts = host.parent.postMessage.mock.calls.length
+
+    for (let index = 0; index < ENGRAM_HOST_PEER_MESSAGE_RATE_MAX; index += 1) {
+      host.emit(contextEnvelope({ protocol: 'engram.host.invalid' }))
+    }
+    expect(bridge.active).toBe(true)
+    expect(host.listenerCount()).toBe(1)
+
+    host.emit(contextEnvelope())
+    expect(bridge.active).toBe(false)
+    expect(host.listenerCount()).toBe(0)
+    expect(host.parent.postMessage).toHaveBeenCalledTimes(initialPosts)
+
+    monotonicNow += ENGRAM_HOST_PEER_MESSAGE_RATE_WINDOW_MS
+    host.emit(contextEnvelope())
+    expect(host.parent.postMessage).toHaveBeenCalledTimes(initialPosts)
+  })
+
+  it('uses a rolling window and fails closed if its monotonic clock regresses', () => {
+    let monotonicNow = 1_000
+    const host = createHostWindow()
+    const bridge = startEngramHostBridge(host.hostWindow, {
+      monotonicNow: () => monotonicNow,
+    })
+
+    host.emit(contextEnvelope())
+    monotonicNow += ENGRAM_HOST_PEER_MESSAGE_RATE_WINDOW_MS
+    host.emit(contextEnvelope())
+    expect(bridge.active).toBe(true)
+
+    monotonicNow -= 1
+    host.emit(contextEnvelope())
+    expect(bridge.active).toBe(false)
+    expect(host.listenerCount()).toBe(0)
+  })
+
+  it('rejects a burst that straddles a one-second bucket boundary', () => {
+    let monotonicNow = 0
+    const host = createHostWindow()
+    const bridge = startEngramHostBridge(host.hostWindow, {
+      monotonicNow: () => monotonicNow,
+    })
+
+    host.emit(contextEnvelope({ protocol: 'engram.host.invalid' }))
+    monotonicNow = ENGRAM_HOST_PEER_MESSAGE_RATE_WINDOW_MS - 1
+    for (let index = 1; index < ENGRAM_HOST_PEER_MESSAGE_RATE_MAX; index += 1) {
+      host.emit(contextEnvelope({ protocol: 'engram.host.invalid' }))
+    }
+    expect(bridge.active).toBe(true)
+
+    monotonicNow = ENGRAM_HOST_PEER_MESSAGE_RATE_WINDOW_MS
+    host.emit(contextEnvelope({ protocol: 'engram.host.invalid' }))
+    expect(bridge.active).toBe(true)
+    host.emit(contextEnvelope({ protocol: 'engram.host.invalid' }))
+    expect(bridge.active).toBe(false)
   })
 
   it('reports whether the restricted frame can reach a Tauri custom command', async () => {

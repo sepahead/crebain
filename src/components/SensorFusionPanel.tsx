@@ -29,6 +29,8 @@ import type { ConnectionState } from '../ros/ROSBridge'
 // ═══════════════════════════════════════════════════════════════════════════════
 
 interface SensorFusionPanelProps {
+  /** Keep track display available, but remove connection and algorithm mutations. */
+  readOnly?: boolean
   tracks: FusedTrack[]
   stats: FusionStats | null
   sensorStatus: Record<SensorModality, boolean>
@@ -163,6 +165,7 @@ const SensorIcon = ({ modality, active }: { modality: SensorModality; active: bo
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export default function SensorFusionPanel({
+  readOnly = false,
   tracks,
   stats,
   sensorStatus,
@@ -197,7 +200,7 @@ export default function SensorFusionPanel({
   // Load available algorithms
   useEffect(() => {
     let cancelled = false
-    if (!fusionAvailable) {
+    if (readOnly || !fusionAvailable) {
       setAlgorithms([])
       setAlgorithmsLoading(false)
       return () => {
@@ -219,12 +222,12 @@ export default function SensorFusionPanel({
     return () => {
       cancelled = true
     }
-  }, [fusionAvailable])
+  }, [fusionAvailable, readOnly])
 
   // Handle algorithm change
   const handleAlgorithmChange = useCallback(
     async (nextAlgorithm: FilterAlgorithm) => {
-      if (!fusionAvailable || algorithmPending || nextAlgorithm === algorithm) return
+      if (readOnly || !fusionAvailable || algorithmPending || nextAlgorithm === algorithm) return
       setAlgorithmPending(true)
       setAlgorithmError(null)
       try {
@@ -236,7 +239,7 @@ export default function SensorFusionPanel({
         setAlgorithmPending(false)
       }
     },
-    [algorithm, algorithmPending, fusionAvailable, onAlgorithmChange]
+    [algorithm, algorithmPending, fusionAvailable, onAlgorithmChange, readOnly]
   )
 
   // Sort tracks by threat level (memoized to prevent unnecessary re-renders)
@@ -261,6 +264,7 @@ export default function SensorFusionPanel({
     return (
       <div
         ref={elementRef}
+        data-read-only={readOnly ? 'true' : 'false'}
         className="absolute top-0 right-3 z-40"
         style={panelStyle}
         onMouseDown={handleMouseDown}
@@ -290,6 +294,7 @@ export default function SensorFusionPanel({
   return (
     <div
       ref={elementRef}
+      data-read-only={readOnly ? 'true' : 'false'}
       className="absolute top-0 right-3 w-72 z-40"
       style={panelStyle}
       onMouseDown={handleMouseDown}
@@ -310,18 +315,20 @@ export default function SensorFusionPanel({
             </span>
           </button>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                setShowSettings(!showSettings)
-              }}
-              className="min-h-10 min-w-10 text-[1.125em] text-[#737373] hover:text-[#b0b0b0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8fb69a]"
-              aria-label="Fusion-Einstellungen öffnen"
-              aria-expanded={showSettings}
-            >
-              ⚙
-            </button>
+            {!readOnly && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowSettings(!showSettings)
+                }}
+                className="min-h-10 min-w-10 text-[1.125em] text-[#737373] hover:text-[#b0b0b0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8fb69a]"
+                aria-label="Fusion-Einstellungen öffnen"
+                aria-expanded={showSettings}
+              >
+                ⚙
+              </button>
+            )}
             <button
               type="button"
               onClick={(e) => {
@@ -345,7 +352,7 @@ export default function SensorFusionPanel({
             <div className="mt-1 text-[1.125em] leading-relaxed text-[#9b725d]">
               {connectionError ?? 'Mit dem ROS-WebSocket verbinden, um Sensordaten zu fusionieren.'}
             </div>
-            {onOpenConnection && (
+            {!readOnly && onOpenConnection && (
               <button
                 type="button"
                 onClick={onOpenConnection}
@@ -358,7 +365,7 @@ export default function SensorFusionPanel({
         )}
 
         {/* Settings Panel */}
-        {showSettings && (
+        {!readOnly && showSettings && (
           <div className="border-b border-[#1a1a1a] p-2 bg-[#0a0a0a]">
             <div className="text-[1.25em] text-[#505050] tracking-wider mb-2">
               FILTER ALGORITHMUS

@@ -81,9 +81,13 @@ cargo build --locked --manifest-path src-tauri/Cargo.toml
 - `simulation/` - Interception system
 - `state/` - Scene serialization and persistence
 - `integrations/` - Restricted Engram host validation and read-only status bridge.
-  `engramHost=1` disables native access, external telemetry, artifact exchange,
-  and the development NCP command harness. The host must also receive fresh
-  heartbeat status and an inaccessible native-IPC probe before interaction.
+  `engramHost=1` disables CREBAIN native access, external telemetry, artifact
+  exchange, local simulation, scene mutation, and the development NCP command
+  harness. The bridge revokes after 32 expected-peer messages in one second.
+  It accepts only user-agent-trusted messages and normalizes exact primitive
+  fields before serialization.
+  The host must also receive fresh heartbeat status and an inaccessible
+  native-IPC probe before interaction.
 
 ### Backend (`src-tauri/`)
 

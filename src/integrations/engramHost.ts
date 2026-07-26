@@ -3,6 +3,8 @@ import { invoke, isTauri } from '@tauri-apps/api/core'
 export const ENGRAM_HOST_PROTOCOL = 'engram.host.v1'
 export const CREBAIN_EXTENSION_ID = 'sepahead.crebain'
 export const ENGRAM_HOST_MESSAGE_MAX_BYTES = 8 * 1024
+export const ENGRAM_HOST_PEER_MESSAGE_RATE_MAX = 32
+export const ENGRAM_HOST_PEER_MESSAGE_RATE_WINDOW_MS = 1_000
 
 const HOST_MODE_PARAMETER = 'engramHost'
 const HOST_ORIGIN_PARAMETER = 'hostOrigin'
@@ -10,12 +12,8 @@ const HOST_NONCE_PARAMETER = 'hostNonce'
 const HOST_NONCE_MIN_LENGTH = 16
 const HOST_NONCE_MAX_LENGTH = 128
 const HOST_ORIGIN_MAX_LENGTH = 256
-const HOST_CONTEXT_MAX_DEPTH = 4
-const HOST_CONTEXT_MAX_ENTRIES = 32
-const HOST_CONTEXT_MAX_STRING_LENGTH = 1024
 const HOST_NONCE_PATTERN = /^[A-Za-z0-9_-]+$/
 const ENGRAM_HOST_SECURITY_CANARY_COMMAND = 'get_extension_host_security'
-const UNSAFE_CONTEXT_KEYS = new Set(['__proto__', 'constructor', 'prototype'])
 const TAURI_HOST_ORIGINS = new Set([
   'tauri://localhost',
   'http://tauri.localhost',
@@ -37,6 +35,8 @@ export interface EngramHostBridgeHandle {
 
 export interface EngramHostBridgeOptions {
   nativeIpcProbe?: () => Promise<boolean>
+  /** Injectable monotonic clock for deterministic boundary tests. */
+  monotonicNow?: () => number
 }
 
 interface EngramHostEnvelope {
@@ -152,48 +152,42 @@ export function assertArtifactExchangeAllowed(search?: string): void {
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  try {
+    const prototype = Reflect.getPrototypeOf(value)
+    return prototype === Object.prototype || prototype === null
+  } catch {
+    return false
+  }
 }
 
 function hasExactKeys(value: Record<string, unknown>, expected: readonly string[]): boolean {
-  const keys = Object.keys(value).sort()
-  const expectedKeys = [...expected].sort()
-  return (
-    keys.length === expectedKeys.length && keys.every((key, index) => key === expectedKeys[index])
-  )
+  if (!isRecord(value)) return false
+  if (Object.hasOwn(value, 'toJSON')) return false
+  const expectedKeys = new Set(expected)
+  let keyCount = 0
+  for (const key in value) {
+    if (!Object.hasOwn(value, key)) return false
+    keyCount += 1
+    if (keyCount > expected.length || !expectedKeys.has(key)) return false
+  }
+  return keyCount === expected.length
 }
 
 function hasExactEnvelopeKeys(value: Record<string, unknown>): boolean {
   return hasExactKeys(value, ['protocol', 'kind', 'extension_id', 'nonce', 'payload'])
 }
 
-function isBoundedContextValue(value: unknown, depth = 0): boolean {
-  if (value === null || typeof value === 'boolean') return true
-  if (typeof value === 'number') return Number.isFinite(value)
-  if (typeof value === 'string') return value.length <= HOST_CONTEXT_MAX_STRING_LENGTH
-  if (depth >= HOST_CONTEXT_MAX_DEPTH || typeof value !== 'object') return false
-
-  if (Array.isArray(value)) {
-    return (
-      value.length <= HOST_CONTEXT_MAX_ENTRIES &&
-      value.every((entry) => isBoundedContextValue(entry, depth + 1))
-    )
-  }
-
-  if (!isRecord(value)) return false
-  const entries = Object.entries(value)
-  return (
-    entries.length <= HOST_CONTEXT_MAX_ENTRIES &&
-    entries.every(
-      ([key, entry]) =>
-        key.length > 0 &&
-        key.length <= HOST_CONTEXT_MAX_STRING_LENGTH &&
-        !UNSAFE_CONTEXT_KEYS.has(key) &&
-        isBoundedContextValue(entry, depth + 1)
-    )
-  )
+function isExactString(value: unknown, expected: string): boolean {
+  return typeof value === 'string' && value.length === expected.length && value === expected
 }
 
+/**
+ * Measure only locally constructed envelopes.
+ *
+ * The inbound parser copies validated primitives into a new envelope first.
+ * It never passes the untrusted MessageEvent object to JSON.stringify.
+ */
 function hasBoundedSerializedSize(value: unknown): boolean {
   try {
     return utf8Encoder.encode(JSON.stringify(value)).byteLength <= ENGRAM_HOST_MESSAGE_MAX_BYTES
@@ -202,36 +196,41 @@ function hasBoundedSerializedSize(value: unknown): boolean {
   }
 }
 
-function isValidHostContextPayload(value: Record<string, unknown>): boolean {
-  if (!hasExactKeys(value, ['host_api', 'authority', 'ncp', 'context_nonce'])) return false
-  if (value.host_api !== '1.0' || value.authority !== 'read-only' || !isRecord(value.ncp)) {
-    return false
-  }
-  return (
-    typeof value.context_nonce === 'string' &&
-    isAllowedEngramHostNonce(value.context_nonce) &&
-    hasExactKeys(value.ncp, ['wire', 'extension_wire', 'compatible']) &&
-    value.ncp.wire === '1.0' &&
-    value.ncp.extension_wire === '0.8' &&
-    value.ncp.compatible === false
-  )
-}
-
 function readValidHostContextNonce(value: unknown, config: EngramHostConfig): string | null {
   if (!isRecord(value) || !hasExactEnvelopeKeys(value)) return null
-  if (value.protocol !== ENGRAM_HOST_PROTOCOL) return null
-  if (value.kind !== 'host.context') return null
-  if (value.extension_id !== CREBAIN_EXTENSION_ID) return null
-  if (value.nonce !== config.nonce) return null
+  if (!isExactString(value.protocol, ENGRAM_HOST_PROTOCOL)) return null
+  if (!isExactString(value.kind, 'host.context')) return null
+  if (!isExactString(value.extension_id, CREBAIN_EXTENSION_ID)) return null
+  if (!isExactString(value.nonce, config.nonce)) return null
+
+  const payload = value.payload
   if (
-    !isRecord(value.payload) ||
-    !isBoundedContextValue(value.payload) ||
-    !isValidHostContextPayload(value.payload)
+    !isRecord(payload) ||
+    !hasExactKeys(payload, ['host_api', 'authority', 'ncp', 'context_nonce'])
   ) {
     return null
   }
-  if (!hasBoundedSerializedSize(value)) return null
-  return value.payload.context_nonce as string
+  if (!isExactString(payload.host_api, '1.0')) return null
+  if (!isExactString(payload.authority, 'read-only')) return null
+
+  const ncp = payload.ncp
+  if (!isRecord(ncp) || !hasExactKeys(ncp, ['wire', 'extension_wire', 'compatible'])) {
+    return null
+  }
+  if (!isExactString(ncp.wire, '1.0')) return null
+  if (!isExactString(ncp.extension_wire, '0.8')) return null
+  if (ncp.compatible !== false) return null
+
+  const contextNonce = payload.context_nonce
+  if (typeof contextNonce !== 'string' || !isAllowedEngramHostNonce(contextNonce)) return null
+
+  const normalized = createEnvelope('host.context', config.nonce, {
+    host_api: '1.0',
+    authority: 'read-only',
+    ncp: { wire: '1.0', extension_wire: '0.8', compatible: false },
+    context_nonce: contextNonce,
+  })
+  return hasBoundedSerializedSize(normalized) ? contextNonce : null
 }
 
 function createEnvelope(
@@ -272,6 +271,12 @@ export function startEngramHostBridge(
   let tauriIpcAccessible: boolean | null =
     options.nativeIpcProbe === undefined && !isTauri() ? false : null
   let active = true
+  let handle: EngramHostBridgeHandle | null = null
+  const peerMessageTimes = new Array<number>(ENGRAM_HOST_PEER_MESSAGE_RATE_MAX)
+  let oldestPeerMessageIndex = 0
+  let peerMessageCount = 0
+  let lastPeerMessageAt: number | null = null
+  const monotonicNow = options.monotonicNow ?? (() => performance.now())
   const post = (kind: 'extension.ready' | 'extension.status', payload: unknown) => {
     const envelope = createEnvelope(kind, config.nonce, payload)
     if (hasBoundedSerializedSize(envelope)) {
@@ -298,8 +303,42 @@ export function startEngramHostBridge(
     })
   }
 
+  const revoke = () => {
+    if (!active) return
+    active = false
+    hostWindow.removeEventListener('message', onMessage)
+    if (handle !== null && activeHostBridges.get(hostWindow) === handle) {
+      activeHostBridges.delete(hostWindow)
+    }
+  }
+  const consumePeerMessageBudget = (): boolean => {
+    const now = monotonicNow()
+    if (!Number.isFinite(now)) return false
+    if (lastPeerMessageAt !== null && now < lastPeerMessageAt) return false
+    lastPeerMessageAt = now
+
+    while (peerMessageCount > 0) {
+      const oldestMessageAt = peerMessageTimes[oldestPeerMessageIndex]
+      if (now - oldestMessageAt < ENGRAM_HOST_PEER_MESSAGE_RATE_WINDOW_MS) break
+      oldestPeerMessageIndex = (oldestPeerMessageIndex + 1) % ENGRAM_HOST_PEER_MESSAGE_RATE_MAX
+      peerMessageCount -= 1
+    }
+    if (peerMessageCount >= ENGRAM_HOST_PEER_MESSAGE_RATE_MAX) return false
+
+    const nextIndex =
+      (oldestPeerMessageIndex + peerMessageCount) % ENGRAM_HOST_PEER_MESSAGE_RATE_MAX
+    peerMessageTimes[nextIndex] = now
+    peerMessageCount += 1
+    return true
+  }
+
   const onMessage = (event: MessageEvent) => {
     if (event.source !== hostWindow.parent || event.origin !== config.origin) return
+    if (event.isTrusted !== true) return
+    if (!consumePeerMessageBudget()) {
+      revoke()
+      return
+    }
     let contextNonce: string | null
     try {
       contextNonce = readValidHostContextNonce(event.data, config)
@@ -347,17 +386,12 @@ export function startEngramHostBridge(
       })
   }
 
-  const handle: EngramHostBridgeHandle = {
+  handle = {
     get active() {
       return active
     },
     embedded: true,
-    stop: () => {
-      if (!active) return
-      active = false
-      hostWindow.removeEventListener('message', onMessage)
-      if (activeHostBridges.get(hostWindow) === handle) activeHostBridges.delete(hostWindow)
-    },
+    stop: revoke,
   }
   activeHostBridges.set(hostWindow, handle)
   return handle

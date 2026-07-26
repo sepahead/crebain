@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createRoot, type Root } from 'react-dom/client'
 import { act } from 'react'
 import type { FusionStats } from '../../../detection/SensorFusion'
@@ -64,6 +64,44 @@ describe('HeaderBar render smoke', () => {
     expect(text).toContain('SIM POS')
     // The threat-level selector renders buttons 1-4.
     expect(container.querySelectorAll('button').length).toBeGreaterThanOrEqual(4)
+  })
+
+  it('renders threat level as status instead of mutation controls in read-only mode', () => {
+    const onThreatLevelChange = vi.fn()
+    act(() => {
+      root.render(
+        <HeaderBar
+          backendStatusColor="bg-[#3a6b4a]"
+          readOnly
+          threatLevel={2}
+          onThreatLevelChange={onThreatLevelChange}
+          scalePercent={100}
+          isAtMin={false}
+          isAtMax={false}
+          onDecreaseScale={() => {}}
+          onIncreaseScale={() => {}}
+          currentTime={new Date(0)}
+          operatorPosition={{ lat: 52.52, lon: 13.405, alt: 34 }}
+          altitude={12}
+          bearing={90}
+          cameras={[]}
+          objectCount={0}
+          totalDetections={0}
+          fusedTrackCount={0}
+          showGrid
+          detectionEnabled={false}
+          highestThreat={null}
+        />
+      )
+    })
+
+    expect(container.querySelector('[aria-label="Threat level 2, current"]')).not.toBeNull()
+    expect(
+      Array.from(container.querySelectorAll('button')).some((button) =>
+        ['1', '2', '3', '4'].includes(button.textContent ?? '')
+      )
+    ).toBe(false)
+    expect(onThreatLevelChange).not.toHaveBeenCalled()
   })
 })
 

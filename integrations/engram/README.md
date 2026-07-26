@@ -23,23 +23,33 @@ Malformed host parameters do not restore standalone capabilities.
 
 Embedded mode disables these paths:
 
-- CREBAIN Tauri and native commands
+- CREBAIN Tauri commands and native backend paths
 - native detection and fusion
 - external telemetry
 - artifact ingress and export
+- local drone physics and simulation updates
+- sensor placement, scene editing, and deployment controls
 - the development NCP command harness
 - NCP action or control
 - plant control
 
 The Performance and Sensor Fusion panels start collapsed in embedded mode.
-Their standalone defaults remain expanded.
+Their standalone defaults remain expanded. The embedded panels are read-only.
+View navigation, orbit, focus, grid, and feed display remain available.
 
 ## Host protocol
 
 The `engram.host.v1` protocol uses exact, bounded messages.
+Context validation allows 128 total nodes, 32 entries per container, four
+nesting levels, 1,024-character strings, and an 8 KiB envelope.
+CREBAIN revokes the bridge after 32 expected-peer messages in one second.
 Engram creates a fresh document context nonce after each frame load.
 CREBAIN accepts context from the exact parent, origin, extension, and session.
 CREBAIN echoes the accepted document nonce in status.
+
+These limits bound accepted state and parser amplification.
+The browser creates each `MessageEvent` before CREBAIN parses it.
+The bridge does not isolate hostile iframe CPU or message-clone memory.
 
 Engram continues health challenges after readiness.
 CREBAIN increments a heartbeat sequence for each accepted challenge.
