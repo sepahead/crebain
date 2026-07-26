@@ -37,6 +37,8 @@
         "active": false
       },
       "plant_control": false,
+      "tauri_ipc_accessible": false,
+      "heartbeat_sequence": 0,
       "host_context_received": false,
       "context_nonce": null
     }
@@ -74,6 +76,8 @@
         "active": false
       },
       "plant_control": false,
+      "tauri_ipc_accessible": false,
+      "heartbeat_sequence": 1,
       "host_context_received": true,
       "context_nonce": "11111111111111111111111111111111"
     }

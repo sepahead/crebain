@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   invoke: vi.fn(async () => null),
   isTauri: vi.fn(() => false),
   listen: vi.fn(async () => vi.fn()),
+  performancePanel: vi.fn(() => null),
+  sensorFusionPanel: vi.fn(() => null),
   useGazeboSimulation: vi.fn(),
   useROSSensors: vi.fn(),
 }))
@@ -37,11 +39,11 @@ vi.mock('../components/CrebainViewer', () => ({ default: () => null }))
 vi.mock('../components/ErrorBoundary', () => ({
   default: ({ children }: { children: ReactNode }) => children,
 }))
-vi.mock('../components/PerformancePanel', () => ({ default: () => null }))
+vi.mock('../components/PerformancePanel', () => ({ default: mocks.performancePanel }))
 vi.mock('../components/ROSConnectionPanel', () => ({
   default: () => <div data-testid="ros-connection-panel" />,
 }))
-vi.mock('../components/SensorFusionPanel', () => ({ default: () => null }))
+vi.mock('../components/SensorFusionPanel', () => ({ default: mocks.sensorFusionPanel }))
 vi.mock('../components/AboutModal', () => ({ AboutModal: () => null }))
 vi.mock('../context/UIScaleContext', () => ({
   UIScaleProvider: ({ children }: { children: ReactNode }) => children,
@@ -181,6 +183,14 @@ describe('App ROS transport ownership', () => {
       expect(mocks.isTauri).not.toHaveBeenCalled()
       expect(mocks.invoke).not.toHaveBeenCalled()
       expect(mocks.listen).not.toHaveBeenCalled()
+      expect(mocks.performancePanel).toHaveBeenCalledWith(
+        expect.objectContaining({ initiallyExpanded: false }),
+        undefined
+      )
+      expect(mocks.sensorFusionPanel).toHaveBeenCalledWith(
+        expect.objectContaining({ isExpanded: false }),
+        undefined
+      )
       await act(async () => {
         window.dispatchEvent(new KeyboardEvent('keydown', { key: 'n' }))
       })

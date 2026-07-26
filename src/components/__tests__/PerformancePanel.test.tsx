@@ -74,4 +74,19 @@ describe('PerformancePanel', () => {
     )
     expect(fpsLabel?.parentElement?.textContent).toBe('FPS0.0')
   })
+
+  it('starts collapsed for a restricted host and exposes keyboard disclosure semantics', () => {
+    act(() => {
+      root.render(
+        <PerformancePanel data={null} history={[]} isReady error={null} initiallyExpanded={false} />
+      )
+    })
+
+    const disclosure = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Expand performance panel"]'
+    )
+    expect(disclosure).not.toBeNull()
+    expect(disclosure?.getAttribute('aria-expanded')).toBe('false')
+    expect(container.querySelector('#performance-panel-content')).toBeNull()
+  })
 })

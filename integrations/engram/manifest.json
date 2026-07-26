@@ -3,13 +3,13 @@
   "id": "sepahead.crebain",
   "name": "CREBAIN",
   "version": "0.9.0",
-  "description": "Read-only supervised embedding for the CREBAIN research visualization runtime.",
+  "description": "Read-only restricted embedding for the CREBAIN research visualization runtime.",
   "host_api": {
     "minimum": "1.0",
     "maximum": "1.0"
   },
   "entrypoint": {
-    "kind": "supervised-local-web",
+    "kind": "restricted-local-web",
     "url": "http://127.0.0.1:5173/",
     "embedded_query": "engramHost=1"
   },
@@ -35,6 +35,7 @@
   },
   "boundaries": [
     "Embedded mode disables every Tauri and native backend path.",
+    "The host must deny Engram native IPC before the embedded view becomes interactive.",
     "Embedded mode disables external telemetry connections.",
     "Embedded mode accepts and produces no artifacts.",
     "The host bridge accepts bounded context only.",

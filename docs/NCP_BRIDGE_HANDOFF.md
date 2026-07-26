@@ -19,7 +19,7 @@ standalone. NCP is not on the default runtime path:
 | Rust Galadriel producer | Compiles with `ncp`; managed by the app only when `CREBAIN_GALADRIEL_ENABLE=1`, an explicit key-safe process epoch is supplied, and all registry/config/executable pins pass; writes only two named perception evidence routes |
 | TypeScript `src/neuro` | Thin guarded re-export of `@sepahead/ncp`; imported by no product component/hook |
 | Vite-dev `window.__ncpDrone` | Manual in-browser wire-shaped command injection. It opens no NCP transport or session. It is absent from production builds and Engram embedded mode. |
-| Engram supervised UI host | Read-only `engram.host.v1` readiness, status, and bounded context messages. Embedded mode disables native access, external telemetry, artifact exchange, and all NCP command ingress. |
+| Engram restricted UI host | Read-only `engram.host.v1` readiness, status, bounded context, heartbeat, and native-IPC accessibility messages. Embedded mode disables native access, external telemetry, artifact exchange, and all NCP command ingress. |
 | Live CREBAIN↔Engram action/control loop | Not implemented or enabled |
 | Live CREBAIN→Galadriel deployed correlation | Producer component is integrated; compatible receiver, security/topology, and end-to-end evidence remain unproved |
 
@@ -30,7 +30,10 @@ the NCP feature. “No sibling checkout” does not mean “no dependency resolu
 Engram can host the standalone Vite interface with `engramHost=1`. This mode
 uses the manifest in `integrations/engram/manifest.json`. The embedded boundary
 remains latched for the document lifetime. Each loaded document must echo a
-fresh context nonce. This mode does not use the native NCP adapter. CREBAIN wire
+fresh context nonce. It must also answer continued health challenges. Engram
+must relock a stale frame or a frame that can reach Engram native IPC. These
+messages correlate a document. They do not attest the process or build. This
+mode does not use the native NCP adapter. CREBAIN wire
 `0.8` is incompatible with the Engram `1.0` candidate, so the manifest marks
 compatibility as false. The source repository and Engram share a digest-locked
 `engram.host.v1` protocol vector.

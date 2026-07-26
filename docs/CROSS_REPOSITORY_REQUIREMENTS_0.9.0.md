@@ -33,8 +33,10 @@ identities update the audit baseline. They do not update a CREBAIN dependency.
 
 Engram `main` was also identified at
 `a4ce6ab9897dd3f1265b4cacc53f0afc349087cd`. Engram remains outside the
-required four-repository baseline. CREBAIN has no live Engram integration
-evidence.
+required four-repository baseline. CREBAIN has a read-only source-development
+host contract and shared test vector with the executable Paper2Brain Engram
+host. It has no packaged hostile-frame, process-attestation, NCP, or closed-loop
+integration evidence.
 
 ## Current exact dependency
 

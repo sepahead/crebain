@@ -38,7 +38,7 @@ export default function App() {
   const [detectionError, setDetectionError] = useState<string | null>(null)
   const [showPerformancePanel, setShowPerformancePanel] = useState(true)
   const [showROSPanel, setShowROSPanel] = useState(false)
-  const [showFusionPanel, setShowFusionPanel] = useState(true)
+  const [showFusionPanel, setShowFusionPanel] = useState(() => !embeddedInEngram)
   const [showAbout, setShowAbout] = useState(false)
   const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null)
   const [fusionAlgorithm, setFusionAlgorithm] = useState<FilterAlgorithm>('ExtendedKalman')
@@ -211,6 +211,7 @@ export default function App() {
               error={detectionError}
               backend={systemInfo.backend}
               backendDetail={systemInfo.mode !== 'unknown' ? systemInfo.mode : undefined}
+              initiallyExpanded={!embeddedInEngram}
             />
           )}
           {showROSPanel && !embeddedInEngram && (

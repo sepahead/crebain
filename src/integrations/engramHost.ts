@@ -1,4 +1,4 @@
-import { isTauri } from '@tauri-apps/api/core'
+import { invoke, isTauri } from '@tauri-apps/api/core'
 
 export const ENGRAM_HOST_PROTOCOL = 'engram.host.v1'
 export const CREBAIN_EXTENSION_ID = 'sepahead.crebain'
@@ -14,6 +14,7 @@ const HOST_CONTEXT_MAX_DEPTH = 4
 const HOST_CONTEXT_MAX_ENTRIES = 32
 const HOST_CONTEXT_MAX_STRING_LENGTH = 1024
 const HOST_NONCE_PATTERN = /^[A-Za-z0-9_-]+$/
+const ENGRAM_HOST_SECURITY_CANARY_COMMAND = 'get_extension_host_security'
 const UNSAFE_CONTEXT_KEYS = new Set(['__proto__', 'constructor', 'prototype'])
 const TAURI_HOST_ORIGINS = new Set([
   'tauri://localhost',
@@ -32,6 +33,10 @@ export interface EngramHostBridgeHandle {
   active: boolean
   embedded: boolean
   stop: () => void
+}
+
+export interface EngramHostBridgeOptions {
+  nativeIpcProbe?: () => Promise<boolean>
 }
 
 interface EngramHostEnvelope {
@@ -58,7 +63,7 @@ function queryRequestsEmbeddedMode(search: string): boolean {
 }
 
 /**
- * Return true when the URL requests supervised Engram hosting.
+ * Return true when the URL requests restricted Engram hosting.
  *
  * A duplicate or incomplete handshake remains embedded. This fail-closed rule
  * prevents malformed host parameters from restoring native access. Default
@@ -116,7 +121,7 @@ export function readEngramHostConfig(search: string = currentSearch()): EngramHo
   return Object.freeze({ origin, nonce })
 }
 
-/** Return false for every native backend probe in supervised embedded mode. */
+/** Return false for every native backend probe in restricted embedded mode. */
 export function isNativeBackendAvailable(
   search?: string,
   tauriProbe: () => boolean = isTauri
@@ -249,7 +254,10 @@ function createEnvelope(
  * The bridge accepts context only. It has no command, NCP, plant, or native
  * backend message path.
  */
-export function startEngramHostBridge(hostWindow: Window = window): EngramHostBridgeHandle {
+export function startEngramHostBridge(
+  hostWindow: Window = window,
+  options: EngramHostBridgeOptions = {}
+): EngramHostBridgeHandle {
   const embedded = isEngramEmbeddedMode(undefined, hostWindow)
   const config = readEngramHostConfig(hostWindow.location.search)
   if (!embedded || config === null || hostWindow.parent === hostWindow) {
@@ -260,6 +268,10 @@ export function startEngramHostBridge(hostWindow: Window = window): EngramHostBr
 
   let hostContextReceived = false
   let hostContextNonce: string | null = null
+  let heartbeatSequence = 0
+  let tauriIpcAccessible: boolean | null =
+    options.nativeIpcProbe === undefined && !isTauri() ? false : null
+  let active = true
   const post = (kind: 'extension.ready' | 'extension.status', payload: unknown) => {
     const envelope = createEnvelope(kind, config.nonce, payload)
     if (hasBoundedSerializedSize(envelope)) {
@@ -279,6 +291,8 @@ export function startEngramHostBridge(hostWindow: Window = window): EngramHostBr
       artifact_exchange: false,
       ncp: { wire: '0.8', compatible: false, active: false },
       plant_control: false,
+      tauri_ipc_accessible: tauriIpcAccessible,
+      heartbeat_sequence: heartbeatSequence,
       host_context_received: hostContextReceived,
       context_nonce: hostContextNonce,
     })
@@ -293,9 +307,10 @@ export function startEngramHostBridge(hostWindow: Window = window): EngramHostBr
       return
     }
     if (contextNonce === null) return
-    if (hostContextReceived) return
+    if (hostContextReceived && contextNonce !== hostContextNonce) return
     hostContextNonce = contextNonce
     hostContextReceived = true
+    heartbeatSequence = (heartbeatSequence + 1) % 4_294_967_296
     postStatus()
   }
 
@@ -308,7 +323,30 @@ export function startEngramHostBridge(hostWindow: Window = window): EngramHostBr
   })
   postStatus()
 
-  let active = true
+  if (tauriIpcAccessible === null) {
+    const probe =
+      options.nativeIpcProbe ??
+      (async () => {
+        try {
+          await invoke(ENGRAM_HOST_SECURITY_CANARY_COMMAND)
+          return true
+        } catch {
+          return false
+        }
+      })
+    void probe()
+      .then((accessible) => {
+        if (!active) return
+        tauriIpcAccessible = accessible
+        postStatus()
+      })
+      .catch(() => {
+        if (!active) return
+        tauriIpcAccessible = false
+        postStatus()
+      })
+  }
+
   const handle: EngramHostBridgeHandle = {
     get active() {
       return active

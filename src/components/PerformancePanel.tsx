@@ -36,6 +36,8 @@ interface PerformancePanelProps {
   backend?: string
   /** Backend mode or execution detail */
   backendDetail?: string
+  /** Initial disclosure state. Standalone mode defaults to expanded. */
+  initiallyExpanded?: boolean
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -222,8 +224,9 @@ export function PerformancePanel({
   error,
   backend = 'Unknown',
   backendDetail,
+  initiallyExpanded = true,
 }: PerformancePanelProps) {
-  const [isExpanded, setIsExpanded] = useState(true)
+  const [isExpanded, setIsExpanded] = useState(initiallyExpanded)
 
   // Use combined draggable panel hook
   // Use centralized position from PANEL_POSITIONS
@@ -298,10 +301,14 @@ export function PerformancePanel({
         `}
       >
         {/* Header - Drag Handle */}
-        <div
+        <button
+          type="button"
           data-drag-handle
-          className="flex items-center justify-between px-3 py-2 border-b border-gray-700/50 cursor-grab hover:bg-gray-800/30 select-none"
+          className="flex w-full cursor-grab select-none items-center justify-between border-b border-gray-700/50 px-3 py-2 text-left hover:bg-gray-800/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-emerald-400"
           onClick={handleHeaderClick}
+          aria-expanded={isExpanded}
+          aria-controls="performance-panel-content"
+          aria-label={isExpanded ? 'Collapse performance panel' : 'Expand performance panel'}
         >
           <div className="flex items-center gap-2">
             <svg
@@ -338,11 +345,11 @@ export function PerformancePanel({
               />
             </svg>
           </div>
-        </div>
+        </button>
 
         {/* Expanded Content */}
         {isExpanded && (
-          <div className="p-3 space-y-3">
+          <div id="performance-panel-content" className="p-3 space-y-3">
             {/* Backend Badge */}
             <div className="flex items-center gap-2">
               <span className="px-2 py-0.5 text-[1em] font-medium bg-emerald-900/50 text-emerald-400 rounded uppercase tracking-wider">

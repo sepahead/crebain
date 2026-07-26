@@ -67,16 +67,16 @@ function contextEnvelope(patch: Record<string, unknown> = {}) {
 }
 
 describe('Engram embedded runtime boundary', () => {
-  it('publishes the read-only supervised entrypoint contract', () => {
+  it('publishes the read-only restricted entrypoint contract', () => {
     expect(manifest).toEqual({
       schema_version: '1.0',
       id: CREBAIN_EXTENSION_ID,
       name: 'CREBAIN',
       version: '0.9.0',
-      description: 'Read-only supervised embedding for the CREBAIN research visualization runtime.',
+      description: 'Read-only restricted embedding for the CREBAIN research visualization runtime.',
       host_api: { minimum: '1.0', maximum: '1.0' },
       entrypoint: {
-        kind: 'supervised-local-web',
+        kind: 'restricted-local-web',
         url: 'http://127.0.0.1:5173/',
         embedded_query: 'engramHost=1',
       },
@@ -92,6 +92,7 @@ describe('Engram embedded runtime boundary', () => {
       },
       boundaries: [
         'Embedded mode disables every Tauri and native backend path.',
+        'The host must deny Engram native IPC before the embedded view becomes interactive.',
         'Embedded mode disables external telemetry connections.',
         'Embedded mode accepts and produces no artifacts.',
         'The host bridge accepts bounded context only.',
@@ -105,7 +106,7 @@ describe('Engram embedded runtime boundary', () => {
       schema_version: 1,
       id: CREBAIN_EXTENSION_ID,
       hash_revision: 'file_bytes_v1',
-      sha256: '013fe3ebba9e4ef776980eba5271315daf17c0e4e88b876ab0f980255a9c21d1',
+      sha256: 'd6779b8653cb1e4901530c9acf66da87e4b600c73606d2a52fc1dd5fd7b0d811',
     })
     expect(createHash('sha256').update(manifestSource).digest('hex')).toBe(manifestLock.sha256)
   })
@@ -115,7 +116,7 @@ describe('Engram embedded runtime boundary', () => {
       schema_version: 1,
       protocol: ENGRAM_HOST_PROTOCOL,
       hash_revision: 'file_bytes_v1',
-      sha256: 'c7cb0c356962a3728efb09c8d2f1a42c0454abbdfb918da71d1400290b447c72',
+      sha256: '693c38f679bb1b2fbf7a719175cbade90a467022f4607ff443ac9c810eb1873c',
     })
     expect(createHash('sha256').update(protocolVectorSource).digest('hex')).toBe(
       protocolVectorLock.sha256
@@ -304,7 +305,63 @@ describe('Engram postMessage bridge', () => {
     expect(host.parent.postMessage.mock.calls.at(-1)?.[0]).toEqual(protocolVector.accepted_status)
 
     host.emit(contextEnvelope())
-    expect(host.parent.postMessage).toHaveBeenCalledTimes(initialPosts + 1)
+    expect(host.parent.postMessage).toHaveBeenCalledTimes(initialPosts + 2)
+    expect(host.parent.postMessage.mock.calls.at(-1)?.[0]).toMatchObject({
+      payload: {
+        heartbeat_sequence: 2,
+        host_context_received: true,
+        context_nonce: CONTEXT_NONCE,
+      },
+    })
+
+    host.emit(
+      contextEnvelope({
+        payload: {
+          ...protocolVector.host_context.payload,
+          context_nonce: `${CONTEXT_NONCE.slice(0, -1)}2`,
+        },
+      })
+    )
+    expect(host.parent.postMessage).toHaveBeenCalledTimes(initialPosts + 2)
+  })
+
+  it('reports whether the restricted frame can reach a Tauri custom command', async () => {
+    const host = createHostWindow()
+    const bridge = startEngramHostBridge(host.hostWindow, {
+      nativeIpcProbe: async () => true,
+    })
+
+    expect(host.parent.postMessage.mock.calls[1]?.[0]).toMatchObject({
+      payload: { tauri_ipc_accessible: null },
+    })
+    await vi.waitFor(() => {
+      expect(host.parent.postMessage.mock.calls.at(-1)?.[0]).toMatchObject({
+        payload: { tauri_ipc_accessible: true },
+      })
+    })
+
+    bridge.stop()
+  })
+
+  it.each([
+    ['an inaccessible command', async () => false],
+    [
+      'a rejected probe',
+      async () => {
+        throw new Error('command denied')
+      },
+    ],
+  ])('reports false for %s', async (_case, nativeIpcProbe) => {
+    const host = createHostWindow()
+    const bridge = startEngramHostBridge(host.hostWindow, { nativeIpcProbe })
+
+    await vi.waitFor(() => {
+      expect(host.parent.postMessage.mock.calls.at(-1)?.[0]).toMatchObject({
+        payload: { tauri_ipc_accessible: false },
+      })
+    })
+
+    bridge.stop()
   })
 
   it('does not start for standalone or an invalid host handshake', () => {

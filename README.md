@@ -321,9 +321,9 @@ prove a deployed Galadriel receiver, TLS/mTLS identities, ACLs, or delivery. See
 [docs/NCP_BRIDGE_HANDOFF.md](docs/NCP_BRIDGE_HANDOFF.md) and
 [docs/GALADRIEL_PRODUCER.md](docs/GALADRIEL_PRODUCER.md).
 
-### Engram supervised embedding
+### Engram restricted embedding
 
-Engram can embed the Vite interface as a supervised local web tab. The host
+Engram can embed the Vite interface as a restricted local web tab. The host
 must add `engramHost=1`, `hostOrigin`, and `hostNonce` to the entry URL.
 `hostOrigin` must be an exact loopback or Tauri origin. The nonce must be a
 bounded URL-safe value.
@@ -339,6 +339,21 @@ accepts only bounded `host.context` messages from the exact parent and origin.
 Each loaded frame document must echo a fresh context nonce in its status. A
 status from an older document cannot complete the current handshake. The
 bridge does not accept commands. It cannot activate NCP or plant control.
+
+Engram continues bounded health challenges after readiness. CREBAIN increments
+a heartbeat sequence for each accepted challenge. Engram relocks the frame when
+responses stop. CREBAIN also probes a harmless Engram Tauri command. The host
+must keep the frame locked unless native Engram inter-process communication
+(IPC) is inaccessible.
+
+The nonce and challenge correlate one document. They do not authenticate or
+attest the CREBAIN process, source revision, or build. Engram disables this
+remote iframe on Linux and Android. Tauri cannot isolate iframe IPC from the
+parent window on those targets.
+
+The Performance and Sensor Fusion panels start collapsed in embedded mode.
+Their standalone defaults remain expanded. The Performance disclosure is a
+keyboard-operable button.
 The digest-locked vector in
 [`integrations/engram/engram.host.v1.vector.json`](integrations/engram/engram.host.v1.vector.json)
 binds the exact cross-repository challenge and status exchange.
@@ -381,6 +396,7 @@ and asset limits, and the platform matrix are in
 | [docs/CONTROLS.md](docs/CONTROLS.md) | Full keyboard reference |
 | [ros/README.md](ros/README.md) | ROS package, topics, launch files, camera wire contract |
 | [docs/NCP_BRIDGE_HANDOFF.md](docs/NCP_BRIDGE_HANDOFF.md) | Optional NCP/Engram bridge status and boundaries |
+| [integrations/engram/README.md](integrations/engram/README.md) | Restricted host startup, heartbeat, IPC isolation, and authority boundaries |
 | [docs/PLANT_CONTRACT_V1.md](docs/PLANT_CONTRACT_V1.md) | Inactive draft command contract, frame corpus, and limits |
 | [docs/PLANT_HEALTH_V1.md](docs/PLANT_HEALTH_V1.md) | Inactive typed vehicle-health snapshot and evidence limits |
 | [docs/PLANT_FRESHNESS_V1.md](docs/PLANT_FRESHNESS_V1.md) | Inactive profile-bound captured-read health-age classifier |
