@@ -245,4 +245,15 @@ describe('AdvancedSensorFusion IPC', () => {
     ])
     expect(invokeMock).toHaveBeenCalledWith('fusion_set_config', { config })
   })
+
+  // Embedded mode is irreversible for one document. Keep this control last.
+  it('rejects native fusion IPC in Engram embedded mode', async () => {
+    window.history.replaceState({}, '', '/?engramHost=1')
+    try {
+      await expect(initFusion()).rejects.toThrow('disabled in Engram embedded mode')
+    } finally {
+      window.history.replaceState({}, '', '/')
+    }
+    expect(invokeMock).not.toHaveBeenCalled()
+  })
 })

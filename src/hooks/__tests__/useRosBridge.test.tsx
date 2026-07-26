@@ -269,4 +269,32 @@ describe('useRosBridge', () => {
     await act(async () => root.unmount())
     expect(vi.getTimerCount()).toBe(0)
   })
+
+  // Embedded mode is irreversible for one document. Keep this control last.
+  it('constructs no telemetry transport in Engram embedded mode', async () => {
+    window.history.replaceState({}, '', '/?engramHost=1')
+    try {
+      const root = await renderHook({
+        transport: 'websocket',
+        autoConnect: true,
+        enablePerformanceMonitoring: true,
+      })
+
+      expect(hook.bridge).toBeNull()
+      expect(hook.state).toBe('disconnected')
+      expect(hook.error).toBe('External telemetry is disabled in Engram embedded mode')
+      expect(MockWebSocket.instances).toHaveLength(0)
+      expect(tauriMocks.invoke).not.toHaveBeenCalled()
+
+      await act(async () => {
+        await hook.connect()
+      })
+      expect(MockWebSocket.instances).toHaveLength(0)
+      expect(tauriMocks.invoke).not.toHaveBeenCalled()
+
+      await act(async () => root.unmount())
+    } finally {
+      window.history.replaceState({}, '', '/')
+    }
+  })
 })

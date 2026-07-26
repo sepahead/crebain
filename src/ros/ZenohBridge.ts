@@ -26,6 +26,7 @@ import { normalizeRosNamespace } from './utils'
 import { rosLogger as log } from '../lib/logger'
 import { TAURI_COMMANDS } from '../lib/tauriCommands'
 import { getTransportEventName } from '../lib/transportEvents'
+import { assertNativeBackendAllowed } from '../integrations/engramHost'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES (Backend Mappings)
@@ -269,6 +270,7 @@ export class ZenohBridge {
   // ───────────────────────────────────────────────────────────────────────────
 
   async connect(): Promise<void> {
+    assertNativeBackendAllowed()
     if (this.state === 'connected') return
 
     const connectIntent = reserveNativeConnectIntent()

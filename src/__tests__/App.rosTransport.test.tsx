@@ -38,7 +38,9 @@ vi.mock('../components/ErrorBoundary', () => ({
   default: ({ children }: { children: ReactNode }) => children,
 }))
 vi.mock('../components/PerformancePanel', () => ({ default: () => null }))
-vi.mock('../components/ROSConnectionPanel', () => ({ default: () => null }))
+vi.mock('../components/ROSConnectionPanel', () => ({
+  default: () => <div data-testid="ros-connection-panel" />,
+}))
 vi.mock('../components/SensorFusionPanel', () => ({ default: () => null }))
 vi.mock('../components/AboutModal', () => ({ AboutModal: () => null }))
 vi.mock('../context/UIScaleContext', () => ({
@@ -93,7 +95,7 @@ async function renderApp() {
   await act(async () => {
     root.render(<App />)
   })
-  return root
+  return { container, root }
 }
 
 describe('App ROS transport ownership', () => {
@@ -112,7 +114,7 @@ describe('App ROS transport ownership', () => {
         connectionState: 'connected',
       })
     )
-    const root = await renderApp()
+    const { root } = await renderApp()
 
     expect(mocks.useROSSensors).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -137,7 +139,7 @@ describe('App ROS transport ownership', () => {
         connectionState: 'connected',
       })
     )
-    const root = await renderApp()
+    const { root } = await renderApp()
 
     expect(mocks.useROSSensors).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -156,11 +158,38 @@ describe('App ROS transport ownership', () => {
     mocks.isTauri.mockReturnValue(true)
     mocks.listen.mockRejectedValueOnce(new Error('menu unavailable'))
     mocks.useGazeboSimulation.mockReturnValue(gazeboReturn())
-    const root = await renderApp()
+    const { root } = await renderApp()
 
     expect(mocks.listen).toHaveBeenCalledWith('show-about', expect.any(Function))
     expect(mocks.invoke).toHaveBeenCalled()
 
     await act(async () => root.unmount())
+  })
+
+  it('shows the embedded boundary and disables native access in a Tauri host frame', async () => {
+    window.history.replaceState({}, '', '/?engramHost=1&hostOrigin=invalid&hostNonce=invalid')
+    mocks.isTauri.mockReturnValue(true)
+    const gazebo = gazeboReturn()
+    mocks.useGazeboSimulation.mockReturnValue(gazebo)
+
+    try {
+      const { container, root } = await renderApp()
+
+      expect(
+        container.querySelector('[data-testid="engram-embedded-boundary"]')?.textContent
+      ).toContain('EMBEDDED SAFE MODE')
+      expect(mocks.isTauri).not.toHaveBeenCalled()
+      expect(mocks.invoke).not.toHaveBeenCalled()
+      expect(mocks.listen).not.toHaveBeenCalled()
+      await act(async () => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'n' }))
+      })
+      expect(container.querySelector('[data-testid="ros-connection-panel"]')).toBeNull()
+      expect(gazebo.connect).not.toHaveBeenCalled()
+
+      await act(async () => root.unmount())
+    } finally {
+      window.history.replaceState({}, '', '/')
+    }
   })
 })

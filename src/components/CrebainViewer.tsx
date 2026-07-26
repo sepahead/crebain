@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
-import { invoke, isTauri } from '@tauri-apps/api/core'
+import { invoke } from '@tauri-apps/api/core'
 import * as THREE from 'three'
 import { SplatMesh } from '@sparkjsdev/spark'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
@@ -87,6 +87,7 @@ import type {
 } from './viewer/types'
 import { sceneLogger as log } from '../lib/logger'
 import { isSplatFormat, isGlbFormat, generateCameraDesignation } from './viewer/types'
+import { isEngramEmbeddedMode, isNativeBackendAvailable } from '../integrations/engramHost'
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════
@@ -477,7 +478,8 @@ export default function CrebainViewer({
   // plain browser (e.g. the Vite dev server) the IPC bridge is absent and every
   // `invoke` rejects with "Failed to fetch". Detect that up front so the UI can
   // disable the native buttons and show a clear message instead.
-  const nativeAvailable = useMemo(() => isTauri(), [])
+  const embeddedInEngram = useMemo(() => isEngramEmbeddedMode(), [])
+  const nativeAvailable = useMemo(() => isNativeBackendAvailable(), [])
 
   const refreshSystemInfo = useCallback(async () => {
     if (!nativeAvailable) {
@@ -909,6 +911,10 @@ export default function CrebainViewer({
 
   const downloadCameraFeed = useCallback(
     async (cameraId: string) => {
+      if (embeddedInEngram) {
+        addMessage('warning', 'ARTEFAKTEXPORT IM ENGRAM-MODUS DEAKTIVIERT')
+        return
+      }
       // User-initiated export: accept any rendered frame, however stale.
       const imageData = await exportCameraFeed(cameraId, Infinity)
       if (!imageData) return
@@ -925,7 +931,7 @@ export default function CrebainViewer({
       link.click()
       addMessage('success', `EXPORT: ${cam?.name}`)
     },
-    [exportCameraFeed, cameras, addMessage]
+    [addMessage, cameras, embeddedInEngram, exportCameraFeed]
   )
 
   const testCoreMLInference = useCallback(async () => {
@@ -1332,6 +1338,10 @@ export default function CrebainViewer({
       name?: string,
       restoredTransform?: SplatSceneState
     ): Promise<boolean> => {
+      if (embeddedInEngram) {
+        addMessage('warning', 'ARTEFAKTIMPORT IM ENGRAM-MODUS DEAKTIVIERT')
+        return false
+      }
       if (!sceneRef.current) return false
       if (typeof source === 'string' && !isReloadableSplatSource(source)) {
         addMessage('error', 'FEHLER: SPLAT-URL ODER -FORMAT NICHT ERLAUBT')
@@ -1601,7 +1611,7 @@ export default function CrebainViewer({
         finishLoading(loadingToken)
       }
     },
-    [addMessage, beginLoading, finishLoading, isLatestLoading]
+    [addMessage, beginLoading, embeddedInEngram, finishLoading, isLatestLoading]
   )
 
   const loadGlb = useCallback(
@@ -1610,6 +1620,10 @@ export default function CrebainViewer({
       name?: string,
       restored?: SceneAssetState
     ): Promise<LoadedAsset | null> => {
+      if (embeddedInEngram) {
+        addMessage('warning', 'ARTEFAKTIMPORT IM ENGRAM-MODUS DEAKTIVIERT')
+        return null
+      }
       if (!sceneRef.current || !glbLoaderRef.current) return null
       const displayName = name || (source instanceof File ? source.name : 'MODELL')
       const reservation = Symbol(displayName)
@@ -1741,11 +1755,15 @@ export default function CrebainViewer({
         finishLoading(loadingToken)
       }
     },
-    [addMessage, beginLoading, finishLoading]
+    [addMessage, beginLoading, embeddedInEngram, finishLoading]
   )
 
   const loadFloorTexture = useCallback(
     async (source: File | string, name?: string): Promise<void> => {
+      if (embeddedInEngram) {
+        addMessage('warning', 'ARTEFAKTIMPORT IM ENGRAM-MODUS DEAKTIVIERT')
+        return
+      }
       if (!sceneRef.current) return
       const displayName = name || (source instanceof File ? source.name : 'BODEN')
       const loadingToken = beginLoading(displayName)
@@ -1841,7 +1859,7 @@ export default function CrebainViewer({
         if (floorLoadingTokenRef.current === loadingToken) floorLoadingTokenRef.current = null
       }
     },
-    [addMessage, beginLoading, finishLoading]
+    [addMessage, beginLoading, embeddedInEngram, finishLoading]
   )
 
   const handleSetFloorType = useCallback(
@@ -1880,6 +1898,10 @@ export default function CrebainViewer({
       const files = Array.from(e.target.files ?? [])
       e.target.value = ''
       if (files.length === 0) return
+      if (embeddedInEngram) {
+        addMessage('warning', 'ARTEFAKTIMPORT IM ENGRAM-MODUS DEAKTIVIERT')
+        return
+      }
       const finalSplatIndex = files.reduce(
         (last, file, index) => (isSplatFormat(file.name) ? index : last),
         -1
@@ -1897,7 +1919,7 @@ export default function CrebainViewer({
         } else addMessage('warning', `NICHT UNTERSTÜTZT: ${file.name}`)
       }
     },
-    [loadSplat, loadGlb, loadFloorTexture, addMessage]
+    [addMessage, embeddedInEngram, loadFloorTexture, loadGlb, loadSplat]
   )
 
   const resetCamera = useCallback(() => {
@@ -2451,14 +2473,22 @@ export default function CrebainViewer({
         case 'o':
           if (e.ctrlKey || e.metaKey) {
             e.preventDefault()
-            fileInputRef.current?.click()
+            if (!embeddedInEngram) fileInputRef.current?.click()
           }
           break
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [resetCamera, focusOnContent, cycleCamera, addMessage, clearSelection, loadSplat])
+  }, [
+    addMessage,
+    clearSelection,
+    cycleCamera,
+    embeddedInEngram,
+    focusOnContent,
+    loadSplat,
+    resetCamera,
+  ])
 
   useEffect(() => {
     if (!cameraPlacementMode && !dronePlacementMode) return
@@ -2605,6 +2635,7 @@ export default function CrebainViewer({
   }, [cameras, showCameraFeeds])
 
   useEffect(() => {
+    if (embeddedInEngram) return
     const container = containerRef.current
     if (!container) return
     const handleDragOver = (e: DragEvent) => {
@@ -2650,7 +2681,7 @@ export default function CrebainViewer({
       container.removeEventListener('dragleave', handleDragLeave)
       container.removeEventListener('drop', onDrop)
     }
-  }, [loadSplat, loadGlb, loadFloorTexture, addMessage])
+  }, [addMessage, embeddedInEngram, loadFloorTexture, loadGlb, loadSplat])
 
   const createSceneSnapshot = useCallback(
     (sceneName: string): SceneState => {
@@ -3047,14 +3078,16 @@ export default function CrebainViewer({
       style={cssVar as React.CSSProperties}
       aria-busy={isLoading}
     >
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".spz,.ply,.splat,.ksplat,.glb,.jpg,.jpeg,.png"
-        multiple
-        onChange={(event) => void handleFileSelect(event)}
-        className="hidden"
-      />
+      {!embeddedInEngram && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".spz,.ply,.splat,.ksplat,.glb,.jpg,.jpeg,.png"
+          multiple
+          onChange={(event) => void handleFileSelect(event)}
+          className="hidden"
+        />
+      )}
 
       <div
         ref={containerRef}
@@ -3085,17 +3118,19 @@ export default function CrebainViewer({
       />
 
       {/* SAVE/LOAD PANEL */}
-      <SaveLoadPanel
-        canLoad={physicsReady}
-        isExpanded={showSaveLoadPanel}
-        onToggleExpand={() => setShowSaveLoadPanel((prev) => !prev)}
-        onCreateSnapshot={createSceneSnapshot}
-        onSave={(state) => addMessage('success', `Szene "${state.name}" gespeichert`)}
-        onLoad={async (state) => {
-          await restoreScene(state)
-          addMessage('success', `Szene "${state.name}" wiederhergestellt`)
-        }}
-      />
+      {!embeddedInEngram && (
+        <SaveLoadPanel
+          canLoad={physicsReady}
+          isExpanded={showSaveLoadPanel}
+          onToggleExpand={() => setShowSaveLoadPanel((prev) => !prev)}
+          onCreateSnapshot={createSceneSnapshot}
+          onSave={(state) => addMessage('success', `Szene "${state.name}" gespeichert`)}
+          onLoad={async (state) => {
+            await restoreScene(state)
+            addMessage('success', `Szene "${state.name}" wiederhergestellt`)
+          }}
+        />
+      )}
 
       {/* 3D OBJECT TRANSFORM CONTROLS */}
       {primarySelection && (
@@ -3334,13 +3369,15 @@ export default function CrebainViewer({
 
                     <div className="w-full h-px bg-[#1a1a1a]" />
 
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={isLoading}
-                      className="w-full py-2 bg-[#101010] border border-[#252525] text-[1em] text-[#707070] hover:border-[#404040] hover:text-[#a0a0a0] disabled:opacity-50 transition-all"
-                    >
-                      DATEI LADEN
-                    </button>
+                    {!embeddedInEngram && (
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isLoading}
+                        className="w-full py-2 bg-[#101010] border border-[#252525] text-[1em] text-[#707070] hover:border-[#404040] hover:text-[#a0a0a0] disabled:opacity-50 transition-all"
+                      >
+                        DATEI LADEN
+                      </button>
+                    )}
                     {(loadedAssets.length > 0 || currentAsset) && (
                       <div>
                         <div className="text-[0.75em] text-[#606060] tracking-wider mb-2">
@@ -3635,12 +3672,14 @@ export default function CrebainViewer({
                 <div
                   className={`w-1.5 h-1.5 ${selectedCameraData.isRecording ? 'bg-[#8b4a4a] animate-pulse' : 'bg-[#303030]'}`}
                 />
-                <button
-                  onClick={() => void downloadCameraFeed(selectedCameraData.id)}
-                  className="px-2 py-0.5 bg-[#101010] border border-[#252525] text-[0.75em] text-[#707070] hover:border-[#404040] hover:text-[#a0a0a0]"
-                >
-                  EXPORT
-                </button>
+                {!embeddedInEngram && (
+                  <button
+                    onClick={() => void downloadCameraFeed(selectedCameraData.id)}
+                    className="px-2 py-0.5 bg-[#101010] border border-[#252525] text-[0.75em] text-[#707070] hover:border-[#404040] hover:text-[#a0a0a0]"
+                  >
+                    EXPORT
+                  </button>
+                )}
               </div>
             </div>
             {selectedCameraData.type === 'ptz' && (
@@ -3866,9 +3905,11 @@ export default function CrebainViewer({
           <span>
             FOKUS: <span className="text-[#707070]">F</span>
           </span>
-          <span>
-            LADEN: <span className="text-[#707070]">⌃O</span>
-          </span>
+          {!embeddedInEngram && (
+            <span>
+              LADEN: <span className="text-[#707070]">⌃O</span>
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <button

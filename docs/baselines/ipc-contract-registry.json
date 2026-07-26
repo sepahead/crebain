@@ -20,7 +20,7 @@
     },
     {
       "path": "src/ros/ZenohBridge.ts",
-      "sha256": "0f55ffc41fbc8a2709df07cf1c3b2327eb1969d2454708a911ec15a586528528"
+      "sha256": "2dba8c4bc69789ec7cd33264f07de85b3740378f3caed7aa0a9fce168c3ed3e2"
     },
     {
       "path": "src/ros/MessageRegistry.ts",

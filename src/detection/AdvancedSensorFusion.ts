@@ -8,6 +8,7 @@
 
 import { invoke } from '@tauri-apps/api/core'
 import { TAURI_COMMANDS } from '../lib/tauriCommands'
+import { assertNativeBackendAllowed } from '../integrations/engramHost'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -340,6 +341,7 @@ function normalizeFusionStats(value: unknown): FusionStats {
  * Initialize the sensor fusion engine
  */
 export async function initFusion(config?: Partial<FusionConfig>): Promise<void> {
+  assertNativeBackendAllowed()
   const fullConfig: FusionConfig | undefined = config
     ? {
         algorithm: config.algorithm ?? 'ExtendedKalman',
@@ -365,6 +367,7 @@ export async function processMeasurements(
   timestampMs?: number,
   upstreamDroppedMeasurements = 0
 ): Promise<FusedTrack[]> {
+  assertNativeBackendAllowed()
   if (measurements.length === 0 && timestampMs === undefined) {
     throw new Error(
       'Invalid fusion request: timestampMs is required when processing an empty measurement frame'
@@ -410,6 +413,7 @@ export async function processMeasurements(
  * Get current tracks without processing new measurements
  */
 export async function getTracks(): Promise<FusedTrack[]> {
+  assertNativeBackendAllowed()
   const response = await invoke<unknown>(TAURI_COMMANDS.fusion.getTracks)
   return normalizeTracks(response)
 }
@@ -418,6 +422,7 @@ export async function getTracks(): Promise<FusedTrack[]> {
  * Get fusion statistics
  */
 export async function getFusionStats(): Promise<FusionStats> {
+  assertNativeBackendAllowed()
   const response = await invoke<unknown>(TAURI_COMMANDS.fusion.getStats)
   return normalizeFusionStats(response)
 }
@@ -426,6 +431,7 @@ export async function getFusionStats(): Promise<FusionStats> {
  * Update fusion configuration
  */
 export async function setFusionConfig(config: FusionConfig): Promise<void> {
+  assertNativeBackendAllowed()
   await invoke(TAURI_COMMANDS.fusion.setConfig, { config })
 }
 
@@ -433,6 +439,7 @@ export async function setFusionConfig(config: FusionConfig): Promise<void> {
  * Clear all tracks
  */
 export async function clearTracks(): Promise<void> {
+  assertNativeBackendAllowed()
   await invoke(TAURI_COMMANDS.fusion.clear)
 }
 
@@ -440,6 +447,7 @@ export async function clearTracks(): Promise<void> {
  * Get available filter algorithms
  */
 export async function getAlgorithms(): Promise<AlgorithmInfo[]> {
+  assertNativeBackendAllowed()
   return invoke<AlgorithmInfo[]>(TAURI_COMMANDS.fusion.getAlgorithms)
 }
 
@@ -447,6 +455,7 @@ export async function getAlgorithms(): Promise<AlgorithmInfo[]> {
  * Get available sensor modalities
  */
 export async function getModalities(): Promise<ModalityInfo[]> {
+  assertNativeBackendAllowed()
   return invoke<ModalityInfo[]>(TAURI_COMMANDS.fusion.getModalities)
 }
 

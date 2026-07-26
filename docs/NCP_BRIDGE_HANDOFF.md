@@ -18,13 +18,22 @@ standalone. NCP is not on the default runtime path:
 | Rust Tauri commands | Defined, but `NcpHandle` is not managed and the four `ncp_*` commands are not registered |
 | Rust Galadriel producer | Compiles with `ncp`; managed by the app only when `CREBAIN_GALADRIEL_ENABLE=1`, an explicit key-safe process epoch is supplied, and all registry/config/executable pins pass; writes only two named perception evidence routes |
 | TypeScript `src/neuro` | Thin guarded re-export of `@sepahead/ncp`; imported by no product component/hook |
-| Vite-dev `window.__ncpDrone` | Manual in-browser wire-shaped command injection; no NCP transport/session; absent from production builds |
+| Vite-dev `window.__ncpDrone` | Manual in-browser wire-shaped command injection. It opens no NCP transport or session. It is absent from production builds and Engram embedded mode. |
+| Engram supervised UI host | Read-only `engram.host.v1` readiness, status, and bounded context messages. Embedded mode disables native access, external telemetry, artifact exchange, and all NCP command ingress. |
 | Live CREBAIN↔Engram action/control loop | Not implemented or enabled |
 | Live CREBAIN→Galadriel deployed correlation | Producer component is integrated; compatible receiver, security/topology, and end-to-end evidence remain unproved |
 
 No Engram process or sibling checkout is required to run CREBAIN. Cargo's pinned
 Git dependencies must still be network/cache-resolvable when resolving or building
 the NCP feature. “No sibling checkout” does not mean “no dependency resolution.”
+
+Engram can host the standalone Vite interface with `engramHost=1`. This mode
+uses the manifest in `integrations/engram/manifest.json`. The embedded boundary
+remains latched for the document lifetime. Each loaded document must echo a
+fresh context nonce. This mode does not use the native NCP adapter. CREBAIN wire
+`0.8` is incompatible with the Engram `1.0` candidate, so the manifest marks
+compatibility as false. The source repository and Engram share a digest-locked
+`engram.host.v1` protocol vector.
 
 ## Current dependency contract
 

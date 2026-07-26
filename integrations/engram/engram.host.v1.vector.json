@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "protocol": "engram.host.v1",
+  "extension_id": "sepahead.crebain",
+  "host_origin": "http://127.0.0.1:43821",
+  "session_nonce": "0123456789abcdef0123456789abcdef",
+  "context_nonce": "11111111111111111111111111111111",
+  "extension_ready": {
+    "protocol": "engram.host.v1",
+    "kind": "extension.ready",
+    "extension_id": "sepahead.crebain",
+    "nonce": "0123456789abcdef0123456789abcdef",
+    "payload": {
+      "mode": "embedded-read-only",
+      "standalone_available": true,
+      "native_backend": false,
+      "ncp": {
+        "wire": "0.8",
+        "compatible": false
+      }
+    }
+  },
+  "initial_status": {
+    "protocol": "engram.host.v1",
+    "kind": "extension.status",
+    "extension_id": "sepahead.crebain",
+    "nonce": "0123456789abcdef0123456789abcdef",
+    "payload": {
+      "mode": "embedded-read-only",
+      "authority": "read-only",
+      "native_backend": false,
+      "external_telemetry": false,
+      "artifact_exchange": false,
+      "ncp": {
+        "wire": "0.8",
+        "compatible": false,
+        "active": false
+      },
+      "plant_control": false,
+      "host_context_received": false,
+      "context_nonce": null
+    }
+  },
+  "host_context": {
+    "protocol": "engram.host.v1",
+    "kind": "host.context",
+    "extension_id": "sepahead.crebain",
+    "nonce": "0123456789abcdef0123456789abcdef",
+    "payload": {
+      "host_api": "1.0",
+      "authority": "read-only",
+      "ncp": {
+        "wire": "1.0",
+        "extension_wire": "0.8",
+        "compatible": false
+      },
+      "context_nonce": "11111111111111111111111111111111"
+    }
+  },
+  "accepted_status": {
+    "protocol": "engram.host.v1",
+    "kind": "extension.status",
+    "extension_id": "sepahead.crebain",
+    "nonce": "0123456789abcdef0123456789abcdef",
+    "payload": {
+      "mode": "embedded-read-only",
+      "authority": "read-only",
+      "native_backend": false,
+      "external_telemetry": false,
+      "artifact_exchange": false,
+      "ncp": {
+        "wire": "0.8",
+        "compatible": false,
+        "active": false
+      },
+      "plant_control": false,
+      "host_context_received": true,
+      "context_nonce": "11111111111111111111111111111111"
+    }
+  }
+}

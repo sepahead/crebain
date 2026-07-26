@@ -321,6 +321,33 @@ prove a deployed Galadriel receiver, TLS/mTLS identities, ACLs, or delivery. See
 [docs/NCP_BRIDGE_HANDOFF.md](docs/NCP_BRIDGE_HANDOFF.md) and
 [docs/GALADRIEL_PRODUCER.md](docs/GALADRIEL_PRODUCER.md).
 
+### Engram supervised embedding
+
+Engram can embed the Vite interface as a supervised local web tab. The host
+must add `engramHost=1`, `hostOrigin`, and `hostNonce` to the entry URL.
+`hostOrigin` must be an exact loopback or Tauri origin. The nonce must be a
+bounded URL-safe value.
+
+Embedded mode keeps the browser visualization available. It disables Tauri
+commands, native detection, native fusion, native Zenoh, and the development
+NCP command harness. It also disables external telemetry and artifact exchange.
+Invalid host parameters do not restore these paths. The restriction remains
+latched for the document lifetime after same-document URL changes.
+
+The `engram.host.v1` bridge sends bounded readiness and read-only status. It
+accepts only bounded `host.context` messages from the exact parent and origin.
+Each loaded frame document must echo a fresh context nonce in its status. A
+status from an older document cannot complete the current handshake. The
+bridge does not accept commands. It cannot activate NCP or plant control.
+The digest-locked vector in
+[`integrations/engram/engram.host.v1.vector.json`](integrations/engram/engram.host.v1.vector.json)
+binds the exact cross-repository challenge and status exchange.
+
+CREBAIN uses NCP wire `0.8`. This wire is incompatible with the Engram `1.0`
+candidate. The embedded interface does not create an NCP closed loop. See
+[`integrations/engram/manifest.json`](integrations/engram/manifest.json) for the
+machine-readable boundary.
+
 ---
 
 ## Configuration essentials
@@ -374,6 +401,10 @@ and asset limits, and the platform matrix are in
 ---
 
 ## Development and validation
+
+Run `bun run dev` for the standalone browser interface. The server binds the
+exact `http://127.0.0.1:5173` loopback origin used by the Engram host manifest.
+Use `bun run tauri:dev` for the standalone desktop application.
 
 ```bash
 # Frontend typecheck + lint + format check + Vitest

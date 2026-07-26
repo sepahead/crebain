@@ -16,6 +16,7 @@ import {
   MAX_ROUTE_WAYPOINTS,
 } from '../lib/routeLimits'
 import { disposeObject3D, forEachMesh } from '../lib/three/sceneObjects'
+import { isEngramEmbeddedMode } from '../integrations/engramHost'
 // The SDK plant-side wire gate + deadline/seq/latch primitive for the dev
 // NCP→drone bridge.
 import {
@@ -1080,7 +1081,7 @@ export function useDroneController(options: UseDroneControllerOptions) {
   // src-tauri/src/ncp); it exists to verify that NCP action-plane input visibly
   // moves a real drone. Exposed on window only under Vite dev.
   useEffect(() => {
-    if (!import.meta.env.DEV) return
+    if (!import.meta.env.DEV || isEngramEmbeddedMode()) return
     // Safety limits for NCP-driven actuation (the kinematic layer the SDK does
     // not own; the SDK ActionBuffer owns seq/ttl/mode/latch).
     const MAX_NCP_VELOCITY_MS = 10 // per-axis velocity clamp (m/s)

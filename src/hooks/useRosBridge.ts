@@ -16,6 +16,7 @@ import {
 } from '../ros/ROSPerformanceMonitor'
 import type { ConnectionState, ModelStates, ROSMessageCallback } from '../ros/types'
 import type { TelemetryBridge } from '../ros/TelemetryBridge'
+import { assertExternalTelemetryAllowed, isEngramEmbeddedMode } from '../integrations/engramHost'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -119,6 +120,7 @@ export function useRosBridge(config: Partial<UseRosBridgeConfig> = {}): UseRosBr
     config.enablePerformanceMonitoring ?? DEFAULT_CONFIG.enablePerformanceMonitoring
   const highLatencyThresholdMs =
     config.highLatencyThresholdMs ?? DEFAULT_CONFIG.highLatencyThresholdMs
+  const externalTelemetryAllowed = !isEngramEmbeddedMode()
 
   const [state, setState] = useState<ConnectionState>('disconnected')
   const [error, setError] = useState<string | null>(null)
@@ -143,6 +145,19 @@ export function useRosBridge(config: Partial<UseRosBridgeConfig> = {}): UseRosBr
 
   // Initialize bridge and performance monitor
   useEffect(() => {
+    if (!externalTelemetryAllowed) {
+      const disabledSnapshot: BridgeSnapshot = { transport, bridge: null, telemetry: null }
+      bridgeSnapshotRef.current = disabledSnapshot
+      setBridgeSnapshot(disabledSnapshot)
+      setState('disconnected')
+      setError('External telemetry is disabled in Engram embedded mode')
+      setAlerts([])
+      setQuality(null)
+      setTopicStats([])
+      performanceMonitorRef.current = null
+      return
+    }
+
     let bridge: RosBridgeInstance
     let monitor: ROSPerformanceMonitor | null = null
     const ownsBridge = () => {
@@ -230,6 +245,7 @@ export function useRosBridge(config: Partial<UseRosBridgeConfig> = {}): UseRosBr
       }
     }
   }, [
+    externalTelemetryAllowed,
     transport,
     url,
     autoConnect,
@@ -242,6 +258,11 @@ export function useRosBridge(config: Partial<UseRosBridgeConfig> = {}): UseRosBr
 
   // Connect function
   const connect = useCallback(async () => {
+    if (!externalTelemetryAllowed) {
+      setError('External telemetry is disabled in Engram embedded mode')
+      return
+    }
+    assertExternalTelemetryAllowed()
     const bridge = getActiveBridge()
     if (bridge) {
       setError(null)
@@ -252,7 +273,7 @@ export function useRosBridge(config: Partial<UseRosBridgeConfig> = {}): UseRosBr
         setError(err instanceof Error ? err.message : String(err))
       }
     }
-  }, [getActiveBridge])
+  }, [externalTelemetryAllowed, getActiveBridge])
 
   // Disconnect function
   const disconnect = useCallback(() => {

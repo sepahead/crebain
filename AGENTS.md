@@ -80,6 +80,9 @@ cargo build --locked --manifest-path src-tauri/Cargo.toml
 - `physics/` - Drone physics simulation
 - `simulation/` - Interception system
 - `state/` - Scene serialization and persistence
+- `integrations/` - Supervised Engram host validation and read-only status bridge.
+  `engramHost=1` disables native access, external telemetry, artifact exchange,
+  and the development NCP command harness.
 
 ### Backend (`src-tauri/`)
 

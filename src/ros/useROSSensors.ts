@@ -6,7 +6,6 @@
  */
 
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
-import { isTauri } from '@tauri-apps/api/core'
 import { ROSBridge } from '#renderer-rosbridge'
 import type {
   ThermalDetection,
@@ -31,6 +30,7 @@ import {
   clearTracks,
 } from '../detection/AdvancedSensorFusion'
 import { fusionLogger as log } from '../lib/logger'
+import { isNativeBackendAvailable } from '../integrations/engramHost'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -697,7 +697,7 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
   const externalUnsupportedReason = config.externalConnection?.unsupportedReason ?? null
   const [fusionBackendAvailable] = useState(() => {
     try {
-      return isTauri()
+      return isNativeBackendAvailable()
     } catch (error) {
       log.warn('Failed to detect the Tauri runtime; disabling native sensor fusion', { error })
       return false

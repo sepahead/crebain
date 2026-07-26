@@ -154,7 +154,7 @@
     },
     {
       "path": "src-tauri/tauri.conf.json",
-      "sha256": "aff325e6f223ce506c24e7d19fafd5725e252d2c005db73931c350962c376db4"
+      "sha256": "08567733e8c177cd8e9eb58457dacd0a39c42d3ace2e7c02fd863ed34a40159b"
     },
     {
       "path": "tsconfig.json",
@@ -162,11 +162,11 @@
     },
     {
       "path": "vite.config.ts",
-      "sha256": "e41be84cce9af0866ea34921022a9d43c177797c80daef618233bbd28455e4db"
+      "sha256": "f416f5ce6ad85ba295bad591fd23182f218243fff7d93582b5b0f801b5716357"
     },
     {
       "path": "docs/baselines/phase0-command-surfaces.json",
-      "sha256": "36fdac66f507bcdd54b7488c9071c2b2417fd93f22f102e5a241b6b1062f13e0"
+      "sha256": "0d071200d6e5b08216ad28d04cdeb34ea53ad0ffee64e364408d776449dfa5fd"
     },
     {
       "path": "docs/baselines/phase0-hazards.json",
@@ -318,7 +318,7 @@
     },
     {
       "path": "docs/baselines/ipc-contract-registry.json",
-      "sha256": "5947ec07cc5693e77baebd9fe3f624a0e6c4dbe504868a920bfbf3c18b7248ee"
+      "sha256": "e097b8e28fbb4a63ef4448a10e0b3e79d9dc9f0ab59515f334da07f5ebff9965"
     },
     {
       "path": "scripts/generate-ipc-contract-registry.mjs",

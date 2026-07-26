@@ -20,6 +20,7 @@ import type {
 } from './types'
 import { namespacedRosTopic } from './utils'
 import { rosLogger as log } from '../lib/logger'
+import { assertExternalTelemetryAllowed } from '../integrations/engramHost'
 import { validateGazeboPose, validateGazeboTwist } from './gazeboValidation'
 import {
   isValidTfFrameId,
@@ -839,6 +840,13 @@ export class ROSBridge {
   }
 
   private openSocket(): Promise<void> {
+    try {
+      assertExternalTelemetryAllowed()
+    } catch (error) {
+      return Promise.reject(
+        error instanceof Error ? error : new Error('External telemetry is unavailable.')
+      )
+    }
     return new Promise((resolve, reject) => {
       if (this.state === 'connected' && this.canSend()) {
         resolve()

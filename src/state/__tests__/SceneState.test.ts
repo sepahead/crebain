@@ -586,4 +586,55 @@ describe('SceneStateManager filesystem IPC', () => {
 
     expect(state).toBeNull()
   })
+
+  // Embedded mode is irreversible for one document. Keep these controls last.
+  it('rejects file export in Engram embedded mode without IPC or download', async () => {
+    const manager = new SceneStateManager()
+    const saveToFile = vi.spyOn(manager, 'saveToFile').mockImplementation(() => undefined)
+    manager.createNew('Embedded Scene')
+    window.history.replaceState({}, '', '/?engramHost=1')
+
+    try {
+      await expect(manager.saveToFileSystem('/tmp/embedded-scene.json')).rejects.toThrow(
+        'disabled in Engram embedded mode'
+      )
+    } finally {
+      window.history.replaceState({}, '', '/')
+    }
+
+    expect(invokeMock).not.toHaveBeenCalled()
+    expect(saveToFile).not.toHaveBeenCalled()
+  })
+
+  it('rejects direct artifact and persistence paths in Engram embedded mode', async () => {
+    const manager = new SceneStateManager()
+    manager.createNew('Embedded Scene')
+    const readFile = vi.fn(async () => JSON.stringify(validScene()))
+    const file = {
+      name: 'embedded.json',
+      size: 128,
+      text: readFile,
+    } as unknown as File
+    localStorage.setItem('crebain_scene_existing', JSON.stringify(validScene()))
+    window.history.replaceState({}, '', '/?engramHost=1')
+
+    try {
+      expect(() => manager.saveToFile('embedded.json')).toThrow(
+        'Artifact exchange is disabled in Engram embedded mode'
+      )
+      await expect(manager.loadFromFile(file)).rejects.toThrow(
+        'Artifact exchange is disabled in Engram embedded mode'
+      )
+      expect(manager.saveToLocalStorage('crebain_scene_new')).toBe(false)
+      expect(manager.loadFromLocalStorage('crebain_scene_existing')).toBeNull()
+      expect(manager.listSavedStates()).toEqual([])
+      manager.enableAutosave(1)
+      expect(manager.isAutosaveEnabled()).toBe(false)
+    } finally {
+      window.history.replaceState({}, '', '/')
+    }
+
+    expect(readFile).not.toHaveBeenCalled()
+    expect(localStorage.getItem('crebain_scene_new')).toBeNull()
+  })
 })

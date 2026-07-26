@@ -1368,4 +1368,17 @@ describe('ZenohBridge', () => {
       expect(bridge[method], method).toBeUndefined()
     }
   })
+
+  // Embedded mode is irreversible for one document. Keep this control last.
+  it('rejects native transport connection in Engram embedded mode', async () => {
+    const bridge = new ZenohBridge()
+    window.history.replaceState({}, '', '/?engramHost=1')
+    try {
+      await expect(bridge.connect()).rejects.toThrow('disabled in Engram embedded mode')
+    } finally {
+      window.history.replaceState({}, '', '/')
+    }
+    expect(invokeMock).not.toHaveBeenCalled()
+    expect(bridge.isConnected()).toBe(false)
+  })
 })

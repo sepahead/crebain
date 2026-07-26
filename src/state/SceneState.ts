@@ -11,8 +11,13 @@ import {
   MAX_ROUTE_WAYPOINTS,
 } from '../lib/routeLimits'
 import { DRONE_TYPES } from '../physics/DroneTypes'
-import { invoke, isTauri } from '@tauri-apps/api/core'
+import { invoke } from '@tauri-apps/api/core'
 import { TAURI_COMMANDS } from '../lib/tauriCommands'
+import {
+  assertArtifactExchangeAllowed,
+  isEngramEmbeddedMode,
+  isNativeBackendAvailable,
+} from '../integrations/engramHost'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // STATE TYPES
@@ -747,6 +752,7 @@ export class SceneStateManager {
    * Save state to file (via download)
    */
   saveToFile(filename?: string): void {
+    assertArtifactExchangeAllowed()
     if (!this.currentState) return
 
     const json = this.serialize()
@@ -765,6 +771,7 @@ export class SceneStateManager {
    * Load state from file
    */
   async loadFromFile(file: File): Promise<SceneState> {
+    assertArtifactExchangeAllowed()
     if (!file.name.toLowerCase().endsWith('.json')) {
       throw new Error('Scene file must end with .json')
     }
@@ -779,6 +786,7 @@ export class SceneStateManager {
    * Save to localStorage
    */
   saveToLocalStorage(key: string = STORAGE_KEY): boolean {
+    if (isEngramEmbeddedMode()) return false
     if (!this.currentState) return false
     try {
       localStorage.setItem(key, this.serialize())
@@ -793,6 +801,7 @@ export class SceneStateManager {
    * Load from localStorage
    */
   loadFromLocalStorage(key: string = STORAGE_KEY): SceneState | null {
+    if (isEngramEmbeddedMode()) return null
     try {
       const json = localStorage.getItem(key)
       if (json) {
@@ -813,6 +822,7 @@ export class SceneStateManager {
     onError?: (error: Error) => void
   ): void {
     this.disableAutosave()
+    if (isEngramEmbeddedMode()) return
     this.autosaveInterval = window.setInterval(() => {
       if (createSnapshot) {
         try {
@@ -862,6 +872,7 @@ export class SceneStateManager {
    * Clear autosaved state
    */
   clearAutosave(): void {
+    if (isEngramEmbeddedMode()) return
     try {
       localStorage.removeItem(AUTOSAVE_KEY)
     } catch {
@@ -873,6 +884,7 @@ export class SceneStateManager {
    * List saved states in localStorage
    */
   listSavedStates(): { key: string; name: string; timestamp: number }[] {
+    if (isEngramEmbeddedMode()) return []
     const states: { key: string; name: string; timestamp: number }[] = []
 
     try {
@@ -909,6 +921,7 @@ export class SceneStateManager {
    * Delete a saved state
    */
   deleteSavedState(key: string): void {
+    if (isEngramEmbeddedMode()) return
     try {
       localStorage.removeItem(key)
     } catch (e) {
@@ -923,23 +936,25 @@ export class SceneStateManager {
   /**
    * Save state to the host filesystem (Tauri builds).
    *
-   * Current behavior is a browser-safe fallback: this triggers a download and
-   * only uses the basename of `path` (directory components are ignored).
+   * Browser standalone mode falls back to a download and uses only the basename
+   * of `path`. Engram embedded mode rejects file export.
    *
    * In Tauri, this calls the backend command `scene_save_file` to write JSON to
    * the requested path.
    */
   async saveToFileSystem(path: string): Promise<void> {
     if (!this.currentState) return
+    if (isEngramEmbeddedMode()) {
+      throw new Error('Scene file export is disabled in Engram embedded mode')
+    }
     try {
       await invoke(TAURI_COMMANDS.scene.saveFile, { path, json: this.serialize() })
     } catch (e) {
-      if (isTauri()) {
+      if (isNativeBackendAvailable()) {
         log.warn('Failed to save via Tauri filesystem', { error: e, path })
         throw e
       }
       log.warn('Failed to save via Tauri; falling back to download', { error: e, path })
-      // Browser fallback: trigger a download; ignore directory components.
       this.saveToFile(path.split('/').pop())
     }
   }
@@ -951,6 +966,7 @@ export class SceneStateManager {
    * `deserialize()` on the returned JSON.
    */
   async loadFromFileSystem(path: string): Promise<SceneState | null> {
+    if (isEngramEmbeddedMode()) return null
     try {
       const json = await invoke<string>(TAURI_COMMANDS.scene.loadFile, { path })
       return this.deserialize(json)

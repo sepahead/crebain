@@ -20,6 +20,7 @@ import {
 } from '../detection/types'
 import { normalizeNativeDetectionResult } from '../detection/nativeDetectionResult'
 import { TAURI_COMMANDS } from '../lib/tauriCommands'
+import { isEngramEmbeddedMode } from '../integrations/engramHost'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -115,6 +116,7 @@ export function useDetectionLoop(options: DetectionLoopOptions): void {
     onPerformance,
     onError,
   } = options
+  const nativeAccessAllowed = !isEngramEmbeddedMode()
 
   // Lock to prevent overlapping detection runs
   const isProcessingRef = useRef(false)
@@ -231,7 +233,7 @@ export function useDetectionLoop(options: DetectionLoopOptions): void {
   // Set up the detection loop using async iteration for better backpressure handling
   // This prevents queue buildup when detection takes longer than intervalMs
   useEffect(() => {
-    if (!enabled) {
+    if (!enabled || !nativeAccessAllowed) {
       loopGenerationRef.current += 1
       return
     }
@@ -257,7 +259,7 @@ export function useDetectionLoop(options: DetectionLoopOptions): void {
       cancelled = true
       loopGenerationRef.current += 1
     }
-  }, [enabled, intervalMs, runDetectionCycle])
+  }, [enabled, intervalMs, nativeAccessAllowed, runDetectionCycle])
 }
 
 export default useDetectionLoop

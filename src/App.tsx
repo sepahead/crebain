@@ -7,7 +7,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
-import { invoke, isTauri } from '@tauri-apps/api/core'
+import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import CrebainViewer from './components/CrebainViewer'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -23,6 +23,7 @@ import { APP_SHORTCUTS, isTextInputTarget, normalizeShortcutKey } from './lib/sh
 import { TAURI_COMMANDS } from './lib/tauriCommands'
 import { getBackendHealth, normalizeSystemInfo, type SystemInfo } from './lib/diagnostics'
 import { logger } from './lib/logger'
+import { isEngramEmbeddedMode, isNativeBackendAvailable } from './integrations/engramHost'
 import type { FilterAlgorithm } from './detection/AdvancedSensorFusion'
 import { RENDERER_ROSBRIDGE_AVAILABLE } from '#renderer-rosbridge'
 
@@ -31,6 +32,7 @@ const PRODUCTION_CUSTOM_SENSOR_NOTICE =
   'Custom ROS sensor topics are available only in the Vite development profile; packaged builds remain on native Zenoh telemetry.'
 
 export default function App() {
+  const embeddedInEngram = isEngramEmbeddedMode()
   const performanceTracker = usePerformanceTracker({ maxHistory: 100 })
   const { recordSample } = performanceTracker
   const [detectionError, setDetectionError] = useState<string | null>(null)
@@ -127,7 +129,7 @@ export default function App() {
         setShowPerformancePanel((prev) => !prev)
       }
       if (key === APP_SHORTCUTS.toggleROSPanel) {
-        setShowROSPanel((prev) => !prev)
+        if (!embeddedInEngram) setShowROSPanel((prev) => !prev)
       }
       if (key === APP_SHORTCUTS.toggleFusionPanel) {
         setShowFusionPanel((prev) => !prev)
@@ -138,7 +140,7 @@ export default function App() {
 
     // The native menu does not exist in browser/Vite mode. Guarding this call
     // avoids a rejected Tauri IPC promise on every browser mount.
-    if (isTauri()) {
+    if (isNativeBackendAvailable()) {
       void listen('show-about', () => {
         setShowAbout(true)
       })
@@ -159,10 +161,10 @@ export default function App() {
       window.removeEventListener('keydown', handleKeyDown)
       unlisten?.()
     }
-  }, [])
+  }, [embeddedInEngram])
 
   useEffect(() => {
-    if (!isTauri()) return
+    if (!isNativeBackendAvailable()) return
 
     let cancelled = false
 
@@ -211,7 +213,7 @@ export default function App() {
               backendDetail={systemInfo.mode !== 'unknown' ? systemInfo.mode : undefined}
             />
           )}
-          {showROSPanel && (
+          {showROSPanel && !embeddedInEngram && (
             <ROSConnectionPanel
               connectionState={gazebo.connectionState}
               transport={gazebo.transport}
@@ -235,6 +237,7 @@ export default function App() {
             connectionState={sensors.connectionState}
             connectionError={sensors.fusionError ?? sensors.connectionError}
             onOpenConnection={() => {
+              if (embeddedInEngram) return
               if (RENDERER_ROSBRIDGE_AVAILABLE && gazebo.transport !== 'websocket') {
                 gazebo.setTransport('websocket')
               }
@@ -245,6 +248,15 @@ export default function App() {
             fusionAvailable={sensors.fusionAvailable}
           />
           <AboutModal isOpen={showAbout} onClose={handleCloseAbout} />
+          {embeddedInEngram && (
+            <div
+              role="status"
+              data-testid="engram-embedded-boundary"
+              className="fixed bottom-3 left-1/2 z-[90] -translate-x-1/2 border border-[#8a6a2f] bg-[#151108]/95 px-3 py-1 font-mono text-[10px] tracking-[0.16em] text-[#d5ad5c] shadow-lg pointer-events-none"
+            >
+              EMBEDDED SAFE MODE · NATIVE / TELEMETRY / ARTIFACT / NCP OFF
+            </div>
+          )}
         </div>
       </UIScaleProvider>
     </ErrorBoundary>

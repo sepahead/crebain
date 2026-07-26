@@ -1,8 +1,8 @@
 import React, { useEffect, useId, useRef, useState } from 'react'
 import { getVersion } from '@tauri-apps/api/app'
-import { isTauri } from '@tauri-apps/api/core'
 import packageMetadata from '../../package.json'
 import { logger } from '../lib/logger'
+import { isNativeBackendAvailable } from '../integrations/engramHost'
 
 const log = logger.scope('App')
 
@@ -21,7 +21,7 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
   const descriptionId = useId()
 
   useEffect(() => {
-    if (!isTauri()) return
+    if (!isNativeBackendAvailable()) return
     let cancelled = false
     getVersion()
       .then((version) => {

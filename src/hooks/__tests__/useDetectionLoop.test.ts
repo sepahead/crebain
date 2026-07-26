@@ -585,4 +585,27 @@ describe('useDetectionLoop helpers', () => {
     expect(onDetection).not.toHaveBeenCalled()
     await act(async () => root.unmount())
   })
+
+  // Embedded mode is irreversible for one document. Keep this control last.
+  it('does not capture or invoke native detection in Engram embedded mode', async () => {
+    const exportCameraFeed = vi.fn(() => imageData())
+    const { root, render, onDetection, onError } = renderDetectionLoop({ exportCameraFeed })
+    window.history.replaceState({}, '', '/?engramHost=1')
+
+    try {
+      await act(async () => {
+        render()
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+    } finally {
+      window.history.replaceState({}, '', '/')
+    }
+
+    expect(exportCameraFeed).not.toHaveBeenCalled()
+    expect(invokeMock).not.toHaveBeenCalled()
+    expect(onDetection).not.toHaveBeenCalled()
+    expect(onError).not.toHaveBeenCalled()
+    await act(async () => root.unmount())
+  })
 })
