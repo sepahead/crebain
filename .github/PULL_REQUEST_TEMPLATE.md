@@ -21,6 +21,7 @@ Describe what changed and why.
 
 | Command | Result | Notes |
 |---------|--------|-------|
+| `git diff --check` | not run | Sufficient for Markdown-only changes with no command or status changes |
 | `bun run validate` | not run |  |
 | `bun run validate:all` | not run | Required for Rust, plant-authority, IPC, transport, model-loading, or integration changes |
 | Native detector evidence bundle | not applicable | Required only for a retained numeric detector-performance claim |

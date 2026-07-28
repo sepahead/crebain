@@ -37,7 +37,7 @@ control scheme below uses those keys.
 | F          | Focus scene content                                           |
 | G          | Toggle 3D grid                                                |
 | N          | Toggle ROS Connection Panel                                   |
-| U          | Expand/collapse Sensor Fusion Panel                           |
+| U          | Expand/collapse Sensor Fusion panel                           |
 | T          | Toggle detection panel                                        |
 | Y          | Toggle detection on/off                                       |
 | M          | Toggle splat performance mode (caps at 1.5M splats and reloads the current splat in place; press again to reload at full quality) |
@@ -68,5 +68,5 @@ reserved in the shortcut constants but is not currently wired to any behavior.
 | I/K           | Rotate around X     |
 | J/L           | Rotate around Y     |
 | ,/.           | Rotate around Z     |
-| +/-           | Scale up/down (`=` and `_` also work, i.e. with or without Shift) |
+| +/-           | Scale up/down (`=` and `_` also work, that is, with or without Shift) |
 | Del/Backspace | Delete object       |

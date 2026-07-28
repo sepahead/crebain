@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg">
+    <img alt="CREBAIN logo" src="assets/logo-light.svg" width="200">
+  </picture>
+</p>
+
 # CREBAIN
 
 **Adaptive Response & Awareness System (ARAS)**
@@ -8,13 +15,6 @@
 [![Supply chain audit](https://github.com/sepahead/crebain/actions/workflows/audit.yml/badge.svg)](https://github.com/sepahead/crebain/actions/workflows/audit.yml)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg)](#license)
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg">
-    <img alt="CREBAIN logo" src="assets/logo-light.svg" width="200">
-  </picture>
-</p>
-
 CREBAIN is a research prototype for tactical visualization and autonomy. This
 Tauri desktop application:
 
@@ -24,9 +24,9 @@ Tauri desktop application:
 - fuses multi-modal sensor measurements into persistent 3D tracks
 - connects to ROS and Gazebo for drone simulation
 
-An off-by-default native NCP feature can emit narrowly scoped,
-Galadriel-compatible advisory evidence. CREBAIN uses Tauri 2, React 19,
-SparkJS, Three.js, and Rust.
+An off-by-default native Neuro-Cybernetic Protocol (NCP) feature can emit
+narrowly scoped, Galadriel-compatible advisory evidence. CREBAIN uses Tauri 2,
+React 19, SparkJS, Three.js, and Rust.
 
 > **Project status.** This is a research prototype, not a product. No model
 > weights ship with the repository. Capability statuses below are tracked here
@@ -40,9 +40,26 @@ SparkJS, Three.js, and Rust.
 > See the exact [release decision](docs/NARROWED_GO_0.9.0.md) and
 > [task disposition](audit/candidate/README.md).
 
+**Contents:**
+[Quickstart](#quickstart) ·
+[Using the app](#using-the-app) ·
+[ML detection](#ml-detection) ·
+[Sensor fusion](#sensor-fusion) ·
+[Architecture](#architecture) ·
+[ROS and Gazebo](#ros-and-gazebo-simulation) ·
+[Configuration](#configuration-essentials) ·
+[Documentation](#documentation) ·
+[Development](#development-and-validation) ·
+[Status and roadmap](#status-and-roadmap) ·
+[Troubleshooting](#troubleshooting) ·
+[Contributing](#contributing) ·
+[Citing](#citing) ·
+[Disclaimer](#disclaimer) ·
+[License](#license)
+
 | Capability | Description | Status |
 | ---------- | ----------- | ------ |
-| **3D Visualization** | Gaussian Splatting and operator-supplied self-contained GLB models through Three.js (WebGL). No third-party 3D model is bundled. | Prototype |
+| **3D Visualization** | Gaussian splatting and operator-supplied self-contained GLB models through Three.js (WebGL). No third-party 3D model is bundled. | Prototype |
 | **Multi-Camera Surveillance** | Up to 64 placeable cameras (static, PTZ, or patrol). Live feed thumbnails for the first four cameras. | Prototype |
 | **ML Detection** | Object detection pipeline with CoreML/ONNX paths and experimental backends | Prototype |
 | **Sensor Fusion** | 5 filter algorithms (KF/EKF/UKF/PF/IMM) for multi-modal tracking | Prototype |
@@ -68,11 +85,13 @@ brew install bun rustup
 
 # Clone and setup
 git clone https://github.com/sepahead/crebain.git
+cd crebain
 
 # From the repository root
 bun install
 
-# Build backend (CoreML is used automatically on macOS)
+# Optional: pre-build the release backend to verify the Rust toolchain
+# (CoreML is used automatically on macOS; `tauri:dev` builds its own profile)
 cargo build --locked --manifest-path src-tauri/Cargo.toml --release
 
 # Run
@@ -84,6 +103,7 @@ bun run tauri:dev
 ```bash
 # Clone
 git clone https://github.com/sepahead/crebain.git
+cd crebain
 
 # Enter the default CPU-capable development environment
 nix develop
@@ -136,9 +156,9 @@ file onto the viewer or open it with `Ctrl/Cmd+O`.
 4. Click to place the camera.
 5. Press `Y` to enable or disable detection.
 6. Press `P` to show or hide the performance panel.
-7. Press `U` to show or hide the sensor-fusion panel.
+7. Press `U` to show or hide the Sensor Fusion panel.
 8. Press `N` to open the ROS connection panel.
-9. Press `M` to enable or disable the 1.5-million-splat limit.
+9. Press `M` to enable or disable the 1.5-million-splat cap.
 
 Essential keys — the full keymap lives in [docs/CONTROLS.md](docs/CONTROLS.md):
 
@@ -149,7 +169,7 @@ Essential keys — the full keymap lives in [docs/CONTROLS.md](docs/CONTROLS.md)
 | Tab | Cycle cameras |
 | V | Toggle camera feeds |
 | T / Y | Toggle detection panel / detection on-off |
-| U | Sensor fusion panel |
+| U | Sensor Fusion panel |
 | N | ROS connection panel |
 | Esc | Cancel placement / clear selection (also emergency-disarms all drones) |
 
@@ -203,63 +223,27 @@ tuning, validation, and a frank list of known limitations.
 
 ## Architecture
 
-```mermaid
-graph TB
-    subgraph Frontend["Frontend (React 19 + TypeScript)"]
-        ThreeJS["SparkJS/Three.js<br/>(3D Scene)"]
-        CameraFeeds["Camera Feeds<br/>(Overlays)"]
-        FusionUI["Sensor Fusion UI<br/>(Tracks)"]
-        ROSControls["ROS Telemetry<br/>(Bridge)"]
-    end
-
-    subgraph IPC["Tauri IPC"]
-        Invoke["invoke/events"]
-    end
-
-    subgraph Backend["Rust Backend (Tauri)"]
-        Inference["Inference<br/>Abstraction Layer"]
-        SensorFusion["Sensor Fusion<br/>Engine"]
-        Zenoh["Transport<br/>(Zenoh)"]
-        ROSBridge["ROS Telemetry Fallback<br/>(WebSocket, read-only)"]
-        GaladrielProducer["Optional Galadriel Producer<br/>(NCP feature + runtime pinning)"]
-    end
-
-    subgraph External["External Systems"]
-        Gazebo["Gazebo (Headless)<br/>Physics + Sensors"]
-        Hardware["Real Hardware<br/>PX4/ArduPilot"]
-        Galadriel["Galadriel<br/>(external advisory observer)"]
-    end
-
-    ThreeJS --> Invoke
-    CameraFeeds --> Invoke
-    FusionUI --> Invoke
-    ROSControls --> Invoke
-
-    Invoke --> Inference
-    Invoke --> SensorFusion
-    Invoke --> Zenoh
-    Invoke --> ROSBridge
-    SensorFusion -. exact opt-in .-> GaladrielProducer
-
-    Zenoh --> External
-    ROSBridge --> External
-    GaladrielProducer -. two named evidence keys .-> Galadriel
-```
+<p align="center">
+  <img alt="CREBAIN system architecture: React frontend over Tauri IPC to the Rust backend (inference, sensor fusion, read-only Zenoh and rosbridge transports, feature-gated Galadriel producer), external Gazebo/ROS/Galadriel systems, and the unwired inert plant foundation with no authority path" src="assets/diagrams/system-architecture.svg" width="820">
+</p>
 
 The frontend captures camera-feed frames from WebGL render targets. It sends
-the frames to the Rust detection backend through Tauri IPC and overlays the
-results. Sensor measurements enter the Rust fusion engine through the same
-interface. Gazebo runs headless and provides physics and sensor data. Three.js
-provides the user-visible rendering. Design rationale, transport trade-offs, the
+the frames to the Rust detection backend through Tauri inter-process
+communication (IPC) and overlays the results. Sensor measurements enter the
+Rust fusion engine through the same interface. Gazebo runs headless and
+provides physics and sensor data. Three.js provides the user-visible
+rendering. Design rationale, transport trade-offs, the
 backend-selection logic, and the annotated directory map live in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-```
+```text
 crebain/
-├── src/               # React frontend (components, hooks, ros, detection,
-│                      #   physics, simulation, state, neuro, lib)
+├── src/               # React frontend (components, context, hooks, ros,
+│                      #   detection, integrations, physics, simulation,
+│                      #   state, neuro, lib)
 ├── src-tauri/         # Rust backend (inference, transport, sensor fusion,
 │                      #   native CoreML/ONNX, NCP bridge + Galadriel producer)
+│   └── crates/plant-authority/  # Inert headless plant foundation (unwired)
 ├── ros/               # ROS 1 reference package (crebain_msgs + launch files)
 ├── docs/              # Design docs, contracts, release gates
 ├── scripts/           # Version-coherence, bundle-size, perf-smoke checks
@@ -286,20 +270,26 @@ bun run tauri:dev
 ```
 
 Packaged builds expose only the native read-only telemetry path and default to
-**Zenoh (Tauri)**. Vite development builds may additionally select a
-TypeScript rosbridge WebSocket adapter for telemetry experiments. Production
-aliases that adapter to a network-free fail-closed stub. The packaged CSP
-does not permit rosbridge sockets. The native Rust rosbridge fallback selected
-with `CREBAIN_ZENOH=0` is also subscription-only. None of these ROS telemetry
-paths can publish pose/twist/setpoints, call ROS/Gazebo services, spawn models,
-or change MAVROS modes/missions. A separate binary compiled with `ncp` may,
-only when `CREBAIN_GALADRIEL_ENABLE=1` and every deployment pin validates, put
-strict evidence on `galadriel-pid` and `galadriel-monitor` named-perception
-keys. It is not a generic ROS/action/FCU publisher. The remaining
-guidance/interception calculation is a disabled-by-default, local
-`NoAuthority` preview; disabling it,
-disconnecting, or toggling simulation off aborts and discards the preview
-generation.
+**Zenoh (Tauri)**.
+
+- **Development rosbridge adapter.** Vite development builds may additionally
+  select a TypeScript rosbridge WebSocket adapter for telemetry experiments.
+  Production aliases that adapter to a network-free fail-closed stub. The
+  packaged Content Security Policy (CSP) does not permit rosbridge sockets.
+- **Native rosbridge fallback.** The native Rust rosbridge fallback selected
+  with `CREBAIN_ZENOH=0` is also subscription-only.
+- **No command path.** None of these ROS telemetry paths can publish
+  pose/twist/setpoints, call ROS/Gazebo services, spawn models, or change
+  MAVROS modes/missions.
+- **Galadriel evidence.** A separate binary compiled with `ncp` may put strict
+  evidence on `galadriel-pid` and `galadriel-monitor` named-perception keys.
+  It may do so only when `CREBAIN_GALADRIEL_ENABLE=1` and every deployment pin
+  validates. It is not a generic ROS/action/flight control unit (FCU)
+  publisher.
+- **Guidance preview.** The remaining guidance/interception calculation is a
+  disabled-by-default, local `NoAuthority` preview. Disabling it,
+  disconnecting, or toggling simulation off aborts and discards the preview
+  generation.
 
 Every packaged frontend build verifies the resolved Vite module graph, excludes
 the development adapter, and content-hashes and scans every finalized JavaScript
@@ -328,14 +318,19 @@ must add `engramHost=1`, `hostOrigin`, and `hostNonce` to the entry URL.
 `hostOrigin` must be an exact loopback or Tauri origin. The nonce must be a
 bounded URL-safe value.
 
-Embedded mode keeps the browser visualization available. It disables CREBAIN
-Tauri commands, native detection, native fusion, native Zenoh, and the
-development NCP command harness. It also disables external telemetry and
-artifact exchange. It does not initialize drone physics or expose simulation,
-sensor-placement, scene-editing, or deployment controls. View navigation,
-orbit, focus, grid, and read-only panels remain available. Invalid host
-parameters do not restore disabled paths. The restriction remains latched for
-the document lifetime after same-document URL changes.
+Embedded mode keeps the browser visualization available. It disables these
+paths:
+
+- CREBAIN Tauri commands
+- native detection, native fusion, and native Zenoh
+- the development NCP command harness
+- external telemetry and artifact exchange
+- drone physics initialization
+- simulation, sensor-placement, scene-editing, and deployment controls
+
+View navigation, orbit, focus, grid, and read-only panels remain available.
+Invalid host parameters do not restore disabled paths. The restriction remains
+latched for the document lifetime after same-document URL changes.
 
 The `engram.host.v1` bridge sends bounded readiness and read-only status. It
 accepts only bounded `host.context` messages from the exact parent and origin.
@@ -391,9 +386,13 @@ and asset limits, and the platform matrix are in
 
 ## Documentation
 
+The full grouped index lives in [docs/README.md](docs/README.md).
+
 | Document | What it covers |
 | -------- | -------------- |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Design principles, transport trade-offs, backend selection, directory map |
+| [docs/SYSTEM_CONTEXT.md](docs/SYSTEM_CONTEXT.md) | Current L0 system reality, controlled claim vocabulary, target L1 chain |
+| [docs/COMPLETION_LEVELS.md](docs/COMPLETION_LEVELS.md) | L0-L4 completion-level definitions behind the status labels |
 | [docs/SENSOR_FUSION.md](docs/SENSOR_FUSION.md) | Fusion math, coordinate contracts, tuning, known limitations |
 | [docs/FUSION_VALIDATION_PROTOCOL.md](docs/FUSION_VALIDATION_PROTOCOL.md) | Preregistered, not-yet-run fusion metrics and experiment protocol |
 | [docs/MODEL_CONTRACTS.md](docs/MODEL_CONTRACTS.md) | What a model must prove before its detections are trusted |
@@ -413,7 +412,12 @@ and asset limits, and the platform matrix are in
 | [docs/RELEASE_ACCEPTANCE.md](docs/RELEASE_ACCEPTANCE.md) | Release-candidate evidence gates |
 | [docs/MANUAL_SMOKE_TEST.md](docs/MANUAL_SMOKE_TEST.md) | Manual smoke checklist |
 | [docs/RELEASE_EVIDENCE.md](docs/RELEASE_EVIDENCE.md) | Release evidence log |
+| [docs/RELEASE_HISTORY.md](docs/RELEASE_HISTORY.md) | Version history and retired release identifiers |
 | [docs/NARROWED_GO_0.9.0.md](docs/NARROWED_GO_0.9.0.md) | Exact 0.9 release scope, exclusions, and blockers |
+| [docs/CROSS_REPOSITORY_REQUIREMENTS_0.9.0.md](docs/CROSS_REPOSITORY_REQUIREMENTS_0.9.0.md) | Frozen cross-repository requirements for the 0.9 decision |
+| [docs/PHASE0_BASELINE.md](docs/PHASE0_BASELINE.md) | Frozen Phase 0 vocabulary, scope, and command-surface baseline |
+| [docs/HAZARD_LOG.md](docs/HAZARD_LOG.md) | Tracked hazards and mitigation status |
+| [docs/L1_ODD.md](docs/L1_ODD.md) | Draft, unapproved L1 operational design domain limits |
 | [docs/BACKLOG.md](docs/BACKLOG.md) | Current engineering backlog |
 | [SECURITY.md](SECURITY.md) | Security policy and threat model |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution workflow, prerequisites, validation matrix |
@@ -494,7 +498,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 - [x] CI backend alignment to package scripts
 - [x] Release acceptance matrix, model contracts, security threat model, and manual smoke checklist
 - [x] Executable negative guard tests for native detection, model path, scene path, and transport topic boundaries, including TensorRT build inputs, fusion, Zenoh CDR, and transport payloads
-- [x] Component-tested Galadriel producer mechanics: exact opt-in/default-off behavior, immutable registry and actual config/executable pins, readiness-only active initialization, frozen envelope routes/codecs, deterministic exact-time fusion ledger, bounded measurement/track domains, upstream/capacity loss degradation, sparse assignment, heartbeat generation, and finite owned-task shutdown
+- [x] Component-tested Galadriel producer mechanics: exact opt-in/off-by-default behavior, immutable registry and actual config/executable pins, readiness-only active initialization, frozen envelope routes/codecs, deterministic exact-time fusion ledger, bounded measurement/track domains, upstream/capacity loss degradation, sparse assignment, heartbeat generation, and finite owned-task shutdown
 
 Planned capability work:
 
@@ -524,7 +528,7 @@ Near-term engineering tasks are tracked in [docs/BACKLOG.md](docs/BACKLOG.md).
   Zenoh telemetry only. In `bun run tauri:dev`, verify rosbridge is listening
   on `ws://localhost:9090` before selecting the development-only adapter.
 - **Low FPS on large splats** — press `M` to toggle splat performance mode
-  (1.5M splat cap).
+  (1.5-million-splat cap).
 - **Labels are in German** — This is intentional. See the design note in
   [Using the app](#using-the-app).
 
@@ -546,8 +550,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide.
 
 CREBAIN 0.9.0 has no DOI or Zenodo record yet. If you use this research-only
 release, cite the exact repository commit and the metadata in
-[CITATION.cff](CITATION.cff). Do not infer a persistent identifier that has not
-been assigned.
+[CITATION.cff](CITATION.cff). Use `git rev-parse HEAD` to record the commit
+identifier. Do not infer a persistent identifier that has not been assigned.
 
 ## Author
 
@@ -577,3 +581,8 @@ Licensed under either of
 - MIT license ([LICENSE-MIT](LICENSE-MIT))
 
 at your option.
+
+Unless you explicitly state otherwise, any contribution intentionally
+submitted for inclusion in the work by you, as defined in the Apache-2.0
+license, shall be dual licensed as above, without any additional terms or
+conditions.

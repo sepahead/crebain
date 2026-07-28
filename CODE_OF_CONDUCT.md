@@ -43,7 +43,9 @@ an individual is officially representing the community in public spaces.
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported to the project maintainer at **sepmhn@gmail.com**. Complaints will be
 reviewed and investigated promptly, fairly, and with appropriate respect for
-privacy.
+privacy. Enforcement decisions rest with the sole maintainer, and corrective
+action follows the Contributor Covenant ladder: correction, warning, temporary
+ban, permanent ban.
 
 ## Attribution
 

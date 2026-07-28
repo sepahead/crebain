@@ -17,14 +17,21 @@ Be respectful and constructive in all interactions. Follow the standards in
 - **Node.js** 20.19+ for Node-based tooling
 - **Rust** 1.89+ with `cargo` (MSRV per `src-tauri/Cargo.toml`)
 - `rust-toolchain.toml` pins Rust 1.91.1 for development and CI
+- With rustup installed, the pinned 1.91.1 toolchain is selected automatically.
+  Rust 1.89 is the library MSRV. A brew-installed Rust does not honor the
+  pinned toolchain — use rustup.
 - **macOS**: Xcode Command Line Tools
-- **Linux**: CUDA Toolkit and NVIDIA runtime libraries when testing CUDA/TensorRT paths
+- **Linux**: use `nix develop` (see the README Quickstart). Use the `.#cuda`
+  shell only for CUDA/TensorRT testing. The Nix shells pre-set `ORT_DYLIB_PATH`.
+- **Linux (non-Nix)**: CUDA Toolkit and NVIDIA runtime libraries when testing
+  CUDA/TensorRT paths
 
 ### Development setup
 
 ```bash
 # Clone the repository
 git clone https://github.com/sepahead/crebain.git
+cd crebain
 
 # From the repository root
 bun install
@@ -34,6 +41,9 @@ bun run dev
 
 # Or start the full Tauri app
 bun run tauri:dev
+
+# Verify the setup
+bun run validate
 ```
 
 ## Development workflow
@@ -140,6 +150,10 @@ fix(ros): handle disconnection gracefully
 docs(readme): update installation instructions
 ```
 
+Do not add AI assistants or agents as commit or pull-request co-authors. Do
+not add a `Co-Authored-By:` trailer or a "Generated with" line to commit
+messages or pull-request descriptions.
+
 ## Pull request process
 
 1. Keep the change focused.
@@ -150,8 +164,17 @@ docs(readme): update installation instructions
 5. Run `bun run validate` for frontend-only changes.
 6. Run `bun run validate:all` for Rust, IPC, integration, or cross-cutting
    changes.
-7. Request review.
-8. Address feedback promptly.
+7. Open the pull request with the provided template and fill in the
+   validation table.
+8. Request review.
+9. Address feedback promptly.
+
+## Licensing of contributions
+
+Unless you explicitly state otherwise, any contribution intentionally
+submitted for inclusion in the work by you, as defined in the Apache-2.0
+license, shall be dual licensed as MIT OR Apache-2.0, without any additional
+terms or conditions.
 
 ## Reporting issues
 

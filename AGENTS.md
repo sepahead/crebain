@@ -21,11 +21,13 @@ bun run test:coverage    # Run tests with coverage (enforces thresholds)
 bun run benchmark:native-detector -- --help # Release-only native detector evidence CLI
 bun run check:bundle     # Build + initial-bundle size budget
 bun run check:ncp-coherence # Verify NCP manifests, locks, and normative docs agree
+bun run check:phase0-baseline # Verify the frozen Phase 0 command-surface baseline
 bun run check:product-profiles # Verify all eight immutable 0.9 NoAuthority profiles
 bun run check:ipc-contracts # Verify frontend/Rust commands and event contracts
 bun run check:release-tools # Verify version/tag and digest-manifest tooling
 bun run check:vendor-compat # Verify exact crates.io overlay provenance
 bun run check:production-vendors # Verify pinned Spark/Rapier/Three transforms and local-byte runtimes
+bun run check:production-boundary # Production vendors + authority-boundary checks
 bun run check:ros-defs    # Validate ROS definitions and package XML
 bun run check:nix-deps    # Verify bun.nix is exactly generated from bun.lock
 bun run check:plant-boundary # Verify the inert plant package/process dependency boundary
@@ -42,6 +44,7 @@ bun run validate:all     # NCP + frontend + inert plant + Rust default/NCP gates
 bun run check:rust       # locked cargo check for src-tauri/Cargo.toml
 bun run test:rust        # locked cargo test for all default targets
 bun run clippy:rust      # locked cargo clippy for all default targets; warnings denied
+bun run fmt:rust:check   # Rustfmt check for src-tauri (part of validate:all)
 bun run check:rust:ncp   # locked check of dormant NCP bridge + opt-in Galadriel producer
 bun run clippy:rust:ncp  # locked clippy bridge/producer, all targets, warnings denied
 bun run test:rust:ncp    # locked tests for bridge/producer feature, including all targets

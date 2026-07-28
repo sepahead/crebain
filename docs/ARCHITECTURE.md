@@ -9,6 +9,12 @@ these documents for detailed information:
 - [GALADRIEL_PRODUCER.md](GALADRIEL_PRODUCER.md) for the optional advisory
   producer
 
+## Table of contents
+
+- [System overview](#system-overview)
+- [Design principles](#design-principles)
+- [Directory map](#directory-map)
+
 ## System overview
 
 ```mermaid
@@ -208,41 +214,47 @@ The three paths and when to use them:
   with an `rmw_zenoh_cpp` ROS 2 graph (which keys topics as
   `<domain>/<topic>/<type>/<hash>`) requires an explicit re-keying bridge.
 - **Native camera-work admission** — both native backends share one process-wide
-  384 MiB weighted, nonblocking envelope. Rosbridge reserves before JSON
-  expansion for retained wire/JSON, decoded bytes, base64 IPC output, and
-  callback bookkeeping; Zenoh reserves before CDR materialization for retained
-  wire/CDR, embedded image bytes, frame/IPC base64, and callback bookkeeping.
-  A frame is dropped when its weight would exceed the envelope. One worst-case
-  64 MiB frame is admitted, while another worst-case frame from a different
-  topic is backpressured. The topic event carries only a small delivery ID,
-  lifecycle generation, and exact subscription ID, each encoded as a canonical
-  positive-u64 decimal string across Tauri IPC; the renderer pulls the
-  large frame exactly once, and the native reservation and per-topic slot
-  remain owned until an identity-matched acknowledgement after every listener
-  settles or its eight-second deadline quarantines that listener. Event-listener
-  registration and native declaration share one twelve-second setup deadline;
-  a late listener handle is immediately released. Pull and acknowledgement
-  have separate ten- and four-second renderer deadlines. A 30-second native
-  monotonic lease covers a lost readiness event, renderer loss, and a rejected,
-  lost, or late acknowledgement; expiry atomically releases the exact slot and
-  permit and quarantines only the matching live declaration. Expiry then
-  performs a bounded exact undeclaration; cleanup failure retains quarantine
-  for explicit retry, while lifecycle rotation or a newer exact identity fences
-  stale cleanup. Lifecycle rotation discards an untaken stale-generation frame,
-  while a pulled frame remains reserved until exact acknowledgement or lease
-  expiry. A proven exact unsubscribe or reopen likewise retires only an untaken
-  matching frame; an in-flight frame keeps its immutable reservation. Each
-  camera subscription also carries a renderer-issued exact identity, so late
-  callbacks and cleanup from a closed subscription cannot enter or remove a
-  reopened topic, and an explicit reopen removes a quarantined declaration
-  before installing its new identity. The renderer admits only descriptors for
-  the current canonical nonzero-u64 lifecycle, delivery, and subscription IDs,
-  serializes one full
-  pull/listener/acknowledgement cycle per topic, and holds at most one prevalidated small descriptor pending; it
-  never pulls that pending delivery before the active acknowledgement settles.
-  Duplicate pulls or acknowledgements, malformed readiness events, deadline
-  failures, and overlapping topic deliveries fail closed; callback failures are
-  isolated and still reach bounded acknowledgement.
+  384 MiB weighted, nonblocking envelope.
+  - Rosbridge reserves before JSON expansion for retained wire/JSON, decoded
+    bytes, base64 IPC output, and callback bookkeeping; Zenoh reserves before
+    CDR materialization for retained wire/CDR, embedded image bytes, frame/IPC
+    base64, and callback bookkeeping.
+  - A frame is dropped when its weight would exceed the envelope.
+  - One worst-case 64 MiB frame is admitted, while another worst-case frame
+    from a different topic is backpressured.
+  - The topic event carries only a small delivery ID, lifecycle generation, and
+    exact subscription ID, each encoded as a canonical positive-u64 decimal
+    string across Tauri IPC; the renderer pulls the large frame exactly once,
+    and the native reservation and per-topic slot remain owned until an
+    identity-matched acknowledgement after every listener settles or its
+    eight-second deadline quarantines that listener.
+  - Event-listener registration and native declaration share one twelve-second
+    setup deadline; a late listener handle is immediately released.
+  - Pull and acknowledgement have separate ten- and four-second renderer
+    deadlines.
+  - A 30-second native monotonic lease covers a lost readiness event, renderer
+    loss, and a rejected, lost, or late acknowledgement; expiry atomically
+    releases the exact slot and permit and quarantines only the matching live
+    declaration.
+  - Expiry then performs a bounded exact undeclaration; cleanup failure retains
+    quarantine for explicit retry, while lifecycle rotation or a newer exact
+    identity fences stale cleanup.
+  - Lifecycle rotation discards an untaken stale-generation frame, while a
+    pulled frame remains reserved until exact acknowledgement or lease expiry.
+  - A proven exact unsubscribe or reopen likewise retires only an untaken
+    matching frame; an in-flight frame keeps its immutable reservation.
+  - Each camera subscription also carries a renderer-issued exact identity, so
+    late callbacks and cleanup from a closed subscription cannot enter or
+    remove a reopened topic, and an explicit reopen removes a quarantined
+    declaration before installing its new identity.
+  - The renderer admits only descriptors for the current canonical nonzero-u64
+    lifecycle, delivery, and subscription IDs, serializes one full
+    pull/listener/acknowledgement cycle per topic, and holds at most one
+    prevalidated small descriptor pending; it never pulls that pending delivery
+    before the active acknowledgement settles.
+  - Duplicate pulls or acknowledgements, malformed readiness events, deadline
+    failures, and overlapping topic deliveries fail closed; callback failures
+    are isolated and still reach bounded acknowledgement.
 - **Galadriel evidence producer (native NCP, optional)** — absent from default
   binaries and disabled unless an `ncp` build also receives exact runtime opt-in
   plus valid registry/config/executable pins. It can put frozen evidence only to
@@ -441,7 +453,7 @@ Key files, not an exhaustive listing.
 
 ### Frontend (`src/`)
 
-```
+```text
 src/
 ├── components/
 │   ├── CrebainViewer.tsx      # Main 3D viewer (scene, cameras, feeds, splats)
@@ -464,7 +476,9 @@ src/
 │   ├── TransformManager.ts    # TF tree with caching
 │   └── useROSSensors.ts       # Multi-modal sensor fusion integration
 │
+├── context/                   # React context providers
 ├── detection/                 # Shared detection types + browser fusion engine
+├── integrations/              # Engram host-mode glue (restricted host validation, status bridge)
 ├── physics/                   # Drone physics simulation (120 Hz)
 ├── simulation/                # Interception system
 ├── state/                     # Scene serialization/persistence
@@ -474,7 +488,7 @@ src/
 
 ### Backend (`src-tauri/src/`)
 
-```
+```text
 src-tauri/src/
 ├── lib.rs                # Tauri commands (IPC entry points)
 ├── main.rs               # Native app entry
@@ -501,9 +515,12 @@ src-tauri/src/
 │   ├── mod.rs            # Telemetry-only Transport trait + types
 │   ├── zenoh.rs          # Read-only Zenoh implementation
 │   ├── rosbridge.rs      # Read-only rosbridge WebSocket fallback
+│   ├── camera_work.rs    # Frame-admission envelope (weighted, nonblocking)
 │   └── commands.rs       # Lifecycle + typed subscription Tauri commands
 │
-└── ncp/                  # Dormant NCP (Engram) action/control adapter
+├── ncp/                  # Dormant NCP (Engram) action/control adapter
+│
+└── ../crates/plant-authority/  # Inert headless plant foundation crate (separate workspace package)
 ```
 
 The producer does not execute registry transform chains. It attaches a common

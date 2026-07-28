@@ -35,6 +35,7 @@ operational, deployment, vehicle-authority, model-accuracy, or cross-repository
 Open-source readiness, evidence, and quality hardening.
 
 ### Added
+
 - **Exact production renderer-vendor boundary.** Production builds now pin and
   pre-transform Spark 0.1.10, Rapier 0.19.3, and Three 0.182.0, leaving zero
   vendor `fetch` references and guarding Three's remaining local image
@@ -573,17 +574,17 @@ Stabilization baseline.
 - Release-readiness artifacts: acceptance matrix, model contracts, manual smoke
   checklist, release evidence log, and the security threat model.
 
-## [0.3.0] - 2025
+## 0.3.0 - 2025
 
 - Sensor fusion engine (KF/EKF/UKF/PF/IMM), guidance controller, and interception
   system; ROS/Gazebo and Zenoh transport paths.
 
-## [0.2.0] - 2025
+## 0.2.0 - 2025
 
 - Multi-camera surveillance, ML detection pipeline with platform-native backends,
   and drone physics simulation.
 
-## [0.1.0] - 2025
+## 0.1.0 - 2025
 
 - Initial Tauri + React + Three.js prototype with Gaussian Splatting scene
   rendering.

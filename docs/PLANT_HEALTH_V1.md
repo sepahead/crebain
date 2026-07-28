@@ -90,8 +90,8 @@ nominal-looking snapshot behind. The opaque numeric mode code is retained for a
 future approved profile to interpret; this component does not assign generic
 safe/unsafe mode names.
 
-Available position and velocity values must be finite and use metres and
-metres per second in the profile's exact local frame. Available battery values
+Available position and velocity values must be finite and use meters and
+meters per second in the profile's exact local frame. Available battery values
 must be finite and within `0.0..=1.0`. Signed zero is canonicalized to positive
 zero. Health admission applies no telemetry plausibility, speed,
 battery-critical, or age-policy limit. Large finite observations and contradictory but structurally

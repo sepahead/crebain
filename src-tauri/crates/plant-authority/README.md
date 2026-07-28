@@ -60,7 +60,7 @@ profile, vehicle identity, declared source identity, source stream epoch,
 runtime generation, and local-frame instance. Its non-cloneable publisher
 requires mutable access and admits only source sequences that strictly increase
 within that publisher instance.
-It validates the exact profile-local frame, metres, metres per second,
+It validates the exact profile-local frame, meters, meters per second,
 generation-bound plant-local observation times, finite position/velocity, and
 an inclusive zero-to-one battery fraction. Unknown and unavailable state is
 explicit and can replace a prior nominal report.

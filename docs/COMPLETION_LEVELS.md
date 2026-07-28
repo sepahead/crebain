@@ -27,7 +27,7 @@ NCP route whose immutable version is selected by cross-repository convergence,
 one native CREBAIN plant authority, and one separately qualified FCU adapter. The
 current dormant NCP 0.8 pin is a component-integration baseline and does not qualify
 that future final route. CREBAIN 1.0 adoption requires the final NCP 1.0 artifacts
-listed in `CROSS_REPOSITORY_REQUIREMENTS_0.9.0.md`. The renderer has no generic
+listed in [CROSS_REPOSITORY_REQUIREMENTS_0.9.0.md](CROSS_REPOSITORY_REQUIREMENTS_0.9.0.md). The renderer has no generic
 command capability. Every command is fresh, session-bound, apply-time checked,
 and followed through accepted, attempted, FCU-accepted, and observed evidence.
 Galadriel, if enabled, is advisory only. CREBAIN's feature/runtime-gated producer

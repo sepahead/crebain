@@ -111,11 +111,13 @@ and transport protection. A Vite development build may select its read-only
 rosbridge telemetry adapter and connect to `ws://localhost:9090`; packaged
 builds do not expose that option.
 
-The custom `DroneTarget` threat scale is 1 (low) through 4 (critical), matching
-the TypeScript and native fusion contracts. `InterceptionCommand.strategy` is
-one of `PURSUIT`, `LEAD`, `PARALLEL`, or `AMBUSH`; unknown strings must be
-rejected by any external consumer. These messages and services remain
-reference contracts and are not registered product authority.
+The custom `DroneTarget` threat scale is 1 through 4 (`THREAT_LOW` through
+`THREAT_CRITICAL`). It is numerically aligned with the 1=minimal to 4=severe
+scale in the TypeScript and native fusion contracts.
+`InterceptionCommand.strategy` is one of `PURSUIT`, `LEAD`, `PARALLEL`, or
+`AMBUSH`; unknown strings must be rejected by any external consumer. These
+messages and services remain reference contracts and are not registered
+product authority.
 
 ## Transport boundary
 

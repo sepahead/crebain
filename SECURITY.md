@@ -17,12 +17,14 @@ document identifies a narrower trusted-operator contract.
 
 Do **not** open a public issue. Use GitHub's
 [private vulnerability reporting flow](https://github.com/sepahead/crebain/security/advisories/new)
-or the repository's Security Advisories page.
+or the repository's Security Advisories page. If you cannot use GitHub, email
+<sepmhn@gmail.com> with "SECURITY" in the subject.
 
 Include the impact, reproduction steps, affected commit/platform/app mode,
 backend or transport path, and a suggested fix if known. The project targets an
 acknowledgment within 48 hours and an initial assessment within 7 days.
-Remediation timing depends on severity.
+Remediation timing depends on severity. Allow up to 90 days for a fix
+before public disclosure. Reporters are credited on request.
 
 ## Deployment practices
 

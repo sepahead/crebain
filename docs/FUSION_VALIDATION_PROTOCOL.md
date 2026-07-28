@@ -47,7 +47,7 @@ candidate run and cannot be selected from observed CREBAIN results.
 
 | Measure | Definition and reporting rule |
 |---|---|
-| Position RMSE | Square root of the mean squared Euclidean truth error in metres, per trial and pooled with median, mean, 5th/95th percentiles, and bootstrap 95% interval. |
+| Position RMSE | Square root of the mean squared Euclidean truth error in meters, per trial and pooled with median, mean, 5th/95th percentiles, and bootstrap 95% interval. |
 | Velocity RMSE | Same rule for Euclidean velocity error in m/s. |
 | NEES | `eᵀP⁻¹e` over the six-state error when complete state truth and a positive-definite covariance exist. Report invalid inversions; never replace them with zero. |
 | NIS | `yᵀS⁻¹y` for each admitted innovation with its actual measurement dimension. Report empirical central 95% chi-square coverage by modality and filter. |

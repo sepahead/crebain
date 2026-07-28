@@ -1,0 +1,137 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 668" width="960" role="img" aria-labelledby="daTitle">
+  <title id="daTitle">CREBAIN system architecture</title>
+  <style>
+    text {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      fill: #c9d1d9;
+      text-anchor: middle;
+    }
+    .hdr   { fill: #8b949e; letter-spacing: 2.5px; text-anchor: start; }
+    .rl    { letter-spacing: 2px; text-anchor: start; }
+    .rl-fe { fill: #34d399; }
+    .rl-be { fill: #fbbf24; }
+    .rl-ex { fill: #38bdf8; }
+    .mut   { fill: #8b949e; }
+    .lab-sage { fill: #9caf88; letter-spacing: 1px; }
+    .lab-sky  { fill: #38bdf8; letter-spacing: 1px; }
+    .lab-red  { fill: #ef4444; letter-spacing: 1.5px; }
+    .leg   { fill: #8b949e; letter-spacing: 1px; text-anchor: start; }
+    .bart  { fill: #b6cf86; letter-spacing: 2px; font-size: 12px; }
+    .region { fill: none; stroke-width: 1.2; }
+    .rg-fe { stroke: #34d399; }
+    .rg-be { stroke: #fbbf24; }
+    .rg-ex { stroke: #38bdf8; }
+    .box   { fill: #10151d; stroke: #9caf88; stroke-width: 1; }
+    .box-ml  { stroke: #a78bfa; stroke-width: 1.2; }
+    .box-red { fill: none; stroke: #ef4444; stroke-width: 1.2; }
+    .dash  { stroke-dasharray: 5 4; }
+    .bar   { fill: #131810; stroke: #b6cf86; stroke-width: 1.2; }
+    .flow      { fill: none; stroke: #9caf88; stroke-width: 1.2; }
+    .flow-sky  { fill: none; stroke: #38bdf8; stroke-width: 1.2; }
+    .tick  { fill: none; stroke: #b6cf86; stroke-width: 1.5; }
+  </style>
+  <defs>
+    <marker id="mSage" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L8 4 L0 8 Z" fill="#9caf88"/>
+    </marker>
+    <marker id="mSky" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L8 4 L0 8 Z" fill="#38bdf8"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="668" fill="#0d1117"/>
+
+  <!-- corner brackets -->
+  <path class="tick" d="M16 36 V16 H36"/>
+  <path class="tick" d="M924 16 H944 V36"/>
+  <path class="tick" d="M16 632 V652 H36"/>
+  <path class="tick" d="M944 632 V652 H924"/>
+
+  <text class="hdr" x="40" y="40">CREBAIN — SYSTEM ARCHITECTURE</text>
+
+  <!-- FRONTEND region -->
+  <rect class="region rg-fe" x="40" y="64" width="600" height="140"/>
+  <text class="rl rl-fe" x="56" y="84">FRONTEND — REACT 19 + TYPESCRIPT</text>
+  <rect class="box" x="56" y="96" width="276" height="40"/>
+  <text x="194" y="121">SPARKJS / THREE.JS · 3D SCENE</text>
+  <rect class="box" x="348" y="96" width="276" height="40"/>
+  <text x="486" y="121">CAMERA FEEDS · OVERLAYS</text>
+  <rect class="box" x="56" y="148" width="276" height="40"/>
+  <text x="194" y="173">SENSOR FUSION UI · TRACKS</text>
+  <rect class="box" x="348" y="148" width="276" height="40"/>
+  <text x="486" y="173">ROS TELEMETRY · BRIDGE</text>
+
+  <!-- frontend -> IPC -->
+  <line class="flow" x1="120" y1="204" x2="120" y2="226" marker-end="url(#mSage)"/>
+  <line class="flow" x1="280" y1="204" x2="280" y2="226" marker-end="url(#mSage)"/>
+  <line class="flow" x1="400" y1="204" x2="400" y2="226" marker-end="url(#mSage)"/>
+  <line class="flow" x1="560" y1="204" x2="560" y2="226" marker-end="url(#mSage)"/>
+
+  <!-- IPC boundary bar -->
+  <rect class="bar" x="40" y="232" width="600" height="30"/>
+  <text class="bart" x="340" y="251">TAURI IPC — INVOKE / EVENTS</text>
+
+  <!-- IPC -> backend -->
+  <line class="flow" x1="120" y1="262" x2="120" y2="276" marker-end="url(#mSage)"/>
+  <line class="flow" x1="280" y1="262" x2="280" y2="276" marker-end="url(#mSage)"/>
+  <line class="flow" x1="400" y1="262" x2="400" y2="276" marker-end="url(#mSage)"/>
+  <line class="flow" x1="560" y1="262" x2="560" y2="276" marker-end="url(#mSage)"/>
+
+  <!-- RUST BACKEND region -->
+  <rect class="region rg-be" x="40" y="282" width="600" height="162"/>
+  <text class="rl rl-be" x="56" y="302">RUST BACKEND — TAURI</text>
+  <rect class="box box-ml" x="56" y="312" width="300" height="42"/>
+  <text x="206" y="330">INFERENCE ABSTRACTION</text>
+  <text class="mut" x="206" y="345">COREML / ONNX / TENSORRT / CUDA</text>
+  <rect class="box" x="410" y="312" width="214" height="42"/>
+  <text x="517" y="337">SENSOR FUSION ENGINE</text>
+  <rect class="box" x="56" y="388" width="170" height="44"/>
+  <text x="141" y="406">ZENOH TRANSPORT</text>
+  <text class="mut" x="141" y="421">READ-ONLY</text>
+  <rect class="box" x="242" y="388" width="180" height="44"/>
+  <text x="332" y="406">ROSBRIDGE FALLBACK</text>
+  <text class="mut" x="332" y="421">WS, READ-ONLY</text>
+  <rect class="box dash" x="410" y="388" width="214" height="44"/>
+  <text x="517" y="406">GALADRIEL PRODUCER</text>
+  <text class="mut" x="517" y="421">NCP FEATURE + RUNTIME PINS</text>
+
+  <!-- fusion -> producer (feature-gated) -->
+  <line class="flow dash" x1="517" y1="354" x2="517" y2="382" marker-end="url(#mSage)"/>
+  <text class="lab-sage" x="529" y="374" text-anchor="start">EXACT OPT-IN</text>
+
+  <!-- backend -> external -->
+  <line class="flow-sky" x1="100" y1="444" x2="100" y2="494" marker-end="url(#mSky)"/>
+  <line class="flow-sky" x1="390" y1="444" x2="390" y2="494" marker-end="url(#mSky)"/>
+  <text class="lab-sky" x="245" y="476">SUBSCRIBE ONLY — NO PUBLISH</text>
+  <line class="flow-sky dash" x1="560" y1="444" x2="560" y2="494" marker-end="url(#mSky)"/>
+  <text class="lab-sky" x="548" y="476" text-anchor="end">2 EVIDENCE KEYS</text>
+
+  <!-- EXTERNAL region -->
+  <rect class="region rg-ex" x="40" y="500" width="600" height="96"/>
+  <text class="rl rl-ex" x="56" y="520">EXTERNAL</text>
+  <rect class="box" x="56" y="534" width="170" height="44"/>
+  <text x="141" y="552">GAZEBO</text>
+  <text class="mut" x="141" y="567">HEADLESS PHYSICS</text>
+  <rect class="box" x="242" y="534" width="200" height="44"/>
+  <text x="342" y="552">ROS / ROSBRIDGE SERVER</text>
+  <text class="mut" x="342" y="567">READ-ONLY TELEMETRY</text>
+  <rect class="box" x="458" y="534" width="166" height="44"/>
+  <text x="541" y="552">GALADRIEL</text>
+  <text class="mut" x="541" y="567">ADVISORY OBSERVER</text>
+
+  <!-- isolated inert plant foundation (no connections) -->
+  <rect class="box-red" x="700" y="300" width="204" height="76"/>
+  <text x="802" y="324">CREBAIN-PLANTD</text>
+  <text class="mut" x="802" y="340">INERT PLANT FOUNDATION</text>
+  <text class="mut" x="802" y="356">UNWIRED</text>
+  <text class="lab-red" x="802" y="398">NO AUTHORITY PATH</text>
+
+  <!-- legend -->
+  <line class="flow" x1="40" y1="630" x2="74" y2="630"/>
+  <text class="leg" x="84" y="634">SOLID — DEFAULT BINARY</text>
+  <line class="flow dash" x1="40" y1="650" x2="74" y2="650"/>
+  <text class="leg" x="84" y="654">DASHED — FEATURE-GATED OPT-IN</text>
+</svg>

@@ -10,7 +10,7 @@ Spark in this app parses `.ply` / `.compressed.ply` / `.spz` / `.splat` /
 `.ksplat` (see `isSplatFormat()` in `src/components/viewer/types.ts`). Load a
 scene by dragging the file onto the viewer, with `Ctrl/Cmd+O`, or by dropping a
 URL. In the running dev server each file is served at
-`http://localhost:5173/splats/<name>`.
+`http://127.0.0.1:5173/splats/<name>`.
 
 > Loader note: `loadSplat()` passes the source filename to `SplatMesh` so Spark
 > can identify the format. The headerless antimatter15 `.splat` format has no

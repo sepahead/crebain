@@ -21,6 +21,10 @@ It is written to be read alongside the code. Primary sources:
 | `src/detection/types.ts` | Shared detection / track / threat types |
 | `src/components/SensorFusionPanel.tsx` | Operator-facing track list and filter selector |
 
+<p align="center">
+  <img alt="CREBAIN native sensor-fusion pipeline: six measurement sources feed a bounded exact-time intake, then predict, Mahalanobis gate, cluster-plus-Hungarian association, sequential update, and M-of-N lifecycle stages produce track output for the Sensor Fusion panel. A gated emit_innovations branch and the separate browser multi-camera module are shown dashed" src="../assets/diagrams/fusion-pipeline.svg" width="900">
+</p>
+
 ---
 
 ## Table of contents
@@ -37,6 +41,7 @@ It is written to be read alongside the code. Primary sources:
 - [Configuration and tuning](#configuration-and-tuning)
 - [Validation and metrics](#validation-and-metrics)
 - [Known limitations and roadmap](#known-limitations-and-roadmap)
+- [Galadriel-oriented innovation JSONL (emit_innovations)](#galadriel-oriented-innovation-jsonl-emit_innovations)
 - [References](#references)
 
 ---
@@ -88,7 +93,7 @@ serialized as native `TrackOutput`, counted as native filter evidence, or enter
 the optional Galadriel producer without an explicit future versioned conversion
 and validation campaign. The 0.9 migration disposition is therefore to retain
 both modules under their distinct names and contracts, remove language such as
-“two implementations,” and reject any downstream claim of numerical parity.
+"two implementations," and reject any downstream claim of numerical parity.
 If camera estimates later enter native fusion, that must occur as bounded,
 frame-identified measurements at the native ingress—not by merging tracker
 state or IDs.
@@ -129,7 +134,7 @@ standard recursive multi-target tracker:
 ```mermaid
 flowchart TD
     A["measurements[]<br/>(this frame)"] --> B["1. PREDICT<br/>advance every track to now<br/>x' = F·x,  P' = F·P·Fᵀ + Q·dt"]
-    B --> C["2. ASSOCIATE<br/>gate by Mahalanobis distance,<br/>global nearest neighbour (Hungarian) per cluster"]
+    B --> C["2. ASSOCIATE<br/>gate by Mahalanobis distance,<br/>global nearest neighbor (Hungarian) per cluster"]
     C --> D["3. UPDATE<br/>fuse associated measurements,<br/>correct state + covariance"]
     C --> E["4. INITIATE<br/>spawn Tentative track from<br/>each unassociated measurement"]
     D --> F["5. LIFECYCLE<br/>age, confirm, coast,<br/>delete missed tracks"]
@@ -350,7 +355,7 @@ Cartesian through the polar→Cartesian Jacobian
 (`R_cart = J⁻¹ R J⁻ᵀ`, `J = ∂(range,az,el)/∂(x,y,z)`) before being folded into `S`.
 Skipping this conversion would add `rad²` to `m²` and badly under-estimate
 cross-range uncertainty — an angular 1σ at range `R` spans ≈ `R·σ_angle` in
-cross-range, not `σ_angle` metres.
+cross-range, not `σ_angle` meters.
 
 ### Assignment
 
@@ -359,7 +364,7 @@ same-class measurements are first clustered (union-find), then a one-to-one
 track↔cluster assignment is solved with a dependency-free Kuhn–Munkres solver on the
 squared-Mahalanobis (χ²-gated) cost matrix — out-of-gate pairs carry an effectively
 infinite cost so they are never assigned. This replaces the earlier greedy
-nearest-neighbour scheme: it enforces a global one-to-one constraint, so an early pick
+nearest-neighbor scheme: it enforces a global one-to-one constraint, so an early pick
 can no longer "steal" a measurement that optimally belonged to another track in dense
 or crossing scenes, while the clustering step preserves multi-sensor fusion (N
 co-located returns from N sensors still all reach the one track). JPDA/MHT remain
@@ -369,7 +374,7 @@ possible future tiers.
 
 ## Multi-sensor fusion semantics
 
-When several measurements (e.g. radar + thermal) associate to one track in a single
+When several measurements (for example, radar + thermal) associate to one track in a single
 frame, the engine applies each conditionally independent return **sequentially**
 through its own measurement model and covariance `R`—an information-form
 (inverse-covariance) update—rather than pre-averaging. Within one co-located
@@ -381,12 +386,12 @@ of one capture from falsely collapsing covariance or over-concentrating IMM mode
 probabilities. Different sensor identities remain independent contributors, and
 the same sensor may contribute again at the next exact frame timestamp.
 
-Each retained sensor is weighted by its actual precision: a centimetre-accurate
-lidar centroid dominates a tens-of-metres acoustic bearing regardless of their
+Each retained sensor is weighted by its actual precision: a centimeter-accurate
+lidar centroid dominates a tens-of-meters acoustic bearing regardless of their
 reported confidences. For conditionally independent same-time measurements this
 sequential update is mathematically equivalent to the batch information-form
 posterior `x̂ = (ΣCᵢ⁻¹)⁻¹ ΣCᵢ⁻¹xᵢ`; measurements are applied in order of increasing
-`R`-trace for determinism on the (re-linearised) EKF polar path.
+`R`-trace for determinism on the (re-linearized) EKF polar path.
 
 Detector **confidence is not used as a fusion weight**. `track.confidence` is derived
 *after* the updates — the maximum contributing measurement confidence plus a small
@@ -468,7 +473,7 @@ A single canonical formula is implemented identically in Rust
 Drone threat is **graduated** by confidence: a low-confidence (≤ 0.5) single-sensor
 drone hypothesis stays "guarded" (2) to avoid flooding the operator with amber from
 uncorroborated returns, rising to "elevated" (3) and then "severe" (4) as confidence
-(e.g. from multi-sensor corroboration) grows. A confidently-tracked but unidentified
+(for example, from multi-sensor corroboration) grows. A confidently-tracked but unidentified
 object is treated as "elevated" (3). All thresholds are strict `>`. Crucially, the
 **same raw label is bucketed identically on both engines**: the Rust
 `map_to_detection_class` mirrors the TypeScript `mapToDetectionClass`, so a label is
@@ -476,7 +481,7 @@ resolved to its canonical class once, the same way, before the shared formula ru
 Colors: `1` green (minimal), `2` blue (guarded), `3` amber (elevated), `4` red
 (severe).
 
-> A compound or unrecognized label (e.g. `"fpv-drone"`) resolves to `unknown` on
+> A compound or unrecognized label (for example, `"fpv-drone"`) resolves to `unknown` on
 > both engines — not `drone` — because the shared mapping is exact-match. Extending
 > the recognized vocabulary is a `mapToDetectionClass`/`map_to_detection_class`
 > enhancement that automatically keeps both engines in step.
@@ -600,7 +605,7 @@ or acceptance result is claimed by 0.9.0. Its preregistered measures include:
 - **NEES / NIS** (normalized estimation / innovation error squared): test whether the
   reported covariance is *honest*. A consistent filter yields NEES averaging the state
   dimension and NIS averaging the measurement dimension, both within χ² bounds. A
-  chronically small NIS is the signature of an overconfident filter (e.g. from
+  chronically small NIS is the signature of an overconfident filter (for example, from
   confidence-weighted fusion dropping cross-correlations).
 - **OSPA / GOSPA**: a principled set-distance between estimated and true target sets,
   decomposable into localization error plus missed/false-target (cardinality) error.
@@ -621,7 +626,7 @@ status and preserves the remaining scientific and deployment gaps.
 
 | # | Item | Status |
 |---|------|--------|
-| 1 | Global nearest-neighbour (Hungarian) assignment over the gated cost matrix, with co-located-measurement clustering | ✅ Implemented |
+| 1 | Global nearest-neighbor (Hungarian) assignment over the gated cost matrix, with co-located-measurement clustering | ✅ Implemented |
 | 2 | Information-form / covariance-weighted sequential independent-return fusion (each measurement its own `R`; one effective return per correlated capture identity) | ✅ Implemented |
 | 3 | Sliding-window **M-of-N** confirmation + covariance-volume deletion | ✅ Implemented |
 | 4 | Per-measurement `R` threaded into every filter update (KF / EKF / UKF / PF / IMM) | ✅ Implemented |
@@ -655,49 +660,12 @@ and must not be used as an implementation plan. Two items are deliberately defer
 > polar→Cartesian Jacobian congruence (regression-tested), so the historical
 > polar-units-as-Cartesian birth bug is fixed — keep it that way when touching
 > full covariances. When a gate seems too tight, fix the *scenario realism*
-> (e.g. the single-point birth velocity prior), not the threshold. The browser
+> (for example, the single-point birth velocity prior), not the threshold. The browser
 > `triangulatePosition` now solves the perpendicular least-squares projector
 > normal equations and ray-gates with a cheirality (behind-camera) check; the
 > old algebraic-distance/no-cheirality caveat no longer applies.
 
 ---
-
-## References
-
-The design and the improvements above are grounded in standard multi-target tracking
-and estimation literature.
-
-**Estimation / Kalman family**
-- Kalman filter — predict/update, Joseph-form covariance, numerical stability: <https://en.wikipedia.org/wiki/Kalman_filter>
-- Extended Kalman filter — Jacobian linearization and divergence modes: <https://en.wikipedia.org/wiki/Extended_Kalman_filter>
-- Unscented transform — sigma points, derivative-free accuracy: <https://en.wikipedia.org/wiki/Unscented_transform>
-- R. Labbe, *Kalman and Bayesian Filters in Python* — CV model, discretized process noise: <https://github.com/rlabbe/Kalman-and-Bayesian-Filters-in-Python>
-
-**Particle filter / IMM**
-- Particle filter — SIR/bootstrap weights, degeneracy, resampling: <https://en.wikipedia.org/wiki/Particle_filter>
-- Genovese, *The Interacting Multiple Model Algorithm* — JHU/APL Technical Digest: <https://secwww.jhuapl.edu/techdigest/Content/techdigest/pdf/V22-N04/22-04-Genovese.pdf>
-
-**Data association**
-- Mahalanobis distance — χ² gating and confidence ellipsoids: <https://en.wikipedia.org/wiki/Mahalanobis_distance>
-- Radar tracker — gating, NN vs GNN vs JPDA/MHT, M-of-N, coasting: <https://en.wikipedia.org/wiki/Radar_tracker>
-- Hungarian algorithm — optimal one-to-one assignment: <https://en.wikipedia.org/wiki/Hungarian_algorithm>
-- Joint Probabilistic Data Association Filter: <https://en.wikipedia.org/wiki/Joint_Probabilistic_Data_Association_Filter>
-
-**Multi-sensor fusion**
-- Covariance intersection — conservative fusion of correlated estimates: <https://en.wikipedia.org/wiki/Covariance_intersection>
-- Inverse-variance (information-form) weighting: <https://en.wikipedia.org/wiki/Inverse-variance_weighting>
-- Out-of-sequence measurement handling (MathWorks): <https://www.mathworks.com/help/fusion/ug/introduciton-to-out-of-sequence-measurement-handling.html>
-
-**Lifecycle / metrics**
-- Track algorithm — tentative/confirmed, M-of-N: <https://en.wikipedia.org/wiki/Track_algorithm>
-- Rahmathullah, García-Fernández, Svensson — *Generalized Optimal Sub-Pattern Assignment (GOSPA)*: <https://arxiv.org/abs/1601.05585>
-- Bernardin & Stiefelhagen — *CLEAR MOT metrics*: <https://link.springer.com/content/pdf/10.1155/2008/246309.pdf>
-
-**Multi-view geometry**
-- Triangulation (computer vision) — midpoint / DLT, degeneracy: <https://en.wikipedia.org/wiki/Triangulation_(computer_vision)>
-- Epipolar geometry — fundamental matrix, correspondence test: <https://en.wikipedia.org/wiki/Epipolar_geometry>
-- Hartley & Zisserman, *Multiple View Geometry*, Ch. 8: <https://www.robots.ox.ac.uk/~vgg/hzbook/hzbook1/HZepipolar.pdf>
-
 
 ## Galadriel-oriented innovation JSONL (`emit_innovations`)
 
@@ -743,7 +711,43 @@ Semantics:
   state; correlated same-capture shadows never receive another update.
 - Track birth has no prior innovation and emits nothing. A skipped update with an
   unusable innovation covariance also emits nothing.
-- Visual/thermal/acoustic/lidar use Cartesian metres. EKF radar NIS derives from
+- Visual/thermal/acoustic/lidar use Cartesian meters. EKF radar NIS derives from
   the polar `[m, rad, rad]` residual; non-EKF radar uses its Cartesian conversion.
 - Particle and IMM filters do not emit these records because this implementation
   has no single compatible innovation covariance for them.
+
+## References
+
+The design and the improvements above are grounded in standard multi-target tracking
+and estimation literature.
+
+**Estimation / Kalman family**
+- Kalman filter — predict/update, Joseph-form covariance, numerical stability: <https://en.wikipedia.org/wiki/Kalman_filter>
+- Extended Kalman filter — Jacobian linearization and divergence modes: <https://en.wikipedia.org/wiki/Extended_Kalman_filter>
+- Unscented transform — sigma points, derivative-free accuracy: <https://en.wikipedia.org/wiki/Unscented_transform>
+- R. Labbe, *Kalman and Bayesian Filters in Python* — CV model, discretized process noise: <https://github.com/rlabbe/Kalman-and-Bayesian-Filters-in-Python>
+
+**Particle filter / IMM**
+- Particle filter — SIR/bootstrap weights, degeneracy, resampling: <https://en.wikipedia.org/wiki/Particle_filter>
+- Genovese, *The Interacting Multiple Model Algorithm* — JHU/APL Technical Digest: <https://secwww.jhuapl.edu/techdigest/Content/techdigest/pdf/V22-N04/22-04-Genovese.pdf>
+
+**Data association**
+- Mahalanobis distance — χ² gating and confidence ellipsoids: <https://en.wikipedia.org/wiki/Mahalanobis_distance>
+- Radar tracker — gating, NN vs GNN vs JPDA/MHT, M-of-N, coasting: <https://en.wikipedia.org/wiki/Radar_tracker>
+- Hungarian algorithm — optimal one-to-one assignment: <https://en.wikipedia.org/wiki/Hungarian_algorithm>
+- Joint Probabilistic Data Association Filter: <https://en.wikipedia.org/wiki/Joint_Probabilistic_Data_Association_Filter>
+
+**Multi-sensor fusion**
+- Covariance intersection — conservative fusion of correlated estimates: <https://en.wikipedia.org/wiki/Covariance_intersection>
+- Inverse-variance (information-form) weighting: <https://en.wikipedia.org/wiki/Inverse-variance_weighting>
+- Out-of-sequence measurement handling (MathWorks): <https://www.mathworks.com/help/fusion/ug/introduciton-to-out-of-sequence-measurement-handling.html>
+
+**Lifecycle / metrics**
+- Track algorithm — tentative/confirmed, M-of-N: <https://en.wikipedia.org/wiki/Track_algorithm>
+- Rahmathullah, García-Fernández, Svensson — *Generalized Optimal Sub-Pattern Assignment (GOSPA)*: <https://arxiv.org/abs/1601.05585>
+- Bernardin & Stiefelhagen — *CLEAR MOT metrics*: <https://link.springer.com/content/pdf/10.1155/2008/246309.pdf>
+
+**Multi-view geometry**
+- Triangulation (computer vision) — midpoint / DLT, degeneracy: <https://en.wikipedia.org/wiki/Triangulation_(computer_vision)>
+- Epipolar geometry — fundamental matrix, correspondence test: <https://en.wikipedia.org/wiki/Epipolar_geometry>
+- Hartley & Zisserman, *Multiple View Geometry*, Ch. 8: <https://www.robots.ox.ac.uk/~vgg/hzbook/hzbook1/HZepipolar.pdf>
