@@ -56,14 +56,15 @@ describe('CI workflow', () => {
     expect(WORKFLOW).toContain('toolchain: 1.91.1')
   })
 
-  it('keeps frozen compatibility overlays outside Cargo update scans', () => {
+  it('keeps path-patched overlay manifests available for Cargo resolution', () => {
     const cargoUpdates = DEPENDABOT.match(
       /- package-ecosystem: cargo\n[\s\S]*?(?=\n {2}- package-ecosystem:|$)/
     )?.[0]
 
     expect(cargoUpdates).toBeTruthy()
     expect(cargoUpdates).toContain('directory: /src-tauri')
-    expect(cargoUpdates).toContain("- 'vendor-compat/**'")
+    expect(cargoUpdates).toContain("- 'vendor-compat/**/Cargo.lock'")
+    expect(cargoUpdates).not.toContain("- 'vendor-compat/**'")
   })
 
   it('keeps incompatible dependency upgrades outside grouped update pull requests', () => {

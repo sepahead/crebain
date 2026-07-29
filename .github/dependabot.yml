@@ -29,7 +29,9 @@ updates:
   - package-ecosystem: cargo
     directory: /src-tauri
     # Cargo must read the path-patched overlay manifests to resolve the graph.
-    # The provenance gate protects their byte-exact contents from changes.
+    # Exclude only nested lockfiles. The provenance gate protects all overlay bytes.
+    exclude-paths:
+      - 'vendor-compat/**/Cargo.lock'
     schedule:
       interval: weekly
       day: monday
