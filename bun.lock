@@ -32,7 +32,7 @@
         "eslint-plugin-react-refresh": "^0.5.3",
         "happy-dom": "^20.11.1",
         "playwright": "^1.62.0",
-        "postcss": "^8.5.23",
+        "postcss": "^8.5.25",
         "prettier": "^3.9.6",
         "tailwindcss": "^4.3.3",
         "typescript": "^6.0.3",
@@ -271,7 +271,7 @@
 
     "@rollup/rollup-win32-x64-msvc": ["@rollup/rollup-win32-x64-msvc@4.62.2", "", { "os": "win32", "cpu": "x64" }, "sha512-BfzEnDJOt9T8M989/lA37EcJgat01wLRnoi5dQf3QzOH7jzpqTAzdDbVfRljVr5r+jzKqpbHeyOfAaXxAd0PAA=="],
 
-    "@sepahead/ncp": ["@sepahead/ncp@github:sepahead/NCP#54008b1", {}, "sepahead-NCP-54008b1", "sha512-khEm3dk8N9A1ugKBJwYuMycUChCVI6BQjM7enpfBcm1e8twmQc0vY35rT+kSV5N3FOFkG7cCOkred3CBcIh2jQ=="],
+    "@sepahead/ncp": ["@sepahead/ncp@github:sepahead/NCP#54008b1", {}, "sepahead-NCP-54008b1"],
 
     "@sparkjsdev/spark": ["@sparkjsdev/spark@0.1.10", "", { "dependencies": { "fflate": "^0.8.2" } }, "sha512-CiijdZQuj7KPDUqIZPiEqyUkJCYo1JqR05vq/V+ElxMwqR7L70ZuZDyIKcasjZHSiPB8pGRMH8HZGqUKO9aRPQ=="],
 
