@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { UI_SCALE_CONFIG, readStoredScale, writeStoredScale } from '../uiScale'
+import { UI_SCALE_CONFIG, clampScale, readStoredScale, writeStoredScale } from '../uiScale'
 
 function storageWith(value: string | null) {
   return {
@@ -9,6 +9,13 @@ function storageWith(value: string | null) {
 }
 
 describe('UI scale storage', () => {
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    'uses the default for a non-finite direct scale: %s',
+    (value) => {
+      expect(clampScale(value)).toBe(UI_SCALE_CONFIG.DEFAULT)
+    }
+  )
+
   it('reads and clamps a finite persisted scale', () => {
     expect(readStoredScale(() => storageWith('1.25'))).toBe(1.25)
     expect(readStoredScale(() => storageWith('99'))).toBe(UI_SCALE_CONFIG.MAX)

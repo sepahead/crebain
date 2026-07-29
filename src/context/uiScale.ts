@@ -27,6 +27,7 @@ export interface UIScaleContextValue {
 export const UIScaleContext = createContext<UIScaleContextValue | null>(null)
 
 export function clampScale(value: number): number {
+  if (!Number.isFinite(value)) return UI_SCALE_CONFIG.DEFAULT
   return Math.min(UI_SCALE_CONFIG.MAX, Math.max(UI_SCALE_CONFIG.MIN, value))
 }
 
