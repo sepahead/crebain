@@ -28,9 +28,8 @@ updates:
 
   - package-ecosystem: cargo
     directory: /src-tauri
-    # Do not update byte-exact crates.io compatibility overlays.
-    exclude-paths:
-      - 'vendor-compat/**'
+    # Cargo must read the path-patched overlay manifests to resolve the graph.
+    # The provenance gate protects their byte-exact contents from changes.
     schedule:
       interval: weekly
       day: monday
