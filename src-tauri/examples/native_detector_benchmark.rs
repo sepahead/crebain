@@ -953,8 +953,6 @@ fn current_platform() -> PlatformRecord {
         ("tensorrt", cfg!(feature = "tensorrt")),
         ("zenoh-transport", cfg!(feature = "zenoh-transport")),
         ("ncp", cfg!(feature = "ncp")),
-        ("pyo3-bindings", cfg!(feature = "pyo3-bindings")),
-        ("ts-export", cfg!(feature = "ts-export")),
     ] {
         if enabled {
             enabled_package_features.push(name.to_string());

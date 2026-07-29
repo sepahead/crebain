@@ -138,11 +138,11 @@
     },
     {
       "path": "src-tauri/Cargo.toml",
-      "sha256": "95f886ae5969646c949be2ecd3ce0c458ec909dc20f36a90b0015a7f87d8bbff"
+      "sha256": "3509d5e96abd6f5a19943d0174c3fe57c58bb9e8eb18c1c966ee2ef64aab03f8"
     },
     {
       "path": "src-tauri/Cargo.lock",
-      "sha256": "dadaea91064d557f5c6d06ff4957c328395359494e549374c0b4cb2fa36b6689"
+      "sha256": "426caa01563b153f102a25ec7ba12c38a80d5bed4123e60ab38a1899fb6cc6bd"
     },
     {
       "path": "src-tauri/crates/plant-authority/Cargo.toml",
@@ -370,7 +370,7 @@
     },
     {
       "path": "scripts/audit-tracked-files.py",
-      "sha256": "2529819225bb8be8a562e6536fb3c77e1095d4625ff3f7929724e84d4cf7e4fc"
+      "sha256": "0d4ffebc9cbcb8ce124a747f583ad962a04ff492181f57f2e7bc41bf7c7d466a"
     },
     {
       "path": "scripts/test-audit-tracked-files.py",

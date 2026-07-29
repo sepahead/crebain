@@ -169,8 +169,6 @@ def generated_by(path: str) -> tuple[str, str]:
         return "YES", "cargo metadata/build with --locked for verification"
     if path == "flake.lock":
         return "YES", "nix flake lock"
-    if path == "src/__generated__/rust_types.ts":
-        return "YES", "cargo test --features ts-export export-ts-types"
     if path.startswith(".superstack/security-reports/"):
         return "YES", "Superstack security-report tooling (external)"
     if path.startswith("src-tauri/icons/"):
