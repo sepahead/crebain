@@ -11,6 +11,9 @@ import { productionVendorBoundaryPlugin } from './scripts/lib/production-vendor-
 const ROOT_DIRECTORY = fileURLToPath(new URL('.', import.meta.url))
 const DEVELOPMENT_ROSBRIDGE_MODULE = 'src/ros/ROSBridge.ts'
 const PRODUCTION_ROSBRIDGE_MODULE = 'src/ros/ROSBridgeDisabled.ts'
+// Rapier embeds its pinned WebAssembly payload in one lazy chunk. The exact
+// runtime boundary and the 700 KiB initial-load budget provide stricter gates.
+const LAZY_CHUNK_WARNING_LIMIT_KB = 2300
 
 function projectModuleId(moduleId: string): string | null {
   const withoutQuery = moduleId.split('?', 1)[0]
@@ -147,6 +150,7 @@ export default defineConfig(({ command, mode }) => ({
   build: {
     target: 'esnext',
     minify: 'esbuild',
+    chunkSizeWarningLimit: LAZY_CHUNK_WARNING_LIMIT_KB,
     // Tauri's modern WebViews do not need Vite's fallback. The polyfill calls
     // fetch directly and would bypass the renderer's sole bounded adapter.
     modulePreload: { polyfill: false },
@@ -154,6 +158,9 @@ export default defineConfig(({ command, mode }) => ({
     // the initial (eager) load and exclude the lazy Rapier chunk.
     manifest: true,
     rolldownOptions: {
+      // The byte-level vendor verifier intentionally dominates build time.
+      // Its dedicated regression suite measures correctness instead of latency.
+      checks: { pluginTimings: false },
       output: {
         // Vite 8 removed the object form of manualChunks. Match exact package
         // boundaries with Rolldown's supported code-splitting groups instead.
