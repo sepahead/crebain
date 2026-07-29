@@ -15,11 +15,23 @@
 import { useState, useCallback, useMemo, useEffect, type ReactNode } from 'react'
 import {
   clampScale,
+  readStoredScale,
   UIScaleContext,
   UI_SCALE_CONFIG,
+  writeStoredScale,
   type UIScaleContextValue,
   type UIScalePreset,
 } from './uiScale'
+import { logger } from '../lib/logger'
+
+const log = logger.scope('UI Scale')
+const browserStorage = () => window.localStorage
+const reportStorageReadError = (error: unknown) => {
+  log.warn('Cannot read the persisted UI scale', { error })
+}
+const reportStorageWriteError = (error: unknown) => {
+  log.warn('Cannot persist the UI scale', { error })
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PROVIDER
@@ -40,13 +52,8 @@ export function UIScaleProvider({ children, initialScale, persist = true }: UISc
       return clampScale(initialScale)
     }
     if (persist && typeof window !== 'undefined') {
-      const stored = localStorage.getItem(UI_SCALE_CONFIG.STORAGE_KEY)
-      if (stored) {
-        const parsed = parseFloat(stored)
-        if (!isNaN(parsed)) {
-          return clampScale(parsed)
-        }
-      }
+      const storedScale = readStoredScale(browserStorage, reportStorageReadError)
+      if (storedScale !== null) return storedScale
     }
     return UI_SCALE_CONFIG.DEFAULT
   })
@@ -54,7 +61,7 @@ export function UIScaleProvider({ children, initialScale, persist = true }: UISc
   // Persist to localStorage when scale changes
   useEffect(() => {
     if (persist && typeof window !== 'undefined') {
-      localStorage.setItem(UI_SCALE_CONFIG.STORAGE_KEY, scale.toString())
+      writeStoredScale(browserStorage, scale, reportStorageWriteError)
     }
   }, [scale, persist])
 
