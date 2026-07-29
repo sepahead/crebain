@@ -130,7 +130,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "6c87f982bfe381b1ec5791d3edfec3651ca0105185e4d3c1581a4274d65aa670"
+      "sha256": "15992cf8575d9b9f675e3f070e7ce5f0c75254cd03f1301dd8b3e53c1fc36238"
     },
     {
       "path": "bun.lock",
@@ -166,7 +166,7 @@
     },
     {
       "path": "docs/baselines/phase0-command-surfaces.json",
-      "sha256": "0d071200d6e5b08216ad28d04cdeb34ea53ad0ffee64e364408d776449dfa5fd"
+      "sha256": "d92fecd909c8302d98c4c77b0ec1a741ca0371ea9a926972f972056c9e48a020"
     },
     {
       "path": "docs/baselines/phase0-hazards.json",

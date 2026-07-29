@@ -12,62 +12,14 @@
  * - Open/Closed: Easy to extend with new scale-related features
  */
 
+import { useState, useCallback, useMemo, useEffect, type ReactNode } from 'react'
 import {
-  createContext,
-  useContext,
-  useState,
-  useCallback,
-  useMemo,
-  useEffect,
-  type ReactNode,
-} from 'react'
-
-// ─────────────────────────────────────────────────────────────────────────────
-// TYPES & CONSTANTS
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** UI Scale configuration limits */
-export const UI_SCALE_CONFIG = {
-  MIN: 0.8,
-  MAX: 2.0,
-  DEFAULT: 1.0,
-  STEP: 0.1,
-  /** Preset scale values for quick selection */
-  PRESETS: [0.8, 1.0, 1.2, 1.5] as const,
-  /** Local storage key for persistence */
-  STORAGE_KEY: 'crebain-ui-scale',
-} as const
-
-export type UIScalePreset = (typeof UI_SCALE_CONFIG.PRESETS)[number]
-
-export interface UIScaleContextValue {
-  /** Current UI scale factor (1.0 = 100%) */
-  scale: number
-  /** Set scale to a specific value (clamped to min/max) */
-  setScale: (scale: number) => void
-  /** Increase scale by one step */
-  increaseScale: () => void
-  /** Decrease scale by one step */
-  decreaseScale: () => void
-  /** Reset scale to default */
-  resetScale: () => void
-  /** Set scale to a preset value */
-  setPreset: (preset: UIScalePreset) => void
-  /** Scale as percentage (e.g., 100 for 1.0) */
-  scalePercent: number
-  /** CSS variable value for use in style objects */
-  cssVar: { '--ui-scale': number }
-  /** Whether scale is at minimum */
-  isAtMin: boolean
-  /** Whether scale is at maximum */
-  isAtMax: boolean
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CONTEXT
-// ─────────────────────────────────────────────────────────────────────────────
-
-const UIScaleContext = createContext<UIScaleContextValue | null>(null)
+  clampScale,
+  UIScaleContext,
+  UI_SCALE_CONFIG,
+  type UIScaleContextValue,
+  type UIScalePreset,
+} from './uiScale'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PROVIDER
@@ -152,65 +104,3 @@ export function UIScaleProvider({ children, initialScale, persist = true }: UISc
 
   return <UIScaleContext.Provider value={value}>{children}</UIScaleContext.Provider>
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// HOOK
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Hook to access UI scale context.
- * Must be used within a UIScaleProvider.
- *
- * @example
- * ```tsx
- * function MyPanel() {
- *   const { scale, increaseScale, decreaseScale, cssVar } = useUIScale()
- *
- *   return (
- *     <div style={cssVar}>
- *       <button onClick={decreaseScale}>-</button>
- *       <span>{scale * 100}%</span>
- *       <button onClick={increaseScale}>+</button>
- *     </div>
- *   )
- * }
- * ```
- */
-export function useUIScale(): UIScaleContextValue {
-  const context = useContext(UIScaleContext)
-
-  if (context === null) {
-    throw new Error(
-      'useUIScale must be used within a UIScaleProvider. ' +
-        'Wrap your app with <UIScaleProvider> in App.tsx or main.tsx.'
-    )
-  }
-
-  return context
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// UTILITIES
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Clamps a scale value to the configured min/max range
- */
-function clampScale(value: number): number {
-  return Math.min(UI_SCALE_CONFIG.MAX, Math.max(UI_SCALE_CONFIG.MIN, value))
-}
-
-/**
- * Higher-order component for components that need UI scale
- * Useful for class components or when you want to inject scale as a prop
- */
-export function withUIScale<P extends object>(
-  Component: React.ComponentType<P & { uiScale: UIScaleContextValue }>
-): React.FC<P> {
-  return function WithUIScale(props: P) {
-    const uiScale = useUIScale()
-    return <Component {...props} uiScale={uiScale} />
-  }
-}
-
-export default UIScaleContext

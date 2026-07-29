@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useCallback, useMemo, memo } from 'react'
 import { useDraggablePanel } from '../hooks/useDraggablePanel'
-import { PANEL_POSITIONS } from './BasePanel'
+import { PANEL_POSITIONS } from './panelPositions'
 import type {
   FusedTrack,
   FusionStats,

@@ -14,7 +14,7 @@ import {
   BrowserFusionBatcher,
 } from '../detection/BrowserFusionBatcher'
 import type { CoreMLDetectionResult, Detection, FusedTrack, CameraParams } from '../detection/types'
-import { drawDetectionsOnCanvas } from './DetectionOverlay'
+import { drawDetectionsOnCanvas } from './detectionCanvas'
 import {
   DEFAULT_CONFIDENCE_THRESHOLD,
   DEFAULT_IOU_THRESHOLD,
@@ -26,7 +26,7 @@ import { useSceneState, type CrebainCamera } from '../hooks/useSceneState'
 import { useDraggable } from '../hooks/useDraggable'
 import { useDraggable3D } from '../hooks/useDraggable3D'
 import { useObjectSelection } from '../hooks/useObjectSelection'
-import { useUIScale } from '../context/UIScaleContext'
+import { useUIScale } from '../context/useUIScale'
 import DroneSpawnPanel from './DroneSpawnPanel'
 import SaveLoadPanel from './SaveLoadPanel'
 import ObjectTransformControls from './ObjectTransformControls'

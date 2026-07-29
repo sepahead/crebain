@@ -8,79 +8,7 @@
 
 import { type ReactNode, useState, useCallback } from 'react'
 import { useDraggablePanel } from '../hooks/useDraggablePanel'
-import type { Position } from '../hooks/useDraggable'
-
-// ─────────────────────────────────────────────────────────────────────────────
-// PANEL POSITION REGISTRY
-// Centralized default positions to prevent panel overlap
-// ─────────────────────────────────────────────────────────────────────────────
-
-export type PanelId =
-  'drone' | 'droneSpawn' | 'rosConnection' | 'sensorFusion' | 'performance' | 'saveLoad'
-
-export interface PanelPositionConfig {
-  initialPosition: Position
-  side: 'left' | 'right'
-  snapDistance?: number
-  edgePadding?: number
-}
-
-/**
- * Default panel positions organized to prevent overlapping.
- *
- * Layout:
- *
- * LEFT SIDE (x offset from left):
- *   - DronePanel:         y=80  (top)
- *   - DroneSpawnPanel:    y=320 (middle)
- *   - ROSConnectionPanel: y=560 (bottom)
- *
- * RIGHT SIDE (x is transform offset, 0 = snapped to right edge):
- *   - SensorFusionPanel:  y=80  (top)
- *   - PerformancePanel:   y=320 (middle)
- *   - SaveLoadPanel:      y=520 (bottom)
- */
-export const PANEL_POSITIONS: Record<PanelId, PanelPositionConfig> = {
-  // Left side panels - stacked vertically with spacing
-  drone: {
-    initialPosition: { x: 12, y: 80 },
-    side: 'left',
-    snapDistance: 20,
-    edgePadding: 12,
-  },
-  droneSpawn: {
-    initialPosition: { x: 12, y: 340 },
-    side: 'left',
-    snapDistance: 20,
-    edgePadding: 12,
-  },
-  rosConnection: {
-    initialPosition: { x: 12, y: 580 },
-    side: 'left',
-    snapDistance: 20,
-    edgePadding: 12,
-  },
-
-  // Right side panels - stacked vertically with spacing
-  sensorFusion: {
-    initialPosition: { x: 0, y: 80 },
-    side: 'right',
-    snapDistance: 20,
-    edgePadding: 12,
-  },
-  performance: {
-    initialPosition: { x: 0, y: 340 },
-    side: 'right',
-    snapDistance: 20,
-    edgePadding: 12,
-  },
-  saveLoad: {
-    initialPosition: { x: 0, y: 540 },
-    side: 'right',
-    snapDistance: 20,
-    edgePadding: 12,
-  },
-}
+import { PANEL_POSITIONS, type PanelId, type PanelPositionConfig } from './panelPositions'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -274,18 +202,6 @@ export function BasePanel({
       <div id={contentId}>{children}</div>
     </div>
   )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// HELPER HOOK FOR PANELS THAT NEED MORE CONTROL
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Hook to get panel position config for a given panel ID.
- * Use this when you need the raw position config without the BasePanel wrapper.
- */
-export function usePanelPosition(panelId: PanelId): PanelPositionConfig {
-  return PANEL_POSITIONS[panelId]
 }
 
 export default BasePanel

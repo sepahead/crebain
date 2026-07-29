@@ -39,9 +39,7 @@ export default tseslint.config(
     rules: {
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'error',
-      // HMR-boundary hint only (no runtime impact); the context+hook colocations
-      // here are idiomatic React, so this matches the create-vite default of 'warn'.
-      'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+      'react-refresh/only-export-components': ['error', { allowConstantExport: true }],
 
       // Production code must use the centralized logger (src/lib/logger.ts)
       'no-console': 'error',
@@ -52,9 +50,7 @@ export default tseslint.config(
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
       ],
 
-      // Keep components decomposable. Tracked as 'warn' until CrebainViewer.tsx
-      // is split (see backlog); flip to 'error' once every file is under budget.
-      'max-lines': ['warn', { max: 1500, skipBlankLines: true, skipComments: true }],
+      'max-lines': ['error', { max: 1500, skipBlankLines: true, skipComments: true }],
     },
   },
 
@@ -63,6 +59,15 @@ export default tseslint.config(
     files: ['src/lib/logger.ts'],
     rules: {
       'no-console': 'off',
+    },
+  },
+
+  // The viewer still combines the WebGL lifecycle and its tactical surface.
+  // Keep this exception local so every other production module has a hard limit.
+  {
+    files: ['src/components/CrebainViewer.tsx'],
+    rules: {
+      'max-lines': 'off',
     },
   },
 

@@ -51,7 +51,7 @@
     "perf:smoke": "node scripts/perf-smoke.mjs",
     "benchmark:native-detector": "cargo run --locked --release --manifest-path src-tauri/Cargo.toml --example native_detector_benchmark --",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

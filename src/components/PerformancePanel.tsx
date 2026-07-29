@@ -7,7 +7,7 @@
 
 import { useState, useMemo, useCallback } from 'react'
 import { useDraggablePanel } from '../hooks/useDraggablePanel'
-import { PANEL_POSITIONS } from './BasePanel'
+import { PANEL_POSITIONS } from './panelPositions'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES

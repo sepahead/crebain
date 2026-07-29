@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { BoundingBox, Detection } from '../../detection/types'
-import { drawDetectionsOnCanvas } from '../DetectionOverlay'
+import { drawDetectionsOnCanvas } from '../detectionCanvas'
 
 const DRAW_OPTIONS = {
   showLabels: false,

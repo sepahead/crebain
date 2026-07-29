@@ -107,7 +107,7 @@ vi.mock('../../hooks/useDraggable3D', () => ({
   },
 }))
 
-vi.mock('../../context/UIScaleContext', () => ({
+vi.mock('../../context/useUIScale', () => ({
   useUIScale: () => ({
     increaseScale: vi.fn(),
     decreaseScale: vi.fn(),
