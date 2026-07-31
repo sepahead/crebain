@@ -58,8 +58,9 @@ Engram relocks the frame when replies stop.
 CREBAIN probes the harmless Engram `get_extension_host_security` command.
 Engram unlocks the frame only when native Engram inter-process communication
 (IPC) is inaccessible.
-The host capability is the primary boundary.
-The probe is supporting runtime evidence.
+On supported Tauri targets, the local-window capability policy is the primary
+boundary. The probe is an unattested peer report and a diagnostic canary.
+Browser readiness proves no Tauri capability denial.
 
 Engram blocks this remote iframe on Linux and Android.
 Tauri cannot isolate iframe IPC from the parent on those targets.

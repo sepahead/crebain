@@ -11,6 +11,9 @@ README and treated as unverified until measured on target hardware.
 
 ### Changed
 
+- Corrected the Engram integration README boundary wording. The local-window
+  capability policy is the primary boundary on supported Tauri targets only, and
+  the host command probe is an unattested peer report and a diagnostic canary.
 - Updated React to 19.2.8, Vite React plugin to 6.0.4, ESLint to 10.8.0,
   Playwright to 1.62.0, and related development tools to compatible releases.
 - Updated the direct Rust `base64` dependency to 0.23.0.
