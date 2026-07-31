@@ -11,6 +11,13 @@ README and treated as unverified until measured on target hardware.
 
 ### Changed
 
+- Corrected the Engram integration README parser bounds. The 128-node,
+  32-entry, four-level, and 1,024-character limits belong to Engram's generic
+  traversal. CREBAIN accepts a fixed primitive schema and measures the 8 KiB
+  limit on the envelope that it normalizes locally.
+- Corrected the documented peer-budget threshold to more than 32 expected-peer
+  messages in the rolling one-second window, which matches the enforced
+  condition.
 - Corrected the Engram integration README boundary wording. The local-window
   capability policy is the primary boundary on supported Tauri targets only, and
   the host command probe is an unattested peer report and a diagnostic canary.

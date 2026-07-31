@@ -334,7 +334,8 @@ latched for the document lifetime after same-document URL changes.
 
 The `engram.host.v1` bridge sends bounded readiness and read-only status. It
 accepts only bounded `host.context` messages from the exact parent and origin.
-It revokes after 32 expected-peer messages in one monotonic one-second window.
+It revokes after more than 32 expected-peer messages in one monotonic
+one-second window.
 Each loaded frame document must echo a fresh context nonce in its status. A
 status from an older document cannot complete the current handshake. The
 bridge does not accept commands. It cannot activate NCP or plant control.
