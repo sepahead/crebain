@@ -68,13 +68,13 @@ policy retains no reference to caller storage and performs no heap allocation.
 It rejects, in stable order:
 
 1. more than 255 submitted rows;
-2. an empty table; and
+2. an empty table.
 3. the first duplicate code in proposal order.
 
 Missing codes remain missing. Lookup returns an explicit error and never
 defaults to Hold, inhibit, or any other intent. The selection result owns the
 exact profile-bound situation and selected intent while borrowing the exact
-immutable policy object; it is not cloneable or directly constructible.
+immutable policy object. It is not cloneable or directly constructible.
 
 This is structural binding only. `ProfileIdentity` identifies a candidate
 profile artifact but does not prove that a separately supplied table came from
@@ -99,7 +99,7 @@ The following remain outside this component:
   classification and the apply-check observation inside a non-bypassable
   immediately-before-write governor, typed hazardous-action transaction, FCU
   adapter, acknowledgement/observation evidence, and independently attested
-  FCU failsafes; and
+  FCU failsafes.
 - SITL, HIL, target-timing, process-loss, or physical evidence.
 
 Accordingly, this is only partial structural CB-028 component mechanics.
@@ -119,7 +119,7 @@ bun run fmt:plant:check
 
 These commands prove only type, lookup, ownership, error-order, and package
 isolation mechanics. The complete plant suite has 123 unit/integration tests
-and 24 compile-fail doctests; the static boundary checker has 231 fail-closed
+and 24 compile-fail doctests. The static boundary checker has 231 fail-closed
 fixtures (51 safe-action and 44 apply-observation mutations among them). These
 checks do not classify authoritative state or establish a safe physical
 response.

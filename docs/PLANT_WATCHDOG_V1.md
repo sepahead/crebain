@@ -54,7 +54,7 @@ not the receipt `Instant` or absolute deadline. There is no raw-clock
 constructor, `Clone`, `Copy`, or `Default` implementation. Because the
 validated candidate itself is copyable, a caller can derive multiple tickets
 from the same candidate. Non-clone ticket ownership therefore proves only one
-active slot per monitor; it is not global uniqueness or authoritative
+active slot per monitor. It is not global uniqueness or authoritative
 admission. These mechanics do not approve the caller-proposed local TTL or
 make validation a trusted ingress boundary.
 
@@ -63,19 +63,19 @@ make validation a trusted ingress boundary.
 `ActiveCommandDeadlineMonitorV1::start` creates one named, owned standard
 thread, one mutex/condition-variable state object, and one active ticket slot.
 There is no command queue. The worker waits for the current absolute deadline
-and rechecks state when scheduled; condition-variable wakeups do not themselves
+and rechecks state when scheduled. Condition-variable wakeups do not themselves
 prove that the deadline has been reached.
 
 `submit_next` can replace the active ticket only with a separately validated
 ticket that:
 
 - has the same exact profile, command session, and lifecycle generation;
-- has a strictly greater stream sequence; and
+- has a strictly greater stream sequence.
 - carries a receipt instant that does not precede the active ticket's receipt.
 
 An accepted replacement records the previous and accepted keys, exact skipped
 sequence count, and admission age. It installs the new ticket's own immutable
-receipt-derived deadline; it does not mutate, refresh, or extend the prior
+receipt-derived deadline. It does not mutate, refresh, or extend the prior
 ticket. Duplicate or lower sequences and fixed-identity mismatches are local
 slot rejections, not authenticated ingress or durable anti-replay evidence. A
 strictly newer sequence with a receipt preceding the active receipt
@@ -101,12 +101,12 @@ terminal reasons are:
 - `ClockRegressed`;
 - `SynchronizationFailed`;
 - `WorkerPanicked`;
-- `SupersedingReceiptRegressed`; and
+- `SupersedingReceiptRegressed`.
 - `SupersedingDeadlineAlreadyExpired`.
 
 Deadline outcomes can carry the exact key, scheduled TTL, age when the ticket
 entered the monitor, age when detection ran, and nonnegative detection
-lateness. This timestamps component observation; it is not evidence that a
+lateness. This timestamps component observation. It is not evidence that a
 thread ran exactly at the deadline or that output stopped then. A due-deadline
 check precedes replacement, generation-mismatch reporting, and shutdown, so an
 already-due deadline wins those local races.
@@ -118,7 +118,7 @@ and joins rather than detaching the worker. Synchronization poisoning and an
 unexpected worker unwind become explicit terminal faults. None of these
 mechanics bounds how long scheduling or joining can take. Because a poisoned
 state cannot support an exact active-slot claim, `SynchronizationFailed`
-exposes no active key; healthy terminal outcomes do. If worker creation itself
+exposes no active key. Healthy terminal outcomes do. If worker creation itself
 fails, the start error retains the initial key and any terminal reason already
 computed before the spawn attempt.
 
@@ -139,7 +139,7 @@ The following remain separate required work:
 - reserved scheduler capacity, target WCET/jitter, overload and combined-load
   timing, and deadline-to-safe-action latency;
 - suspend-inclusive monotonic-clock qualification, durable restart semantics,
-  process-loss containment, and independently configured FCU failsafes; and
+  process-loss containment, and independently configured FCU failsafes.
 - SITL, HIL, target-platform, or physical-flight evidence.
 
 This monitor and the separate observation are partial
@@ -168,6 +168,6 @@ also compose two validated candidates through ticket construction and strict
 replacement. The one
 real worker wake test is functional smoke, not a latency distribution or
 target-scheduler qualification. The complete plant suite has 123
-unit/integration tests and 24 compile-fail doctests; the static checker has 231
+unit/integration tests and 24 compile-fail doctests. The static checker has 231
 fail-closed fixtures, including 72 deadline-monitor and 44 apply-observation
 mutations.

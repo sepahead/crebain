@@ -13,7 +13,7 @@ that candidate proves only structural validation. Authentication, authoritative
 anti-replay, fresh vehicle health, authorization, integrated active expiry,
 safe-action selection, apply-time checks, adapter acceptance, and observed
 vehicle effect remain separate required gates. Here, “safe-action selection” means authoritative
-state/trigger classification plus an approved content-bound policy; the inert
+state/trigger classification plus an approved content-bound policy. The inert
 opaque-code dispatch candidate does not satisfy that gate.
 
 A separate apply-check observation candidate can load one coherent vehicle-
@@ -55,7 +55,7 @@ reviewed limits before later integration work.
 It maps ENU↔NED velocity axes as `[x, y, z] → [y, x, -z]` and FLU↔FRD as
 `[x, y, z] → [x, -y, -z]`. Identity routes preserve the value, and every
 signed zero is canonicalized to positive zero. Every
-local↔body route returns `AttitudeRequired`; the component accepts no attitude
+local↔body route returns `AttitudeRequired`. The component accepts no attitude
 and is not called by contract admission. `FiniteFramedVelocityMpsV1` proves
 only finite m/s components and an explicit frame—not a profile match, command
 envelope, session, freshness, authorization, or authority. Its exact
@@ -91,9 +91,9 @@ The separate `deadline_monitor` component can derive a non-cloneable
 expected generation, and a nonzero local TTL proposal no greater than the
 candidate request. Expected-generation equality is structural and does not
 prove currentness. Its private absolute deadline is the candidate's plant
-receipt instant plus that local proposal; starting the monitor later never
+receipt instant plus that local proposal. Starting the monitor later never
 creates a new interval. Because the candidate is copyable, another ticket can
-be minted from it; ownership proves only one active slot within each monitor.
+be minted from it. Ownership proves only one active slot within each monitor.
 
 One `ActiveCommandDeadlineMonitorV1` owns one worker and one active slot. A
 replacement must be another validated ticket with the same exact profile,
@@ -125,7 +125,7 @@ health/policy profile mismatch follows.
 The result retains command profile/session/sequence/generation, command age,
 the requested lifetime, neutral lifecycle state/generation, and all eight
 existing health-age relations. Command age strictly below the request is
-`WithinRequestedLifetimeAtCheck`; equality or greater age is
+`WithinRequestedLifetimeAtCheck`. Equality or greater age is
 `AtOrBeyondRequestedLifetimeAtCheck`. `Ok` can therefore contain an expired
 command, `Emergency` or `Shutdown`, stale health, and `Unknown` or `Unavailable`
 state.
@@ -136,7 +136,7 @@ command content, velocity, action, safe-action conversion, output revocation,
 adapter, I/O, or runtime wiring, although callers can compare retained facts.
 The command carries neither `VehicleIdentity` nor
 `LocalFrameInstanceIdentity`, so exact profile/generation equality can compose
-it with health from another declared vehicle/frame instance; this adds no
+it with health from another declared vehicle/frame instance. This adds no
 HAZ-005/HAZ-013 evidence. The observation is remintable and not content-bound to
 one command: the same retained profile/session/sequence/generation and TTL can
 describe copyable candidates with different velocity. Those fields must never
@@ -148,9 +148,9 @@ health, monitor, and write. See
 ## Required next decisions
 
 Before this candidate can be called an approved profile, the project must name
-the exact PX4 SITL image/parameters and canonical local frame; review and bind
+the exact PX4 SITL image/parameters and canonical local frame. Review and bind
 the exact v1 corpus digest plus remaining transform semantics into the profile
-artifact; and record its owner, approver, approval scope, and expiry/review
+artifact. And record its owner, approver, approval scope, and expiry/review
 condition. A separate typed immutable vehicle-health snapshot candidate now
 binds declared context identity and exposes plant-monotonic ages. Its
 profile-bound captured-read classifier rejects zero limits and profile mismatch
@@ -191,7 +191,7 @@ before one exact reference instant is minted for health and command ages,
 requested-lifetime equality outside, every neutral
 lifecycle state, stale and unknown/unavailable health, explicit error order,
 and forbidden verdict/action/adapter conversions. The complete plant suite has
-123 unit/integration tests and 24 compile-fail doctests; the static checker has
+123 unit/integration tests and 24 compile-fail doctests. The static checker has
 231 fail-closed fixtures, including 44 apply-observation mutations. These are
 component tests, not profile approval, immediately-before-write enforcement,
 live-topology, or flight evidence.

@@ -44,7 +44,7 @@ this candidate. Nothing in it can authorize motion or affect a vehicle.
    generation;
 4. only after that load succeeds, the component mints one private monotonic
    reference instant and computes all health ages relative to it;
-5. the same reference instant must not precede command receipt; and
+5. the same reference instant must not precede command receipt.
 6. the observed health profile must exactly equal the age-policy profile.
 
 The corresponding closed errors distinguish command/policy profile mismatch,
@@ -61,13 +61,13 @@ The candidate retains only:
 
 - the command profile, session, stream sequence, and generation;
 - the neutral lifecycle state and generation captured for this observation;
-- command age and the structurally validated requested lifetime; and
+- command age and the structurally validated requested lifetime.
 - the owned coherent health observation with all eight borrowed-policy age
   comparisons.
 
 The requested-lifetime relation is closed and strict:
 
-- `WithinRequestedLifetimeAtCheck` when `command_age < requested_ttl`; or
+- `WithinRequestedLifetimeAtCheck` when `command_age < requested_ttl`. Or
 - `AtOrBeyondRequestedLifetimeAtCheck` when `command_age >= requested_ttl`.
 
 Equality is outside. This relation uses the command's requested lifetime, not
@@ -76,7 +76,7 @@ deadline monitor. Each health comparison preserves the existing
 `WithinExclusiveLimitAtRead` or `AtOrBeyondExclusiveLimitAtRead` relation and
 its exact age/limit pair. There is no aggregate or authorizing combination of
 command, lifecycle, or health state. Callers can still compare the exposed
-facts and manufacture their own booleans; those caller interpretations are
+facts and manufacture their own booleans. Those caller interpretations are
 outside this component's claim.
 
 ## Identity and command-association limits
@@ -104,7 +104,7 @@ non-cloneable API does not repair that missing command-content binding.
 `LifecycleObservationAtCheckV1` exposes the closed `PlantState` and
 `RuntimeGeneration` without a direct `is_active`/eligibility/authorization
 accessor or a `From` conversion to `bool`. Callers can compare those facts and
-produce a boolean themselves; the component supplies no aggregate or
+produce a boolean themselves. The component supplies no aggregate or
 authorizing verdict. `Active` does not make the candidate a permit, and
 `Emergency` or `Shutdown` does not turn successful capture into an error. This
 preserves the state needed for a future reviewed policy without encoding that
@@ -133,7 +133,7 @@ adapter.
 
 ## Atomic boundary and remaining race
 
-One coherent health snapshot is loaded first; the subsequently minted private
+One coherent health snapshot is loaded first. The subsequently minted private
 monotonic reference instant removes skew between command receipt-age and
 health-age evaluation inside this component. The lifecycle machine remains
 immutably borrowed during capture. These are useful prerequisites for CB-029,
@@ -168,7 +168,7 @@ The following remain separate required work:
   output invalidation, and typed FCU transactions;
 - adapter acknowledgement, observed physical effect, process-loss containment,
   and independently configured FCU failsafes;
-- suspend-inclusive monotonic-clock and target timing qualification; and
+- suspend-inclusive monotonic-clock and target timing qualification.
 - SITL, HIL, target-platform, and physical-flight evidence.
 
 ## Verification
@@ -183,16 +183,16 @@ bun run self-check:plant
 
 `TEST-PLANT-APPLY-OBSERVATION-V1` identifies the focused component matrix. It
 covers a coherent health load before one exact reference instant is minted for
-all eight health ages and then command receipt age; command lifetime below,
-equal to, and above its boundary; profile/generation
-error order; command and health clock regressions; missing, poisoned, and
-wrong-generation health; health-policy mismatch; every neutral lifecycle
-state; stale ages; and unknown/unavailable health. Compile-fail checks seal
+all eight health ages and then command receipt age. Command lifetime below,
+equal to, and above its boundary. Profile/generation
+error order. Command and health clock regressions. Missing, poisoned, and
+wrong-generation health. Health-policy mismatch. Every neutral lifecycle
+state, stale ages, and unknown/unavailable health. Compile-fail checks seal
 construction, cloning, direct boolean conversion/raw-clock access, and
 velocity/action/adapter conversions.
 
 Its Phase 0 declaration binds this component matrix to HAZ-003/HAZ-006 and
-CTL-003/CTL-005. That binding records prerequisite/component relevance; it does
+CTL-003/CTL-005. That binding records prerequisite/component relevance. It does
 not satisfy the planned immediately-before-write CTL-003 control.
 
 The plant suite contains 123 unit/integration tests and 24 compile-fail

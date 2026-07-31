@@ -57,7 +57,7 @@ this matrix. The apply-check observation candidate records lifecycle state and
 health-age relations but treats every state neutrally and supplies no aggregate
 or authorizing verdict, permit, action, or safe-action selection. Its API has no
 direct boolean accessor or `From` conversion to `bool`, although callers can
-compare facts; its success therefore cannot select or authorize any row either.
+compare facts. Its success therefore cannot select or authorize any row either.
 
 | Trigger and authoritative state | Primary action | Preconditions | Fallback/containment | Required proof |
 |---|---|---|---|---|

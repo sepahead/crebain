@@ -59,10 +59,10 @@ latency.
 The separate active deadline-monitor candidate narrows HAZ-003 further. A
 ticket derives its immutable absolute deadline from the validated command's
 opaque receipt time and a nonzero local TTL proposal no greater than the
-request. One named worker owns one active slot/no queue; replacement requires
+request. One named worker owns one active slot/no queue. Replacement requires
 the same exact profile/session/generation and a strictly greater sequence.
 Current clock regression or exact/past deadline wins before replacement,
-shutdown, or a caller-reported generation mismatch; a newer sequence with an
+shutdown, or a caller-reported generation mismatch. A newer sequence with an
 older receipt terminalizes rather than leaving the active command armed. The
 copyable candidate can mint another non-cloneable ticket, so ownership is local
 to a monitor rather than global admission. Deadline age/lateness, poison,
@@ -81,7 +81,7 @@ invalid requested lifetime, nonfinite components, and draft speed-limit excess.
 The profile-neutral frame-convention kernel and digest-bound golden corpus now
 cover exact ENU↔NED and FLU↔FRD velocity-axis mappings and reject every
 local↔body route without attitude. The canonical local frame and profile remain
-unapproved; frame-instance identity and same-origin/datum/body-point proof,
+unapproved. Frame-instance identity and same-origin/datum/body-point proof,
 attitude/yaw/quaternions, points/translation, covariance, Three.js,
 degrees/radians, time units, authenticated ingress, apply-time enforcement, and
 live FCU interpretation remain absent. HAZ-005 is therefore partial, CTL-006
@@ -99,8 +99,8 @@ not read a clock, aggregate the results, interpret unknown/unavailable state,
 or implement the draft ODD's inclusive `<=200 ms` position/velocity condition.
 Source identity remains
 a caller-supplied structural assertion rather than authenticated provenance;
-real FCU sampling and aggregation coherence are unproved; channel/epoch
-uniqueness across recreation is not enforced; and no approved age/state
+real FCU sampling and aggregation coherence are unproved. Channel/epoch
+uniqueness across recreation is not enforced. And no approved age/state
 policy, healthy/safe verdict, authorizing immediately-before-write
 consumer/governor, adapter, or FCU failsafe evidence exists. HAZ-006 and
 CTL-005 are therefore partial, while
@@ -115,7 +115,7 @@ age are evaluated relative to that same instant, in that order. The evidence
 retains a strict requested-lifetime relation with equality outside, lifecycle
 state/generation without interpreting that state, and all eight health-age
 relations. Exact profile or command/lifecycle
-generation mismatch precedes the health load; missing/poisoned/wrong-generation
+generation mismatch precedes the health load. Missing/poisoned/wrong-generation
 health and health clock regression precede command clock regression, followed
 by health-policy mismatch. An
 `Ok` observation is deliberately not a safety result: it may contain an expired
@@ -125,7 +125,7 @@ conversion to `bool` and supplies no aggregate/authorizing verdict, permit,
 authorization token, command content, velocity, action, output revocation, safe
 action, adapter operation, I/O, or runtime wiring, although callers can compare
 its facts. The command carries no `VehicleIdentity` or
-`LocalFrameInstanceIdentity`; matching profile/generation can therefore compose
+`LocalFrameInstanceIdentity`. Matching profile/generation can therefore compose
 with health from another declared vehicle/frame instance and supplies no
 HAZ-005/HAZ-013 evidence. The observation is remintable, and matching retained
 IDs/TTL do not content-bind it to a command because copyable candidates can
@@ -155,7 +155,7 @@ freezes one prior per frame, requires exact advancing/per-channel-monotonic time
 for v1, bounds measurement magnitudes/cardinalities and live tracks, rejects
 invalid internal gate math without fabricated numeric evidence, records ordered
 outcomes/misses/summaries, and bounds four drop-new lanes. Renderer/native input
-loss retains the newest bounded inputs; registry trimming and whole-cluster
+loss retains the newest bounded inputs. Registry trimming and whole-cluster
 track-capacity rejection latch degraded/truncated frame state. Sparse finite-edge
 assignment and maximum all-infinite short-circuit behavior are component-tested.
 The producer also exposes sequence gaps and sticky degradation, generates
@@ -170,8 +170,8 @@ numeric upstream/cluster-loss count, so producer logs remain necessary.
 Successful local puts are not receiver delivery. Identity-only source-frame
 matching does not verify transform/calibration artifacts, and none of this path
 joins authority or FCU effect evidence. Active JSONL admission has a separate
-capacity-16 drop-new channel; configured `ncp` sinks are startup-preflighted;
-batches validate/serialize before their first write; and admission or writer
+capacity-16 drop-new channel. Configured `ncp` sinks are startup-preflighted;
+batches validate/serialize before their first write. And admission or writer
 failure permanently degrades the epoch (writer failure terminates that worker).
 Its blocking standard writer can still outlive the two-second exit wait on a
 FIFO/device/socket/slow mount, a mid-write OS failure can leave a partial batch,

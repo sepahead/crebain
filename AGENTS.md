@@ -87,7 +87,7 @@ cargo build --locked --manifest-path src-tauri/Cargo.toml
   `engramHost=1` disables CREBAIN native access, external telemetry, artifact
   exchange, local simulation, scene mutation, and the development NCP command
   harness. The bridge revokes after more than 32 expected-peer messages in one
-  second.
+  rolling second.
   It accepts only user-agent-trusted messages and normalizes exact primitive
   fields before serialization.
   The host must also receive fresh heartbeat status and an inaccessible

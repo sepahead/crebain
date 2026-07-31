@@ -28,7 +28,7 @@ evidence for the native engine.
   occlusion, mixed modality availability, capacity pressure, and timestamp
   rejection cases.
 - Use identical truth and admitted measurements for filter comparisons. Record
-  rejected inputs separately; do not silently delete a failed trial.
+  rejected inputs separately. Do not silently delete a failed trial.
 - Include paired correlation controls: a near-duplicate return with the same
   sensor/modality/timestamp/frame identity must produce the same state,
   covariance, and (for IMM) mode probabilities as its one selected effective

@@ -45,11 +45,11 @@ semantics of trust-sensitive variables, see [../SECURITY.md](../SECURITY.md).
 Model paths reject a final symlink and require a regular file for ONNX and
 safetensors or a real directory for `.mlmodelc`. The runtime subsequently
 reopens the path, so an operator must keep the model and parent directories
-immutable and access-controlled during loading; path validation is not a claim
+immutable and access-controlled during loading. Path validation is not a claim
 against a concurrent privileged local replacement.
 
 Packaged frontend builds default to Zenoh and do not contain a usable renderer
-rosbridge client; their CSP also omits rosbridge WebSocket origins. Vite
+rosbridge client. Their CSP also omits rosbridge WebSocket origins. Vite
 development builds may select the read-only WebSocket adapter and use its URL
 field. No environment variable enables removed renderer/native Gazebo mutation
 or generic ROS publishing capabilities. The Galadriel switch is a separate
@@ -59,7 +59,7 @@ it does not add a generic ROS, renderer, action, service, or FCU surface.
 Production `connect-src` permits Tauri IPC plus only the source classes already
 accepted by bounded scene-asset restoration: same-origin, HTTPS, and HTTP
 loopback. Static analysis permits renderer `fetch` only in
-`src/lib/boundedFetch.ts`; the production module graph must contain the disabled
+`src/lib/boundedFetch.ts`. The production module graph must contain the disabled
 rosbridge replacement and omit the development client. Before bundling, an
 exact package/version/module-hash transform disables pinned Spark URL loading,
 Spark/Rapier external WebAssembly inputs, and Three `FileLoader` and
@@ -72,7 +72,7 @@ Both URI walks reserve each container against a 262,144-value visited-plus-
 pending ceiling before pushing any children, and the loader selects
 `TextureLoader` so validated embedded textures remain usable. Any
 upstream digest, package entry, payload, call-shape, or replacement-count drift
-stops the build; `bun run check:production-vendors` exercises both validated
+stops the build. `bun run check:production-vendors` exercises both validated
 local-texture GLB forms and the Spark/Rapier embedded-byte runtimes. `img-src`
 is limited to same-origin, `blob:`, and `data:` because downloaded textures are
 decoded from bounded bytes rather than loaded as arbitrary remote image URLs.
@@ -88,7 +88,7 @@ has a Euclidean norm of at most 1,000,000 m. Incoming rotations must be finite,
 nonzero quaternions whose norm differs from one by no more than `1e-3`.
 
 Accepted ingress quaternions are normalized to exact unit length before the
-transform cache uses them; zero and materially non-unit inputs are rejected,
+transform cache uses them. Zero and materially non-unit inputs are rejected,
 not repaired. Interpolation and composition normalize ordinary finite
 floating-point drift, but reject zero/nonfinite rotations, nonfinite results,
 and translations beyond the same operational bound. A multi-hop lookup fails
@@ -97,7 +97,7 @@ closed when any intermediate composed transform violates these rules.
 An explicit-time lookup of a dynamic edge requires an exact or bracketing sample
 and never extrapolates. A latest multi-hop lookup chooses the newest timestamp
 in the intersection of all dynamic-edge histories and evaluates every dynamic
-edge at that one common time; static edges are timeless. No common interval
+edge at that one common time. Static edges are timeless. No common interval
 fails closed.
 
 ## Galadriel deployment pins
@@ -105,7 +105,7 @@ fails closed.
 Galadriel publication has two independent gates: the executable must be built
 with Cargo feature `ncp`, then `CREBAIN_GALADRIEL_ENABLE` must be exactly `1`.
 The standard release workflow currently omits that feature. An absent/`0` switch
-opens no producer session; an ambiguous value or `1` in a non-feature binary
+opens no producer session. An ambiguous value or `1` in a non-feature binary
 fails startup.
 
 Enabled startup validates the explicit process epoch, registry, selected
@@ -121,12 +121,12 @@ post-signing/post-packaging executable.
 CREBAIN does not mint the process epoch. Deployment orchestration must set
 `CREBAIN_GALADRIEL_EPOCH` to a new unique value for every process lifetime and
 must prevent reuse across restarts. The producer validates only that the value
-is one key-safe `1..=64` byte segment; it cannot prove freshness, durable
+is one key-safe `1..=64` byte segment. It cannot prove freshness, durable
 uniqueness, or anti-rollback.
 
 Once active, the startup-loaded fusion engine is immutable for the producer
 epoch. Renderer `fusion_init` calls are readiness checks and their supplied
-defaults are ignored; `fusion_set_config` accepts only the already pinned
+defaults are ignored. `fusion_set_config` accepts only the already pinned
 canonical digest and does not replace the engine.
 
 The registry is strict and canonically hashed, but its calibration, transform,
@@ -137,10 +137,10 @@ executable, and `NCP_ZENOH_CONFIG` as one deployment manifest.
 
 The active producer does not write JSONL on its ordered evidence workers. It
 copies eligible observations into a separate capacity-16 frame channel with
-nonblocking drop-new admission; full/disconnected admission marks the producer
+nonblocking drop-new admission. Full/disconnected admission marks the producer
 degraded before its frame summary is admitted. An `ncp`-feature startup first
 opens/truncates and preflights a configured sink. The archive worker validates
-and serializes the whole batch before its first write; write or flush failure
+and serializes the whole batch before its first write. Write or flush failure
 degrades the epoch and terminates the worker. A later OS write failure can still
 leave part of that already-validated batch on disk. The archive thread performs
 blocking file I/O. Shutdown closes its sender and waits at most two seconds, but
@@ -167,7 +167,7 @@ candidate that a selected backend already discarded.
 
 The standalone native detector benchmark accepts these same policy bounds. For
 comparability it removes `CREBAIN_PROFILE_MLX` and forces
-`CREBAIN_DISABLE_TRT_CACHE=1` inside its single-purpose process; initialization
+`CREBAIN_DISABLE_TRT_CACHE=1` inside its single-purpose process. Initialization
 is recorded separately. This does not change product-runtime configuration.
 See [NATIVE_DETECTOR_BENCHMARK.md](NATIVE_DETECTOR_BENCHMARK.md).
 
@@ -184,7 +184,7 @@ position/radar range is bounded at 10,000,000 m, velocity components at
 100,000 m/s, covariance diagonals at `(0, 1e12]`, and metadata magnitude at
 `1e12`. A selected Galadriel registry may tighten the input/active-track limits.
 Upstream and registry trimming keep the newest inputs and make the active frame
-degraded/truncated; active-track overflow drops whole deterministic birth
+degraded/truncated. Active-track overflow drops whole deterministic birth
 clusters. See [GALADRIEL_PRODUCER.md](GALADRIEL_PRODUCER.md) for exact-time and
 loss semantics.
 
@@ -192,7 +192,7 @@ loss semantics.
 
 These values configure disabled-by-default, renderer-local proposals only.
 They do not configure a flight controller or create vehicle authority. Every
-proposal is marked `NoAuthority`; the preview's local fallback label is `Hold`,
+proposal is marked `NoAuthority`. The preview's local fallback label is `Hold`,
 and boundary transitions discard the preview generation rather than resuming
 it. That label is neither the plant safe-action candidate nor a claim that a
 physical Hold is safe for any authoritative vehicle state.
@@ -211,7 +211,7 @@ Local drone physics simulation steps at 120 Hz (`src/physics/`).
 
 ## Scene and asset limits
 
-All limits below are enforced in code; sources are `src/state/SceneState.ts`,
+All limits below are enforced in code. Sources are `src/state/SceneState.ts`,
 `src/lib/routeLimits.ts`, `src/physics/DroneTypes.ts`, `src-tauri/src/lib.rs`,
 `src/components/CrebainViewer.tsx`, and `src/lib/glbValidation.ts`.
 
@@ -226,12 +226,12 @@ render-target pixels. Camera, drone, and asset IDs must be mutually unique
 orientation quaternions must be approximately unit length (camera rotations
 are finite Euler vectors bounded like other vector components). Numeric values
 must be finite, with range bounds on most fields (vector components within
-±1,000,000; route X/Z within that envelope; route Y, target altitude, and target
+±1,000,000. Route X/Z within that envelope. Route Y, target altitude, and target
 position Y from 0 through the selected built-in drone profile's declared ceiling,
-or 4,500 m for an unknown profile; route speed multiplier 0–2; bounding-box
-coordinates non-negative, at most 1,000,000, and max ≥ min per axis; battery
-0–100; confidence 0–1; threat level 0–4; FOV strictly between 0 and 180;
-resolution 1–4096 per axis). Pan and tilt are finite; zoom and near-plane are
+or 4,500 m for an unknown profile. Route speed multiplier 0–2. Bounding-box
+coordinates non-negative, at most 1,000,000, and max ≥ min per axis. Battery
+0–100. Confidence 0–1. Threat level 0–4. FOV strictly between 0 and 180;
+resolution 1–4096 per axis). Pan and tilt are finite. Zoom and near-plane are
 positive.
 
 Native saves use an atomic same-directory temporary file before replacement,
@@ -245,7 +245,7 @@ paths, explicit HTTPS URLs, and HTTP loopback URLs (`localhost`, `127.0.0.1`, or
 `::1`) without URL credentials. Protocol-relative URLs, backslashes, ASCII
 control characters, leading/trailing whitespace, and inputs longer than 2,048
 characters are rejected before acquisition. Scene GLB entries must end in
-`.glb`; splat entries must end in `.spz`, `.ply`, `.splat`, or `.ksplat` (before
+`.glb`. Splat entries must end in `.spz`, `.ply`, `.splat`, or `.ksplat` (before
 any query or fragment). Browser-selected local files that have no reloadable
 source are intentionally not serialized as restorable assets.
 
@@ -272,7 +272,7 @@ cannot clear or commit the newer restore.
 The macOS application targets macOS 13.4 or later, matching the minimum of its
 build-time-linked ONNX Runtime dependency. Both the ordinary Cargo/Tauri build
 and the Apple Silicon Nix package compile the digest-pinned ort-rs static
-runtime distribution into the executable; neither macOS package depends on an
+runtime distribution into the executable. Neither macOS package depends on an
 ONNX Runtime dylib at launch.
 
 | Component | macOS (Apple Silicon) | Linux / Nix |

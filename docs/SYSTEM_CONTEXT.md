@@ -73,7 +73,7 @@ into an owned fixed 255-slot table, rejects an empty, oversized, or duplicate
 proposal, requires an exact full profile match, and has no default row. It does
 not bind the supplied rows into the profile digest, classify plant state or triggers,
 resolve precedence, consume health/lifecycle/time, or convert an intent into an
-action or adapter call. The binary can only self-check; it has no command
+action or adapter call. The binary can only self-check. It has no command
 ingress, authenticated health collector, approved age/state policy, active
 operational watchdog integration, approved and content-bound safe-action policy
 with an authoritative classifier, NCP link, authorizing immediately-before-write
@@ -82,14 +82,14 @@ Generic snapshot storage remains disconnected
 mechanics. The expiry guard has no timer, callback, refresh, command payload,
 or adapter hook. The separate active monitor derives tickets only from validated
 plant receipt time and a nonzero local TTL proposal no greater than the request.
-One named worker owns one active slot/no queue; replacement requires the exact
+One named worker owns one active slot/no queue. Replacement requires the exact
 profile/session/generation and a strictly greater sequence, while regression or
 `now >= deadline` wins before replacement, shutdown, or a caller-reported
 generation mismatch. A newer sequence with an older receipt also
 terminalizes. The copyable candidate can mint multiple tickets, so non-clone
 ticket ownership is per monitor only. Its sticky terminal evidence can record
 command age and detection lateness, poison, worker panic, reported mismatch, or
-shutdown; poisoned synchronization carries no exact active key. It does not
+shutdown. Poisoned synchronization carries no exact active key. It does not
 authenticate admission, enforce one global monitor, observe lifecycle
 rotation autonomously, revoke output, select/apply a safe action, call an
 adapter, qualify suspend behavior, reserve scheduling capacity, or prove
@@ -161,13 +161,13 @@ not produce motion.
 | HIL-tested / field-tested | Executed only under the named hardware/configuration and approved ODD. |
 
 Transport success is never “applied.” UI connection is never “authorized.” A
-producer counter named `published` means its local Zenoh put completed; it is not
+producer counter named `published` means its local Zenoh put completed. It is not
 receiver delivery or acceptance. A missing observer is never “nominal.”
 Simulation success is never flight evidence.
 
 ## Non-negotiable L1 invariants
 
-One final applier; one final-route publisher; conjunctive authorization;
-plant-local expiry; typed frames/units/time; no stale resurrection; bounded
-queues/work; independent FCU containment; uncensored evidence; and no unresolved
+One final applier. One final-route publisher. Conjunctive authorization;
+plant-local expiry. Typed frames/units/time. No stale resurrection. Bounded
+queues/work. Independent FCU containment. Uncensored evidence. And no unresolved
 P0 hazard.

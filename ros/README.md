@@ -38,7 +38,7 @@ target. They are reference topology, not a bundled autopilot distribution.
 
 ## Topic templates
 
-Standard topics the product telemetry UI subscribes to (replace `<ns>`; the
+Standard topics the product telemetry UI subscribes to (replace `<ns>`. The
 literal `*` is not accepted):
 
 | Topic template | Type | Direction / path |
@@ -105,17 +105,17 @@ bun run tauri:dev
 Alternatively launch `rosbridge.launch` against an already-running ROS 1 /
 Gazebo Classic graph. The checked-in topology binds to `127.0.0.1`, disables
 rosapi by default, and does not configure rosbridge authentication. Do not set
-its address to a non-loopback interface as a security shortcut; a remote
+its address to a non-loopback interface as a security shortcut. A remote
 deployment needs a separately reviewed authenticated gateway, network policy,
 and transport protection. A Vite development build may select its read-only
-rosbridge telemetry adapter and connect to `ws://localhost:9090`; packaged
+rosbridge telemetry adapter and connect to `ws://localhost:9090`. Packaged
 builds do not expose that option.
 
 The custom `DroneTarget` threat scale is 1 through 4 (`THREAT_LOW` through
 `THREAT_CRITICAL`). It is numerically aligned with the 1=minimal to 4=severe
 scale in the TypeScript and native fusion contracts.
 `InterceptionCommand.strategy` is one of `PURSUIT`, `LEAD`, `PARALLEL`, or
-`AMBUSH`; unknown strings must be rejected by any external consumer. These
+`AMBUSH`. Unknown strings must be rejected by any external consumer. These
 messages and services remain reference contracts and are not registered
 product authority.
 
@@ -129,12 +129,12 @@ origins. The native Rust rosbridge fallback (`CREBAIN_ZENOH=0`) is also
 subscription-only. No renderer-facing ROS telemetry transport has generic
 publish, pose/twist setpoint, ROS service, MAVROS mode/mission, or Gazebo
 mutation methods. A separately feature/runtime-gated native producer can put
-only Galadriel sidecar/monitor evidence to two NCP named-perception keys; it is
+only Galadriel sidecar/monitor evidence to two NCP named-perception keys. It is
 not a ROS transport, re-keying bridge, service, setpoint, or actuator surface.
 
 The native Zenoh adapter maps ROS-looking topic strings to CREBAIN plain keys.
 An `rmw_zenoh_cpp` graph uses DDS/RMW-qualified keys, so setting
-`RMW_IMPLEMENTATION=rmw_zenoh_cpp` is insufficient; deploy an explicit re-keying
+`RMW_IMPLEMENTATION=rmw_zenoh_cpp` is insufficient. Deploy an explicit re-keying
 bridge.
 
 Pose-bearing telemetry is admitted only when its position-vector magnitude is
@@ -148,11 +148,11 @@ registry, and native rosbridge/Zenoh decoders.
 ## Camera contract
 
 The caller explicitly selects `sensor_msgs/Image` or
-`sensor_msgs/CompressedImage`; a `/compressed` suffix is not used for schema
+`sensor_msgs/CompressedImage`. A `/compressed` suffix is not used for schema
 inference. The native Rust rosbridge fallback and native Zenoh transport enforce:
 
-- raw encodings `rgba8`, `bgra8`, `rgb8`, `bgr8`, or `mono8`; dimensions
-  `1..=8192`; `step >= width * bytes_per_pixel`; exact `height * step`; maximum
+- raw encodings `rgba8`, `bgra8`, `rgb8`, `bgr8`, or `mono8`. Dimensions
+  `1..=8192`. `step >= width * bytes_per_pixel`. Exact `height * step`. Maximum
   decoded data 64 MiB (the native rosbridge fallback additionally bounds raw
   dimensions by the decoded-RGBA budget, `width * height * 4` ≤ 64 MiB, so it
   is slightly stricter than the Zenoh path for sub-4-byte-per-pixel
@@ -160,9 +160,9 @@ inference. The native Rust rosbridge fallback and native Zenoh transport enforce
 - compressed PNG/JPEG bytes only, with declared format matching the bytes (empty
   format is the JPEG fallback) and the same dimension/RGBA allocation budget;
 - base64 text for rosbridge image data and base64 `CameraFrame.data` over Tauri;
-- CameraInfo `K[9]`, `R[9]`, `P[12]`; `D[5]` for `plumb_bob`, `D[8]` for
+- CameraInfo `K[9]`, `R[9]`, `P[12]`. `D[5]` for `plumb_bob`, `D[8]` for
   `rational_polynomial`, `D[4]` for `equidistant`, or at most 32 coefficients for
-  a custom model; and
+  a custom model.
 - finite/non-negative header time with nanoseconds below `1,000,000,000` plus a
   bounded, control-character-free frame ID.
 
@@ -170,7 +170,7 @@ The browser camera stream is latest-pending and single-flight per lifecycle
 generation. It permits at most two decode workers across the current and stale
 generations, validates both encoded and decoded dimensions, closes stale
 `ImageBitmap` results, and isolates callback failures. These mechanics bound
-browser decode work; live decode/render behavior remains a manual target-platform
+browser decode work. Live decode/render behavior remains a manual target-platform
 check.
 
 ROS sensor header frame IDs are forwarded into fusion as source-frame
@@ -184,7 +184,7 @@ the newest successfully admitted input stamp, and empty frames reuse that
 high-water (zero before the first data). Duplicate, out-of-order, or mixed-old
 measurements cannot claim Galadriel v1 evidence. Malformed detections and
 renderer-buffer or native registry trimming keep the newest bounded inputs and
-mark the resulting producer frame degraded/truncated; the current frozen summary
+mark the resulting producer frame degraded/truncated. The current frozen summary
 does not carry the numeric upstream-loss count.
 
 ## Removed mutation boundary
@@ -198,10 +198,10 @@ root HTML, Cargo build input, public scripts, locks, and relevant build scripts.
 Its TypeScript AST checks literal, concatenated, constant-template,
 array-joined, and computed MAVROS/Gazebo routes and generic command method
 names. The real subscription-only renderer adapter remains explicitly
-classified as development-only; production must resolve to the network-free
+classified as development-only. Production must resolve to the network-free
 replacement and prove that resolution in the emitted Vite module graph.
 
-Camera byte fields remain base64-only; JSON byte arrays are rejected.
+Camera byte fields remain base64-only. JSON byte arrays are rejected.
 
 Do not expose rosbridge or Zenoh endpoints to untrusted networks without
 deployment-specific authentication, network policy, and transport security.

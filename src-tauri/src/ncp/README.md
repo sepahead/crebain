@@ -3,7 +3,7 @@
 <!-- ncp-pin: v0.8.0 -->
 
 This module is CREBAIN's Rust + Zenoh adapter for the Neuro-Cybernetic Protocol
-(NCP). Project-specific pose/velocity/channel mapping stays here; the canonical
+(NCP). Project-specific pose/velocity/channel mapping stays here. The canonical
 wire types and key construction come from pinned `ncp-core` and `ncp-zenoh`
 dependencies in [`src-tauri/Cargo.toml`](../../Cargo.toml).
 
@@ -55,14 +55,14 @@ as deployment evidence.
   single-population perception example.
 
 `subscribe_commands` now owns a 50 Hz local action loop. Wire-valid commands pass
-through `CommandPlant`; a recognizable raw ESTOP is reduced to a minimal command
+through `CommandPlant`. A recognizable raw ESTOP is reduced to a minimal command
 and latched before the receive-time/wire gate. Other invalid/incompatible frames
 are logged and dropped. Every action loop owns a dedicated subscriber container;
 stop, close, setup cancellation, and runtime drop release that container without
 closing the shared Zenoh session. Reconnect drains the previous runtime's action
 loops before replacement. Close requests a final zero-velocity local HOLD
 proposal before the remote RPC. A nonblocking, nonpanicking proposal callback is
-required; callback failure/timeout is surfaced because final local notification
+required. Callback failure/timeout is surfaced because final local notification
 cannot then be guaranteed. The callback has no transport or actuator capability.
 
 ## Connection posture
@@ -75,7 +75,7 @@ deployment evidence.
 
 Successfully loading a configuration proves only startup posture. CREBAIN cannot
 prove that its TLS identities, ACL rules, router topology, or certificate policy
-are sufficient; those remain target-deployment evidence.
+are sufficient. Those remain target-deployment evidence.
 
 The sibling Galadriel producer has no `QuietDevelopment` option: enabled startup
 always requests secure mode. That remains a configuration request, not evidence
@@ -98,11 +98,11 @@ between its authenticated principal and the envelope's declared `producer_id`.
 - each action subscription setup times out after 15 seconds and close prevents a
   new loop until an explicit successful reopen;
 - at most 64 action loops/reservations and 256 closed-session tombstones are
-  retained; tombstone saturation rejects all new opens/actions until reconnect;
+  retained. Tombstone saturation rejects all new opens/actions until reconnect;
 - action-loop stop waits at most 1 second before aborting the task;
 - RPC replies must be valid NCP, have the expected `kind`, include required
   explicit boolean result fields (`ok` is never inferred from an SDK default),
-  report success, and return the requested session ID; and
+  report success, and return the requested session ID.
 - feature-neuron observations must provide the expected `spk` port/target,
   `spikes` observable, and finite spike times.
 
@@ -117,7 +117,7 @@ the commands to `generate_handler!`, updating the frontend command registry and
 contract tests, and adding an explicit opt-in UI/hook. Closed-loop action would
 also require a separately reviewed narrow plant adapter, exclusive authority,
 fresh-state and expiry gates, and FCU evidence. The current callback only emits
-a `VelocitySetpointProposal`; registration alone is not a plant or actuator loop.
+a `VelocitySetpointProposal`. Registration alone is not a plant or actuator loop.
 
 Before a live deployment claim, also prove the target NCP realm/key ACL allows
 the CREBAIN participant. Repository unit tests do not validate an external

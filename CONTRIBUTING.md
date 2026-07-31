@@ -87,6 +87,7 @@ bun run validate:all
 | 0.9 research/source/package prerelease | `bun run validate:all`; manual rows may remain explicitly pending only under the exclusions in `docs/NARROWED_GO_0.9.0.md` |
 | Demo, operational/deployment, or 1.0 readiness claims | `bun run validate:all` plus completed `docs/MANUAL_SMOKE_TEST.md` evidence |
 | Native detector performance claim | The release command and archived evidence bundle in `docs/NATIVE_DETECTOR_BENCHMARK.md` |
+| Engram restricted host or embedded-surface changes | `bun run typecheck`, `bun run test:run -- src/integrations/__tests__/engramHost.test.ts`, `bun run lint`, and `bun run format:check` |
 
 For documentation-only changes, keep Markdown files aligned on validation commands, backend status, roadmap items, model assumptions, and security boundaries.
 

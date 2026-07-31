@@ -13,20 +13,20 @@ approved age/state policy, safety verdict, integration with the active command
 deadline monitor, governor, authoritative safe-action classifier or approved
 policy, or adapter call. A separate
 inactive component can compare ages already
-captured by its checked reader; see
+captured by its checked reader. See
 [`PLANT_FRESHNESS_V1.md`](PLANT_FRESHNESS_V1.md).
 
 The separate inactive apply-check observation uses crate-private hooks to load
 one generation-checked coherent health snapshot first and only then mint one
 private plant-monotonic reference instant for health-age and command-age
-evaluation; see
+evaluation. See
 [`PLANT_APPLY_OBSERVATION_V1.md`](PLANT_APPLY_OBSERVATION_V1.md). It retains
 neutral lifecycle state/generation and temporal relations only. It does not
 interpret this report, produce a verdict, authorize a write, or close the race
 after capture.
 
 A separate safe-action component can look up a caller-proposed opaque situation
-code under an exact profile identity; see
+code under an exact profile identity. See
 [`PLANT_SAFE_ACTION_V1.md`](PLANT_SAFE_ACTION_V1.md). It does not consume this
 health report, classify state/triggers, prove that its proposed rows belong to
 the profile, or select an operational action. Thus the authoritative
@@ -34,7 +34,7 @@ safe-action classifier and approved policy are still absent.
 
 A separate fixed-state deadline component can detect and timestamp a validated
 command candidate's absolute receipt-anchored deadline when its worker is
-scheduled; see [`PLANT_WATCHDOG_V1.md`](PLANT_WATCHDOG_V1.md). It does not
+scheduled. See [`PLANT_WATCHDOG_V1.md`](PLANT_WATCHDOG_V1.md). It does not
 consume this health report or captured-age assessment, observe lifecycle
 autonomously, revoke output, select a safe action, or close the apply-time
 health race.
@@ -50,7 +50,7 @@ One channel is fixed for its lifetime to all of the following:
 - one nonzero vehicle identity;
 - one nonzero configured health-source identity;
 - one nonzero source-stream epoch;
-- one process-local runtime generation; and
+- one process-local runtime generation.
 - one nonzero local-frame-instance identity.
 
 The source identity is a structural digest-sized value. Equality does not
@@ -63,7 +63,7 @@ The publisher is concrete, non-cloneable, and requires mutable access for every
 commit. A caller must represent a lifecycle/source reset by constructing a new
 context and channel instead of rebinding an existing publisher. Stream sequence
 is strictly increasing within one publisher/channel instance bound to the
-source epoch; gaps are accepted, rejected reports do not advance the high water
+source epoch. Gaps are accepted, rejected reports do not advance the high water
 mark, and exhaustion fails closed without wrapping. The API
 cannot globally prevent a caller from recreating another channel with the same
 epoch identity. Exclusive construction, durable epoch uniqueness, and
@@ -80,14 +80,14 @@ unit, and plant-local observation times. It also carries:
   position, and home position estimates;
 - local position and velocity observations;
 - battery remaining fraction;
-- fence state; and
+- fence state.
 - plant-to-FCU, FCU data-link, and offboard-control link state.
 
 Safety-relevant fields are mandatory. Closed `Unknown` states and explicit
 unavailability reasons (`NotReported`, `RejectedBySource`, or
 `ResetInProgress`) replace older values instead of being rejected and leaving a
 nominal-looking snapshot behind. The opaque numeric mode code is retained for a
-future approved profile to interpret; this component does not assign generic
+future approved profile to interpret. This component does not assign generic
 safe/unsafe mode names.
 
 Available position and velocity values must be finite and use meters and
@@ -103,7 +103,7 @@ Observation tokens and the internal receipt stamp use `std::time::Instant` and
 the bound runtime generation. They are neither FCU time, producer time,
 simulation time, nor wall time. Admission rejects an observation from another
 generation or after the plant receipt instant. An old but well-formed report is
-retained; its age is data for the future governor, not a reason to preserve an
+retained. Its age is data for the future governor, not a reason to preserve an
 even older snapshot.
 
 One reader load returns a coherent immutable commit and exact ages for receipt,
@@ -126,7 +126,7 @@ limits to one exact profile identity. It refuses exact-profile mismatch before
 classification. The resulting assessment owns the coherent observation and
 borrows the exact policy.
 For each age it reports only whether the captured value is strictly below or
-at/beyond the exclusive limit; equality is outside.
+at/beyond the exclusive limit. Equality is outside.
 
 Those limits are not approved or proven to belong to the profile artifact. The
 assessment has no aggregate or boolean health/safety result. A recent
@@ -152,7 +152,7 @@ A lifecycle change can still occur after a reader load, captured-age
 assessment, or successful apply-check observation. Health can also be replaced
 and the observation can stale before any later write. The command side of the
 observation carries neither `VehicleIdentity` nor
-`LocalFrameInstanceIdentity`; profile/generation equality can therefore compose
+`LocalFrameInstanceIdentity`. Profile/generation equality can therefore compose
 it with health from another declared vehicle/frame instance and supplies no
 HAZ-005/HAZ-013 evidence. The observation is remintable and is not content-bound
 to a command: matching retained IDs/TTL can describe copyable candidates with
@@ -162,7 +162,7 @@ that cannot be bypassed and reloads or atomically consumes health while
 checking generation, approved age/state limits, profile policy, and state
 immediately before every FCU write can close that race. Consequently this slice
 and the observation are partial CB-029/CB-030/CTL-005/HAZ-006 component
-evidence; they are not `TEST-ATOMIC-STATE-STALENESS`, active authority, or L1
+evidence. They are not `TEST-ATOMIC-STATE-STALENESS`, active authority, or L1
 completion.
 
 ## Deliberately deferred semantics
@@ -182,7 +182,7 @@ evidence:
 - covariance, attitude/quaternions, global coordinates, and transforms;
 - current/apply-time generation, age, and state enforcement plus physical safe
   action;
-- suspend-inclusive clock qualification and durable restart anti-rollback; and
+- suspend-inclusive clock qualification and durable restart anti-rollback.
 - ingress, wire schema, evidence pipeline, atomic integration of the active
   deadline monitor and apply observation with a governor, and FCU I/O.
 
@@ -199,5 +199,5 @@ bun run self-check:plant
 These commands prove component behavior and package isolation only. They do not
 exercise SITL, HIL, an authenticated deployment, or a physical vehicle.
 The complete plant suite has 123 unit/integration tests and 24 compile-fail
-doctests; its static boundary checker has 231 fail-closed fixtures, including
+doctests. Its static boundary checker has 231 fail-closed fixtures, including
 44 that seal the apply-observation boundary.

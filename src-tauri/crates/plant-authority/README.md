@@ -44,13 +44,13 @@ noncanonical numeric lexemes fail closed. The corpus is checked by
 
 The exact permutations require one unchanged physical frame instance: the same
 local tangent origin/datum or the same rigid-body reference point. The value
-does not carry or prove that identity; a future caller must do so separately.
+does not carry or prove that identity. A future caller must do so separately.
 
 The component is not connected to contract admission and does not select a
 canonical profile, convert a wrong-frame proposal, accept attitude, or prove
 frame-instance coincidence, Three.js, quaternion/yaw, point/translation,
 covariance, degree/radian, time, or FCU semantics. It is partial HAZ-005
-evidence only; CTL-006 remains planned.
+evidence only. CTL-006 remains planned.
 
 ## Inactive vehicle-health contract v1
 
@@ -69,7 +69,7 @@ The retained commit atomically carries declared context fields, arming/landed/op
 mode/failsafe state, estimator validity, position, velocity, battery, fence,
 links, and all group times. Checked readers expose exact ages computed from one
 monotonic instant. The source identity is not
-authenticated; real FCU sampling and multi-message coherence, exclusive epoch
+authenticated. Real FCU sampling and multi-message coherence, exclusive epoch
 construction, approved age/state policy, apply-time checking, operational watchdog,
 governor, authoritative safe-action classification and approved policy, and
 adapter remain absent. See
@@ -108,7 +108,7 @@ by health/policy profile mismatch.
 The result retains command profile/session/sequence/generation, neutral
 lifecycle state/generation, command age and requested lifetime, and the owned
 health assessment. Command age strictly below the request is
-`WithinRequestedLifetimeAtCheck`; equality or greater age is
+`WithinRequestedLifetimeAtCheck`. Equality or greater age is
 `AtOrBeyondRequestedLifetimeAtCheck`. `Ok` can contain an expired command,
 every `PlantState` including `Emergency` and `Shutdown`, stale ages, and recent
 `Unknown` or `Unavailable` health.
@@ -130,7 +130,7 @@ retained profile/session/sequence/generation and TTL can carry different
 velocity. An observation can therefore be misassociated and must never be
 paired to a command by those identifiers or TTL as though it were a checked
 token. It is partial CB-029/CTL-005/HAZ-003/HAZ-006 component evidence and a
-prerequisite link to CTL-003; CTL-003, `TEST-PLANT-LOCAL-TTL`, and
+prerequisite link to CTL-003. CTL-003, `TEST-PLANT-LOCAL-TTL`, and
 `TEST-ATOMIC-STATE-STALENESS` remain planned. See
 [`docs/PLANT_APPLY_OBSERVATION_V1.md`](../../../docs/PLANT_APPLY_OBSERVATION_V1.md).
 
@@ -149,8 +149,8 @@ There is no default or implicit Hold. A selection owns the asserted situation
 and intent while borrowing the exact immutable policy candidate.
 
 This is situation-dispatch mechanics only. It does not derive a situation from
-health, lifecycle, expiry, or a trusted trigger; the profile identity does not
-content-bind the separately supplied rows; and no conversion to ingress,
+health, lifecycle, expiry, or a trusted trigger. The profile identity does not
+content-bind the separately supplied rows. And no conversion to ingress,
 velocity, adapter, or FCU action exists. See
 [`docs/PLANT_SAFE_ACTION_V1.md`](../../../docs/PLANT_SAFE_ACTION_V1.md).
 
@@ -181,11 +181,11 @@ deep-clone it and a previously loaded handle keeps its prior allocation after
 replacement. The generic API does not prevent interior mutation exposed by `T`
 and does not validate the freshness or order of a caller-supplied generation.
 The canonical `KernelChannels` path no longer accepts a substitutable generic
-health type or exposes raw snapshot endpoints; it uses the concrete health
+health type or exposes raw snapshot endpoints. It uses the concrete health
 candidate above. The separate age classifier does not change that endpoint or
 create a runtime consumer. The apply-check observation uses only crate-private
 hooks to load one coherent health snapshot first and then evaluate its health
-ages and command age relative to one later instant; it does not publish to the
+ages and command age relative to one later instant. It does not publish to the
 channel or become a runtime consumer. CB-029/CB-030 and CTL-005 remain partial
 because the components still lack authenticated/attested FCU provenance, real
 aggregation coherence, approved age/state semantics, durable epoch ownership,
@@ -196,7 +196,7 @@ non-bypassable immediately-before-write consumer.
 
 `MonotonicExpiryGuard` binds one immutable, locally armed interval to the
 process monotonic clock and a lifecycle generation. Its half-open validity
-window expires exactly at the deadline; clock regression, generation rotation,
+window expires exactly at the deadline. Clock regression, generation rotation,
 zero TTL, and unrepresentable deadlines fail closed. The guard has no refresh,
 timer, callback, command payload, raw timestamp, state-to-safe-action
 classification, adapter
@@ -222,7 +222,7 @@ admission.
 slot with no queue. A separately validated ticket can replace that slot only
 under the same exact profile, session, and lifecycle generation, with a
 strictly greater sequence and non-regressing receipt time. An already-expired
-initial or superseding ticket becomes terminal; monitor start never grants a
+initial or superseding ticket becomes terminal. Monitor start never grants a
 fresh interval. A newer sequence with a regressing receipt also terminalizes.
 There is no reset, refresh, extension, or rearm operation.
 
@@ -231,9 +231,9 @@ deadline when its worker is scheduled. Its first terminal result is sticky and
 can report deadline detection, a caller-reported generation mismatch, shutdown,
 clock regression, synchronization failure, worker panic, or an already-expired
 or receipt-regressing superseding ticket. A synchronization failure exposes no
-exact active key because the state is poisoned; worker-start failure retains the
+exact active key because the state is poisoned. Worker-start failure retains the
 initial key and any precomputed terminal reason. `wait`, `shutdown`, and `Drop`
-join the owned worker; scheduling starvation can still delay completion
+join the owned worker. Scheduling starvation can still delay completion
 indefinitely. A reported generation is caller-provided rather than observed or
 authenticated autonomously.
 
@@ -242,7 +242,7 @@ safe-action dispatch, an output path, or an adapter. Its terminal value is
 evidence only and cannot revoke a command or convert into a safe-action intent.
 It does not prove suspend behavior, scheduler reservation/jitter, apply-time
 coupling, process-loss containment, or deadline-to-FCU-effect latency. It is
-partial CB-027/HAZ-003 component evidence only; CTL-003 and
+partial CB-027/HAZ-003 component evidence only. CTL-003 and
 `TEST-PLANT-LOCAL-TTL` remain planned. See
 [`docs/PLANT_WATCHDOG_V1.md`](../../../docs/PLANT_WATCHDOG_V1.md).
 
@@ -250,7 +250,7 @@ The separate apply-check observation does not consume a deadline ticket or
 terminal event, and the monitor does not consume the observation. Sharing a
 command identity between inert components does not create an atomic
 monitor-to-write path. Nor do matching retained command identifiers and TTL
-bind a remintable observation to command content; they must not be used to pair
+bind a remintable observation to command content. They must not be used to pair
 an observation to a command as a checked token.
 
 The package has no dependencies and the boundary checker rejects links or

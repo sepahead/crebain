@@ -10,7 +10,7 @@ operational-readiness, deployment, and 1.0 claims. The research-only 0.9.0
 prerelease is a deliberately narrower exception governed by
 [`NARROWED_GO_0.9.0.md`](NARROWED_GO_0.9.0.md): it may be tagged only after its
 pre-tag automated source conditions pass. The annotated tag then starts the
-exact-tag package gate; the release stays draft/unpublished unless it passes,
+exact-tag package gate. The release stays draft/unpublished unless it passes,
 while manual/deployment rows remain visibly pending and the published artifact
 retains the documented NO_GO boundaries.
 
@@ -50,7 +50,7 @@ when:
 1. local and hosted gates above pass on the same commit;
 2. the evidence log names that exact commit and hosted runs without placeholder counts;
 3. manual smoke has no unresolved release blocker;
-4. experimental and dormant paths cannot masquerade as validated product capability; and
+4. experimental and dormant paths cannot masquerade as validated product capability.
 5. every external input path is validated, tested, or explicitly ruled out of scope.
 
 The research-only `v0.9.0` prerelease instead follows the narrower automated

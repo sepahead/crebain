@@ -98,7 +98,7 @@ observation times into one retained commit. Checked loads compute all ages from
 one instant. The separate classifier consumes one such coherent observation,
 rejects zero limits and exact-profile mismatch, and compares receipt plus all
 seven observation ages against caller-proposed exclusive limits. Only an age
-strictly below its limit is within it; equality is outside. The assessment owns
+strictly below its limit is within it. Equality is outside. The assessment owns
 the observed commit and exposes no boolean or aggregate fresh, healthy, safe,
 eligible, or authorized result. The command contract candidate gives velocity proposals
 closed action/frame/unit semantics, distinct producer and plant-local time, and
@@ -151,17 +151,17 @@ and rejects empty/oversized/duplicate proposals, exact-profile mismatch, and
 missing rows without a default. Its non-cloneable selection owns the asserted
 situation and intent while borrowing the immutable policy object. It does not
 derive a situation from health, lifecycle, expiry, or an authenticated trigger;
-resolve overlapping trigger priority; content-bind the caller-supplied rows to
-the profile digest; or convert an intent into velocity, adapter, or FCU work.
+resolve overlapping trigger priority. Content-bind the caller-supplied rows to
+the profile digest. Or convert an intent into velocity, adapter, or FCU work.
 
 The active deadline-monitor candidate accepts only a non-cloneable ticket
 derived from a structurally validated command's opaque plant receipt time. The
 copyable candidate can mint another ticket, so ownership constrains one monitor
 only and is not global admission. A caller-proposed local TTL must be nonzero
-and no greater than the command's requested TTL; the absolute deadline is never
+and no greater than the command's requested TTL. The absolute deadline is never
 recomputed from monitor start. One long-lived named worker owns one active slot
 and no queue. Replacement requires the same exact profile, session, and
-generation plus a strictly higher sequence; it installs a separately validated
+generation plus a strictly higher sequence. It installs a separately validated
 immutable ticket rather than refreshing the existing interval. Current clock
 regression or `now >= deadline` terminalizes before replacement, shutdown, or
 caller-reported generation mismatch. A newer sequence whose receipt precedes
@@ -170,7 +170,7 @@ wake and records one
 sticky terminal outcome, including detection age and lateness for deadlines.
 Poison, worker unwind, shutdown, and a reported generation mismatch also
 terminate fail closed. Poisoned synchronization intentionally exposes no exact
-active key; worker-start failure retains the initial key and any terminal reason
+active key. Worker-start failure retains the initial key and any terminal reason
 computed before spawn. This is detection evidence only: the monitor does not observe
 lifecycle rotation autonomously, revoke output, classify state, select/apply a
 safe action, call the inert adapter, reserve scheduler capacity, or prove
@@ -201,7 +201,7 @@ latency in the target deployment before making performance claims.
 The three paths and when to use them:
 
 - **rosbridge (JSON over WebSocket)** — a telemetry-only fallback. The
-  TypeScript client is selectable only in Vite development; production builds
+  TypeScript client is selectable only in Vite development. Production builds
   substitute a network-free stub and remove rosbridge WebSocket origins from
   the CSP. Every build records the resolved project-module graph and hashes and
   scans the finalized JavaScript chunks, so `build --mode test` cannot select
@@ -216,7 +216,7 @@ The three paths and when to use them:
 - **Native camera-work admission** — both native backends share one process-wide
   384 MiB weighted, nonblocking envelope.
   - Rosbridge reserves before JSON expansion for retained wire/JSON, decoded
-    bytes, base64 IPC output, and callback bookkeeping; Zenoh reserves before
+    bytes, base64 IPC output, and callback bookkeeping. Zenoh reserves before
     CDR materialization for retained wire/CDR, embedded image bytes, frame/IPC
     base64, and callback bookkeeping.
   - A frame is dropped when its weight would exceed the envelope.
@@ -224,25 +224,25 @@ The three paths and when to use them:
     from a different topic is backpressured.
   - The topic event carries only a small delivery ID, lifecycle generation, and
     exact subscription ID, each encoded as a canonical positive-u64 decimal
-    string across Tauri IPC; the renderer pulls the large frame exactly once,
+    string across Tauri IPC. The renderer pulls the large frame exactly once,
     and the native reservation and per-topic slot remain owned until an
     identity-matched acknowledgement after every listener settles or its
     eight-second deadline quarantines that listener.
   - Event-listener registration and native declaration share one twelve-second
-    setup deadline; a late listener handle is immediately released.
+    setup deadline. A late listener handle is immediately released.
   - Pull and acknowledgement have separate ten- and four-second renderer
     deadlines.
   - A 30-second native monotonic lease covers a lost readiness event, renderer
-    loss, and a rejected, lost, or late acknowledgement; expiry atomically
+    loss, and a rejected, lost, or late acknowledgement. Expiry atomically
     releases the exact slot and permit and quarantines only the matching live
     declaration.
-  - Expiry then performs a bounded exact undeclaration; cleanup failure retains
+  - Expiry then performs a bounded exact undeclaration. Cleanup failure retains
     quarantine for explicit retry, while lifecycle rotation or a newer exact
     identity fences stale cleanup.
   - Lifecycle rotation discards an untaken stale-generation frame, while a
     pulled frame remains reserved until exact acknowledgement or lease expiry.
   - A proven exact unsubscribe or reopen likewise retires only an untaken
-    matching frame; an in-flight frame keeps its immutable reservation.
+    matching frame. An in-flight frame keeps its immutable reservation.
   - Each camera subscription also carries a renderer-issued exact identity, so
     late callbacks and cleanup from a closed subscription cannot enter or
     remove a reopened topic, and an explicit reopen removes a quarantined
@@ -250,16 +250,16 @@ The three paths and when to use them:
   - The renderer admits only descriptors for the current canonical nonzero-u64
     lifecycle, delivery, and subscription IDs, serializes one full
     pull/listener/acknowledgement cycle per topic, and holds at most one
-    prevalidated small descriptor pending; it never pulls that pending delivery
+    prevalidated small descriptor pending. It never pulls that pending delivery
     before the active acknowledgement settles.
   - Duplicate pulls or acknowledgements, malformed readiness events, deadline
-    failures, and overlapping topic deliveries fail closed; callback failures
+    failures, and overlapping topic deliveries fail closed. Callback failures
     are isolated and still reach bounded acknowledgement.
 - **Galadriel evidence producer (native NCP, optional)** — absent from default
   binaries and disabled unless an `ncp` build also receives exact runtime opt-in
   plus valid registry/config/executable pins. It can put frozen evidence only to
   `galadriel-pid` and `galadriel-monitor` named-perception keys. Startup owns an
-  immutable effective fusion engine; active initialization is readiness-only and
+  immutable effective fusion engine. Active initialization is readiness-only and
   a config update cannot replace it. Its secure-mode request, local queue/input
   accounting, and codec tests are not deployed TLS/ACL/receiver proof.
 - **Tauri commands/events** — small frontend/backend notifications only.
@@ -267,7 +267,7 @@ The three paths and when to use them:
   low-latency or high-throughput streaming.
 
 Latency and throughput for either transport depend on topology, payload path,
-and hardware; benchmark in your deployment before relying on numbers.
+and hardware. Benchmark in your deployment before relying on numbers.
 
 Renderer network access is deny-by-default in the source inventory: WebSocket
 code is confined to the explicitly development-only adapter, while ordinary
@@ -434,18 +434,18 @@ nix develop .#cuda     # explicit CUDA shell (x86_64 NixOS + NVIDIA)
 nix develop .#cpu-only # Linux shell without CUDA
 ```
 
-Plain `nix develop` is intentionally the CPU/default-feature shell; the explicit
+Plain `nix develop` is intentionally the CPU/default-feature shell. The explicit
 `x86_64-linux` `.#cuda` shell never infers hardware availability and does not
 attest that a GPU or driver is present. The default package uses the checked-in
 `bun.nix` cache expression to install frontend dependencies offline, the exact
 Rust channel in `rust-toolchain.toml`, the Tauri-configured bounded production
 frontend build, and the clean flake source. The Nix workflow evaluates all
-systems and builds that default-feature package on Linux and macOS; a passing
+systems and builds that default-feature package on Linux and macOS. A passing
 evaluation alone is not package evidence. The Linux shells and package set
 `ORT_DYLIB_PATH` (and `ORT_SKIP_DOWNLOAD=1`) to the nixpkgs
-`libonnxruntime.so`; override it only with a separately reviewed compatible
+`libonnxruntime.so`. Override it only with a separately reviewed compatible
 runtime. Cargo's optional NCP packages remain fixed to the exact Git commit in
-`Cargo.lock`; the standard 0.9 package does not compile their feature.
+`Cargo.lock`. The standard 0.9 package does not compile their feature.
 
 ## Directory map
 
@@ -525,11 +525,11 @@ src-tauri/src/
 
 The producer does not execute registry transform chains. It attaches a common
 projection only when the incoming `source_frame_id` already names the selected
-canonical ENU frame and the modality's transform chain is empty; otherwise the
+canonical ENU frame and the modality's transform chain is empty. Otherwise the
 evidence is explicitly incomparable. Frame-name equality is not authenticated
 sensor provenance. V1 also requires an advancing fusion/frame timestamp and a
 strictly newer equal timestamp for that track/modality channel. All measurements
-in a nonempty native frame must equal the advancing frame timestamp; mixed-old,
+in a nonempty native frame must equal the advancing frame timestamp. Mixed-old,
 future, replayed/nonadvancing, and out-of-order input rejects before prediction or evidence
 mutation. The renderer keeps one sensor-clock high-water, reuses it for empty
 frames, and commits it only after native success.
@@ -544,20 +544,20 @@ Renderer/native input admission keeps the newest bounded measurements and turns
 malformed, buffer-overflow, registry-trim, or track-capacity loss into sticky
 degraded/truncated frame state. Native work is capped at 512 measurements and
 1,024 live tracks with explicit numeric/string/metadata envelopes. Track-capacity
-overflow drops whole birth clusters before the final ledger; numeric upstream
+overflow drops whole birth clusters before the final ledger. Numeric upstream
 loss is not present on the frozen wire summary. Sparse finite-component
 assignment and an all-infinite short circuit are component-tested, not deployed
 combined-load/deadline evidence. Queue lanes are bounded and report drops/degradation, but
 single-worker monitor ordering can delay heartbeats behind older events. Those
 limits are part of the architectural boundary, not end-to-end liveness proof.
 The optional JSONL archive is another boundary: active admission uses a separate
-capacity-16 drop-new channel; configured `ncp` sinks are startup-preflighted and
-each batch is validated/serialized before writing; writer I/O failure degrades
+capacity-16 drop-new channel. Configured `ncp` sinks are startup-preflighted and
+each batch is validated/serialized before writing. Writer I/O failure degrades
 the epoch and terminates that worker. Its blocking standard writer is not
 forcibly abortable after the two-second exit wait, and no-producer fusion awaits
 synchronous append/flush outside the fusion lock.
 
 The native macOS CoreML/Vision bridge is implemented directly in
-`src-tauri/src/coreml.rs`; there is no separately built Swift package or
+`src-tauri/src/coreml.rs`. There is no separately built Swift package or
 bundled inference sidecar. AGENTS.md carries the contributor-facing
 architecture notes and performance guidelines for the trees above.

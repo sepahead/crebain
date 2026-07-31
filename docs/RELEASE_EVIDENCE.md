@@ -43,7 +43,7 @@ one `.AppImage`, and one `.deb`) plus a metadata-normalized, checksum-sealed
 headers are normalized, but independently rebuilt packages, logs, and Syft
 generation metadata are not claimed byte-reproducible across workflow reruns.
 The archive preserves the sealed `application/` and `evidence/` directories,
-`SHA256SUMS`, and `RELEASE_EVIDENCE_MANIFEST.json`; no flat release asset is
+`SHA256SUMS`, and `RELEASE_EVIDENCE_MANIFEST.json`. No flat release asset is
 substituted for one of those manifest paths. GitHub attestations bind both the
 standalone packages and the sealed archive produced by the exact-tag workflow.
 
@@ -106,7 +106,7 @@ done
 The release remains a draft until its exact-tag workflow succeeds. A rerun
 never reads application or evidence bytes from an existing draft: it consumes
 only SHA/run-scoped artifacts from that workflow run. Partial failed-job reruns
-reuse successful predecessor artifacts under the same names; full reruns
+reuse successful predecessor artifacts under the same names. Full reruns
 replace those same-run artifacts before dependents execute. The publisher
 removes only an earlier draft prerelease for the exact tag, creates a fresh
 draft, rechecks the annotated tag target, and compares every uploaded byte with
@@ -118,7 +118,7 @@ inventory. This follows GitHub's
 all bytes are attached and verified while the release is still a draft, before
 publication locks its assets and tag. If publication remains mutable or its
 state/inventory check fails, the job fails. A mutable or unknown publication
-gets a best-effort return-to-draft attempt; an immutable publication cannot be
+gets a best-effort return-to-draft attempt. An immutable publication cannot be
 returned to draft, so the job emits a reconciliation warning and preserves the
 failure until the exact hosted state is reviewed.
 
@@ -175,6 +175,7 @@ none of these runs or counts may be reused for the current candidate.
 | Frontend/bundle | Local tests and `bun run check:bundle` passed; hosted validation, coverage, artifact scanner, and bundle budget passed; initial bundle 431.8/700 KiB |
 | Rust feature matrix | Local default/NCP all-target suites and hosted Linux/macOS default/NCP jobs passed; Linux `cuda,tensorrt` and `--no-default-features` checks passed |
 | Evidence boundary | The production handler list drove negative mock-runtime IPC tests for scene, detector, fusion, and transport inputs. Native benchmark mechanics covered bounded inputs, model/fixture/runtime identity, raw samples, trusted-baseline digest binding, p95 comparison, and atomic no-overwrite reports. No approved model, target-hardware run, baseline, threshold, numeric result, packaged-origin/CSP/capability proof, positive path, or target-platform smoke was established. |
+
 ## Historical snapshot (`e89de5a`, not current evidence)
 
 The previous candidate passed [CI 29118711312](https://github.com/sepahead/crebain/actions/runs/29118711312),
@@ -182,7 +183,7 @@ The previous candidate passed [CI 29118711312](https://github.com/sepahead/creba
 and [OpenSSF Scorecard 29118711298](https://github.com/sepahead/crebain/actions/runs/29118711298)
 on commit `e89de5acc2eb7d66b807f85dc407f3da0e35892c`. The separate
 [Supply-chain run 29104945725](https://github.com/sepahead/crebain/actions/runs/29104945725)
-ran on `5dec6037fe1fa461fae76083d682be35ae5352ab`; it is not attributed to the
+ran on `5dec6037fe1fa461fae76083d682be35ae5352ab`. It is not attributed to the
 `e89de5a` source identity. None of these historical results may be reused as
 evidence for the current dependency or source tree.
 
@@ -247,7 +248,7 @@ but none of its results, counts, or hosted runs is evidence for the 0.9 tree.
   live ecosystem claim. Sparse-assignment and bounded-admission component tests
   do not prove combined-process timing, and numeric upstream/cluster loss remains
   producer-log-only in the current wire contract.
-- PID JSONL proves only local append/parser/basic NIS behavior; it is not evidence
+- PID JSONL proves only local append/parser/basic NIS behavior. It is not evidence
   of Galadriel correlation, PID control, ACL, versioned streaming, or live NCP.
   Its active capacity-16 archive/drop/degradation behavior and blocked-writer
   shutdown limit still need candidate-specific storage evidence.
@@ -284,7 +285,7 @@ but none of its results, counts, or hosted runs is evidence for the 0.9 tree.
   facts are individually comparable, but it exposes no direct aggregate
   boolean and conveys no authorization. Exact structural profile and generation
   matching cannot bind a command to the health snapshot's vehicle or local
-  frame because the command carries neither identity; retained identifiers and
+  frame because the command carries neither identity. Retained identifiers and
   TTL also do not bind command content or velocity. The observation can be
   reminted and become stale immediately, and it has no output-write adjacency,
   revocation, action conversion, adapter, or observed effect. CTL-003 and

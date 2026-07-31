@@ -22,7 +22,7 @@ bun run benchmark:native-detector -- \
 The output path must be a new `.json` file. Backend/model pairs are exact at
 the CREBAIN factory boundary: CoreML uses `.mlmodelc`, MLX uses
 `.safetensors`, and ONNX/CUDA/TensorRT use `.onnx`. The supported command uses
-Cargo's release profile; the artifact records only that debug assertions were
+Cargo's release profile. The artifact records only that debug assertions were
 disabled, not an independently attested build profile.
 
 Defaults are 5 warmups, 100 measured iterations, confidence `0.25`, IoU `0.45`,
@@ -51,7 +51,7 @@ library. Model and fixture identities are checked again after every run. The
 recorded ONNX Runtime loading mode is also checked again, as is the configured
 Linux library digest when that mode applies. Crate-linked and search-loaded
 runtime bytes are not hashed or attested. These checks detect stable accidental
-mutation; they are not attestation against a hostile writer racing the
+mutation. They are not attestation against a hostile writer racing the
 filesystem.
 
 MLX layer profiling and the persistent TensorRT engine cache are forced off.
@@ -82,7 +82,7 @@ publish that value to an evidence store separate from the report:
 shasum -a 256 /private/evidence/native-detector-baseline.json
 ```
 
-At comparison time, retrieve the approved value independently; do not recompute
+At comparison time, retrieve the approved value independently. Do not recompute
 it from the baseline file being checked:
 
 ```bash
@@ -108,7 +108,7 @@ model/fixture content, policy, run configuration, requested backend, selected
 backend, and provider label. It gates p95 only. If the predeclared percentage is
 exceeded, the failing report is preserved and the command exits nonzero.
 
-A digest identifies bytes but does not authenticate who approved them; the
+A digest identifies bytes but does not authenticate who approved them. The
 digest must come from trusted CI/configuration rather than the file being
 checked. A passing local comparison is not a repository-approved threshold or
 a performance claim.

@@ -26,7 +26,7 @@ prerequisites. The classifier's exclusive caller-proposed limits are not an
 approved profile policy and do not implement the draft ODD's inclusive
 `<=200 ms` condition. An inert CB-028 candidate now provides only exact-profile
 lookup from caller-proposed opaque situation codes to a closed intent
-vocabulary; its rows are neither profile-content-bound nor an approved
+vocabulary. Its rows are neither profile-content-bound nor an approved
 state/trigger matrix. An unwired CB-027 active deadline-monitor candidate now
 derives immutable deadlines from validated receipt time, owns one worker and
 one active stream slot, and records sticky terminal detection evidence. An
@@ -38,7 +38,7 @@ integration and extend that evidence into the immediately-before-write governor;
 do not activate either candidate as command authority before the approved
 profile, health, state, and TTL policies exist. CB-032 can follow only as a bounded,
 observable mock adapter transaction. A process cannot guarantee a final action after
-`SIGKILL`, power loss, or total scheduler starvation; the eventual live claim
+`SIGKILL`, power loss, or total scheduler starvation. The eventual live claim
 must combine repeated bounded attempts while alive, immediate output cessation,
 and independently attested FCU failsafe behavior.
 
@@ -84,16 +84,16 @@ and independently attested FCU failsafe behavior.
   verdict, permit, authority, command content, output operation, adapter, or
   runtime coupling, although callers can compare facts. The command lacks
   vehicle/frame-instance identity, and the remintable observation is not
-  command-content-bound; matching retained IDs/TTL must never pair it to a
+  command-content-bound. Matching retained IDs/TTL must never pair it to a
   command as a checked token. It can stale immediately and is not a write-
   adjacent atomic transaction. This is partial CB-029/CTL-005/HAZ-003/HAZ-006
-  component evidence and a prerequisite link to CTL-003; CTL-003,
+  component evidence and a prerequisite link to CTL-003. CTL-003,
   `TEST-PLANT-LOCAL-TTL`, and `TEST-ATOMIC-STATE-STALENESS` remain planned.
 - Unwired receipt-anchored active deadline-monitor candidate: a validated
   command can mint an immutable non-cloneable ticket with a local TTL no greater
-  than its request; the copyable candidate can remint one, so ownership is local
+  than its request. The copyable candidate can remint one, so ownership is local
   to each monitor. One long-lived worker owns one active slot and accepts only
-  exact-profile/session/generation, strictly increasing replacements; deadline
+  exact-profile/session/generation, strictly increasing replacements. Deadline
   and fault terminal evidence is sticky. This is partial CB-027/HAZ-003
   component evidence, not trusted admission, an operational watchdog, apply-time
   output invalidation, safe action, scheduling/latency qualification, or CTL-003.
@@ -118,7 +118,7 @@ and independently attested FCU failsafe behavior.
   or L1 authority.
 - Profile-neutral frame-conventions v1: dependency-free Rust and JavaScript
   independently evaluate one digest-bound 32-case m/s corpus for identity,
-  ENU↔NED, and FLU↔FRD velocity axes; all local↔body routes reject without
+  ENU↔NED, and FLU↔FRD velocity axes. All local↔body routes reject without
   attitude. Exact permutations require the same local origin/datum or body
   point, which the values do not carry or prove. This is partial HAZ-005
   component evidence, not profile approval, complete CTL-006 coverage,
@@ -134,8 +134,8 @@ and independently attested FCU failsafe behavior.
   or numeric claim exists.
 - Backlog item 2: the production Tauri handler list is reused by a serialized
   mock-runtime IPC harness. Negative invoke requests now cover scene save/load
-  payload, path, UTF-8, parse, absence, and size failures; detector/fusion
-  deserialization and bounds; and validation-before-connection for every
+  payload, path, UTF-8, parse, absence, and size failures. Detector/fusion
+  deserialization and bounds. And validation-before-connection for every
   topic-bearing transport command.
 - Feature/runtime-gated Galadriel producer component: strict canonical registry,
   immutable actual effective-config and executable digest pins, readiness-only

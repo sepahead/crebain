@@ -22,8 +22,8 @@ preserved.
 - Normalized commit mapping:
   `416101255bd861b2542407795d5876bddd3e70c4` to
   `09c7c89e0867bc73fa008f0289aa84d8b69b3494`
-- Reachable commits: 202 total; 65 reconstructed because their parent identity
-  changed; 137 remained byte-identical.
+- Reachable commits: 202 total. 65 reconstructed because their parent identity
+  changed. 137 remained byte-identical.
 - Canonical commit-map SHA-256:
   `e8bbff063d37754b8684494e2b7e36faa18f2f70696c4b2ef364af65817a2d3e`
 
@@ -34,7 +34,7 @@ Git object validation and exact reachable-set comparison before publication.
 
 ## `v0.4.0` — retired unpublished draft
 
-- Status: never published; the mutable GitHub draft, its assets, and the remote
+- Status: never published. The mutable GitHub draft, its assets, and the remote
   and local tag were removed before the 0.9.0 research-only prerelease.
 - Annotated tag object: `759d82156c8a6e078e89d7b95e6024f39944f274`
 - Tagged commit: `8ceea521b452df6cbd3b16f04fd244c79b08f1d0`

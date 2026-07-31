@@ -1,7 +1,8 @@
 # Engram host integration
 
 CREBAIN remains a standalone browser and Tauri application. Engram host API 1.0
-adds an optional restricted browser surface.
+adds an optional restricted browser surface. The manifest version tracks the
+CREBAIN release, not the date this embedding was introduced.
 
 ## Start CREBAIN
 

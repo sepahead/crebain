@@ -294,7 +294,7 @@ Packaged builds expose only the native read-only telemetry path and default to
 Every packaged frontend build verifies the resolved Vite module graph, excludes
 the development adapter, and content-hashes and scans every finalized JavaScript
 chunk before it can succeed. Bounded renderer asset downloads remain confined
-to the documented relative, HTTPS, and HTTP-loopback source policy; passive
+to the documented relative, HTTPS, and HTTP-loopback source policy. Passive
 image URLs do not receive a general HTTPS CSP allowance.
 
 The native Zenoh transport uses CREBAIN's plain-key scheme. Direct
@@ -342,12 +342,13 @@ bridge does not accept commands. It cannot activate NCP or plant control.
 
 Engram continues bounded health challenges after readiness. CREBAIN increments
 a heartbeat sequence for each accepted challenge. Engram relocks the frame when
-responses stop. CREBAIN also probes a harmless Engram Tauri command. The host
-must keep the frame locked unless native Engram inter-process communication
-(IPC) is inaccessible.
+replies stop. CREBAIN also probes a harmless Engram Tauri command. On supported
+Tauri targets, the local-window capability policy is the primary boundary. The
+probe is an unattested peer report and a diagnostic canary. Browser readiness
+proves no Tauri capability denial.
 
 The nonce and challenge correlate one document. They do not authenticate or
-attest the CREBAIN process, source revision, or build. Engram disables this
+attest the CREBAIN process, source revision, or build. Engram blocks this
 remote iframe on Linux and Android. Tauri cannot isolate iframe IPC from the
 parent window on those targets. CREBAIN accepts only user-agent-trusted
 `postMessage` events. The parser copies exact primitive fields into a local

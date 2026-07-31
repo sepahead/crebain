@@ -45,7 +45,7 @@ bypass, restart, timing, and resource tests.
 - [`baselines/ecosystem-baseline.json`](baselines/ecosystem-baseline.json)
 
 At group level, `profiles.current` records the profiles in which a surface family
-is audited; it is not a live-reachability declaration. A fully removed group may
+is audited. It is not a live-reachability declaration. A fully removed group may
 therefore retain historical/applicability profiles. Each member's `status` and
 `source_assertion` are the authoritative current-reachability evidence, and the
 machine-readable `profile_semantics` field locks that interpretation.
@@ -91,15 +91,15 @@ imports, WebSocket construction, renderer `fetch` outside the bounded asset
 adapter, and forbidden `Reflect.get` capability recovery. Rust and declarative
 inputs receive token/route scanning. Balanced route-like Rust macros fail closed
 when their literals, captured constants, separators, or unresolved segments can
-construct a route; positional or named format reordering is not treated as a
+construct a route. Positional or named format reordering is not treated as a
 trusted evaluator. The generic `publish` capability remains forbidden. The
 inventory separately requires the two exact feature/runtime-gated Galadriel NCP
 evidence routes and their pin/config-immutability/time/input/capacity/queue/
-heartbeat tests; it does not create a generic publisher exception. The fail-closed
+heartbeat tests. It does not create a generic publisher exception. The fail-closed
 self-test contains source, comment-shadow, manifest, conditional-input,
 computed-route/capability, network, hazard, evidence, and digest mutations.
 
-`bun run validate` runs both checks; `validate:all` inherits them, and hosted CI
+`bun run validate` runs both checks. `validate:all` inherits them, and hosted CI
 runs them as an explicit required baseline step. The verifier does not build the
 product, contact external repositories, inspect deployment certificates/ACLs,
 or claim receiver/runtime evidence. Every
@@ -115,17 +115,17 @@ It removes every vendor `fetch` reference, rejects Spark/Rapier external
 WebAssembly inputs, preserves Rapier's exact embedded-byte initializer,
 converts Spark's exact embedded main/worker payloads to local byte decoding,
 and hash-pins Spark's unchanged `fileBytes` path. Three's `FileLoader` and
-`ImageBitmapLoader` fail closed; its `ImageLoader` accepts only local `blob:` or
-canonical PNG/JPEG data-image inputs; and its exact GLTF transform rejects other
+`ImageBitmapLoader` fail closed. Its `ImageLoader` accepts only local `blob:` or
+canonical PNG/JPEG data-image inputs. And its exact GLTF transform rejects other
 manifest URIs while preserving bufferView/data-image textures through
 `TextureLoader`. Source and transformed URI walks reject each container before
 bulk push when it cannot fit a 262,144-value visited-plus-pending work ceiling.
 `bun run check:production-vendors` covers source, metadata,
-payload, AST shape, replacement count, and post-transform mutations; executes
-the Spark/Rapier embedded-byte paths; and parses product-validated textured GLBs
+payload, AST shape, replacement count, and post-transform mutations. Executes
+the Spark/Rapier embedded-byte paths. And parses product-validated textured GLBs
 through both admitted local-image forms. The transform and verifier are
 production-config inventory entries. The artifact report inventories each
-chunk's exact vendor modules; only the one-module Spark and Rapier chunks may
+chunk's exact vendor modules. Only the one-module Spark and Rapier chunks may
 contain their canonical bare `new Function` sites, at exact counts two and one.
 Every other dynamic-constructor path, callable `.constructor()`, and vendor
 network reference remains forbidden, and Tauri CSP omits `unsafe-eval`.
@@ -146,27 +146,27 @@ situation codes, full-profile match, duplicate/empty/oversize rejection, no
 default row, and the absence of state/trigger classification or action/adapter
 conversion. It additionally seals one private active deadline-monitor module:
 ticket construction borrows a validated candidate and derives an immutable
-deadline through opaque receipt operations; one named worker owns one active
-slot/no queue; replacement requires the exact profile/session/generation and a
-strictly greater sequence; regression/due checks precede replacement/control;
-terminal evidence is sticky; and polling, detach, callbacks, action conversion,
+deadline through opaque receipt operations. One named worker owns one active
+slot/no queue. Replacement requires the exact profile/session/generation and a
+strictly greater sequence. Regression/due checks precede replacement/control;
+terminal evidence is sticky. And polling, detach, callbacks, action conversion,
 or runtime wiring remain forbidden. The checker also seals one private
 apply-observation module. Exact profile and generation checks precede one
-coherent health snapshot load; only then is one private plant-monotonic
+coherent health snapshot load. Only then is one private plant-monotonic
 reference instant minted, with health ages computed before command receipt age
-relative to it. Requested-lifetime equality is outside; lifecycle remains
-neutral; and the observation retains all eight existing captured health-age
+relative to it. Requested-lifetime equality is outside. Lifecycle remains
+neutral. And the observation retains all eight existing captured health-age
 relations. It has no direct boolean accessor or `From` conversion to `bool` and
 supplies no aggregate/authorizing verdict, permit, command content,
 velocity/action/adapter conversion, output revocation, safe action, I/O, or
 runtime wiring, although callers can compare facts. It is remintable and lacks
-command-content and command-to-health vehicle/frame-instance binding; retained
+command-content and command-to-health vehicle/frame-instance binding. Retained
 IDs/TTL must never pair it as a checked token, and it supplies no HAZ-005 or
 HAZ-013 evidence. The 123 plant unit/integration tests, 24
 compile-fail doctests, and 231 static fixtures (64 health/freshness, 51 safe
 action, 72 deadline monitor, and 44 apply observation) remain component/source
 evidence only. The apply matrix is prerequisite/component evidence for its
-declared CTL-003/CTL-005 links; CB-029, CTL-005, HAZ-003, and HAZ-006 are
+declared CTL-003/CTL-005 links. CB-029, CTL-005, HAZ-003, and HAZ-006 are
 partial, while CTL-003 and the planned write-adjacent tests remain unmet. These are source-boundary and
 component properties, not authenticated FCU state, an approved freshness/
 health/safe-action policy, content binding of caller-proposed rows,
@@ -175,7 +175,7 @@ qualification, or safety.
 The frame checker independently evaluates the same digest-bound finite m/s TSV
 with JavaScript and Rust. It proves exact ENU/NED and FLU/FRD velocity-axis
 conventions for one unchanged local origin/datum or rigid-body reference point,
-plus explicit no-attitude rejection only; it does not carry or prove that
+plus explicit no-attitude rejection only. It does not carry or prove that
 frame-instance precondition, select an approved profile, or prove attitude,
 quaternion/yaw, point/translation, covariance, Three.js, time-unit, apply-time,
 or FCU semantics. Treating caller-assumed coincidence as evidence blocks L1.

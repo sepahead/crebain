@@ -99,7 +99,7 @@ frame-identified measurements at the native ingress—not by merging tracker
 state or IDs.
 
 The viewer keeps display retention separate from fusion work. Native detection
-callbacks enter a bounded one-shot coalescer (at most 64 pending cameras); each
+callbacks enter a bounded one-shot coalescer (at most 64 pending cameras). Each
 batch carries a unique frame ID, strictly increasing epoch, and a measurement
 timestamp derived from the detections rather than a render-time restamp.
 Consuming the batch clears it, so a retained camera overlay or restored scene
@@ -109,11 +109,11 @@ measurements, rejects malformed camera geometry and non-finite, out-of-range,
 oversized, or frame-inconsistent detections before correlation, accepts at most
 512 detections, and caps dense assignment at 128 groups × 128 live tracks.
 `FusionStats.lastFrameStatus` and its drop/rejection counters expose every
-capacity or input degradation; the policy is deterministic and does not imply
+capacity or input degradation. The policy is deterministic and does not imply
 native-engine parity. Coasting browser tracks remain visible as predictions but
 are excluded from the current-frame observed set and are not emitted downstream
 as fresh visual measurements. A current single-camera track likewise retains
-only a local origin placeholder with infinite triangulation error; only a finite
+only a local origin placeholder with infinite triangulation error. Only a finite
 multi-camera triangulation may cross the viewer-to-native visual-measurement
 boundary. Parallel or ill-conditioned rays may retain an assumed-range point for
 local display, but their error remains infinite. A later single-camera update
@@ -156,7 +156,7 @@ flowchart TD
 
 The **state vector** is 6-dimensional: `x = [px, py, pz, vx, vy, vz]` (position in
 meters, velocity in m/s, common world frame). The engine **observes position only**
-(the measurement matrix is `H = [I₃ | 0₃]`); velocity is inferred by the filter
+(the measurement matrix is `H = [I₃ | 0₃]`). Velocity is inferred by the filter
 from the position sequence.
 
 ---
@@ -187,10 +187,10 @@ velocity onto the line of sight before sending it.
 The frame is interpreted in Rust by two helpers:
 
 - `measurement_position_cartesian()` — used for association and track initiation.
-  For `radar` it converts polar → Cartesian; for everything else it passes
+  For `radar` it converts polar → Cartesian. For everything else it passes
   `[x, y, z]` through.
 - `measurement_position_polar()` — returns `Some([range, az, el])` **only for
-  radar**, feeding the EKF polar update; `None` otherwise.
+  radar**, feeding the EKF polar update. `None` otherwise.
 
 `source_frame_id` is provenance, not a conversion request. Fusion does not
 transform a measurement merely because the string names a frame. In the optional
@@ -201,20 +201,20 @@ transform step yields explicitly incomparable evidence. String equality is not
 cryptographic sensor authentication or proof that calibration was applied.
 
 Input validation bounds both representation and computation before filter work:
-one batch contains at most 512 measurements; Cartesian coordinates and radar
-range are bounded to 10,000,000 m; each optional Cartesian velocity component to
-100,000 m/s; diagonal variances to `(0, 1e12]`; metadata to 64 entries with each
-numeric magnitude at most `1e12`; and measurement strings to 256 bytes. Radar
+one batch contains at most 512 measurements. Cartesian coordinates and radar
+range are bounded to 10,000,000 m. Each optional Cartesian velocity component to
+100,000 m/s. Diagonal variances to `(0, 1e12]`. Metadata to 64 entries with each
+numeric magnitude at most `1e12`. And measurement strings to 256 bytes. Radar
 angles retain their documented polar-domain limits. These are safety/computation
 ceilings, not statements that values near them are physically meaningful.
 
 The renderer supplies a monotonic sensor/header-domain frame clock. Tracks from
 one visual detector pass share one captured timestamp. Every measurement in a
 nonempty native cycle must have a timestamp exactly equal to the enclosing frame
-timestamp; a mixed-time, lagged, future, replayed/nonadvancing, or out-of-order
+timestamp. A mixed-time, lagged, future, replayed/nonadvancing, or out-of-order
 measurement rejects the whole frame before prediction or other fusion state mutation. The
 renderer therefore partitions each drained buffer into ascending exact-time
-groups and invokes native fusion once per group; choosing the newest input as a
+groups and invokes native fusion once per group. Choosing the newest input as a
 frame time never authorizes older inputs in that batch. Groups at or below the
 committed high-water are dropped and explicitly counted. A failed group and all
 later drained groups are likewise counted as upstream loss, because retrying an
@@ -230,7 +230,7 @@ ROS measurements use their stable subscribed topic as `sensor_id`, with modality
 and source frame retained separately. Array position is never an identity:
 reordering or repeating a payload therefore cannot turn one physical capture
 into independent evidence. Browser visual timestamps use a wall clock and are
-not admitted while ROS header-clock subscriptions are active; such observations
+not admitted while ROS header-clock subscriptions are active. Such observations
 are counted as dropped instead of mixing wall and simulation time in one native
 prediction epoch.
 
@@ -269,8 +269,8 @@ UPDATE:    y  = z − H·x'            (innovation)
            x  = x' + K·y            P = (I − K·H)·P'  [Joseph form below]
 ```
 
-`F` is the constant-velocity transition (`position += velocity·dt`); `Q` is the
-process noise (un-modeled acceleration / maneuvers); `R` is the per-sensor
+`F` is the constant-velocity transition (`position += velocity·dt`). `Q` is the
+process noise (un-modeled acceleration / maneuvers). `R` is the per-sensor
 measurement noise.
 
 | Filter | Selector | Best for | Cost | How it handles nonlinearity |
@@ -342,7 +342,7 @@ A measurement is admissible when the **squared** Mahalanobis distance
 χ²-distributed with degrees of freedom equal to the **measurement** dimension (3 for
 position), the threshold is a χ²(3) quantile: the default `11.345` is the 99 % gate
 (`9.348` ≈ 97.5 %, `7.815` ≈ 95 %). Raising it admits more candidates (more clutter,
-fewer missed associations); lowering it tightens the gate.
+fewer missed associations). Lowering it tightens the gate.
 
 If `S` is singular (degenerate covariance — rare in practice since `Q, R > 0`), the
 gate falls back to a Euclidean distance normalized by a nominal per-axis sigma so it
@@ -350,7 +350,7 @@ stays on the same unitless scale as the Mahalanobis branch.
 
 The gate runs in the **Cartesian** position frame, so each measurement's noise `R`
 must be supplied in that frame. Cartesian modalities use their diagonal covariance
-directly; radar's noise is polar `[m², rad², rad²]`, so it is propagated into
+directly. Radar's noise is polar `[m², rad², rad²]`, so it is propagated into
 Cartesian through the polar→Cartesian Jacobian
 (`R_cart = J⁻¹ R J⁻ᵀ`, `J = ∂(range,az,el)/∂(x,y,z)`) before being folded into `S`.
 Skipping this conversion would add `rad²` to `m²` and badly under-estimate
@@ -390,7 +390,7 @@ Each retained sensor is weighted by its actual precision: a centimeter-accurate
 lidar centroid dominates a tens-of-meters acoustic bearing regardless of their
 reported confidences. For conditionally independent same-time measurements this
 sequential update is mathematically equivalent to the batch information-form
-posterior `x̂ = (ΣCᵢ⁻¹)⁻¹ ΣCᵢ⁻¹xᵢ`; measurements are applied in order of increasing
+posterior `x̂ = (ΣCᵢ⁻¹)⁻¹ ΣCᵢ⁻¹xᵢ`. Measurements are applied in order of increasing
 `R`-trace for determinism on the (re-linearized) EKF polar path.
 
 Detector **confidence is not used as a fusion weight**. `track.confidence` is derived
@@ -407,7 +407,7 @@ track carries a `hit_history` bitmask of its last `N` association opportunities
 transitions below reflect the actual Rust implementation in `update_track`,
 `update_hit_history`, and `handle_missed_detections` (defaults:
 `min_confirmation_hits = 3` (M), `confirmation_window = 5` (N), so **3-of-5**;
-`max_missed_detections = 5` misses within the window; `max_position_cov_volume = 1e6`).
+`max_missed_detections = 5` misses within the window. `max_position_cov_volume = 1e6`).
 
 ```mermaid
 stateDiagram-v2
@@ -452,7 +452,7 @@ measurement (radar without Doppler, lidar, visual) carries no velocity informati
 an over-confident birth velocity would make the constant-velocity prediction reject
 the next frame of a genuinely moving target through the (correctly tightened) χ²(3)
 gate — fragmenting one target into duplicate tracks. The wide prior only ever eases
-the *first* post-birth association; returns that are far in absolute terms are still
+the *first* post-birth association. Returns that are far in absolute terms are still
 gated out.
 
 ---
@@ -560,19 +560,19 @@ Galadriel deployment, the effective fully materialized compact JSON is SHA-256
 pinned to both the environment and selected registry context. Presence of
 `CREBAIN_PID_JSONL` forces `emit_innovations=true` before hashing. Runtime
 `fusion_init` becomes a readiness-only call that ignores UI defaults, while
-`fusion_set_config` accepts only the already pinned digest; neither replaces the
+`fusion_set_config` accepts only the already pinned digest. Neither replaces the
 active startup-loaded engine. See
 [GALADRIEL_PRODUCER.md](GALADRIEL_PRODUCER.md).
 
 Per-modality measurement covariances are carried or set by the producers in
 `useROSSensors.ts`: LIDAR preserves the required positive finite three-axis
-covariance from `ros/msg/LidarDetection.msg`; radar uses good range / coarse angle
-defaults (`[0.5 m², (1°)², (1.5°)²]`); thermal uses `[2, 2, 2]` m²; and acoustic
+covariance from `ros/msg/LidarDetection.msg`. Radar uses good range / coarse angle
+defaults (`[0.5 m², (1°)², (1.5°)²]`). Thermal uses `[2, 2, 2]` m². And acoustic
 uses `[10, 10, 10]` m². These are source contracts and defaults, not measured
 accuracy claims.
 
 The **fusion rate** (`fusionRateHz`, default 10 Hz, clamped to 1–60 Hz) is set on the
-ROS hook; measurements are buffered between cycles, with a backpressure guard that
+ROS hook. Measurements are buffered between cycles, with a backpressure guard that
 drops the oldest measurements if a topic floods. Malformed detections and buffer
 loss are counted and passed to native admission. If the registry limit is below
 the 512-item renderer/native ceiling, native admission additionally removes the
@@ -621,7 +621,7 @@ ground-truth scenarios—not a selected happy-path run.
 
 ## Known limitations and roadmap
 
-Most of this roadmap has now been implemented; the table records each item's
+Most of this roadmap has now been implemented. The table records each item's
 status and preserves the remaining scientific and deployment gaps.
 
 | # | Item | Status |
@@ -645,11 +645,11 @@ Rows 1–4, 6, and 7 are implemented. Rows 9–12 deliberately preserve the live
 producer's current deployment, projection, loss-accounting, and timing limits.
 The recovered agent transcript has been moved to
 [`docs/archive/SENSOR_FUSION_AGENT_SPECS.md`](archive/SENSOR_FUSION_AGENT_SPECS.md)
-for provenance only; it is historical, contains superseded and unsafe instructions,
+for provenance only. It is historical, contains superseded and unsafe instructions,
 and must not be used as an implementation plan. Two items are deliberately deferred:
 
 1. **Per-measurement timestamps / OOSM** (row 5). Predict each track to each
-   measurement's own time within a batch; full out-of-sequence-measurement (OOSM)
+   measurement's own time within a batch. Full out-of-sequence-measurement (OOSM)
    retrodiction is a larger feature — **defer and document** (no recovered spec).
 2. **Full 3×3 measurement covariances** (row 8) across the TS↔Rust boundary, including
    the polar→Cartesian Jacobian cross-terms and Doppler off-diagonals.
@@ -686,12 +686,12 @@ errors are logged, and the file may contain sensitive track/timing data. Use a
 regular local file only. Without an active producer, append/flush is synchronous
 inside the blocking fusion job after the fusion lock is released, so slow or
 special storage can still delay the command. With the producer active, JSONL
-copies use a separate capacity-16 drop-new frame channel; archive admission never
-waits for channel capacity or file I/O; admission failure latches producer
-degradation before summary admission; and the writer thread performs blocking
+copies use a separate capacity-16 drop-new frame channel. Archive admission never
+waits for channel capacity or file I/O. Admission failure latches producer
+degradation before summary admission. And the writer thread performs blocking
 I/O. An `ncp`-feature startup preflights a
 configured sink. The worker validates and serializes the complete batch before
-writing; write/flush failure latches degradation and stops the worker, although
+writing. Write/flush failure latches degradation and stops the worker, although
 a mid-write OS failure can leave part of the already-validated batch. Exit waits
 two seconds for that thread but
 cannot abort a blocked standard thread. This archive channel is separate from
@@ -701,18 +701,18 @@ This local file is independent of the live producer. When the `ncp` feature and
 exact runtime opt-in are both active, `fusion_process` instead also wraps the
 same compatible observations in strict sidecar envelopes and emits a complete
 monitor ledger to two named-perception routes. That wiring does not upgrade a
-JSONL test into receiver, ACL, or delivery evidence; see
+JSONL test into receiver, ACL, or delivery evidence. See
 [GALADRIEL_PRODUCER.md](GALADRIEL_PRODUCER.md).
 
 Semantics:
 
 - `nis = yᵀS⁻¹y` uses the state entering that measurement update. Independent
   co-located follow-up measurements therefore see the sequentially conditioned
-  state; correlated same-capture shadows never receive another update.
+  state. Correlated same-capture shadows never receive another update.
 - Track birth has no prior innovation and emits nothing. A skipped update with an
   unusable innovation covariance also emits nothing.
 - Visual/thermal/acoustic/lidar use Cartesian meters. EKF radar NIS derives from
-  the polar `[m, rad, rad]` residual; non-EKF radar uses its Cartesian conversion.
+  the polar `[m, rad, rad]` residual. Non-EKF radar uses its Cartesian conversion.
 - Particle and IMM filters do not emit these records because this implementation
   has no single compatible innovation covariance for them.
 

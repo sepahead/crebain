@@ -4,7 +4,7 @@ Review basis: frozen commit `4c311900ade5668200a48d56fb191be1916b884a`,
 the 314-file frozen ledger, the F001–F039/S001–S025 defect register, and the
 0.9 candidate diff. This is a lead/coordinator review supported by separate
 agent contexts, not independent human review. “Resolved” below means fixed or
-removed from the narrow 0.9 claim; it does not close the supplied 1.0 ledger.
+removed from the narrow 0.9 claim. It does not close the supplied 1.0 ledger.
 
 | Lens | Candidate finding and disposition | Evidence | 0.9 status |
 |---|---|---|---|

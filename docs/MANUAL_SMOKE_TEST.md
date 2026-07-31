@@ -32,7 +32,7 @@ The **Automated** column describes repository coverage, not a result for this
 candidate:
 
 - ✅ deterministic automated boundary coverage exists;
-- 🟡 partial coverage exists, but the live path still needs observation; and
+- 🟡 partial coverage exists, but the live path still needs observation.
 - ⬜ target environment/operator evidence only.
 
 | Step | Expected result | Automated | Result |

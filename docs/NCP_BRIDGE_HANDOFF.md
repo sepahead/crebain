@@ -79,7 +79,7 @@ proposal channel and horizon, enforces SDK sequence/TTL semantics, and emits a
 zero-velocity proposal when no usable command remains. Each loop owns subscriber handles that are dropped on
 stop/close/cancellation. Lifecycle operations are serialized per session, so a
 loop cannot install after close without a successful reopen. Stop/close requests
-a final HOLD before remote close; a stuck or panicked callback is reported after
+a final HOLD before remote close. A stuck or panicked callback is reported after
 the one-second stop bound instead of claiming success. Reconnect drains the old
 runtime's action loops before replacing the managed bridge.
 Action reservations and persistent close tombstones are cardinality-bounded;
@@ -103,7 +103,7 @@ only after an exact runtime opt-in and fail-closed deployment preflight. It pins
 the canonical registry, selected frame/context, actual effective fusion config,
 and actual running executable before opening secure-mode Zenoh. Registered
 `fusion_process` calls then admit frozen sidecar observations plus ordered
-outcomes/misses/summaries to bounded queues; a separate lane generates health
+outcomes/misses/summaries to bounded queues. A separate lane generates health
 heartbeats. Only `galadriel-pid` and `galadriel-monitor` named-perception keys
 are constructed.
 
@@ -153,14 +153,14 @@ product integration updates the registry, Tauri handler, tests, and UI together.
 The Galadriel producer does not complete any item in this action/authority list.
 Its remaining deployment work is to run the available receiver-side
 tap/assembler on the exact topology and retain registry-agreement evidence;
-actual TLS identities/certificates/ACLs; principal-to-`producer_id`
-binding; and loss, reorder, duplicate, restart, saturation, heartbeat-deadline,
+actual TLS identities/certificates/ACLs. Principal-to-`producer_id`
+binding. And loss, reorder, duplicate, restart, saturation, heartbeat-deadline,
 and shutdown evidence on the exact topology.
 
 ## Non-goals and evidence limits
 
 - CREBAIN must not become an NCP commander or depend on Engram for a core result.
-- Protocol changes belong in the NCP repository; project mapping remains here.
+- Protocol changes belong in the NCP repository. Project mapping remains here.
 - Raw simulation outputs are not calibrated biological/scientific results.
 - The local `CREBAIN_PID_JSONL` sink is separate from the live NCP producer. Its
   parser/NIS tests do not prove Galadriel correlation, PID actuation, realm ACLs,

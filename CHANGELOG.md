@@ -4,10 +4,19 @@ All notable changes to CREBAIN are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-This project is a research prototype; capability statuses are tracked in the
+This project is a research prototype. Capability statuses are tracked in the
 README and treated as unverified until measured on target hardware.
 
 ## [Unreleased]
+
+### Added
+
+- Added the Engram restricted host embedding. The `engram.host.v1` bridge
+  sends bounded readiness and read-only status from an `engramHost=1` frame.
+  The document-lifetime latch disables native backend, detection, fusion,
+  telemetry, artifact exchange, simulation, scene mutation, and NCP paths.
+  Engram continues bounded health challenges and a native-IPC accessibility
+  probe after readiness.
 
 ### Changed
 
@@ -25,6 +34,15 @@ README and treated as unverified until measured on target hardware.
   Playwright to 1.62.0, and related development tools to compatible releases.
 - Updated the direct Rust `base64` dependency to 0.23.0.
 - Updated CodeQL to 4.37.3 and OpenSSF Scorecard to 2.4.4 by immutable commit.
+
+### Fixed
+
+- Failed safely when UI scale storage is unavailable.
+- Normalized non-finite UI scale inputs.
+
+### Removed
+
+- Removed inert Rust dependency surfaces.
 
 ### Security
 
@@ -56,15 +74,15 @@ Open-source readiness, evidence, and quality hardening.
   closed. `bun run check:production-vendors` binds package/module/payload/AST
   shapes, adversarial mutations, and the local byte/texture runtimes; the build
   report also records exact vendor-module membership for finalized-chunk checks.
-- **Unwired single-reference-instant apply-check observation candidate.** One
-  generation-checked coherent health snapshot is loaded first. Only then is a
-  private plant-monotonic reference instant minted, with health ages computed
+- **Unwired single-reference-instant apply-check observation candidate.** The
+  candidate loads one generation-checked coherent health snapshot first. It then
+  mints a private plant-monotonic reference instant and computes health ages
   before command receipt age relative to that same instant. The retained
   observation records the command's strict requested-lifetime relation
   (equality is outside), neutral lifecycle state/generation, and all eight
   profile-bound health-age relations from one check. Exact profile or
-  command/lifecycle generation mismatch precedes the health load;
-  missing/poisoned/wrong-generation health and health clock regression precede
+  command/lifecycle generation mismatch precedes the health load.
+  Missing/poisoned/wrong-generation health and health clock regression precede
   command clock regression, followed by health-policy mismatch.
   Success is evidence only and can still contain an expired command, any
   `PlantState` including `Emergency` or `Shutdown`, stale ages, and

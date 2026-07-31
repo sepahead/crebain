@@ -43,7 +43,7 @@ Every enabled deployment requires:
 CREBAIN does not mint or persist the epoch. Deployment orchestration must
 provision a new unique `CREBAIN_GALADRIEL_EPOCH` for every process lifetime and
 prevent reuse across restarts. Startup proves only that the supplied value is a
-single key-safe segment; it does not prove freshness, durable uniqueness, or
+single key-safe segment. It does not prove freshness, durable uniqueness, or
 anti-rollback.
 
 `CREBAIN_GALADRIEL_FUSION_CONFIG_PATH` is optional. When present, it names a
@@ -62,14 +62,14 @@ For this source baseline, the literal default configuration with no JSONL
 override has canonical digest
 `7f297598c2419b659fad9f74edcf580feecb4530b8d01ecd82d005e206966076`.
 That value is component-test pinned. It is not the effective digest when
-`CREBAIN_PID_JSONL` is present or any configuration field differs; provision the
+`CREBAIN_PID_JSONL` is present or any configuration field differs. Provision the
 digest of the actual fully materialized effective configuration in those cases.
 When the live producer is active, JSONL copies enter a separate capacity-16
 frame archive channel through nonblocking drop-new admission. Queue-full,
 disconnected, or initialization failure marks the producer degraded before its
 frame summary is admitted. An `ncp`-feature startup preflights a configured sink
 before opening the producer session. The writer validates and serializes a whole
-batch before its first write; write or flush failure permanently degrades the
+batch before its first write. Write or flush failure permanently degrades the
 epoch and terminates the archive worker. This archive path is not one of the four
 NCP lanes, and a later OS write failure can still leave a partial already-
 validated batch.
@@ -88,7 +88,7 @@ actual running executable file SHA-256
 
 All checks occur before the NCP session opens. Provision the executable digest
 from the final post-signing/post-packaging executable, not an intermediate build.
-The executable pin covers that one file only; it does not cover dynamic
+The executable pin covers that one file only. It does not cover dynamic
 libraries, models, resources, firmware, the operating system, or every byte
 already mapped into a process. The digest equalities prove consistency, not
 provenance or signature validity. The environment/registry digest becomes a
@@ -132,7 +132,7 @@ configured process epoch:
 The first carries frozen Galadriel sidecar envelopes. The second carries ordered
 modality outcomes, aggregate misses, frame summaries, and periodic producer
 heartbeats. The envelope codecs, bounds, and golden bytes mirror the pinned NCP
-and Galadriel component contracts. This is a narrow raw NCP `put` path; it does
+and Galadriel component contracts. This is a narrow raw NCP `put` path. It does
 not restore a generic renderer, ROS, service, setpoint, action, or FCU publisher.
 
 CREBAIN does not execute registry transform chains. A common consistency
@@ -140,28 +140,28 @@ projection is present only when the measurement's `source_frame_id` already
 equals the selected registry frame's canonical ENU identity and that modality's
 transform chain is empty. Otherwise the observation/outcome remains explicitly
 incomparable. A matching frame-name string is provenance supplied through the
-fusion input; it is not cryptographic sensor authentication or evidence that a
+fusion input. It is not cryptographic sensor authentication or evidence that a
 calibration was applied.
 
 Time eligibility is equally strict. Every measurement in a nonempty native frame
 must exactly equal the frame timestamp, which must advance the fusion prior.
 Future, lagged, mixed-time, replayed/nonadvancing, and out-of-order inputs reject the whole
-frame before prediction or evidence mutation; there is no time-inexact baseline
+frame before prediction or evidence mutation. There is no time-inexact baseline
 update. A frozen-v1 observation or common projection additionally requires that
 timestamp to be strictly newer for the same track/modality channel. Timestamp zero
-explicitly initializes the fusion clock; it is not confused with an uninitialized
+explicitly initializes the fusion clock. It is not confused with an uninitialized
 clock. Per-channel high-water state is removed when its track leaves the live set.
 
 Inside an assigned co-located cluster, one `(sensor_id, modality, timestamp_ms,
 source_frame_id)` correlation identity can correct the track only once. The
-deterministic lowest-Cartesian-noise representative is effective; independent
+deterministic lowest-Cartesian-noise representative is effective. Independent
 sensor identities remain separate observations. This applies before optional
 Galadriel selection, so repeated processing of one sensor capture cannot
 artificially tighten the native posterior or IMM mode probabilities.
 
 Renderer ingestion stays in the sensor/header clock domain. One visual detector
 pass stamps all of its tracks once. Each fusion frame uses the maximum of the
-previous successfully admitted clock and its newest input stamp; an empty frame
+previous successfully admitted clock and its newest input stamp. An empty frame
 reuses that high-water. Before any data, an empty frame uses neutral zero, which
 the active native path clamps to the selected frame/context applicability floor.
 The renderer commits its high-water only after native success, so a rejected
@@ -184,7 +184,7 @@ ledger emits `unsupported_filter` without fabricated numeric gate evidence or a
 v1 observation.
 
 `FusionConfig::default()` has `emit_innovations=false`. That flag controls the
-legacy automatic innovation buffer/local JSONL path; it does not suppress the
+legacy automatic innovation buffer/local JSONL path. It does not suppress the
 explicit live `process_frame` evidence API. An enabled producer using the literal
 default can therefore construct compatible frozen-v1 sidecar observations as
 well as monitor evidence. Setting `CREBAIN_PID_JSONL` still forces the legacy flag
@@ -196,20 +196,20 @@ no compatible v1 innovation record.
 
 Observations, outcomes/misses, summaries, and heartbeats use independent bounded
 lanes. A full lane drops the newest item, increments saturating loss counters,
-and permanently latches the producer epoch degraded; affected frame summaries
+and permanently latches the producer epoch degraded. Affected frame summaries
 are marked degraded/truncated when they can be admitted. Ordered monitor sequence
 numbers are reserved before lane admission, so a dropped event leaves an
 observable sequence gap rather than being silently renumbered.
 
 Loss before those four lanes is explicit but has different accounting. The
-renderer counts malformed detections and buffer trimming; native admission adds
+renderer counts malformed detections and buffer trimming. Native admission adds
 any trimming required by the registry's `max_frame_inputs`. Both retain the
 newest bounded inputs. A nonzero upstream count permanently degrades the epoch
 and marks the admitted frame summary degraded/truncated. At the active-track cap,
 fusion deterministically discards whole overflow birth clusters before mutation,
 builds one final bounded association plan, and likewise closes a
 degraded/truncated frame instead of wedging the epoch. The current wire summary
-does not carry the numeric upstream/cluster-drop count; deployments must retain
+does not carry the numeric upstream/cluster-drop count. Deployments must retain
 producer logs as well as receiver evidence.
 
 The assignment solver decomposes sparse finite components and short-circuits a
@@ -238,7 +238,7 @@ job, after the fusion lock is released, so storage latency can delay
 
 `get_system_info` reports compiled/enabled state, the selected identities and
 digests, epoch, queue depths, counters, and the sticky degraded bit. A successful
-local `put` increments protocol-named `published` counters; it does not mean a
+local `put` increments protocol-named `published` counters. It does not mean a
 Galadriel receiver delivered, decoded, accepted, correlated, or acted on the
 event.
 
@@ -259,7 +259,7 @@ configuration, registry, and topology:
 - verified router and receiver payload-size limits at least as large as every
   permitted sidecar/monitor envelope, with oversize negative tests;
 - loss, reorder, duplicate, restart, partition, queue-saturation, clock, and
-  shutdown campaigns with receiver-side artifacts; and
+  shutdown campaigns with receiver-side artifacts.
 - scientific calibration/accuracy evidence if any claim goes beyond advisory raw
   consistency telemetry.
 

@@ -49,14 +49,14 @@ BIN container, rejects external resources and duplicate JSON keys, verifies all
 buffer-view spans, and applies glTF component/type/stride rules to every
 accessor. Accessor count, packed/interleaved spans, and sparse index/value spans
 must be internally consistent. The aggregate decoded accessor working set is
-bounded to 256 MiB independently of compressed/source size; this prevents a tiny
+bounded to 256 MiB independently of compressed/source size. This prevents a tiny
 manifest from declaring loader-scale geometry amplification.
 Draco, meshopt, GPU-instancing, punctual-light, and texture-transform
 extensions are outside this bounded profile because their derived
 allocation/render expansion is not represented by the ordinary accessor and
 node spans alone. Material texture references must use texture coordinate set
 zero so `GLTFLoader` does not clone textures into uncounted GPU identities.
-Primitive modes 0-4 are accepted; triangle-strip and triangle-fan modes are
+Primitive modes 0-4 are accepted. Triangle-strip and triangle-fan modes are
 rejected because `GLTFLoader` expands their indices before rendering.
 
 Structural preflight also enforces these loader-work ceilings before parsing:
@@ -79,7 +79,7 @@ by many nodes, an image used with distinct sampler indices, a hierarchy reused
 by many scenes, or one animation sampler reused by many channels. Animation
 output shape/count is checked against target path, interpolation, keyframes, and
 morph-target cardinality. Mesh extras are charged once per primitive object and
-again across node clones; camera metadata is charged across camera-node clones;
+again across node clones. Camera metadata is charged across camera-node clones;
 material metadata uses a conservative bound over base, Points/Line, and
 geometry-feature variants.
 
@@ -89,7 +89,7 @@ concurrently parsing GLBs in aggregate. Validation summaries are reserved
 synchronously before `GLTFLoader.parse`, retained with accepted assets, and
 released when each parse actually settles. A generation reset or unmount fences
 stale results but does not prematurely release a callback-only parse's
-reservation; removing/resetting an accepted asset releases its retained
+reservation. Removing/resetting an accepted asset releases its retained
 summary. Source bytes remain independently bounded to 128 MiB per GLB and 512
 MiB per scene. Remote GLBs reserve the full per-source ceiling before fetch and
 atomically shrink that reservation to the received length.
@@ -126,7 +126,7 @@ operator-supplied asset is safe, accurate, licensed, or suitable for deployment.
 6. Benchmarks record hardware, model digest, backend, invocation, thresholds, and fixture inputs.
 
 Native runtimes reopen a validated path. Keep the model and parent directories
-immutable and access-controlled throughout loading; this release does not claim
+immutable and access-controlled throughout loading. This release does not claim
 protection against a concurrent privileged local path replacement. Digest-pin
 the exact artifact where supported and record the loaded artifact identity.
 
