@@ -1213,9 +1213,9 @@ export function useDroneController(options: UseDroneControllerOptions) {
         }
         // Axis convention: the wire [x, y, z] is applied directly to three.js
         // world coordinates (Y-up; v[1] is the altitude rate). The Rust `ncp`
-        // feature path instead forwards the same vector as a MAVROS ENU
-        // cmd_vel (Z-up) — peers must match the convention of the path they
-        // target.
+        // feature path emits only a local `VelocitySetpointProposal` with a
+        // caller-supplied frame identity; it performs no MAVROS or actuator
+        // mapping.
         moveTo(id, p.x + v[0] * step, p.y + v[1] * step, p.z + v[2] * step)
         return {
           pose: posOf(id),

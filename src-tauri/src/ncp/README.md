@@ -94,6 +94,10 @@ between its authenticated principal and the envelope's declared `producer_id`.
   not extend beyond TTL;
 - inbound command JSON is capped at 256 KiB, and accepted commands retain only
   the required bounded velocity channel/horizon in the action buffer;
+- sensor payload session IDs must equal the requested route; normal command
+  payload session IDs and concrete callback keys must equal the subscribed
+  route. The legacy raw ESTOP exception is callback-key-bound but still accepts
+  an omitted or malformed payload session field;
 - Zenoh connect and each control RPC time out after 15 seconds;
 - each action subscription setup times out after 15 seconds and close prevents a
   new loop until an explicit successful reopen;

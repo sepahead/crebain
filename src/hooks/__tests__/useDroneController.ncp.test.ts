@@ -196,6 +196,16 @@ describe('dev NCP command ingress', () => {
     expect(buffer.isEstopped()).toBe(true)
   })
 
+  it('keeps ESTOP latched when a newer active command arrives', () => {
+    const stream = new DevNcpCommandStream()
+    stream.ingest(1, activeCommand(1))
+    expect(() => stream.ingest(Number.NaN, { mode: 'estop' })).toThrow()
+
+    stream.ingest(1.01, activeCommand(2))
+    expect(stream.isEstopped()).toBe(true)
+    expect(stream.active(1.01)).toBeNull()
+  })
+
   it('isolates entity streams and requires a fresh command after reset', () => {
     const first = new DevNcpCommandStream()
     const second = new DevNcpCommandStream()

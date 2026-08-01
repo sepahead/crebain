@@ -86,6 +86,16 @@ Action reservations and persistent close tombstones are cardinality-bounded;
 tombstone saturation fails closed until reconnect rather than evicting safety
 state.
 
+The sensor publisher requires the payload `session_id` to equal its requested
+transport route. Normal command ingress requires both the concrete callback key
+and the decoded payload `session_id` to match the subscribed route before it can
+change `CommandPlant`. The legacy wire-0.8 raw ESTOP exception is checked against
+the concrete callback key, but it still accepts an omitted or malformed payload
+session field. These checks are not transport-principal authentication or a
+native-1.0 live-generation/authority lease. This local wire-0.8 hardening does
+not satisfy NCP ecosystem ledger task C01 or C02. It is not native-1.0
+qualification evidence.
+
 Lifecycle RPCs use the pinned SDK's `ZenohNcpClient` typed gates. Wire 0.8 checks
 the raw envelope before deserialization, requires explicit lifecycle result
 fields, binds reply kind/session to the originating request, and validates
@@ -153,9 +163,9 @@ product integration updates the registry, Tauri handler, tests, and UI together.
 The Galadriel producer does not complete any item in this action/authority list.
 Its remaining deployment work is to run the available receiver-side
 tap/assembler on the exact topology and retain registry-agreement evidence;
-actual TLS identities/certificates/ACLs. Principal-to-`producer_id`
-binding. And loss, reorder, duplicate, restart, saturation, heartbeat-deadline,
-and shutdown evidence on the exact topology.
+audit the actual TLS identities, certificates, and ACLs; bind the authenticated
+principal to `producer_id`; and obtain loss, reorder, duplicate, restart,
+saturation, heartbeat-deadline, and shutdown evidence on the exact topology.
 
 ## Non-goals and evidence limits
 

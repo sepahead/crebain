@@ -163,6 +163,20 @@ fn verify_reply_session(
     }
 }
 
+fn verify_payload_session(
+    frame_kind: &str,
+    routed_session_id: &str,
+    payload_session_id: &str,
+) -> Result<(), String> {
+    if payload_session_id == routed_session_id {
+        Ok(())
+    } else {
+        Err(format!(
+            "NCP {frame_kind} session id does not match the transport route"
+        ))
+    }
+}
+
 fn spike_count(frame: &ObservationFrame, port: &str, target: &str) -> Result<f64, String> {
     let observation = frame
         .records
@@ -755,9 +769,15 @@ async fn run_action_loop(
 
 fn ingest_command_payload(
     plant: &Mutex<CommandPlant>,
+    expected_session_id: &str,
+    expected_key: &str,
+    received_key: &str,
     now_s: f64,
     bytes: &[u8],
 ) -> Result<(), String> {
+    if received_key != expected_key {
+        return Err("NCP command transport key does not match the subscribed route".into());
+    }
     if bytes.len() > MAX_COMMAND_PAYLOAD_BYTES {
         return Err(format!(
             "NCP command payload exceeds the {MAX_COMMAND_PAYLOAD_BYTES}-byte limit"
@@ -766,14 +786,25 @@ fn ingest_command_payload(
     let envelope: serde_json::Value = serde_json::from_slice(bytes)
         .map_err(|error| format!("invalid NCP command JSON: {error}"))?;
     if envelope.get("mode").and_then(serde_json::Value::as_str) == Some("estop") {
-        // A recognizable ESTOP is fail-safe even when a peer omitted or skewed
-        // any other typed field. Every other mode must pass the full wire-0.8 gate.
+        // After the concrete callback key matches, a recognizable ESTOP is
+        // fail-safe even when a peer omitted or skewed any other typed field.
+        // Every other mode must pass the full wire-0.8 and payload-session gates.
         return lock_unpoisoned(plant).on_command(now_s, minimal_estop_command());
     }
 
     let command = ncp_core::decode_validated::<CommandFrame>(bytes)
         .map_err(|error| format!("invalid NCP command frame: {error}"))?;
+    verify_payload_session("command frame", expected_session_id, &command.session_id)?;
     lock_unpoisoned(plant).on_command(now_s, command)
+}
+
+fn encode_sensor_payload_for_route(
+    session_id: &str,
+    frame: &SensorFrame,
+) -> Result<Vec<u8>, String> {
+    validate_session_id(session_id)?;
+    verify_payload_session("sensor frame", session_id, &frame.session_id)?;
+    serde_json::to_vec(frame).map_err(|error| error.to_string())
 }
 
 /// CREBAIN's NCP bridge: a Zenoh-backed NCP client (perception/sim service via
@@ -964,13 +995,13 @@ impl NcpBridge {
     /// Publish a `SensorFrame` on the perception plane. The SDK configures this
     /// plane as `CongestionControl::Drop` + `Priority::DataHigh` + `express(false)`;
     /// reliability is left at Zenoh's default (the SDK does not set Best-Effort).
+    /// The payload session ID must equal the requested transport route.
     pub async fn publish_sensor(
         &self,
         session_id: &str,
         frame: &SensorFrame,
     ) -> Result<(), String> {
-        validate_session_id(session_id)?;
-        let bytes = serde_json::to_vec(frame).map_err(|e| e.to_string())?;
+        let bytes = encode_sensor_payload_for_route(session_id, frame)?;
         self.bus
             .put_sensor(session_id, &bytes)
             .await
@@ -978,8 +1009,10 @@ impl NcpBridge {
     }
 
     /// Subscribe to the action plane and emit a bounded 50 Hz local proposal stream.
-    /// A recognizable raw ESTOP latches before the wire gate; all other commands
-    /// pass the gate and strict velocity-channel validation into [`CommandPlant`].
+    /// The concrete callback key must equal the subscribed route. A recognizable
+    /// raw ESTOP then latches before the payload wire gate; all other commands
+    /// must also carry the routed session ID and pass strict velocity-channel
+    /// validation into [`CommandPlant`].
     /// The loop continuously enforces monotonic sequence, horizon replay, TTL
     /// expiry, and fail-safe HOLD. Its dedicated subscriber is dropped on
     /// stop/close/cancellation. The callback must be nonblocking and nonpanicking.
@@ -1008,6 +1041,11 @@ impl NcpBridge {
         F: Fn(VelocitySetpointProposal) + Send + Sync + 'static,
     {
         validate_session_id(session_id)?;
+        let expected_key = self
+            .bus
+            .keys()
+            .try_command(session_id)
+            .map_err(|error| error.to_string())?;
         let lifecycle_lock = self.lifecycle_lock(session_id)?;
         let _lifecycle_guard = lifecycle_lock.lock().await;
         self.actions.reserve(session_id)?;
@@ -1016,12 +1054,20 @@ impl NcpBridge {
         let command_plant = Arc::clone(&plant);
         let action_bus =
             ZenohBus::from_session(Arc::clone(self.bus.session()), self.bus.keys().clone());
+        let expected_session_id = session_id.to_owned();
         let subscribe_result = rpc_with_timeout(
             "action_subscribe",
             NCP_RPC_TIMEOUT,
-            action_bus.subscribe_commands(session_id, move |_key, bytes| {
+            action_bus.subscribe_commands(session_id, move |key, bytes| {
                 let now_s = started.elapsed().as_secs_f64();
-                if let Err(error) = ingest_command_payload(&command_plant, now_s, &bytes) {
+                if let Err(error) = ingest_command_payload(
+                    &command_plant,
+                    &expected_session_id,
+                    &expected_key,
+                    &key,
+                    now_s,
+                    &bytes,
+                ) {
                     match ncp_core::diagnose_version(&bytes) {
                         Some(version_error) => {
                             log::warn!("ncp: dropped command frame ({version_error})")
@@ -1200,6 +1246,19 @@ mod tests {
             channels: command_channels(values, unit),
             ..Default::default()
         }
+    }
+
+    fn test_command_key(session_id: &str) -> String {
+        Keys::new("test/ncp").command(session_id)
+    }
+
+    fn ingest_test_command_payload(
+        plant: &Mutex<CommandPlant>,
+        now_s: f64,
+        bytes: &[u8],
+    ) -> Result<(), String> {
+        let key = test_command_key(TEST_SID);
+        ingest_command_payload(plant, TEST_SID, &key, &key, now_s, bytes)
     }
 
     #[test]
@@ -1454,6 +1513,26 @@ mod tests {
     }
 
     #[test]
+    fn sensor_publish_binds_payload_session_before_transport() {
+        let frame = SensorFrame {
+            stream: test_stream(1),
+            session: test_session(),
+            session_id: TEST_SID.into(),
+            ..Default::default()
+        };
+        let bytes = encode_sensor_payload_for_route(TEST_SID, &frame).unwrap();
+        assert!(ncp_core::validate_sensor_plane_payload(&bytes).is_ok());
+
+        let mismatched = SensorFrame {
+            session_id: "other-session".into(),
+            ..frame
+        };
+        let error = encode_sensor_payload_for_route(TEST_SID, &mismatched)
+            .expect_err("a payload for another session must not reach put_sensor");
+        assert!(error.contains("sensor frame session id does not match"));
+    }
+
+    #[test]
     fn only_valid_active_commands_can_produce_nonzero_velocity() {
         let active = active_command(vec![5.0, 5.0, 5.0], Some("m/s"));
         assert_eq!(
@@ -1619,8 +1698,62 @@ mod tests {
     fn oversized_command_payload_is_rejected_before_json_decode() {
         let plant = Mutex::new(CommandPlant::new("base"));
         let bytes = vec![b' '; MAX_COMMAND_PAYLOAD_BYTES + 1];
-        let error = ingest_command_payload(&plant, 0.0, &bytes).unwrap_err();
+        let error = ingest_test_command_payload(&plant, 0.0, &bytes).unwrap_err();
         assert!(error.contains("command payload exceeds"));
+    }
+
+    #[test]
+    fn command_ingress_accepts_matching_key_and_payload_session() {
+        let plant = Mutex::new(CommandPlant::new("base"));
+        let bytes = serde_json::to_vec(&active_command(vec![1.0, 0.0, 0.0], Some("m/s"))).unwrap();
+        ingest_test_command_payload(&plant, 0.0, &bytes).unwrap();
+        assert_eq!(
+            lock_unpoisoned(&plant).velocity_at(0.01).twist.linear,
+            [1.0, 0.0, 0.0]
+        );
+    }
+
+    #[test]
+    fn command_payload_session_mismatch_cannot_replace_active_state() {
+        let plant = Mutex::new(CommandPlant::new("base"));
+        let first = serde_json::to_vec(&active_command(vec![1.0, 0.0, 0.0], Some("m/s"))).unwrap();
+        ingest_test_command_payload(&plant, 0.0, &first).unwrap();
+
+        let mut mismatched = active_command(vec![9.0, 0.0, 0.0], Some("m/s"));
+        mismatched.stream.seq = 2;
+        mismatched.session_id = "other-session".into();
+        let bytes = serde_json::to_vec(&mismatched).unwrap();
+        let error = ingest_test_command_payload(&plant, 0.01, &bytes)
+            .expect_err("a command for another session must be dropped");
+        assert!(error.contains("command frame session id does not match"));
+        assert_eq!(
+            lock_unpoisoned(&plant).velocity_at(0.02).twist.linear,
+            [1.0, 0.0, 0.0]
+        );
+    }
+
+    #[test]
+    fn hostile_callback_key_cannot_latch_raw_estop() {
+        let plant = Mutex::new(CommandPlant::new("base"));
+        let first = serde_json::to_vec(&active_command(vec![1.0, 0.0, 0.0], Some("m/s"))).unwrap();
+        ingest_test_command_payload(&plant, 0.0, &first).unwrap();
+
+        let expected_key = test_command_key(TEST_SID);
+        let hostile_key = test_command_key("other-session");
+        let error = ingest_command_payload(
+            &plant,
+            TEST_SID,
+            &expected_key,
+            &hostile_key,
+            0.01,
+            br#"{"mode":"estop"}"#,
+        )
+        .expect_err("a callback key outside the exact route must be dropped first");
+        assert!(error.contains("transport key does not match"));
+        assert_eq!(
+            lock_unpoisoned(&plant).velocity_at(0.02).twist.linear,
+            [1.0, 0.0, 0.0]
+        );
     }
 
     #[test]
@@ -1638,7 +1771,7 @@ mod tests {
             ..Default::default()
         })
         .unwrap();
-        assert!(ingest_command_payload(&plant, 0.01, &malformed_active).is_err());
+        assert!(ingest_test_command_payload(&plant, 0.01, &malformed_active).is_err());
         assert_eq!(
             lock_unpoisoned(&plant).velocity_at(0.01).twist.linear,
             [1.0, 0.0, 0.0]
@@ -1649,9 +1782,18 @@ mod tests {
             ..Default::default()
         })
         .unwrap();
-        ingest_command_payload(&plant, f64::NAN, &unstamped_estop).unwrap();
+        ingest_test_command_payload(&plant, f64::NAN, &unstamped_estop).unwrap();
         assert_eq!(
             lock_unpoisoned(&plant).velocity_at(0.02).twist.linear,
+            [0.0, 0.0, 0.0]
+        );
+
+        let mut newer_active = active_command(vec![8.0, 0.0, 0.0], Some("m/s"));
+        newer_active.stream.seq = 2;
+        let newer_active = serde_json::to_vec(&newer_active).unwrap();
+        ingest_test_command_payload(&plant, 0.03, &newer_active).unwrap();
+        assert_eq!(
+            lock_unpoisoned(&plant).velocity_at(0.04).twist.linear,
             [0.0, 0.0, 0.0]
         );
 
@@ -1659,7 +1801,7 @@ mod tests {
         lock_unpoisoned(&malformed_estop_plant)
             .on_command(0.0, active_command(vec![2.0, 0.0, 0.0], Some("m/s")))
             .unwrap();
-        ingest_command_payload(
+        ingest_test_command_payload(
             &malformed_estop_plant,
             f64::NAN,
             br#"{"mode":"estop","ttl_ms":"not-a-number"}"#,
@@ -1843,8 +1985,9 @@ mod tests {
         assert_eq!(sf.channels["pose_position"].data[0], 2.0);
 
         // ACTION: a predictive command (tick0 + 2-step horizon, 50 ms, ttl 200 ms)
-        // drives crebain's plant; the horizon is replayed through "dropouts", then
-        // it fails safe to zero velocity (HOLD) once ttl_ms expires (Engram → UAV).
+        // drives the local proposal buffer; the horizon is replayed through
+        // "dropouts", then it fails safe to zero velocity (HOLD) once ttl_ms
+        // expires. No transport or UAV actuator is exercised here.
         let mk = |x: f64| {
             let mut m = ncp_core::Map::new();
             m.insert(
