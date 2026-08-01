@@ -242,7 +242,7 @@
     },
     {
       "path": "docs/GALADRIEL_PRODUCER.md",
-      "sha256": "fe01a5aca24181fa891d192330bb886ace31ccf2ff39593f565dc95f3a7856c4"
+      "sha256": "655346313b59ad5acfdb70d902275ab44c180086f99fcb54e780a2bb2d8b6253"
     },
     {
       "path": "scripts/fixtures/phase0-evidence-artifact-valid.json",
