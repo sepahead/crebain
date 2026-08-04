@@ -72,10 +72,13 @@ units/shapes/speeds, sequence, TTL, and horizon bounds. Connect and control RPCs
 are bounded by 15-second timeouts.
 
 Native connect defaults to `Secure`: `NCP_ZENOH_CONFIG` must name a readable
-Zenoh configuration or startup fails closed. `QuietDevelopment` is an explicit
-unauthenticated development choice. Loading either configuration is not proof
-that the target TLS identities, ACL policy, certificates, or topology are
-correct.
+Zenoh configuration or startup fails closed. `QuietDevelopment` selects the
+pinned SDK's generic `open_realm` path. If `NCP_ZENOH_CONFIG` is unset, that path
+uses the scouting-off default and does not establish authentication. If the
+variable is set, the path loads an arbitrary configuration without the strict
+secure-client validation. Neither outcome is deployment-security evidence.
+Loading a configuration does not prove that the target TLS identities, access
+control list (ACL) policy, certificates, or topology are correct.
 
 `NcpBridge::subscribe_commands` feeds wire-validated frames into `CommandPlant`
 and runs a 50 Hz local-proposal loop. A recognizable raw ESTOP latches first;

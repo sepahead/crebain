@@ -69,13 +69,16 @@ cannot then be guaranteed. The callback has no transport or actuator capability.
 
 `NcpBridge::connect` and the dormant `ncp_connect` command default to `Secure`.
 That path requires `NCP_ZENOH_CONFIG` to name a readable Zenoh configuration;
-missing or malformed configuration fails closed. `QuietDevelopment` is an
-explicit unauthenticated/scouting-off development choice and must not be used as
-deployment evidence.
+missing or malformed configuration fails closed. `QuietDevelopment` selects the
+pinned SDK's generic `open_realm` path. If `NCP_ZENOH_CONFIG` is unset, that path
+uses the scouting-off default and does not establish authentication. If the
+variable is set, the path loads an arbitrary configuration without the strict
+secure-client validation. Neither outcome is deployment-security evidence.
 
 Successfully loading a configuration proves only startup posture. CREBAIN cannot
-prove that its TLS identities, ACL rules, router topology, or certificate policy
-are sufficient. Those remain target-deployment evidence.
+prove that its Transport Layer Security (TLS) identities, access control list
+(ACL) rules, router topology, or certificate policy are sufficient. Those remain
+target-deployment evidence.
 
 The sibling Galadriel producer has no `QuietDevelopment` option: enabled startup
 always requests secure mode. That remains a configuration request, not evidence

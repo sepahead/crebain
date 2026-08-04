@@ -19,12 +19,12 @@ Other agents may advance those repositories independently. CREBAIN 0.9 does
 not silently adopt such work and places no request to rewrite or retag their
 0.9 candidates.
 
-## Current upstream status
+## Recorded upstream status on 2026-07-24
 
 The 2026-07-24 recapture records these exact remote `main` identities. These
 identities update the audit baseline. They do not update a CREBAIN dependency.
 
-| Repository | Current `main` | Verified status |
+| Repository | Recorded `main` | Status recorded on 2026-07-24 |
 |---|---|---|
 | NCP | `10492c81ac671ef1909962a9f1fede33781b9933` | `1.0.0-rc.1` remains unreleased and release-blocked. `v0.8.0` remains the latest immutable compatible release. No consumer is certified for native wire 1.0. |
 | Haldir | `555108666cb82e8a36dcd4b08b5b30c62367a6f4` | The release audit reports `NO_GO`. It does not authorize a tag or GitHub release. Production hardware, timing, live control-plane, and deployment-package evidence remain incomplete. |

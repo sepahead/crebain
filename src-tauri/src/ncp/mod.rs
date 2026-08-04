@@ -819,16 +819,18 @@ pub struct NcpBridge {
 
 impl NcpBridge {
     /// Open a Zenoh session on the given NCP realm. `Secure` requires the
-    /// operator's `NCP_ZENOH_CONFIG`; `QuietDevelopment` is an explicit
-    /// unauthenticated local posture. Loading a config does not prove its
-    /// TLS/ACL policy. CREBAIN targets the Engram deployment realm `engram/ncp`
-    /// by default (see `ncp_connect`).
+    /// operator's `NCP_ZENOH_CONFIG`; `QuietDevelopment` selects the generic
+    /// `open_realm` path. With no config, that path uses the scouting-off default
+    /// and establishes no authentication. With a config, it does not apply strict
+    /// secure-client validation. Loading a config does not prove its TLS/ACL
+    /// policy. CREBAIN targets the Engram deployment realm `engram/ncp` by
+    /// default (see `ncp_connect`).
     pub async fn connect(realm: &str) -> Result<Self, String> {
         Self::connect_with_mode(realm, NcpConnectionMode::default()).await
     }
 
     /// Explicit connection-posture variant. Production callers should retain
-    /// `Secure`; `QuietDevelopment` is available only as a deliberate local opt-in.
+    /// `Secure`; `QuietDevelopment` is a deliberate, non-enforcing local opt-in.
     pub async fn connect_with_mode(realm: &str, mode: NcpConnectionMode) -> Result<Self, String> {
         validate_realm(realm)?;
         let keys = Keys::try_new(realm.to_string())
