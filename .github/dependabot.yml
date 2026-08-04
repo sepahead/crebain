@@ -5,7 +5,9 @@ updates:
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 10
+    # Disable routine version-update pull requests. Vulnerability alerts remain
+    # enabled and accepted remediations use reviewed maintenance changes.
+    open-pull-requests-limit: 0
     ignore:
       # Spark 2 and Three 0.183 exceed the exact production vendor boundary.
       - dependency-name: '@sparkjsdev/spark'
@@ -35,7 +37,9 @@ updates:
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 10
+    # Disable routine version-update pull requests. Vulnerability alerts remain
+    # enabled and accepted remediations use reviewed maintenance changes.
+    open-pull-requests-limit: 0
     ignore:
       # Candle 0.11 needs unstable ARM f16 support on the pinned stable toolchain.
       - dependency-name: 'candle-core'
@@ -58,7 +62,9 @@ updates:
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 10
+    # Disable routine version-update pull requests. Vulnerability alerts remain
+    # enabled and accepted remediations use reviewed maintenance changes.
+    open-pull-requests-limit: 0
     groups:
       github-actions:
         patterns:
