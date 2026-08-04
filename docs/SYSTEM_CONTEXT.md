@@ -102,6 +102,16 @@ and are why the current claim remains L0.
 
 ## Target L1 context
 
+Text alternative: Controllers and the operator send signed intent to Haldir.
+The target requires Haldir to publish the exclusive authenticated NCP route;
+its final version is pending convergence. The router sends that route through
+the native plant and safety governor to a typed PX4 adapter. The adapter reaches
+the simulated flight-control unit (FCU) and vehicle. Authoritative FCU state
+returns to the plant. The FCU and plant feed the evidence pipeline. The FCU also
+feeds a common projection to Galadriel. The CREBAIN fusion producer writes two
+advisory evidence keys to Galadriel. Galadriel returns advisory evidence to
+Haldir and has no command path. The plant sends read-only status to the operator.
+
 ```mermaid
 flowchart LR
   C[Controller] -->|signed typed intent| H[Haldir Gate]

@@ -30,10 +30,10 @@ README and treated as unverified until measured on target hardware.
 - Corrected the Engram integration README boundary wording. The local-window
   capability policy is the primary boundary on supported Tauri targets only, and
   the host command probe is an unattested peer report and a diagnostic canary.
-- Updated React to 19.2.8, Vite React plugin to 6.0.4, ESLint to 10.8.0,
-  Playwright to 1.62.0, and related development tools to compatible releases.
+- Updated React to 19.2.8, Vite React plugin to 6.0.5, ESLint to 10.8.0,
+  Playwright to 1.62.1, and related development tools to compatible releases.
 - Updated the direct Rust `base64` dependency to 0.23.0.
-- Updated CodeQL to 4.37.3 and OpenSSF Scorecard to 2.4.4 by immutable commit.
+- Updated CodeQL to 4.37.5 and OpenSSF Scorecard to 2.4.4 by immutable commit.
 
 ### Fixed
 
@@ -46,7 +46,7 @@ README and treated as unverified until measured on target hardware.
 
 ### Security
 
-- Updated the `brace-expansion` override to 5.0.8 after the advisory range
+- Updated the `brace-expansion` override to 5.0.9 after the advisory range
   changed to include 5.0.7.
 - Added narrow Dependabot limits for incompatible production-vendor,
   TypeScript, Candle, and safetensors upgrades.

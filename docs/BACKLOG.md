@@ -12,7 +12,7 @@ The first component slice is present, but the system remains L0. “Implemented�
 below means source plus local component tests, not integrated authority or
 hazard closure.
 
-The remaining rows are dependency-ordered by safety semantics, not by ticket
+The remaining entries are dependency-ordered by safety semantics, not by ticket
 number. An inactive contract-v1 candidate now defines closed command/frame/unit/time/profile
 types and draft instantaneous-speed/TTL rejection, but the profile artifact and canonical
 local frame remain unapproved. A profile-neutral digest-bound corpus now covers
@@ -42,34 +42,143 @@ observable mock adapter transaction. A process cannot guarantee a final action a
 must combine repeated bounded attempts while alive, immediate output cessation,
 and independently attested FCU failsafe behavior.
 
-| ID | Scope | Current disposition |
-|---|---|---|
-| CB-025 | Small native Rust plant-authority crate/process independent of renderer lifecycle | Implemented and component-tested for this inert slice: separate dependency-free package, inactive command/health/captured-age/apply-observation/safe-action-dispatch candidates, an unwired active deadline-monitor candidate, typed channel/status boundary, and headless self-check; profile approval, wire schemas, and integration topology remain pending later phases |
-| CB-026 | Explicit Boot, NoAuthority, Standby, Preflight, AuthorizedHold, Active, Degraded, Emergency, Shutdown state machine | Implemented and transition-tested with process-local generation guards and fail-closed invalid transitions; restart epoch sourcing and ODD/FCU transition preconditions remain pending |
-| CB-027 | Plant-local monotonic command-expiry watchdog | Partial component mechanics only: passive expiry remains separate, while a validated candidate can now mint a non-cloneable ticket whose deadline is exactly opaque receipt time plus a nonzero local TTL proposal no greater than the request. The copyable candidate can mint another ticket, so ownership is one slot per monitor rather than global admission. One unwired named worker owns that slot/no queue; replacement requires exact profile/session/generation and a strictly greater sequence, while clock/deadline failure wins before replacement or control and a newer sequence with an older receipt terminalizes. Exact/late deadline, caller-reported generation mismatch, shutdown, poison, and worker-panic terminal evidence is component-tested; poisoned synchronization exposes no exact active key, and worker-start failure retains the initial key plus any precomputed terminal reason. No authenticated admission, global single-monitor enforcement, autonomous lifecycle observation, approved TTL policy, runtime/output coupling, immediately-before-write invalidation, safe action, suspend qualification, reserved scheduler capacity, combined-load timing, or wake-to-effect bound exists. `TEST-PLANT-ACTIVE-DEADLINE-MONITOR-V1` is partial HAZ-003 evidence; CTL-003 and `TEST-PLANT-LOCAL-TTL` remain planned |
-| CB-028 | Vehicle/ODD/state-specific safe-action table | Partial structural mechanics only: an inert candidate copies a caller-proposed nonempty unique mapping of opaque nonzero situation codes into an owned fixed 255-slot table, requires an exact full-profile match, returns no default, and exposes only a closed plant-intent vocabulary. The rows are not bound into the supplied profile digest; no authoritative health/state/trigger classifier, precedence, approved vehicle/ODD mapping, lifecycle/time input, action conversion, adapter, or physical-response evidence exists. `TEST-PLANT-SAFE-ACTION-POLICY-V1` is component evidence only; CTL-007 remains planned and HAZ-007 remains open |
-| CB-029 | Apply-time profile/frame/unit/envelope/health safety governor | Partial observation mechanics only: after exact-profile and command/lifecycle-generation prechecks, an unwired candidate loads one generation-checked coherent health snapshot, then mints one private plant-monotonic reference instant, computes health ages, and computes command receipt age relative to that instant. It retains the command's strict requested-lifetime relation (equality outside), neutral lifecycle state/generation, and all eight health-age relations. Missing/poisoned/wrong-generation health and health clock regression precede command clock regression; health-policy mismatch follows. Success is evidence only and may contain an expired command, any `PlantState` including `Emergency` or `Shutdown`, stale ages, and unknown/unavailable health. The result has no direct boolean accessor or `From` conversion to `bool` and supplies no aggregate/authorizing verdict, permit, authorization token, command content, velocity, action, output revocation, safe action, adapter operation, I/O, or runtime wiring, though callers can compare facts. The command has no `VehicleIdentity` or `LocalFrameInstanceIdentity`, so matching profile/generation can compose with health for another declared vehicle/frame instance; this is no HAZ-005/HAZ-013 evidence. The observation is remintable and not command-content-bound: matching retained IDs/TTL can describe copyable candidates with different velocity, so they must never pair it to a command as a checked token. It can stale immediately and is not a write-adjacent atomic transaction. `TEST-PLANT-APPLY-OBSERVATION-V1` is prerequisite/component evidence for its declared CTL-003/CTL-005 and HAZ-003/HAZ-006 links, but CTL-003, `TEST-PLANT-LOCAL-TTL`, and `TEST-ATOMIC-STATE-STALENESS` remain planned |
-| CB-030 | Atomic typed vehicle-health snapshot | Partial component implementation: the canonical kernel path seals a deeply immutable closed report, validates declared profile/vehicle/source/stream-epoch/generation/frame-instance identity, strict per-channel source sequence, local frame, SI units, plant-local observation times, finite vectors, and battery range, then atomically retains the coherent state and exposes eight exact ages from one read. A separate profile-bound classifier consumes that observation, rejects zero limits or exact-profile mismatch, and applies caller-proposed exclusive limits without an aggregate verdict. Generic snapshot mechanics remain disconnected. The separate apply-check observation candidate now loads one coherent health snapshot before minting the common reference instant for its health and command ages, but the ticket stays partial because the limits/profile are unapproved and do not implement the draft ODD's inclusive `<=200 ms` condition; the command carries no vehicle or frame-instance identity to bind it to that snapshot; source identity is unauthenticated; real FCU collection and multi-message coherence are unproved; channel recreation/durable epoch uniqueness are not enforced; and no approved state policy, authorizing immediately-before-write governor, or adapter exists |
-| CB-031 | Bounded ingress/latest-command/health/output/evidence paths and overflow policies | Implemented and component-tested: validated non-eager capacities, latest-value, reject-new lifecycle, drop-oldest evidence, exact loss accounting, poison/counter fail-closed behavior, post-unlock destruction, and a separate non-overwritable safety path; the one-worker deadline monitor is unwired and does not prove globally bounded monitor count, reserved scheduling, or integrated-load timing |
-| CB-032 | Cancellation-safe, deadline-bounded callbacks/shutdown/final safe action | Pending; inert adapter stop is idempotent but there is no external call, repeated bounded safe transaction, FCU observation, or independent process-loss fallback; do not claim an in-process final action after process death |
+#### CB-025
 
-| # | Next Step | Primary Outcome |
-| --- | --- | --- |
-| 1 | Validate the experimental MLX YOLOv8 safetensors path with an approved model contract, fixture detections, class mapping, and target-hardware benchmarks | Trustworthy Apple Silicon model evidence |
-| 2 | Run ROS/Gazebo/Zenoh multi-frame smoke tests against a target topology | Deployment-specific transport confidence |
-| 3 | Establish approved native-detector target baselines/thresholds, then extend the harness to sensor fusion, transport event routing, and position history | Harness mechanics exist; target evidence and wider coverage remain open |
-| 4 | Execute and archive manual smoke-test results for native launch, diagnostics, scene save/load, and ROS/Zenoh modes | Repeatable release checks |
-| 5 | Validate at least one full model contract with fixture frames, class mapping, thresholds, and benchmark context | Trustworthy demo/model evidence |
-| 6 | Extract reusable hook-test harness utilities for React root setup, `act`, IPC mocks, and cleanup | Less duplicated test code |
-| 7 | Keep tracked Markdown docs synchronized after each behavior, validation, or security-boundary change | Lower onboarding friction |
-| 8 | Deploy a Galadriel tap/monitor/cross-route assembler that pins the same registry and proves decode, identity, sequence-gap, and heartbeat-deadline behavior | Receiver-side evidence rather than producer-only puts |
-| 9 | Audit real NCP TLS/mTLS identities, certificates, router topology, principal↔`producer_id` binding, and exact allow/deny ACLs for both evidence keys | Deployment security evidence |
-| 10 | Run multi-process loss/reorder/duplicate/restart/partition/queue-saturation/slow-put/shutdown campaigns and archive both producer and receiver traces | HAZ-011/012/013 evidence and heartbeat-timeliness bounds |
-| 11 | Implement and verify registry calibration/transform/projection artifacts before allowing non-identity common projection | Frame/calibration evidence beyond string equality |
-| 12 | Qualify PID JSONL storage: enforce/verify regular-local-file policy, test the active capacity-16 archive boundary, expose archive-specific drop health, and define cleanup for a writer blocked beyond the two-second exit wait | Bounded archival behavior without confusing producer degradation or task shutdown claims |
-| 13 | Extend the frozen monitor contract and receiver to carry/validate numeric malformed, renderer-buffer, registry-trim, and track-capacity loss without weakening degraded/truncated semantics | Receiver-visible upstream-loss attribution rather than log-only counts |
-| 14 | Establish router/receiver sidecar and monitor receive-size ceilings, then run oversize allow/deny tests with the exact deployment topology | Proof that every permitted envelope is accepted or explicitly rejected before operation |
-| 15 | Benchmark sparse-assignment, maximum-batch/live-track, lane-saturation, slow-put, and JSONL interaction under one candidate process and receiver | Combined-load deadline evidence beyond component complexity tests |
+- **Scope:** Small native Rust plant-authority crate/process independent of renderer lifecycle
+
+- **Current disposition:** Implemented and component-tested for this inert slice: separate dependency-free package, inactive command/health/captured-age/apply-observation/safe-action-dispatch candidates, an unwired active deadline-monitor candidate, typed channel/status boundary, and headless self-check; profile approval, wire schemas, and integration topology remain pending later phases
+
+#### CB-026
+
+- **Scope:** Explicit Boot, NoAuthority, Standby, Preflight, AuthorizedHold, Active, Degraded, Emergency, Shutdown state machine
+
+- **Current disposition:** Implemented and transition-tested with process-local generation guards and fail-closed invalid transitions; restart epoch sourcing and ODD/FCU transition preconditions remain pending
+
+#### CB-027
+
+- **Scope:** Plant-local monotonic command-expiry watchdog
+
+- **Current disposition:** Partial component mechanics only: passive expiry remains separate, while a validated candidate can now mint a non-cloneable ticket whose deadline is exactly opaque receipt time plus a nonzero local TTL proposal no greater than the request. The copyable candidate can mint another ticket, so ownership is one slot per monitor rather than global admission. One unwired named worker owns that slot/no queue; replacement requires exact profile/session/generation and a strictly greater sequence, while clock/deadline failure wins before replacement or control and a newer sequence with an older receipt terminalizes. Exact/late deadline, caller-reported generation mismatch, shutdown, poison, and worker-panic terminal evidence is component-tested; poisoned synchronization exposes no exact active key, and worker-start failure retains the initial key plus any precomputed terminal reason. No authenticated admission, global single-monitor enforcement, autonomous lifecycle observation, approved TTL policy, runtime/output coupling, immediately-before-write invalidation, safe action, suspend qualification, reserved scheduler capacity, combined-load timing, or wake-to-effect bound exists. `TEST-PLANT-ACTIVE-DEADLINE-MONITOR-V1` is partial HAZ-003 evidence; CTL-003 and `TEST-PLANT-LOCAL-TTL` remain planned
+
+#### CB-028
+
+- **Scope:** Vehicle/ODD/state-specific safe-action table
+
+- **Current disposition:** Partial structural mechanics only: an inert candidate copies a caller-proposed nonempty unique mapping of opaque nonzero situation codes into an owned fixed 255-slot table, requires an exact full-profile match, returns no default, and exposes only a closed plant-intent vocabulary. The rows are not bound into the supplied profile digest; no authoritative health/state/trigger classifier, precedence, approved vehicle/ODD mapping, lifecycle/time input, action conversion, adapter, or physical-response evidence exists. `TEST-PLANT-SAFE-ACTION-POLICY-V1` is component evidence only; CTL-007 remains planned and HAZ-007 remains open
+
+#### CB-029
+
+- **Scope:** Apply-time profile/frame/unit/envelope/health safety governor
+
+- **Current disposition:** Partial observation mechanics only: after exact-profile and command/lifecycle-generation prechecks, an unwired candidate loads one generation-checked coherent health snapshot, then mints one private plant-monotonic reference instant, computes health ages, and computes command receipt age relative to that instant. It retains the command's strict requested-lifetime relation (equality outside), neutral lifecycle state/generation, and all eight health-age relations. Missing/poisoned/wrong-generation health and health clock regression precede command clock regression; health-policy mismatch follows. Success is evidence only and may contain an expired command, any `PlantState` including `Emergency` or `Shutdown`, stale ages, and unknown/unavailable health. The result has no direct boolean accessor or `From` conversion to `bool` and supplies no aggregate/authorizing verdict, permit, authorization token, command content, velocity, action, output revocation, safe action, adapter operation, I/O, or runtime wiring, though callers can compare facts. The command has no `VehicleIdentity` or `LocalFrameInstanceIdentity`, so matching profile/generation can compose with health for another declared vehicle/frame instance; this is no HAZ-005/HAZ-013 evidence. The observation is remintable and not command-content-bound: matching retained IDs/TTL can describe copyable candidates with different velocity, so they must never pair it to a command as a checked token. It can stale immediately and is not a write-adjacent atomic transaction. `TEST-PLANT-APPLY-OBSERVATION-V1` is prerequisite/component evidence for its declared CTL-003/CTL-005 and HAZ-003/HAZ-006 links, but CTL-003, `TEST-PLANT-LOCAL-TTL`, and `TEST-ATOMIC-STATE-STALENESS` remain planned
+
+#### CB-030
+
+- **Scope:** Atomic typed vehicle-health snapshot
+
+- **Current disposition:** Partial component implementation: the canonical kernel path seals a deeply immutable closed report, validates declared profile/vehicle/source/stream-epoch/generation/frame-instance identity, strict per-channel source sequence, local frame, SI units, plant-local observation times, finite vectors, and battery range, then atomically retains the coherent state and exposes eight exact ages from one read. A separate profile-bound classifier consumes that observation, rejects zero limits or exact-profile mismatch, and applies caller-proposed exclusive limits without an aggregate verdict. Generic snapshot mechanics remain disconnected. The separate apply-check observation candidate now loads one coherent health snapshot before minting the common reference instant for its health and command ages, but the ticket stays partial because the limits/profile are unapproved and do not implement the draft ODD's inclusive `<=200 ms` condition; the command carries no vehicle or frame-instance identity to bind it to that snapshot; source identity is unauthenticated; real FCU collection and multi-message coherence are unproved; channel recreation/durable epoch uniqueness are not enforced; and no approved state policy, authorizing immediately-before-write governor, or adapter exists
+
+#### CB-031
+
+- **Scope:** Bounded ingress/latest-command/health/output/evidence paths and overflow policies
+
+- **Current disposition:** Implemented and component-tested: validated non-eager capacities, latest-value, reject-new lifecycle, drop-oldest evidence, exact loss accounting, poison/counter fail-closed behavior, post-unlock destruction, and a separate non-overwritable safety path; the one-worker deadline monitor is unwired and does not prove globally bounded monitor count, reserved scheduling, or integrated-load timing
+
+#### CB-032
+
+- **Scope:** Cancellation-safe, deadline-bounded callbacks/shutdown/final safe action
+
+- **Current disposition:** Pending; inert adapter stop is idempotent but there is no external call, repeated bounded safe transaction, FCU observation, or independent process-loss fallback; do not claim an in-process final action after process death
+
+#### Next step 1
+
+- **Next step:** Validate the experimental MLX YOLOv8 safetensors path with an approved model contract, fixture detections, class mapping, and target-hardware benchmarks
+
+- **Primary outcome:** Trustworthy Apple Silicon model evidence
+
+#### Next step 2
+
+- **Next step:** Run ROS/Gazebo/Zenoh multi-frame smoke tests against a target topology
+
+- **Primary outcome:** Deployment-specific transport confidence
+
+#### Next step 3
+
+- **Next step:** Establish approved native-detector target baselines/thresholds, then extend the harness to sensor fusion, transport event routing, and position history
+
+- **Primary outcome:** Harness mechanics exist; target evidence and wider coverage remain open
+
+#### Next step 4
+
+- **Next step:** Execute and archive manual smoke-test results for native launch, diagnostics, scene save/load, and ROS/Zenoh modes
+
+- **Primary outcome:** Repeatable release checks
+
+#### Next step 5
+
+- **Next step:** Validate at least one full model contract with fixture frames, class mapping, thresholds, and benchmark context
+
+- **Primary outcome:** Trustworthy demo/model evidence
+
+#### Next step 6
+
+- **Next step:** Extract reusable hook-test harness utilities for React root setup, `act`, IPC mocks, and cleanup
+
+- **Primary outcome:** Less duplicated test code
+
+#### Next step 7
+
+- **Next step:** Keep tracked Markdown docs synchronized after each behavior, validation, or security-boundary change
+
+- **Primary outcome:** Lower onboarding friction
+
+#### Next step 8
+
+- **Next step:** Deploy a Galadriel tap/monitor/cross-route assembler that pins the same registry and proves decode, identity, sequence-gap, and heartbeat-deadline behavior
+
+- **Primary outcome:** Receiver-side evidence rather than producer-only puts
+
+#### Next step 9
+
+- **Next step:** Audit real NCP TLS/mTLS identities, certificates, router topology, principal↔`producer_id` binding, and exact allow/deny ACLs for both evidence keys
+
+- **Primary outcome:** Deployment security evidence
+
+#### Next step 10
+
+- **Next step:** Run multi-process loss/reorder/duplicate/restart/partition/queue-saturation/slow-put/shutdown campaigns and archive both producer and receiver traces
+
+- **Primary outcome:** HAZ-011/012/013 evidence and heartbeat-timeliness bounds
+
+#### Next step 11
+
+- **Next step:** Implement and verify registry calibration/transform/projection artifacts before allowing non-identity common projection
+
+- **Primary outcome:** Frame/calibration evidence beyond string equality
+
+#### Next step 12
+
+- **Next step:** Qualify PID JSONL storage: enforce/verify regular-local-file policy, test the active capacity-16 archive boundary, expose archive-specific drop health, and define cleanup for a writer blocked beyond the two-second exit wait
+
+- **Primary outcome:** Bounded archival behavior without confusing producer degradation or task shutdown claims
+
+#### Next step 13
+
+- **Next step:** Extend the frozen monitor contract and receiver to carry/validate numeric malformed, renderer-buffer, registry-trim, and track-capacity loss without weakening degraded/truncated semantics
+
+- **Primary outcome:** Receiver-visible upstream-loss attribution rather than log-only counts
+
+#### Next step 14
+
+- **Next step:** Establish router/receiver sidecar and monitor receive-size ceilings, then run oversize allow/deny tests with the exact deployment topology
+
+- **Primary outcome:** Proof that every permitted envelope is accepted or explicitly rejected before operation
+
+#### Next step 15
+
+- **Next step:** Benchmark sparse-assignment, maximum-batch/live-track, lane-saturation, slow-put, and JSONL interaction under one candidate process and receiver
+
+- **Primary outcome:** Combined-load deadline evidence beyond component complexity tests
 
 ## Recently completed
 

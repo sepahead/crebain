@@ -55,6 +55,11 @@ is a separate camera-only geometric estimator with a different input, state,
 identity, covariance, and output contract. It is not a substitute, oracle, or
 parity implementation of `MultiSensorFusion`.
 
+Text alternative: The browser camera estimator correlates camera detections,
+triangulates them, and returns `FusedTrack` values. Separately, ROS and visual
+measurements enter the native Rust engine through Tauri IPC. The native engine
+predicts, associates, updates, and reports tracks to the Sensor Fusion panel.
+
 ```mermaid
 graph LR
     subgraph Browser["Browser (TypeScript)"]
@@ -130,6 +135,10 @@ out the browser estimator explicitly in
 
 Each call to `fusion_process(measurements, timestamp_ms)` runs one cycle of a
 standard recursive multi-target tracker:
+
+Text alternative: Each cycle predicts existing tracks, associates gated
+measurements, updates matched tracks, creates tentative tracks from unmatched
+measurements, applies lifecycle transitions, and returns `TrackOutput` values.
 
 ```mermaid
 flowchart TD
@@ -409,6 +418,11 @@ transitions below reflect the actual Rust implementation in `update_track`,
 `min_confirmation_hits = 3` (M), `confirmation_window = 5` (N), so **3-of-5**;
 `max_missed_detections = 5` misses within the window. `max_position_cov_volume = 1e6`).
 
+Text alternative: A new track starts as Tentative. At least M hits in the last N
+opportunities confirm it. Two consecutive misses move a Tentative or Confirmed
+track to Coasting. At least M hits in the window reconfirm a Coasting track.
+Excess misses or covariance remove the track as Lost.
+
 ```mermaid
 stateDiagram-v2
     [*] --> Tentative: unassociated measurement<br/>(new track)
@@ -494,6 +508,10 @@ The browser engine (`SensorFusion.ts`) turns 2D detections from multiple cameras
 3D tracks. A bounding-box center from a single camera is **not** a 3D point — it is a
 *bearing*, a ray from the camera center through the back-projected pixel. A 3D
 position requires triangulating rays from two or more viewpoints.
+
+Text alternative: Each camera bounding-box center becomes a ray from that
+camera. A least-squares intersection of two or more rays produces a 3D position
+and residual error.
 
 ```mermaid
 flowchart LR

@@ -17,6 +17,12 @@ these documents for detailed information:
 
 ## System overview
 
+Text alternative: The React frontend sends scene, camera, fusion, and telemetry
+requests through Tauri IPC to the Rust backend. The backend provides inference,
+fusion, and read-only transport paths. The separately gated Galadriel producer
+writes two advisory NCP routes. The inert plant package has no connection to the
+application or external hardware.
+
 ```mermaid
 graph TB
     subgraph Frontend["Frontend (React 19 + TypeScript)"]
@@ -282,6 +288,11 @@ disconnecting telemetry, changing transport, or toggling simulation off aborts
 the active singleton missions and clears trajectories, proposals, and
 controller snapshots so reconnection cannot resume an earlier generation.
 
+Text alternative: The frontend reaches Rust Zenoh through registered Tauri IPC.
+The development-only TypeScript rosbridge reaches ROS telemetry by WebSocket.
+The Galadriel producer can write only two advisory evidence keys. None of these
+paths supplies a MAVROS or vehicle-command route.
+
 ```mermaid
 flowchart TB
     subgraph Tauri["TAURI APP"]
@@ -360,6 +371,12 @@ Notes:
   execution providers when present.
 
 ### Detection flow
+
+Text alternative: Camera views render WebGL pixels. A WebGL render target and
+`readPixels()` produce an RGBA buffer. Tauri IPC sends the buffer to Rust. Rust
+resizes and normalizes it, runs native inference, and applies non-maximum
+suppression. JSON detections return to the frontend. The canvas draws bounding
+boxes, threat-level colors, and track identifiers.
 
 ```mermaid
 flowchart TB

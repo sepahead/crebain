@@ -28,6 +28,10 @@ python3 scripts/verify-vendor-compat.py
 cargo deny --manifest-path src-tauri/Cargo.toml check
 ```
 
+The upstream Flume README references `misc/benchmarks.png`, which is absent
+from the published source archive. The overlay preserves that upstream
+documentation defect.
+
 To reproduce the provenance manifest, download the four named `.crate` files
 from their recorded `archive_url` values into a trusted temporary directory,
 verify their recorded archive hashes out of band, and run:

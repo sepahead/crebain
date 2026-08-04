@@ -80,7 +80,11 @@ Do not send secrets or authority through the host protocol.
 
 The protocol accepts no host command.
 It does not enable NCP, a closed loop, artifact exchange, or plant authority.
-CREBAIN wire 0.8 remains incompatible with Engram candidate wire 1.0.
+CREBAIN pins the latest immutable NCP release, `v0.8.0` (wire `0.8`). The NCP
+`1.0.0-rc.1` candidate uses wire `1.0` and compact proto contract hash
+`163acc57d8a62b66`. It is unreleased, release-blocked, and incompatible with
+wire `0.8`. No native-1.0 role is certified. Engram's native-1.0 migration
+worktree is neither an installed artifact nor a live certification result.
 
 ## Validation
 

@@ -84,8 +84,9 @@ bun run validate:all
 | Production renderer-vendor, GLB loader, or Vite artifact-boundary changes | `bun run check:production-vendors` and `bun run check:bundle`; use `bun run validate` for the complete frontend gate |
 | Rust, Tauri IPC, model loading, scene persistence, ROS, Zenoh, transport, or sensor fusion changes | `bun run validate:all` |
 | Headless plant package, command/health/captured-age/safe-action/deadline-monitor/apply-observation contract, frame corpus, lifecycle, or channel-policy changes | `bun run check:plant-boundary`, `bun run check:plant-frames`, and `bun run validate:all` |
-| 0.9 research/source/package prerelease | `bun run validate:all`; manual rows may remain explicitly pending only under the exclusions in `docs/NARROWED_GO_0.9.0.md` |
-| Demo, operational/deployment, or 1.0 readiness claims | `bun run validate:all` plus completed `docs/MANUAL_SMOKE_TEST.md` evidence |
+| 0.9 research/source/package prerelease | `bun run validate:all`; manual entries may remain explicitly pending only under the exclusions in `docs/NARROWED_GO_0.9.0.md` |
+| Demo or operational/deployment claim | `bun run validate:all`, completed `docs/MANUAL_SMOKE_TEST.md` evidence, and every applicable target/topology entry in `docs/RELEASE_ACCEPTANCE.md`; manual smoke alone is not sufficient |
+| CREBAIN or NCP 1.0 readiness/tag claim | Prohibited while NCP `1.0.0-rc.1` is unreleased and release-blocked or any blocker in `docs/NARROWED_GO_0.9.0.md` remains. A future claim requires native wire-1.0 runtime, descriptor, fixtures, and transport migration together; separate CREBAIN body and Galadriel-producer role qualification; final cross-repository convergence; and all applicable external and independent evidence |
 | Native detector performance claim | The release command and archived evidence bundle in `docs/NATIVE_DETECTOR_BENCHMARK.md` |
 | Engram restricted host or embedded-surface changes | `bun run typecheck`, `bun run test:run -- src/integrations/__tests__/engramHost.test.ts`, `bun run lint`, and `bun run format:check` |
 

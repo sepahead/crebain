@@ -171,7 +171,7 @@ Essential keys — the full keymap lives in [docs/CONTROLS.md](docs/CONTROLS.md)
 | T / Y | Toggle detection panel / detection on-off |
 | U | Sensor Fusion panel |
 | N | ROS connection panel |
-| Esc | Cancel placement / clear selection (also emergency-disarms all drones) |
+| Esc | Cancel placement / clear selection; in local simulation, disarm all simulated drones |
 
 Scene JSON has a 10 MiB limit. Splat files have a 256 MiB limit. A GLB model
 must be a self-contained GLB 2.0 file. It can contain embedded buffers and
@@ -362,8 +362,12 @@ The digest-locked vector in
 [`integrations/engram/engram.host.v1.vector.json`](integrations/engram/engram.host.v1.vector.json)
 binds the exact cross-repository challenge and status exchange.
 
-CREBAIN uses NCP wire `0.8`. This wire is incompatible with the Engram `1.0`
-candidate. The embedded interface does not create an NCP closed loop. See
+CREBAIN pins the latest immutable NCP release, `v0.8.0` (wire `0.8`). The NCP
+`1.0.0-rc.1` candidate uses wire `1.0` and compact proto contract hash
+`163acc57d8a62b66`. It is unreleased, release-blocked, and incompatible with
+wire `0.8`. No native-1.0 role is certified. Engram's native-1.0 migration
+worktree is neither an installed artifact nor a live certification result. The
+embedded interface does not create an NCP closed loop. See
 [`integrations/engram/manifest.json`](integrations/engram/manifest.json) for the
 machine-readable boundary.
 

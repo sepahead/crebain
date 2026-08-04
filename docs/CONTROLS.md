@@ -13,7 +13,7 @@ bindings in `CrebainViewer.tsx`, `ObjectTransformControls.tsx`, and
 | Z/X or ←/→ | Rotate camera left/right                                |
 | Shift    | Sprint (3x speed)                                         |
 | Ctrl/Cmd | Precision mode (0.2x speed)                               |
-| Space    | Emergency stop (zero velocity)                            |
+| Space    | Stop free-fly camera movement (viewer only)                |
 | R        | Reset camera to the default view (home position, looking at the origin) |
 
 When a drone is selected, CREBAIN suppresses the navigation keys. The drone
@@ -53,13 +53,15 @@ control scheme below uses those keys.
 | Space   | Throttle up                  |
 | Shift   | Throttle down                |
 | R       | Arm/disarm                   |
-| Esc     | Emergency disarm (all drones) |
+| Esc     | Disarm all simulated drones (local simulation only) |
 
-The Esc emergency disarm is deliberately **global**: it fires even when no
-drone is selected, when flight controls are disabled, and while focus is inside
-a text field — and it fires in addition to (not instead of) the Esc "cancel
-placement / clear selection" action above. A `C` camera-switch binding is
-reserved in the shortcut constants but is not currently wired to any behavior.
+The Esc simulated-disarm shortcut is deliberately **global**. It fires when no
+drone is selected, when flight controls are disabled, and while focus is in a
+text field. It fires in addition to the Esc cancel-selection action above.
+These shortcuts affect viewer or local simulated state only. They have no NCP,
+ROS/MAVROS, flight-control-unit (FCU), plant, or physical authority. A `C`
+camera-switch binding is reserved in the shortcut constants but is not wired to
+any behavior.
 
 ## Object transform (object selected)
 

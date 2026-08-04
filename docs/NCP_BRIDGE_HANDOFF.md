@@ -33,8 +33,13 @@ remains latched for the document lifetime. Each loaded document must echo a
 fresh context nonce. It must also answer continued health challenges. Engram
 must relock a stale frame or a frame that can reach Engram native IPC. These
 messages correlate a document. They do not attest the process or build. This
-mode does not use the native NCP adapter. CREBAIN wire
-`0.8` is incompatible with the Engram `1.0` candidate, so the manifest marks
+mode does not use the native NCP adapter. CREBAIN pins the latest immutable NCP
+release, `v0.8.0` (wire `0.8`). The NCP `1.0.0-rc.1` candidate has the `1.0`
+wire string. Its compact proto contract hash is
+`163acc57d8a62b66`. It is unreleased, release-blocked, and incompatible with
+wire `0.8`. No native-1.0 role is
+certified. Engram's native-1.0 migration worktree is neither an installed
+artifact nor a live certification result. The manifest therefore marks
 compatibility as false. The source repository and Engram share a digest-locked
 `engram.host.v1` protocol vector.
 
