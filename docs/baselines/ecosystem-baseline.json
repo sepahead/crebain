@@ -286,7 +286,7 @@
     },
     {
       "path": ".github/workflows/codeql.yml",
-      "sha256": "6f2dd3d8ae0e4cbc54c15aaf7b86a41785bbc2d51af8a23ef99e160ae47007b1"
+      "sha256": "0b8ee6f9edc718821700b83041bbd3001c93425daf85d7836054feb898ff7dc7"
     },
     {
       "path": ".github/workflows/nix.yml",
@@ -298,7 +298,7 @@
     },
     {
       "path": ".github/workflows/scorecard.yml",
-      "sha256": "8663563dafe636e1f67f0e5fbea48e8b88f1de65cc2a7bae18909ed94f0a8383"
+      "sha256": "5c18322982d285ed1041f414faf26eb223b19e7b7eebecbe62de177745d6817e"
     },
     {
       "path": "docs/NARROWED_GO_0.9.0.md",
