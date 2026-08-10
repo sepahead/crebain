@@ -166,7 +166,7 @@
     },
     {
       "path": "docs/baselines/phase0-command-surfaces.json",
-      "sha256": "d92fecd909c8302d98c4c77b0ec1a741ca0371ea9a926972f972056c9e48a020"
+      "sha256": "8ecbb14b2943400cd12098ef3a2ebf45abea5c601fc7601bebea1dda9cf52dda"
     },
     {
       "path": "docs/baselines/phase0-hazards.json",
@@ -318,7 +318,7 @@
     },
     {
       "path": "docs/baselines/ipc-contract-registry.json",
-      "sha256": "e097b8e28fbb4a63ef4448a10e0b3e79d9dc9f0ab59515f334da07f5ebff9965"
+      "sha256": "631387682f1580fa1c017d6fc368dcbec9155b7dfcf07dad9a111aa729a2ada9"
     },
     {
       "path": "scripts/generate-ipc-contract-registry.mjs",

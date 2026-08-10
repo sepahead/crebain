@@ -35,10 +35,10 @@ use sensor_fusion::{
 use sha2::{Digest, Sha256};
 #[cfg(feature = "ncp")]
 use std::sync::atomic::{AtomicBool, AtomicU8};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 #[cfg(target_os = "macos")]
 use std::sync::Once;
-use std::sync::{LazyLock, Mutex};
+use std::sync::{Arc, LazyLock, Mutex};
 use tauri::{Emitter, Manager};
 
 #[cfg(target_os = "macos")]
@@ -140,6 +140,139 @@ const MAX_IMAGE_SIZE_BYTES: usize = common::image::MAX_IMAGE_SIZE_BYTES;
 /// Maximum allowed serialized scene state size (10MB).
 const MAX_SCENE_STATE_BYTES: usize = 10 * 1024 * 1024;
 const CURRENT_SCENE_VERSION: &str = "1.0.0";
+/// Reject overlapping work so a waiting frame cannot become stale behind inference.
+const MAX_CONCURRENT_NATIVE_DETECTION_JOBS: usize = 1;
+/// Retain at most one maximum-size RGBA input across all admitted jobs.
+const MAX_ADMITTED_NATIVE_DETECTION_BYTES: usize = common::image::MAX_IMAGE_SIZE_BYTES;
+const NATIVE_DETECTION_BUSY_BACKEND: &str = "Inference Runtime";
+const NATIVE_DETECTION_BUSY_ERROR: &str =
+    "NATIVE_DETECTION_BUSY: native inference capacity is full; retry a later frame";
+
+static NATIVE_DETECTION_ADMISSION: LazyLock<NativeDetectionAdmission> = LazyLock::new(|| {
+    NativeDetectionAdmission::new(
+        MAX_CONCURRENT_NATIVE_DETECTION_JOBS,
+        MAX_ADMITTED_NATIVE_DETECTION_BYTES,
+    )
+});
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NativeDetectionAdmissionRejection {
+    ConcurrentJobLimit,
+    ByteLimit,
+}
+
+/// Nonblocking process-wide admission for expensive native detector work.
+///
+/// The permit moves into the blocking task. It therefore retains both charges
+/// if the command future is cancelled after spawn and releases them when the
+/// task returns, fails to start, or unwinds.
+#[derive(Debug)]
+struct NativeDetectionAdmissionInner {
+    max_jobs: usize,
+    max_bytes: usize,
+    in_flight_jobs: AtomicUsize,
+    in_flight_bytes: AtomicUsize,
+}
+
+#[derive(Clone, Debug)]
+struct NativeDetectionAdmission {
+    inner: Arc<NativeDetectionAdmissionInner>,
+}
+
+impl NativeDetectionAdmission {
+    fn new(max_jobs: usize, max_bytes: usize) -> Self {
+        Self {
+            inner: Arc::new(NativeDetectionAdmissionInner {
+                max_jobs,
+                max_bytes,
+                in_flight_jobs: AtomicUsize::new(0),
+                in_flight_bytes: AtomicUsize::new(0),
+            }),
+        }
+    }
+
+    fn try_reserve(
+        &self,
+        input_bytes: usize,
+    ) -> Result<NativeDetectionAdmissionPermit, NativeDetectionAdmissionRejection> {
+        if input_bytes > self.inner.max_bytes {
+            return Err(NativeDetectionAdmissionRejection::ByteLimit);
+        }
+
+        let mut jobs = self.inner.in_flight_jobs.load(Ordering::Acquire);
+        loop {
+            if jobs >= self.inner.max_jobs {
+                return Err(NativeDetectionAdmissionRejection::ConcurrentJobLimit);
+            }
+            match self.inner.in_flight_jobs.compare_exchange_weak(
+                jobs,
+                jobs + 1,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => break,
+                Err(observed) => jobs = observed,
+            }
+        }
+
+        let mut bytes = self.inner.in_flight_bytes.load(Ordering::Acquire);
+        loop {
+            let Some(next_bytes) = bytes.checked_add(input_bytes) else {
+                self.release_job();
+                return Err(NativeDetectionAdmissionRejection::ByteLimit);
+            };
+            if next_bytes > self.inner.max_bytes {
+                self.release_job();
+                return Err(NativeDetectionAdmissionRejection::ByteLimit);
+            }
+            match self.inner.in_flight_bytes.compare_exchange_weak(
+                bytes,
+                next_bytes,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => {
+                    return Ok(NativeDetectionAdmissionPermit {
+                        inner: Arc::clone(&self.inner),
+                        input_bytes,
+                    });
+                }
+                Err(observed) => bytes = observed,
+            }
+        }
+    }
+
+    fn release_job(&self) {
+        let previous = self.inner.in_flight_jobs.fetch_sub(1, Ordering::AcqRel);
+        debug_assert!(previous > 0);
+    }
+
+    #[cfg(test)]
+    fn in_flight(&self) -> (usize, usize) {
+        (
+            self.inner.in_flight_jobs.load(Ordering::Acquire),
+            self.inner.in_flight_bytes.load(Ordering::Acquire),
+        )
+    }
+}
+
+#[derive(Debug)]
+struct NativeDetectionAdmissionPermit {
+    inner: Arc<NativeDetectionAdmissionInner>,
+    input_bytes: usize,
+}
+
+impl Drop for NativeDetectionAdmissionPermit {
+    fn drop(&mut self) {
+        let previous = self
+            .inner
+            .in_flight_bytes
+            .fetch_sub(self.input_bytes, Ordering::AcqRel);
+        debug_assert!(previous >= self.input_bytes);
+        let previous = self.inner.in_flight_jobs.fetch_sub(1, Ordering::AcqRel);
+        debug_assert!(previous > 0);
+    }
+}
 
 fn validate_rgba_input_len(rgba_len: usize, width: u32, height: u32) -> Result<usize, String> {
     common::image::validate_rgba_input_len(rgba_len, width, height)
@@ -358,6 +491,10 @@ impl NativeDetectionResponse {
             error: Some(error.into()),
         }
     }
+
+    fn busy() -> Self {
+        Self::failure(NATIVE_DETECTION_BUSY_BACKEND, NATIVE_DETECTION_BUSY_ERROR)
+    }
 }
 
 fn unix_timestamp_millis() -> i64 {
@@ -420,7 +557,44 @@ fn execute_native_detection(
     }
 }
 
+async fn execute_admitted_native_detection<F>(
+    admission: &NativeDetectionAdmission,
+    input_bytes: usize,
+    operation: F,
+) -> NativeDetectionResponse
+where
+    F: FnOnce() -> NativeDetectionResponse + Send + 'static,
+{
+    let admission_permit = match admission.try_reserve(input_bytes) {
+        Ok(permit) => permit,
+        Err(_) => return NativeDetectionResponse::busy(),
+    };
+
+    let task = tauri::async_runtime::spawn_blocking(move || {
+        // Keep the owned permit in the blocking closure. Dropping or cancelling
+        // the command future must not admit a replacement while this task runs.
+        let _admission_permit = admission_permit;
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(operation)).unwrap_or_else(|_| {
+            NativeDetectionResponse::failure(
+                "Inference Runtime",
+                "native detector panicked while processing the frame",
+            )
+        })
+    })
+    .await;
+
+    task.unwrap_or_else(|error| {
+        NativeDetectionResponse::failure(
+            "Inference Runtime",
+            format!("native detector task failed: {error}"),
+        )
+    })
+}
+
 /// Run detection using the persistent factory-selected native backend.
+///
+/// Admission starts after Tauri decodes the IPC arguments. It bounds retained
+/// detector inputs and inference work, not transient request-body decoding.
 #[tauri::command]
 async fn detect_native_raw(
     rgba_data: Vec<u8>,
@@ -430,7 +604,7 @@ async fn detect_native_raw(
     iou_threshold: Option<f64>,
     max_detections: Option<i32>,
 ) -> Result<NativeDetectionResponse, String> {
-    validate_rgba_input_len(rgba_data.len(), width, height)?;
+    let input_bytes = validate_rgba_input_len(rgba_data.len(), width, height)?;
 
     let confidence = confidence_threshold
         .unwrap_or(f64::from(inference::BACKEND_MIN_CONFIDENCE_THRESHOLD))
@@ -442,8 +616,8 @@ async fn detect_native_raw(
     let policy = inference::DetectionPolicy::new(confidence, iou, max_det)
         .map_err(|error| error.to_string())?;
 
-    let task = tauri::async_runtime::spawn_blocking(move || {
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    Ok(
+        execute_admitted_native_detection(&NATIVE_DETECTION_ADMISSION, input_bytes, move || {
             execute_native_detection(
                 inference::production_runtime(),
                 &rgba_data,
@@ -451,22 +625,9 @@ async fn detect_native_raw(
                 height,
                 policy,
             )
-        }))
-        .unwrap_or_else(|_| {
-            NativeDetectionResponse::failure(
-                "Inference Runtime",
-                "native detector panicked while processing the frame",
-            )
         })
-    })
-    .await;
-
-    Ok(task.unwrap_or_else(|error| {
-        NativeDetectionResponse::failure(
-            "Inference Runtime",
-            format!("native detector task failed: {error}"),
-        )
-    }))
+        .await,
+    )
 }
 
 #[cfg(feature = "ncp")]
@@ -1822,6 +1983,162 @@ mod tests {
         .unwrap_err();
 
         assert!(error.contains("common backend envelope starts at 0.25"));
+    }
+
+    #[test]
+    fn native_detection_admission_fails_fast_without_running_a_second_job() {
+        use std::sync::mpsc;
+
+        let admission = NativeDetectionAdmission::new(1, 8);
+        let first_admission = admission.clone();
+        let (entered_tx, entered_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        let second_called = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let second_called_from_task = Arc::clone(&second_called);
+
+        let (first, second, third, admitted_while_blocked) =
+            tauri::async_runtime::block_on(async {
+                let first = tauri::async_runtime::spawn(async move {
+                    execute_admitted_native_detection(&first_admission, 4, move || {
+                        entered_tx.send(()).unwrap();
+                        release_rx.recv().unwrap();
+                        NativeDetectionResponse::failure("Fixture", "first completed")
+                    })
+                    .await
+                });
+                entered_rx
+                    .recv_timeout(std::time::Duration::from_secs(2))
+                    .unwrap();
+
+                let admitted_while_blocked = admission.in_flight();
+                let second = execute_admitted_native_detection(&admission, 4, move || {
+                    second_called_from_task.store(true, Ordering::Release);
+                    NativeDetectionResponse::failure("Fixture", "second ran")
+                })
+                .await;
+
+                release_tx.send(()).unwrap();
+                let first = first.await.unwrap();
+                let third = execute_admitted_native_detection(&admission, 8, || {
+                    NativeDetectionResponse::failure("Fixture", "third completed")
+                })
+                .await;
+                (first, second, third, admitted_while_blocked)
+            });
+
+        assert_eq!(admitted_while_blocked, (1, 4));
+        assert_eq!(first.error.as_deref(), Some("first completed"));
+        assert_eq!(second.error.as_deref(), Some(NATIVE_DETECTION_BUSY_ERROR));
+        assert!(!second_called.load(Ordering::Acquire));
+        assert_eq!(third.error.as_deref(), Some("third completed"));
+        assert_eq!(admission.in_flight(), (0, 0));
+    }
+
+    #[test]
+    fn native_detection_admission_bounds_bytes_and_rolls_back_job_charge() {
+        let admission = NativeDetectionAdmission::new(3, 8);
+        let first = admission.try_reserve(6).unwrap();
+
+        assert_eq!(
+            admission.try_reserve(3).unwrap_err(),
+            NativeDetectionAdmissionRejection::ByteLimit
+        );
+        assert_eq!(admission.in_flight(), (1, 6));
+
+        let second = admission.try_reserve(2).unwrap();
+        assert_eq!(admission.in_flight(), (2, 8));
+        drop((first, second));
+        assert_eq!(admission.in_flight(), (0, 0));
+    }
+
+    #[test]
+    fn native_detection_admission_recovers_after_detector_panic_and_error() {
+        let admission = NativeDetectionAdmission::new(1, 4);
+        let panic_response = tauri::async_runtime::block_on(execute_admitted_native_detection(
+            &admission,
+            4,
+            || panic!("detector fixture panic"),
+        ));
+
+        assert_eq!(
+            panic_response.error.as_deref(),
+            Some("native detector panicked while processing the frame")
+        );
+        assert_eq!(admission.in_flight(), (0, 0));
+
+        let error_response = tauri::async_runtime::block_on(execute_admitted_native_detection(
+            &admission,
+            4,
+            || NativeDetectionResponse::failure("Fixture", "backend error"),
+        ));
+        assert_eq!(error_response.error.as_deref(), Some("backend error"));
+        assert_eq!(admission.in_flight(), (0, 0));
+    }
+
+    #[test]
+    fn native_detection_admission_outlives_cancelled_command_future() {
+        use std::sync::mpsc;
+
+        let admission = NativeDetectionAdmission::new(1, 4);
+        let task_admission = admission.clone();
+        let (entered_tx, entered_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+
+        let (cancelled, rejected_while_blocking, released) =
+            tauri::async_runtime::block_on(async {
+                let task = tauri::async_runtime::spawn(async move {
+                    execute_admitted_native_detection(&task_admission, 4, move || {
+                        entered_tx.send(()).unwrap();
+                        release_rx.recv().unwrap();
+                        NativeDetectionResponse::failure("Fixture", "completed after cancellation")
+                    })
+                    .await
+                });
+                entered_rx
+                    .recv_timeout(std::time::Duration::from_secs(2))
+                    .unwrap();
+
+                task.abort();
+                let rejected_while_blocking = matches!(
+                    admission.try_reserve(1),
+                    Err(NativeDetectionAdmissionRejection::ConcurrentJobLimit)
+                );
+                release_tx.send(()).unwrap();
+                let cancelled = task.await.is_err();
+                let released = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+                    while admission.in_flight() != (0, 0) {
+                        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+                    }
+                })
+                .await
+                .is_ok();
+                (cancelled, rejected_while_blocking, released)
+            });
+
+        assert!(cancelled);
+        assert!(rejected_while_blocking);
+        assert!(released);
+        assert!(admission.try_reserve(4).is_ok());
+    }
+
+    #[test]
+    fn native_detection_busy_response_is_structured_and_stable() {
+        let response = NativeDetectionResponse::busy();
+
+        assert_eq!(
+            (
+                response.success,
+                response.detections.len(),
+                response.backend.as_str(),
+                response.error.as_deref(),
+            ),
+            (
+                false,
+                0,
+                NATIVE_DETECTION_BUSY_BACKEND,
+                Some(NATIVE_DETECTION_BUSY_ERROR),
+            )
+        );
     }
 
     #[test]

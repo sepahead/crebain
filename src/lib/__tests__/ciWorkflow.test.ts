@@ -32,6 +32,10 @@ const PERFORMANCE_PANEL = readFileSync(
 )
 const CREBAIN_VIEWER = readFileSync(`${process.cwd()}/src/components/CrebainViewer.tsx`, 'utf8')
 const HEADER_BAR = readFileSync(`${process.cwd()}/src/components/viewer/HeaderBar.tsx`, 'utf8')
+const SECURITY_CONFIGURATION_STATUS = readFileSync(
+  `${process.cwd()}/src/components/viewer/securityConfigurationStatus.ts`,
+  'utf8'
+)
 const DETECTION_PANEL = readFileSync(
   `${process.cwd()}/src/components/viewer/DetectionPanel.tsx`,
   'utf8'
@@ -39,7 +43,7 @@ const DETECTION_PANEL = readFileSync(
 // The viewer UI is split across the main component and its extracted panels;
 // guardrail assertions run against the combined source so panel extraction
 // does not weaken them.
-const VIEWER_UI = `${CREBAIN_VIEWER}\n${HEADER_BAR}\n${DETECTION_PANEL}`
+const VIEWER_UI = `${CREBAIN_VIEWER}\n${HEADER_BAR}\n${SECURITY_CONFIGURATION_STATUS}\n${DETECTION_PANEL}`
 
 describe('CI workflow', () => {
   it('uses package validation scripts for frontend and backend checks', () => {
@@ -297,6 +301,14 @@ describe('CI workflow', () => {
     expect(VIEWER_UI).toContain('VERTRAG OFFEN')
     expect(VIEWER_UI).toContain('NICHT KONFIG.')
     expect(VIEWER_UI).toContain('SIM POS')
+    expect(HEADER_BAR).toContain('data-security-configuration-status')
+    expect(HEADER_BAR).not.toContain('KRYPTO CFG')
+    expect(SECURITY_CONFIGURATION_STATUS).toContain(
+      "type SecurityConfigurationStatus = 'not-configured' | 'unknown'"
+    )
+    expect(CREBAIN_VIEWER).toContain(
+      "const SECURITY_CONFIGURATION_STATUS: SecurityConfigurationStatus = 'unknown'"
+    )
     expect(VIEWER_UI).not.toContain("const networkStatus = 'VERBUNDEN'")
     expect(VIEWER_UI).not.toContain('AES-256')
     expect(VIEWER_UI).not.toContain('<span className="text-[#808080]">YOLOv8s</span>')

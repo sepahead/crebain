@@ -56,6 +56,11 @@ or generic ROS publishing capabilities. The Galadriel switch is a separate
 native, feature-gated exception limited to two named perception evidence routes;
 it does not add a generic ROS, renderer, action, service, or FCU surface.
 
+The header reports transport security configuration as unknown because no
+runtime source attests that state. An authoritative future source may report
+not configured. Neither status proves Transport Layer Security (TLS) or access
+control enforcement.
+
 Production `connect-src` permits Tauri IPC plus only the source classes already
 accepted by bounded scene-asset restoration: same-origin, HTTPS, and HTTP
 loopback. Static analysis permits renderer `fetch` only in

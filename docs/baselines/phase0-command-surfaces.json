@@ -812,7 +812,7 @@
       ".yaml",
       ".yml"
     ],
-    "production_file_manifest_sha256": "4da915d45cc3e5ac1f05c369a4af392ca7a90531cd69a17dfe928ea81df6e0ca",
+    "production_file_manifest_sha256": "57c883bf561715709f699b35ad57bb7f6550a66e94e814284a0148a88a25b644",
     "known_route_prefixes": ["mavros/", "gazebo/", "cmd/motor_speed/"],
     "development_network_modules": [
       {

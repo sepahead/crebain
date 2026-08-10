@@ -378,6 +378,12 @@ resizes and normalizes it, runs native inference, and applies non-maximum
 suppression. JSON detections return to the frontend. The canvas draws bounding
 boxes, threat-level colors, and track identifiers.
 
+The native command admits one inference job at a time. A concurrent frame gets
+the structured `NATIVE_DETECTION_BUSY` response and does not enter the blocking
+work queue. The 64 MiB aggregate input permit remains charged until detached
+blocking work exits, including after caller cancellation. Admission occurs after
+Tauri decodes the IPC request, so it does not bound transient request decoding.
+
 ```mermaid
 flowchart TB
     CameraViews["Camera Views<br/>(CrebainViewer)"]

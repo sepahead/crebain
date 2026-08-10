@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createPerformanceMonitor } from '../ROSPerformanceMonitor'
+import {
+  createPerformanceMonitor,
+  MAX_PERFORMANCE_LATENCY_MS,
+  MAX_PERFORMANCE_MESSAGE_BYTES,
+  MAX_PERFORMANCE_SAMPLES_PER_TOPIC,
+  MAX_PERFORMANCE_TOPICS,
+  MAX_PERFORMANCE_TOPIC_LENGTH,
+} from '../ROSPerformanceMonitor'
 
 describe('ROSPerformanceMonitor', () => {
   afterEach(() => {
@@ -186,5 +193,158 @@ describe('ROSPerformanceMonitor', () => {
     expect(monitor.getTopicStats('/imu')).toBeNull()
     expect(monitor.getDroppedMessageCount()).toBe(0)
     expect(monitor.getConfig().highLatencyThresholdMs).toBe(5)
+  })
+
+  it('rejects invalid configuration atomically', () => {
+    expect(() => createPerformanceMonitor({ windowSizeMs: 0 })).toThrow(
+      'Performance window size must be a positive safe integer'
+    )
+    expect(() => createPerformanceMonitor({ maxSamplesPerTopic: 1.5 })).toThrow(
+      `Maximum samples per topic must be an integer from 1 to ${MAX_PERFORMANCE_SAMPLES_PER_TOPIC}`
+    )
+    expect(() =>
+      createPerformanceMonitor({ maxSamplesPerTopic: MAX_PERFORMANCE_SAMPLES_PER_TOPIC + 1 })
+    ).toThrow(
+      `Maximum samples per topic must be an integer from 1 to ${MAX_PERFORMANCE_SAMPLES_PER_TOPIC}`
+    )
+    expect(() =>
+      createPerformanceMonitor({ highLatencyThresholdMs: MAX_PERFORMANCE_LATENCY_MS + 1 })
+    ).toThrow(
+      `High latency threshold must be between 0 and ${MAX_PERFORMANCE_LATENCY_MS} milliseconds`
+    )
+
+    const monitor = createPerformanceMonitor()
+    const original = monitor.getConfig()
+    expect(() => monitor.setConfig({ minMessagesPerSecond: Number.NaN })).toThrow(
+      'Minimum message rate must be a finite non-negative number'
+    )
+    expect(monitor.getConfig()).toBe(original)
+  })
+
+  it('rejects invalid message samples without corrupting statistics', () => {
+    const monitor = createPerformanceMonitor()
+
+    monitor.recordMessage('', 1)
+    monitor.recordMessage(' /camera', 1)
+    monitor.recordMessage('/camera', -1)
+    monitor.recordMessage('/camera', 1.5)
+    monitor.recordMessage('/camera', Number.POSITIVE_INFINITY)
+    monitor.recordMessage('/camera', MAX_PERFORMANCE_MESSAGE_BYTES + 1)
+    monitor.recordMessage(`/${'a'.repeat(MAX_PERFORMANCE_TOPIC_LENGTH)}`, 1)
+    monitor.recordLatency('', 1)
+    monitor.recordLatency('/invalid\0topic', 1)
+    monitor.recordLatency(`/${'a'.repeat(MAX_PERFORMANCE_TOPIC_LENGTH)}`, 1)
+    monitor.recordLatency('camera', 1)
+    monitor.recordLatency('/', 1)
+    monitor.recordLatency('/camera//front', 1)
+    monitor.recordLatency('/camera front', 1)
+    monitor.recordLatency('/camera-front', 1)
+    monitor.recordLatency('/camera', MAX_PERFORMANCE_LATENCY_MS + 1)
+    monitor.recordLatency('/camera', Number.MAX_VALUE)
+
+    expect(monitor.getAllTopicStats()).toEqual([])
+    expect(monitor.getConnectionQuality()).toEqual(
+      expect.objectContaining({ score: 0, totalMessagesPerSecond: 0 })
+    )
+  })
+
+  it('keeps every reported metric finite at the maximum latency boundary', () => {
+    const monitor = createPerformanceMonitor()
+    monitor.recordMessage('/camera', 1, Date.now() - MAX_PERFORMANCE_LATENCY_MS - 1)
+    monitor.recordLatency('/camera', MAX_PERFORMANCE_LATENCY_MS)
+    monitor.recordLatency('/camera', MAX_PERFORMANCE_LATENCY_MS)
+    monitor.recordLatency('/camera', Number.MAX_VALUE)
+
+    const stats = monitor.getTopicStats('/camera')
+    const quality = monitor.getConnectionQuality()
+    expect(stats).not.toBeNull()
+    expect(Object.values(stats ?? {}).filter((value) => typeof value === 'number').every(Number.isFinite)).toBe(true)
+    expect(Object.values(quality).filter((value) => typeof value === 'number').every(Number.isFinite)).toBe(true)
+    expect(stats?.avgLatencyMs).toBe(MAX_PERFORMANCE_LATENCY_MS)
+  })
+
+  it('supports a zero expected message rate without producing a non-finite score', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(60_000)
+    const monitor = createPerformanceMonitor({ minMessagesPerSecond: 0 })
+    monitor.recordMessage('/on_demand', 1)
+
+    expect(monitor.getConnectionQuality()).toEqual(
+      expect.objectContaining({ score: 100, level: 'excellent' })
+    )
+  })
+
+  it('resizes existing sample windows when the configured capacity changes', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(70_000)
+    const monitor = createPerformanceMonitor({ maxSamplesPerTopic: 4 })
+    for (let size = 1; size <= 4; size++) monitor.recordMessage('/camera', size)
+
+    monitor.setConfig({ maxSamplesPerTopic: 2 })
+
+    expect(monitor.getTopicStats('/camera')).toEqual(
+      expect.objectContaining({
+        messageCount: 4,
+        byteCount: 10,
+        windowMessageCount: 2,
+        windowByteCount: 7,
+      })
+    )
+  })
+
+  it('evicts the least recently used topic when topic churn reaches the bound', () => {
+    const monitor = createPerformanceMonitor({ maxSamplesPerTopic: 1 })
+    for (let index = 0; index < MAX_PERFORMANCE_TOPICS; index++) {
+      const topic = `/topic_${index}`
+      if (index % 2 === 0) monitor.recordMessage(topic, 1)
+      else monitor.recordLatency(topic, 1)
+    }
+
+    monitor.recordMessage('/overflow_message', 1)
+    monitor.recordLatency('/overflow_latency', 1)
+    monitor.recordMessage('/overflow_latency', 1)
+
+    expect(monitor.getAllTopicStats()).toHaveLength(MAX_PERFORMANCE_TOPICS / 2 + 1)
+    expect(monitor.getTopicStats('/topic_0')).toBeNull()
+    expect(monitor.getTopicStats('/overflow_message')).not.toBeNull()
+    expect(monitor.getTopicStats('/overflow_latency')).not.toBeNull()
+  })
+
+  it('rejects a history resize that would exceed the aggregate slot budget', () => {
+    const monitor = createPerformanceMonitor({ maxSamplesPerTopic: 1 })
+    for (let index = 0; index < 103; index++) {
+      const topic = `/topic_${index}`
+      monitor.recordMessage(topic, 1)
+      monitor.recordLatency(topic, 1)
+    }
+    const original = monitor.getConfig()
+
+    expect(() =>
+      monitor.setConfig({ maxSamplesPerTopic: MAX_PERFORMANCE_SAMPLES_PER_TOPIC })
+    ).toThrow('Configured history would exceed')
+    expect(monitor.getConfig()).toBe(original)
+    expect(monitor.getTopicStats('/topic_0')).toEqual(
+      expect.objectContaining({ messageCount: 1, windowMessageCount: 1 })
+    )
+  })
+
+  it('clamps uptime when the wall clock moves backwards', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(80_000)
+    const monitor = createPerformanceMonitor()
+    const alert = vi.fn()
+    monitor.onAlert(alert)
+    monitor.recordMessage('/camera', 1)
+    vi.setSystemTime(79_000)
+    monitor.recordMessage('/camera', 1)
+    vi.setSystemTime(80_000)
+
+    expect(monitor.getUptimeSeconds()).toBe(0)
+    expect(monitor.getConnectionQuality().uptimeSeconds).toBe(0)
+    expect(monitor.getTopicStats('/camera')).toEqual(
+      expect.objectContaining({ messageCount: 2, windowMessageCount: 2 })
+    )
+    expect(monitor.getDroppedMessageCount()).toBe(0)
+    expect(alert).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'message_gap' }))
   })
 })

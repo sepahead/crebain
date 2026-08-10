@@ -8,6 +8,7 @@
 
 import { CircularBuffer } from '../lib/CircularBuffer'
 import { rosLogger as log } from '../lib/logger'
+import { isValidRosGraphName, MAX_ROS_GRAPH_NAME_LENGTH } from './rosNameValidation'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -33,9 +34,9 @@ interface MessageSample {
 
 export interface TopicStats {
   topic: string
-  /** Lifetime messages since construction/reset. */
+  /** Messages since construction/reset while the bounded monitor retains this topic. */
   messageCount: number
-  /** Lifetime bytes since construction/reset. */
+  /** Bytes since construction/reset while the bounded monitor retains this topic. */
   byteCount: number
   /** Messages retained in the current rolling window. */
   windowMessageCount: number
@@ -100,6 +101,56 @@ const DEFAULT_CONFIG: PerformanceConfig = {
   maxSamplesPerTopic: 1000,
 }
 
+/** Matches the transport-wide ROS subscription ceiling. */
+export const MAX_PERFORMANCE_TOPICS = 1_024
+/** Bounds allocation when callers customize the rolling history. */
+export const MAX_PERFORMANCE_SAMPLES_PER_TOPIC = 10_000
+/** Caps preallocated slots across latency and message buffers. */
+export const MAX_PERFORMANCE_SAMPLE_SLOTS = 1_024_000
+/** Accommodates the largest renderer transport envelope with bounded headroom. */
+export const MAX_PERFORMANCE_MESSAGE_BYTES = 128 * 1024 * 1024
+/** Samples above one day are not actionable transport latency measurements. */
+export const MAX_PERFORMANCE_LATENCY_MS = 24 * 60 * 60 * 1_000
+export const MAX_PERFORMANCE_TOPIC_LENGTH = MAX_ROS_GRAPH_NAME_LENGTH
+
+function isValidPerformanceTopic(topic: string): boolean {
+  return isValidRosGraphName(topic)
+}
+
+function validatePerformanceConfig(config: PerformanceConfig): PerformanceConfig {
+  if (!Number.isSafeInteger(config.windowSizeMs) || config.windowSizeMs <= 0) {
+    throw new Error('Performance window size must be a positive safe integer')
+  }
+  if (
+    !Number.isSafeInteger(config.messageGapThresholdMs) ||
+    config.messageGapThresholdMs < 0
+  ) {
+    throw new Error('Message gap threshold must be a non-negative safe integer')
+  }
+  if (
+    !Number.isFinite(config.highLatencyThresholdMs) ||
+    config.highLatencyThresholdMs < 0 ||
+    config.highLatencyThresholdMs > MAX_PERFORMANCE_LATENCY_MS
+  ) {
+    throw new Error(
+      `High latency threshold must be between 0 and ${MAX_PERFORMANCE_LATENCY_MS} milliseconds`
+    )
+  }
+  if (!Number.isFinite(config.minMessagesPerSecond) || config.minMessagesPerSecond < 0) {
+    throw new Error('Minimum message rate must be a finite non-negative number')
+  }
+  if (
+    !Number.isSafeInteger(config.maxSamplesPerTopic) ||
+    config.maxSamplesPerTopic <= 0 ||
+    config.maxSamplesPerTopic > MAX_PERFORMANCE_SAMPLES_PER_TOPIC
+  ) {
+    throw new Error(
+      `Maximum samples per topic must be an integer from 1 to ${MAX_PERFORMANCE_SAMPLES_PER_TOPIC}`
+    )
+  }
+  return Object.freeze({ ...config })
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // PERFORMANCE MONITOR
 // ─────────────────────────────────────────────────────────────────────────────
@@ -111,13 +162,17 @@ export class ROSPerformanceMonitor {
   private topicLifetimeMessageCounts: Map<string, number> = new Map()
   private topicLifetimeByteCounts: Map<string, number> = new Map()
   private topicLastReceived: Map<string, number> = new Map()
+  private topicLastObserved: Map<string, number> = new Map()
+  private trackedTopics: Set<string> = new Set()
+  private allocatedSampleSlots = 0
   private alertCallbacks: Set<AlertCallback> = new Set()
-  private startTime: number = Date.now()
+  private lastObservedTime: number = Date.now()
+  private startTime: number = this.lastObservedTime
   private droppedMessages: number = 0
   private updateIntervalId: ReturnType<typeof setInterval> | null = null
 
   constructor(config: Partial<PerformanceConfig> = {}) {
-    this.config = { ...DEFAULT_CONFIG, ...config }
+    this.config = validatePerformanceConfig({ ...DEFAULT_CONFIG, ...config })
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -130,7 +185,7 @@ export class ROSPerformanceMonitor {
   start(): void {
     if (this.updateIntervalId !== null) return
 
-    this.startTime = Date.now()
+    this.startTime = this.now()
 
     // Start periodic stats calculation and alert checking
     this.updateIntervalId = setInterval(() => {
@@ -157,8 +212,11 @@ export class ROSPerformanceMonitor {
     this.topicLifetimeMessageCounts.clear()
     this.topicLifetimeByteCounts.clear()
     this.topicLastReceived.clear()
+    this.topicLastObserved.clear()
+    this.trackedTopics.clear()
+    this.allocatedSampleSlots = 0
     this.droppedMessages = 0
-    this.startTime = Date.now()
+    this.startTime = this.now()
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -171,21 +229,31 @@ export class ROSPerformanceMonitor {
    * duration must use recordLatency().
    */
   recordMessage(topic: string, messageSize: number, sentTimestamp?: number): void {
-    const now = Date.now()
+    if (
+      !isValidPerformanceTopic(topic) ||
+      !Number.isSafeInteger(messageSize) ||
+      messageSize < 0 ||
+      messageSize > MAX_PERFORMANCE_MESSAGE_BYTES
+    ) {
+      return
+    }
+
+    const now = this.now()
+    this.trackTopic(topic, now)
+    const messageBuffer = this.getOrCreateBuffer(this.topicMessageSamples, topic)
+    if (!messageBuffer) return
 
     // Update message count
     const count = this.topicLifetimeMessageCounts.get(topic) || 0
-    this.topicLifetimeMessageCounts.set(topic, count + 1)
+    const nextCount = count + 1
 
     // Update byte count
     const bytes = this.topicLifetimeByteCounts.get(topic) || 0
-    this.topicLifetimeByteCounts.set(topic, bytes + messageSize)
+    const nextBytes = bytes + messageSize
+    if (!Number.isSafeInteger(nextCount) || !Number.isSafeInteger(nextBytes)) return
+    this.topicLifetimeMessageCounts.set(topic, nextCount)
+    this.topicLifetimeByteCounts.set(topic, nextBytes)
 
-    let messageBuffer = this.topicMessageSamples.get(topic)
-    if (!messageBuffer) {
-      messageBuffer = new CircularBuffer<MessageSample>(this.config.maxSamplesPerTopic)
-      this.topicMessageSamples.set(topic, messageBuffer)
-    }
     messageBuffer.push({ byteCount: messageSize, timestamp: now })
 
     // Check for message gap
@@ -208,7 +276,8 @@ export class ROSPerformanceMonitor {
       sentTimestamp !== undefined &&
       Number.isFinite(sentTimestamp) &&
       sentTimestamp >= 0 &&
-      sentTimestamp <= now
+      sentTimestamp <= now &&
+      now - sentTimestamp <= MAX_PERFORMANCE_LATENCY_MS
     ) {
       this.recordLatencySample(topic, now - sentTimestamp, now)
     }
@@ -218,16 +287,22 @@ export class ROSPerformanceMonitor {
    * Record a latency sample directly
    */
   recordLatency(topic: string, latencyMs: number): void {
-    if (!Number.isFinite(latencyMs) || latencyMs < 0) return
-    this.recordLatencySample(topic, latencyMs, Date.now())
+    if (
+      !isValidPerformanceTopic(topic) ||
+      !Number.isFinite(latencyMs) ||
+      latencyMs < 0 ||
+      latencyMs > MAX_PERFORMANCE_LATENCY_MS
+    ) {
+      return
+    }
+    const now = this.now()
+    this.trackTopic(topic, now)
+    this.recordLatencySample(topic, latencyMs, now)
   }
 
   private recordLatencySample(topic: string, latencyMs: number, now: number): void {
-    let buffer = this.topicLatencies.get(topic)
-    if (!buffer) {
-      buffer = new CircularBuffer<LatencySample>(this.config.maxSamplesPerTopic)
-      this.topicLatencies.set(topic, buffer)
-    }
+    const buffer = this.getOrCreateBuffer(this.topicLatencies, topic)
+    if (!buffer) return
 
     buffer.push({
       topic,
@@ -262,7 +337,7 @@ export class ROSPerformanceMonitor {
 
     if (messageCount === 0) return null
 
-    const now = Date.now()
+    const now = this.now()
     const cutoff = now - this.config.windowSizeMs
     const messageSamples = messageBuffer?.filter((sample) => sample.timestamp >= cutoff) ?? []
     const windowMessageCount = messageSamples.length
@@ -339,7 +414,7 @@ export class ROSPerformanceMonitor {
    */
   getConnectionQuality(): ConnectionQuality {
     const stats = this.getAllTopicStats()
-    const uptimeSeconds = (Date.now() - this.startTime) / 1000
+    const uptimeSeconds = (this.now() - this.startTime) / 1000
 
     if (stats.length === 0) {
       return {
@@ -366,14 +441,14 @@ export class ROSPerformanceMonitor {
 
     // Throughput penalty (up to -30 points)
     const expectedMps = this.config.minMessagesPerSecond * stats.length
-    if (totalMessagesPerSecond < expectedMps) {
+    if (expectedMps > 0 && totalMessagesPerSecond < expectedMps) {
       score -= Math.min(30, (1 - totalMessagesPerSecond / expectedMps) * 30)
     }
 
     // A topic with no message in the complete rolling window is stale even when
     // its lifetime average was once high. Penalize that condition separately so
     // a fully frozen connection cannot remain "good".
-    const now = Date.now()
+    const now = this.now()
     const staleTopicCount = stats.filter(
       (stat) => now - stat.lastReceived >= this.config.windowSizeMs
     ).length
@@ -431,7 +506,7 @@ export class ROSPerformanceMonitor {
   }
 
   private checkForAlerts(): void {
-    const now = Date.now()
+    const now = this.now()
     const quality = this.getConnectionQuality()
 
     // Check for degraded connection
@@ -467,15 +542,104 @@ export class ROSPerformanceMonitor {
   }
 
   setConfig(config: Partial<PerformanceConfig>): void {
-    this.config = { ...this.config, ...config }
+    const nextConfig = validatePerformanceConfig({ ...this.config, ...config })
+    if (nextConfig.maxSamplesPerTopic !== this.config.maxSamplesPerTopic) {
+      const bufferCount = this.topicLatencies.size + this.topicMessageSamples.size
+      const nextAllocatedSampleSlots = bufferCount * nextConfig.maxSamplesPerTopic
+      if (nextAllocatedSampleSlots > MAX_PERFORMANCE_SAMPLE_SLOTS) {
+        throw new Error(
+          `Configured history would exceed ${MAX_PERFORMANCE_SAMPLE_SLOTS} aggregate sample slots`
+        )
+      }
+      const resizedLatencies = this.resizeBuffers(
+        this.topicLatencies,
+        nextConfig.maxSamplesPerTopic
+      )
+      const resizedMessageSamples = this.resizeBuffers(
+        this.topicMessageSamples,
+        nextConfig.maxSamplesPerTopic
+      )
+      this.topicLatencies = resizedLatencies
+      this.topicMessageSamples = resizedMessageSamples
+      this.allocatedSampleSlots = nextAllocatedSampleSlots
+    }
+    this.config = nextConfig
   }
 
   getUptimeSeconds(): number {
-    return (Date.now() - this.startTime) / 1000
+    return (this.now() - this.startTime) / 1000
   }
 
   getDroppedMessageCount(): number {
     return this.droppedMessages
+  }
+
+  private now(): number {
+    this.lastObservedTime = Math.max(this.lastObservedTime, Date.now())
+    return this.lastObservedTime
+  }
+
+  private trackTopic(topic: string, now: number): void {
+    if (!this.trackedTopics.has(topic)) {
+      while (this.trackedTopics.size >= MAX_PERFORMANCE_TOPICS) this.evictOldestTopic(topic)
+      this.trackedTopics.add(topic)
+    }
+    this.topicLastObserved.delete(topic)
+    this.topicLastObserved.set(topic, now)
+  }
+
+  private getOrCreateBuffer<T>(
+    buffers: Map<string, CircularBuffer<T>>,
+    topic: string
+  ): CircularBuffer<T> | null {
+    const existing = buffers.get(topic)
+    if (existing) return existing
+    while (
+      this.allocatedSampleSlots + this.config.maxSamplesPerTopic >
+      MAX_PERFORMANCE_SAMPLE_SLOTS
+    ) {
+      if (!this.evictOldestTopic(topic)) return null
+    }
+    const buffer = new CircularBuffer<T>(this.config.maxSamplesPerTopic)
+    buffers.set(topic, buffer)
+    this.allocatedSampleSlots += this.config.maxSamplesPerTopic
+    return buffer
+  }
+
+  private evictOldestTopic(excludedTopic: string): boolean {
+    let oldestTopic: string | undefined
+    for (const topic of this.topicLastObserved.keys()) {
+      if (topic !== excludedTopic) {
+        oldestTopic = topic
+        break
+      }
+    }
+    if (oldestTopic === undefined) return false
+    if (this.topicLatencies.delete(oldestTopic)) {
+      this.allocatedSampleSlots -= this.config.maxSamplesPerTopic
+    }
+    if (this.topicMessageSamples.delete(oldestTopic)) {
+      this.allocatedSampleSlots -= this.config.maxSamplesPerTopic
+    }
+    this.topicLifetimeMessageCounts.delete(oldestTopic)
+    this.topicLifetimeByteCounts.delete(oldestTopic)
+    this.topicLastReceived.delete(oldestTopic)
+    this.topicLastObserved.delete(oldestTopic)
+    this.trackedTopics.delete(oldestTopic)
+    return true
+  }
+
+  private resizeBuffers<T>(
+    buffers: Map<string, CircularBuffer<T>>,
+    capacity: number
+  ): Map<string, CircularBuffer<T>> {
+    const resized = new Map<string, CircularBuffer<T>>()
+    for (const [topic, buffer] of buffers) {
+      const replacement = new CircularBuffer<T>(capacity)
+      for (const sample of buffer.toArray().slice(-capacity)) replacement.push(sample)
+      resized.set(topic, replacement)
+    }
+    return resized
   }
 }
 

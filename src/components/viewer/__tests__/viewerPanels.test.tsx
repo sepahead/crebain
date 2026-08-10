@@ -37,6 +37,7 @@ describe('HeaderBar render smoke', () => {
       root.render(
         <HeaderBar
           backendStatusColor="bg-[#3a6b4a]"
+          securityConfigurationStatus="unknown"
           threatLevel={2}
           onThreatLevelChange={() => {}}
           scalePercent={100}
@@ -72,6 +73,7 @@ describe('HeaderBar render smoke', () => {
       root.render(
         <HeaderBar
           backendStatusColor="bg-[#3a6b4a]"
+          securityConfigurationStatus="unknown"
           readOnly
           threatLevel={2}
           onThreatLevelChange={onThreatLevelChange}
@@ -103,6 +105,72 @@ describe('HeaderBar render smoke', () => {
     ).toBe(false)
     expect(onThreatLevelChange).not.toHaveBeenCalled()
   })
+
+  it.each([
+    {
+      status: 'not-configured' as const,
+      visibleLabel: 'NICHT KONFIG.',
+      accessibleStatus: 'not configured',
+      neutralColor: 'bg-[#505050]',
+    },
+    {
+      status: 'unknown' as const,
+      visibleLabel: 'UNBEKANNT',
+      accessibleStatus: 'unknown',
+      neutralColor: 'bg-[#404040]',
+    },
+  ])(
+    'renders the $status security state without implying cryptographic readiness',
+    ({ status, visibleLabel, accessibleStatus, neutralColor }) => {
+      act(() => {
+        root.render(
+          <HeaderBar
+            backendStatusColor="bg-[#3a6b4a]"
+            securityConfigurationStatus={status}
+            threatLevel={2}
+            onThreatLevelChange={() => {}}
+            scalePercent={100}
+            isAtMin={false}
+            isAtMax={false}
+            onDecreaseScale={() => {}}
+            onIncreaseScale={() => {}}
+            currentTime={new Date(0)}
+            operatorPosition={{ lat: 52.52, lon: 13.405, alt: 34 }}
+            altitude={12}
+            bearing={90}
+            cameras={[]}
+            objectCount={0}
+            totalDetections={0}
+            fusedTrackCount={0}
+            showGrid
+            detectionEnabled={false}
+            highestThreat={null}
+          />
+        )
+      })
+
+      const securityStatus = container.querySelector(
+        `[data-security-configuration-status="${status}"]`
+      )
+      const indicator = securityStatus?.querySelector('[data-security-status-indicator]')
+
+      expect(securityStatus?.textContent).toContain(`KRYPTO${visibleLabel}`)
+      expect(securityStatus?.getAttribute('aria-label')).toBe(
+        `Cryptographic transport configuration: ${accessibleStatus}. TLS and access-control enforcement are not attested.`
+      )
+      expect(securityStatus?.getAttribute('title')).toContain(
+        'does not attest TLS or access-control enforcement'
+      )
+      expect(indicator?.classList.contains(neutralColor)).toBe(true)
+      expect(indicator?.classList.contains('bg-[#a08040]')).toBe(false)
+      expect(indicator?.classList.contains('bg-[#3a6b4a]')).toBe(false)
+      expect(
+        Array.from(securityStatus?.querySelectorAll('span') ?? []).every((element) =>
+          element.classList.contains('text-[#8a8a8a]')
+        )
+      ).toBe(true)
+    }
+  )
 })
 
 describe('DetectionPanel render smoke', () => {

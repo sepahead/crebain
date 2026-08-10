@@ -1,9 +1,14 @@
 import type { Detection, ThreatLevel } from '../../detection/types'
 import type { SurveillanceCamera } from './types'
 import { formatZuluTime, formatCoordinate } from './types'
+import {
+  getSecurityConfigurationPresentation,
+  type SecurityConfigurationStatus,
+} from './securityConfigurationStatus'
 
 interface HeaderBarProps {
   backendStatusColor: string
+  securityConfigurationStatus: SecurityConfigurationStatus
   /** Render threat levels as status values instead of controls. */
   readOnly?: boolean
   threatLevel: ThreatLevel
@@ -34,6 +39,7 @@ interface HeaderBarProps {
  */
 export default function HeaderBar({
   backendStatusColor,
+  securityConfigurationStatus,
   readOnly = false,
   threatLevel,
   onThreatLevelChange,
@@ -54,6 +60,8 @@ export default function HeaderBar({
   detectionEnabled,
   highestThreat,
 }: HeaderBarProps) {
+  const securityConfiguration = getSecurityConfigurationPresentation(securityConfigurationStatus)
+
   return (
     <div
       className="absolute top-0 left-0 right-0 z-50 pointer-events-none"
@@ -116,9 +124,20 @@ export default function HeaderBar({
             <div className={`w-1.5 h-1.5 ${backendStatusColor}`} />
             <span className="text-[0.875em] text-[#707070]">DIAG</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-1.5 h-1.5 bg-[#a08040]" />
-            <span className="text-[0.875em] text-[#707070]">KRYPTO CFG</span>
+          <div
+            role="status"
+            data-security-configuration-status={securityConfigurationStatus}
+            aria-label={`Cryptographic transport configuration: ${securityConfiguration.statusText}. TLS and access-control enforcement are not attested.`}
+            title={securityConfiguration.description}
+            className="pointer-events-auto flex items-center gap-1.5"
+          >
+            <div
+              aria-hidden="true"
+              data-security-status-indicator
+              className={`w-1.5 h-1.5 ${securityConfiguration.color}`}
+            />
+            <span className="text-[0.875em] text-[#8a8a8a]">KRYPTO</span>
+            <span className="text-[0.875em] text-[#8a8a8a]">{securityConfiguration.label}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-1.5 h-1.5 bg-[#505050]" />

@@ -33,6 +33,10 @@ import ObjectTransformControls from './ObjectTransformControls'
 import { createTacticalGrid, createGridLabels } from './viewer/TacticalGrid'
 import DetectionPanel from './viewer/DetectionPanel'
 import HeaderBar from './viewer/HeaderBar'
+import {
+  getSecurityConfigurationStatusLabel,
+  type SecurityConfigurationStatus,
+} from './viewer/securityConfigurationStatus'
 import { captureCameraPixels, withCameraRenderTarget } from './viewer/cameraCapture'
 import {
   disposeAllSurveillanceCamerasOnce,
@@ -162,6 +166,8 @@ const ASSET_DOWNLOAD_TIMEOUT_MS = 30_000
 const SCENE_RESTORE_TIMEOUT_MS = 120_000
 const MAX_SURVEILLANCE_CAMERAS = 64
 const MAX_CAMERA_RENDER_PIXELS = 16_777_216
+// No runtime source currently attests transport security configuration.
+const SECURITY_CONFIGURATION_STATUS: SecurityConfigurationStatus = 'unknown'
 
 export default function CrebainViewer({
   onDetectionComplete,
@@ -3116,7 +3122,7 @@ export default function CrebainViewer({
   const backendStatusText = getBackendHealthLabel(backendHealth)
   const backendStatusColor = backendHealth === 'ready' ? 'bg-[#3a6b4a]' : 'bg-[#a08040]'
   const backendModeText = systemInfo.mode !== 'unknown' ? systemInfo.mode : 'UNBEKANNT'
-  const cryptoStatusText = 'NICHT KONFIG.'
+  const cryptoStatusText = getSecurityConfigurationStatusLabel(SECURITY_CONFIGURATION_STATUS)
   const modelStatusText = 'VERTRAG OFFEN'
   const rosConnectionStatusText = getConnectionStatusLabel(rosConnectionState)
   const rosConnectionStatusColor =
@@ -3203,6 +3209,7 @@ export default function CrebainViewer({
       {/* KOPFZEILE */}
       <HeaderBar
         backendStatusColor={backendStatusColor}
+        securityConfigurationStatus={SECURITY_CONFIGURATION_STATUS}
         readOnly={embeddedInEngram}
         threatLevel={threatLevel}
         onThreatLevelChange={handleThreatLevelChange}

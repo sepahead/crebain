@@ -249,18 +249,18 @@ describe('useRosBridge', () => {
 
     expect(vi.getTimerCount()).toBe(2)
     await act(async () => {
-      hook.recordMessage('/frozen-camera', 64, 4)
+      hook.recordMessage('/frozen_camera', 64, 4)
       await vi.advanceTimersByTimeAsync(6_000)
     })
 
     expect(hook.performance.alerts).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ type: 'low_throughput', topic: '/frozen-camera' }),
+        expect.objectContaining({ type: 'low_throughput', topic: '/frozen_camera' }),
       ])
     )
     expect(hook.performance.topicStats).toEqual([
       expect.objectContaining({
-        topic: '/frozen-camera',
+        topic: '/frozen_camera',
         messageCount: 1,
         windowMessageCount: 0,
       }),

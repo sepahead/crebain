@@ -20,6 +20,7 @@ import type {
 } from './types'
 import { namespacedRosTopic } from './utils'
 import { rosLogger as log } from '../lib/logger'
+import { MAX_ROS_GRAPH_NAME_LENGTH, validateRosGraphName } from './rosNameValidation'
 import { assertExternalTelemetryAllowed } from '../integrations/engramHost'
 import { validateGazeboPose, validateGazeboTwist } from './gazeboValidation'
 import {
@@ -67,8 +68,6 @@ export type ROSMessageValidator = (message: unknown) => boolean
 
 // Allowed URL schemes for ROS bridge connections
 const ALLOWED_SCHEMES = ['ws:', 'wss:']
-const MAX_ROS_NAME_LENGTH = 256
-const ROS_GRAPH_NAME_PATTERN = /^\/[A-Za-z0-9_/]+$/
 const ROS_MESSAGE_TYPE_PATTERN = /^[A-Za-z][A-Za-z0-9_]*\/[A-Za-z][A-Za-z0-9_]*$/
 /** Matches the native rosbridge bound: one 64 MiB image plus JSON overhead. */
 export const MAX_RENDERER_ROSBRIDGE_MESSAGE_BYTES = Math.ceil((64 * 1024 * 1024) / 3) * 4 + 64 * 1024
@@ -82,21 +81,6 @@ const MAX_SENSOR_MEASUREMENT_VARIANCE = 1_000_000_000_000
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function validateRosGraphName(name: string, kind: 'topic' | 'service'): void {
-  if (name.length === 0 || name.trim() !== name) {
-    throw new Error(`Invalid ROS ${kind}: name must not be empty or padded`)
-  }
-  if (name.length > MAX_ROS_NAME_LENGTH) {
-    throw new Error(`Invalid ROS ${kind}: name exceeds ${MAX_ROS_NAME_LENGTH} characters`)
-  }
-  if (name === '/' || !name.startsWith('/')) {
-    throw new Error(`Invalid ROS ${kind}: name must be absolute`)
-  }
-  if (name.includes('//') || name.includes('\0') || /\s/.test(name) || !ROS_GRAPH_NAME_PATTERN.test(name)) {
-    throw new Error(`Invalid ROS ${kind}: name contains invalid characters`)
-  }
 }
 
 function validateRosMessageType(type: string): void {
@@ -134,7 +118,10 @@ function isSafeNonNegativeInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
 }
 
-function isBoundedString(value: unknown, maximumLength = MAX_ROS_NAME_LENGTH): value is string {
+function isBoundedString(
+  value: unknown,
+  maximumLength = MAX_ROS_GRAPH_NAME_LENGTH
+): value is string {
   return typeof value === 'string' && value.length <= maximumLength && !value.includes('\0')
 }
 
