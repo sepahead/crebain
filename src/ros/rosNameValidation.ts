@@ -1,6 +1,6 @@
 export const MAX_ROS_GRAPH_NAME_LENGTH = 256
 
-const ROS_GRAPH_NAME_PATTERN = /^\/[A-Za-z0-9_/]+$/
+const ROS_GRAPH_NAME_PATTERN = /^\/[A-Za-z_][A-Za-z0-9_]*(?:\/[A-Za-z_][A-Za-z0-9_]*)*$/
 
 export function isValidRosGraphName(name: unknown): name is string {
   return (
@@ -10,6 +10,7 @@ export function isValidRosGraphName(name: unknown): name is string {
     name.trim() === name &&
     name !== '/' &&
     name.startsWith('/') &&
+    !name.endsWith('/') &&
     !name.includes('//') &&
     !name.includes('\0') &&
     !/\s/.test(name) &&
@@ -22,9 +23,7 @@ export function validateRosGraphName(name: string, kind: 'topic' | 'service'): v
     throw new Error(`Invalid ROS ${kind}: name must not be empty or padded`)
   }
   if (name.length > MAX_ROS_GRAPH_NAME_LENGTH) {
-    throw new Error(
-      `Invalid ROS ${kind}: name exceeds ${MAX_ROS_GRAPH_NAME_LENGTH} characters`
-    )
+    throw new Error(`Invalid ROS ${kind}: name exceeds ${MAX_ROS_GRAPH_NAME_LENGTH} characters`)
   }
   if (name === '/' || !name.startsWith('/')) {
     throw new Error(`Invalid ROS ${kind}: name must be absolute`)

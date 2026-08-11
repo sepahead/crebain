@@ -4,6 +4,18 @@ For a release candidate, demo, or cross-cutting stabilization batch, first run
 the automated validation. Then, run this checklist. Do not reuse results from a
 different commit, model, platform, or ROS or Zenoh topology.
 
+<p align="center">
+  <img alt="CREBAIN native camera delivery lifecycle" src="../assets/diagrams/camera-delivery-lifecycle.svg" width="900">
+</p>
+
+Text alternative: Zenoh and native rosbridge camera callbacks share a 384 MiB,
+nonblocking frame budget. Each admitted frame retains its topic slot and permit
+while a small identity descriptor crosses Tauri events. The renderer pulls once,
+settles its listeners, and acknowledges the same lifecycle, subscription, and
+delivery identifiers. Exact acknowledgment or the 30-second native lease
+releases ownership. A failure quarantines only the matching declaration.
+Generation checks prevent stale cleanup.
+
 ## Environment record
 
 | Field | Value |
@@ -216,6 +228,16 @@ candidate:
 - **Expected result:** Default UI exposes no NCP control; missing `NCP_ZENOH_CONFIG` fails secure connect; quiet development is explicit; lifecycle replies require `ok`; stale/invalid commands HOLD; raw ESTOP latches; stop drops the subscriber and requests final HOLD
 
 - **Automated:** ✅ feature/unit contract; live Engram/TLS/ACL evidence absent by default
+
+- **Result:**
+
+### Headless NCP perception runner
+
+- **Expected result:** `self-check` reads no runner configuration and opens no Zenoh session; `validate --session-id <id>` checks bounded strict client configuration and opens no Zenoh session; `run --session-id <id>` accepts only that local posture and performs open, 1–4,096 steps, and close; the posture does not prove transport security; after open is confirmed, the running process makes a bounded close attempt
+
+- **Compatibility boundary:** Run only against an explicitly compatible NCP wire-0.8 responder. The `engram/ncp` default realm does not establish compatibility. Current Engram/Paper2Brain native wire 1.0 is incompatible, and no translator or live CREBAIN↔current-Engram loop exists
+
+- **Automated:** ✅ CLI parsing, local modes with no Zenoh session, bounded lifecycle, close-attempt, and package-boundary tests; live intended-responder, end-to-end-effect, TLS identity, ACL, and scientific-validity evidence absent
 
 - **Result:**
 

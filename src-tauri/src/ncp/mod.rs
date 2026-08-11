@@ -1,16 +1,18 @@
 //! Neuro-Cybernetic Protocol (NCP) — CREBAIN's Rust client + adapter.
 //!
-//! Lets CREBAIN ask **Engram** (Engram) for a neural simulation and/or be
-//! steered as a controller, over the recommended decoupled **Zenoh** transport,
-//! using the canonical Rust NCP SDK (`ncp-core` + `ncp-zenoh`). This is the
-//! high-performance peer to the TypeScript WebSocket client in
-//! `src/neuro/` — same wire contract, native Rust + Zenoh.
+//! Lets CREBAIN ask a compatible NCP wire-0.8 responder for a neural simulation
+//! and exposes dormant controller helpers over Zenoh. It uses the canonical Rust
+//! NCP SDK (`ncp-core` + `ncp-zenoh`). The TypeScript client in `src/neuro/`
+//! uses the same pinned wire-0.8 contract over WebSocket.
 //!
-//! **Project specifics stay here, not in Engram.** Engram speaks only NCP
-//! (entity/channel-addressed); this module owns the CREBAIN-specific mapping
-//! (pose/velocity ↔ NCP sensor/command channels) and the topic wiring. The
-//! perception plane carries `SensorFrame`s CREBAIN publishes; the dormant
-//! action plane can produce typed local proposals, but has no plant adapter.
+//! **Project specifics stay here, not in an NCP responder.** This module owns
+//! CREBAIN's pose/velocity mapping and topic wiring. The perception plane carries
+//! `SensorFrame`s CREBAIN publishes. The dormant action plane can produce typed
+//! local proposals, but it has no plant adapter.
+//!
+//! The `engram/ncp` default is only a realm address. Current Engram native-1.0
+//! material is wire-incompatible. This module contains no 0.8-to-1.0 translator
+//! and does not establish a live integration with that candidate.
 //!
 //! Feature-gated behind `ncp` (off by default) so the default CREBAIN build is
 //! unchanged. To expose it to the frontend, register the commands at the bottom
@@ -22,14 +24,18 @@
 //! reproduction; a neuro-controller is a control artifact, not a scientific claim.
 
 use crate::transport::{PoseData, VelocityCmd};
+use crebain_ncp_headless::{FeatureNeuronClient, NCP_RPC_TIMEOUT};
+#[cfg(test)]
+use crebain_ncp_headless::{
+    MAX_ABS_DRIVE_PA, MAX_ADVANCE_MS, MAX_MODEL_NAME_BYTES, MAX_REALM_BYTES, MAX_SESSION_ID_BYTES,
+};
 use ncp_core::keys::Keys;
 use ncp_core::{
-    ChannelValue, CloseSession, CommandFrame, NetworkRef, NetworkRefKind, Observation,
-    ObservationFrame, OpenSession, RecordSpec, RecordTarget, SensorFrame, SessionClosed,
-    SessionRef, SimConfig, StepRequest, StimulusFrame, StimulusSpec, StimulusTarget,
-    StreamPosition,
+    ChannelValue, CommandFrame, ObservationFrame, SensorFrame, SessionRef, StreamPosition,
 };
-use ncp_zenoh::{ZenohBus, ZenohNcpClient};
+#[cfg(test)]
+use ncp_core::{Observation, SessionClosed};
+use ncp_zenoh::ZenohBus;
 use serde::Deserialize;
 use std::{
     collections::{HashMap, HashSet},
@@ -43,22 +49,17 @@ use std::{
 };
 use tokio::{sync::oneshot, task::JoinHandle};
 
-const MAX_REALM_BYTES: usize = 128;
-const MAX_SESSION_ID_BYTES: usize = 128;
-const MAX_MODEL_NAME_BYTES: usize = 128;
 const MAX_FRAME_ID_BYTES: usize = 128;
 // Keep a single request within a generous experimental envelope while bounding
 // backend work and preventing an accidental unit error from driving the model.
-const MAX_ABS_DRIVE_PA: f64 = 1_000_000.0;
-const MAX_ADVANCE_MS: f64 = 10_000.0;
 const MAX_LINEAR_SPEED_MPS: f64 = 100.0;
 const MAX_COMMAND_TTL_MS: f64 = 60_000.0;
 const MAX_COMMAND_HORIZON_STEPS: usize = 1_000;
 const MAX_COMMAND_PAYLOAD_BYTES: usize = 256 * 1024;
+const MAX_SENSOR_PAYLOAD_BYTES: usize = 256 * 1024;
 const MAX_SESSION_LIFECYCLE_LOCKS: usize = 256;
 const MAX_ACTION_SESSIONS: usize = 64;
 const MAX_CLOSED_SESSION_TOMBSTONES: usize = 256;
-const NCP_RPC_TIMEOUT: Duration = Duration::from_secs(15);
 const NCP_ACTION_PERIOD: Duration = Duration::from_millis(20);
 const NCP_ACTION_STOP_TIMEOUT: Duration = Duration::from_secs(1);
 const VELOCITY_SETPOINT_CHANNEL: &str = "velocity_setpoint";
@@ -86,69 +87,36 @@ pub enum NcpConnectionMode {
 }
 
 fn validate_realm(realm: &str) -> Result<(), String> {
-    validate_bounded_text("realm", realm, MAX_REALM_BYTES)?;
-    if realm.split('/').all(valid_key_segment) {
-        Ok(())
-    } else {
-        Err("NCP realm contains an empty or unsafe key segment".into())
-    }
+    crebain_ncp_headless::validate_realm(realm).map_err(|error| error.to_string())
 }
 
 fn validate_session_id(session_id: &str) -> Result<(), String> {
-    validate_bounded_text("session id", session_id, MAX_SESSION_ID_BYTES)?;
-    if valid_key_segment(session_id) {
-        Ok(())
-    } else {
-        Err("NCP session id contains an unsafe key-expression character".into())
-    }
-}
-
-fn valid_key_segment(value: &str) -> bool {
-    ncp_core::keys::valid_id_segment(value)
-        && !value
-            .chars()
-            .any(|character| character.is_whitespace() || character.is_control())
+    crebain_ncp_headless::validate_session_id(session_id).map_err(|error| error.to_string())
 }
 
 fn validate_model_name(model: &str) -> Result<(), String> {
-    validate_bounded_text("model name", model, MAX_MODEL_NAME_BYTES)?;
-    let mut bytes = model.bytes();
-    let starts_with_alphanumeric = bytes
-        .next()
-        .is_some_and(|byte| byte.is_ascii_alphanumeric());
-    if starts_with_alphanumeric
-        && bytes.all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.'))
-    {
-        Ok(())
-    } else {
-        Err("NCP model name must start with an ASCII letter or digit and contain only letters, digits, '_', '-', or '.'".into())
-    }
-}
-
-fn validate_bounded_text(label: &str, value: &str, max_bytes: usize) -> Result<(), String> {
-    if value.is_empty() {
-        return Err(format!("NCP {label} must not be empty"));
-    }
-    if value.len() > max_bytes {
-        return Err(format!("NCP {label} exceeds the {max_bytes}-byte limit"));
-    }
-    Ok(())
+    crebain_ncp_headless::validate_model_name(model).map_err(|error| error.to_string())
 }
 
 fn validate_step_inputs(drive_pa: f64, advance_ms: f64) -> Result<(), String> {
-    if !drive_pa.is_finite() || !(-MAX_ABS_DRIVE_PA..=MAX_ABS_DRIVE_PA).contains(&drive_pa) {
-        return Err(format!(
-            "NCP drive_pa must be finite and within +/-{MAX_ABS_DRIVE_PA} pA"
-        ));
-    }
-    if !advance_ms.is_finite() || advance_ms <= 0.0 || advance_ms > MAX_ADVANCE_MS {
-        return Err(format!(
-            "NCP advance_ms must be finite, greater than zero, and at most {MAX_ADVANCE_MS} ms"
-        ));
-    }
-    Ok(())
+    crebain_ncp_headless::validate_step_inputs(drive_pa, advance_ms)
+        .map_err(|error| error.to_string())
 }
 
+fn validate_frame_id(frame_id: &str) -> Result<(), String> {
+    if frame_id.is_empty()
+        || frame_id.len() > MAX_FRAME_ID_BYTES
+        || frame_id.chars().any(char::is_control)
+    {
+        Err(format!(
+            "NCP frame_id must be non-empty, at most {MAX_FRAME_ID_BYTES} bytes, and contain no control characters"
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+#[cfg(test)]
 fn verify_reply_session(
     reply_kind: &str,
     requested_session_id: &str,
@@ -177,44 +145,15 @@ fn verify_payload_session(
     }
 }
 
+#[cfg(test)]
 fn spike_count(frame: &ObservationFrame, port: &str, target: &str) -> Result<f64, String> {
-    let observation = frame
-        .records
-        .get(port)
-        .ok_or_else(|| format!("NCP observation is missing required spike port {port:?}"))?;
-    if observation.port != port {
-        return Err(format!(
-            "NCP observation record {port:?} declares mismatched port {:?}",
-            observation.port
-        ));
-    }
-    if observation.target != target {
-        return Err(format!(
-            "NCP observation port {port:?} declares target {:?}, expected {target:?}",
-            observation.target
-        ));
-    }
-    if observation.observable != ncp_core::Observable::Spikes {
-        return Err(format!(
-            "NCP observation port {port:?} returned {:?}, expected spikes",
-            observation.observable
-        ));
-    }
-    if observation.times.iter().any(|time| !time.is_finite()) {
-        return Err(format!(
-            "NCP observation port {port:?} contains a non-finite spike time"
-        ));
-    }
-    Ok(observation.times.len() as f64)
+    crebain_ncp_headless::spike_count(frame, port, target).map_err(|error| error.to_string())
 }
 
+#[cfg(test)]
 fn ensure_close_succeeded(session_id: &str, closed: &SessionClosed) -> Result<(), String> {
-    verify_reply_session("session_closed", session_id, &closed.session_id)?;
-    if closed.ok {
-        Ok(())
-    } else {
-        Err(format!("NCP close_session rejected session {session_id:?}"))
-    }
+    crebain_ncp_headless::ensure_close_succeeded(session_id, closed)
+        .map_err(|error| error.to_string())
 }
 
 async fn rpc_with_timeout<T, E, F>(
@@ -247,6 +186,7 @@ pub fn sensor_frame_from_pose(
     session_id: &str,
     session: SessionRef,
 ) -> Result<SensorFrame, String> {
+    validate_frame_id(&pose.frame_id)?;
     let mut channels = ncp_core::Map::new();
     channels.insert(
         "pose_position".to_string(),
@@ -282,6 +222,7 @@ pub fn velocity_from_command(
     command: &CommandFrame,
     frame_id: &str,
 ) -> Result<VelocitySetpointProposal, String> {
+    validate_frame_id(frame_id)?;
     if !command.t.is_finite() {
         return Err("NCP command timestamp must be finite".into());
     }
@@ -306,12 +247,7 @@ fn validate_active_command(command: &CommandFrame) -> Result<(), String> {
     if !command.t.is_finite() {
         return Err("NCP active command timestamp must be finite".into());
     }
-    if command.frame_id.len() > MAX_FRAME_ID_BYTES || command.frame_id.chars().any(char::is_control)
-    {
-        return Err(format!(
-            "NCP active command frame_id exceeds {MAX_FRAME_ID_BYTES} bytes or contains control characters"
-        ));
-    }
+    validate_frame_id(&command.frame_id)?;
     if !command.ttl_ms.is_finite() || command.ttl_ms <= 0.0 || command.ttl_ms > MAX_COMMAND_TTL_MS {
         return Err(format!(
             "NCP active command ttl_ms must be finite, greater than zero, and at most {MAX_COMMAND_TTL_MS} ms"
@@ -461,13 +397,33 @@ fn hold_twist(frame_id: &str, timestamp: f64) -> VelocitySetpointProposal {
 /// Decode a single-neuron / population observation into a scalar feature
 /// (spike count, or last analog/rate value) for CREBAIN's detection logic.
 pub fn observation_scalar(frame: &ObservationFrame, port: &str) -> Option<f64> {
-    frame.records.get(port).map(|o: &Observation| {
-        if !o.times.is_empty() && o.values.is_empty() {
-            o.times.len() as f64 // spikes
-        } else {
-            o.values.last().copied().unwrap_or(0.0)
+    let observation = frame.records.get(port)?;
+    if observation.port != port
+        || observation
+            .times
+            .iter()
+            .any(|value| !value.is_finite() || *value < 0.0)
+        || observation.values.iter().any(|value| !value.is_finite())
+    {
+        return None;
+    }
+    let value = match observation.observable {
+        ncp_core::Observable::Spikes
+            if observation.values.is_empty()
+                && observation.times.len() == observation.senders.len() =>
+        {
+            observation.times.len() as f64
         }
-    })
+        ncp_core::Observable::Spikes => return None,
+        _ if observation.senders.is_empty()
+            && !observation.values.is_empty()
+            && observation.times.len() == observation.values.len() =>
+        {
+            observation.values.last().copied()?
+        }
+        _ => return None,
+    };
+    value.is_finite().then_some(value)
 }
 
 /// Plant-side action receiver with **packetized-predictive-control** replay and
@@ -483,11 +439,13 @@ pub struct CommandPlant {
 }
 
 impl CommandPlant {
-    pub fn new(frame_id: impl Into<String>) -> Self {
-        Self {
+    pub fn new(frame_id: impl Into<String>) -> Result<Self, String> {
+        let frame_id = frame_id.into();
+        validate_frame_id(&frame_id)?;
+        Ok(Self {
             buffer: ncp_core::ActionBuffer::new(),
-            frame_id: frame_id.into(),
-        }
+            frame_id,
+        })
     }
 
     /// Ingest a command received at local time `now_s` (monotonic seconds).
@@ -541,7 +499,7 @@ struct ActionTask {
     // undeclares the action subscription without disturbing the shared session.
     subscription: Option<ZenohBus>,
     stop: Option<oneshot::Sender<()>>,
-    handle: JoinHandle<()>,
+    handle: JoinHandle<Result<(), String>>,
 }
 
 #[derive(Default)]
@@ -558,6 +516,31 @@ struct NcpActionRuntime {
     // remote session closes. A successful explicit open clears the tombstone.
     closed: Mutex<ClosedSessions>,
     shutting_down: AtomicBool,
+}
+
+#[must_use = "keep the action reservation guard alive until the task is installed"]
+struct ActionReservationGuard {
+    actions: Arc<NcpActionRuntime>,
+    session_id: String,
+}
+
+impl ActionReservationGuard {
+    fn reserve(actions: Arc<NcpActionRuntime>, session_id: &str) -> Result<Self, String> {
+        actions.reserve(session_id)?;
+        Ok(Self {
+            actions,
+            session_id: session_id.to_string(),
+        })
+    }
+}
+
+impl Drop for ActionReservationGuard {
+    fn drop(&mut self) {
+        // Installation replaces the pending `None` slot with a task, so this is
+        // a no-op after commit. Before commit it makes cancellation and unwind
+        // release the reservation without requiring an async cleanup branch.
+        self.actions.cancel_reservation(&self.session_id);
+    }
 }
 
 impl NcpActionRuntime {
@@ -650,7 +633,10 @@ impl NcpActionRuntime {
             let _ = stop.send(());
         }
         match tokio::time::timeout(NCP_ACTION_STOP_TIMEOUT, &mut task.handle).await {
-            Ok(Ok(())) => Ok(()),
+            Ok(Ok(Ok(()))) => Ok(()),
+            Ok(Ok(Err(error))) => Err(format!(
+                "NCP action loop for session {session_id:?} failed before final HOLD: {error}"
+            )),
             Ok(Err(error)) => Err(format!(
                 "NCP action loop for session {session_id:?} failed before final HOLD: {error}"
             )),
@@ -691,8 +677,14 @@ impl NcpActionRuntime {
         let wait_for_holds = async move {
             let mut failures = Vec::new();
             for (session_id, handle) in handles {
-                if let Err(error) = handle.await {
-                    failures.push(format!("{session_id:?}: {error}"));
+                match handle.await {
+                    Ok(Ok(())) => {}
+                    Ok(Err(error)) => {
+                        failures.push(format!("{session_id:?}: {error}"));
+                    }
+                    Err(error) => {
+                        failures.push(format!("{session_id:?}: {error}"));
+                    }
                 }
             }
             if failures.is_empty() {
@@ -748,23 +740,43 @@ async fn run_action_loop(
     frame_id: String,
     output: ActionOutput,
     mut stop: oneshot::Receiver<()>,
-) {
+) -> Result<(), String> {
     let mut interval = tokio::time::interval(NCP_ACTION_PERIOD);
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     loop {
         tokio::select! {
             biased;
             _ = &mut stop => {
-                output(hold_twist(&frame_id, started.elapsed().as_secs_f64()));
-                break;
+                emit_action_output(&output, hold_twist(&frame_id, started.elapsed().as_secs_f64()))?;
+                return Ok(());
             }
             _ = interval.tick() => {
                 let now_s = started.elapsed().as_secs_f64();
                 let command = lock_unpoisoned(&plant).velocity_at(now_s);
-                output(command);
+                emit_action_output(&output, command)?;
             }
         }
     }
+}
+
+fn emit_action_output(
+    output: &ActionOutput,
+    command: VelocitySetpointProposal,
+) -> Result<(), String> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| output(command)))
+        .map_err(|_| "NCP action output callback panicked".to_string())
+}
+
+fn prepare_action_loop(
+    actions: Arc<NcpActionRuntime>,
+    session_id: &str,
+    frame_id: &str,
+) -> Result<(Arc<Mutex<CommandPlant>>, ActionReservationGuard), String> {
+    // Construct every fallible local resource before reserving the shared slot.
+    // A rejected frame identifier must not strand a permanent `None` reservation.
+    let plant = Arc::new(Mutex::new(CommandPlant::new(frame_id)?));
+    let reservation = ActionReservationGuard::reserve(actions, session_id)?;
+    Ok((plant, reservation))
 }
 
 fn ingest_command_payload(
@@ -804,7 +816,19 @@ fn encode_sensor_payload_for_route(
 ) -> Result<Vec<u8>, String> {
     validate_session_id(session_id)?;
     verify_payload_session("sensor frame", session_id, &frame.session_id)?;
-    serde_json::to_vec(frame).map_err(|error| error.to_string())
+    ncp_core::WireFrame::validate_wire(frame)
+        .map_err(|error| format!("invalid NCP sensor frame: {error}"))?;
+    let bytes = serde_json::to_vec(frame).map_err(|error| error.to_string())?;
+    enforce_sensor_payload_limit(bytes)
+}
+
+fn enforce_sensor_payload_limit(bytes: Vec<u8>) -> Result<Vec<u8>, String> {
+    if bytes.len() > MAX_SENSOR_PAYLOAD_BYTES {
+        return Err(format!(
+            "NCP sensor payload exceeds the {MAX_SENSOR_PAYLOAD_BYTES}-byte limit"
+        ));
+    }
+    Ok(bytes)
 }
 
 /// CREBAIN's NCP bridge: a Zenoh-backed NCP client (perception/sim service via
@@ -812,7 +836,7 @@ fn encode_sensor_payload_for_route(
 #[derive(Clone)]
 pub struct NcpBridge {
     bus: ZenohBus,
-    client: Arc<ZenohNcpClient>,
+    client: FeatureNeuronClient,
     actions: Arc<NcpActionRuntime>,
     lifecycle_locks: Arc<Mutex<HashMap<String, Weak<tokio::sync::Mutex<()>>>>>,
 }
@@ -823,8 +847,8 @@ impl NcpBridge {
     /// `open_realm` path. With no config, that path uses the scouting-off default
     /// and establishes no authentication. With a config, it does not apply strict
     /// secure-client validation. Loading a config does not prove its TLS/ACL
-    /// policy. CREBAIN targets the Engram deployment realm `engram/ncp` by
-    /// default (see `ncp_connect`).
+    /// policy. CREBAIN uses `engram/ncp` as a routing default (see
+    /// `ncp_connect`). The realm name does not establish peer compatibility.
     pub async fn connect(realm: &str) -> Result<Self, String> {
         Self::connect_with_mode(realm, NcpConnectionMode::default()).await
     }
@@ -842,7 +866,7 @@ impl NcpBridge {
             }
         };
         let bus = rpc_with_timeout("zenoh_connect", NCP_RPC_TIMEOUT, open).await?;
-        let client = Arc::new(ZenohNcpClient::new(bus.clone()));
+        let client = FeatureNeuronClient::new(bus.clone());
         Ok(Self {
             bus,
             client,
@@ -870,51 +894,16 @@ impl NcpBridge {
     /// Open a single-population perception session (e.g. a UAV "feature neuron"
     /// driven by a detection score; read its spikes back).
     pub async fn open_feature_neuron(&self, session_id: &str, model: &str) -> Result<(), String> {
+        // Validate before the identifier can enter the lifecycle-lock map.
         validate_session_id(session_id)?;
         validate_model_name(model)?;
         let lifecycle_lock = self.lifecycle_lock(session_id)?;
         let _lifecycle_guard = lifecycle_lock.lock().await;
         self.actions.ensure_open_allowed()?;
-        let mut population_sizes = ncp_core::Map::new();
-        population_sizes.insert("feat".to_string(), 1);
-        let open = OpenSession {
-            session_id: session_id.to_string(),
-            network: NetworkRef {
-                kind: NetworkRefKind::Builtin,
-                ref_: model.to_string(),
-                population_sizes,
-                ..Default::default()
-            },
-            record: RecordSpec {
-                targets: vec![RecordTarget {
-                    port: "spk".into(),
-                    target: "feat".into(),
-                    observable: ncp_core::Observable::Spikes,
-                    ..Default::default()
-                }],
-            },
-            stimulus: StimulusSpec {
-                targets: vec![StimulusTarget {
-                    port: "drive".into(),
-                    target: "feat".into(),
-                    kind: ncp_core::StimulusKind::CurrentPa,
-                    ..Default::default()
-                }],
-            },
-            sim: SimConfig::default(),
-            ..Default::default()
-        };
-        let opened = self
-            .client
-            .open_with_timeout(&open, NCP_RPC_TIMEOUT)
+        self.client
+            .open(session_id, model)
             .await
-            .map_err(|error| format!("NCP open_session failed: {error}"))?;
-        verify_reply_session("session_opened", session_id, &opened.session_id)?;
-        if !opened.ok {
-            return Err(opened
-                .error
-                .unwrap_or_else(|| "open_session rejected".into()));
-        }
+            .map_err(|error| error.to_string())?;
         self.actions.mark_open(session_id);
         Ok(())
     }
@@ -927,6 +916,7 @@ impl NcpBridge {
         drive_pa: f64,
         advance_ms: f64,
     ) -> Result<f64, String> {
+        // Validate before the identifier can enter the lifecycle-lock map.
         validate_session_id(session_id)?;
         validate_step_inputs(drive_pa, advance_ms)?;
         let lifecycle_lock = self.lifecycle_lock(session_id)?;
@@ -936,28 +926,10 @@ impl NcpBridge {
                 "NCP session {session_id:?} is closed; open it before stepping"
             ));
         }
-        let mut values = ncp_core::Map::new();
-        values.insert(
-            "drive".to_string(),
-            ChannelValue::scalar(drive_pa, Some("pA")),
-        );
-        let step = StepRequest {
-            session_id: session_id.to_string(),
-            advance_ms: Some(advance_ms),
-            stimulus: Some(StimulusFrame {
-                session_id: session_id.to_string(),
-                values,
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-        let observation = self
-            .client
-            .step_with_timeout(&step, NCP_RPC_TIMEOUT)
+        self.client
+            .step(session_id, drive_pa, advance_ms)
             .await
-            .map_err(|error| format!("NCP step_request failed: {error}"))?;
-        verify_reply_session("observation_frame", session_id, &observation.session_id)?;
-        spike_count(&observation, "spk", "feat")
+            .map_err(|error| error.to_string())
     }
 
     pub async fn close(&self, session_id: &str) -> Result<(), String> {
@@ -969,21 +941,11 @@ impl NcpBridge {
         // a final zero setpoint when the callback remains nonblocking/nonpanicking.
         // A callback failure is surfaced even though the remote close is attempted.
         let stop_result = self.actions.stop(session_id).await;
-        let close_result = async {
-            let closed = self
-                .client
-                .close_with_timeout(
-                    &CloseSession {
-                        session_id: session_id.to_string(),
-                        ..Default::default()
-                    },
-                    NCP_RPC_TIMEOUT,
-                )
-                .await
-                .map_err(|error| format!("NCP close_session failed: {error}"))?;
-            ensure_close_succeeded(session_id, &closed)
-        }
-        .await;
+        let close_result = self
+            .client
+            .close(session_id)
+            .await
+            .map_err(|error| error.to_string());
         match (stop_result, close_result) {
             (Ok(()), Ok(())) => Ok(()),
             (Err(stop_error), Ok(())) => Err(stop_error),
@@ -1003,6 +965,13 @@ impl NcpBridge {
         session_id: &str,
         frame: &SensorFrame,
     ) -> Result<(), String> {
+        validate_session_id(session_id)?;
+        let lifecycle_lock = self.lifecycle_lock(session_id)?;
+        let _lifecycle_guard = lifecycle_lock.lock().await;
+        self.client
+            .ensure_open(session_id)
+            .await
+            .map_err(|error| error.to_string())?;
         let bytes = encode_sensor_payload_for_route(session_id, frame)?;
         self.bus
             .put_sensor(session_id, &bytes)
@@ -1017,7 +986,8 @@ impl NcpBridge {
     /// validation into [`CommandPlant`].
     /// The loop continuously enforces monotonic sequence, horizon replay, TTL
     /// expiry, and fail-safe HOLD. Its dedicated subscriber is dropped on
-    /// stop/close/cancellation. The callback must be nonblocking and nonpanicking.
+    /// stop/close/cancellation. The callback must be nonblocking. A panic is
+    /// contained and reported as an action-loop failure.
     pub async fn subscribe_commands<F>(
         &self,
         session_id: &str,
@@ -1050,9 +1020,13 @@ impl NcpBridge {
             .map_err(|error| error.to_string())?;
         let lifecycle_lock = self.lifecycle_lock(session_id)?;
         let _lifecycle_guard = lifecycle_lock.lock().await;
-        self.actions.reserve(session_id)?;
+        self.client
+            .ensure_open(session_id)
+            .await
+            .map_err(|error| error.to_string())?;
         let started = Instant::now();
-        let plant = Arc::new(Mutex::new(CommandPlant::new(frame_id.clone())));
+        let (plant, _reservation_guard) =
+            prepare_action_loop(Arc::clone(&self.actions), session_id, &frame_id)?;
         let command_plant = Arc::clone(&plant);
         let action_bus =
             ZenohBus::from_session(Arc::clone(self.bus.session()), self.bus.keys().clone());
@@ -1080,10 +1054,7 @@ impl NcpBridge {
             }),
         )
         .await;
-        if let Err(error) = subscribe_result {
-            self.actions.cancel_reservation(session_id);
-            return Err(error);
-        }
+        subscribe_result?;
 
         let output: ActionOutput = Arc::new(on_command);
         let cancelled_output = Arc::clone(&output);
@@ -1102,11 +1073,18 @@ impl NcpBridge {
         };
         if let Err(mut task) = self.actions.install(session_id, task) {
             drop(task.subscription.take());
-            cancelled_output(hold_twist(&frame_id, started.elapsed().as_secs_f64()));
+            let hold_result = emit_action_output(
+                &cancelled_output,
+                hold_twist(&frame_id, started.elapsed().as_secs_f64()),
+            );
             task.handle.abort();
-            return Err(format!(
+            let mut error = format!(
                 "NCP action subscription for session {session_id:?} was cancelled during setup"
-            ));
+            );
+            if let Err(hold_error) = hold_result {
+                error.push_str(&format!("; final HOLD failed: {hold_error}"));
+            }
+            return Err(error);
         }
         Ok(())
     }
@@ -1146,9 +1124,9 @@ pub async fn ncp_connect(
     realm: Option<String>,
     connection_mode: Option<NcpConnectionMode>,
 ) -> Result<(), String> {
-    // Default to the Engram deployment's rendezvous realm (an explicit DEPLOYMENT
-    // choice), not ncp_core::DEFAULT_REALM — NCP the protocol is project-neutral
-    // ("ncp"); crebain bridges specifically to Engram. Override via the `realm` arg.
+    // Default to the historical Engram rendezvous realm. This is routing only.
+    // It does not make a current native-1.0 Engram candidate wire-compatible.
+    // Override the address when a compatible wire-0.8 responder uses another realm.
     // Hold the managed slot across connect/teardown/install so concurrent
     // reconnect commands cannot expose and then orphan an intermediate bridge.
     let mut slot = state.0.lock().await;
@@ -1268,6 +1246,7 @@ mod tests {
         assert!(validate_realm("engram/ncp").is_ok());
         assert!(validate_session_id("uav-01.alpha").is_ok());
         assert!(validate_model_name("iaf_psc_alpha").is_ok());
+        assert!(validate_frame_id("map").is_ok());
     }
 
     #[test]
@@ -1296,6 +1275,19 @@ mod tests {
         assert!(validate_realm(&"r".repeat(MAX_REALM_BYTES + 1)).is_err());
         assert!(validate_session_id(&"s".repeat(MAX_SESSION_ID_BYTES + 1)).is_err());
         assert!(validate_model_name(&"m".repeat(MAX_MODEL_NAME_BYTES + 1)).is_err());
+        assert!(validate_frame_id(&"f".repeat(MAX_FRAME_ID_BYTES + 1)).is_err());
+    }
+
+    #[test]
+    fn proposal_frame_ids_fail_closed_before_persistent_or_repeated_use() {
+        for frame_id in ["", "line\nbreak"] {
+            assert!(CommandPlant::new(frame_id).is_err());
+            assert!(velocity_from_command(
+                &active_command(vec![1.0, 0.0, 0.0], Some("m/s")),
+                frame_id
+            )
+            .is_err());
+        }
     }
 
     #[test]
@@ -1532,6 +1524,24 @@ mod tests {
         let error = encode_sensor_payload_for_route(TEST_SID, &mismatched)
             .expect_err("a payload for another session must not reach put_sensor");
         assert!(error.contains("sensor frame session id does not match"));
+
+        let invalid = SensorFrame {
+            t: f64::NAN,
+            stream: test_stream(2),
+            session: test_session(),
+            session_id: TEST_SID.into(),
+            ..Default::default()
+        };
+        assert!(encode_sensor_payload_for_route(TEST_SID, &invalid)
+            .unwrap_err()
+            .contains("invalid NCP sensor frame"));
+
+        assert!(enforce_sensor_payload_limit(vec![0; MAX_SENSOR_PAYLOAD_BYTES]).is_ok());
+        assert!(
+            enforce_sensor_payload_limit(vec![0; MAX_SENSOR_PAYLOAD_BYTES + 1])
+                .unwrap_err()
+                .contains("byte limit")
+        );
     }
 
     #[test]
@@ -1622,7 +1632,7 @@ mod tests {
 
     #[test]
     fn rejected_active_command_does_not_refresh_the_plant_deadline() {
-        let mut plant = CommandPlant::new("base");
+        let mut plant = CommandPlant::new("base").unwrap();
         let mut first = active_command(vec![1.0, 0.0, 0.0], Some("m/s"));
         first.ttl_ms = 20.0;
         plant.on_command(0.0, first).unwrap();
@@ -1637,7 +1647,7 @@ mod tests {
 
     #[test]
     fn command_plant_holds_for_unknown_modes() {
-        let mut plant = CommandPlant::new("base");
+        let mut plant = CommandPlant::new("base").unwrap();
         let mut value =
             serde_json::to_value(active_command(vec![10.0, 0.0, 0.0], Some("m/s"))).unwrap();
         value["mode"] = serde_json::Value::String("future_mode".into());
@@ -1649,7 +1659,7 @@ mod tests {
 
     #[test]
     fn wrong_kind_active_command_cannot_actuate() {
-        let mut plant = CommandPlant::new("base");
+        let mut plant = CommandPlant::new("base").unwrap();
         let mut command = active_command(vec![10.0, 0.0, 0.0], Some("m/s"));
         command.kind = "sensor_frame".into();
         assert!(plant.on_command(0.0, command).is_err());
@@ -1698,7 +1708,7 @@ mod tests {
 
     #[test]
     fn oversized_command_payload_is_rejected_before_json_decode() {
-        let plant = Mutex::new(CommandPlant::new("base"));
+        let plant = Mutex::new(CommandPlant::new("base").unwrap());
         let bytes = vec![b' '; MAX_COMMAND_PAYLOAD_BYTES + 1];
         let error = ingest_test_command_payload(&plant, 0.0, &bytes).unwrap_err();
         assert!(error.contains("command payload exceeds"));
@@ -1706,7 +1716,7 @@ mod tests {
 
     #[test]
     fn command_ingress_accepts_matching_key_and_payload_session() {
-        let plant = Mutex::new(CommandPlant::new("base"));
+        let plant = Mutex::new(CommandPlant::new("base").unwrap());
         let bytes = serde_json::to_vec(&active_command(vec![1.0, 0.0, 0.0], Some("m/s"))).unwrap();
         ingest_test_command_payload(&plant, 0.0, &bytes).unwrap();
         assert_eq!(
@@ -1717,7 +1727,7 @@ mod tests {
 
     #[test]
     fn command_payload_session_mismatch_cannot_replace_active_state() {
-        let plant = Mutex::new(CommandPlant::new("base"));
+        let plant = Mutex::new(CommandPlant::new("base").unwrap());
         let first = serde_json::to_vec(&active_command(vec![1.0, 0.0, 0.0], Some("m/s"))).unwrap();
         ingest_test_command_payload(&plant, 0.0, &first).unwrap();
 
@@ -1736,7 +1746,7 @@ mod tests {
 
     #[test]
     fn hostile_callback_key_cannot_latch_raw_estop() {
-        let plant = Mutex::new(CommandPlant::new("base"));
+        let plant = Mutex::new(CommandPlant::new("base").unwrap());
         let first = serde_json::to_vec(&active_command(vec![1.0, 0.0, 0.0], Some("m/s"))).unwrap();
         ingest_test_command_payload(&plant, 0.0, &first).unwrap();
 
@@ -1760,7 +1770,7 @@ mod tests {
 
     #[test]
     fn raw_unstamped_estop_latches_but_malformed_active_is_dropped() {
-        let plant = Mutex::new(CommandPlant::new("base"));
+        let plant = Mutex::new(CommandPlant::new("base").unwrap());
         lock_unpoisoned(&plant)
             .on_command(0.0, active_command(vec![1.0, 0.0, 0.0], Some("m/s")))
             .unwrap();
@@ -1799,7 +1809,7 @@ mod tests {
             [0.0, 0.0, 0.0]
         );
 
-        let malformed_estop_plant = Mutex::new(CommandPlant::new("base"));
+        let malformed_estop_plant = Mutex::new(CommandPlant::new("base").unwrap());
         lock_unpoisoned(&malformed_estop_plant)
             .on_command(0.0, active_command(vec![2.0, 0.0, 0.0], Some("m/s")))
             .unwrap();
@@ -1820,7 +1830,7 @@ mod tests {
 
     #[test]
     fn command_plant_latches_estop_even_with_invalid_receive_time() {
-        let mut plant = CommandPlant::new("base");
+        let mut plant = CommandPlant::new("base").unwrap();
         plant
             .on_command(0.0, active_command(vec![1.0, 0.0, 0.0], Some("m/s")))
             .unwrap();
@@ -1844,7 +1854,7 @@ mod tests {
         let output: ActionOutput = Arc::new(move |command| {
             lock_unpoisoned(&output_sink).push(command);
         });
-        let plant = Arc::new(Mutex::new(CommandPlant::new("base")));
+        let plant = Arc::new(Mutex::new(CommandPlant::new("base").unwrap()));
         let runtime = NcpActionRuntime::default();
         runtime.reserve("session-1").unwrap();
         let (stop_sender, stop_receiver) = oneshot::channel();
@@ -1876,7 +1886,7 @@ mod tests {
             subscription: None,
             stop: Some(stop_sender),
             handle: tokio::spawn(run_action_loop(
-                Arc::new(Mutex::new(CommandPlant::new("base"))),
+                Arc::new(Mutex::new(CommandPlant::new("base").unwrap())),
                 Instant::now(),
                 "base".into(),
                 output,
@@ -1911,6 +1921,27 @@ mod tests {
     }
 
     #[test]
+    fn invalid_action_frame_id_does_not_strand_a_reservation() {
+        let runtime = Arc::new(NcpActionRuntime::default());
+        assert!(prepare_action_loop(Arc::clone(&runtime), "session-1", "").is_err());
+        assert!(runtime.reserve("session-1").is_ok());
+        runtime.cancel_reservation("session-1");
+    }
+
+    #[test]
+    fn cancelled_action_setup_releases_its_pending_reservation() {
+        let runtime = Arc::new(NcpActionRuntime::default());
+        let (_plant, reservation) =
+            prepare_action_loop(Arc::clone(&runtime), "session-1", "base").unwrap();
+        assert!(runtime.reserve("session-1").is_err());
+
+        drop(reservation);
+
+        assert!(runtime.reserve("session-1").is_ok());
+        runtime.cancel_reservation("session-1");
+    }
+
+    #[test]
     fn closed_session_tombstones_saturate_fail_closed_without_growing() {
         let runtime = NcpActionRuntime::default();
         for index in 0..MAX_CLOSED_SESSION_TOMBSTONES {
@@ -1939,7 +1970,10 @@ mod tests {
         records.insert(
             "spk".into(),
             Observation {
+                port: "spk".into(),
                 times: vec![1.0, 2.0, 3.0],
+                senders: vec![0, 0, 0],
+                observable: ncp_core::Observable::Spikes,
                 ..Default::default()
             },
         );
@@ -1949,6 +1983,71 @@ mod tests {
         };
         assert_eq!(observation_scalar(&frame, "spk"), Some(3.0));
         assert_eq!(observation_scalar(&frame, "missing"), None);
+
+        let mut invalid_records = ncp_core::Map::new();
+        invalid_records.insert(
+            "spk".into(),
+            Observation {
+                port: "spk".into(),
+                times: vec![f64::NAN],
+                senders: vec![0],
+                observable: ncp_core::Observable::Spikes,
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            observation_scalar(
+                &ObservationFrame {
+                    records: invalid_records,
+                    ..Default::default()
+                },
+                "spk"
+            ),
+            None
+        );
+
+        let mut malformed_records = ncp_core::Map::new();
+        malformed_records.insert(
+            "spk".into(),
+            Observation {
+                port: "spk".into(),
+                times: vec![1.0],
+                observable: ncp_core::Observable::Spikes,
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            observation_scalar(
+                &ObservationFrame {
+                    records: malformed_records,
+                    ..Default::default()
+                },
+                "spk"
+            ),
+            None
+        );
+
+        let mut mismatched_records = ncp_core::Map::new();
+        mismatched_records.insert(
+            "spk".into(),
+            Observation {
+                port: "different-port".into(),
+                times: vec![1.0],
+                senders: vec![0],
+                observable: ncp_core::Observable::Spikes,
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            observation_scalar(
+                &ObservationFrame {
+                    records: mismatched_records,
+                    ..Default::default()
+                },
+                "spk"
+            ),
+            None
+        );
     }
 
     #[test]
@@ -1970,7 +2069,7 @@ mod tests {
 
     #[test]
     fn action_and_perception_with_crebain() {
-        // PERCEPTION: crebain pose+velocity -> NCP SensorFrame (sensors → Engram).
+        // PERCEPTION: CREBAIN pose and velocity map to a wire-0.8 SensorFrame.
         let pose = PoseData {
             position: [2.0, 0.0, 0.0],
             orientation: [0.0, 0.0, 0.0, 1.0],
@@ -1998,7 +2097,7 @@ mod tests {
             );
             m
         };
-        let mut plant = CommandPlant::new("base_link");
+        let mut plant = CommandPlant::new("base_link").unwrap();
         let cmd = CommandFrame {
             // Wire 0.8: a command MUST stamp stream.seq >= 1 (its own position,
             // echoing the driving sensor's stream in `source`); the ActionBuffer

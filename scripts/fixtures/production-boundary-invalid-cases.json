@@ -400,6 +400,191 @@
       "id": "direct-web-transport",
       "source": "const transport = new WebTransport(endpoint)",
       "expected_error": "WebTransport"
+    },
+    {
+      "id": "runtime-computed-member-call",
+      "source": "const key = new URLSearchParams(location.search).get('method'); bridge[key](route, payload)",
+      "expected_error": "unknown computed callable"
+    },
+    {
+      "id": "runtime-computed-member-optional-call",
+      "source": "bridge[key]?.(route, payload)",
+      "expected_error": "unknown computed callable"
+    },
+    {
+      "id": "runtime-computed-member-alias",
+      "source": "const write = bridge[key]; write(route, payload)",
+      "expected_error": "unknown computed callable"
+    },
+    {
+      "id": "runtime-computed-member-call-wrapper",
+      "source": "bridge[key].call(bridge, route, payload)",
+      "expected_error": "unknown computed callable"
+    },
+    {
+      "id": "runtime-computed-member-bind-wrapper",
+      "source": "const write = bridge[key].bind(bridge); write(route, payload)",
+      "expected_error": "unknown computed callable"
+    },
+    {
+      "id": "runtime-computed-member-destructure",
+      "source": "const { [key]: write } = bridge; write(route, payload)",
+      "expected_error": "unknown computed callable"
+    },
+    {
+      "id": "runtime-computed-descriptor-call",
+      "source": "Object.getOwnPropertyDescriptor(bridge, key).value(route, payload)",
+      "expected_error": "unknown computed callable"
+    },
+    {
+      "id": "runtime-computed-constructor",
+      "source": "new constructors[key](payload)",
+      "expected_error": "unknown computed constructor"
+    },
+    {
+      "id": "runtime-computed-reflect-apply",
+      "source": "Reflect.apply(bridge[key], bridge, [route, payload])",
+      "expected_error": "unknown computed reflective target"
+    },
+    {
+      "id": "runtime-computed-reflect-construct",
+      "source": "Reflect.construct(constructors[key], [payload])",
+      "expected_error": "unknown computed reflective target"
+    },
+    {
+      "id": "runtime-computed-array-box",
+      "source": "[bridge[key]][0](route, payload)",
+      "expected_error": "unknown computed callable"
+    },
+    {
+      "id": "runtime-computed-object-box",
+      "source": "({ invoke: bridge[key] }).invoke(route, payload)",
+      "expected_error": "unknown computed callable"
+    },
+    {
+      "id": "runtime-computed-conditional",
+      "source": "(enabled ? bridge[key] : fallback)(route, payload)",
+      "expected_error": "unknown computed callable"
+    },
+    {
+      "id": "runtime-computed-awaited-callable",
+      "source": "async function invoke() { (await Promise.resolve(bridge[key]))(route, payload) }",
+      "expected_error": "unknown computed callable"
+    },
+    {
+      "id": "runtime-computed-local-parameter",
+      "source": "function invoke(fn) { fn(route, payload) } invoke(bridge[key])",
+      "expected_error": "unknown computed callable"
+    },
+    {
+      "id": "runtime-computed-aliased-local-parameter",
+      "source": "const invoke = (fn) => fn(route, payload); const forward = invoke; forward(bridge[key])",
+      "expected_error": "unknown computed callable"
+    },
+    {
+      "id": "runtime-computed-returned-arrow",
+      "source": "const select = () => bridge[key]; select()(route, payload)",
+      "expected_error": "unknown computed callable"
+    },
+    {
+      "id": "runtime-computed-returned-function",
+      "source": "function select() { return bridge[key] } select()(route, payload)",
+      "expected_error": "unknown computed callable"
+    },
+    {
+      "id": "runtime-computed-array-destructure",
+      "source": "const values = [bridge[key]]; const [write] = values; write(route, payload)",
+      "expected_error": "unknown computed callable"
+    },
+    {
+      "id": "runtime-computed-array-callback",
+      "source": "[bridge[key]].forEach((write) => write(route, payload))",
+      "expected_error": "unknown computed callable"
+    },
+    {
+      "id": "runtime-computed-getter",
+      "source": "const box = { get write() { return bridge[key] } }; box.write(route, payload)",
+      "expected_error": "unknown computed callable"
+    },
+    {
+      "id": "runtime-computed-local-call-wrapper",
+      "source": "function invoke(fn) { fn(route, payload) } invoke.call(null, bridge[key])",
+      "expected_error": "unknown computed callable"
+    },
+    {
+      "id": "runtime-computed-timeout-callback",
+      "source": "setTimeout(bridge[key], 0)",
+      "expected_error": "unknown computed callback sink"
+    },
+    {
+      "id": "runtime-computed-aliased-microtask-callback",
+      "source": "const schedule = queueMicrotask; schedule(bridge[key])",
+      "expected_error": "unknown computed callback sink"
+    },
+    {
+      "id": "runtime-computed-event-listener",
+      "source": "target.addEventListener('message', bridge[key])",
+      "expected_error": "unknown computed callback sink"
+    },
+    {
+      "id": "runtime-computed-promise-handler",
+      "source": "Promise.resolve(bridge[key]).then((write) => write(route, payload))",
+      "expected_error": "unknown computed callable"
+    },
+    {
+      "id": "runtime-computed-reduce-handler",
+      "source": "[bridge[key]].reduce((write) => write(route, payload))",
+      "expected_error": "unknown computed callable"
+    },
+    {
+      "id": "runtime-computed-promise-rejection-handler",
+      "source": "Promise.resolve().then(undefined, bridge[key])",
+      "expected_error": "unknown computed callback sink"
+    },
+    {
+      "id": "runtime-computed-promise-executor",
+      "source": "new Promise(bridge[key])",
+      "expected_error": "unknown computed constructor callback"
+    },
+    {
+      "id": "runtime-computed-event-property",
+      "source": "target.onmessage = bridge[key]",
+      "expected_error": "unknown computed event handler"
+    },
+    {
+      "id": "runtime-computed-sort-callback",
+      "source": "items.sort(bridge[key])",
+      "expected_error": "unknown computed callback sink"
+    },
+    {
+      "id": "runtime-computed-listener-object",
+      "source": "target.addEventListener('message', { handleEvent: bridge[key] })",
+      "expected_error": "unknown computed callback sink"
+    },
+    {
+      "id": "runtime-computed-array-parameter-fixed-point",
+      "source": "function invoke(values) { values.map((write) => write()) } invoke([bridge[key]])",
+      "expected_error": "unknown computed callable"
+    },
+    {
+      "id": "runtime-computed-descriptor-map-call",
+      "source": "Object.getOwnPropertyDescriptors(bridge)[key].value(route, payload)",
+      "expected_error": "unknown computed callable"
+    },
+    {
+      "id": "runtime-computed-descriptor-map-alias",
+      "source": "const descriptors = Object.getOwnPropertyDescriptors(bridge); const write = descriptors[key].value; write(route, payload)",
+      "expected_error": "unknown computed callable"
+    },
+    {
+      "id": "runtime-computed-descriptor-map-destructure",
+      "source": "const { value: write } = Object.getOwnPropertyDescriptors(bridge)[key]; write(route, payload)",
+      "expected_error": "property descriptor access"
+    },
+    {
+      "id": "runtime-computed-descriptor-map-assignment",
+      "source": "let write; ({ value: write } = Object.getOwnPropertyDescriptors(bridge)[key]); write(route, payload)",
+      "expected_error": "property descriptor access"
     }
   ],
   "allowed_cases": [
@@ -418,6 +603,22 @@
     {
       "id": "reserved-property-keys-only",
       "source": "const handlers = { fetch: 'asset', publish(value) { return value }, ['callService']: false }; consume(handlers)"
+    },
+    {
+      "id": "runtime-computed-data-read",
+      "source": "const value = record[key]; consume(value)"
+    },
+    {
+      "id": "statically-resolved-computed-call",
+      "source": "handlers[['ren', 'der'].join('')](payload)"
+    },
+    {
+      "id": "runtime-computed-local-data-parameter",
+      "source": "function consumeData(value) { return JSON.stringify(value) }; consumeData(record[key])"
+    },
+    {
+      "id": "runtime-indexed-object-static-method",
+      "source": "const last = nodes[nodes.length - 1]; last.focus()"
     }
   ]
 }

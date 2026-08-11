@@ -111,4 +111,21 @@ describe('SensorFusionPanel hosted read-only policy', () => {
 
     expect(callbacks.onAlgorithmChange).toHaveBeenCalledWith('Particle')
   })
+
+  it('keeps pointer dragging separate from disclosure and settings controls', async () => {
+    await renderPanel(false)
+
+    const dragSurface = container.querySelector<HTMLElement>('[data-drag-handle]')
+    const collapse = container.querySelector<HTMLButtonElement>(
+      '[aria-label="Sensor-Fusion-Panel einklappen"]'
+    )
+    const settings = container.querySelector<HTMLButtonElement>(
+      '[aria-label="Fusion-Einstellungen öffnen"]'
+    )
+
+    expect(dragSurface?.tagName).toBe('DIV')
+    expect(collapse?.hasAttribute('data-drag-handle')).toBe(false)
+    expect(settings?.hasAttribute('data-drag-handle')).toBe(false)
+    expect(dragSurface?.contains(collapse ?? null)).toBe(true)
+  })
 })

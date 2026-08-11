@@ -5,7 +5,12 @@ import type { FusionStats } from '../../../detection/SensorFusion'
 import type { Detection, FusedTrack } from '../../../detection/types'
 import type { SurveillanceCamera } from '../types'
 import HeaderBar from '../HeaderBar'
+import {
+  DEFAULT_SECURITY_CONFIGURATION_STATUS,
+  getSecurityConfigurationPresentation,
+} from '../securityConfigurationStatus'
 import DetectionPanel from '../DetectionPanel'
+import { ViewerFooter, ViewerOverlayRail } from '../ViewerChrome'
 ;(
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true
@@ -32,6 +37,13 @@ afterEach(() => {
 })
 
 describe('HeaderBar render smoke', () => {
+  it('defaults an unattested deployment to a neutral unknown security state', () => {
+    expect(DEFAULT_SECURITY_CONFIGURATION_STATUS).toBe('unknown')
+    expect(getSecurityConfigurationPresentation(DEFAULT_SECURITY_CONFIGURATION_STATUS)).toEqual(
+      expect.objectContaining({ label: 'UNBEKANNT', color: 'bg-[#404040]' })
+    )
+  })
+
   it('mounts and shows branding, position, and live counters without crashing', () => {
     act(() => {
       root.render(
@@ -65,6 +77,32 @@ describe('HeaderBar render smoke', () => {
     expect(text).toContain('SIM POS')
     // The threat-level selector renders buttons 1-4.
     expect(container.querySelectorAll('button').length).toBeGreaterThanOrEqual(4)
+    expect(
+      (container.querySelector('[aria-label="Primary status and controls"]') as HTMLElement)
+        .tabIndex
+    ).toBe(0)
+    expect(
+      (container.querySelector('[aria-label="Detection and sensor status"]') as HTMLElement)
+        .tabIndex
+    ).toBe(0)
+    expect(
+      container.querySelector('[aria-label="Set threat level 2"]')?.getAttribute('aria-pressed')
+    ).toBe('true')
+    expect(
+      container.querySelector('[aria-label="Set threat level 1"]')?.getAttribute('aria-pressed')
+    ).toBe('false')
+
+    const primaryRegion = container.querySelector(
+      '[aria-label="Primary status and controls"]'
+    ) as HTMLElement
+    Object.defineProperties(primaryRegion, {
+      clientWidth: { configurable: true, value: 400 },
+      scrollWidth: { configurable: true, value: 1000 },
+    })
+    primaryRegion.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'End' }))
+    expect(primaryRegion.scrollLeft).toBe(600)
+    primaryRegion.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Home' }))
+    expect(primaryRegion.scrollLeft).toBe(0)
   })
 
   it('renders threat level as status instead of mutation controls in read-only mode', () => {
@@ -171,6 +209,61 @@ describe('HeaderBar render smoke', () => {
       ).toBe(true)
     }
   )
+})
+
+describe('ViewerOverlayRail accessibility', () => {
+  it('is a keyboard scroll region only when the docked layout owns its geometry', () => {
+    act(() => {
+      root.render(
+        <ViewerOverlayRail isDocked={false}>
+          <div data-viewer-overlay="test">content</div>
+        </ViewerOverlayRail>
+      )
+    })
+    const rail = container.querySelector('[data-viewer-overlay-rail]') as HTMLElement
+    expect(rail.getAttribute('role')).toBeNull()
+    expect(rail.hasAttribute('tabindex')).toBe(false)
+
+    act(() => {
+      root.render(
+        <ViewerOverlayRail isDocked>
+          <div data-viewer-overlay="test">content</div>
+        </ViewerOverlayRail>
+      )
+    })
+    expect(rail.getAttribute('role')).toBe('region')
+    expect(rail.getAttribute('aria-label')).toBe('Viewer information overlays')
+    expect(rail.tabIndex).toBe(0)
+    Object.defineProperties(rail, {
+      clientHeight: { configurable: true, value: 200 },
+      scrollHeight: { configurable: true, value: 800 },
+    })
+    rail.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'End' }))
+    expect(rail.scrollTop).toBe(600)
+  })
+})
+
+describe('ViewerFooter accessibility', () => {
+  it('exposes the persistent feed-toggle state', () => {
+    const renderFooter = (feedsVisible: boolean) => (
+      <ViewerFooter
+        readOnly={false}
+        paused
+        feedsVisible={feedsVisible}
+        onTogglePause={() => {}}
+        onResetSimulation={() => {}}
+        onToggleFeeds={() => {}}
+        onResetCamera={() => {}}
+        onFocusContent={() => {}}
+      />
+    )
+
+    act(() => root.render(renderFooter(false)))
+    expect(container.querySelector('button[aria-pressed="false"]')?.textContent).toBe('FEEDS')
+
+    act(() => root.render(renderFooter(true)))
+    expect(container.querySelector('button[aria-pressed="true"]')?.textContent).toBe('FEEDS')
+  })
 })
 
 describe('DetectionPanel render smoke', () => {

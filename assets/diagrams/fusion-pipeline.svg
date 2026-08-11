@@ -1,154 +1,169 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 500" role="img" aria-label="CREBAIN sensor fusion pipeline">
-  <title>CREBAIN sensor fusion pipeline</title>
+<svg xmlns="http://www.w3.org/2000/svg" xml:lang="en" viewBox="0 0 1200 840" width="1200" height="840" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="fusion-pipeline-title fusion-pipeline-desc">
+  <title id="fusion-pipeline-title">CREBAIN native sensor-fusion pipeline</title>
+  <desc id="fusion-pipeline-desc">Six bounded measurement sources enter the native engine. Prediction, Mahalanobis gating, and association split associated measurements into filter updates and unassociated measurements into track initiation before lifecycle processing. Local JSONL innovation output and the separately gated two-route producer are distinct. The browser multi-camera estimator has separate state and output.</desc>
+  <style>
+    * { vector-effect: non-scaling-stroke; }
+    .canvas { fill: #f8fafc; }
+    text { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 14px; fill: #172033; text-anchor: middle; }
+    .title { font-size: 18px; font-weight: 700; letter-spacing: 2px; text-anchor: start; }
+    .subtitle { font-size: 13px; fill: #475569; text-anchor: start; }
+    .section { font-size: 14px; font-weight: 700; letter-spacing: 1.3px; text-anchor: start; }
+    .small { font-size: 13px; fill: #475569; }
+    .left { text-anchor: start; }
+    .data-text { fill: #0369a1; }
+    .present-text { fill: #047857; }
+    .conditional-text { fill: #92400e; }
+    .optional-text { fill: #6d28d9; }
+    .absent-text { fill: #b91c1c; }
+    .surface { fill: #ffffff; stroke: #52643f; stroke-width: 1.4; }
+    .source-box { fill: #ffffff; stroke: #0369a1; stroke-width: 1.3; }
+    .present-box { fill: #ffffff; stroke: #047857; stroke-width: 1.7; }
+    .conditional-box { fill: #ffffff; stroke: #92400e; stroke-width: 1.5; }
+    .optional-box { fill: #ffffff; stroke: #6d28d9; stroke-width: 1.5; stroke-dasharray: 7 5; }
+    .separate-box { fill: #ffffff; stroke: #64748b; stroke-width: 1.5; stroke-dasharray: 3 4; }
+    .edge { fill: none; stroke: #52643f; stroke-width: 1.5; marker-end: url(#fusion-arrow-flow); }
+    .branch-edge { fill: none; stroke: #92400e; stroke-width: 1.5; marker-end: url(#fusion-arrow-conditional); }
+    .optional-edge { fill: none; stroke: #6d28d9; stroke-width: 1.5; stroke-dasharray: 7 5; marker-end: url(#fusion-arrow-optional); }
+    .marker-flow { fill: #52643f; }
+    .marker-conditional { fill: #92400e; }
+    .marker-optional { fill: #6d28d9; }
+    .corner { fill: none; stroke: #52643f; stroke-width: 1.8; }
+    .divider { stroke: #64748b; stroke-width: 1.2; stroke-dasharray: 3 5; }
+    @media (prefers-color-scheme: dark) {
+      .canvas { fill: #0d1117; }
+      text { fill: #d6dde5; }
+      .subtitle, .small { fill: #9aa7b4; }
+      .data-text { fill: #38bdf8; }
+      .present-text { fill: #34d399; }
+      .conditional-text { fill: #fbbf24; }
+      .optional-text { fill: #c4b5fd; }
+      .absent-text { fill: #f87171; }
+      .surface, .source-box, .present-box, .conditional-box, .optional-box, .separate-box { fill: #111820; }
+      .surface { stroke: #87967a; }
+      .source-box { stroke: #38bdf8; }
+      .present-box { stroke: #34d399; }
+      .conditional-box, .branch-edge { stroke: #fbbf24; }
+      .optional-box, .optional-edge { stroke: #c4b5fd; }
+      .separate-box, .divider { stroke: #7d8996; }
+      .edge, .corner { stroke: #87967a; }
+      .marker-flow { fill: #87967a; }
+      .marker-conditional { fill: #fbbf24; }
+      .marker-optional { fill: #c4b5fd; }
+    }
+  </style>
   <defs>
-    <marker id="ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M0 0 L8 4 L0 8 Z" fill="#9caf88"/>
+    <marker id="fusion-arrow-flow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path class="marker-flow" d="M0 0 L8 4 L0 8 Z"/>
     </marker>
-    <marker id="ahs" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M0 0 L8 4 L0 8 Z" fill="#38bdf8"/>
+    <marker id="fusion-arrow-conditional" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path class="marker-conditional" d="M0 0 L8 4 L0 8 Z"/>
     </marker>
-    <marker id="ahg" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M0 0 L8 4 L0 8 Z" fill="#6e7681"/>
+    <marker id="fusion-arrow-optional" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path class="marker-optional" d="M0 0 L8 4 L0 8 Z"/>
     </marker>
   </defs>
-  <style>
-    text { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; fill: #c9d1d9; text-anchor: middle; }
-    .ttl { font-size: 13px; letter-spacing: 2px; text-anchor: start; }
-    .ls  { text-anchor: start; }
-    .dim { fill: #8b949e; }
-    .sky { fill: #38bdf8; }
-    .em  { fill: #34d399; }
-    .am  { fill: #fbbf24; }
-    .vi  { fill: #a78bfa; }
-    .rd  { fill: #ef4444; }
-    .sg  { fill: #b6cf86; }
-    .box   { fill: #0d1117; stroke: #9caf88; stroke-width: 1.2; }
-    .bsrc  { stroke: #728a49; }
-    .bem   { stroke: #34d399; }
-    .bdash { stroke: #38bdf8; stroke-width: 1; stroke-dasharray: 5 4; }
-    .bgray { stroke: #6e7681; stroke-width: 1; stroke-dasharray: 5 4; }
-    .fl  { fill: none; stroke: #9caf88; stroke-width: 1.2; marker-end: url(#ah); }
-    .fld { fill: none; stroke: #38bdf8; stroke-width: 1.2; stroke-dasharray: 5 4; marker-end: url(#ahs); }
-    .flg { fill: none; stroke: #6e7681; stroke-width: 1.2; stroke-dasharray: 5 4; marker-end: url(#ahg); }
-    .brk { fill: none; stroke: #728a49; stroke-width: 1.5; }
-    .key  { fill: none; stroke: #9caf88; stroke-width: 1.2; }
-    .keyd { fill: none; stroke: #38bdf8; stroke-width: 1.2; stroke-dasharray: 5 4; }
-  </style>
 
-  <rect x="0" y="0" width="1080" height="500" fill="#0d1117"/>
+  <rect class="canvas" x="0" y="0" width="1200" height="840"/>
+  <path class="corner" d="M18 42 V18 H42 M1158 18 H1182 V42 M18 798 V822 H42 M1182 798 V822 H1158"/>
+  <text class="title" x="48" y="42">CREBAIN · NATIVE SENSOR-FUSION PIPELINE</text>
+  <text class="subtitle" x="48" y="66">NORMATIVE RUST ENGINE · BOUNDED FRAME PROCESSING · EXPLICITLY SEPARATE OUTPUT PATHS</text>
 
-  <!-- corner brackets -->
-  <path class="brk" d="M12 26 V12 H26"/>
-  <path class="brk" d="M1054 12 H1068 V26"/>
-  <path class="brk" d="M12 474 V488 H26"/>
-  <path class="brk" d="M1068 474 V488 H1054"/>
+  <text class="section data-text" x="40" y="106">MEASUREMENT SOURCES</text>
+  <rect class="source-box" x="40" y="120" width="164" height="48"/>
+  <text class="data-text" x="122" y="142">Radar</text>
+  <text class="small" x="122" y="159">polar [m, rad, rad]</text>
+  <rect class="source-box" x="40" y="176" width="164" height="48"/>
+  <text class="data-text" x="122" y="198">Lidar</text>
+  <text class="small" x="122" y="215">Cartesian m</text>
+  <rect class="source-box" x="40" y="232" width="164" height="48"/>
+  <text class="data-text" x="122" y="254">Thermal</text>
+  <text class="small" x="122" y="271">Cartesian m</text>
+  <rect class="source-box" x="40" y="288" width="164" height="48"/>
+  <text class="data-text" x="122" y="310">Acoustic</text>
+  <text class="small" x="122" y="327">Cartesian m</text>
+  <rect class="source-box" x="40" y="344" width="164" height="48"/>
+  <text class="data-text" x="122" y="366">Radio frequency</text>
+  <text class="small" x="122" y="383">Cartesian m</text>
+  <rect class="source-box" x="40" y="400" width="164" height="48"/>
+  <text class="data-text" x="122" y="422">Visual</text>
+  <text class="small" x="122" y="439">Cartesian m</text>
 
-  <text class="ttl" x="40" y="32">CREBAIN · NATIVE SENSOR-FUSION PIPELINE</text>
+  <path class="edge" d="M204 144 L232 218"/>
+  <path class="edge" d="M204 200 L232 240"/>
+  <path class="edge" d="M204 256 L232 262"/>
+  <path class="edge" d="M204 312 L232 284"/>
+  <path class="edge" d="M204 368 L232 306"/>
+  <path class="edge" d="M204 424 L232 328"/>
+  <rect class="present-box" x="238" y="192" width="156" height="168"/>
+  <text class="present-text" x="316" y="236">Measurement intake</text>
+  <text class="small" x="316" y="262">exact-time grouping</text>
+  <text class="small" x="316" y="284">finite + bounded</text>
+  <text class="small" x="316" y="306">≤ 512 per batch</text>
+  <text class="small" x="316" y="328">loss is explicit</text>
 
-  <!-- legend -->
-  <line class="key"  x1="800" y1="24" x2="832" y2="24"/>
-  <text class="ls dim" x="840" y="28">SOLID = NORMATIVE NATIVE PATH</text>
-  <line class="keyd" x1="800" y1="42" x2="832" y2="42"/>
-  <text class="ls dim" x="840" y="46">DASHED = OPTIONAL / GATED</text>
+  <path class="edge" d="M394 276 H420"/>
+  <rect class="conditional-box" x="428" y="224" width="112" height="104"/>
+  <text class="conditional-text" x="484" y="264">Predict</text>
+  <text class="small" x="484" y="287">CV model</text>
+  <text class="small" x="484" y="307">frame time</text>
+  <path class="edge" d="M540 276 H562"/>
+  <rect class="conditional-box" x="570" y="224" width="134" height="104"/>
+  <text class="conditional-text" x="637" y="257">Gate</text>
+  <text class="small" x="637" y="280">Mahalanobis d²</text>
+  <text class="small" x="637" y="301">χ²(3) · 11.345</text>
+  <path class="edge" d="M704 276 H726"/>
+  <rect class="conditional-box" x="734" y="224" width="144" height="104"/>
+  <text class="conditional-text" x="806" y="253">Associate</text>
+  <text class="small" x="806" y="276">cluster + sparse</text>
+  <text class="small" x="806" y="297">Hungarian</text>
+  <text class="small" x="806" y="316">assignment</text>
 
-  <!-- measurement sources -->
-  <text class="ls sky" x="16" y="60">MEASUREMENT SOURCES</text>
-  <rect class="box bsrc" x="16" y="72"  width="152" height="48"/>
-  <text class="sky" x="92" y="92">RADAR</text>
-  <text class="dim" x="92" y="108">POLAR [M, RAD, RAD]</text>
-  <rect class="box bsrc" x="16" y="126" width="152" height="48"/>
-  <text class="sky" x="92" y="146">LIDAR</text>
-  <text class="dim" x="92" y="162">CARTESIAN M</text>
-  <rect class="box bsrc" x="16" y="180" width="152" height="48"/>
-  <text class="sky" x="92" y="200">THERMAL</text>
-  <text class="dim" x="92" y="216">CARTESIAN M</text>
-  <rect class="box bsrc" x="16" y="234" width="152" height="48"/>
-  <text class="sky" x="92" y="254">ACOUSTIC</text>
-  <text class="dim" x="92" y="270">CARTESIAN M</text>
-  <rect class="box bsrc" x="16" y="288" width="152" height="48"/>
-  <text class="sky" x="92" y="308">RF</text>
-  <text class="dim" x="92" y="324">CARTESIAN M</text>
-  <rect class="box bsrc" x="16" y="342" width="152" height="48"/>
-  <text class="sky" x="92" y="362">VISUAL</text>
-  <text class="dim" x="92" y="378">CARTESIAN M</text>
+  <path class="branch-edge" d="M878 250 H906 V180 H930"/>
+  <rect class="conditional-box" x="938" y="124" width="222" height="112"/>
+  <text class="conditional-text" x="1049" y="154">Update track</text>
+  <text class="small" x="1049" y="180">associated measurements</text>
+  <text class="small" x="1049" y="203">sequential, per-return R</text>
+  <text class="small optional-text" x="1049" y="226">KF · EKF · UKF · PF · IMM</text>
 
-  <line class="fl" x1="168" y1="96"  x2="192" y2="160"/>
-  <line class="fl" x1="168" y1="150" x2="192" y2="190"/>
-  <line class="fl" x1="168" y1="204" x2="192" y2="220"/>
-  <line class="fl" x1="168" y1="258" x2="192" y2="250"/>
-  <line class="fl" x1="168" y1="312" x2="192" y2="280"/>
-  <line class="fl" x1="168" y1="366" x2="192" y2="310"/>
+  <path class="branch-edge" d="M878 302 H906 V382 H930"/>
+  <rect class="conditional-box" x="938" y="326" width="222" height="112"/>
+  <text class="conditional-text" x="1049" y="356">Initiate track</text>
+  <text class="small" x="1049" y="382">unassociated measurements</text>
+  <text class="small" x="1049" y="405">single-point birth</text>
+  <text class="small" x="1049" y="428">wide velocity prior</text>
 
-  <!-- measurement intake -->
-  <rect class="box bem" x="196" y="140" width="140" height="190"/>
-  <text class="em"  x="266" y="195">MEASUREMENT</text>
-  <text class="em"  x="266" y="211">INTAKE</text>
-  <text class="dim" x="266" y="227">EXACT-TIME</text>
-  <text class="dim" x="266" y="243">GROUPING</text>
-  <text class="dim" x="266" y="259">BOUNDED</text>
-  <text class="dim" x="266" y="275">&#8804;512/BATCH</text>
+  <path class="edge" d="M1049 236 V252 H1176 V524 H1168"/>
+  <path class="edge" d="M1049 438 V462"/>
+  <rect class="present-box" x="938" y="470" width="222" height="108"/>
+  <text class="present-text" x="1049" y="500">Track lifecycle</text>
+  <text class="small" x="1049" y="525">Tentative → Confirmed</text>
+  <text class="small" x="1049" y="548">Coasting → Lost</text>
+  <text class="small" x="1049" y="568">default: 3-of-5</text>
+  <path class="edge" d="M1049 578 V608"/>
+  <rect class="present-box" x="938" y="616" width="222" height="72"/>
+  <text class="present-text" x="1049" y="646">TrackOutput[]</text>
+  <text class="small" x="1049" y="672">Sensor Fusion panel</text>
 
-  <line class="fl" x1="336" y1="232" x2="352" y2="232"/>
+  <line class="divider" x1="28" y1="502" x2="902" y2="502"/>
+  <text class="section optional-text" x="40" y="534">SEPARATE / GATED OUTPUTS</text>
+  <rect class="separate-box" x="40" y="552" width="328" height="184"/>
+  <text x="204" y="582">Browser multi-camera estimator</text>
+  <text class="small" x="204" y="608">detections + intrinsics</text>
+  <text class="small" x="204" y="631">→ FusedTrack[]</text>
+  <text class="small" x="204" y="654">separate identity, state, covariance</text>
+  <text class="absent-text" x="204" y="685">NO SHARED STATE OR OUTPUT</text>
+  <text class="small absent-text" x="204" y="712">not a native parity oracle</text>
 
-  <!-- main pipeline -->
-  <rect class="box" x="360" y="196" width="96" height="72"/>
-  <text class="am"  x="408" y="226">PREDICT</text>
-  <text class="dim" x="408" y="242">CV MODEL</text>
+  <path class="optional-edge" d="M938 180 H910 V608 H858"/>
+  <rect class="optional-box" x="520" y="552" width="330" height="112"/>
+  <text class="optional-text" x="685" y="582">Local innovation drain</text>
+  <text class="small" x="685" y="610">emit_innovations = true</text>
+  <text class="small" x="685" y="636">compatible Kalman-family JSONL</text>
 
-  <line class="fl" x1="456" y1="232" x2="466" y2="232"/>
-
-  <rect class="box" x="472" y="196" width="124" height="72"/>
-  <text class="am"  x="534" y="219">GATE</text>
-  <text class="dim" x="534" y="235">MAHALANOBIS</text>
-  <text class="dim" x="534" y="251">&#967;&#178;(3) &#183; 11.345</text>
-
-  <line class="fl" x1="596" y1="232" x2="606" y2="232"/>
-
-  <rect class="box" x="612" y="196" width="124" height="72"/>
-  <text class="am"  x="674" y="219">ASSOCIATE</text>
-  <text class="dim" x="674" y="235">CLUSTER +</text>
-  <text class="dim" x="674" y="251">HUNGARIAN</text>
-
-  <line class="fl" x1="736" y1="232" x2="746" y2="232"/>
-
-  <rect class="box" x="752" y="196" width="150" height="72"/>
-  <text class="am"  x="827" y="219">UPDATE</text>
-  <text class="dim" x="827" y="235">SEQUENTIAL,</text>
-  <text class="dim" x="827" y="251">PER-MEASUREMENT R</text>
-
-  <line class="fl" x1="902" y1="232" x2="912" y2="232"/>
-
-  <rect class="box" x="918" y="196" width="146" height="72"/>
-  <text class="am"  x="991" y="219">INITIATE +</text>
-  <text class="am"  x="991" y="235">LIFECYCLE</text>
-  <text class="dim" x="991" y="251">M-OF-N 3-OF-5</text>
-
-  <!-- selectable filters -->
-  <text class="vi" x="827" y="292">KF &#183; EKF (DEFAULT)</text>
-  <text class="vi" x="827" y="307">UKF &#183; PF &#183; IMM</text>
-
-  <!-- lifecycle mini-strip -->
-  <line class="fl" x1="991" y1="268" x2="991" y2="278"/>
-  <text class="sg" x="991" y="292">TENTATIVE &#8594; CONFIRMED</text>
-  <text class="sg" x="991" y="307">&#8594; COASTING &#8594; LOST</text>
-  <line class="fl" x1="991" y1="314" x2="991" y2="336"/>
-
-  <!-- track output -->
-  <rect class="box bem" x="896" y="340" width="164" height="52"/>
-  <text class="em" x="978" y="361">TRACK OUTPUT &#8594;</text>
-  <text x="978" y="377">SENSOR FUSION PANEL</text>
-
-  <!-- gated evidence branch -->
-  <line class="fld" x1="760" y1="268" x2="760" y2="336"/>
-  <rect class="box bdash" x="560" y="340" width="242" height="52"/>
-  <text class="sky" x="681" y="361">EMIT_INNOVATIONS &#8594;</text>
-  <text class="dim" x="681" y="377">JSONL / GALADRIEL ROUTES &#183; GATED</text>
-
-  <!-- separate browser estimator -->
-  <rect class="box bgray" x="16" y="414" width="214" height="64"/>
-  <text x="123" y="435">BROWSER MULTI-CAMERA MODULE</text>
-  <text class="dim" x="123" y="451">SEPARATE GEOMETRIC ESTIMATOR</text>
-  <text class="rd" x="123" y="467">NOT A PARITY ORACLE</text>
-  <line class="flg" x1="91" y1="412" x2="91" y2="396"/>
-  <text class="ls dim" x="104" y="406">FINITE TRIANGULATION ONLY</text>
+  <path class="optional-edge" d="M938 524 H900 V744 H858"/>
+  <rect class="optional-box" x="500" y="686" width="350" height="116"/>
+  <text class="optional-text" x="675" y="716">Two-route sidecar evidence API</text>
+  <text class="small" x="675" y="742">feature + runtime pins</text>
+  <text class="small" x="675" y="766">independent of emit_innovations</text>
+  <text class="small absent-text" x="675" y="790">local NCP put is not receiver delivery</text>
 </svg>

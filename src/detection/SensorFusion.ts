@@ -49,6 +49,8 @@ const MIN_TRIANGULATION_PARALLAX_RADIANS = THREE.MathUtils.degToRad(0.5)
 // Range (m) at which the spatial term of the track-match score decays to zero.
 const SPATIAL_MATCH_SCALE_M = 15
 const FORBIDDEN_ASSIGNMENT_COST = 1_000_000
+const MAX_BROWSER_FUSION_TRACK_AGE_MS = 86_400_000
+const MAX_BROWSER_FUSION_HISTORY = 30
 
 // Browser fusion is a visualization/research path, not the native authority.
 // Keep every pre-assignment dimension bounded so hostile or accidentally
@@ -74,6 +76,8 @@ const VALID_DETECTION_CLASSES: ReadonlySet<string> = new Set<DetectionClass>([
   'unknown',
 ])
 const VALID_EULER_ORDERS: ReadonlySet<string> = new Set(['XYZ', 'YZX', 'ZXY', 'XZY', 'YXZ', 'ZYX'])
+const BROWSER_FUSION_TEXT_ENCODER = new TextEncoder()
+const BROWSER_FUSION_CONTROL_CHARACTER = /\p{Cc}/u
 
 export interface FusionFrameContext {
   /** Unique within one viewer generation. */
@@ -107,6 +111,7 @@ export type FusionFrameStatus =
   | 'rejected_timestamp'
 
 type Ray = { origin: THREE.Vector3; direction: THREE.Vector3 }
+type GroupPositionEstimate = { position: THREE.Vector3; reliable: boolean }
 
 function cameraDepthTolerance(camera: CameraParams): number {
   return Math.min(
@@ -135,13 +140,99 @@ function hasStableTriangulationParallax(rays: Ray[]): boolean {
   return false
 }
 
-function isBoundedIdentifier(value: unknown): value is string {
+function isBoundedIdentifier(
+  value: unknown,
+  maxBytes = MAX_BROWSER_FUSION_INPUT_ID_BYTES
+): value is string {
   return (
     typeof value === 'string' &&
-    value.trim().length > 0 &&
-    value.length <= MAX_BROWSER_FUSION_INPUT_ID_BYTES &&
-    new TextEncoder().encode(value).byteLength <= MAX_BROWSER_FUSION_INPUT_ID_BYTES
+    value.length > 0 &&
+    value.trim() === value &&
+    !BROWSER_FUSION_CONTROL_CHARACTER.test(value) &&
+    value.length <= maxBytes &&
+    BROWSER_FUSION_TEXT_ENCODER.encode(value).byteLength <= maxBytes
   )
+}
+
+function normalizeFusionConfig(config: Partial<FusionConfig>): FusionConfig {
+  if (
+    typeof config !== 'object' ||
+    config === null ||
+    Array.isArray(config) ||
+    Object.keys(config).some(
+      (key) =>
+        ![
+          'correlationThreshold',
+          'maxTrackAge',
+          'minConfirmationFrames',
+          'velocitySmoothing',
+          'positionSmoothing',
+        ].includes(key)
+    )
+  ) {
+    throw new TypeError('Invalid browser fusion configuration schema')
+  }
+
+  const candidate = { ...DEFAULT_FUSION_CONFIG, ...config }
+  const boundedUnitInterval = (value: number, field: string): number => {
+    if (!Number.isFinite(value) || value < 0 || value > 1) {
+      throw new RangeError(`${field} must be finite and within [0, 1]`)
+    }
+    return value
+  }
+  if (
+    !Number.isSafeInteger(candidate.maxTrackAge) ||
+    candidate.maxTrackAge < 1 ||
+    candidate.maxTrackAge > MAX_BROWSER_FUSION_TRACK_AGE_MS
+  ) {
+    throw new RangeError(
+      `maxTrackAge must be an integer within [1, ${MAX_BROWSER_FUSION_TRACK_AGE_MS}]`
+    )
+  }
+  if (
+    !Number.isSafeInteger(candidate.minConfirmationFrames) ||
+    candidate.minConfirmationFrames < 1 ||
+    candidate.minConfirmationFrames > MAX_BROWSER_FUSION_HISTORY
+  ) {
+    throw new RangeError(
+      `minConfirmationFrames must be an integer within [1, ${MAX_BROWSER_FUSION_HISTORY}]`
+    )
+  }
+
+  return {
+    correlationThreshold: boundedUnitInterval(
+      candidate.correlationThreshold,
+      'correlationThreshold'
+    ),
+    maxTrackAge: candidate.maxTrackAge,
+    minConfirmationFrames: candidate.minConfirmationFrames,
+    velocitySmoothing: boundedUnitInterval(candidate.velocitySmoothing, 'velocitySmoothing'),
+    positionSmoothing: boundedUnitInterval(candidate.positionSmoothing, 'positionSmoothing'),
+  }
+}
+
+function snapshotDetection(detection: Detection): Detection {
+  return {
+    ...detection,
+    bbox: [...detection.bbox],
+    ...(detection.worldPosition ? { worldPosition: detection.worldPosition.clone() } : {}),
+    ...(detection.velocity ? { velocity: detection.velocity.clone() } : {}),
+    ...(detection.sensorSources ? { sensorSources: [...detection.sensorSources] } : {}),
+  }
+}
+
+function snapshotTrack(track: FusedTrack): FusedTrack {
+  return {
+    ...track,
+    position: track.position.clone(),
+    velocity: track.velocity.clone(),
+    sensorSources: [...track.sensorSources],
+    lastDetection: snapshotDetection(track.lastDetection),
+    positionHistory: track.positionHistory.map((position) => position.clone()),
+    detectionHistory: track.detectionHistory.map(snapshotDetection),
+    triangulatedPosition: track.triangulatedPosition.clone(),
+    contributingCameras: [...track.contributingCameras],
+  }
 }
 
 function normalizeCameraForFusion(cameraId: string, camera: CameraParams): CameraParams | null {
@@ -191,7 +282,10 @@ function normalizeCameraForFusion(cameraId: string, camera: CameraParams): Camer
   }
 }
 
-function normalizeDetectionForFusion(cameraId: string, detection: Detection): Detection | null {
+export function normalizeBrowserFusionDetection(
+  cameraId: string,
+  detection: Detection
+): Detection | null {
   if (
     !detection ||
     !isBoundedIdentifier(detection.id) ||
@@ -433,6 +527,7 @@ export class SensorFusion {
   private lastExplicitEpoch = -1
   private lastExplicitFrameId: string | null = null
   private lastMeasurementTimestampMs: number | null = null
+  private lastProcessedTimestampMs: number | null = null
   private lastFrameStatus: FusionFrameStatus = 'idle'
   private lastFrameId: string | null = null
   private lastFrameDroppedDetections = 0
@@ -444,7 +539,7 @@ export class SensorFusion {
   private readonly lastFrameObservedTrackIds = new Set<string>()
 
   constructor(config: Partial<FusionConfig> = {}) {
-    this.config = { ...DEFAULT_FUSION_CONFIG, ...config }
+    this.config = normalizeFusionConfig(config)
   }
 
   /**
@@ -456,12 +551,9 @@ export class SensorFusion {
     context?: FusionFrameContext
   ): FusedTrack[] {
     const candidateFrameId = context?.frameId
-    const boundedFrameId =
-      typeof candidateFrameId === 'string' &&
-      candidateFrameId.length <= MAX_BROWSER_FUSION_FRAME_ID_BYTES &&
-      new TextEncoder().encode(candidateFrameId).byteLength <= MAX_BROWSER_FUSION_FRAME_ID_BYTES
-        ? candidateFrameId
-        : null
+    const boundedFrameId = isBoundedIdentifier(candidateFrameId, MAX_BROWSER_FUSION_FRAME_ID_BYTES)
+      ? candidateFrameId
+      : null
     this.resetFrameAccounting(boundedFrameId)
     const inputDetectionCount = this.countDetections(detections)
     const wallClockNow = Date.now()
@@ -471,8 +563,10 @@ export class SensorFusion {
       return this.activeTracksForOutput()
     }
 
-    const currentTime = context?.timestampMs ?? wallClockNow
-    this.frameCount++
+    const currentTime =
+      context?.timestampMs ?? Math.max(wallClockNow, this.lastProcessedTimestampMs ?? wallClockNow)
+    this.lastProcessedTimestampMs = currentTime
+    this.frameCount = Math.min(Number.MAX_SAFE_INTEGER, this.frameCount + 1)
     const boundedCameras = this.boundCameras(cameras)
     const boundedDetections = this.boundDetections(
       detections,
@@ -567,15 +661,8 @@ export class SensorFusion {
   }
 
   private acceptFrameContext(context: FusionFrameContext, wallClockNow: number): boolean {
-    const hasStringFrameId = typeof context.frameId === 'string'
-    const frameIdBytes =
-      hasStringFrameId && context.frameId.length <= MAX_BROWSER_FUSION_FRAME_ID_BYTES
-        ? new TextEncoder().encode(context.frameId).byteLength
-        : MAX_BROWSER_FUSION_FRAME_ID_BYTES + 1
     const hasValidIdentity =
-      hasStringFrameId &&
-      context.frameId.length > 0 &&
-      frameIdBytes <= MAX_BROWSER_FUSION_FRAME_ID_BYTES &&
+      isBoundedIdentifier(context.frameId, MAX_BROWSER_FUSION_FRAME_ID_BYTES) &&
       Number.isSafeInteger(context.epoch) &&
       context.epoch >= 0
     if (
@@ -598,7 +685,9 @@ export class SensorFusion {
       context.timestampMs >= wallClockNow - MAX_BROWSER_FUSION_FRAME_AGE_MS &&
       context.timestampMs <= wallClockNow + MAX_BROWSER_FUSION_FUTURE_SKEW_MS &&
       (this.lastMeasurementTimestampMs === null ||
-        context.timestampMs >= this.lastMeasurementTimestampMs)
+        context.timestampMs >= this.lastMeasurementTimestampMs) &&
+      (this.lastProcessedTimestampMs === null ||
+        context.timestampMs >= this.lastProcessedTimestampMs)
     if (!timestampIsValid) {
       this.lastFrameStatus = 'rejected_timestamp'
       return false
@@ -645,7 +734,7 @@ export class SensorFusion {
       seenCameraDetectionIds.set(cameraId, seenIds)
       for (const detection of cameraDetections) {
         if (accepted >= MAX_BROWSER_FUSION_DETECTIONS) break
-        const normalized = normalizeDetectionForFusion(cameraId, detection)
+        const normalized = normalizeBrowserFusionDetection(cameraId, detection)
         if (!normalized) {
           this.lastFrameRejectedDetections += 1
           continue
@@ -714,6 +803,7 @@ export class SensorFusion {
         (a, b) =>
           b.threatLevel - a.threatLevel || b.updatedAt - a.updatedAt || a.id.localeCompare(b.id)
       )
+      .map(snapshotTrack)
   }
 
   /**
@@ -844,7 +934,8 @@ export class SensorFusion {
 
     for (let groupIndex = 0; groupIndex < groups.length; groupIndex++) {
       const group = groups[groupIndex]
-      const groupPosition = this.computeGroupPosition(group, cameras)
+      const groupEstimate = this.computeGroupPosition(group, cameras)
+      const groupPosition = groupEstimate?.position ?? null
       const groupScores = new Array<number | null>(tracks.length).fill(null)
 
       for (let trackIndex = 0; trackIndex < tracks.length; trackIndex++) {
@@ -854,14 +945,10 @@ export class SensorFusion {
         // Apply a hard spatial gate only when both sides carry actual
         // multi-camera geometry. Single-camera fixed-range projections are useful
         // as a scoring hint, but are not reliable enough to reject a track.
-        const hasReliableTrackPosition =
-          Number.isFinite(track.triangulationError) &&
-          track.triangulatedPosition.toArray().every(Number.isFinite)
         if (
-          group.cameraIds.length >= 2 &&
-          groupPosition !== null &&
-          hasReliableTrackPosition &&
-          groupPosition.distanceTo(track.triangulatedPosition) >= SPATIAL_MATCH_SCALE_M
+          groupEstimate?.reliable &&
+          hasFiniteMultiCameraTriangulation(track) &&
+          groupEstimate.position.distanceTo(track.triangulatedPosition) >= SPATIAL_MATCH_SCALE_M
         ) {
           continue
         }
@@ -1058,12 +1145,12 @@ export class SensorFusion {
     track.lostAt = undefined
     track.threatLevel = getThreatLevel(track.class, track.confidence)
 
-    // Update history (keep last 30 positions)
+    // Update history within the public browser-fusion bound.
     track.positionHistory.push(track.position.clone())
-    if (track.positionHistory.length > 30) {
+    if (track.positionHistory.length > MAX_BROWSER_FUSION_HISTORY) {
       track.positionHistory.shift()
     }
-    if (track.detectionHistory.length > 30) {
+    if (track.detectionHistory.length > MAX_BROWSER_FUSION_HISTORY) {
       track.detectionHistory.shift()
     }
   }
@@ -1075,7 +1162,7 @@ export class SensorFusion {
     if (track.state === 'lost') return
 
     // Mark as lost if too old
-    if (!track.lostAt) {
+    if (track.lostAt === undefined) {
       track.lostAt = timestamp
     }
 
@@ -1095,9 +1182,9 @@ export class SensorFusion {
     // push the history would stay frozen at the pre-coast position while updatedAt
     // advances each frame, so on re-acquisition a multi-frame displacement gets
     // divided by a single-frame dt — a velocity spike that corrupts heading and
-    // the next dead-reckoning prediction. Keep the history bounded (cap 30).
+    // the next dead-reckoning prediction. Keep the history bounded.
     track.positionHistory.push(track.position.clone())
-    if (track.positionHistory.length > 30) {
+    if (track.positionHistory.length > MAX_BROWSER_FUSION_HISTORY) {
       track.positionHistory.shift()
     }
 
@@ -1115,13 +1202,13 @@ export class SensorFusion {
    */
   private pruneDeadTracks(timestamp: number): void {
     for (const [trackId, track] of this.tracks) {
-      if (track.lostAt && timestamp - track.lostAt > this.config.maxTrackAge) {
+      if (track.lostAt !== undefined && timestamp - track.lostAt > this.config.maxTrackAge) {
         track.state = 'lost'
       }
       // Remove very old lost tracks
       if (
         track.state === 'lost' &&
-        track.lostAt &&
+        track.lostAt !== undefined &&
         timestamp - track.lostAt > this.config.maxTrackAge * 2
       ) {
         this.tracks.delete(trackId)
@@ -1137,16 +1224,22 @@ export class SensorFusion {
   private computeGroupPosition(
     group: CorrelatedGroup,
     cameras: Map<string, CameraParams>
-  ): THREE.Vector3 | null {
+  ): GroupPositionEstimate | null {
     if (group.cameraIds.length >= 2) {
-      return this.triangulatePosition(group, cameras)?.position ?? null
+      const estimate = this.triangulatePosition(group, cameras)
+      return estimate
+        ? { position: estimate.position, reliable: Number.isFinite(estimate.error) }
+        : null
     }
     if (group.cameraIds.length === 1) {
       const cam = cameras.get(group.cameraIds[0])
       if (!cam) return null
       const ray = rayFromDetection(cam, group.detections[0])
       const displayRange = THREE.MathUtils.clamp(DEFAULT_ASSUMED_TARGET_RANGE_M, cam.near, cam.far)
-      return ray.origin.clone().add(ray.direction.clone().multiplyScalar(displayRange))
+      return {
+        position: ray.origin.clone().add(ray.direction.clone().multiplyScalar(displayRange)),
+        reliable: false,
+      }
     }
     return null
   }
@@ -1159,7 +1252,8 @@ export class SensorFusion {
    * - Requires `Detection.frameWidth/frameHeight` to interpret bbox pixels.
    *
    * Fallbacks:
-   * - If frame dimensions are missing, uses the camera forward axis as the ray.
+   * - If frame dimensions are missing, uses the camera forward axis only for a
+   *   local display fallback and reports infinite error.
    * - If the least-squares system is ill-conditioned, falls back to an assumed
    *   fixed range along each ray for local visualization, while retaining an
    *   infinite error so it cannot be promoted as a measured 3D observation.
@@ -1175,6 +1269,7 @@ export class SensorFusion {
     const rayCameras: CameraParams[] = []
     const fallbackPositions: THREE.Vector3[] = []
     const assumedRangeM = DEFAULT_ASSUMED_TARGET_RANGE_M
+    let hasCompleteImageGeometry = true
 
     const count = Math.min(group.cameraIds.length, group.detections.length)
     for (let i = 0; i < count; i++) {
@@ -1182,6 +1277,7 @@ export class SensorFusion {
       if (!camera) continue
 
       const detection = group.detections[i]
+      hasCompleteImageGeometry &&= Boolean(detection.frameWidth && detection.frameHeight)
       const ray = rayFromDetection(camera, detection)
       rays.push(ray)
       rayCameras.push(camera)
@@ -1193,7 +1289,7 @@ export class SensorFusion {
 
     if (rays.length === 0) return null
 
-    if (rays.length >= 2 && hasStableTriangulationParallax(rays)) {
+    if (hasCompleteImageGeometry && rays.length >= 2 && hasStableTriangulationParallax(rays)) {
       // Least-squares intersection of rays: solve (Σ(I - ddᵀ)) x = Σ(I - ddᵀ) p
       const A = [
         [0, 0, 0],
@@ -1283,7 +1379,9 @@ export class SensorFusion {
    * Get all active tracks
    */
   getActiveTracks(): FusedTrack[] {
-    return Array.from(this.tracks.values()).filter((t) => t.state !== 'lost')
+    return Array.from(this.tracks.values())
+      .filter((track) => track.state !== 'lost')
+      .map(snapshotTrack)
   }
 
   /**
@@ -1301,7 +1399,9 @@ export class SensorFusion {
    * Get confirmed tracks only
    */
   getConfirmedTracks(): FusedTrack[] {
-    return Array.from(this.tracks.values()).filter((t) => t.state === 'confirmed')
+    return Array.from(this.tracks.values())
+      .filter((track) => track.state === 'confirmed')
+      .map(snapshotTrack)
   }
 
   /**
@@ -1320,6 +1420,7 @@ export class SensorFusion {
     this.lastExplicitEpoch = -1
     this.lastExplicitFrameId = null
     this.lastMeasurementTimestampMs = null
+    this.lastProcessedTimestampMs = null
     this.lastFrameStatus = 'idle'
     this.lastFrameId = null
     this.lastFrameDroppedDetections = 0

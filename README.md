@@ -25,7 +25,7 @@ Tauri desktop application:
 - connects to ROS and Gazebo for drone simulation
 
 An off-by-default native Neuro-Cybernetic Protocol (NCP) feature can emit
-narrowly scoped, Galadriel-compatible advisory evidence. CREBAIN uses Tauri 2,
+narrowly scoped, Galadriel-oriented advisory evidence. CREBAIN uses Tauri 2,
 React 19, SparkJS, Three.js, and Rust.
 
 > **Project status.** This is a research prototype, not a product. No model
@@ -65,8 +65,9 @@ React 19, SparkJS, Three.js, and Rust.
 | **Sensor Fusion** | 5 filter algorithms (KF/EKF/UKF/PF/IMM) for multi-modal tracking | Prototype |
 | **Drone Physics** | 120Hz quadcopter aerodynamics simulation | In Progress |
 | **ROS Integration** | Read-only Zenoh product telemetry + development/native rosbridge telemetry fallback | In Progress |
-| **Galadriel Evidence** | Feature-gated, exact-runtime-opt-in producer with immutable pinned registry, configuration, and executable. It has two bounded NCP evidence routes, strict time and projection eligibility, loss degradation, and heartbeat accounting. Deployed receiver and security evidence remains pending. | Component-tested |
-| **Plant Authority** | Dependency-free headless lifecycle, channel, and passive-expiry foundation with inactive and unwired contract candidates. The self-check does not prove autonomous lifecycle observation, output invalidation, safe action, wake latency, command binding, or an FCU adapter. See the detailed plant documents. | L0 Foundation |
+| **Headless NCP Perception** | Separate opt-in wire-0.8 perception process. It requires a compatible responder. Current Engram 1.0 is incompatible. | Component-tested |
+| **Galadriel Evidence** | Exact-opt-in producer for two bounded advisory evidence routes. Receiver and deployment-security evidence remains pending. | Component-tested |
+| **Plant Authority** | Dependency-free inert component foundation. It has no authority path or FCU adapter. | L0 Foundation |
 | **Cross-Platform** | macOS on Apple Silicon and Linux/Nix. The default Linux package uses ONNX Runtime and can fall back to the CPU. NVIDIA execution providers are optional. | In Progress |
 
 ---
@@ -224,8 +225,14 @@ tuning, validation, and a frank list of known limitations.
 ## Architecture
 
 <p align="center">
-  <img alt="CREBAIN system architecture: React frontend over Tauri IPC to the Rust backend (inference, sensor fusion, read-only Zenoh and rosbridge transports, feature-gated Galadriel producer), external Gazebo/ROS/Galadriel systems, and the unwired inert plant foundation with no authority path" src="assets/diagrams/system-architecture.svg" width="820">
+  <img alt="CREBAIN current system architecture" src="assets/diagrams/system-architecture.svg" width="820">
 </p>
+
+Text alternative: The React frontend uses Tauri inter-process communication
+(IPC) to reach Rust inference, sensor fusion, and read-only telemetry transports.
+A feature-gated producer can make local puts to two advisory NCP routes. Those
+puts do not prove receiver delivery. The separate plant foundation is inert and
+has no vehicle-authority path.
 
 The frontend captures camera-feed frames from WebGL render targets. It sends
 the frames to the Rust detection backend through Tauri inter-process
@@ -243,7 +250,8 @@ crebain/
 │                      #   state, neuro, lib)
 ├── src-tauri/         # Rust backend (inference, transport, sensor fusion,
 │                      #   native CoreML/ONNX, NCP bridge + Galadriel producer)
-│   └── crates/plant-authority/  # Inert headless plant foundation (unwired)
+│   ├── crates/ncp-headless/     # Opt-in wire-0.8 perception runner
+│   └── crates/plant-authority/  # Inert plant foundation (unwired)
 ├── ros/               # ROS 1 reference package (crebain_msgs + launch files)
 ├── docs/              # Design docs, contracts, release gates
 ├── scripts/           # Version-coherence, bundle-size, perf-smoke checks
@@ -278,6 +286,10 @@ Packaged builds expose only the native read-only telemetry path and default to
   packaged Content Security Policy (CSP) does not permit rosbridge sockets.
 - **Native rosbridge fallback.** The native Rust rosbridge fallback selected
   with `CREBAIN_ZENOH=0` is also subscription-only.
+- **Exact native subscription identity.** Every typed topic uses a
+  renderer-issued canonical positive-u64 token. Non-camera events carry that
+  token and the transport generation in a closed envelope. Camera delivery,
+  topic replacement, and unsubscribe use the same exact ownership rule.
 - **No command path.** None of these ROS telemetry paths can publish
   pose/twist/setpoints, call ROS/Gazebo services, spawn models, or change
   MAVROS modes/missions.
@@ -303,11 +315,23 @@ bridge. Topic templates, reference-only message/service definitions and launch
 files, and the camera wire contract are documented in
 [ros/README.md](ros/README.md).
 
-An optional, off-by-default NCP (Engram) bridge exists behind the Rust `ncp`
-feature. Its Tauri commands are not registered in the product runtime, and
-there is no always-on CREBAIN↔Engram control loop. The same feature also contains
-the separately gated Galadriel evidence producer. Its component wiring does not
-prove a deployed Galadriel receiver, TLS/mTLS identities, ACLs, or delivery. See
+An optional, off-by-default native NCP action adapter exists behind the Rust
+`ncp` feature. Its Tauri commands are not registered in the product runtime, and
+there is no always-on CREBAIN↔Engram control loop. A separate
+dependency-isolated workspace package supplies the external
+`crebain-ncp-headless` perception process. It has explicit `self-check`,
+no-Zenoh `validate`, and networked `run` commands. `validate` checks the bounded
+strict client configuration and does not open a Zenoh session. `run` accepts only the strict
+secure-client configuration posture and requires `NCP_ZENOH_CONFIG` plus a
+compatible NCP wire-0.8 responder. This posture does not attest TLS, an ACL, or
+peer identity. The
+default `engram/ncp` realm is only a routing default. It does not make the
+current Engram native wire-1.0 candidate compatible. No translator or live
+CREBAIN↔current-Engram loop exists.
+
+The same feature contains the separately gated Galadriel evidence producer. Its
+component wiring does not prove a deployed Galadriel receiver, TLS/mTLS
+identities, ACLs, or delivery. See
 [docs/NCP_BRIDGE_HANDOFF.md](docs/NCP_BRIDGE_HANDOFF.md) and
 [docs/GALADRIEL_PRODUCER.md](docs/GALADRIEL_PRODUCER.md).
 
@@ -407,8 +431,9 @@ The full grouped index lives in [docs/README.md](docs/README.md).
 | [docs/GALADRIEL_PRODUCER.md](docs/GALADRIEL_PRODUCER.md) | Optional live evidence routes, deployment pins, bounds, and claim limits |
 | [docs/CONTROLS.md](docs/CONTROLS.md) | Full keyboard reference |
 | [ros/README.md](ros/README.md) | ROS package, topics, launch files, camera wire contract |
-| [docs/NCP_BRIDGE_HANDOFF.md](docs/NCP_BRIDGE_HANDOFF.md) | Optional NCP/Engram bridge status and boundaries |
+| [docs/NCP_BRIDGE_HANDOFF.md](docs/NCP_BRIDGE_HANDOFF.md) | NCP adapter, headless runner, producer, and Engram separation boundaries |
 | [integrations/engram/README.md](integrations/engram/README.md) | Restricted host startup, heartbeat, IPC isolation, and authority boundaries |
+| [docs/markdown-visual-coverage.json](docs/markdown-visual-coverage.json) | Exhaustive tracked-Markdown visual coverage and exemption policy |
 | [docs/PLANT_CONTRACT_V1.md](docs/PLANT_CONTRACT_V1.md) | Inactive draft command contract, frame corpus, and limits |
 | [docs/PLANT_HEALTH_V1.md](docs/PLANT_HEALTH_V1.md) | Inactive typed vehicle-health snapshot and evidence limits |
 | [docs/PLANT_FRESHNESS_V1.md](docs/PLANT_FRESHNESS_V1.md) | Inactive profile-bound captured-read health-age classifier |
@@ -444,11 +469,17 @@ Use `bun run tauri:dev` for the standalone desktop application.
 bun run validate
 
 # Frontend validation + inert plant boundary/frame-corpus/fmt/check/test/clippy/self-check +
-# Rust fmt/check/test/clippy, plus bridge/producer clippy and tests with the off-by-default `ncp` feature
+# Rust fmt/check/test/clippy, plus bridge/headless-runner/producer gates with the `ncp` feature
 bun run validate:all
 
 # Focused checks
+bun run check:docs-visuals
 bun run check:ncp-coherence
+bun run check:ncp-headless-boundary
+bun run check:ncp-headless
+bun run clippy:ncp-headless
+bun run test:ncp-headless
+bun run self-check:ncp-headless
 bun run check:phase0-baseline
 bun run check:product-profiles
 bun run check:ipc-contracts
@@ -458,6 +489,8 @@ bun run check:plant-boundary
 bun run check:plant-frames
 bun run test:plant
 bun run self-check:plant
+bun run check:bundle
+bun run test:responsive
 bun run check:rust
 bun run test:rust
 bun run clippy:rust
@@ -475,7 +508,7 @@ canonical PNG/JPEG data-image GLB textures through its local `TextureLoader`
 path. `bun run check:production-vendors` binds package/module/payload/AST
 shapes, mutation failures, and those local-byte runtimes. It is included in
 `validate` and `validate:all`. Tauri uses the same build command before
-packaging. Validation does not run the hosted bundle-size, coverage,
+packaging. Validation does not run the hosted bundle-size, responsive-browser, coverage,
 feature-gate (`cuda,tensorrt` and `--no-default-features`), CodeQL, or
 supply-chain-audit jobs. Release candidates require those hosted gates as
 specified in [docs/RELEASE_ACCEPTANCE.md](docs/RELEASE_ACCEPTANCE.md). The

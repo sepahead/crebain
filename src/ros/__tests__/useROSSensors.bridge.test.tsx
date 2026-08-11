@@ -89,6 +89,11 @@ async function renderHarness(config: ROSSensorConfigInput): Promise<{
 describe('useROSSensors bridge ownership', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    fusionMocks.initFusion.mockReset().mockResolvedValue(undefined)
+    fusionMocks.processMeasurements.mockReset().mockResolvedValue([])
+    fusionMocks.getFusionStats.mockReset().mockResolvedValue(null)
+    fusionMocks.setFusionConfig.mockReset().mockResolvedValue(undefined)
+    fusionMocks.clearTracks.mockReset().mockResolvedValue(undefined)
     tauriMocks.isTauri.mockReturnValue(true)
   })
 
@@ -345,6 +350,40 @@ describe('useROSSensors bridge ownership', () => {
     await act(async () => root.unmount())
   })
 
+  it('retries the explicit Galadriel startup state and becomes ready', async () => {
+    vi.useFakeTimers()
+    fusionMocks.initFusion
+      .mockRejectedValueOnce('FUSION_INITIALIZING: Galadriel producer is still starting')
+      .mockRejectedValueOnce('FUSION_INITIALIZING: Galadriel producer is still starting')
+      .mockResolvedValue(undefined)
+
+    const { root } = await renderHarness({ autoConnect: false })
+    expect(fusionMocks.initFusion).toHaveBeenCalledTimes(1)
+
+    await act(async () => vi.advanceTimersByTimeAsync(500))
+    expect(fusionMocks.initFusion).toHaveBeenCalledTimes(2)
+
+    await act(async () => vi.advanceTimersByTimeAsync(500))
+    expect(fusionMocks.initFusion).toHaveBeenCalledTimes(3)
+    expect(hook.fusionError).toBeNull()
+
+    await act(async () => root.unmount())
+  })
+
+  it('cancels a pending Galadriel startup retry on unmount', async () => {
+    vi.useFakeTimers()
+    fusionMocks.initFusion.mockRejectedValue(
+      'FUSION_INITIALIZING: Galadriel producer is still starting'
+    )
+
+    const { root } = await renderHarness({ autoConnect: false })
+    expect(fusionMocks.initFusion).toHaveBeenCalledTimes(1)
+    await act(async () => root.unmount())
+    await act(async () => vi.advanceTimersByTimeAsync(5_000))
+
+    expect(fusionMocks.initFusion).toHaveBeenCalledTimes(1)
+  })
+
   it('serializes slow fusion cycles and schedules one follow-up pass', async () => {
     vi.useFakeTimers()
     const bridge = new ROSBridge({ url: 'ws://localhost:9090' })
@@ -490,8 +529,14 @@ describe('useROSSensors bridge ownership', () => {
 
     const [measurements, frameTimestamp] = fusionMocks.processMeasurements.mock.calls[0]
     expect(measurements).toEqual([
-      expect.objectContaining({ sensor_id: 'visual:track-1', timestamp_ms: detectorFrameTimestamp }),
-      expect.objectContaining({ sensor_id: 'visual:track-2', timestamp_ms: detectorFrameTimestamp }),
+      expect.objectContaining({
+        sensor_id: 'visual:track-1',
+        timestamp_ms: detectorFrameTimestamp,
+      }),
+      expect.objectContaining({
+        sensor_id: 'visual:track-2',
+        timestamp_ms: detectorFrameTimestamp,
+      }),
     ])
     expect(frameTimestamp).toBe(detectorFrameTimestamp)
 
@@ -571,7 +616,7 @@ describe('useROSSensors bridge ownership', () => {
     await act(async () => root.unmount())
   })
 
-  it('finishes every drained exact-time group before applying an algorithm change', async () => {
+  it('applies an algorithm change before submitting later drained time groups', async () => {
     vi.useFakeTimers()
     let resolveFirstGroup: ((tracks: never[]) => void) | undefined
     fusionMocks.processMeasurements
@@ -605,9 +650,32 @@ describe('useROSSensors bridge ownership', () => {
       fusionMocks.processMeasurements.mock.calls.map(([, timestampMs]) => timestampMs)
     ).toEqual([1_000, 1_100])
     expect(fusionMocks.setFusionConfig).toHaveBeenCalledOnce()
-    expect(fusionMocks.setFusionConfig.mock.invocationCallOrder[0]).toBeGreaterThan(
+    expect(fusionMocks.setFusionConfig.mock.invocationCallOrder[0]).toBeLessThan(
       fusionMocks.processMeasurements.mock.invocationCallOrder[1]
     )
+
+    await act(async () => root.unmount())
+  })
+
+  it('does not initialize again when the controlled prop acknowledges a live change', async () => {
+    vi.useFakeTimers()
+    const config: ROSSensorConfigInput = {
+      algorithm: 'ExtendedKalman',
+      fusionRateHz: 10,
+    }
+    const { root, rerender } = await renderHarness(config)
+    expect(fusionMocks.initFusion).toHaveBeenCalledOnce()
+
+    await act(async () => {
+      await hook.setAlgorithm('Kalman')
+    })
+    expect(fusionMocks.setFusionConfig).toHaveBeenCalledOnce()
+
+    await rerender({ ...config, algorithm: 'Kalman' })
+    await Promise.resolve()
+
+    expect(fusionMocks.initFusion).toHaveBeenCalledOnce()
+    expect(hook.fusionError).toBeNull()
 
     await act(async () => root.unmount())
   })

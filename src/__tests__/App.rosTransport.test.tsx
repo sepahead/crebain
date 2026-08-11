@@ -9,10 +9,11 @@ import App from '../App'
 ).IS_REACT_ACT_ENVIRONMENT = true
 
 const mocks = vi.hoisted(() => ({
-  invoke: vi.fn(async () => null),
+  invoke: vi.fn(async (..._args: unknown[]): Promise<unknown> => null),
   isTauri: vi.fn(() => false),
   listen: vi.fn(async () => vi.fn()),
   performancePanel: vi.fn(() => null),
+  viewer: vi.fn((_props: Record<string, unknown>) => null),
   sensorFusionPanel: vi.fn((_props: Record<string, unknown>) => null),
   useGazeboSimulation: vi.fn(),
   useROSSensors: vi.fn(),
@@ -35,7 +36,7 @@ vi.mock('../hooks/usePerformanceTracker', () => ({
     recordSample: vi.fn(),
   }),
 }))
-vi.mock('../components/CrebainViewer', () => ({ default: () => null }))
+vi.mock('../components/CrebainViewer', () => ({ default: mocks.viewer }))
 vi.mock('../components/ErrorBoundary', () => ({
   default: ({ children }: { children: ReactNode }) => children,
 }))
@@ -103,6 +104,7 @@ async function renderApp() {
 describe('App ROS transport ownership', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.invoke.mockResolvedValue(null)
     mocks.isTauri.mockReturnValue(false)
     mocks.useROSSensors.mockReturnValue(sensorReturn())
   })
@@ -129,6 +131,221 @@ describe('App ROS transport ownership', () => {
     )
     expect(mocks.invoke).not.toHaveBeenCalled()
     expect(mocks.listen).not.toHaveBeenCalled()
+    expect(mocks.performancePanel).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: 'unavailable' }),
+      undefined
+    )
+
+    await act(async () => root.unmount())
+  })
+
+  it('owns one native diagnostics request and shares its resolved state', async () => {
+    mocks.isTauri.mockReturnValue(true)
+    mocks.invoke.mockResolvedValue({
+      platform: 'macos',
+      arch: 'aarch64',
+      coremlAvailable: true,
+      onnxAvailable: false,
+      backend: 'CoreML',
+      mode: 'production',
+      availableBackends: ['CoreML'],
+      experimentalMlxEnabled: false,
+      inferenceReady: true,
+    })
+    mocks.useGazeboSimulation.mockReturnValue(gazeboReturn())
+
+    const { root } = await renderApp()
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(mocks.invoke).toHaveBeenCalledTimes(1)
+    expect(mocks.invoke).toHaveBeenCalledWith('get_system_info')
+    expect(mocks.viewer).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        systemInfo: expect.objectContaining({ backend: 'CoreML' }),
+        diagnosticsStatus: 'ready',
+      }),
+      undefined
+    )
+    expect(mocks.performancePanel).toHaveBeenLastCalledWith(
+      expect.objectContaining({ backend: 'CoreML', status: 'ready' }),
+      undefined
+    )
+    await act(async () => root.unmount())
+  })
+
+  it('polls an initializing runtime until diagnostics reach a terminal state', async () => {
+    vi.useFakeTimers()
+    mocks.isTauri.mockReturnValue(true)
+    mocks.invoke
+      .mockResolvedValueOnce({
+        platform: 'linux',
+        arch: 'x86_64',
+        backend: 'Inference Runtime Busy',
+        mode: 'raw-rgba',
+        inferenceReady: false,
+      })
+      .mockResolvedValueOnce({
+        platform: 'linux',
+        arch: 'x86_64',
+        backend: 'Inference Runtime Busy',
+        mode: 'raw-rgba',
+        inferenceReady: false,
+      })
+      .mockResolvedValueOnce({
+        platform: 'linux',
+        arch: 'x86_64',
+        backend: 'ONNX',
+        mode: 'raw-rgba',
+        availableBackends: ['ONNX'],
+        inferenceReady: true,
+      })
+    mocks.useGazeboSimulation.mockReturnValue(gazeboReturn())
+
+    let root: Awaited<ReturnType<typeof renderApp>>['root'] | undefined
+    try {
+      ;({ root } = await renderApp())
+      await act(async () => {
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+
+      expect(mocks.invoke).toHaveBeenCalledTimes(1)
+      expect(mocks.performancePanel).toHaveBeenLastCalledWith(
+        expect.objectContaining({ status: 'busy' }),
+        undefined
+      )
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500)
+      })
+
+      expect(mocks.invoke).toHaveBeenCalledTimes(2)
+      expect(mocks.performancePanel).toHaveBeenLastCalledWith(
+        expect.objectContaining({ status: 'busy' }),
+        undefined
+      )
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500)
+      })
+
+      expect(mocks.invoke).toHaveBeenCalledTimes(3)
+      expect(mocks.performancePanel).toHaveBeenLastCalledWith(
+        expect.objectContaining({ backend: 'ONNX', status: 'ready' }),
+        undefined
+      )
+    } finally {
+      const mountedRoot = root
+      if (mountedRoot) await act(async () => mountedRoot.unmount())
+      vi.useRealTimers()
+    }
+  })
+
+  it('propagates detection errors and clears them after a successful sample', async () => {
+    mocks.useGazeboSimulation.mockReturnValue(gazeboReturn())
+    const { root } = await renderApp()
+    const viewerProps = mocks.viewer.mock.calls.at(-1)?.[0] as {
+      onDetectionComplete: (sample: { inferenceTimeMs: number; detectionCount: number }) => void
+      onDetectionError: (message: string) => void
+    }
+
+    await act(async () => viewerProps.onDetectionError('detector failed'))
+    expect(mocks.performancePanel).toHaveBeenLastCalledWith(
+      expect.objectContaining({ error: 'detector failed' }),
+      undefined
+    )
+
+    await act(async () =>
+      viewerProps.onDetectionComplete({ inferenceTimeMs: 1, detectionCount: 0 })
+    )
+    expect(mocks.performancePanel).toHaveBeenLastCalledWith(
+      expect.objectContaining({ error: null }),
+      undefined
+    )
+
+    await act(async () => root.unmount())
+  })
+
+  it('settles a failed diagnostics request as an error', async () => {
+    mocks.isTauri.mockReturnValue(true)
+    mocks.invoke.mockRejectedValueOnce(new Error('IPC unavailable'))
+    mocks.useGazeboSimulation.mockReturnValue(gazeboReturn())
+
+    const { root } = await renderApp()
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(mocks.performancePanel).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        status: 'error',
+        error: 'Backend diagnostics are unavailable',
+      }),
+      undefined
+    )
+    expect(mocks.viewer).toHaveBeenLastCalledWith(
+      expect.objectContaining({ diagnosticsStatus: 'error' }),
+      undefined
+    )
+
+    await act(async () => root.unmount())
+  })
+
+  it('settles a diagnostics request that never replies as an error', async () => {
+    vi.useFakeTimers()
+    mocks.isTauri.mockReturnValue(true)
+    mocks.invoke.mockImplementation(() => new Promise<never>(() => undefined))
+    mocks.useGazeboSimulation.mockReturnValue(gazeboReturn())
+
+    let root: Awaited<ReturnType<typeof renderApp>>['root'] | undefined
+    try {
+      ;({ root } = await renderApp())
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000)
+      })
+
+      expect(mocks.performancePanel).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          status: 'error',
+          error: 'Backend diagnostics are unavailable',
+        }),
+        undefined
+      )
+    } finally {
+      const mountedRoot = root
+      if (mountedRoot) await act(async () => mountedRoot.unmount())
+      vi.useRealTimers()
+    }
+  })
+
+  it('surfaces a detector initialization failure reported by the backend', async () => {
+    mocks.isTauri.mockReturnValue(true)
+    mocks.invoke.mockResolvedValueOnce({
+      platform: 'linux',
+      arch: 'x86_64',
+      backend: 'No Backend Available',
+      inferenceReady: false,
+      inferenceInitializationError: 'Model warm-up failed',
+    })
+    mocks.useGazeboSimulation.mockReturnValue(gazeboReturn())
+
+    const { root } = await renderApp()
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(mocks.performancePanel).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        status: 'unavailable',
+        error: 'Model warm-up failed',
+      }),
+      undefined
+    )
 
     await act(async () => root.unmount())
   })

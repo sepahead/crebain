@@ -16,6 +16,7 @@ mod onnx_detector;
 pub mod pid_observation;
 #[cfg(feature = "ncp")]
 pub mod producer_monitor;
+mod scene_contract;
 mod sensor_fusion;
 
 // Inference backends (conditional compilation)
@@ -27,6 +28,9 @@ pub mod transport;
 #[cfg(feature = "ncp")]
 pub mod ncp;
 
+use scene_contract::migrate_scene_json;
+#[cfg(test)]
+use scene_contract::CURRENT_SCENE_VERSION;
 use sensor_fusion::{
     validate_fusion_config, validate_sensor_measurements, FusionConfig, FusionStats,
     MultiSensorFusion, SensorMeasurement, TrackOutput,
@@ -34,21 +38,19 @@ use sensor_fusion::{
 #[cfg(feature = "ncp")]
 use sha2::{Digest, Sha256};
 #[cfg(feature = "ncp")]
-use std::sync::atomic::{AtomicBool, AtomicU8};
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-#[cfg(target_os = "macos")]
-use std::sync::Once;
+use std::sync::atomic::AtomicU8;
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, LazyLock, Mutex};
 use tauri::{Emitter, Manager};
-
-#[cfg(target_os = "macos")]
-static INIT: Once = Once::new();
 
 // Global sensor fusion engine (thread-safe)
 static FUSION_ENGINE: LazyLock<Mutex<Option<MultiSensorFusion>>> =
     LazyLock::new(|| Mutex::new(None));
 #[cfg(feature = "ncp")]
 static GALADRIEL_RUNTIME: LazyLock<Mutex<Option<galadriel_producer::GaladrielRuntime>>> =
+    LazyLock::new(|| Mutex::new(None));
+#[cfg(feature = "ncp")]
+static GALADRIEL_STARTUP_ERROR: LazyLock<Mutex<Option<String>>> =
     LazyLock::new(|| Mutex::new(None));
 #[cfg(feature = "ncp")]
 static GALADRIEL_FRAME_PIPELINE: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
@@ -63,73 +65,17 @@ const MAX_GALADRIEL_FUSION_CONFIG_BYTES: usize = 64 * 1024;
 #[cfg(feature = "ncp")]
 const GALADRIEL_LIFECYCLE_NEVER_ACTIVE: u8 = 0;
 #[cfg(feature = "ncp")]
-const GALADRIEL_LIFECYCLE_ACTIVE: u8 = 1;
+const GALADRIEL_LIFECYCLE_STARTING: u8 = 1;
 #[cfg(feature = "ncp")]
-const GALADRIEL_LIFECYCLE_STOPPED: u8 = 2;
-
-#[cfg(any(target_os = "macos", test))]
-fn should_initialize_coreml(
-    configured_backend: inference::Result<Option<inference::Backend>>,
-) -> bool {
-    matches!(
-        configured_backend,
-        Ok(None | Some(inference::Backend::CoreML))
-    )
-}
-
-/// Initialize the native CoreML detector on app startup (macOS only)
-#[cfg(target_os = "macos")]
-fn init_coreml_detector(app: &tauri::App) {
-    INIT.call_once(|| {
-        // Try multiple model paths in order of preference
-        let mut possible_paths: Vec<Option<std::path::PathBuf>> = vec![
-            // Bundled resource path (production)
-            app.path()
-                .resource_dir()
-                .map(|p| p.join("resources/yolov8s.mlmodelc"))
-                .ok(),
-            // Development path (relative to project root)
-            std::env::current_dir()
-                .map(|p| p.join("src-tauri/resources/yolov8s.mlmodelc"))
-                .ok(),
-        ];
-
-        // Add user-specified model path from environment variable (for custom deployments)
-        // Security: validate path to prevent traversal attacks
-        if let Ok(custom_path) = std::env::var("CREBAIN_MODEL_PATH") {
-            match common::path::validate_model_path(&custom_path, Some(&["mlmodelc"])) {
-                Ok(validated_path) => {
-                    possible_paths.insert(0, Some(validated_path));
-                }
-                Err(e) => {
-                    log::warn!("Invalid CREBAIN_MODEL_PATH: {}", e);
-                }
-            }
-        }
-
-        for path_opt in possible_paths.into_iter().flatten() {
-            if path_opt.exists() {
-                let path_str = path_opt.to_string_lossy().to_string();
-                log::info!(
-                    "Initializing native CoreML detector with model: {}",
-                    path_str
-                );
-
-                match coreml::init_detector(&path_str) {
-                    Ok(()) => {
-                        log::info!("Native CoreML detector initialized successfully");
-                        return;
-                    }
-                    Err(e) => {
-                        log::warn!("Failed to init CoreML with {}: {}", path_str, e);
-                    }
-                }
-            }
-        }
-
-        log::error!("Could not find CoreML model at any expected path");
-    });
-}
+const GALADRIEL_LIFECYCLE_ACTIVE: u8 = 2;
+#[cfg(feature = "ncp")]
+const GALADRIEL_LIFECYCLE_FAILED: u8 = 3;
+#[cfg(feature = "ncp")]
+const GALADRIEL_LIFECYCLE_STOPPED: u8 = 4;
+#[cfg(feature = "ncp")]
+const GALADRIEL_STARTUP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
+#[cfg(feature = "ncp")]
+const GALADRIEL_STARTING_ERROR: &str = "FUSION_INITIALIZING: Galadriel producer is still starting";
 
 /// Maximum allowed image dimension (8K resolution)
 #[cfg(test)]
@@ -139,7 +85,6 @@ const MAX_IMAGE_DIMENSION: u32 = common::image::MAX_IMAGE_DIMENSION;
 const MAX_IMAGE_SIZE_BYTES: usize = common::image::MAX_IMAGE_SIZE_BYTES;
 /// Maximum allowed serialized scene state size (10MB).
 const MAX_SCENE_STATE_BYTES: usize = 10 * 1024 * 1024;
-const CURRENT_SCENE_VERSION: &str = "1.0.0";
 /// Reject overlapping work so a waiting frame cannot become stale behind inference.
 const MAX_CONCURRENT_NATIVE_DETECTION_JOBS: usize = 1;
 /// Retain at most one maximum-size RGBA input across all admitted jobs.
@@ -147,6 +92,8 @@ const MAX_ADMITTED_NATIVE_DETECTION_BYTES: usize = common::image::MAX_IMAGE_SIZE
 const NATIVE_DETECTION_BUSY_BACKEND: &str = "Inference Runtime";
 const NATIVE_DETECTION_BUSY_ERROR: &str =
     "NATIVE_DETECTION_BUSY: native inference capacity is full; retry a later frame";
+const FUSION_PROCESS_BUSY_ERROR: &str =
+    "FUSION_BUSY: sensor fusion is processing another batch; retry after it completes";
 
 static NATIVE_DETECTION_ADMISSION: LazyLock<NativeDetectionAdmission> = LazyLock::new(|| {
     NativeDetectionAdmission::new(
@@ -154,6 +101,43 @@ static NATIVE_DETECTION_ADMISSION: LazyLock<NativeDetectionAdmission> = LazyLock
         MAX_ADMITTED_NATIVE_DETECTION_BYTES,
     )
 });
+static FUSION_PROCESS_ADMISSION: LazyLock<FusionProcessAdmission> =
+    LazyLock::new(FusionProcessAdmission::default);
+
+/// Fail-fast ownership for the single mutable fusion engine. Without this
+/// admission gate, concurrent IPC calls occupy blocking workers and retain
+/// decoded batches while waiting on the same engine mutex.
+#[derive(Clone, Debug, Default)]
+struct FusionProcessAdmission {
+    active: Arc<AtomicBool>,
+}
+
+impl FusionProcessAdmission {
+    fn try_reserve(&self) -> Option<FusionProcessPermit> {
+        self.active
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .ok()
+            .map(|_| FusionProcessPermit {
+                active: Arc::clone(&self.active),
+            })
+    }
+
+    fn is_active(&self) -> bool {
+        self.active.load(Ordering::Acquire)
+    }
+}
+
+#[derive(Debug)]
+struct FusionProcessPermit {
+    active: Arc<AtomicBool>,
+}
+
+impl Drop for FusionProcessPermit {
+    fn drop(&mut self) {
+        let was_active = self.active.swap(false, Ordering::AcqRel);
+        debug_assert!(was_active);
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum NativeDetectionAdmissionRejection {
@@ -287,86 +271,6 @@ fn validate_scene_file_path(
         Some(ext) if ext.eq_ignore_ascii_case("json") => Ok(validated),
         _ => Err("Scene file path must end with .json".to_string()),
     }
-}
-
-fn migrate_scene_json(mut value: serde_json::Value) -> Result<serde_json::Value, String> {
-    let object = value
-        .as_object_mut()
-        .ok_or_else(|| "Scene JSON must be an object".to_string())?;
-
-    match object.get("version").and_then(|version| version.as_str()) {
-        Some(CURRENT_SCENE_VERSION) => {}
-        Some("0.4.0" | "0.5.0") | None => {
-            object.insert(
-                "version".to_string(),
-                serde_json::Value::String(CURRENT_SCENE_VERSION.to_string()),
-            );
-        }
-        Some(version) => {
-            return Err(format!("Unsupported scene version: {}", version));
-        }
-    }
-
-    if !object.get("name").is_some_and(|name| name.is_string()) {
-        return Err("Scene JSON must include a string name".to_string());
-    }
-    if !object
-        .get("timestamp")
-        .is_some_and(|timestamp| timestamp.is_number())
-    {
-        object.insert(
-            "timestamp".to_string(),
-            serde_json::Value::Number(serde_json::Number::from(
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_millis() as u64,
-            )),
-        );
-    }
-
-    for key in [
-        "cameras",
-        "assets",
-        "drones",
-        "annotations",
-        "recentDetections",
-    ] {
-        if !object.get(key).is_some_and(|entry| entry.is_array()) {
-            object.insert(key.to_string(), serde_json::Value::Array(Vec::new()));
-        }
-    }
-
-    if !object
-        .get("settings")
-        .is_some_and(|entry| entry.is_object())
-    {
-        object.insert(
-            "settings".to_string(),
-            serde_json::json!({
-                "detectionEnabled": true,
-                "showDetectionPanel": true,
-                "showPerformancePanel": true,
-                "renderQuality": "high",
-                "physicsEnabled": true,
-                "sensorSimulationEnabled": true
-            }),
-        );
-    }
-    if !object
-        .get("viewCamera")
-        .is_some_and(|entry| entry.is_object())
-    {
-        object.insert(
-            "viewCamera".to_string(),
-            serde_json::json!({
-                "position": { "x": 0.0, "y": 5.0, "z": 10.0 },
-                "target": { "x": 0.0, "y": 0.0, "z": 0.0 }
-            }),
-        );
-    }
-
-    Ok(value)
 }
 
 fn read_scene_file_bounded(path: &std::path::Path, max_bytes: usize) -> Result<String, String> {
@@ -606,14 +510,13 @@ async fn detect_native_raw(
 ) -> Result<NativeDetectionResponse, String> {
     let input_bytes = validate_rgba_input_len(rgba_data.len(), width, height)?;
 
-    let confidence = confidence_threshold
-        .unwrap_or(f64::from(inference::BACKEND_MIN_CONFIDENCE_THRESHOLD))
-        as f32;
-    let iou = iou_threshold.unwrap_or(f64::from(inference::BACKEND_MAX_IOU_THRESHOLD)) as f32;
+    let confidence =
+        confidence_threshold.unwrap_or(f64::from(inference::BACKEND_MIN_CONFIDENCE_THRESHOLD));
+    let iou = iou_threshold.unwrap_or(f64::from(inference::BACKEND_MAX_IOU_THRESHOLD));
     let max_det =
         usize::try_from(max_detections.unwrap_or(inference::BACKEND_MAX_DETECTIONS as i32))
             .map_err(|_| "max detections must be a positive integer".to_string())?;
-    let policy = inference::DetectionPolicy::new(confidence, iou, max_det)
+    let policy = inference::DetectionPolicy::new_from_f64(confidence, iou, max_det)
         .map_err(|error| error.to_string())?;
 
     Ok(
@@ -632,21 +535,75 @@ async fn detect_native_raw(
 
 #[cfg(feature = "ncp")]
 fn galadriel_system_info() -> serde_json::Value {
+    let lifecycle = GALADRIEL_LIFECYCLE.load(Ordering::Acquire);
+    match lifecycle {
+        GALADRIEL_LIFECYCLE_NEVER_ACTIVE => {
+            return serde_json::json!({
+                "compiled": true,
+                "enabled": false,
+                "status": "disabled"
+            });
+        }
+        GALADRIEL_LIFECYCLE_STARTING => {
+            return serde_json::json!({
+                "compiled": true,
+                "enabled": true,
+                "status": "starting"
+            });
+        }
+        GALADRIEL_LIFECYCLE_FAILED => {
+            let error = GALADRIEL_STARTUP_ERROR
+                .lock()
+                .ok()
+                .and_then(|guard| guard.clone())
+                .unwrap_or_else(|| "Galadriel startup failed without a recorded cause".to_string());
+            return serde_json::json!({
+                "compiled": true,
+                "enabled": true,
+                "status": "failed",
+                "error": error
+            });
+        }
+        GALADRIEL_LIFECYCLE_STOPPED => {
+            return serde_json::json!({
+                "compiled": true,
+                "enabled": true,
+                "status": "stopped"
+            });
+        }
+        GALADRIEL_LIFECYCLE_ACTIVE => {}
+        invalid => {
+            return serde_json::json!({
+                "compiled": true,
+                "enabled": false,
+                "status": "failed",
+                "error": format!("invalid Galadriel lifecycle state {invalid}")
+            });
+        }
+    }
+
     let Ok(guard) = GALADRIEL_RUNTIME.lock() else {
         return serde_json::json!({
             "compiled": true,
-            "enabled": false,
+            "enabled": true,
+            "status": "failed",
             "error": "runtime status lock poisoned"
         });
     };
     let Some(runtime) = guard.as_ref() else {
-        return serde_json::json!({ "compiled": true, "enabled": false });
+        return serde_json::json!({
+            "compiled": true,
+            "enabled": true,
+            "status": "failed",
+            "error": "active lifecycle has no Galadriel runtime"
+        });
     };
     let handle = runtime.handle();
     let status = handle.status();
     serde_json::json!({
         "compiled": true,
         "enabled": true,
+        "status": "ready",
         "realm": handle.realm(),
         "producerId": handle.producer_id(),
         "epoch": status.epoch,
@@ -680,7 +637,7 @@ fn galadriel_system_info() -> serde_json::Value {
 
 #[cfg(not(feature = "ncp"))]
 fn galadriel_system_info() -> serde_json::Value {
-    serde_json::json!({ "compiled": false, "enabled": false })
+    serde_json::json!({ "compiled": false, "enabled": false, "status": "not-compiled" })
 }
 
 /// Get system info including detector availability
@@ -868,15 +825,33 @@ fn prepared_fusion_config(mut config: FusionConfig) -> Result<FusionConfig, Stri
 
 #[cfg(feature = "ncp")]
 fn galadriel_handle() -> Result<Option<galadriel_producer::GaladrielHandle>, String> {
+    match GALADRIEL_LIFECYCLE.load(Ordering::Acquire) {
+        GALADRIEL_LIFECYCLE_NEVER_ACTIVE => return Ok(None),
+        GALADRIEL_LIFECYCLE_STARTING => {
+            return Err(GALADRIEL_STARTING_ERROR.to_string());
+        }
+        GALADRIEL_LIFECYCLE_FAILED => {
+            let cause = GALADRIEL_STARTUP_ERROR
+                .lock()
+                .ok()
+                .and_then(|guard| guard.clone())
+                .unwrap_or_else(|| "startup failed without a recorded cause".to_string());
+            return Err(format!("Galadriel producer startup failed: {cause}"));
+        }
+        GALADRIEL_LIFECYCLE_STOPPED => {
+            return Err("Galadriel runtime is shutting down or stopped".to_string());
+        }
+        GALADRIEL_LIFECYCLE_ACTIVE => {}
+        invalid => return Err(format!("invalid Galadriel lifecycle state {invalid}")),
+    }
+
     let guard = GALADRIEL_RUNTIME
         .lock()
         .map_err(|error| format!("Galadriel runtime lock poisoned: {error}"))?;
-    if GALADRIEL_LIFECYCLE.load(Ordering::Acquire) == GALADRIEL_LIFECYCLE_STOPPED {
-        return Err("Galadriel runtime is shutting down or stopped".to_string());
-    }
-    Ok(guard
+    let runtime = guard
         .as_ref()
-        .map(galadriel_producer::GaladrielRuntime::handle))
+        .ok_or_else(|| "active Galadriel lifecycle has no runtime".to_string())?;
+    Ok(Some(runtime.handle()))
 }
 
 #[cfg(feature = "ncp")]
@@ -887,10 +862,52 @@ fn lock_galadriel_frame_pipeline(
         handle.mark_degraded();
         format!("Galadriel frame pipeline lock poisoned: {error}")
     })?;
-    if GALADRIEL_LIFECYCLE.load(Ordering::Acquire) == GALADRIEL_LIFECYCLE_STOPPED {
-        return Err("Galadriel runtime is shutting down or stopped".to_string());
+    if GALADRIEL_LIFECYCLE.load(Ordering::Acquire) != GALADRIEL_LIFECYCLE_ACTIVE {
+        return Err("Galadriel runtime is not active".to_string());
     }
     Ok(guard)
+}
+
+#[cfg(feature = "ncp")]
+fn try_lock_galadriel_frame_pipeline(
+    handle: &galadriel_producer::GaladrielHandle,
+) -> Result<std::sync::MutexGuard<'static, ()>, String> {
+    if FUSION_PROCESS_ADMISSION.is_active() {
+        return Err(FUSION_PROCESS_BUSY_ERROR.to_string());
+    }
+    let guard = match GALADRIEL_FRAME_PIPELINE.try_lock() {
+        Ok(guard) => guard,
+        Err(std::sync::TryLockError::WouldBlock) => {
+            return Err(FUSION_PROCESS_BUSY_ERROR.to_string());
+        }
+        Err(std::sync::TryLockError::Poisoned(error)) => {
+            handle.mark_degraded();
+            drop(error.into_inner());
+            return Err("Galadriel frame pipeline lock poisoned".to_string());
+        }
+    };
+    if GALADRIEL_LIFECYCLE.load(Ordering::Acquire) != GALADRIEL_LIFECYCLE_ACTIVE {
+        return Err("Galadriel runtime is not active".to_string());
+    }
+    Ok(guard)
+}
+
+fn try_lock_fusion_engine(
+) -> Result<std::sync::MutexGuard<'static, Option<MultiSensorFusion>>, String> {
+    if FUSION_PROCESS_ADMISSION.is_active() {
+        return Err(FUSION_PROCESS_BUSY_ERROR.to_string());
+    }
+    match FUSION_ENGINE.try_lock() {
+        Ok(guard) if FUSION_PROCESS_ADMISSION.is_active() => {
+            drop(guard);
+            Err(FUSION_PROCESS_BUSY_ERROR.to_string())
+        }
+        Ok(guard) => Ok(guard),
+        Err(std::sync::TryLockError::WouldBlock) => Err(FUSION_PROCESS_BUSY_ERROR.to_string()),
+        Err(std::sync::TryLockError::Poisoned(error)) => {
+            Err(format!("Fusion engine lock poisoned: {error}"))
+        }
+    }
 }
 
 #[cfg(feature = "ncp")]
@@ -1024,6 +1041,204 @@ fn preflight_galadriel_fusion_config() -> Result<FusionConfig, String> {
     Ok(config)
 }
 
+#[cfg(feature = "ncp")]
+fn fail_galadriel_startup(error: impl Into<String>) {
+    let error = error.into();
+    if let Ok(mut guard) = GALADRIEL_STARTUP_ERROR.lock() {
+        *guard = Some(error.clone());
+    }
+    if GALADRIEL_LIFECYCLE
+        .compare_exchange(
+            GALADRIEL_LIFECYCLE_STARTING,
+            GALADRIEL_LIFECYCLE_FAILED,
+            Ordering::AcqRel,
+            Ordering::Acquire,
+        )
+        .is_ok()
+    {
+        log::error!("Galadriel producer startup failed: {error}");
+    } else {
+        log::warn!("Discarded a late Galadriel startup failure after shutdown: {error}");
+    }
+}
+
+#[cfg(feature = "ncp")]
+enum GaladrielInstallOutcome {
+    Active,
+    Rejected(galadriel_producer::GaladrielRuntime),
+}
+
+#[cfg(feature = "ncp")]
+fn install_galadriel_runtime(
+    fusion: MultiSensorFusion,
+    runtime: galadriel_producer::GaladrielRuntime,
+) -> Result<GaladrielInstallOutcome, (String, galadriel_producer::GaladrielRuntime)> {
+    let pipeline_guard = match GALADRIEL_FRAME_PIPELINE.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => {
+            runtime.handle().mark_degraded();
+            drop(poisoned.into_inner());
+            return Err((
+                "frame pipeline lock was poisoned during startup".to_string(),
+                runtime,
+            ));
+        }
+    };
+    if GALADRIEL_LIFECYCLE.load(Ordering::Acquire) != GALADRIEL_LIFECYCLE_STARTING {
+        drop(pipeline_guard);
+        return Ok(GaladrielInstallOutcome::Rejected(runtime));
+    }
+
+    let mut fusion_guard = match FUSION_ENGINE.lock() {
+        Ok(guard) => guard,
+        Err(error) => {
+            drop(pipeline_guard);
+            return Err((format!("fusion engine lock poisoned: {error}"), runtime));
+        }
+    };
+    let mut runtime_guard = match GALADRIEL_RUNTIME.lock() {
+        Ok(guard) => guard,
+        Err(error) => {
+            drop(fusion_guard);
+            drop(pipeline_guard);
+            return Err((format!("runtime lock poisoned: {error}"), runtime));
+        }
+    };
+    if runtime_guard.is_some() || fusion_guard.is_some() {
+        drop(runtime_guard);
+        drop(fusion_guard);
+        drop(pipeline_guard);
+        return Err((
+            "producer runtime or fusion engine was initialized more than once".to_string(),
+            runtime,
+        ));
+    }
+
+    *fusion_guard = Some(fusion);
+    *runtime_guard = Some(runtime);
+    let activated = GALADRIEL_LIFECYCLE
+        .compare_exchange(
+            GALADRIEL_LIFECYCLE_STARTING,
+            GALADRIEL_LIFECYCLE_ACTIVE,
+            Ordering::AcqRel,
+            Ordering::Acquire,
+        )
+        .is_ok();
+    let outcome = if activated {
+        GaladrielInstallOutcome::Active
+    } else {
+        // Shutdown can change STARTING to STOPPED while it waits for the
+        // pipeline lock. Remove both values before shutdown can observe them.
+        *fusion_guard = None;
+        GaladrielInstallOutcome::Rejected(
+            runtime_guard
+                .take()
+                .unwrap_or_else(|| unreachable!("startup installed the runtime")),
+        )
+    };
+    drop(runtime_guard);
+    drop(fusion_guard);
+    drop(pipeline_guard);
+    Ok(outcome)
+}
+
+#[cfg(feature = "ncp")]
+fn spawn_galadriel_startup() {
+    GALADRIEL_LIFECYCLE.store(GALADRIEL_LIFECYCLE_STARTING, Ordering::Release);
+    if let Ok(mut guard) = GALADRIEL_STARTUP_ERROR.lock() {
+        *guard = None;
+    }
+
+    let startup_task = tauri::async_runtime::spawn(async {
+        let prepared = tokio::time::timeout(
+            GALADRIEL_STARTUP_TIMEOUT,
+            tauri::async_runtime::spawn_blocking(|| {
+                let config = preflight_galadriel_fusion_config()?;
+                Ok::<_, String>(MultiSensorFusion::new(config))
+            }),
+        )
+        .await;
+        let fusion = match prepared {
+            Ok(Ok(Ok(fusion))) => fusion,
+            Ok(Ok(Err(error))) => {
+                fail_galadriel_startup(error);
+                return;
+            }
+            Ok(Err(error)) => {
+                fail_galadriel_startup(format!(
+                    "configuration preflight task did not complete: {error}"
+                ));
+                return;
+            }
+            Err(_) => {
+                fail_galadriel_startup(format!(
+                    "configuration preflight exceeded {} seconds",
+                    GALADRIEL_STARTUP_TIMEOUT.as_secs()
+                ));
+                return;
+            }
+        };
+
+        // Shutdown can win while the read-only configuration preflight is
+        // running. Do not open a transport after the process has denied new
+        // Galadriel work. The optional JSONL archive opens on the first active
+        // frame under the same pipeline guard as frame admission.
+        if GALADRIEL_LIFECYCLE.load(Ordering::Acquire) != GALADRIEL_LIFECYCLE_STARTING {
+            return;
+        }
+
+        let runtime = match tokio::time::timeout(
+            GALADRIEL_STARTUP_TIMEOUT,
+            galadriel_producer::start_from_env(),
+        )
+        .await
+        {
+            Ok(Ok(Some(runtime))) => runtime,
+            Ok(Ok(None)) => {
+                fail_galadriel_startup(
+                    "enabled startup unexpectedly resolved to a disabled producer",
+                );
+                return;
+            }
+            Ok(Err(error)) => {
+                fail_galadriel_startup(error.to_string());
+                return;
+            }
+            Err(_) => {
+                fail_galadriel_startup(format!(
+                    "secure transport startup exceeded {} seconds",
+                    GALADRIEL_STARTUP_TIMEOUT.as_secs()
+                ));
+                return;
+            }
+        };
+
+        let status = runtime.handle().status();
+        match install_galadriel_runtime(fusion, runtime) {
+            Ok(GaladrielInstallOutcome::Active) => {
+                log::info!(
+                    "Galadriel producer ready for epoch {} with pinned fusion configuration",
+                    status.epoch
+                );
+            }
+            Ok(GaladrielInstallOutcome::Rejected(runtime)) => runtime.shutdown().await,
+            Err((error, runtime)) => {
+                fail_galadriel_startup(error);
+                runtime.shutdown().await;
+            }
+        }
+    });
+
+    // Do not let an unexpected panic or runtime cancellation strand the public
+    // lifecycle in STARTING. All expected failures above report their specific
+    // cause. This supervisor is the final fail-closed guard for the task itself.
+    tauri::async_runtime::spawn(async move {
+        if let Err(error) = startup_task.await {
+            fail_galadriel_startup(format!("Galadriel startup task did not complete: {error}"));
+        }
+    });
+}
+
 #[cfg(not(feature = "ncp"))]
 fn reject_galadriel_enable_without_feature() -> Result<(), String> {
     match std::env::var("CREBAIN_GALADRIEL_ENABLE") {
@@ -1050,14 +1265,11 @@ fn fusion_init(config: Option<FusionConfig>) -> Result<(), String> {
     #[cfg(feature = "ncp")]
     let _pipeline_guard = handle
         .as_ref()
-        .map(lock_galadriel_frame_pipeline)
+        .map(try_lock_galadriel_frame_pipeline)
         .transpose()?;
     #[cfg(feature = "ncp")]
     if let Some(handle) = handle.as_ref() {
-        let initialized = FUSION_ENGINE
-            .lock()
-            .map_err(|error| error.to_string())?
-            .is_some();
+        let initialized = try_lock_fusion_engine()?.is_some();
         if !initialized {
             handle.mark_degraded();
             return Err("active Galadriel deployment lost its fusion engine".to_string());
@@ -1074,7 +1286,7 @@ fn fusion_init(config: Option<FusionConfig>) -> Result<(), String> {
     let cfg = prepared_fusion_config(config.unwrap_or_default())?;
     let fusion = MultiSensorFusion::new(cfg);
 
-    let mut guard = FUSION_ENGINE.lock().map_err(|e| e.to_string())?;
+    let mut guard = try_lock_fusion_engine()?;
     *guard = Some(fusion);
 
     log::info!("Sensor fusion engine initialized");
@@ -1083,10 +1295,10 @@ fn fusion_init(config: Option<FusionConfig>) -> Result<(), String> {
 
 /// JSONL sink for the galadriel innovation sidecar (`CREBAIN_PID_JSONL`).
 ///
-/// Legacy, non-NCP use remains best-effort. An enabled Galadriel runtime
-/// preflights the file and permanently degrades its epoch if its bounded archive
-/// worker later loses a record. Callers release `FUSION_ENGINE` before invoking
-/// this sink.
+/// Legacy, non-NCP use remains best-effort. An enabled Galadriel runtime opens
+/// the file on its first active frame and permanently degrades its epoch if the
+/// bounded archive later loses a record. Callers release `FUSION_ENGINE` before
+/// invoking this sink.
 static PID_JSONL_SINK: LazyLock<Mutex<Option<std::io::BufWriter<std::fs::File>>>> =
     LazyLock::new(|| {
         let Some(path) = std::env::var_os("CREBAIN_PID_JSONL") else {
@@ -1174,7 +1386,7 @@ fn append_pid_observations_best_effort(records: Vec<pid_observation::PidObservat
 }
 
 #[cfg(feature = "ncp")]
-fn preflight_pid_jsonl_sink() -> Result<(), String> {
+fn ensure_pid_jsonl_sink_available() -> Result<(), String> {
     if std::env::var_os("CREBAIN_PID_JSONL").is_none() {
         return Ok(());
     }
@@ -1437,8 +1649,12 @@ where
             summary.degraded = true;
             summary.truncated = true;
         }
-        if let Err(error) = enqueue_pid_jsonl_archive(observations.clone(), &handle) {
+        let archive_result = ensure_pid_jsonl_sink_available()
+            .and_then(|()| enqueue_pid_jsonl_archive(observations.clone(), &handle));
+        if let Err(error) = archive_result {
             handle.mark_degraded();
+            summary.degraded = true;
+            summary.truncated = true;
             log::warn!("[pid-jsonl] {error}");
         }
         let report = handle
@@ -1500,7 +1716,13 @@ async fn fusion_process(
         }
         return Err("upstream input-drop count exceeds the exact JSON integer range".to_string());
     }
+    let admission_permit = FUSION_PROCESS_ADMISSION
+        .try_reserve()
+        .ok_or_else(|| FUSION_PROCESS_BUSY_ERROR.to_string())?;
     let task = tauri::async_runtime::spawn_blocking(move || {
+        // Cancellation of the command future must not admit a second batch
+        // while this blocking operation still owns the mutable engine.
+        let _admission_permit = admission_permit;
         process_fusion_batch_with_sink(
             measurements,
             timestamp_ms,
@@ -1524,7 +1746,7 @@ async fn fusion_process(
 /// Get current tracks without processing new measurements
 #[tauri::command]
 fn fusion_get_tracks() -> Result<Vec<TrackOutput>, String> {
-    let guard = FUSION_ENGINE.lock().map_err(|e| e.to_string())?;
+    let guard = try_lock_fusion_engine()?;
 
     let fusion = guard.as_ref().ok_or("Fusion engine not initialized")?;
     Ok(fusion.get_tracks())
@@ -1533,7 +1755,7 @@ fn fusion_get_tracks() -> Result<Vec<TrackOutput>, String> {
 /// Get fusion statistics
 #[tauri::command]
 fn fusion_get_stats() -> Result<FusionStats, String> {
-    let guard = FUSION_ENGINE.lock().map_err(|e| e.to_string())?;
+    let guard = try_lock_fusion_engine()?;
 
     let fusion = guard.as_ref().ok_or("Fusion engine not initialized")?;
     Ok(fusion.get_stats())
@@ -1548,7 +1770,7 @@ fn fusion_set_config(config: FusionConfig) -> Result<(), String> {
     #[cfg(feature = "ncp")]
     let _pipeline_guard = handle
         .as_ref()
-        .map(lock_galadriel_frame_pipeline)
+        .map(try_lock_galadriel_frame_pipeline)
         .transpose()?;
     #[cfg(feature = "ncp")]
     if let Some(handle) = handle.as_ref() {
@@ -1562,7 +1784,7 @@ fn fusion_set_config(config: FusionConfig) -> Result<(), String> {
         log::info!("Pinned Galadriel fusion configuration unchanged");
         return Ok(());
     }
-    let mut guard = FUSION_ENGINE.lock().map_err(|e| e.to_string())?;
+    let mut guard = try_lock_fusion_engine()?;
 
     let fusion = guard.as_mut().ok_or("Fusion engine not initialized")?;
     fusion.set_config(config);
@@ -1579,10 +1801,10 @@ fn fusion_clear() -> Result<(), String> {
     #[cfg(feature = "ncp")]
     let _pipeline_guard = handle
         .as_ref()
-        .map(lock_galadriel_frame_pipeline)
+        .map(try_lock_galadriel_frame_pipeline)
         .transpose()?;
     {
-        let mut guard = FUSION_ENGINE.lock().map_err(|e| e.to_string())?;
+        let mut guard = try_lock_fusion_engine()?;
 
         let fusion = guard.as_mut().ok_or("Fusion engine not initialized")?;
         fusion.clear();
@@ -1692,45 +1914,52 @@ pub fn run() {
                 app.handle().plugin(log_plugin)?;
             }
 
-            // Resolve bundled CoreML resources before the factory selects its backend.
-            #[cfg(target_os = "macos")]
-            {
-                if should_initialize_coreml(inference::configured_backend()) {
-                    init_coreml_detector(app);
-                } else {
-                    log::info!(
-                        "Skipping CoreML resource initialization because the backend override does not select CoreML"
-                    );
-                }
-            }
-
             #[cfg(not(any(target_os = "macos", target_os = "linux")))]
             {
                 log::warn!("Running on unsupported platform - limited functionality");
             }
 
-            match inference::production_runtime().initialize() {
-                Ok(backend) => {
-                    log::info!("Production inference runtime ready with {backend} backend");
-                }
-                Err(error) => {
-                    // The cached failed state makes subsequent frame requests fail closed
-                    // without repeating model or TensorRT engine initialization.
-                    log::error!("Production inference runtime is unavailable: {error}");
-                }
+            #[cfg(target_os = "macos")]
+            match app.path().resource_dir() {
+                Ok(resource_dir) => inference::coreml::register_packaged_model_path(
+                    resource_dir.join("resources/yolov8s.mlmodelc"),
+                ),
+                Err(error) => log::warn!(
+                    "Could not resolve the packaged CoreML resource directory: {error}"
+                ),
             }
 
+            // Model discovery, provider initialization, and warmup can take seconds.
+            // Keep Tauri setup responsive so diagnostics and scene IPC remain usable.
+            tauri::async_runtime::spawn(async move {
+                let initialized = tauri::async_runtime::spawn_blocking(|| {
+                    inference::production_runtime().initialize()
+                })
+                .await;
+
+                match initialized {
+                    Ok(Ok(backend)) => {
+                        log::info!("Production inference runtime ready with {backend} backend");
+                    }
+                    Ok(Err(inference::InferenceError::RuntimeBusy)) => {
+                        log::info!(
+                            "Production inference initialization is already owned by another admitted request"
+                        );
+                    }
+                    Ok(Err(error)) => {
+                        // The cached failed state makes subsequent frame requests fail closed
+                        // without repeating model or TensorRT engine initialization.
+                        log::error!("Production inference runtime is unavailable: {error}");
+                    }
+                    Err(error) => {
+                        log::error!("Production inference startup task did not complete: {error}");
+                    }
+                }
+            });
+
             #[cfg(feature = "ncp")]
-            let (fusion_config, galadriel_runtime) = {
-                let config = preflight_galadriel_fusion_config()
-                    .map_err(std::io::Error::other)?;
-                preflight_pid_jsonl_sink().map_err(std::io::Error::other)?;
-                let runtime = tauri::async_runtime::block_on(
-                    galadriel_producer::start_from_env(),
-                )
-                .map_err(|error| std::io::Error::other(error.to_string()))?;
-                (config, runtime)
-            };
+            let galadriel_enabled =
+                galadriel_enabled_from_env().map_err(std::io::Error::other)?;
 
             #[cfg(not(feature = "ncp"))]
             let fusion_config = {
@@ -1740,22 +1969,16 @@ pub fn run() {
                     .map_err(std::io::Error::other)?
             };
 
-            let fusion = MultiSensorFusion::new(fusion_config);
-            let mut fusion_guard = FUSION_ENGINE
-                .lock()
-                .map_err(|error| std::io::Error::other(error.to_string()))?;
-            *fusion_guard = Some(fusion);
-            drop(fusion_guard);
-            log::info!("Sensor fusion engine initialized with deployment configuration");
-
             #[cfg(feature = "ncp")]
-            if let Some(runtime) = galadriel_runtime {
-                let status = runtime.handle().status();
-                log::info!(
-                    "Galadriel producer enabled for epoch {}",
-                    status.epoch
+            if galadriel_enabled {
+                spawn_galadriel_startup();
+                log::info!("Galadriel producer configuration accepted; startup is asynchronous");
+            } else {
+                let fusion = MultiSensorFusion::new(
+                    prepared_fusion_config(FusionConfig::default())
+                        .map_err(std::io::Error::other)?,
                 );
-                let mut runtime_guard = GALADRIEL_RUNTIME
+                let runtime_guard = GALADRIEL_RUNTIME
                     .lock()
                     .map_err(|error| std::io::Error::other(error.to_string()))?;
                 if runtime_guard.is_some() {
@@ -1764,8 +1987,22 @@ pub fn run() {
                     )
                     .into());
                 }
-                *runtime_guard = Some(runtime);
-                GALADRIEL_LIFECYCLE.store(GALADRIEL_LIFECYCLE_ACTIVE, Ordering::Release);
+                drop(runtime_guard);
+                let mut fusion_guard = FUSION_ENGINE
+                    .lock()
+                    .map_err(|error| std::io::Error::other(error.to_string()))?;
+                *fusion_guard = Some(fusion);
+                log::info!("Sensor fusion engine initialized without Galadriel publication");
+            }
+
+            #[cfg(not(feature = "ncp"))]
+            {
+                let fusion = MultiSensorFusion::new(fusion_config);
+                let mut fusion_guard = FUSION_ENGINE
+                    .lock()
+                    .map_err(|error| std::io::Error::other(error.to_string()))?;
+                *fusion_guard = Some(fusion);
+                log::info!("Sensor fusion engine initialized with deployment configuration");
             }
 
             Ok(())
@@ -1900,18 +2137,12 @@ mod tests {
     }
 
     #[test]
-    fn coreml_resource_initialization_only_runs_for_auto_or_coreml_selection() {
-        assert_eq!(
-            (
-                should_initialize_coreml(Ok(None)),
-                should_initialize_coreml(Ok(Some(inference::Backend::CoreML))),
-                should_initialize_coreml(Ok(Some(inference::Backend::ONNX))),
-                should_initialize_coreml(Err(inference::InferenceError::InvalidBackend(
-                    "invalid".to_string()
-                ))),
-            ),
-            (true, true, false, false)
-        );
+    fn fusion_process_admission_is_single_flight_and_recovers() {
+        let admission = FusionProcessAdmission::default();
+        let first = admission.try_reserve().expect("first batch must enter");
+        assert!(admission.try_reserve().is_none());
+        drop(first);
+        assert!(admission.try_reserve().is_some());
     }
 
     #[test]
@@ -2468,13 +2699,7 @@ mod tests {
 
         assert_eq!(migrated["version"], CURRENT_SCENE_VERSION);
         assert!(migrated["timestamp"].is_number());
-        for key in [
-            "cameras",
-            "assets",
-            "drones",
-            "annotations",
-            "recentDetections",
-        ] {
+        for key in ["cameras", "assets", "drones", "recentDetections"] {
             assert!(migrated[key].is_array());
         }
         assert!(migrated["settings"].is_object());
@@ -2696,8 +2921,9 @@ mod tests {
     #[test]
     fn transport_commands_reject_invalid_topics() {
         // Test topic validation directly (AppHandle not available in unit tests)
-        let error = transport::commands::validate_topic_for_test("/valid\0topic");
-        assert!(error.is_err());
+        for invalid in ["/valid\0topic", "/camera/", "/camera//raw"] {
+            assert!(transport::commands::validate_topic_for_test(invalid).is_err());
+        }
     }
 
     #[test]
@@ -2721,6 +2947,14 @@ mod tests {
     // ─────────────────────────────────────────────────────────────────────────
 
     static NEXT_MOCK_APP_ID: AtomicU64 = AtomicU64::new(1);
+
+    fn current_scene_fixture() -> serde_json::Value {
+        let corpus: serde_json::Value = serde_json::from_str(include_str!(
+            "../../src/state/__fixtures__/sceneContractCases.json"
+        ))
+        .expect("shared scene-contract corpus must parse");
+        corpus["current"].clone()
+    }
 
     struct MockIpcApp {
         _app: tauri::App<tauri::test::MockRuntime>,
@@ -2814,7 +3048,7 @@ mod tests {
     #[test]
     fn serialized_ipc_rejects_scene_save_payload_and_path_failures() {
         let app = MockIpcApp::new();
-        let valid_json = serde_json::json!({ "version": "1.0.0", "name": "IPC test" });
+        let valid_json = current_scene_fixture();
         let outside_path = std::env::temp_dir().join("crebain-ipc-outside.json");
 
         app.assert_error_contains(
@@ -2853,6 +3087,72 @@ mod tests {
             serde_json::json!({ "path": "malformed.json", "json": "{" }),
             "Invalid scene JSON",
         );
+    }
+
+    #[test]
+    fn serialized_ipc_round_trips_the_complete_scene_contract() {
+        let app = MockIpcApp::new();
+        let scene = current_scene_fixture();
+
+        let response = app
+            .invoke(
+                "scene_save_file",
+                serde_json::json!({ "path": "round-trip.json", "json": scene.to_string() }),
+            )
+            .expect("complete scene must save");
+        assert!(response.is_null());
+
+        let response = app
+            .invoke(
+                "scene_load_file",
+                serde_json::json!({ "path": "round-trip.json" }),
+            )
+            .expect("saved scene must load");
+        let loaded: serde_json::Value = serde_json::from_str(
+            response
+                .as_str()
+                .expect("scene load response must contain JSON text"),
+        )
+        .expect("loaded scene text must parse");
+        assert_eq!(loaded, scene);
+    }
+
+    #[test]
+    fn serialized_ipc_rejects_incomplete_current_scenes_before_writing() {
+        let app = MockIpcApp::new();
+        let mut cases = Vec::new();
+
+        let mut missing_settings = current_scene_fixture();
+        missing_settings
+            .as_object_mut()
+            .expect("fixture must be an object")
+            .remove("settings");
+        cases.push(("missing-settings.json", missing_settings));
+
+        let mut incomplete_view = current_scene_fixture();
+        incomplete_view["viewCamera"] = serde_json::json!({});
+        cases.push(("incomplete-view.json", incomplete_view));
+
+        let mut unknown_drone = current_scene_fixture();
+        unknown_drone["drones"][0]["type"] = serde_json::json!("not-installed");
+        cases.push(("unknown-drone.json", unknown_drone));
+
+        let mut duplicate_id = current_scene_fixture();
+        let camera_id = duplicate_id["cameras"][0]["id"].clone();
+        duplicate_id["assets"][0]["id"] = camera_id;
+        cases.push(("duplicate-id.json", duplicate_id));
+
+        for (path, scene) in cases {
+            app.assert_error_contains(
+                "scene_save_file",
+                serde_json::json!({ "path": path, "json": scene.to_string() }),
+                "scene",
+            );
+            assert!(
+                !app.scenes_dir.join(path).exists(),
+                "invalid current scene was persisted at {path}"
+            );
+        }
     }
 
     #[test]
@@ -2987,6 +3287,16 @@ mod tests {
             if command == "transport_subscribe_camera" {
                 body["compressed"] = serde_json::Value::Bool(false);
                 body["cameraSubscriptionId"] = serde_json::Value::String("1".to_string());
+            }
+            if matches!(
+                command,
+                "transport_subscribe_camera_info"
+                    | "transport_subscribe_imu"
+                    | "transport_subscribe_pose"
+                    | "transport_subscribe_model_states"
+                    | "transport_unsubscribe"
+            ) {
+                body["subscriptionId"] = serde_json::Value::String("1".to_string());
             }
             if matches!(
                 command,

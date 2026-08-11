@@ -1,0 +1,139 @@
+<svg xmlns="http://www.w3.org/2000/svg" xml:lang="en" viewBox="0 0 1200 800" width="1200" height="800" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="evidence-chain-title evidence-chain-desc">
+  <title id="evidence-chain-title">CREBAIN controlled evidence and claim chain</title>
+  <desc id="evidence-chain-desc">Eleven named evidence stages separate source existence, builds, tests, integration, transport, receiver validation, authorization, attempted application, FCU acceptance, observed effect, and safe-state evidence. Arrows mean that a stronger claim needs new evidence. No stage automatically promotes to the next. Expiry and hardware or field testing are separate facts.</desc>
+  <style>
+    * { vector-effect: non-scaling-stroke; }
+    .canvas { fill: #f8fafc; }
+    text { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 14px; fill: #172033; text-anchor: middle; }
+    .title { font-size: 18px; font-weight: 700; letter-spacing: 2px; text-anchor: start; }
+    .subtitle { font-size: 13px; fill: #475569; text-anchor: start; }
+    .section { font-size: 14px; font-weight: 700; letter-spacing: 1.2px; text-anchor: start; }
+    .small { font-size: 13px; fill: #475569; }
+    .left { text-anchor: start; }
+    .present-text { fill: #047857; }
+    .data-text { fill: #0369a1; }
+    .conditional-text { fill: #92400e; }
+    .optional-text { fill: #6d28d9; }
+    .absent-text { fill: #b91c1c; }
+    .code-box { fill: #ffffff; stroke: #047857; stroke-width: 1.5; }
+    .transport-box { fill: #ffffff; stroke: #0369a1; stroke-width: 1.5; }
+    .authority-box { fill: #ffffff; stroke: #92400e; stroke-width: 1.5; }
+    .effect-box { fill: #ffffff; stroke: #6d28d9; stroke-width: 1.5; }
+    .fact-box { fill: #ffffff; stroke: #64748b; stroke-width: 1.4; stroke-dasharray: 3 4; }
+    .edge { fill: none; stroke: #52643f; stroke-width: 1.5; marker-end: url(#evidence-arrow-flow); }
+    .marker-flow { fill: #52643f; }
+    .gate { stroke: #b91c1c; stroke-width: 3; }
+    .corner { fill: none; stroke: #52643f; stroke-width: 1.8; }
+    @media (prefers-color-scheme: dark) {
+      .canvas { fill: #0d1117; }
+      text { fill: #d6dde5; }
+      .subtitle, .small { fill: #9aa7b4; }
+      .present-text { fill: #34d399; }
+      .data-text { fill: #38bdf8; }
+      .conditional-text { fill: #fbbf24; }
+      .optional-text { fill: #c4b5fd; }
+      .absent-text { fill: #f87171; }
+      .code-box, .transport-box, .authority-box, .effect-box, .fact-box { fill: #111820; }
+      .code-box { stroke: #34d399; }
+      .transport-box { stroke: #38bdf8; }
+      .authority-box { stroke: #fbbf24; }
+      .effect-box { stroke: #c4b5fd; }
+      .fact-box { stroke: #7d8996; }
+      .edge, .corner { stroke: #87967a; }
+      .marker-flow { fill: #87967a; }
+      .gate { stroke: #f87171; }
+    }
+  </style>
+  <defs>
+    <marker id="evidence-arrow-flow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="marker-flow" d="M0 0 L8 4 L0 8 Z"/></marker>
+  </defs>
+
+  <rect class="canvas" x="0" y="0" width="1200" height="800"/>
+  <path class="corner" d="M18 42 V18 H42 M1158 18 H1182 V42 M18 758 V782 H42 M1182 758 V782 H1158"/>
+  <text class="title" x="48" y="42">CREBAIN · CONTROLLED EVIDENCE AND CLAIM CHAIN</text>
+  <text class="subtitle" x="48" y="66">EACH ARROW REQUIRES NEW EVIDENCE · TRANSPORT SUCCESS IS NEVER PHYSICAL EFFECT</text>
+
+  <text class="section present-text" x="48" y="112">SOURCE / COMPONENT EVIDENCE</text>
+  <rect class="code-box" x="48" y="128" width="204" height="90"/>
+  <text class="present-text" x="150" y="158">Implemented</text>
+  <text class="small" x="150" y="182">code exists</text>
+  <text class="small" x="150" y="201">no build claim</text>
+  <path class="edge" d="M252 173 H268"/>
+  <rect class="code-box" x="276" y="128" width="204" height="90"/>
+  <text class="present-text" x="378" y="158">Compiled</text>
+  <text class="small" x="378" y="182">one named source</text>
+  <text class="small" x="378" y="201">and configuration built</text>
+  <path class="edge" d="M480 173 H496"/>
+  <rect class="code-box" x="504" y="128" width="204" height="90"/>
+  <text class="present-text" x="606" y="158">Unit-tested</text>
+  <text class="small" x="606" y="182">isolated behavior passed</text>
+  <text class="small" x="606" y="201">named configuration only</text>
+  <path class="edge" d="M708 173 H724"/>
+  <rect class="code-box" x="732" y="128" width="204" height="90"/>
+  <text class="present-text" x="834" y="158">Integrated</text>
+  <text class="small" x="834" y="182">named components</text>
+  <text class="small" x="834" y="201">interacted in a topology</text>
+  <line class="gate" x1="960" y1="124" x2="960" y2="222"/>
+  <text class="small absent-text left" x="978" y="168">NO AUTOMATIC</text>
+  <text class="small absent-text left" x="978" y="192">PROMOTION</text>
+
+  <text class="section data-text" x="48" y="274">TRANSPORT / RECEIVER EVIDENCE</text>
+  <rect class="transport-box" x="48" y="292" width="238" height="116"/>
+  <text class="data-text" x="167" y="322">Delivered</text>
+  <text class="small" x="167" y="348">transport or callback</text>
+  <text class="small" x="167" y="371">accepted bytes</text>
+  <text class="small absent-text" x="167" y="394">receiver validation unknown</text>
+  <path class="edge" d="M286 350 H316"/>
+  <rect class="transport-box" x="324" y="292" width="238" height="116"/>
+  <text class="data-text" x="443" y="322">Accepted</text>
+  <text class="small" x="443" y="350">receiver validated</text>
+  <text class="small" x="443" y="375">message · profile · session</text>
+  <line class="gate" x1="590" y1="288" x2="590" y2="412"/>
+  <text class="small absent-text left" x="608" y="346">DELIVERED</text>
+  <text class="small absent-text left" x="608" y="372">≠ ACCEPTED</text>
+
+  <rect class="authority-box" x="760" y="300" width="392" height="96"/>
+  <text class="conditional-text" x="956" y="330">Authorized</text>
+  <text class="small" x="956" y="356">Haldir admitted a request under</text>
+  <text class="small" x="956" y="380">authenticated policy and state</text>
+
+  <text class="section optional-text" x="48" y="458">PLANT / PHYSICAL-EFFECT EVIDENCE</text>
+  <rect class="effect-box" x="48" y="476" width="204" height="112"/>
+  <text class="optional-text" x="150" y="506">Attempted</text>
+  <text class="small" x="150" y="532">plant asked</text>
+  <text class="small" x="150" y="555">adapter or FCU to apply</text>
+  <text class="small" x="150" y="576">an action</text>
+  <path class="edge" d="M252 532 H268"/>
+  <rect class="effect-box" x="276" y="476" width="218" height="112"/>
+  <text class="optional-text" x="385" y="506">FCU-accepted</text>
+  <text class="small" x="385" y="532">authoritative</text>
+  <text class="small" x="385" y="555">acknowledgment or state</text>
+  <text class="small" x="385" y="576">confirmed acceptance</text>
+  <path class="edge" d="M494 532 H510"/>
+  <rect class="effect-box" x="518" y="476" width="204" height="112"/>
+  <text class="optional-text" x="620" y="506">Observed</text>
+  <text class="small" x="620" y="536">authoritative state</text>
+  <text class="small" x="620" y="561">showed expected effect</text>
+  <path class="edge" d="M722 532 H738"/>
+  <rect class="effect-box" x="746" y="476" width="248" height="112"/>
+  <text class="optional-text" x="870" y="506">Safe state</text>
+  <text class="small" x="870" y="532">ODD-selected action</text>
+  <text class="small" x="870" y="555">or independent FCU fallback</text>
+  <text class="small" x="870" y="576">was observed</text>
+  <line class="gate" x1="1022" y1="472" x2="1022" y2="592"/>
+  <text class="small absent-text left" x="1040" y="526">ATTEMPTED</text>
+  <text class="small absent-text left" x="1040" y="552">≠ APPLIED</text>
+
+  <rect class="fact-box" x="48" y="636" width="318" height="100"/>
+  <text class="conditional-text" x="207" y="666">Expired</text>
+  <text class="small" x="207" y="692">plant-local age invalidated</text>
+  <text class="small" x="207" y="716">authority before write</text>
+  <rect class="fact-box" x="396" y="636" width="374" height="100"/>
+  <text class="conditional-text" x="583" y="666">HIL-tested / field-tested</text>
+  <text class="small" x="583" y="692">only under named hardware</text>
+  <text class="small" x="583" y="716">configuration and ODD</text>
+  <rect class="fact-box" x="800" y="636" width="352" height="100"/>
+  <text class="absent-text" x="976" y="666">LANGUAGE BOUNDARY</text>
+  <text class="small" x="976" y="692">UI connected ≠ authorized</text>
+  <text class="small" x="976" y="716">local put ≠ delivered</text>
+</svg>

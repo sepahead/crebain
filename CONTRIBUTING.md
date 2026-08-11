@@ -4,6 +4,17 @@ Thank you for contributing to CREBAIN. This guide keeps changes reviewable and
 reproducible. It also keeps changes within the project safety, validation, and
 documentation boundaries.
 
+<p align="center">
+  <img alt="CREBAIN evidence and claim maturity chain" src="assets/diagrams/evidence-claim-chain.svg" width="900">
+</p>
+
+Text alternative: Eleven named stages separate weak claims from strong claims.
+They cover source existence, builds, tests, integration, transport, receiver
+validation, authorization, and attempted application. Later stages cover flight
+control unit acceptance, observed effect, and safe-state evidence. Each stronger
+claim needs new evidence. No stage advances automatically. Expiry and hardware
+or field tests provide separate facts.
+
 ## Code of conduct
 
 Be respectful and constructive in all interactions. Follow the standards in
@@ -71,16 +82,18 @@ Use the narrowest check that covers the change:
 # Baselines/contracts/provenance + frontend typecheck/lint/format/tests
 bun run validate
 
-# NCP pin coherence + frontend + plant boundary/frame corpus + locked Rust default/NCP bridge/producer gates
+# NCP pin coherence + frontend + plant + locked Rust app, headless-runner, bridge, and producer gates
 bun run validate:all
 ```
 
 | Change Type | Required Check |
 |-------------|----------------|
-| Markdown-only, no command/status changes | `git diff --check` |
+| Markdown-only, no command/status changes | `bun run check:docs-visuals` and `git diff --check` |
 | NCP manifest, lockfile, or normative-doc changes | `bun run check:ncp-coherence` |
+| Headless NCP runner, CLI, lifecycle, or report changes | `bun run check:ncp-headless-boundary`, `bun run check:ncp-headless`, `bun run clippy:ncp-headless`, `bun run test:ncp-headless`, and `bun run self-check:ncp-headless`; `bun run validate:all` runs these gates together. A live claim also requires a compatible wire-0.8 responder and external topology evidence. |
 | Galadriel producer registry/config/envelope/security/baseline changes | `bun run check:phase0-baseline` plus `bun run check:ncp-coherence`; use `bun run validate:all` for source behavior |
 | Frontend-only source/test changes | `bun run validate` |
+| Responsive layout, panel chrome, or UI-scale changes | `bun run validate`, `bun run check:bundle`, and `bun run test:responsive` |
 | Production renderer-vendor, GLB loader, or Vite artifact-boundary changes | `bun run check:production-vendors` and `bun run check:bundle`; use `bun run validate` for the complete frontend gate |
 | Rust, Tauri IPC, model loading, scene persistence, ROS, Zenoh, transport, or sensor fusion changes | `bun run validate:all` |
 | Headless plant package, command/health/captured-age/safe-action/deadline-monitor/apply-observation contract, frame corpus, lifecycle, or channel-policy changes | `bun run check:plant-boundary`, `bun run check:plant-frames`, and `bun run validate:all` |
@@ -94,6 +107,9 @@ For documentation-only changes, keep Markdown files aligned on validation comman
 
 `bun run validate` also verifies:
 
+- every tracked Markdown file has a meaningful local SVG or a specific policy exemption
+- every covered diagram has concise alt text and an adjacent prose alternative
+- every covered SVG has portable accessibility metadata and no external resources
 - the exact pinned Spark, Rapier, and Three production transforms
 - the local-byte and texture runtimes
 - the product profiles and IPC registry
@@ -106,14 +122,15 @@ For documentation-only changes, keep Markdown files aligned on validation comman
 - the inert plant boundary and closed in-memory contract tests
 - the captured-age, safe-action, deadline-monitor, and apply-observation tests
 - the digest-bound JavaScript and Rust frame corpus
-- Rustfmt, Cargo check, all-target tests, strict Clippy, and the headless
-  self-check
+- the isolated headless NCP boundary, Cargo check, all-target tests, strict
+  Clippy, and network-free self-check
+- Rustfmt, default application Cargo check, all-target tests, and strict Clippy
 
 Each Rust package acceptance script uses the checked-in Cargo lockfile with
 `--locked`. These commands do not run:
 
 - a real model benchmark
-- the bundle budget or coverage thresholds
+- the bundle budget, responsive-browser smoke, or coverage thresholds
 - the `cuda,tensorrt` or `--no-default-features` checks
 - CodeQL or supply-chain audits
 

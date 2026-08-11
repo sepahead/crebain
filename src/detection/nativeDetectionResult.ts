@@ -1,11 +1,25 @@
-import type { CoreMLBoundingBox, CoreMLDetection, CoreMLDetectionResult } from './types'
+import {
+  DEFAULT_MAX_DETECTIONS,
+  type CoreMLBoundingBox,
+  type CoreMLDetection,
+  type CoreMLDetectionResult,
+} from './types'
 
-const MAX_NATIVE_DETECTIONS = 100
+const MAX_NATIVE_DETECTIONS = DEFAULT_MAX_DETECTIONS
 const MAX_COCO_CLASS_INDEX = 79
 const MAX_NATIVE_STRING_LENGTH = 256
+const MAX_NATIVE_ERROR_LENGTH = 2_048
+const MAX_NATIVE_TIMING_MS = 24 * 60 * 60 * 1_000
+const utf8Encoder = new TextEncoder()
+const UNICODE_CONTROL_CHARACTER = /\p{Cc}/u
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  const allowed = new Set(keys)
+  return Object.keys(value).every((key) => allowed.has(key))
 }
 
 function requireFiniteNumber(value: unknown, field: string): number {
@@ -13,11 +27,6 @@ function requireFiniteNumber(value: unknown, field: string): number {
     throw new Error(`Invalid native detection response: ${field} must be a finite number`)
   }
   return value
-}
-
-function nullableFiniteNumber(value: unknown, field: string): number | null {
-  if (value === null) return null
-  return requireNonNegativeNumber(value, field)
 }
 
 function requireNonNegativeNumber(value: unknown, field: string): number {
@@ -42,17 +51,40 @@ function requireSafeInteger(
   return value as number
 }
 
-function requireBoundedString(value: unknown, field: string): string {
+function requireBoundedString(
+  value: unknown,
+  field: string,
+  maximumLength = MAX_NATIVE_STRING_LENGTH
+): string {
   if (
     typeof value !== 'string' ||
     value.trim().length === 0 ||
-    value.length > MAX_NATIVE_STRING_LENGTH
+    UNICODE_CONTROL_CHARACTER.test(value) ||
+    utf8Encoder.encode(value).byteLength > maximumLength
   ) {
     throw new Error(
-      `Invalid native detection response: ${field} must be a non-empty string of at most ${MAX_NATIVE_STRING_LENGTH} characters`
+      `Invalid native detection response: ${field} must be a non-empty string of at most ${maximumLength} UTF-8 bytes`
     )
   }
   return value
+}
+
+function requireBoundedIdentity(value: unknown, field: string): string {
+  const identity = requireBoundedString(value, field)
+  if (identity.trim() !== identity) {
+    throw new Error(`Invalid native detection response: ${field} contains unsafe characters`)
+  }
+  return identity
+}
+
+function requireBoundedTiming(value: unknown, field: string): number {
+  const timing = requireNonNegativeNumber(value, field)
+  if (timing > MAX_NATIVE_TIMING_MS) {
+    throw new Error(
+      `Invalid native detection response: ${field} must be at most ${MAX_NATIVE_TIMING_MS} ms`
+    )
+  }
+  return timing
 }
 
 function normalizeBoundingBox(
@@ -61,7 +93,7 @@ function normalizeBoundingBox(
   frameWidth: number,
   frameHeight: number
 ): CoreMLBoundingBox {
-  if (!isRecord(value)) {
+  if (!isRecord(value) || !hasOnlyKeys(value, ['x1', 'y1', 'x2', 'y2'])) {
     throw new Error(`Invalid native detection response: ${field} must be an object`)
   }
 
@@ -89,7 +121,10 @@ function normalizeDetection(
   frameHeight: number
 ): CoreMLDetection {
   const field = `detections[${index}]`
-  if (!isRecord(value)) {
+  if (
+    !isRecord(value) ||
+    !hasOnlyKeys(value, ['id', 'classLabel', 'classIndex', 'confidence', 'bbox', 'timestamp'])
+  ) {
     throw new Error(`Invalid native detection response: ${field} must be an object`)
   }
 
@@ -101,8 +136,8 @@ function normalizeDetection(
   }
 
   return {
-    id: requireBoundedString(value.id, `${field}.id`),
-    classLabel: requireBoundedString(value.classLabel, `${field}.classLabel`),
+    id: requireBoundedIdentity(value.id, `${field}.id`),
+    classLabel: requireBoundedIdentity(value.classLabel, `${field}.classLabel`),
     classIndex: requireSafeInteger(
       value.classIndex,
       `${field}.classIndex`,
@@ -128,7 +163,18 @@ export function normalizeNativeDetectionResult(
   requireSafeInteger(frameWidth, 'frameWidth', 1, Number.MAX_SAFE_INTEGER)
   requireSafeInteger(frameHeight, 'frameHeight', 1, Number.MAX_SAFE_INTEGER)
 
-  if (!isRecord(value)) {
+  if (
+    !isRecord(value) ||
+    !hasOnlyKeys(value, [
+      'success',
+      'detections',
+      'inferenceTimeMs',
+      'preprocessTimeMs',
+      'postprocessTimeMs',
+      'backend',
+      'error',
+    ])
+  ) {
     throw new Error('Invalid native detection response: response must be an object')
   }
   if (typeof value.success !== 'boolean') {
@@ -149,26 +195,35 @@ export function normalizeNativeDetectionResult(
     throw new Error('Invalid native detection response: failed responses must not carry detections')
   }
 
-  const backend = requireBoundedString(value.backend, 'backend')
+  const backend = requireBoundedIdentity(value.backend, 'backend')
   const error = value.error
   if (success && error !== null) {
     throw new Error('Invalid native detection response: successful responses must carry null error')
   }
-  if (!success && (typeof error !== 'string' || error.trim().length === 0)) {
-    throw new Error(
-      'Invalid native detection response: failed responses must carry a non-empty error'
-    )
+  const normalizedError = success
+    ? null
+    : requireBoundedString(error, 'error', MAX_NATIVE_ERROR_LENGTH)
+
+  const detections = detectionsValue.map((detection, index) =>
+    normalizeDetection(detection, index, frameWidth, frameHeight)
+  )
+  if (new Set(detections.map((detection) => detection.id)).size !== detections.length) {
+    throw new Error('Invalid native detection response: detection IDs must be unique')
   }
 
   return {
     success,
-    detections: detectionsValue.map((detection, index) =>
-      normalizeDetection(detection, index, frameWidth, frameHeight)
-    ),
-    inferenceTimeMs: requireNonNegativeNumber(value.inferenceTimeMs, 'inferenceTimeMs'),
-    preprocessTimeMs: nullableFiniteNumber(value.preprocessTimeMs, 'preprocessTimeMs'),
-    postprocessTimeMs: nullableFiniteNumber(value.postprocessTimeMs, 'postprocessTimeMs'),
+    detections,
+    inferenceTimeMs: requireBoundedTiming(value.inferenceTimeMs, 'inferenceTimeMs'),
+    preprocessTimeMs:
+      value.preprocessTimeMs === null
+        ? null
+        : requireBoundedTiming(value.preprocessTimeMs, 'preprocessTimeMs'),
+    postprocessTimeMs:
+      value.postprocessTimeMs === null
+        ? null
+        : requireBoundedTiming(value.postprocessTimeMs, 'postprocessTimeMs'),
     backend,
-    error: typeof error === 'string' ? error : null,
+    error: normalizedError,
   }
 }

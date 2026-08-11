@@ -6,6 +6,18 @@ Systems-Theoretic Process Analysis (STPA) unsafe-control-action view. An action
 can be unsafe when it is provided, omitted, mistimed, reordered, or applied for
 too long.
 
+<p align="center">
+  <img alt="CREBAIN inert plant foundation boundary" src="../assets/diagrams/plant-foundation.svg" width="900">
+</p>
+
+Text alternative: The dependency-free plant package implements inactive
+command, health, age, apply-observation, deadline-monitor, safe-action,
+lifecycle, channel, frame, and expiry mechanics. Solid arrows show narrow data
+dependencies between those components. The package lacks authenticated ingress,
+approved policy, an authorizing governor, output invalidation, a flight control
+unit adapter, and runtime wiring. These missing boundaries stop every path
+before vehicle authority.
+
 ## Status semantics
 
 - **open:** required controls or evidence are absent.
@@ -170,9 +182,10 @@ numeric upstream/cluster-loss count, so producer logs remain necessary.
 Successful local puts are not receiver delivery. Identity-only source-frame
 matching does not verify transform/calibration artifacts, and none of this path
 joins authority or FCU effect evidence. Active JSONL admission has a separate
-capacity-16 drop-new channel. Configured `ncp` sinks are startup-preflighted;
-batches validate/serialize before their first write. And admission or writer
-failure permanently degrades the epoch (writer failure terminates that worker).
+capacity-16 drop-new channel. The first active frame opens a configured `ncp`
+sink under the serialized frame pipeline. Batches validate and serialize before
+their first write. Admission or writer failure permanently degrades the epoch.
+Writer failure terminates that worker.
 Its blocking standard writer can still outlive the two-second exit wait on a
 FIFO/device/socket/slow mount, a mid-write OS failure can leave a partial batch,
 and archive drops do not have a dedicated health counter. Without an active

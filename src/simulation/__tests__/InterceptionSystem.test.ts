@@ -57,6 +57,33 @@ describe('InterceptionSystem', () => {
     expect(system.predictTargetTrajectory('target-1', MAX_TRAJECTORY_POINTS, 1)).toEqual([])
   })
 
+  it('fails closed when prediction arithmetic leaves the finite state envelope', () => {
+    const system = new InterceptionSystem()
+    system.updateTarget(
+      'extreme-target',
+      { x: 1_000_000_000, y: 0, z: 0 },
+      { x: 1_000_000_000, y: 0, z: 0 }
+    )
+    system.registerInterceptor(
+      'slow-interceptor',
+      { x: 0, y: 0, z: 0 },
+      { x: 0, y: 0, z: 0 },
+      { maxSpeed: Number.MIN_VALUE }
+    )
+
+    expect(system.predictTargetPosition('extreme-target', Number.MAX_VALUE)).toBeNull()
+    expect(
+      system.predictTargetTrajectory('extreme-target', Number.MAX_VALUE, Number.MAX_VALUE)
+    ).toEqual([])
+    for (const strategy of ['PURSUIT', 'LEAD', 'PARALLEL', 'AMBUSH'] as const) {
+      const result = system.calculateIntercept('slow-interceptor', 'extreme-target', strategy)
+      expect(result.isPossible, strategy).toBe(false)
+      expect(result.timeToIntercept, strategy).toBeNull()
+      expect(Object.values(result.interceptPoint).every(Number.isFinite), strategy).toBe(true)
+      expect(Object.values(result.interceptorVelocity).every(Number.isFinite), strategy).toBe(true)
+    }
+  })
+
   it('creates, activates, updates, and completes missions', () => {
     vi.useFakeTimers()
     vi.setSystemTime(1_000)
@@ -86,6 +113,22 @@ describe('InterceptionSystem', () => {
     )
   })
 
+  it('uses the larger safety or engagement radius for mission completion', () => {
+    const system = new InterceptionSystem()
+    system.registerInterceptor(
+      'safe-interceptor',
+      { x: 0, y: 0, z: 0 },
+      { x: 0, y: 0, z: 0 },
+      { maxSpeed: 20, engagementRadius: 1, safetyMargin: 10 }
+    )
+    system.updateTarget('target', { x: 20, y: 0, z: 0 }, { x: 0, y: 0, z: 0 })
+    const mission = system.createMission('safe-interceptor', 'target', 'PURSUIT')!
+    expect(system.activateMission(mission.id)).toBe(true)
+
+    system.updateInterceptor('safe-interceptor', { x: 11, y: 0, z: 0 }, { x: 0, y: 0, z: 0 })
+    expect(system.updateMission(mission.id)?.status).toBe('COMPLETED')
+  })
+
   it('assigns the closest viable interceptor and provides guidance commands', () => {
     const system = createSystem()
 
@@ -103,6 +146,20 @@ describe('InterceptionSystem', () => {
     const guidance = system.getGuidanceCommand('interceptor-1')
     expect(guidance).toEqual(expect.objectContaining({ y: 0, z: 0 }))
     expect(Math.hypot(guidance!.x, guidance!.y, guidance!.z)).toBeLessThanOrEqual(20)
+  })
+
+  it('assigns an interceptor against the requested strategy instead of another viable strategy', () => {
+    const system = new InterceptionSystem()
+    system.registerInterceptor('slow', { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, { maxSpeed: 4 })
+    system.registerInterceptor(
+      'fast',
+      { x: 100, y: 0, z: 50 },
+      { x: 0, y: 0, z: 0 },
+      { maxSpeed: 20 }
+    )
+    system.updateTarget('target', { x: 10, y: 0, z: 10 }, { x: 5, y: 0, z: 0 })
+
+    expect(system.assignBestInterceptor('target', 'PARALLEL')?.interceptorId).toBe('fast')
   })
 
   it('aborts and releases pending and active missions when their target is removed', () => {
@@ -141,17 +198,17 @@ describe('InterceptionSystem', () => {
 
     const newer = system.createMission('interceptor-1', 'target-1', 'LEAD')!
     expect(system.abortMission(completed.id)).toBe(false)
-    expect(completed.status).toBe('COMPLETED')
+    expect(system.getMission(completed.id)?.status).toBe('COMPLETED')
     expect(system.getInterceptor('interceptor-1')?.currentMission?.id).toBe(newer.id)
 
     vi.setSystemTime(2_000)
     expect(system.abortMission(newer.id)).toBe(true)
-    expect(newer).toMatchObject({ status: 'ABORTED', lastUpdate: 2_000 })
+    expect(system.getMission(newer.id)).toMatchObject({ status: 'ABORTED', lastUpdate: 2_000 })
     expect(system.getInterceptor('interceptor-1')?.currentMission).toBeNull()
 
     vi.setSystemTime(3_000)
     expect(system.abortMission(newer.id)).toBe(false)
-    expect(newer.lastUpdate).toBe(2_000)
+    expect(system.getMission(newer.id)?.lastUpdate).toBe(2_000)
   })
 
   it('closes the along-track gap for PARALLEL intercepts', () => {
@@ -168,6 +225,7 @@ describe('InterceptionSystem', () => {
     const result = system.calculateIntercept('interceptor-1', 'target-1', 'PARALLEL')
 
     expect(result.isPossible).toBe(true)
+    if (!result.isPossible) throw new Error('Expected a possible parallel intercept')
     expect(Number.isFinite(result.timeToIntercept)).toBe(true)
     const speed = Math.hypot(
       result.interceptorVelocity.x,
@@ -186,6 +244,51 @@ describe('InterceptionSystem', () => {
     expect(result.interceptPoint.x).toBeCloseTo(30 + 5 * t, 6)
     expect(result.interceptPoint.y).toBeCloseTo(0, 6)
     expect(result.interceptPoint.z).toBeCloseTo(40, 6)
+  })
+
+  it('solves a perpendicular LEAD intercept exactly without iteration drift', () => {
+    const system = new InterceptionSystem()
+    system.registerInterceptor(
+      'interceptor',
+      { x: 0, y: 0, z: 0 },
+      { x: 0, y: 0, z: 0 },
+      { maxSpeed: 10 }
+    )
+    system.updateTarget('target', { x: 100, y: 0, z: 0 }, { x: 0, y: 6, z: 0 })
+
+    const result = system.calculateIntercept('interceptor', 'target', 'LEAD')
+
+    expect(result.isPossible).toBe(true)
+    if (!result.isPossible) throw new Error('Expected an exact lead intercept')
+    expect(result.timeToIntercept).toBeCloseTo(12.5, 12)
+    expect(result.interceptPoint).toEqual({ x: 100, y: 75, z: 0 })
+    expect(result.interceptorVelocity.x).toBeCloseTo(8, 12)
+    expect(result.interceptorVelocity.y).toBeCloseTo(6, 12)
+    expect(result.interceptorVelocity.z).toBe(0)
+  })
+
+  it('uses the linear limit when target and interceptor speeds match', () => {
+    const system = new InterceptionSystem()
+    system.registerInterceptor(
+      'interceptor',
+      { x: 0, y: 0, z: 0 },
+      { x: 0, y: 0, z: 0 },
+      { maxSpeed: 10 }
+    )
+    system.updateTarget('approaching', { x: 100, y: 0, z: 0 }, { x: -10, y: 0, z: 0 })
+    system.updateTarget('receding', { x: 100, y: 0, z: 0 }, { x: 10, y: 0, z: 0 })
+
+    const approaching = system.calculateIntercept('interceptor', 'approaching', 'LEAD')
+    expect(approaching.isPossible).toBe(true)
+    if (!approaching.isPossible) throw new Error('Expected an equal-speed approaching intercept')
+    expect(approaching.timeToIntercept).toBe(5)
+    expect(approaching.interceptPoint).toEqual({ x: 50, y: 0, z: 0 })
+    expect(approaching.interceptorVelocity).toEqual({ x: 10, y: 0, z: 0 })
+
+    expect(system.calculateIntercept('interceptor', 'receding', 'LEAD')).toMatchObject({
+      isPossible: false,
+      timeToIntercept: null,
+    })
   })
 
   it('returns immediate-intercept guidance when the interceptor is on the target (LEAD)', () => {
@@ -214,6 +317,7 @@ describe('InterceptionSystem', () => {
     expect(system.calculateIntercept('missing', 'target-1')).toEqual(
       expect.objectContaining({
         isPossible: false,
+        timeToIntercept: null,
         reason: 'Interceptor not found',
       })
     )
@@ -224,5 +328,59 @@ describe('InterceptionSystem', () => {
       })
     )
     expect(system.assignBestInterceptor('missing')).toBeNull()
+  })
+
+  it('snapshots kinematic inputs and public records', () => {
+    const system = new InterceptionSystem()
+    const position = { x: 1, y: 2, z: 3 }
+    const velocity = { x: 4, y: 5, z: 6 }
+    system.updateTarget('target', position, velocity)
+    system.registerInterceptor('interceptor', position, velocity)
+
+    position.x = 99
+    velocity.x = 99
+    expect(system.getTarget('target')).toMatchObject({
+      position: { x: 1, y: 2, z: 3 },
+      velocity: { x: 4, y: 5, z: 6 },
+    })
+
+    const targetSnapshot = system.getTarget('target')!
+    targetSnapshot.position.x = -1
+    expect(system.getTarget('target')?.position.x).toBe(1)
+
+    const trajectory = system.predictTargetTrajectory('target', 1, 1)
+    trajectory[0].velocity.x = -1
+    expect(trajectory[1].velocity.x).toBe(4)
+    expect(system.getTarget('target')?.velocity.x).toBe(4)
+  })
+
+  it('rejects invalid identities, kinematics, and interceptor configuration', () => {
+    const system = new InterceptionSystem()
+    expect(() =>
+      system.updateTarget(' target', { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 })
+    ).toThrow('Target ID')
+    expect(() =>
+      system.updateTarget('target', { x: Number.NaN, y: 0, z: 0 }, { x: 0, y: 0, z: 0 })
+    ).toThrow('finite, bounded')
+    expect(() =>
+      system.registerInterceptor(
+        'interceptor',
+        { x: 0, y: 0, z: 0 },
+        { x: 0, y: 0, z: 0 },
+        { maxSpeed: 0 }
+      )
+    ).toThrow('Interceptor maxSpeed')
+  })
+
+  it('aborts every pending and active reservation in one authority-boundary transition', () => {
+    const system = createSystem()
+    const pending = system.createMission('interceptor-1', 'target-1')!
+    const active = system.createMission('interceptor-2', 'target-1')!
+    system.activateMission(active.id)
+
+    expect(system.abortAllMissions()).toBe(2)
+    expect(system.getMission(pending.id)?.status).toBe('ABORTED')
+    expect(system.getMission(active.id)?.status).toBe('ABORTED')
+    expect(system.getAvailableInterceptors()).toHaveLength(2)
   })
 })

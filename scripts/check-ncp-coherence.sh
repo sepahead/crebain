@@ -9,8 +9,13 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+DEFAULT_REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd -P)"
+REPO_ROOT="${CREBAIN_NCP_COHERENCE_ROOT:-$DEFAULT_REPO_ROOT}"
+[[ -d "$REPO_ROOT" && "$REPO_ROOT" != "/" ]] \
+  || { echo "ERROR: invalid CREBAIN_NCP_COHERENCE_ROOT" >&2; exit 1; }
+REPO_ROOT="$(cd "$REPO_ROOT" && pwd -P)"
 DESCRIPTOR="$REPO_ROOT/.ncp-consumer"
+RELEASE_IDENTITIES="$REPO_ROOT/scripts/ncp-release-identities.tsv"
 
 die() {
   echo "ERROR: $*" >&2
@@ -26,17 +31,33 @@ single_value() {
   printf '%s' "$values"
 }
 
-safe_declared_file() {
+safe_repo_file() {
   local relative="$1"
+  local label="$2"
+  local file
+  local parent
   case "$relative" in
-    ""|/*|..|../*|*/..|*/../*) die "unsafe path in .ncp-consumer: '$relative'" ;;
+    ""|/*|..|../*|*/..|*/../*) die "unsafe repository path: '$relative'" ;;
   esac
-  [[ -f "$REPO_ROOT/$relative" ]] || die "declared pin file is missing: $relative"
+  file="$REPO_ROOT/$relative"
+  [[ -f "$file" ]] || die "$label is missing: $relative"
+  [[ ! -L "$file" ]] || die "$label must not be a symbolic link: $relative"
+  parent="$(cd "$(dirname "$file")" && pwd -P)" \
+    || die "cannot resolve parent directory for $relative"
+  case "$parent" in
+    "$REPO_ROOT"|"$REPO_ROOT"/*) ;;
+    *) die "$label resolves outside the repository: $relative" ;;
+  esac
 }
 
-[[ -f "$DESCRIPTOR" ]] || die ".ncp-consumer is missing"
+safe_declared_file() {
+  safe_repo_file "$1" "declared pin file"
+}
 
-cargo_manifest=""
+safe_repo_file ".ncp-consumer" ".ncp-consumer"
+safe_repo_file "scripts/ncp-release-identities.tsv" "NCP release identity map"
+
+cargo_manifests=()
 cargo_lock=""
 npm_manifest=""
 npm_lock=""
@@ -52,8 +73,7 @@ while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
   safe_declared_file "$relative"
   case "$kind" in
     cargo_tag)
-      [[ -z "$cargo_manifest" ]] || die "duplicate cargo_tag declaration"
-      cargo_manifest="$REPO_ROOT/$relative"
+      cargo_manifests+=("$REPO_ROOT/$relative")
       ;;
     cargo_lock)
       [[ -z "$cargo_lock" ]] || die "duplicate cargo_lock declaration"
@@ -71,16 +91,17 @@ while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
   esac
 done < "$DESCRIPTOR"
 
-[[ -n "$cargo_manifest" ]] || die ".ncp-consumer has no cargo_tag declaration"
+[[ "${#cargo_manifests[@]}" -gt 0 ]] || die ".ncp-consumer has no cargo_tag declaration"
 [[ -n "$cargo_lock" ]] || die ".ncp-consumer has no cargo_lock declaration"
 [[ -n "$npm_manifest" ]] || die ".ncp-consumer has no npm_tag declaration"
 [[ -n "$npm_lock" ]] || die ".ncp-consumer has no npm_lock declaration"
 
 cargo_line() {
-  local crate="$1"
+  local manifest="$1"
+  local crate="$2"
   local matches
-  matches="$(sed -nE "/^[[:space:]]*${crate}[[:space:]]*=/p" "$cargo_manifest")"
-  single_value "$crate declaration in ${cargo_manifest#"$REPO_ROOT/"}" "$matches"
+  matches="$(sed -nE "/^[[:space:]]*${crate}[[:space:]]*=/p" "$manifest")"
+  single_value "$crate declaration in ${manifest#"$REPO_ROOT/"}" "$matches"
 }
 
 cargo_field() {
@@ -91,21 +112,30 @@ cargo_field() {
   single_value "$field field in NCP Cargo dependency" "$values"
 }
 
-core_line="$(cargo_line ncp-core)"
-zenoh_line="$(cargo_line ncp-zenoh)"
-for declaration in "$core_line" "$zenoh_line"; do
-  [[ "$(cargo_field "$declaration" git)" == "https://github.com/sepahead/NCP" ]] \
-    || die "NCP Cargo dependency does not use the canonical repository"
-  if printf '%s\n' "$declaration" | grep -Eq '(branch|rev)[[:space:]]*='; then
-    die "tag-based .ncp-consumer entry may not also declare branch/rev"
+tag=""
+for cargo_manifest in "${cargo_manifests[@]}"; do
+  core_line="$(cargo_line "$cargo_manifest" ncp-core)"
+  zenoh_line="$(cargo_line "$cargo_manifest" ncp-zenoh)"
+  for declaration in "$core_line" "$zenoh_line"; do
+    [[ "$(cargo_field "$declaration" git)" == "https://github.com/sepahead/NCP" ]] \
+      || die "NCP Cargo dependency does not use the canonical repository"
+    if printf '%s\n' "$declaration" | grep -Eq '(branch|rev)[[:space:]]*='; then
+      die "tag-based .ncp-consumer entry may not also declare branch/rev"
+    fi
+  done
+
+  manifest_tag="$(cargo_field "$core_line" tag)"
+  [[ "$manifest_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] \
+    || die "NCP Cargo tag is not a stable vMAJOR.MINOR.PATCH release: $manifest_tag"
+  [[ "$(cargo_field "$zenoh_line" tag)" == "$manifest_tag" ]] \
+    || die "ncp-core and ncp-zenoh tags differ in ${cargo_manifest#"$REPO_ROOT/"}"
+  if [[ -z "$tag" ]]; then
+    tag="$manifest_tag"
+  else
+    [[ "$manifest_tag" == "$tag" ]] \
+      || die "NCP Cargo manifests pin different tags: $tag and $manifest_tag"
   fi
 done
-
-tag="$(cargo_field "$core_line" tag)"
-[[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] \
-  || die "NCP Cargo tag is not a stable vMAJOR.MINOR.PATCH release: $tag"
-[[ "$(cargo_field "$zenoh_line" tag)" == "$tag" ]] \
-  || die "ncp-core and ncp-zenoh manifest tags differ"
 
 lock_source() {
   local crate="$1"
@@ -164,12 +194,30 @@ read -r npm_commit npm_cache_key <<< "$npm_resolution"
 [[ "${#npm_commit}" -ge 7 && "${#npm_commit}" -le 40 ]] \
   || die "npm lock resolved ref must contain 7 to 40 hex characters"
 
+identity_rows="$(awk -v release="$tag" '
+  /^[[:space:]]*#/ || /^[[:space:]]*$/ { next }
+  $1 == release { print }
+' "$RELEASE_IDENTITIES")"
+identity_row="$(single_value "release identity for $tag" "$identity_rows")"
+read -r identity_tag tag_object peeled_commit identity_extra <<< "$identity_row"
+[[ "$identity_tag" == "$tag" && -z "$identity_extra" ]] \
+  || die "malformed release identity for $tag"
+[[ "$tag_object" =~ ^[0-9a-f]{40}$ ]] \
+  || die "$tag annotated object must contain 40 lowercase hex characters"
+[[ "$peeled_commit" =~ ^[0-9a-f]{40}$ ]] \
+  || die "$tag peeled commit must contain 40 lowercase hex characters"
+[[ "$lock_commit" == "$peeled_commit" ]] \
+  || die "Cargo lock commit $lock_commit does not equal the mapped $tag peeled commit $peeled_commit"
+[[ "$tag_object" == "$npm_commit"* ]] \
+  || die "Bun lock ref $npm_commit is not an abbreviation of the mapped $tag annotated object $tag_object"
+
 wire="${tag#v}"
 wire="${wire%.*}"
 normative_docs=(
   "docs/NCP_BRIDGE_HANDOFF.md"
   "src/neuro/README.md"
   "src-tauri/src/ncp/README.md"
+  "src-tauri/crates/ncp-headless/README.md"
   "SECURITY.md"
 )
 
@@ -185,16 +233,27 @@ for relative in "${normative_docs[@]}"; do
   # also describe CREBAIN releases and may legitimately contain other semantic
   # versions, so a document-wide version scan would conflate independent pins.
 
-  wire_references="$(grep -Eio 'wire[-[:space:]]+`?[0-9]+\.[0-9]+' "$file" \
-    | grep -Eo '[0-9]+\.[0-9]+' | sort -u || true)"
-  while IFS= read -r reference; do
+  while IFS=: read -r line_number matched; do
+    [[ -n "$line_number" && -n "$matched" ]] || continue
+    reference="$(printf '%s\n' "$matched" | grep -Eo '[0-9]+\.[0-9]+' | head -1)"
     [[ -n "$reference" ]] || continue
-    [[ "$reference" == "$wire" ]] \
-      || die "$relative contains stale NCP wire reference '$reference' (expected '$wire')"
-  done <<< "$wire_references"
+    if [[ "$reference" == "$wire" ]]; then
+      continue
+    fi
+    context_start=$((line_number > 1 ? line_number - 1 : 1))
+    context_end=$((line_number + 1))
+    context="$(sed -n "${context_start},${context_end}p" "$file")"
+    if [[ "$reference" == "1.0" ]] \
+      && printf '%s\n' "$context" | grep -Eiq \
+        '(incompatib|no[[:space:]]+([^[:space:]]+[[:space:]]+){0,3}translat|candidate)'; then
+      continue
+    fi
+    die "$relative:$line_number contains unqualified NCP wire reference '$reference' (CREBAIN pins '$wire'; external wire 1.0 must be explicitly incompatible)"
+  done < <(grep -Enio 'wire[-[:space:]]+`?[0-9]+\.[0-9]+' "$file" || true)
 done
 
 echo "OK: NCP $tag (wire $wire) is coherent"
-echo "  Cargo lock commit: $lock_commit"
-echo "  Bun lock ref:      $npm_commit"
+echo "  Annotated tag object: $tag_object"
+echo "  Peeled Cargo commit: $lock_commit"
+echo "  Bun tag-object ref:  $npm_commit"
 echo "  Normative docs:    ${normative_docs[*]}"

@@ -3,7 +3,7 @@
  * UI for spawning and controlling different drone types
  */
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useId, useRef } from 'react'
 import * as THREE from 'three'
 import { DRONE_TYPES, type DroneTypeDefinition } from '../physics/DroneTypes'
 import { BasePanel } from './BasePanel'
@@ -16,13 +16,14 @@ import {
   parseWaypointInput,
 } from '../lib/routeLimits'
 import type { RouteMode, Waypoint, DroneRoute } from '../hooks/useDroneController'
+import { isBoundedSceneName, MAX_SCENE_NAME_BYTES } from '../lib/sceneLimits'
 
 interface DroneSpawnPanelProps {
   onSpawnDrone: (typeId: string, name?: string) => void
   onSelectDrone: (droneId: string | null) => void
-  onRemoveDrone: (droneId: string) => void
-  onRenameDrone?: (droneId: string, newName: string) => void
-  onSetRoute?: (droneId: string, waypoints: Waypoint[], mode: RouteMode) => void
+  onRemoveDrone: (droneId: string) => boolean | void
+  onRenameDrone?: (droneId: string, newName: string) => boolean | void
+  onSetRoute?: (droneId: string, waypoints: Waypoint[], mode: RouteMode) => boolean | void
   onClearRoute?: (droneId: string) => void
   onToggleRoute?: (droneId: string, active?: boolean) => void
   activeDrones: Array<{
@@ -61,6 +62,8 @@ export function DroneSpawnPanel({
 
   const [editingDroneId, setEditingDroneId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
+  const renameCancelledRef = useRef(false)
+  const inputIdPrefix = useId()
 
   const droneTypes = Object.values(DRONE_TYPES)
   const selectedDrone = activeDrones.find((drone) => drone.id === selectedDroneId)
@@ -70,12 +73,22 @@ export function DroneSpawnPanel({
   const parsedWaypointInput = parseWaypointInput(waypointInput, routeAdmissionLimits)
   const waypointLimitReached = pendingWaypoints.length >= MAX_ROUTE_WAYPOINTS
   const canAddWaypoint = parsedWaypointInput !== null && !waypointLimitReached
+  const normalizedCustomName = customName.trim()
+  const customNameValid =
+    normalizedCustomName.length === 0 || isBoundedSceneName(normalizedCustomName)
 
   const handleSpawn = useCallback(() => {
-    onSpawnDrone(selectedType, customName || undefined)
+    if (!customNameValid) return
+    onSpawnDrone(selectedType, normalizedCustomName || undefined)
     setCustomName('')
     setShowSpawnMenu(false)
-  }, [selectedType, customName, onSpawnDrone])
+  }, [customNameValid, normalizedCustomName, onSpawnDrone, selectedType])
+
+  const beginRename = useCallback((droneId: string, name: string) => {
+    renameCancelledRef.current = false
+    setEditingDroneId(droneId)
+    setEditingName(name)
+  }, [])
 
   const handleAddWaypoint = useCallback(() => {
     const parsed = parseWaypointInput(waypointInput, { maxAltitude: maxRouteAltitude })
@@ -98,8 +111,8 @@ export function DroneSpawnPanel({
       pendingWaypoints.length > 0 &&
       isAdmissibleRouteWaypoints(pendingWaypoints, { maxAltitude: maxRouteAltitude })
     ) {
-      onSetRoute(selectedDroneId, pendingWaypoints, routeMode)
-      setShowRouteEditor(false)
+      const accepted = onSetRoute(selectedDroneId, pendingWaypoints, routeMode)
+      if (accepted !== false) setShowRouteEditor(false)
     }
   }, [selectedDroneId, onSetRoute, pendingWaypoints, routeMode, maxRouteAltitude])
 
@@ -135,6 +148,7 @@ export function DroneSpawnPanel({
         <div className="flex items-center justify-between mb-2">
           <span className="text-[#808080]">NEUE DROHNE</span>
           <button
+            type="button"
             onClick={() => setShowSpawnMenu(!showSpawnMenu)}
             className="px-2 py-0.5 bg-[#1a3a1a] border border-[#2a5a2a] text-[#4aff4a] hover:bg-[#2a4a2a]"
           >
@@ -146,8 +160,11 @@ export function DroneSpawnPanel({
           <div className="space-y-2 mt-2 p-2 bg-[#0e0e0e] border border-[#1a1a1a]">
             {/* Type Selection */}
             <div>
-              <label className="text-[#606060] block mb-1">TYP:</label>
+              <label htmlFor={`${inputIdPrefix}-type`} className="text-[#606060] block mb-1">
+                TYP:
+              </label>
               <select
+                id={`${inputIdPrefix}-type`}
                 value={selectedType}
                 onChange={(e) => setSelectedType(e.target.value)}
                 className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#c0c0c0] px-1 py-0.5"
@@ -175,20 +192,31 @@ export function DroneSpawnPanel({
 
             {/* Custom Name */}
             <div>
-              <label className="text-[#606060] block mb-1">NAME (OPTIONAL):</label>
+              <label htmlFor={`${inputIdPrefix}-name`} className="text-[#606060] block mb-1">
+                NAME (OPTIONAL):
+              </label>
               <input
+                id={`${inputIdPrefix}-name`}
                 type="text"
+                maxLength={MAX_SCENE_NAME_BYTES}
                 value={customName}
                 onChange={(e) => setCustomName(e.target.value)}
                 placeholder="z.B. ALPHA-1"
                 className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#c0c0c0] px-1 py-0.5 placeholder-[#404040]"
               />
+              {!customNameValid && (
+                <div role="alert" className="mt-1 text-[0.75em] text-[#ff6a6a]">
+                  NAME MUSS 1–{MAX_SCENE_NAME_BYTES} UTF-8-BYTES ENTHALTEN
+                </div>
+              )}
             </div>
 
             {/* Spawn Button */}
             <button
+              type="button"
               onClick={handleSpawn}
-              className="w-full py-1 bg-[#2a4a2a] border border-[#3a6a3a] text-[#4aff4a] hover:bg-[#3a5a3a] font-bold"
+              disabled={!customNameValid}
+              className="w-full py-1 bg-[#2a4a2a] border border-[#3a6a3a] text-[#4aff4a] hover:bg-[#3a5a3a] font-bold disabled:cursor-not-allowed disabled:opacity-50"
             >
               ➕ DROHNE SPAWNEN
             </button>
@@ -211,8 +239,7 @@ export function DroneSpawnPanel({
               return (
                 <div
                   key={drone.id}
-                  onClick={() => onSelectDrone(isSelected ? null : drone.id)}
-                  className={`p-1.5 border cursor-pointer transition-colors ${
+                  className={`p-1.5 border transition-colors ${
                     isSelected
                       ? 'bg-[#1a2a3a] border-[#4a9aff]'
                       : 'bg-[#0e0e0e] border-[#1a1a1a] hover:border-[#2a2a2a]'
@@ -222,22 +249,30 @@ export function DroneSpawnPanel({
                     {editingDroneId === drone.id ? (
                       <input
                         type="text"
+                        aria-label={`${drone.name} umbenennen`}
+                        maxLength={MAX_SCENE_NAME_BYTES}
                         value={editingName}
                         onChange={(e) => setEditingName(e.target.value)}
                         onBlur={() => {
-                          if (editingName.trim() && onRenameDrone) {
-                            onRenameDrone(drone.id, editingName.trim())
+                          const normalizedName = editingName.trim()
+                          if (
+                            !renameCancelledRef.current &&
+                            isBoundedSceneName(normalizedName) &&
+                            onRenameDrone
+                          ) {
+                            onRenameDrone(drone.id, normalizedName)
                           }
+                          renameCancelledRef.current = false
                           setEditingDroneId(null)
                         }}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
-                            if (editingName.trim() && onRenameDrone) {
-                              onRenameDrone(drone.id, editingName.trim())
-                            }
-                            setEditingDroneId(null)
+                            e.preventDefault()
+                            e.currentTarget.blur()
                           } else if (e.key === 'Escape') {
-                            setEditingDroneId(null)
+                            e.preventDefault()
+                            renameCancelledRef.current = true
+                            e.currentTarget.blur()
                           }
                         }}
                         onClick={(e) => e.stopPropagation()}
@@ -245,28 +280,42 @@ export function DroneSpawnPanel({
                         className="bg-[#0a0a0a] border border-[#4a9aff] text-[#c0c0c0] px-1 py-0 w-24"
                       />
                     ) : (
-                      <span
-                        className="text-[#c0c0c0]"
+                      <button
+                        type="button"
+                        className="min-h-10 min-w-0 flex-1 truncate text-left text-[#c0c0c0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#4a9aff]"
+                        onClick={() => onSelectDrone(isSelected ? null : drone.id)}
                         onDoubleClick={(e) => {
                           e.stopPropagation()
-                          setEditingDroneId(drone.id)
-                          setEditingName(drone.name)
+                          beginRename(drone.id, drone.name)
                         }}
+                        aria-pressed={isSelected}
                         title="Doppelklick zum Umbenennen"
                       >
                         {getCategoryIcon(droneType?.category || 'quadcopter')} {drone.name}
-                      </span>
+                      </button>
                     )}
                     <div className="flex items-center gap-2">
                       <span className={drone.armed ? 'text-[#4aff4a]' : 'text-[#ff4a4a]'}>
                         {drone.armed ? '● ARMED' : '○ SAFE'}
                       </span>
+                      {editingDroneId !== drone.id && onRenameDrone && (
+                        <button
+                          type="button"
+                          onClick={() => beginRename(drone.id, drone.name)}
+                          className="min-h-10 min-w-10 text-[#808080] hover:text-[#c0c0c0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#4a9aff]"
+                          aria-label={`${drone.name} umbenennen`}
+                        >
+                          ✎
+                        </button>
+                      )}
                       <button
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation()
                           onRemoveDrone(drone.id)
                         }}
-                        className="text-[#ff4a4a] hover:text-[#ff6a6a] px-1"
+                        className="min-h-10 min-w-10 text-[#ff4a4a] hover:text-[#ff6a6a] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ff6a6a]"
+                        aria-label={`${drone.name} entfernen`}
                         title="Drohne entfernen"
                       >
                         ✕
@@ -277,11 +326,18 @@ export function DroneSpawnPanel({
                   {/* Battery Bar */}
                   <div className="mt-1 flex items-center gap-1">
                     <span className="text-[#606060]">BAT:</span>
-                    <div className="flex-1 h-1 bg-[#1a1a1a] border border-[#2a2a2a]">
+                    <div
+                      className="flex-1 h-1 bg-[#1a1a1a] border border-[#2a2a2a]"
+                      role="progressbar"
+                      aria-label={`${drone.name} battery`}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={Math.round(THREE.MathUtils.clamp(drone.battery, 0, 1) * 100)}
+                    >
                       <div
                         className="h-full transition-all"
                         style={{
-                          width: `${drone.battery * 100}%`,
+                          width: `${THREE.MathUtils.clamp(drone.battery, 0, 1) * 100}%`,
                           backgroundColor:
                             drone.battery > 0.3
                               ? '#4aff4a'
@@ -292,7 +348,7 @@ export function DroneSpawnPanel({
                       />
                     </div>
                     <span className="text-[#808080] w-8 text-right">
-                      {Math.round(drone.battery * 100)}%
+                      {Math.round(THREE.MathUtils.clamp(drone.battery, 0, 1) * 100)}%
                     </span>
                   </div>
 
@@ -347,6 +403,7 @@ export function DroneSpawnPanel({
           <div className="flex items-center justify-between mb-2">
             <span className="text-[#808080]">ROUTE</span>
             <button
+              type="button"
               onClick={() => setShowRouteEditor(!showRouteEditor)}
               className="px-2 py-0.5 bg-[#1a2a3a] border border-[#2a4a5a] text-[#4a9aff] hover:bg-[#2a3a4a]"
             >
@@ -370,7 +427,9 @@ export function DroneSpawnPanel({
               </div>
               <div className="flex gap-1 mt-1">
                 <button
+                  type="button"
                   onClick={() => onToggleRoute?.(selectedDroneId)}
+                  aria-pressed={selectedDrone.route.isActive}
                   className={`flex-1 py-0.5 border ${
                     selectedDrone.route.isActive
                       ? 'bg-[#3a1a1a] border-[#5a2a2a] text-[#ff4a4a]'
@@ -380,7 +439,9 @@ export function DroneSpawnPanel({
                   {selectedDrone.route.isActive ? '⏹ STOP' : '▶ START'}
                 </button>
                 <button
+                  type="button"
                   onClick={() => onClearRoute?.(selectedDroneId)}
+                  aria-label="Route löschen"
                   className="px-2 py-0.5 bg-[#2a1a1a] border border-[#4a2a2a] text-[#ff6a6a]"
                 >
                   ✕
@@ -394,7 +455,9 @@ export function DroneSpawnPanel({
               {/* Route Mode */}
               <div className="flex gap-1">
                 <button
+                  type="button"
                   onClick={() => setRouteMode('once')}
+                  aria-pressed={routeMode === 'once'}
                   className={`flex-1 py-0.5 border ${
                     routeMode === 'once'
                       ? 'bg-[#1a2a3a] border-[#4a9aff] text-[#4a9aff]'
@@ -404,7 +467,9 @@ export function DroneSpawnPanel({
                   EINMALIG
                 </button>
                 <button
+                  type="button"
                   onClick={() => setRouteMode('patrol')}
+                  aria-pressed={routeMode === 'patrol'}
                   className={`flex-1 py-0.5 border ${
                     routeMode === 'patrol'
                       ? 'bg-[#1a2a3a] border-[#4a9aff] text-[#4a9aff]'
@@ -420,8 +485,14 @@ export function DroneSpawnPanel({
                 <div className="text-[#606060] mb-1">WEGPUNKT HINZUFÜGEN:</div>
                 <div className="grid grid-cols-3 gap-1">
                   <div>
-                    <label className="text-[#505050] text-[0.75em]">X</label>
+                    <label
+                      htmlFor={`${inputIdPrefix}-waypoint-x`}
+                      className="text-[#505050] text-[0.75em]"
+                    >
+                      X
+                    </label>
                     <input
+                      id={`${inputIdPrefix}-waypoint-x`}
                       type="number"
                       min={-MAX_ROUTE_COORDINATE_MAGNITUDE_M}
                       max={MAX_ROUTE_COORDINATE_MAGNITUDE_M}
@@ -431,8 +502,14 @@ export function DroneSpawnPanel({
                     />
                   </div>
                   <div>
-                    <label className="text-[#505050] text-[0.75em]">HÖHE</label>
+                    <label
+                      htmlFor={`${inputIdPrefix}-waypoint-y`}
+                      className="text-[#505050] text-[0.75em]"
+                    >
+                      HÖHE
+                    </label>
                     <input
+                      id={`${inputIdPrefix}-waypoint-y`}
                       type="number"
                       min={0}
                       max={maxRouteAltitude}
@@ -442,8 +519,14 @@ export function DroneSpawnPanel({
                     />
                   </div>
                   <div>
-                    <label className="text-[#505050] text-[0.75em]">Z</label>
+                    <label
+                      htmlFor={`${inputIdPrefix}-waypoint-z`}
+                      className="text-[#505050] text-[0.75em]"
+                    >
+                      Z
+                    </label>
                     <input
+                      id={`${inputIdPrefix}-waypoint-z`}
                       type="number"
                       min={-MAX_ROUTE_COORDINATE_MAGNITUDE_M}
                       max={MAX_ROUTE_COORDINATE_MAGNITUDE_M}
@@ -454,6 +537,7 @@ export function DroneSpawnPanel({
                   </div>
                 </div>
                 <button
+                  type="button"
                   onClick={handleAddWaypoint}
                   disabled={!canAddWaypoint}
                   className={`w-full mt-1 py-0.5 border ${
@@ -483,6 +567,7 @@ export function DroneSpawnPanel({
                       GEPLANTE ROUTE ({pendingWaypoints.length}):
                     </span>
                     <button
+                      type="button"
                       onClick={handleClearPendingWaypoints}
                       className="text-[#ff4a4a] hover:text-[#ff6a6a] text-[0.875em]"
                     >
@@ -505,6 +590,7 @@ export function DroneSpawnPanel({
 
               {/* Apply Route */}
               <button
+                type="button"
                 onClick={handleApplyRoute}
                 disabled={pendingWaypoints.length === 0}
                 className={`w-full py-1 font-bold border ${

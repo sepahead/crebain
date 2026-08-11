@@ -62,11 +62,7 @@ function validateVector(
 }
 
 export function validateGazeboPose(pose: Pose): void {
-  validateVector(
-    pose.position,
-    'Gazebo position',
-    MAX_GAZEBO_POSITION_MAGNITUDE_M
-  )
+  validateVector(pose.position, 'Gazebo position', MAX_GAZEBO_POSITION_MAGNITUDE_M)
   const quaternion = [
     pose.orientation.x,
     pose.orientation.y,
@@ -77,25 +73,14 @@ export function validateGazeboPose(pose: Pose): void {
     throw new Error('Gazebo orientation must contain only finite values')
   }
   const norm = Math.hypot(...quaternion)
-  if (
-    norm < MIN_GAZEBO_QUATERNION_NORM ||
-    norm > MAX_GAZEBO_QUATERNION_NORM
-  ) {
+  if (norm < MIN_GAZEBO_QUATERNION_NORM || norm > MAX_GAZEBO_QUATERNION_NORM) {
     throw new Error('Gazebo orientation must be a unit quaternion')
   }
 }
 
 export function validateGazeboTwist(twist: Twist): void {
-  validateVector(
-    twist.linear,
-    'Gazebo linear velocity',
-    MAX_GAZEBO_LINEAR_SPEED_MPS
-  )
-  validateVector(
-    twist.angular,
-    'Gazebo angular velocity',
-    MAX_GAZEBO_ANGULAR_SPEED_RAD_S
-  )
+  validateVector(twist.linear, 'Gazebo linear velocity', MAX_GAZEBO_LINEAR_SPEED_MPS)
+  validateVector(twist.angular, 'Gazebo angular velocity', MAX_GAZEBO_ANGULAR_SPEED_RAD_S)
 }
 
 export function validateGazeboSpawn(

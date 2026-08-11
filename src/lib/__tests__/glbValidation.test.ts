@@ -13,6 +13,8 @@ import {
   MAX_GLB_NODES,
   MAX_GLB_PRIMITIVE_INSTANCES,
   MAX_GLB_PRIMITIVES_PER_MESH,
+  MAX_GLB_SOURCE_BYTES,
+  MAX_GLB_TEXTURE_PIXELS,
   MAX_GLB_TEXTURE_VARIANTS_PER_IMAGE,
   validateSelfContainedGlb,
 } from '../glbValidation'
@@ -151,6 +153,26 @@ function manifestWithRepeatedAnimationSampler(
 }
 
 describe('validateSelfContainedGlb', () => {
+  it('rejects source and caller-supplied texture limits outside the fixed profile', () => {
+    const oversizedView = { byteLength: MAX_GLB_SOURCE_BYTES + 1 } as ArrayBuffer
+    const minimal = makeGlb({ asset: { version: '2.0' } })
+
+    expect(() => validateSelfContainedGlb(oversizedView)).toThrow('maximum size')
+    expect(() => validateSelfContainedGlb(minimal, MAX_GLB_TEXTURE_PIXELS + 1)).toThrow(
+      `within 1-${MAX_GLB_TEXTURE_PIXELS}`
+    )
+  })
+
+  it('requires an exact glTF 2.0 asset declaration', () => {
+    expect(() => validateSelfContainedGlb(makeGlb({}))).toThrow('asset.version must be exactly 2.0')
+    expect(() => validateSelfContainedGlb(makeGlb({ asset: { version: '1.0' } }))).toThrow(
+      'asset.version must be exactly 2.0'
+    )
+    expect(() =>
+      validateSelfContainedGlb(makeGlb({ asset: { version: '2.0', minVersion: '2.1' } }))
+    ).toThrow('asset.minVersion must be 2.0')
+  })
+
   it('accepts an embedded PNG with valid chunk framing and CRCs', () => {
     const png = pngWithDimensions(1, 1)
     const glb = makeGlb(manifestWithEmbeddedPng(png), png)
@@ -327,6 +349,14 @@ describe('validateSelfContainedGlb', () => {
     ])
 
     expect(() => validateSelfContainedGlb(glb)).toThrow('duplicate object key')
+  })
+
+  it('rejects JSON numbers that JavaScript would materialize as infinity', () => {
+    const glb = makeGlbFromChunks([
+      encodeJson('{"asset":{"version":"2.0"},"extras":{"amplified":1e999}}'),
+    ])
+
+    expect(() => validateSelfContainedGlb(glb)).toThrow('outside finite JavaScript bounds')
   })
 
   it('rejects a misaligned chunk length', () => {

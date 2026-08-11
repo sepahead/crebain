@@ -4,6 +4,18 @@ Status: **inactive, unwired, and unapproved**. This is a fixed-state command
 deadline component, not an operational watchdog, an apply-time authority gate,
 or evidence of a safe physical response.
 
+<p align="center">
+  <img alt="CREBAIN inert plant foundation boundary" src="../assets/diagrams/plant-foundation.svg" width="900">
+</p>
+
+Text alternative: The dependency-free plant package implements inactive
+command, health, age, apply-observation, deadline-monitor, safe-action,
+lifecycle, channel, frame, and expiry mechanics. Solid arrows show narrow data
+dependencies between those components. The package lacks authenticated ingress,
+approved policy, an authorizing governor, output invalidation, a flight control
+unit adapter, and runtime wiring. These missing boundaries stop every path
+before vehicle authority.
+
 ## Scope
 
 `crebain-plant-authority::deadline_monitor` derives an immutable local deadline

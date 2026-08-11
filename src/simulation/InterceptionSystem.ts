@@ -8,7 +8,6 @@
 
 import type { Point, Vector3 } from '../ros/types'
 import {
-  distance,
   distanceSquared,
   magnitude,
   magnitudeSquared,
@@ -62,14 +61,23 @@ export interface InterceptionMission {
   lastUpdate: number
 }
 
-export interface InterceptionResult {
+interface InterceptionResultBase {
   interceptPoint: Point
-  timeToIntercept: number // seconds
   interceptorVelocity: Vector3
   strategy: InterceptionStrategy
-  isPossible: boolean
-  reason?: string
 }
+
+export type InterceptionResult =
+  | (InterceptionResultBase & {
+      isPossible: true
+      timeToIntercept: number // seconds
+      reason?: never
+    })
+  | (InterceptionResultBase & {
+      isPossible: false
+      timeToIntercept: null
+      reason: string
+    })
 
 export interface TrajectoryPoint {
   position: Point
@@ -96,6 +104,7 @@ const MIN_LATERAL_SPEED_SQ = 0.01 // 0.1² minimum lateral speed
 // Below this separation (meters) the interceptor is effectively on target;
 // guards divisions by the interceptor-to-target distance.
 const MIN_INTERCEPT_DISTANCE = 0.001
+const QUADRATIC_ROUNDING_FACTOR = 16 * Number.EPSILON
 
 /**
  * Hard allocation bound for predictive trajectories. Invalid requests fail
@@ -103,6 +112,171 @@ const MIN_INTERCEPT_DISTANCE = 0.001
  * time horizon.
  */
 export const MAX_TRAJECTORY_POINTS = 10_000
+export const MAX_INTERCEPTION_TARGETS = 1_024
+export const MAX_INTERCEPTION_INTERCEPTORS = 1_024
+export const MAX_INTERCEPTION_MISSIONS = 4_096
+const MAX_INTERCEPTION_ID_BYTES = 128
+const MAX_KINEMATIC_COMPONENT = 1_000_000_000
+const MAX_INTERCEPTOR_SPEED = 1_000
+const MAX_INTERCEPTOR_ACCELERATION = 1_000
+const MAX_INTERCEPTOR_TURN_RATE = 100 * Math.PI
+const MAX_INTERCEPTOR_DISTANCE = 1_000_000
+const INTERCEPTION_TEXT_ENCODER = new TextEncoder()
+
+function validatedId(id: string, name: string): string {
+  if (
+    typeof id !== 'string' ||
+    id.length === 0 ||
+    id.trim() !== id ||
+    INTERCEPTION_TEXT_ENCODER.encode(id).byteLength > MAX_INTERCEPTION_ID_BYTES ||
+    Array.from(id).some((character) => {
+      const codePoint = character.codePointAt(0)
+      return (
+        codePoint === undefined || codePoint <= 0x1f || (codePoint >= 0x7f && codePoint <= 0x9f)
+      )
+    })
+  ) {
+    throw new Error(`${name} must be a bounded, non-empty identity without control characters`)
+  }
+  return id
+}
+
+function snapshotVector(value: Vector3, name: string): Vector3 {
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    ![value.x, value.y, value.z].every(
+      (component) => Number.isFinite(component) && Math.abs(component) <= MAX_KINEMATIC_COMPONENT
+    )
+  ) {
+    throw new Error(`${name} must contain finite, bounded coordinates`)
+  }
+  return { x: value.x, y: value.y, z: value.z }
+}
+
+/** Extrapolate only inside the finite state envelope accepted by this system. */
+function predictBoundedPosition(
+  position: Point,
+  velocity: Vector3,
+  deltaTimeSeconds: number
+): Point | null {
+  if (!Number.isFinite(deltaTimeSeconds) || deltaTimeSeconds < 0) return null
+  const predicted = predictPosition(position, velocity, deltaTimeSeconds)
+  return [predicted.x, predicted.y, predicted.z].every(
+    (component) => Number.isFinite(component) && Math.abs(component) <= MAX_KINEMATIC_COMPONENT
+  )
+    ? predicted
+    : null
+}
+
+function boundedPositive(value: number, maximum: number, name: string): number {
+  if (!Number.isFinite(value) || value <= 0 || value > maximum) {
+    throw new Error(`${name} must be finite and within (0, ${maximum}]`)
+  }
+  return value
+}
+
+function boundedNonNegative(value: number, maximum: number, name: string): number {
+  if (!Number.isFinite(value) || value < 0 || value > maximum) {
+    throw new Error(`${name} must be finite and within [0, ${maximum}]`)
+  }
+  return value
+}
+
+/**
+ * Return the earliest non-negative solution to a*t^2 + b*t + c = 0.
+ *
+ * The conventional quadratic formula loses precision when `b` and the square
+ * root have similar magnitudes. The `q` formulation keeps one root stable and
+ * obtains the other from the product of the roots. A scale-aware tolerance
+ * treats only floating-point roundoff as a zero coefficient or discriminant.
+ */
+function earliestNonNegativeQuadraticRoot(
+  a: number,
+  b: number,
+  c: number,
+  aTolerance = 0
+): number | null {
+  if (![a, b, c].every(Number.isFinite)) return null
+
+  if (Math.abs(a) <= aTolerance) {
+    if (b === 0) {
+      return c === 0 ? 0 : null
+    }
+    const root = -c / b
+    return Number.isFinite(root) && root >= 0 ? root : null
+  }
+
+  const bSquared = b * b
+  const fourAC = 4 * a * c
+  const discriminantScale = Math.max(bSquared, Math.abs(fourAC), 1)
+  let discriminant = bSquared - fourAC
+  if (discriminant < 0 && discriminant >= -QUADRATIC_ROUNDING_FACTOR * discriminantScale) {
+    discriminant = 0
+  }
+  if (!Number.isFinite(discriminant) || discriminant < 0) return null
+
+  const squareRoot = Math.sqrt(discriminant)
+  const q = -0.5 * (b + (b >= 0 ? squareRoot : -squareRoot))
+  const candidates = q === 0 ? [-b / (2 * a)] : [q / a, c / q]
+  let earliest = Number.POSITIVE_INFINITY
+  for (const root of candidates) {
+    if (Number.isFinite(root) && root >= 0 && root < earliest) earliest = root
+  }
+  return Number.isFinite(earliest) ? earliest : null
+}
+
+function validatedInterceptorConfig(config: Partial<InterceptorConfig>): InterceptorConfig {
+  const candidate = { ...DEFAULT_INTERCEPTOR_CONFIG, ...config }
+  return {
+    maxSpeed: boundedPositive(candidate.maxSpeed, MAX_INTERCEPTOR_SPEED, 'Interceptor maxSpeed'),
+    maxAcceleration: boundedPositive(
+      candidate.maxAcceleration,
+      MAX_INTERCEPTOR_ACCELERATION,
+      'Interceptor maxAcceleration'
+    ),
+    maxTurnRate: boundedPositive(
+      candidate.maxTurnRate,
+      MAX_INTERCEPTOR_TURN_RATE,
+      'Interceptor maxTurnRate'
+    ),
+    engagementRadius: boundedPositive(
+      candidate.engagementRadius,
+      MAX_INTERCEPTOR_DISTANCE,
+      'Interceptor engagementRadius'
+    ),
+    safetyMargin: boundedNonNegative(
+      candidate.safetyMargin,
+      MAX_INTERCEPTOR_DISTANCE,
+      'Interceptor safetyMargin'
+    ),
+  }
+}
+
+function snapshotMission(mission: InterceptionMission): InterceptionMission {
+  return {
+    ...mission,
+    interceptPoint: mission.interceptPoint ? { ...mission.interceptPoint } : null,
+  }
+}
+
+function snapshotTarget(target: Target): Target {
+  return {
+    ...target,
+    position: { ...target.position },
+    velocity: { ...target.velocity },
+  }
+}
+
+function snapshotInterceptor(interceptor: Interceptor): Interceptor {
+  return {
+    ...interceptor,
+    position: { ...interceptor.position },
+    velocity: { ...interceptor.velocity },
+    config: { ...interceptor.config },
+    currentMission: interceptor.currentMission ? snapshotMission(interceptor.currentMission) : null,
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // INTERCEPTION SYSTEM
@@ -121,15 +295,22 @@ export class InterceptionSystem {
   // ───────────────────────────────────────────────────────────────────────────
 
   updateTarget(id: string, position: Point, velocity: Vector3): void {
-    this.targets.set(id, {
-      id,
-      position,
-      velocity,
+    const targetId = validatedId(id, 'Target ID')
+    const nextPosition = snapshotVector(position, 'Target position')
+    const nextVelocity = snapshotVector(velocity, 'Target velocity')
+    if (!this.targets.has(targetId) && this.targets.size >= MAX_INTERCEPTION_TARGETS) {
+      throw new Error(`Interception target limit of ${MAX_INTERCEPTION_TARGETS} exceeded`)
+    }
+    this.targets.set(targetId, {
+      id: targetId,
+      position: nextPosition,
+      velocity: nextVelocity,
       lastUpdate: Date.now(),
     })
   }
 
   removeTarget(id: string): void {
+    validatedId(id, 'Target ID')
     this.targets.delete(id)
     // Abort every nonterminal mission targeting the removed target. PENDING
     // missions already reserve their interceptor in createMission(), so limiting
@@ -151,11 +332,12 @@ export class InterceptionSystem {
   }
 
   getTarget(id: string): Target | undefined {
-    return this.targets.get(id)
+    const target = this.targets.get(id)
+    return target ? snapshotTarget(target) : undefined
   }
 
   getAllTargets(): Target[] {
-    return Array.from(this.targets.values())
+    return Array.from(this.targets.values(), snapshotTarget)
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -168,37 +350,59 @@ export class InterceptionSystem {
     velocity: Vector3,
     config: Partial<InterceptorConfig> = {}
   ): void {
-    this.interceptors.set(id, {
-      id,
-      position,
-      velocity,
-      config: { ...DEFAULT_INTERCEPTOR_CONFIG, ...config },
+    const interceptorId = validatedId(id, 'Interceptor ID')
+    const nextPosition = snapshotVector(position, 'Interceptor position')
+    const nextVelocity = snapshotVector(velocity, 'Interceptor velocity')
+    const nextConfig = validatedInterceptorConfig(config)
+    const existing = this.interceptors.get(interceptorId)
+    if (existing) {
+      existing.position = nextPosition
+      existing.velocity = nextVelocity
+      existing.config = nextConfig
+      return
+    }
+    if (this.interceptors.size >= MAX_INTERCEPTION_INTERCEPTORS) {
+      throw new Error(`Interception interceptor limit of ${MAX_INTERCEPTION_INTERCEPTORS} exceeded`)
+    }
+    this.interceptors.set(interceptorId, {
+      id: interceptorId,
+      position: nextPosition,
+      velocity: nextVelocity,
+      config: nextConfig,
       currentMission: null,
     })
   }
 
   updateInterceptor(id: string, position: Point, velocity: Vector3): void {
+    validatedId(id, 'Interceptor ID')
+    const nextPosition = snapshotVector(position, 'Interceptor position')
+    const nextVelocity = snapshotVector(velocity, 'Interceptor velocity')
     const interceptor = this.interceptors.get(id)
     if (interceptor) {
-      interceptor.position = position
-      interceptor.velocity = velocity
+      interceptor.position = nextPosition
+      interceptor.velocity = nextVelocity
     }
   }
 
   removeInterceptor(id: string): void {
+    validatedId(id, 'Interceptor ID')
     const interceptor = this.interceptors.get(id)
     if (interceptor?.currentMission) {
       interceptor.currentMission.status = 'ABORTED'
+      interceptor.currentMission.lastUpdate = Date.now()
     }
     this.interceptors.delete(id)
   }
 
   getInterceptor(id: string): Interceptor | undefined {
-    return this.interceptors.get(id)
+    const interceptor = this.interceptors.get(id)
+    return interceptor ? snapshotInterceptor(interceptor) : undefined
   }
 
   getAvailableInterceptors(): Interceptor[] {
-    return Array.from(this.interceptors.values()).filter((i) => !i.currentMission)
+    return Array.from(this.interceptors.values())
+      .filter((interceptor) => !interceptor.currentMission)
+      .map(snapshotInterceptor)
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -208,7 +412,7 @@ export class InterceptionSystem {
   predictTargetPosition(targetId: string, deltaTimeSeconds: number): Point | null {
     const target = this.targets.get(targetId)
     if (!target) return null
-    return predictPosition(target.position, target.velocity, deltaTimeSeconds)
+    return predictBoundedPosition(target.position, target.velocity, deltaTimeSeconds)
   }
 
   predictTargetTrajectory(
@@ -241,9 +445,11 @@ export class InterceptionSystem {
 
     for (let i = 0; i < numSteps; i++) {
       const t = Math.min(i * stepSeconds, durationSeconds)
+      const position = predictBoundedPosition(target.position, target.velocity, t)
+      if (!position) return []
       trajectory.push({
-        position: predictPosition(target.position, target.velocity, t),
-        velocity: target.velocity, // Reference, not copy (immutable)
+        position,
+        velocity: { ...target.velocity },
         time: t,
       })
     }
@@ -265,7 +471,7 @@ export class InterceptionSystem {
     if (!interceptor) {
       return {
         interceptPoint: { x: 0, y: 0, z: 0 },
-        timeToIntercept: Infinity,
+        timeToIntercept: null,
         interceptorVelocity: { x: 0, y: 0, z: 0 },
         strategy,
         isPossible: false,
@@ -276,7 +482,7 @@ export class InterceptionSystem {
     if (!target) {
       return {
         interceptPoint: { x: 0, y: 0, z: 0 },
-        timeToIntercept: Infinity,
+        timeToIntercept: null,
         interceptorVelocity: { x: 0, y: 0, z: 0 },
         strategy,
         isPossible: false,
@@ -312,8 +518,8 @@ export class InterceptionSystem {
 
     if (closingSpeed <= 0) {
       return {
-        interceptPoint: target.position,
-        timeToIntercept: Infinity,
+        interceptPoint: { ...target.position },
+        timeToIntercept: null,
         interceptorVelocity,
         strategy: 'PURSUIT',
         isPossible: false,
@@ -322,9 +528,20 @@ export class InterceptionSystem {
     }
 
     const timeToIntercept = dist / closingSpeed
+    const interceptPoint = predictBoundedPosition(target.position, target.velocity, timeToIntercept)
+    if (!Number.isFinite(timeToIntercept) || !interceptPoint) {
+      return {
+        interceptPoint: { ...target.position },
+        timeToIntercept: null,
+        interceptorVelocity: { x: 0, y: 0, z: 0 },
+        strategy: 'PURSUIT',
+        isPossible: false,
+        reason: 'Pursuit intercept exceeds the finite prediction envelope',
+      }
+    }
 
     return {
-      interceptPoint: this.predictTargetPosition(target.id, timeToIntercept) || target.position,
+      interceptPoint,
       timeToIntercept,
       interceptorVelocity,
       strategy: 'PURSUIT',
@@ -332,61 +549,62 @@ export class InterceptionSystem {
     }
   }
 
-  /**
-   * LEAD - Aim ahead of target (lead pursuit)
-   * Optimized with squared distance for convergence check
-   */
+  /** LEAD - Aim at the exact constant-velocity interception point. */
   private calculateLeadIntercept(interceptor: Interceptor, target: Target): InterceptionResult {
-    const maxIterations = 10
     const maxSpeed = interceptor.config.maxSpeed
-    const convergenceThresholdSq = 0.0001 // 0.01² seconds
-
-    let timeGuess = distance(interceptor.position, target.position) / maxSpeed
-
-    for (let i = 0; i < maxIterations; i++) {
-      const predicted = predictPosition(target.position, target.velocity, timeGuess)
-      const toPredict = subtract(predicted, interceptor.position)
-      const distToPredict = magnitude(toPredict)
-
-      if (distToPredict < MIN_INTERCEPT_DISTANCE) {
-        // Already at the predicted point - immediate intercept. Guards the
-        // 1/distToPredict normalization below against division by zero.
-        return {
-          interceptPoint: predicted,
-          timeToIntercept: 0,
-          interceptorVelocity: { x: 0, y: 0, z: 0 },
-          strategy: 'LEAD',
-          isPossible: true,
-        }
+    const relativePosition = subtract(target.position, interceptor.position)
+    const distanceSq = magnitudeSquared(relativePosition)
+    if (distanceSq < MIN_INTERCEPT_DISTANCE * MIN_INTERCEPT_DISTANCE) {
+      return {
+        interceptPoint: { ...target.position },
+        timeToIntercept: 0,
+        interceptorVelocity: { x: 0, y: 0, z: 0 },
+        strategy: 'LEAD',
+        isPossible: true,
       }
-
-      const newTimeGuess = distToPredict / maxSpeed
-
-      const timeDiff = newTimeGuess - timeGuess
-      if (timeDiff * timeDiff < convergenceThresholdSq) {
-        // Converged - use pre-computed direction
-        const dir = scale(toPredict, 1 / distToPredict) // normalize inline
-
-        return {
-          interceptPoint: predicted,
-          timeToIntercept: newTimeGuess,
-          interceptorVelocity: scale(dir, maxSpeed),
-          strategy: 'LEAD',
-          isPossible: true,
-        }
-      }
-
-      timeGuess = newTimeGuess
     }
 
-    // Did not converge - target too fast
+    // |relativePosition + target.velocity*t| = maxSpeed*t
+    const targetSpeedSq = magnitudeSquared(target.velocity)
+    const maxSpeedSq = maxSpeed * maxSpeed
+    const a = targetSpeedSq - maxSpeedSq
+    const b = 2 * dot(relativePosition, target.velocity)
+    const aTolerance = QUADRATIC_ROUNDING_FACTOR * Math.max(targetSpeedSq, maxSpeedSq, 1)
+    const timeToIntercept = earliestNonNegativeQuadraticRoot(a, b, distanceSq, aTolerance)
+    const interceptPoint =
+      timeToIntercept === null
+        ? null
+        : predictBoundedPosition(target.position, target.velocity, timeToIntercept)
+    if (timeToIntercept === null || !interceptPoint) {
+      return {
+        interceptPoint: { ...target.position },
+        timeToIntercept: null,
+        interceptorVelocity: { x: 0, y: 0, z: 0 },
+        strategy: 'LEAD',
+        isPossible: false,
+        reason: 'No lead intercept exists inside the finite prediction envelope',
+      }
+    }
+
+    const displacement = subtract(interceptPoint, interceptor.position)
+    const interceptorVelocity = clampMagnitude(scale(displacement, 1 / timeToIntercept), maxSpeed)
+    if (!Object.values(interceptorVelocity).every(Number.isFinite)) {
+      return {
+        interceptPoint: { ...target.position },
+        timeToIntercept: null,
+        interceptorVelocity: { x: 0, y: 0, z: 0 },
+        strategy: 'LEAD',
+        isPossible: false,
+        reason: 'Lead guidance exceeds the finite prediction envelope',
+      }
+    }
+
     return {
-      interceptPoint: target.position,
-      timeToIntercept: Infinity,
-      interceptorVelocity: { x: 0, y: 0, z: 0 },
+      interceptPoint,
+      timeToIntercept,
+      interceptorVelocity,
       strategy: 'LEAD',
-      isPossible: false,
-      reason: 'Could not calculate lead intercept - target may be too fast',
+      isPossible: true,
     }
   }
 
@@ -427,8 +645,8 @@ export class InterceptionSystem {
 
     if (lateralSpeedSq < MIN_LATERAL_SPEED_SQ) {
       return {
-        interceptPoint: target.position,
-        timeToIntercept: Infinity,
+        interceptPoint: { ...target.position },
+        timeToIntercept: null,
         interceptorVelocity: { x: 0, y: 0, z: 0 },
         strategy: 'PARALLEL',
         isPossible: false,
@@ -451,7 +669,20 @@ export class InterceptionSystem {
     const a = lateralSpeedSq // maxSpeed² − targetSpeed²
     const b = 2 * targetSpeed * gPar
     const c = gPar * gPar + gPerp * gPerp
-    const timeToIntercept = (b + Math.sqrt(b * b + 4 * a * c)) / (2 * a)
+    const discriminantRoot = Math.sqrt(b * b + 4 * a * c)
+    const timeToIntercept =
+      b >= 0 ? (b + discriminantRoot) / (2 * a) : (2 * c) / (discriminantRoot - b)
+    const interceptPoint = predictBoundedPosition(target.position, target.velocity, timeToIntercept)
+    if (!Number.isFinite(timeToIntercept) || timeToIntercept <= 0 || !interceptPoint) {
+      return {
+        interceptPoint: { ...target.position },
+        timeToIntercept: null,
+        interceptorVelocity: { x: 0, y: 0, z: 0 },
+        strategy: 'PARALLEL',
+        isPossible: false,
+        reason: 'Parallel intercept exceeds the finite prediction envelope',
+      }
+    }
 
     const alongSpeed = targetSpeed + gPar / timeToIntercept
     const lateralSpeed = gPerp / timeToIntercept
@@ -471,7 +702,7 @@ export class InterceptionSystem {
     )
 
     return {
-      interceptPoint: predictPosition(target.position, target.velocity, timeToIntercept),
+      interceptPoint,
       timeToIntercept,
       interceptorVelocity,
       strategy: 'PARALLEL',
@@ -498,11 +729,15 @@ export class InterceptionSystem {
     let minTime = 0
     let maxTime = 60 // 60 seconds max
     let bestPoint: Point | null = null
-    let bestTime = Infinity
+    let bestTime: number | null = null
 
     for (let i = 0; i < 20; i++) {
       const midTime = (minTime + maxTime) / 2
-      const predicted = predictPosition(target.position, target.velocity, midTime)
+      const predicted = predictBoundedPosition(target.position, target.velocity, midTime)
+      if (!predicted) {
+        maxTime = midTime
+        continue
+      }
 
       // Use squared distance for comparison
       const distSq = distanceSquared(interceptor.position, predicted)
@@ -518,7 +753,7 @@ export class InterceptionSystem {
       }
     }
 
-    if (bestPoint) {
+    if (bestPoint && bestTime !== null) {
       const toPoint = subtract(bestPoint, interceptor.position)
       const dir = normalize(toPoint)
 
@@ -532,8 +767,8 @@ export class InterceptionSystem {
     }
 
     return {
-      interceptPoint: target.position,
-      timeToIntercept: Infinity,
+      interceptPoint: { ...target.position },
+      timeToIntercept: null,
       interceptorVelocity: { x: 0, y: 0, z: 0 },
       strategy: 'AMBUSH',
       isPossible: false,
@@ -558,6 +793,7 @@ export class InterceptionSystem {
 
     const result = this.calculateIntercept(interceptorId, targetId, strategy)
     if (!result.isPossible) return null
+    if (!this.reserveMissionHistorySlot()) return null
 
     const mission: InterceptionMission = {
       id: `mission_${++this.missionIdCounter}`,
@@ -574,7 +810,7 @@ export class InterceptionSystem {
     this.missions.set(mission.id, mission)
     interceptor.currentMission = mission
 
-    return mission
+    return snapshotMission(mission)
   }
 
   activateMission(missionId: string): boolean {
@@ -595,18 +831,24 @@ export class InterceptionSystem {
 
     if (!interceptor || !target) {
       mission.status = 'FAILED'
-      return mission
+      mission.lastUpdate = Date.now()
+      if (interceptor?.currentMission?.id === mission.id) interceptor.currentMission = null
+      return snapshotMission(mission)
     }
 
     // Check if target is intercepted using squared distance
-    const engagementRadiusSq =
-      interceptor.config.engagementRadius * interceptor.config.engagementRadius
+    const completionRadius = Math.max(
+      interceptor.config.engagementRadius,
+      interceptor.config.safetyMargin
+    )
+    const engagementRadiusSq = completionRadius * completionRadius
     const distSq = distanceSquared(interceptor.position, target.position)
 
     if (distSq <= engagementRadiusSq) {
       mission.status = 'COMPLETED'
+      mission.lastUpdate = Date.now()
       interceptor.currentMission = null
-      return mission
+      return snapshotMission(mission)
     }
 
     // Recalculate intercept
@@ -624,7 +866,7 @@ export class InterceptionSystem {
       interceptor.currentMission = null
     }
 
-    return mission
+    return snapshotMission(mission)
   }
 
   abortMission(missionId: string): boolean {
@@ -649,12 +891,39 @@ export class InterceptionSystem {
     return true
   }
 
+  abortAllMissions(): number {
+    let aborted = 0
+    for (const mission of this.missions.values()) {
+      if (mission.status !== 'PENDING' && mission.status !== 'ACTIVE') continue
+      if (this.abortMission(mission.id)) aborted += 1
+    }
+    return aborted
+  }
+
   getMission(missionId: string): InterceptionMission | undefined {
-    return this.missions.get(missionId)
+    const mission = this.missions.get(missionId)
+    return mission ? snapshotMission(mission) : undefined
   }
 
   getActiveMissions(): InterceptionMission[] {
-    return Array.from(this.missions.values()).filter((m) => m.status === 'ACTIVE')
+    return Array.from(this.missions.values())
+      .filter((mission) => mission.status === 'ACTIVE')
+      .map(snapshotMission)
+  }
+
+  private reserveMissionHistorySlot(): boolean {
+    if (this.missions.size < MAX_INTERCEPTION_MISSIONS) return true
+    for (const [missionId, mission] of this.missions) {
+      if (
+        mission.status === 'COMPLETED' ||
+        mission.status === 'ABORTED' ||
+        mission.status === 'FAILED'
+      ) {
+        this.missions.delete(missionId)
+        return true
+      }
+    }
+    return false
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -712,7 +981,7 @@ export class InterceptionSystem {
     return (
       bestResult || {
         interceptPoint: { x: 0, y: 0, z: 0 },
-        timeToIntercept: Infinity,
+        timeToIntercept: null,
         interceptorVelocity: { x: 0, y: 0, z: 0 },
         strategy: 'LEAD',
         isPossible: false,
@@ -722,7 +991,8 @@ export class InterceptionSystem {
   }
 
   assignBestInterceptor(
-    targetId: string
+    targetId: string,
+    strategy?: InterceptionStrategy
   ): { interceptorId: string; result: InterceptionResult } | null {
     const availableInterceptors = this.getAvailableInterceptors()
     if (availableInterceptors.length === 0) return null
@@ -731,7 +1001,9 @@ export class InterceptionSystem {
     let bestResult: InterceptionResult | null = null
 
     for (const interceptor of availableInterceptors) {
-      const result = this.findBestStrategy(interceptor.id, targetId)
+      const result = strategy
+        ? this.calculateIntercept(interceptor.id, targetId, strategy)
+        : this.findBestStrategy(interceptor.id, targetId)
       if (result.isPossible) {
         if (!bestResult || result.timeToIntercept < bestResult.timeToIntercept) {
           bestInterceptorId = interceptor.id
@@ -749,14 +1021,9 @@ export class InterceptionSystem {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SINGLETON INSTANCE
+// FACTORY
 // ─────────────────────────────────────────────────────────────────────────────
 
-let instance: InterceptionSystem | null = null
-
-export function getInterceptionSystem(): InterceptionSystem {
-  if (!instance) {
-    instance = new InterceptionSystem()
-  }
-  return instance
+export function createInterceptionSystem(): InterceptionSystem {
+  return new InterceptionSystem()
 }

@@ -772,6 +772,7 @@ dependencies = [
  "base64 0.23.0",
  "candle-core",
  "candle-nn",
+ "crebain-ncp-headless",
  "futures-util",
  "half",
  "image",
@@ -794,6 +795,19 @@ dependencies = [
  "tempfile",
  "tokio",
  "tokio-tungstenite",
+ "zenoh",
+]
+
+[[package]]
+name = "crebain-ncp-headless"
+version = "0.1.0"
+dependencies = [
+ "ncp-core",
+ "ncp-zenoh",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
  "zenoh",
 ]
 

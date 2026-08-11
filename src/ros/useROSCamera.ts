@@ -6,7 +6,7 @@
  * Provides decoded frames as ImageBitmap/ImageData for rendering
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import type { Texture } from 'three'
 import type { ROSBridge } from './ROSBridge'
 import type { ZenohBridge } from './ZenohBridge'
@@ -18,6 +18,10 @@ import {
   type CameraStreamConfig,
   type CameraStreamStats,
 } from './ROSCameraStream'
+
+function isImageBitmap(image: ImageBitmap | ImageData): image is ImageBitmap {
+  return typeof ImageBitmap !== 'undefined' && image instanceof ImageBitmap
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -117,18 +121,17 @@ export function useROSCamera(
   const latestFrameRef = useRef<DecodedFrame | null>(null)
 
   // Build topic paths
-  const topicConfig = {
-    compressedTopic: compressedTopic ?? `${cameraName}/image_raw/compressed`,
-    rawTopic: rawTopic ?? `${cameraName}/image_raw`,
-    infoTopic: infoTopic ?? `${cameraName}/camera_info`,
-    throttleMs,
-    queueLength,
-    useImageBitmap,
-  }
-
-  // Stable config ref to avoid effect re-runs
-  const configRef = useRef(topicConfig)
-  configRef.current = topicConfig
+  const topicConfig = useMemo<CameraStreamConfig>(
+    () => ({
+      compressedTopic: compressedTopic ?? `${cameraName}/image_raw/compressed`,
+      rawTopic: rawTopic ?? `${cameraName}/image_raw`,
+      infoTopic: infoTopic ?? `${cameraName}/camera_info`,
+      throttleMs,
+      queueLength,
+      useImageBitmap,
+    }),
+    [cameraName, compressedTopic, infoTopic, queueLength, rawTopic, throttleMs, useImageBitmap]
+  )
 
   useEffect(() => {
     if (!bridge || !enabled) {
@@ -139,7 +142,7 @@ export function useROSCamera(
     }
 
     // Create camera stream
-    const stream = new ROSCameraStream(configRef.current)
+    const stream = new ROSCameraStream(topicConfig)
     streamRef.current = stream
 
     // Handle frames
@@ -162,19 +165,29 @@ export function useROSCamera(
     })
 
     // Start streaming
+    let started = false
     try {
       stream.start(bridge, namespace)
+      started = true
     } catch (err) {
+      try {
+        stream.stop()
+      } catch {
+        // Preserve the start failure as the primary user-facing error.
+      }
+      streamRef.current = null
       setError(err instanceof Error ? err : new Error(String(err)))
       setIsStreaming(false)
     }
 
     // Poll stats periodically
-    statsIntervalRef.current = setInterval(() => {
-      if (streamRef.current) {
-        setStats({ ...streamRef.current.getStats() })
-      }
-    }, 1000)
+    if (started) {
+      statsIntervalRef.current = setInterval(() => {
+        if (streamRef.current) {
+          setStats({ ...streamRef.current.getStats() })
+        }
+      }, 1000)
+    }
 
     return () => {
       unsubFrame()
@@ -193,10 +206,12 @@ export function useROSCamera(
       setFrame(null)
       setIsStreaming(false)
     }
-  }, [bridge, namespace, enabled])
+  }, [bridge, namespace, enabled, topicConfig])
 
   const requestFrame = useCallback(() => {
-    const err = new Error('Manual ROS frame requests are not supported by the streaming camera hook')
+    const err = new Error(
+      'Manual ROS frame requests are not supported by the streaming camera hook'
+    )
     setError(err)
     throw err
   }, [])
@@ -219,11 +234,8 @@ export function useROSCamera(
  * Update a Three.js texture from a decoded frame
  * Call this in your render loop or effect when frame changes
  */
-export function updateTextureFromFrame(
-  texture: Texture,
-  frame: DecodedFrame
-): void {
-  if (frame.image instanceof ImageBitmap) {
+export function updateTextureFromFrame(texture: Texture, frame: DecodedFrame): void {
+  if (isImageBitmap(frame.image)) {
     // ImageBitmap can be used directly as texture source
     texture.image = frame.image
     texture.needsUpdate = true
@@ -232,7 +244,8 @@ export function updateTextureFromFrame(
     const canvas = document.createElement('canvas')
     canvas.width = frame.width
     canvas.height = frame.height
-    const ctx = canvas.getContext('2d')!
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('Cannot create a 2D canvas context for the ROS frame')
     ctx.putImageData(frame.image, 0, 0)
     texture.image = canvas
     texture.needsUpdate = true

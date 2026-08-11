@@ -5,6 +5,18 @@ message/service definitions plus Gazebo Classic, MAVROS, and rosbridge launch
 references. It is not a ROS 2 package and does not make CREBAIN's native Zenoh
 keys directly compatible with an `rmw_zenoh_cpp` graph.
 
+<p align="center">
+  <img alt="CREBAIN native camera delivery lifecycle" src="../assets/diagrams/camera-delivery-lifecycle.svg" width="900">
+</p>
+
+Text alternative: Zenoh and native rosbridge camera callbacks share a 384 MiB,
+nonblocking frame budget. Each admitted frame retains its topic slot and permit
+while a small identity descriptor crosses Tauri events. The renderer pulls once,
+settles its listeners, and acknowledges the same lifecycle, subscription, and
+delivery identifiers. Exact acknowledgment or the 30-second native lease
+releases ownership. A failure quarantines only the matching declaration.
+Generation checks prevent stale cleanup.
+
 ## Structure
 
 ```text
@@ -35,6 +47,10 @@ source devel/setup.bash
 The multi-drone launch files also expect PX4/MAVROS and
 `mavlink_sitl_gazebo` model assets. They support only 0–2 interceptors and 0–1
 target. They are reference topology, not a bundled autopilot distribution.
+`multi_drone.launch` passes each vehicle namespace once to
+`single_drone.launch`. That file applies the value once as the MAVROS node
+namespace. For example, the state topic is `/interceptor_0/mavros/state`, not a
+repeated `/interceptor_0/interceptor_0/mavros/state` path.
 
 ## Topic templates
 

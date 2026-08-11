@@ -12,11 +12,71 @@ import {
   isReloadableGlbSource,
   isReloadableSceneSource,
   isReloadableSplatSource,
+  MAX_AUTOSAVE_INTERVAL_SECONDS,
   MAX_SCENE_STATE_BYTES,
+  MIN_AUTOSAVE_INTERVAL_SECONDS,
   SceneStateManager,
   type SceneState,
 } from '../SceneState'
 import { MAX_ROUTE_WAYPOINTS } from '../../lib/routeLimits'
+import sceneContractCases from '../__fixtures__/sceneContractCases.json'
+
+type ContractMutation = {
+  operation: 'remove' | 'repeat' | 'set'
+  path: (number | string)[]
+  value?: unknown
+  count?: number
+}
+
+type ContractCase = {
+  name: string
+  source: 'current' | 'legacy'
+  accept: boolean
+  canonical?: 'migratedLegacy'
+  mutation?: ContractMutation
+}
+
+const sharedSceneContract = sceneContractCases as unknown as {
+  current: Record<string, unknown>
+  legacy: Record<string, unknown>
+  migratedLegacy: Record<string, unknown>
+  cases: ContractCase[]
+}
+
+function contractCaseInput(contractCase: ContractCase): Record<string, unknown> {
+  const input = structuredClone(sharedSceneContract[contractCase.source])
+  const mutation = contractCase.mutation
+  if (!mutation) return input
+
+  let parent: unknown = input
+  for (const segment of mutation.path.slice(0, -1)) {
+    if ((typeof parent !== 'object' || parent === null) && !Array.isArray(parent)) {
+      throw new Error(`Invalid shared scene-contract path for ${contractCase.name}`)
+    }
+    parent = (parent as Record<number | string, unknown>)[segment]
+  }
+
+  const leaf = mutation.path.at(-1)
+  if (leaf === undefined || typeof parent !== 'object' || parent === null) {
+    throw new Error(`Invalid shared scene-contract mutation for ${contractCase.name}`)
+  }
+  const target = parent as Record<number | string, unknown>
+  switch (mutation.operation) {
+    case 'remove':
+      delete target[leaf]
+      break
+    case 'repeat':
+      if (typeof mutation.value !== 'string' || !Number.isSafeInteger(mutation.count)) {
+        throw new Error(`Invalid repeat mutation for ${contractCase.name}`)
+      }
+      target[leaf] = mutation.value.repeat(mutation.count ?? 0)
+      break
+    case 'set':
+      target[leaf] = mutation.value
+      break
+  }
+  return input
+}
 
 function validScene(name = 'Valid Scene'): SceneState {
   return {
@@ -55,7 +115,7 @@ function validScene(name = 'Valid Scene'): SceneState {
         resolution: [640, 480],
         pan: 0,
         tilt: 0,
-        zoom: 1,
+        zoom: 60,
         patrolPoints: [{ x: 4, y: 5, z: 6 }],
         patrolSpeed: 1,
       },
@@ -231,6 +291,24 @@ describe('SceneStateManager filesystem IPC', () => {
     expect(manager.getState()?.name).toBe('Nested Scene')
   })
 
+  it('matches the shared Rust and TypeScript scene contract corpus', () => {
+    for (const contractCase of sharedSceneContract.cases) {
+      const input = contractCaseInput(contractCase)
+      const manager = new SceneStateManager()
+      if (!contractCase.accept) {
+        expect(() => manager.deserialize(JSON.stringify(input)), contractCase.name).toThrow(
+          'Invalid scene state file'
+        )
+        continue
+      }
+
+      const result = manager.deserialize(JSON.stringify(input))
+      if (contractCase.canonical) {
+        expect(result, contractCase.name).toEqual(sharedSceneContract[contractCase.canonical])
+      }
+    }
+  })
+
   it('rejects malformed scene state without replacing the current scene', () => {
     const manager = new SceneStateManager()
     manager.createNew('Current Scene')
@@ -375,6 +453,12 @@ describe('SceneStateManager filesystem IPC', () => {
     const orphanDetection = validScene('Orphan detection')
     orphanDetection.recentDetections[0].cameraId = 'missing-camera'
     expect(() => manager.deserialize(JSON.stringify(orphanDetection))).toThrow(
+      'Invalid scene state file'
+    )
+
+    const duplicateDetection = validScene('Duplicate detection')
+    duplicateDetection.recentDetections.push({ ...duplicateDetection.recentDetections[0] })
+    expect(() => manager.deserialize(JSON.stringify(duplicateDetection))).toThrow(
       'Invalid scene state file'
     )
 
@@ -529,6 +613,34 @@ describe('SceneStateManager filesystem IPC', () => {
     }
   })
 
+  it('rejects unsafe autosave intervals before scheduling work', () => {
+    vi.useFakeTimers()
+    const manager = new SceneStateManager()
+    manager.createNew('Bounded Autosave')
+
+    try {
+      manager.enableAutosave(MIN_AUTOSAVE_INTERVAL_SECONDS)
+      expect(manager.isAutosaveEnabled()).toBe(true)
+
+      for (const interval of [
+        0,
+        MIN_AUTOSAVE_INTERVAL_SECONDS / 2,
+        Number.NaN,
+        Number.POSITIVE_INFINITY,
+        MAX_AUTOSAVE_INTERVAL_SECONDS + 1,
+      ]) {
+        expect(() => manager.enableAutosave(interval)).toThrow(RangeError)
+        expect(manager.isAutosaveEnabled()).toBe(false)
+      }
+
+      expect(() => manager.enableAutosave(MAX_AUTOSAVE_INTERVAL_SECONDS)).not.toThrow()
+      expect(manager.isAutosaveEnabled()).toBe(true)
+    } finally {
+      manager.disableAutosave()
+      vi.useRealTimers()
+    }
+  })
+
   it('stops autosave and reports storage failures', () => {
     vi.useFakeTimers()
     const manager = new SceneStateManager()
@@ -608,7 +720,6 @@ describe('SceneStateManager filesystem IPC', () => {
 
   it('rejects direct artifact and persistence paths in Engram embedded mode', async () => {
     const manager = new SceneStateManager()
-    manager.createNew('Embedded Scene')
     const readFile = vi.fn(async () => JSON.stringify(validScene()))
     const file = {
       name: 'embedded.json',
@@ -636,5 +747,29 @@ describe('SceneStateManager filesystem IPC', () => {
 
     expect(readFile).not.toHaveBeenCalled()
     expect(localStorage.getItem('crebain_scene_new')).toBeNull()
+  })
+
+  it('rejects every public in-memory scene mutation in Engram embedded mode', () => {
+    const manager = new SceneStateManager()
+    const initialState = manager.getState()
+    const scene = validScene('Replacement scene')
+    window.history.replaceState({}, '', '/?engramHost=1')
+
+    const mutations = [
+      () => manager.createNew('Blocked'),
+      () => manager.updateState({ name: 'Blocked' }),
+      () => manager.addCamera(scene.cameras[0]),
+      () => manager.updateCamera('cam-1', { name: 'Blocked' }),
+      () => manager.removeCamera('cam-1'),
+      () => manager.addDrone(scene.drones[0]),
+      () => manager.updateDrone('drone-1', { armed: true }),
+      () => manager.removeDrone('drone-1'),
+      () => manager.deserialize(JSON.stringify(scene)),
+    ]
+
+    for (const mutate of mutations) {
+      expect(mutate).toThrow('Scene mutation is disabled in Engram embedded mode')
+    }
+    expect(manager.getState()).toEqual(initialState)
   })
 })

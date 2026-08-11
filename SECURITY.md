@@ -2,9 +2,20 @@
 
 CREBAIN handles local files, model and asset paths, Tauri IPC, ROS/rosbridge,
 Zenoh CDR, optional telemetry sinks, deployment registries/configuration, and a
-feature-gated raw NCP evidence producer. It also has a restricted Engram host
-message boundary. Treat every external boundary as untrusted unless this
-document identifies a narrower trusted-operator contract.
+feature-gated raw NCP evidence producer. A separate dependency-isolated package
+provides an opt-in headless NCP perception runner. CREBAIN also has a restricted
+Engram host message boundary. Treat every external boundary as untrusted unless
+this document identifies a narrower trusted-operator contract.
+
+<p align="center">
+  <img alt="CREBAIN current and target authority boundaries" src="assets/diagrams/authority-boundaries.svg" width="900">
+</p>
+
+Text alternative: Current L0 surfaces provide visualization, local simulation,
+read-only telemetry, and optional advisory evidence. None can command a vehicle.
+The target L1 chain requires signed intent, Haldir, NCP, a native plant, a safety
+governor, a typed PX4 adapter, and a flight control unit. CREBAIN has not
+implemented these components as an integrated authority chain.
 
 ## Supported versions
 
@@ -198,6 +209,14 @@ before public disclosure. Reporters are credited on request.
 - **Current controls:** Off-by-default feature and unregistered commands; secure mode requires `NCP_ZENOH_CONFIG`; bounded inputs/timeouts; explicit `ok` plus kind/session/version checks; sensor and normal-command payload session IDs bind to their route; command callbacks require the exact subscribed key; per-session lifecycle/subscriber cleanup; timeout warnings omit external session identifiers; sanitized `CommandPlant`, sequence, TTL/horizon, route-bound legacy raw ESTOP, and bounded final-HOLD attempt
 
 - **Required review before release claims:** Audit actual TLS identities, ACLs, certificates, and topology; the raw wire-0.8 ESTOP exception remains payload-session-unbound; config loading and route equality are not principal authentication or native-1.0 generation/authority evidence; no always-on Engram/action loop exists. The separately integrated evidence producer does not activate these commands
+
+### Headless NCP perception runner
+
+- **Untrusted inputs:** CLI arguments; realm, session, and model identifiers; finite step values and counts; operation and lifecycle timeouts; `NCP_ZENOH_CONFIG` path and bounded file content; NCP wire-0.8 replies and transport failures
+
+- **Current controls:** Separate dependency-isolated, opt-in workspace package and process; explicit subcommand required; `self-check` reads no runner configuration and opens no Zenoh session; `validate` checks bounded CLI values and one strict client snapshot of at most 1 MiB, and opens no Zenoh session; `run` accepts only the same strict secure-client posture and requires a compatible NCP wire-0.8 responder; both file-reading commands validate the exact snapshot read through one file handle; `run` passes its parsed snapshot to Zenoh without reopening the path; one reply and 1 MiB reply-materialization limits; exact server-issued session-generation binding; at most 256 retained session states; one bounded open, 1–4,096 steps, and close lifecycle; after open is confirmed, the running process makes a bounded close attempt; no quiet-development mode, command subscription, sensor put, action callback, Tauri registration, or plant dependency
+
+- **Required review before release claims:** The default `engram/ncp` realm is only routing text. Current Engram/Paper2Brain native wire 1.0 is incompatible, and no translator or live CREBAIN↔current-Engram loop exists. A parsed configuration does not prove TLS identity or access-control-list policy. An RPC reply shows that some responder replied. It does not identify the intended deployment receiver or prove deployment compatibility, end-to-end effect, or scientific validity
 
 ### Headless plant foundation
 

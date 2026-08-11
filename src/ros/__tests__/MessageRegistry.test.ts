@@ -36,17 +36,11 @@ describe('MessageRegistry', () => {
     const registry = createMessageRegistry()
 
     expect(registry.getCommand('sensor_msgs/Image')).toBe('transport_subscribe_camera')
-    expect(registry.getCommand('sensor_msgs/CompressedImage')).toBe(
-      'transport_subscribe_camera'
-    )
-    expect(registry.getCommand('sensor_msgs/CameraInfo')).toBe(
-      'transport_subscribe_camera_info'
-    )
+    expect(registry.getCommand('sensor_msgs/CompressedImage')).toBe('transport_subscribe_camera')
+    expect(registry.getCommand('sensor_msgs/CameraInfo')).toBe('transport_subscribe_camera_info')
     expect(registry.getCommand('sensor_msgs/Imu')).toBe('transport_subscribe_imu')
     expect(registry.getCommand('geometry_msgs/PoseStamped')).toBe('transport_subscribe_pose')
-    expect(registry.getCommand('gazebo_msgs/ModelStates')).toBe(
-      'transport_subscribe_model_states'
-    )
+    expect(registry.getCommand('gazebo_msgs/ModelStates')).toBe('transport_subscribe_model_states')
     expect(registry.isRegistered('std_msgs/String')).toBe(false)
     expect(registry.isRegistered('geometry_msgs/Twist')).toBe(false)
   })
@@ -123,6 +117,27 @@ describe('MessageRegistry', () => {
     ).toBe(false)
     expect(registry.validate('gazebo_msgs/ModelStates', modelStates)).toBe(true)
     expect(registry.validate('gazebo_msgs/ModelStates', { ...modelStates, twist: [] })).toBe(false)
+    expect(registry.validate('gazebo_msgs/ModelStates', { ...modelStates, name: [''] })).toBe(false)
+    expect(
+      registry.validate('gazebo_msgs/ModelStates', { ...modelStates, name: ['drone\tname'] })
+    ).toBe(false)
+    expect(
+      registry.validate('gazebo_msgs/ModelStates', { ...modelStates, name: ['🚁'.repeat(65)] })
+    ).toBe(false)
+  })
+
+  it('uses UTF-8 byte bounds and rejects every control character in native text', () => {
+    const registry = createMessageRegistry()
+
+    expect(registry.validate('sensor_msgs/Image', { ...rawImage, frame_id: 'camera\tframe' })).toBe(
+      false
+    )
+    expect(registry.validate('sensor_msgs/Image', { ...rawImage, frame_id: '🚁'.repeat(64) })).toBe(
+      true
+    )
+    expect(registry.validate('sensor_msgs/Image', { ...rawImage, frame_id: '🚁'.repeat(65) })).toBe(
+      false
+    )
   })
 
   it('enforces native pose and ModelStates numeric envelopes at exact limits', () => {

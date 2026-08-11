@@ -4,6 +4,17 @@ The next high-leverage engineering tasks after the current stabilization
 baseline are listed here. [../CHANGELOG.md](../CHANGELOG.md) records shipped
 work. [RELEASE_ACCEPTANCE.md](RELEASE_ACCEPTANCE.md) defines the release gates.
 
+<p align="center">
+  <img alt="CREBAIN evidence and claim maturity chain" src="../assets/diagrams/evidence-claim-chain.svg" width="900">
+</p>
+
+Text alternative: Eleven named stages separate weak claims from strong claims.
+They cover source existence, builds, tests, integration, transport, receiver
+validation, authorization, and attempted application. Later stages cover flight
+control unit acceptance, observed effect, and safe-state evidence. Each stronger
+claim needs new evidence. No stage advances automatically. Expiry and hardware
+or field tests provide separate facts.
+
 ## Open
 
 ### Phase 2 — native plant authority
@@ -252,8 +263,9 @@ and independently attested FCU failsafe behavior.
   frozen-prior ledger, bounded measurement/track domains, newest-preserving
   upstream admission, whole-cluster track-cap rejection, sparse assignment,
   bounded drop/degradation lanes, heartbeats, finite task shutdown, and a
-  preflighted capacity-16 JSONL archive whose batches validate/serialize before
-  writing and whose I/O failure degrades the epoch and stops the worker. This is
+  capacity-16 JSONL archive opened by the first active frame. Its batches
+  validate and serialize before writing. I/O failure degrades the epoch and
+  stops the worker. This is
   not a deployed receiver, TLS/ACL/receive-size, deadline, combined-load,
   calibration, or authority claim.
 - Multi-frame scenario tests for track confirmation (sliding-window M-of-N),

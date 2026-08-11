@@ -15,6 +15,7 @@ import {
   assertArtifactExchangeAllowed,
   assertExternalTelemetryAllowed,
   assertNativeBackendAllowed,
+  assertSceneMutationAllowed,
   isAllowedEngramHostNonce,
   isAllowedEngramHostOrigin,
   isEngramEmbeddedMode,
@@ -152,6 +153,7 @@ describe('Engram embedded runtime boundary', () => {
       expect(() => assertNativeBackendAllowed(search)).toThrow('disabled')
       expect(() => assertExternalTelemetryAllowed(search)).toThrow('disabled')
       expect(() => assertArtifactExchangeAllowed(search)).toThrow('disabled')
+      expect(() => assertSceneMutationAllowed(search)).toThrow('disabled')
     }
   })
 
@@ -478,6 +480,12 @@ describe('Engram postMessage bridge', () => {
 
   it.each([
     ['an inaccessible command', async () => false],
+    [
+      'a synchronously throwing probe',
+      () => {
+        throw new Error('probe setup failed')
+      },
+    ],
     [
       'a rejected probe',
       async () => {

@@ -35,6 +35,7 @@ const BIN_CHUNK_TYPE = 0x004e4942
 const MAX_EMBEDDED_IMAGES = 256
 const MAX_IMAGE_DIMENSION = 8192
 const MAX_GLB_JSON_BYTES = 16 * 1024 * 1024
+export const MAX_GLB_SOURCE_BYTES = 128 * 1024 * 1024
 // Above the 100,000-key syntax ceiling and all declared product arrays, while
 // bounding transient visited-plus-pending URI traversal work.
 const MAX_GLB_URI_SCAN_VALUES = 262_144
@@ -156,6 +157,15 @@ type JsonRecord = Record<string, unknown>
 
 function isRecord(value: unknown): value is JsonRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function validateAssetDeclaration(manifest: JsonRecord): void {
+  if (!isRecord(manifest.asset) || manifest.asset.version !== '2.0') {
+    throw new Error('GLB asset.version must be exactly 2.0')
+  }
+  if (manifest.asset.minVersion !== undefined && manifest.asset.minVersion !== '2.0') {
+    throw new Error('GLB asset.minVersion must be 2.0 when present')
+  }
 }
 
 function safeInteger(value: unknown, name: string): number {
@@ -1305,9 +1315,18 @@ export function validateSelfContainedGlb(
   buffer: ArrayBuffer,
   maxTexturePixels: number = MAX_GLB_TEXTURE_PIXELS
 ): GlbValidationSummary {
+  if (buffer.byteLength > MAX_GLB_SOURCE_BYTES) {
+    throw new Error(`Asset exceeds maximum size of ${MAX_GLB_SOURCE_BYTES} bytes`)
+  }
   if (buffer.byteLength < 20) throw new Error('GLB is too short')
-  if (!Number.isSafeInteger(maxTexturePixels) || maxTexturePixels <= 0) {
-    throw new Error('GLB texture pixel limit must be a positive safe integer')
+  if (
+    !Number.isSafeInteger(maxTexturePixels) ||
+    maxTexturePixels <= 0 ||
+    maxTexturePixels > MAX_GLB_TEXTURE_PIXELS
+  ) {
+    throw new Error(
+      `GLB texture pixel limit must be a safe integer within 1-${MAX_GLB_TEXTURE_PIXELS}`
+    )
   }
   const view = new DataView(buffer)
   if (view.getUint32(0, true) !== GLB_MAGIC || view.getUint32(4, true) !== GLB_VERSION) {
@@ -1372,6 +1391,7 @@ export function validateSelfContainedGlb(
     throw new Error('GLB JSON chunk is invalid UTF-8 or JSON')
   }
   if (!isRecord(manifest)) throw new Error('GLB manifest must be an object')
+  validateAssetDeclaration(manifest)
   rejectExternalUris(manifest)
   rejectUnsupportedLoaderAmplification(manifest)
 

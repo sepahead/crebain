@@ -4,6 +4,17 @@ CREBAIN does not ship model weights. Treat every demo, benchmark, or release
 model as untrusted external input until its provenance, tensor contract,
 preprocessing, postprocessing, and class mapping are verified.
 
+<p align="center">
+  <img alt="CREBAIN evidence and claim maturity chain" src="../assets/diagrams/evidence-claim-chain.svg" width="900">
+</p>
+
+Text alternative: Eleven named stages separate weak claims from strong claims.
+They cover source existence, builds, tests, integration, transport, receiver
+validation, authorization, and attempted application. Later stages cover flight
+control unit acceptance, observed effect, and safe-state evidence. Each stronger
+claim needs new evidence. No stage advances automatically. Expiry and hardware
+or field tests provide separate facts.
+
 ## Required model record
 
 | Field | Required information |

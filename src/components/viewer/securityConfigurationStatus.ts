@@ -5,6 +5,9 @@
  */
 export type SecurityConfigurationStatus = 'not-configured' | 'unknown'
 
+/** No runtime attestation source exists, so the product default is unknown. */
+export const DEFAULT_SECURITY_CONFIGURATION_STATUS: SecurityConfigurationStatus = 'unknown'
+
 interface SecurityConfigurationPresentation {
   label: string
   statusText: string

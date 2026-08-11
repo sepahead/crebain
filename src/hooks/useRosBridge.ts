@@ -66,6 +66,7 @@ type RosTransport = UseRosBridgeConfig['transport']
 type RosBridgeInstance = ROSBridge | ZenohBridge
 
 interface BridgeSnapshot {
+  requestKey: string
   transport: RosTransport
   bridge: RosBridgeInstance | null
   telemetry: TelemetryBridge | null
@@ -121,6 +122,17 @@ export function useRosBridge(config: Partial<UseRosBridgeConfig> = {}): UseRosBr
   const highLatencyThresholdMs =
     config.highLatencyThresholdMs ?? DEFAULT_CONFIG.highLatencyThresholdMs
   const externalTelemetryAllowed = !isEngramEmbeddedMode()
+  const requestKey = JSON.stringify([
+    externalTelemetryAllowed,
+    transport,
+    url,
+    autoConnect,
+    autoReconnect,
+    reconnectIntervalMs,
+    maxReconnectAttempts,
+    enablePerformanceMonitoring,
+    highLatencyThresholdMs,
+  ])
 
   const [state, setState] = useState<ConnectionState>('disconnected')
   const [error, setError] = useState<string | null>(null)
@@ -128,25 +140,36 @@ export function useRosBridge(config: Partial<UseRosBridgeConfig> = {}): UseRosBr
   const [quality, setQuality] = useState<ConnectionQuality | null>(null)
   const [topicStats, setTopicStats] = useState<TopicStats[]>([])
 
-  const requestedTransportRef = useRef<RosTransport>(transport)
-  requestedTransportRef.current = transport
+  const requestedBridgeKeyRef = useRef(requestKey)
+  requestedBridgeKeyRef.current = requestKey
   const [bridgeSnapshot, setBridgeSnapshot] = useState<BridgeSnapshot>(() => ({
+    requestKey,
     transport,
     bridge: null,
     telemetry: null,
   }))
-  const bridgeSnapshotRef = useRef<BridgeSnapshot>({ transport, bridge: null, telemetry: null })
+  const bridgeSnapshotRef = useRef<BridgeSnapshot>({
+    requestKey,
+    transport,
+    bridge: null,
+    telemetry: null,
+  })
   const performanceMonitorRef = useRef<ROSPerformanceMonitor | null>(null)
 
   const getActiveBridge = useCallback((): RosBridgeInstance | null => {
     const snapshot = bridgeSnapshotRef.current
-    return snapshot.transport === requestedTransportRef.current ? snapshot.bridge : null
+    return snapshot.requestKey === requestedBridgeKeyRef.current ? snapshot.bridge : null
   }, [])
 
   // Initialize bridge and performance monitor
   useEffect(() => {
     if (!externalTelemetryAllowed) {
-      const disabledSnapshot: BridgeSnapshot = { transport, bridge: null, telemetry: null }
+      const disabledSnapshot: BridgeSnapshot = {
+        requestKey,
+        transport,
+        bridge: null,
+        telemetry: null,
+      }
       bridgeSnapshotRef.current = disabledSnapshot
       setBridgeSnapshot(disabledSnapshot)
       setState('disconnected')
@@ -163,13 +186,24 @@ export function useRosBridge(config: Partial<UseRosBridgeConfig> = {}): UseRosBr
     const ownsBridge = () => {
       const snapshot = bridgeSnapshotRef.current
       return (
-        requestedTransportRef.current === transport &&
+        requestedBridgeKeyRef.current === requestKey &&
+        snapshot.requestKey === requestKey &&
         snapshot.transport === transport &&
         snapshot.bridge === bridge
       )
     }
     const updateConnectionState = (nextState: ConnectionState) => {
-      if (ownsBridge()) setState(nextState)
+      if (!ownsBridge()) return
+      setState(nextState)
+      if (nextState === 'connected') {
+        // A reconnect starts a new transport session. Do not carry latency,
+        // throughput, alerts, or topic-capacity ownership across that boundary.
+        monitor?.reset()
+        setAlerts([])
+        setQuality(null)
+        setTopicStats([])
+        setError(null)
+      }
     }
     const updateError = (nextError: unknown) => {
       if (ownsBridge()) {
@@ -180,6 +214,7 @@ export function useRosBridge(config: Partial<UseRosBridgeConfig> = {}): UseRosBr
     if (transport === 'zenoh') {
       bridge = new ZenohBridge()
       bridge.onStateChange = updateConnectionState
+      bridge.onError = updateError
     } else {
       bridge = new ROSBridge({
         url,
@@ -188,16 +223,15 @@ export function useRosBridge(config: Partial<UseRosBridgeConfig> = {}): UseRosBr
         maxReconnectAttempts,
         onStateChange: updateConnectionState,
         onError: updateError,
-        onConnect: () => {
-          if (!ownsBridge()) return
-          setError(null)
-          // Reset performance monitor on connect
-          monitor?.reset()
-        },
       })
     }
 
-    const nextSnapshot: BridgeSnapshot = { transport, bridge, telemetry: telemetryFacade(bridge) }
+    const nextSnapshot: BridgeSnapshot = {
+      requestKey,
+      transport,
+      bridge,
+      telemetry: telemetryFacade(bridge),
+    }
     bridgeSnapshotRef.current = nextSnapshot
     setBridgeSnapshot(nextSnapshot)
     setState(bridge.getState())
@@ -223,8 +257,9 @@ export function useRosBridge(config: Partial<UseRosBridgeConfig> = {}): UseRosBr
       // Update stats periodically
       statsInterval = setInterval(() => {
         if (ownsBridge() && monitor) {
-          setQuality(monitor.getConnectionQuality())
-          setTopicStats(monitor.getAllTopicStats())
+          const snapshot = monitor.getPerformanceSnapshot()
+          setQuality(snapshot.quality)
+          setTopicStats(snapshot.topicStats)
         }
       }, 1000)
     }
@@ -237,7 +272,7 @@ export function useRosBridge(config: Partial<UseRosBridgeConfig> = {}): UseRosBr
       if (statsInterval) clearInterval(statsInterval)
       monitor?.stop()
       if (bridgeSnapshotRef.current.bridge === bridge) {
-        bridgeSnapshotRef.current = { transport, bridge: null, telemetry: null }
+        bridgeSnapshotRef.current = { requestKey, transport, bridge: null, telemetry: null }
       }
       void bridge.disconnect()
       if (performanceMonitorRef.current === monitor) {
@@ -246,6 +281,7 @@ export function useRosBridge(config: Partial<UseRosBridgeConfig> = {}): UseRosBr
     }
   }, [
     externalTelemetryAllowed,
+    requestKey,
     transport,
     url,
     autoConnect,
@@ -308,7 +344,7 @@ export function useRosBridge(config: Partial<UseRosBridgeConfig> = {}): UseRosBr
     if (latencyMs !== undefined) monitor.recordLatency(topic, latencyMs)
   }, [])
 
-  const activeBridge = bridgeSnapshot.transport === transport ? bridgeSnapshot.telemetry : null
+  const activeBridge = bridgeSnapshot.requestKey === requestKey ? bridgeSnapshot.telemetry : null
   const activeState = activeBridge ? state : 'disconnected'
 
   return {

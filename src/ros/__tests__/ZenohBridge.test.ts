@@ -3,10 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const invokeMock = vi.hoisted(() => vi.fn())
 const listenMock = vi.hoisted(() =>
   vi.fn(
-    async (
-      _eventName: string,
-      _handler: (event: { payload: unknown }) => void
-    ): Promise<unknown> => vi.fn()
+    async (_eventName: string, _handler: (event: { payload: unknown }) => void): Promise<unknown> =>
+      vi.fn()
   )
 )
 
@@ -83,6 +81,31 @@ function cameraReady(
   return { deliveryId, generation, cameraSubscriptionId: subscriptionId }
 }
 
+function telemetrySubscribeCalls() {
+  return invokeMock.mock.calls.filter(
+    ([command, args]) =>
+      typeof command === 'string' &&
+      command.startsWith('transport_subscribe_') &&
+      typeof (args as Record<string, unknown> | undefined)?.subscriptionId === 'string'
+  )
+}
+
+function telemetrySubscriptionId(callIndex = -1): string {
+  const calls = telemetrySubscribeCalls()
+  const index = callIndex < 0 ? calls.length + callIndex : callIndex
+  const value = (calls[index]?.[1] as Record<string, unknown> | undefined)?.subscriptionId
+  if (typeof value !== 'string') throw new Error('Telemetry subscription identity is unavailable')
+  return value
+}
+
+function telemetryEnvelope(
+  data: unknown,
+  generation: string,
+  subscriptionId = telemetrySubscriptionId()
+) {
+  return { generation, subscriptionId, data }
+}
+
 function nativeUnsubscribeCalls() {
   return invokeMock.mock.calls.filter(([command]) => command === 'transport_unsubscribe')
 }
@@ -105,7 +128,7 @@ describe('ZenohBridge', () => {
     invokeMock.mockResolvedValue('7')
     const bridge = new ZenohBridge()
     const states: string[] = []
-    bridge.onStateChange = state => states.push(state)
+    bridge.onStateChange = (state) => states.push(state)
 
     await bridge.connect()
 
@@ -160,12 +183,33 @@ describe('ZenohBridge', () => {
     invokeMock.mockRejectedValue(new Error('zenoh unavailable'))
     const bridge = new ZenohBridge()
     const states: string[] = []
-    bridge.onStateChange = state => states.push(state)
+    bridge.onStateChange = (state) => states.push(state)
 
     await expect(bridge.connect()).rejects.toThrow('zenoh unavailable')
 
     expect(states).toEqual(['connecting', 'disconnected'])
     expect(bridge.isConnected()).toBe(false)
+  })
+
+  it('bounds a non-settling native connection and reports the failure', async () => {
+    vi.useFakeTimers()
+    invokeMock.mockImplementation(() => new Promise(() => undefined))
+    const bridge = new ZenohBridge()
+    const onError = vi.fn()
+    bridge.onError = onError
+
+    const connection = bridge.connect()
+    const rejection = expect(connection).rejects.toThrow('connection timed out')
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(invokeMock).toHaveBeenCalledWith('transport_connect')
+    await vi.advanceTimersByTimeAsync(15_000)
+
+    await rejection
+    expect(bridge.getState()).toBe('disconnected')
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining('connection timed out') })
+    )
   })
 
   it('subscribes through the registry command and unsubscribes when the last listener is removed', async () => {
@@ -179,7 +223,12 @@ describe('ZenohBridge', () => {
     await bridge.connect()
 
     const unsubscribe = bridge.subscribe('/camera/image', 'sensor_msgs/Image', callback)
-    await vi.waitFor(() => expect(listenMock).toHaveBeenCalledWith(getTransportEventName('/camera/image'), expect.any(Function)))
+    await vi.waitFor(() =>
+      expect(listenMock).toHaveBeenCalledWith(
+        getTransportEventName('/camera/image'),
+        expect.any(Function)
+      )
+    )
     await vi.waitFor(() =>
       expect(invokeMock).toHaveBeenCalledWith('transport_subscribe_camera', {
         topic: '/camera/image',
@@ -194,7 +243,7 @@ describe('ZenohBridge', () => {
     await vi.waitFor(() => expect(unlisten).toHaveBeenCalled())
     expect(invokeMock).toHaveBeenCalledWith('transport_unsubscribe', {
       topic: '/camera/image',
-      cameraSubscriptionId: expect.stringMatching(/^[1-9][0-9]*$/),
+      subscriptionId: expect.stringMatching(/^[1-9][0-9]*$/),
       generation: '7',
     })
   })
@@ -225,11 +274,7 @@ describe('ZenohBridge', () => {
     const bridge = new ZenohBridge()
     await bridge.connect()
 
-    const unsubscribeFirst = bridge.subscribe(
-      '/camera/reopened',
-      'sensor_msgs/Image',
-      vi.fn()
-    )
+    const unsubscribeFirst = bridge.subscribe('/camera/reopened', 'sensor_msgs/Image', vi.fn())
     await vi.waitFor(() => expect(cameraSubscribeCalls()).toHaveLength(1))
     const firstIdentity = (cameraSubscribeCalls()[0]?.[1] as Record<string, unknown>)
       .cameraSubscriptionId
@@ -247,7 +292,7 @@ describe('ZenohBridge', () => {
     expect(nativeUnsubscribeCalls()[0]?.[1]).toEqual({
       topic: '/camera/reopened',
       generation: '12',
-      cameraSubscriptionId: firstIdentity,
+      subscriptionId: firstIdentity,
     })
   })
 
@@ -281,7 +326,7 @@ describe('ZenohBridge', () => {
     expect(nativeUnsubscribeCalls()[1]?.[1]).toEqual({
       topic: '/camera/identity_race',
       generation: '121',
-      cameraSubscriptionId: oldIdentity,
+      subscriptionId: oldIdentity,
     })
 
     eventHandlers[1]?.({ payload: cameraReady('42', '121', reopenedIdentity) })
@@ -293,6 +338,54 @@ describe('ZenohBridge', () => {
       generation: '121',
     })
     await vi.waitFor(() => expect(cameraAckCalls()).toHaveLength(1))
+  })
+
+  it('rejects queued non-camera telemetry from a superseded topic identity', async () => {
+    const eventHandlers: Array<(event: { payload: unknown }) => void> = []
+    listenMock.mockImplementation(async (_eventName, handler) => {
+      eventHandlers.push(handler)
+      return vi.fn()
+    })
+    invokeMock.mockImplementation((command: string) =>
+      Promise.resolve(command === 'transport_connect' ? '123' : undefined)
+    )
+    const bridge = new ZenohBridge()
+    await bridge.connect()
+
+    const retiredCallback = vi.fn()
+    const closeRetired = bridge.subscribe(
+      '/pose/reopened',
+      'geometry_msgs/PoseStamped',
+      retiredCallback
+    )
+    await vi.waitFor(() => expect(telemetrySubscribeCalls()).toHaveLength(1))
+    const retiredIdentity = telemetrySubscriptionId(0)
+    closeRetired()
+    await vi.waitFor(() => expect(nativeUnsubscribeCalls()).toHaveLength(1))
+    expect(nativeUnsubscribeCalls()[0]?.[1]).toEqual({
+      topic: '/pose/reopened',
+      generation: '123',
+      subscriptionId: retiredIdentity,
+    })
+
+    const currentCallback = vi.fn()
+    bridge.subscribe('/pose/reopened', 'geometry_msgs/PoseStamped', currentCallback)
+    await vi.waitFor(() => expect(telemetrySubscribeCalls()).toHaveLength(2))
+    const currentIdentity = telemetrySubscriptionId(1)
+    expect(currentIdentity).not.toBe(retiredIdentity)
+
+    eventHandlers[1]?.({
+      payload: telemetryEnvelope(rawPose(1, 1), '123', retiredIdentity),
+    })
+    eventHandlers[1]?.({ payload: telemetryEnvelope(rawPose(1, 1), '124', currentIdentity) })
+    eventHandlers[1]?.({ payload: rawPose(1, 1) })
+    eventHandlers[1]?.({
+      payload: telemetryEnvelope(rawPose(2, 1), '123', currentIdentity),
+    })
+
+    await vi.waitFor(() => expect(currentCallback).toHaveBeenCalledOnce())
+    expect(currentCallback.mock.calls[0]?.[0].pose.position.x).toBe(2)
+    expect(retiredCallback).not.toHaveBeenCalled()
   })
 
   it('does not let a stale identity displace a valid descriptor queued behind acknowledgement', async () => {
@@ -346,6 +439,9 @@ describe('ZenohBridge', () => {
     expect(() => bridge.subscribe('/über/image raw', 'sensor_msgs/Image', vi.fn())).toThrow(
       'Invalid native ROS topic'
     )
+    expect(() => bridge.subscribe('/1camera/image', 'sensor_msgs/Image', vi.fn())).toThrow(
+      'Invalid native ROS topic'
+    )
     expect(listenMock).not.toHaveBeenCalled()
     expect(invokeMock).not.toHaveBeenCalled()
   })
@@ -363,6 +459,8 @@ describe('ZenohBridge', () => {
       return Promise.resolve(undefined)
     })
     const bridge = new ZenohBridge()
+    const onError = vi.fn()
+    bridge.onError = onError
     await bridge.connect()
 
     try {
@@ -376,7 +474,9 @@ describe('ZenohBridge', () => {
     expect(invokeMock).toHaveBeenCalledWith('transport_subscribe_camera_info', {
       topic: '/camera/info',
       generation: '13',
+      subscriptionId: expect.stringMatching(/^[1-9][0-9]*$/),
     })
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: 'subscribe failed' }))
   })
 
   it('uses the exact camera identity to clean up a failed native setup', async () => {
@@ -405,7 +505,7 @@ describe('ZenohBridge', () => {
     expect(nativeUnsubscribeCalls()[0]?.[1]).toEqual({
       topic: '/camera/setup_failure',
       generation: '14',
-      cameraSubscriptionId: subscribeIdentity,
+      subscriptionId: subscribeIdentity,
     })
 
     await Promise.resolve()
@@ -444,7 +544,7 @@ describe('ZenohBridge', () => {
     expect(nativeUnsubscribeCalls()[0]?.[1]).toEqual({
       topic: '/camera/setup_timeout',
       generation: '141',
-      cameraSubscriptionId: retiredIdentity,
+      subscriptionId: retiredIdentity,
     })
 
     await vi.advanceTimersByTimeAsync(0)
@@ -522,11 +622,7 @@ describe('ZenohBridge', () => {
     })
     const bridge = new ZenohBridge()
     await bridge.connect()
-    const unsubscribe = bridge.subscribe(
-      '/camera/setup_stale',
-      'sensor_msgs/Image',
-      vi.fn()
-    )
+    const unsubscribe = bridge.subscribe('/camera/setup_stale', 'sensor_msgs/Image', vi.fn())
     await vi.waitFor(() => expect(cameraSubscribeCalls()).toHaveLength(1))
     const identity = (cameraSubscribeCalls()[0]?.[1] as Record<string, unknown>)
       .cameraSubscriptionId
@@ -537,8 +633,8 @@ describe('ZenohBridge', () => {
     await vi.waitFor(() => expect(nativeUnsubscribeCalls()).toHaveLength(2))
 
     expect(nativeUnsubscribeCalls().map(([, args]) => args)).toEqual([
-      { topic: '/camera/setup_stale', generation: '142', cameraSubscriptionId: identity },
-      { topic: '/camera/setup_stale', generation: '142', cameraSubscriptionId: identity },
+      { topic: '/camera/setup_stale', generation: '142', subscriptionId: identity },
+      { topic: '/camera/setup_stale', generation: '142', subscriptionId: identity },
     ])
   })
 
@@ -567,7 +663,7 @@ describe('ZenohBridge', () => {
     })
     const bridge = new ZenohBridge()
     const states: string[] = []
-    bridge.onStateChange = state => states.push(state)
+    bridge.onStateChange = (state) => states.push(state)
 
     const connect = bridge.connect()
     await vi.waitFor(() => expect(bridge.getState()).toBe('connecting'))
@@ -577,9 +673,7 @@ describe('ZenohBridge', () => {
 
     expect(bridge.getState()).toBe('disconnected')
     expect(states).not.toContain('connected')
-    expect(nativeDisconnectCalls()).toEqual([
-      ['transport_disconnect', { generation: '17' }],
-    ])
+    expect(nativeDisconnectCalls()).toEqual([['transport_disconnect', { generation: '17' }]])
   })
 
   it('serializes StrictMode-style connect intents before native lifecycle entry', async () => {
@@ -607,9 +701,7 @@ describe('ZenohBridge', () => {
     resolveFirstConnect('46')
     await Promise.all([staleConnect, staleDisconnect, activeConnect])
 
-    expect(nativeDisconnectCalls()).toEqual([
-      ['transport_disconnect', { generation: '46' }],
-    ])
+    expect(nativeDisconnectCalls()).toEqual([['transport_disconnect', { generation: '46' }]])
     expect(activeBridge.isConnected()).toBe(true)
   })
 
@@ -634,10 +726,7 @@ describe('ZenohBridge', () => {
     resolveListen()
     await vi.waitFor(() => expect(unlisten).toHaveBeenCalled())
 
-    expect(invokeMock).not.toHaveBeenCalledWith(
-      'transport_subscribe_camera',
-      expect.anything()
-    )
+    expect(invokeMock).not.toHaveBeenCalledWith('transport_subscribe_camera', expect.anything())
   })
 
   it('preserves the ROS orientation-unavailable covariance sentinel', async () => {
@@ -657,20 +746,24 @@ describe('ZenohBridge', () => {
       expect(invokeMock).toHaveBeenCalledWith('transport_subscribe_imu', {
         topic: '/imu/data',
         generation: '23',
+        subscriptionId: expect.stringMatching(/^[1-9][0-9]*$/),
       })
     )
 
     eventHandler?.({
-      payload: {
-        orientation: [0, 0, 0, 0],
-        orientation_covariance: [-1, 0, 0, 0, 0, 0, 0, 0, 0],
-        angular_velocity: [1, 2, 3],
-        angular_velocity_covariance: [1, 0, 0, 0, 2, 0, 0, 0, 3],
-        linear_acceleration: [4, 5, 6],
-        linear_acceleration_covariance: [4, 0, 0, 0, 5, 0, 0, 0, 6],
-        timestamp: 1.25,
-        frame_id: 'imu',
-      },
+      payload: telemetryEnvelope(
+        {
+          orientation: [0, 0, 0, 0],
+          orientation_covariance: [-1, 0, 0, 0, 0, 0, 0, 0, 0],
+          angular_velocity: [1, 2, 3],
+          angular_velocity_covariance: [1, 0, 0, 0, 2, 0, 0, 0, 3],
+          linear_acceleration: [4, 5, 6],
+          linear_acceleration_covariance: [4, 0, 0, 0, 5, 0, 0, 0, 6],
+          timestamp: 1.25,
+          frame_id: 'imu',
+        },
+        '23'
+      ),
     })
 
     await vi.waitFor(() => expect(callback).toHaveBeenCalledTimes(1))
@@ -759,8 +852,62 @@ describe('ZenohBridge', () => {
     expect(nativeUnsubscribeCalls()[0]?.[1]).toMatchObject({
       topic: '/camera/malformed_ready',
       generation: '291',
-      cameraSubscriptionId: expect.stringMatching(/^[1-9][0-9]*$/),
+      subscriptionId: expect.stringMatching(/^[1-9][0-9]*$/),
     })
+  })
+
+  it('rejects camera-ready fields inherited through the prototype chain', async () => {
+    let eventHandler: ((event: { payload: unknown }) => void) | undefined
+    listenMock.mockImplementationOnce(async (_eventName, handler) => {
+      eventHandler = handler
+      return vi.fn()
+    })
+    invokeMock.mockImplementation((command: string) =>
+      Promise.resolve(command === 'transport_connect' ? '291' : undefined)
+    )
+    const bridge = new ZenohBridge()
+    await bridge.connect()
+    bridge.subscribe('/camera/inherited_ready', 'sensor_msgs/Image', vi.fn())
+    await vi.waitFor(() => expect(eventHandler).toBeDefined())
+    await vi.waitFor(() => expect(cameraSubscribeCalls()).toHaveLength(1))
+
+    const payload = Object.assign(Object.create(cameraReady('1', '291')) as object, {
+      unrelatedA: 1,
+      unrelatedB: 2,
+      unrelatedC: 3,
+    })
+    eventHandler?.({ payload })
+
+    await vi.waitFor(() => expect(nativeUnsubscribeCalls()).toHaveLength(1))
+    expect(cameraTakeCalls()).toEqual([])
+  })
+
+  it('contains camera-ready property accessors that throw', async () => {
+    let eventHandler: ((event: { payload: unknown }) => void) | undefined
+    listenMock.mockImplementationOnce(async (_eventName, handler) => {
+      eventHandler = handler
+      return vi.fn()
+    })
+    invokeMock.mockImplementation((command: string) =>
+      Promise.resolve(command === 'transport_connect' ? '291' : undefined)
+    )
+    const bridge = new ZenohBridge()
+    await bridge.connect()
+    bridge.subscribe('/camera/throwing_ready', 'sensor_msgs/Image', vi.fn())
+    await vi.waitFor(() => expect(eventHandler).toBeDefined())
+    await vi.waitFor(() => expect(cameraSubscribeCalls()).toHaveLength(1))
+
+    const payload = {
+      get deliveryId(): string {
+        throw new Error('malicious accessor')
+      },
+      cameraSubscriptionId: cameraSubscriptionId(),
+      generation: '291',
+    }
+    expect(() => eventHandler?.({ payload })).not.toThrow()
+
+    await vi.waitFor(() => expect(nativeUnsubscribeCalls()).toHaveLength(1))
+    expect(cameraTakeCalls()).toEqual([])
   })
 
   it.each([
@@ -844,7 +991,7 @@ describe('ZenohBridge', () => {
     })
     await vi.waitFor(() => expect(nativeUnsubscribeCalls()).toHaveLength(1))
     expect(nativeUnsubscribeCalls()[0]?.[1]).toMatchObject({
-      cameraSubscriptionId: '18446744073709551615',
+      subscriptionId: '18446744073709551615',
     })
 
     eventHandler?.({ payload: cameraReady('2', '293') })
@@ -857,7 +1004,7 @@ describe('ZenohBridge', () => {
     await vi.waitFor(() => expect(nativeUnsubscribeCalls()).toHaveLength(2))
     expect(cameraTakeCalls()).toHaveLength(1)
     expect(nativeUnsubscribeCalls()[1]?.[1]).toMatchObject({
-      cameraSubscriptionId: cameraSubscriptionId(),
+      subscriptionId: cameraSubscriptionId(),
     })
   })
 
@@ -875,11 +1022,14 @@ describe('ZenohBridge', () => {
     await bridge.connect()
     bridge.subscribe('/pose/bounded', 'geometry_msgs/PoseStamped', callback)
     await vi.waitFor(() => expect(eventHandler).toBeDefined())
+    await vi.waitFor(() => expect(telemetrySubscribeCalls()).toHaveLength(1))
 
-    eventHandler?.({ payload: rawPose(1_000_000, 1.01) })
-    eventHandler?.({ payload: rawPose(1_000_000 + 1e-6, 1) })
-    eventHandler?.({ payload: rawPose(Number.MAX_VALUE, 1) })
-    eventHandler?.({ payload: rawPose(0, 0.98) })
+    eventHandler?.({ payload: telemetryEnvelope(rawPose(1_000_000, 1.01), '30') })
+    eventHandler?.({
+      payload: telemetryEnvelope(rawPose(1_000_000 + 1e-6, 1), '30'),
+    })
+    eventHandler?.({ payload: telemetryEnvelope(rawPose(Number.MAX_VALUE, 1), '30') })
+    eventHandler?.({ payload: telemetryEnvelope(rawPose(0, 0.98), '30') })
 
     await vi.waitFor(() => expect(callback).toHaveBeenCalledOnce())
     const delivered = callback.mock.calls[0]?.[0]
@@ -912,24 +1062,31 @@ describe('ZenohBridge', () => {
     await bridge.connect()
     bridge.subscribe('/models/bounded', 'gazebo_msgs/ModelStates', callback)
     await vi.waitFor(() => expect(eventHandler).toBeDefined())
+    await vi.waitFor(() => expect(telemetrySubscribeCalls()).toHaveLength(1))
     const atLimits = {
       name: ['drone'],
       pose: [rawPose(1_000_000, 0.99)],
       twist: [{ linear: [100, 0, 0], angular: [0, 0, 50] }],
     }
 
-    eventHandler?.({ payload: atLimits })
+    eventHandler?.({ payload: telemetryEnvelope(atLimits, '32') })
     eventHandler?.({
-      payload: {
-        ...atLimits,
-        twist: [{ linear: [100 + 1e-6, 0, 0], angular: [0, 0, 0] }],
-      },
+      payload: telemetryEnvelope(
+        {
+          ...atLimits,
+          twist: [{ linear: [100 + 1e-6, 0, 0], angular: [0, 0, 0] }],
+        },
+        '32'
+      ),
     })
     eventHandler?.({
-      payload: {
-        ...atLimits,
-        twist: [{ linear: [0, 0, 0], angular: [0, 0, 50 + 1e-6] }],
-      },
+      payload: telemetryEnvelope(
+        {
+          ...atLimits,
+          twist: [{ linear: [0, 0, 0], angular: [0, 0, 50 + 1e-6] }],
+        },
+        '32'
+      ),
     })
 
     await vi.waitFor(() => expect(callback).toHaveBeenCalledOnce())
@@ -972,6 +1129,37 @@ describe('ZenohBridge', () => {
     await vi.waitFor(() => expect(cameraAckCalls()).toHaveLength(1))
   })
 
+  it('snapshots native telemetry independently for every listener', async () => {
+    let eventHandler: ((event: { payload: unknown }) => void) | undefined
+    listenMock.mockImplementationOnce(async (_eventName, handler) => {
+      eventHandler = handler
+      return vi.fn()
+    })
+    invokeMock.mockImplementation((command: string) =>
+      Promise.resolve(command === 'transport_connect' ? '32' : undefined)
+    )
+    const bridge = new ZenohBridge()
+    const laterCallback = vi.fn()
+    await bridge.connect()
+    bridge.subscribe<PoseStamped>('/pose/snapshot', 'geometry_msgs/PoseStamped', (message) => {
+      message.pose.position.x = 99
+      message.header.stamp.secs = 99
+    })
+    bridge.subscribe('/pose/snapshot', 'geometry_msgs/PoseStamped', laterCallback)
+    await vi.waitFor(() => expect(eventHandler).toBeDefined())
+    await vi.waitFor(() => expect(telemetrySubscribeCalls()).toHaveLength(1))
+
+    eventHandler?.({ payload: telemetryEnvelope(rawPose(1, 1), '32') })
+
+    await vi.waitFor(() => expect(laterCallback).toHaveBeenCalledOnce())
+    expect(laterCallback).toHaveBeenCalledWith(
+      expect.objectContaining({
+        header: expect.objectContaining({ stamp: { secs: 1, nsecs: 250_000_000 } }),
+        pose: expect.objectContaining({ position: { x: 1, y: 0, z: 0 } }),
+      })
+    )
+  })
+
   it('retains native camera delivery until asynchronous listeners settle', async () => {
     let eventHandler: ((event: { payload: unknown }) => void) | undefined
     listenMock.mockImplementationOnce(async (_eventName, handler) => {
@@ -984,16 +1172,10 @@ describe('ZenohBridge', () => {
       return Promise.resolve(undefined)
     })
     let release!: () => void
-    const callback = vi.fn(
-      (_message: Image) => new Promise<void>((resolve) => (release = resolve))
-    )
+    const callback = vi.fn((_message: Image) => new Promise<void>((resolve) => (release = resolve)))
     const bridge = new ZenohBridge()
     await bridge.connect()
-    bridge.subscribe(
-      '/camera/acknowledged',
-      'sensor_msgs/Image',
-      callback
-    )
+    bridge.subscribe('/camera/acknowledged', 'sensor_msgs/Image', callback)
     await vi.waitFor(() => expect(eventHandler).toBeDefined())
     await vi.waitFor(() => expect(cameraSubscribeCalls()).toHaveLength(1))
 
@@ -1166,7 +1348,7 @@ describe('ZenohBridge', () => {
     expect(cameraTakeCalls()).toHaveLength(1)
     expect(cameraAckCalls()).toHaveLength(1)
     const retiredIdentity = (nativeUnsubscribeCalls()[0]?.[1] as Record<string, unknown>)
-      .cameraSubscriptionId
+      .subscriptionId
 
     bridge.subscribe('/camera/ack_timeout', 'sensor_msgs/Image', vi.fn())
     await vi.advanceTimersByTimeAsync(0)
@@ -1206,7 +1388,7 @@ describe('ZenohBridge', () => {
     expect(nativeUnsubscribeCalls()[0]?.[1]).toMatchObject({
       topic: '/camera/ack_rejected',
       generation: '54',
-      cameraSubscriptionId: expect.stringMatching(/^[1-9][0-9]*$/),
+      subscriptionId: expect.stringMatching(/^[1-9][0-9]*$/),
     })
   })
 
@@ -1228,11 +1410,7 @@ describe('ZenohBridge', () => {
     const callback = vi.fn()
     const bridge = new ZenohBridge()
     await bridge.connect()
-    const unsubscribe = bridge.subscribe(
-      '/camera/stale',
-      'sensor_msgs/Image',
-      callback
-    )
+    const unsubscribe = bridge.subscribe('/camera/stale', 'sensor_msgs/Image', callback)
     await vi.waitFor(() => expect(eventHandler).toBeDefined())
     await vi.waitFor(() => expect(cameraSubscribeCalls()).toHaveLength(1))
 
@@ -1282,17 +1460,16 @@ describe('ZenohBridge', () => {
       1
     )
     await vi.waitFor(() => expect(eventHandler).toBeDefined())
+    await vi.waitFor(() => expect(telemetrySubscribeCalls()).toHaveLength(1))
 
-    eventHandler?.({ payload: rawPose(1, 1) })
+    eventHandler?.({ payload: telemetryEnvelope(rawPose(1, 1), '37') })
     await vi.waitFor(() => expect(callback).toHaveBeenCalledTimes(1))
-    eventHandler?.({ payload: rawPose(2, 1) })
-    eventHandler?.({ payload: rawPose(3, 1) })
+    eventHandler?.({ payload: telemetryEnvelope(rawPose(2, 1), '37') })
+    eventHandler?.({ payload: telemetryEnvelope(rawPose(3, 1), '37') })
     releases.shift()?.()
 
     await vi.waitFor(() => expect(callback).toHaveBeenCalledTimes(2))
-    expect(
-      callback.mock.calls.map(([message]) => message.pose.position.x)
-    ).toEqual([1, 3])
+    expect(callback.mock.calls.map(([message]) => message.pose.position.x)).toEqual([1, 3])
     releases.shift()?.()
   })
 
@@ -1314,11 +1491,12 @@ describe('ZenohBridge', () => {
     bridge.subscribe('/pose/throttle', 'geometry_msgs/PoseStamped', unthrottled)
     bridge.subscribe('/pose/throttle', 'geometry_msgs/PoseStamped', throttled, 100)
     await vi.waitFor(() => expect(eventHandler).toBeDefined())
+    await vi.waitFor(() => expect(telemetrySubscribeCalls()).toHaveLength(1))
 
-    eventHandler?.({ payload: rawPose(1, 1) })
+    eventHandler?.({ payload: telemetryEnvelope(rawPose(1, 1), '41') })
     await vi.waitFor(() => expect(unthrottled).toHaveBeenCalledTimes(1))
     now = 50
-    eventHandler?.({ payload: rawPose(2, 1) })
+    eventHandler?.({ payload: telemetryEnvelope(rawPose(2, 1), '41') })
     await vi.waitFor(() => expect(unthrottled).toHaveBeenCalledTimes(2))
 
     expect(throttled).toHaveBeenCalledTimes(1)
@@ -1342,13 +1520,23 @@ describe('ZenohBridge', () => {
     expect(() =>
       bridge.subscribe('/camera/other', 'sensor_msgs/Image', vi.fn(), undefined, 5)
     ).toThrow('queue length')
+    expect(() => bridge.subscribe('/camera/other', 'sensor_msgs/Image', vi.fn(), 0.5)).toThrow(
+      'throttle rate'
+    )
+    expect(() => bridge.subscribe('/camera/other', 'sensor_msgs/Image', vi.fn(), 60_001)).toThrow(
+      'throttle rate'
+    )
   })
 
   it('retains telemetry-only compatibility subscriptions', () => {
     const bridge = new ZenohBridge()
 
-    expect(() => bridge.subscribeToOdometry('/drone1', vi.fn())).toThrow('Odometry subscriptions is not supported')
-    expect(() => bridge.subscribeToState('/drone1', vi.fn())).toThrow('MAVROS state subscriptions is not supported')
+    expect(() => bridge.subscribeToOdometry('/drone1', vi.fn())).toThrow(
+      'Odometry subscriptions is not supported'
+    )
+    expect(() => bridge.subscribeToState('/drone1', vi.fn())).toThrow(
+      'MAVROS state subscriptions is not supported'
+    )
   })
 
   it('has no public publish, service, Gazebo, or MAVROS command methods', () => {

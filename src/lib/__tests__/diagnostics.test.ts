@@ -6,6 +6,7 @@ import {
   getConnectionStatusLabel,
   normalizeSystemInfo,
   summarizeSystemInfo,
+  MAX_LATENCY_STAT_SAMPLES,
 } from '../diagnostics'
 
 describe('diagnostics', () => {
@@ -20,6 +21,7 @@ describe('diagnostics', () => {
       availableBackends: [],
       experimentalMlxEnabled: false,
       inferenceReady: null,
+      inferenceInitializationError: null,
     })
   })
 
@@ -42,6 +44,7 @@ describe('diagnostics', () => {
       availableBackends: [],
       experimentalMlxEnabled: false,
       inferenceReady: null,
+      inferenceInitializationError: null,
       sensorFusion: { tracks: 0 },
     })
   })
@@ -68,9 +71,32 @@ describe('diagnostics', () => {
       availableBackends: ['ONNX'],
       experimentalMlxEnabled: false,
       inferenceReady: null,
+      inferenceInitializationError: null,
       onnxDetector: undefined,
       sensorFusion: undefined,
     })
+  })
+
+  it('normalizes and bounds detector initialization errors', () => {
+    expect(
+      normalizeSystemInfo({ inferenceInitializationError: `  ${'x'.repeat(4_096)}  ` })
+        .inferenceInitializationError
+    ).toBe('x'.repeat(2_048))
+    expect(
+      normalizeSystemInfo({ inferenceInitializationError: '   ' }).inferenceInitializationError
+    ).toBeNull()
+  })
+
+  it('bounds diagnostic identity fields and backend lists', () => {
+    const info = normalizeSystemInfo({
+      platform: `p${'x'.repeat(1_000)}`,
+      backend: 'bad\0backend',
+      availableBackends: Array.from({ length: 100 }, (_, index) => `backend-${index}`),
+    })
+
+    expect(info.platform).toHaveLength(256)
+    expect(info.backend).toBe('Unknown')
+    expect(info.availableBackends).toHaveLength(32)
   })
 
   it('classifies backend health', () => {
@@ -125,7 +151,7 @@ describe('diagnostics', () => {
   })
 
   it('provides honest labels for backend and telemetry states', () => {
-    expect(getBackendHealthLabel('initializing')).toBe('NICHT INITIALISIERT')
+    expect(getBackendHealthLabel('initializing')).toBe('WIRD INITIALISIERT...')
     expect(getBackendHealthLabel('busy')).toBe('BESCHÄFTIGT')
     expect(getConnectionStatusLabel('disconnected')).toBe('GETRENNT')
     expect(getConnectionStatusLabel('connecting')).toBe('VERBINDE...')
@@ -203,5 +229,22 @@ describe('diagnostics', () => {
   it('rejects invalid latency samples', () => {
     expect(() => calculateLatencyStats([10, Number.POSITIVE_INFINITY])).toThrow('invalid samples')
     expect(() => calculateLatencyStats([10, -1])).toThrow('invalid samples')
+    expect(() => calculateLatencyStats(new Array(MAX_LATENCY_STAT_SAMPLES + 1).fill(1))).toThrow(
+      'more than'
+    )
+  })
+
+  it('keeps latency aggregates finite for very large finite samples', () => {
+    const stats = calculateLatencyStats([Number.MAX_VALUE, Number.MAX_VALUE])
+    expect(stats.mean).toBe(Number.MAX_VALUE)
+    expect(Object.values(stats).every(Number.isFinite)).toBe(true)
+  })
+
+  it('keeps FPS finite for positive subnormal latency samples', () => {
+    const stats = calculateLatencyStats([Number.MIN_VALUE])
+
+    expect(stats.mean).toBe(Number.MIN_VALUE)
+    expect(stats.fps).toBe(Number.MAX_VALUE)
+    expect(Object.values(stats).every(Number.isFinite)).toBe(true)
   })
 })

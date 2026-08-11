@@ -96,6 +96,7 @@ const REQUIRED_GALADRIEL_EVIDENCE_ROUTES = new Set([
 const REQUIRED_PRODUCTION_ROOTS = new Set([
   'src',
   'src-tauri/src',
+  'src-tauri/crates/ncp-headless/src',
   'src-tauri/crates/plant-authority/src',
   'src-tauri/capabilities',
   'ros',
@@ -111,18 +112,25 @@ const REQUIRED_PRODUCTION_CONFIGS = new Set([
   'flake.lock',
   'src-tauri/Cargo.toml',
   'src-tauri/Cargo.lock',
+  'src-tauri/crates/ncp-headless/Cargo.toml',
   'src-tauri/crates/plant-authority/Cargo.toml',
   'src-tauri/build.rs',
   'src-tauri/deny.toml',
   'src-tauri/tauri.conf.json',
   'tsconfig.json',
   'vite.config.ts',
+  '.ncp-consumer',
   'scripts/check-bundle-size.mjs',
+  'scripts/check-ncp-coherence.sh',
+  'scripts/check-ncp-headless-boundary.mjs',
+  'scripts/ncp-release-identities.tsv',
   'scripts/check-plant-authority-boundary.mjs',
   'scripts/check-production-authority-boundary.mjs',
   'scripts/lib/production-vendor-boundary.mjs',
   'scripts/test-production-authority-boundary.mjs',
   'scripts/test-production-vendor-boundary.mjs',
+  'scripts/test-ncp-headless-boundary.mjs',
+  'scripts/test-ncp-coherence.sh',
 ])
 const REQUIRED_PRODUCTION_EXTENSIONS = new Set([
   '.action',
@@ -162,6 +170,7 @@ const PLANT_AUTHORITY_MANIFEST = 'src-tauri/crates/plant-authority/Cargo.toml'
 const REQUIRED_CONDITIONAL_EXECUTABLE_INPUTS = new Map([
   ['.cargo/config.toml', 'cargo'],
   ['.cargo/config', 'cargo'],
+  ['src-tauri/crates/ncp-headless/build.rs', 'cargo'],
   ['src-tauri/crates/plant-authority/build.rs', 'cargo'],
   ['vite.config.js', 'vite'],
   ['vite.config.mjs', 'vite'],
@@ -1372,7 +1381,7 @@ function verifyTestEvidence(inventory, getSource) {
     assertString(evidence.locator.selector, `${evidence.id}.locator.selector`)
     const isCheckedTestSource =
       /(?:__tests__|\.(?:test|spec)\.|\.rs$)/.test(evidence.locator.file) ||
-      evidence.locator.file === 'scripts/test-plant-frame-conventions.mjs'
+      /^scripts\/test-[A-Za-z0-9._-]+\.(?:c?js|mjs|py|sh)$/.test(evidence.locator.file)
     assert(isCheckedTestSource, `${evidence.id} locator is not a checked test source`)
     assert(
       getSource(evidence.locator.file).includes(evidence.locator.selector),

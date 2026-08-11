@@ -8,6 +8,7 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useDraggablePanel } from '../hooks/useDraggablePanel'
 import { PANEL_POSITIONS } from './panelPositions'
+import type { DiagnosticsStatus } from '../lib/diagnostics'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -26,10 +27,8 @@ interface PerformancePanelProps {
   data: PerformanceData | null
   /** History of performance data for sparkline */
   history: PerformanceData[]
-  /** Maximum history length */
-  maxHistory?: number
-  /** Whether CoreML is ready */
-  isReady: boolean
+  /** Current native-backend state */
+  status: DiagnosticsStatus
   /** Current error if any */
   error: string | null
   /** Backend name */
@@ -85,7 +84,14 @@ function Sparkline({
   }, [data, height, providedMax])
 
   return (
-    <svg width={width} height={height} className="opacity-80" style={{ overflow: 'visible' }}>
+    <svg
+      width={width}
+      height={height}
+      className="opacity-80"
+      style={{ overflow: 'visible' }}
+      aria-hidden="true"
+      focusable="false"
+    >
       {/* Grid lines */}
       <line
         x1={0}
@@ -182,33 +188,36 @@ function Stat({ label, value, unit, color = 'text-emerald-400', small = false }:
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface StatusIndicatorProps {
-  isReady: boolean
+  status: DiagnosticsStatus
   error: string | null
 }
 
-function StatusIndicator({ isReady, error }: StatusIndicatorProps) {
-  if (error) {
-    return (
-      <div className="flex items-center gap-1.5">
-        <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-        <span className="text-[1em] text-red-400 uppercase tracking-wider">Error</span>
-      </div>
-    )
-  }
-
-  if (!isReady) {
-    return (
-      <div className="flex items-center gap-1.5">
-        <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
-        <span className="text-[1em] text-yellow-400 uppercase tracking-wider">Loading</span>
-      </div>
-    )
-  }
+function StatusIndicator({ status, error }: StatusIndicatorProps) {
+  const effectiveStatus: DiagnosticsStatus = error ? 'error' : status
+  const presentation = {
+    ready: { label: 'Ready', dot: 'bg-emerald-500', text: 'text-emerald-400' },
+    loading: {
+      label: 'Loading',
+      dot: 'bg-yellow-500 animate-pulse',
+      text: 'text-yellow-400',
+    },
+    initializing: {
+      label: 'Initializing',
+      dot: 'bg-yellow-500 animate-pulse',
+      text: 'text-yellow-400',
+    },
+    busy: { label: 'Busy', dot: 'bg-yellow-500', text: 'text-yellow-400' },
+    unavailable: { label: 'Unavailable', dot: 'bg-gray-500', text: 'text-gray-400' },
+    unknown: { label: 'Unknown', dot: 'bg-gray-500', text: 'text-gray-400' },
+    error: { label: 'Error', dot: 'bg-red-500', text: 'text-red-400' },
+  }[effectiveStatus]
 
   return (
-    <div className="flex items-center gap-1.5">
-      <div className="w-2 h-2 rounded-full bg-emerald-500" />
-      <span className="text-[1em] text-emerald-400 uppercase tracking-wider">Ready</span>
+    <div className="flex items-center gap-1.5" role="status">
+      <div aria-hidden="true" className={`w-2 h-2 rounded-full ${presentation.dot}`} />
+      <span className={`text-[1em] uppercase tracking-wider ${presentation.text}`}>
+        {presentation.label}
+      </span>
     </div>
   )
 }
@@ -220,12 +229,13 @@ function StatusIndicator({ isReady, error }: StatusIndicatorProps) {
 export function PerformancePanel({
   data,
   history,
-  isReady,
+  status,
   error,
   backend = 'Unknown',
   backendDetail,
   initiallyExpanded = true,
 }: PerformancePanelProps) {
+  const backendReady = status === 'ready' && error === null
   const [isExpanded, setIsExpanded] = useState(initiallyExpanded)
 
   // Use combined draggable panel hook
@@ -261,7 +271,7 @@ export function PerformancePanel({
 
     const sorted = [...inferenceTimes].sort((a, b) => a - b)
     const avg = inferenceTimes.reduce((a, b) => a + b, 0) / inferenceTimes.length
-    const p95Index = Math.floor(sorted.length * 0.95)
+    const p95Index = Math.max(0, Math.ceil(sorted.length * 0.95) - 1)
 
     return {
       avg: Math.round(avg * 100) / 100,
@@ -289,6 +299,13 @@ export function PerformancePanel({
   return (
     <div
       ref={elementRef}
+      data-floating-panel="performance"
+      data-floating-panel-side="right"
+      data-floating-panel-slot={PANEL_POSITIONS.performance.magnifiedSlot}
+      data-panel-expanded={isExpanded ? 'true' : 'false'}
+      aria-label="Performance panel"
+      role="region"
+      tabIndex={0}
       className="absolute top-0 right-3 z-50"
       style={panelStyle}
       onMouseDown={handleMouseDown}
@@ -300,39 +317,48 @@ export function PerformancePanel({
           ${isExpanded ? 'w-72' : 'w-auto'}
         `}
       >
-        {/* Header - Drag Handle */}
-        <button
-          type="button"
+        {/* Header: keep pointer dragging separate from keyboard disclosure. */}
+        <div
           data-drag-handle
-          className="flex w-full cursor-grab select-none items-center justify-between border-b border-gray-700/50 px-3 py-2 text-left hover:bg-gray-800/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-emerald-400"
-          onClick={handleHeaderClick}
-          aria-expanded={isExpanded}
-          aria-controls="performance-panel-content"
-          aria-label={isExpanded ? 'Collapse performance panel' : 'Expand performance panel'}
+          data-performance-header
+          className="flex w-full cursor-grab select-none items-stretch border-b border-gray-700/50 hover:bg-gray-800/30"
         >
-          <div className="flex items-center gap-2">
-            <svg
-              className="w-4 h-4 text-emerald-500"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-              />
-            </svg>
-            <span className="text-[1.25em] font-medium text-gray-300 uppercase tracking-wider">
-              Performance
+          <span aria-hidden="true" className="flex cursor-grab items-center px-1 text-gray-500">
+            ⋮
+          </span>
+          <button
+            type="button"
+            className="flex min-w-0 flex-1 items-center gap-2 px-2 py-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-emerald-400"
+            onClick={handleHeaderClick}
+            aria-expanded={isExpanded}
+            aria-controls="performance-panel-content"
+            aria-label={isExpanded ? 'Collapse performance panel' : 'Expand performance panel'}
+          >
+            <span className="flex min-w-0 flex-1 items-center gap-2">
+              <svg
+                aria-hidden="true"
+                focusable="false"
+                className="w-4 h-4 text-emerald-500"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                />
+              </svg>
+              <span className="text-[1.25em] font-medium text-gray-300 uppercase tracking-wider">
+                Performance
+              </span>
             </span>
-          </div>
 
-          <div className="flex items-center gap-3">
-            <StatusIndicator isReady={isReady} error={error} />
             <svg
-              className={`w-4 h-4 text-gray-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+              aria-hidden="true"
+              focusable="false"
+              className={`w-4 h-4 shrink-0 text-gray-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -344,15 +370,24 @@ export function PerformancePanel({
                 d="M19 9l-7 7-7-7"
               />
             </svg>
+          </button>
+          <div data-performance-status className="flex items-center pr-2">
+            <StatusIndicator status={status} error={error} />
           </div>
-        </button>
+        </div>
 
         {/* Expanded Content */}
         {isExpanded && (
           <div id="performance-panel-content" className="p-3 space-y-3">
             {/* Backend Badge */}
             <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 text-[1em] font-medium bg-emerald-900/50 text-emerald-400 rounded uppercase tracking-wider">
+              <span
+                className={`px-2 py-0.5 text-[1em] font-medium rounded uppercase tracking-wider ${
+                  backendReady
+                    ? 'bg-emerald-900/50 text-emerald-400'
+                    : 'bg-gray-800/70 text-gray-300'
+                }`}
+              >
                 {backend}
               </span>
               {backendDetail && <span className="text-[1em] text-gray-500">{backendDetail}</span>}

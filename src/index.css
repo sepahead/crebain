@@ -16,31 +16,155 @@
 
   /* UI Scale - controlled by React state */
   --ui-scale: 1;
+  --viewer-primary-bar-height: max(44px, calc(38px * var(--ui-scale)));
+  --viewer-status-bar-height: max(20px, calc(16px * var(--ui-scale)));
+  --viewer-footer-height: max(36px, calc(21px * var(--ui-scale)));
 }
 
 /* Scaled UI panel text sizes */
 .ui-panel {
-  font-size: calc(8px * var(--ui-scale));
+  font-size: calc(12px * var(--ui-scale));
 }
 
 .ui-text-xs {
-  font-size: calc(6px * var(--ui-scale));
-}
-
-.ui-text-sm {
-  font-size: calc(7px * var(--ui-scale));
-}
-
-.ui-text-base {
-  font-size: calc(8px * var(--ui-scale));
-}
-
-.ui-text-lg {
   font-size: calc(9px * var(--ui-scale));
 }
 
+.ui-text-sm {
+  font-size: calc(10.5px * var(--ui-scale));
+}
+
+.ui-text-base {
+  font-size: calc(12px * var(--ui-scale));
+}
+
+.ui-text-lg {
+  font-size: calc(13.5px * var(--ui-scale));
+}
+
 .ui-text-xl {
-  font-size: calc(10px * var(--ui-scale));
+  font-size: calc(15px * var(--ui-scale));
+}
+
+/*
+ * Under viewport or scale pressure, free-floating panels cannot all remain
+ * reachable. Assign them to two bounded rails. Each panel scrolls within its
+ * own slot, so one panel never hides another.
+ */
+:root[data-ui-layout='docked'] {
+  --magnified-panel-top: calc(
+    var(--viewer-primary-bar-height) + var(--viewer-status-bar-height) + 16px
+  );
+  --magnified-panel-bottom: calc(var(--viewer-footer-height) + 16px);
+  --magnified-panel-gap: 8px;
+  /* Keep a usable center lane for camera details, feeds, and the event log. */
+  --magnified-panel-width: min(calc(50vw - 152px), calc(288px * var(--ui-scale, 1)));
+  --magnified-center-width: min(
+    400px,
+    calc(100vw - var(--magnified-panel-width) - var(--magnified-panel-width) - 48px)
+  );
+  /*
+   * Reserve the scaled chrome, two rail gaps, and a small rounding margin.
+   * This linear form avoids CSS level-4 division and stays conservative from
+   * 80% through 200% scale.
+   */
+  --magnified-panel-slot-height: calc(33.333333vh - 40.333333px - calc(12px * var(--ui-scale)));
+}
+
+:root[data-ui-layout='docked'] [data-floating-panel] {
+  bottom: auto !important;
+  box-sizing: border-box;
+  max-height: var(--magnified-panel-slot-height) !important;
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+  transform: none !important;
+  width: var(--magnified-panel-width) !important;
+}
+
+:root[data-ui-layout='docked'] [data-floating-panel] > :first-child {
+  box-sizing: border-box;
+  max-width: none;
+  width: 100% !important;
+}
+
+:root[data-ui-layout='docked'] [data-floating-panel-side='left'] {
+  left: 12px !important;
+  right: auto !important;
+}
+
+:root[data-ui-layout='docked'] [data-floating-panel-side='right'] {
+  left: auto !important;
+  right: 12px !important;
+}
+
+:root[data-ui-layout='docked'] [data-floating-panel-slot='0'] {
+  top: var(--magnified-panel-top) !important;
+}
+
+:root[data-ui-layout='docked'] [data-floating-panel-slot='1'] {
+  top: calc(
+    var(--magnified-panel-top) + var(--magnified-panel-slot-height) + var(--magnified-panel-gap)
+  ) !important;
+}
+
+:root[data-ui-layout='docked'] [data-floating-panel-slot='2'] {
+  top: calc(
+    var(--magnified-panel-top) + var(--magnified-panel-slot-height) +
+      var(--magnified-panel-slot-height) + var(--magnified-panel-gap) + var(--magnified-panel-gap)
+  ) !important;
+}
+
+:root[data-ui-layout='docked'] [data-drag-handle] {
+  cursor: default !important;
+}
+
+:root [data-viewer-overlay-rail] {
+  display: contents;
+}
+
+:root[data-ui-layout='docked'] [data-viewer-overlay-rail] {
+  position: absolute;
+  z-index: 40;
+  top: var(--magnified-panel-top);
+  bottom: var(--magnified-panel-bottom);
+  left: 50% !important;
+  box-sizing: border-box;
+  display: flex;
+  width: var(--magnified-center-width);
+  flex-direction: column;
+  gap: var(--magnified-panel-gap);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  transform: translateX(-50%);
+}
+
+:root[data-ui-layout='docked'] [data-viewer-overlay-rail] > [data-viewer-overlay] {
+  position: static !important;
+  inset: auto !important;
+  box-sizing: border-box;
+  width: 100% !important;
+  max-width: none !important;
+  flex: 0 0 auto;
+  transform: none !important;
+}
+
+:root[data-ui-layout='docked'] [data-viewer-overlay='camera-feeds'] [data-feed-list] {
+  flex-wrap: nowrap !important;
+  justify-content: flex-start !important;
+  max-width: none !important;
+  width: max-content;
+}
+
+:root[data-ui-scale-layout='magnified'] [data-performance-header] {
+  flex-wrap: wrap;
+}
+
+:root[data-ui-scale-layout='magnified'] [data-performance-status] {
+  flex-basis: 100%;
+  justify-content: flex-end;
+  border-top: 1px solid rgb(55 65 81 / 0.5);
+  padding: 0.25em 0.5em;
 }
 
 html,

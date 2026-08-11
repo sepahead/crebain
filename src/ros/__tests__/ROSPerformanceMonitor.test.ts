@@ -2,10 +2,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   createPerformanceMonitor,
   MAX_PERFORMANCE_LATENCY_MS,
+  MAX_PERFORMANCE_ALERTS_PER_CHECK,
   MAX_PERFORMANCE_MESSAGE_BYTES,
+  MAX_PERFORMANCE_MESSAGES_PER_SECOND,
   MAX_PERFORMANCE_SAMPLES_PER_TOPIC,
   MAX_PERFORMANCE_TOPICS,
   MAX_PERFORMANCE_TOPIC_LENGTH,
+  MAX_PERFORMANCE_WINDOW_MS,
+  PERFORMANCE_ALERT_COOLDOWN_MS,
 } from '../ROSPerformanceMonitor'
 
 describe('ROSPerformanceMonitor', () => {
@@ -38,16 +42,21 @@ describe('ROSPerformanceMonitor', () => {
       })
     )
     expect(monitor.getAllTopicStats()).toHaveLength(1)
-    expect(monitor.getConnectionQuality()).toEqual(expect.objectContaining({
-      avgLatencyMs: 30,
-      droppedMessages: 0,
-    }))
+    expect(monitor.getConnectionQuality()).toEqual(
+      expect.objectContaining({
+        avgLatencyMs: 30,
+        droppedMessages: 0,
+      })
+    )
   })
 
   it('emits high latency and message gap alerts', () => {
     vi.useFakeTimers()
     vi.setSystemTime(10_000)
-    const monitor = createPerformanceMonitor({ highLatencyThresholdMs: 50, messageGapThresholdMs: 100 })
+    const monitor = createPerformanceMonitor({
+      highLatencyThresholdMs: 50,
+      messageGapThresholdMs: 100,
+    })
     const alert = vi.fn()
     monitor.onAlert(alert)
 
@@ -55,16 +64,22 @@ describe('ROSPerformanceMonitor', () => {
     vi.advanceTimersByTime(150)
     monitor.recordMessage('/pose', 10, Date.now() - 10)
 
-    expect(alert).toHaveBeenNthCalledWith(1, expect.objectContaining({
-      type: 'high_latency',
-      topic: '/pose',
-      severity: 'warning',
-    }))
-    expect(alert).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      type: 'message_gap',
-      topic: '/pose',
-      severity: 'warning',
-    }))
+    expect(alert).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        type: 'high_latency',
+        topic: '/pose',
+        severity: 'warning',
+      })
+    )
+    expect(alert).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        type: 'message_gap',
+        topic: '/pose',
+        severity: 'warning',
+      })
+    )
     expect(monitor.getDroppedMessageCount()).toBe(1)
   })
 
@@ -94,10 +109,86 @@ describe('ROSPerformanceMonitor', () => {
     await vi.advanceTimersByTimeAsync(1_000)
     monitor.stop()
 
-    expect(alert).toHaveBeenCalledWith(expect.objectContaining({
-      type: 'low_throughput',
-      topic: '/model_states',
-    }))
+    expect(alert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'low_throughput',
+        topic: '/model_states',
+      })
+    )
+  })
+
+  it('throttles repeated topic alerts and bounds each periodic alert pass', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(25_000)
+    const monitor = createPerformanceMonitor({
+      highLatencyThresholdMs: 10,
+      maxSamplesPerTopic: 1,
+      windowSizeMs: 100,
+    })
+    const alert = vi.fn()
+    monitor.onAlert(alert)
+
+    monitor.recordMessage('/camera', 1)
+    monitor.recordLatency('/camera', 20)
+    monitor.recordLatency('/camera', 30)
+    expect(alert.mock.calls.filter(([value]) => value.type === 'high_latency')).toHaveLength(1)
+
+    vi.advanceTimersByTime(PERFORMANCE_ALERT_COOLDOWN_MS)
+    monitor.recordLatency('/camera', 40)
+    expect(alert.mock.calls.filter(([value]) => value.type === 'high_latency')).toHaveLength(2)
+
+    for (let index = 0; index < 100; index++) {
+      monitor.recordMessage(`/stale_${index}`, 1)
+    }
+    alert.mockClear()
+    monitor.start()
+    await vi.advanceTimersByTimeAsync(4_000)
+    monitor.stop()
+
+    const periodicAlerts = alert.mock.calls.map(
+      ([value]) => value as { timestamp: number; type: string; topic?: string }
+    )
+    const alertsPerPass = new Map<number, number>()
+    for (const value of periodicAlerts) {
+      alertsPerPass.set(value.timestamp, (alertsPerPass.get(value.timestamp) ?? 0) + 1)
+    }
+    expect(
+      [...alertsPerPass.values()].every((count) => count <= MAX_PERFORMANCE_ALERTS_PER_CHECK)
+    ).toBe(true)
+    expect(
+      new Set(
+        periodicAlerts
+          .filter((value) => value.type === 'low_throughput' && value.topic?.startsWith('/stale_'))
+          .map((value) => value.topic)
+      ).size
+    ).toBe(100)
+  })
+
+  it('rotates stale-topic alert work past the cooldown boundary', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(27_000)
+    const monitor = createPerformanceMonitor({
+      maxSamplesPerTopic: 1,
+      windowSizeMs: 100,
+    })
+    const alert = vi.fn()
+    monitor.onAlert(alert)
+
+    for (let index = 0; index < 200; index++) {
+      monitor.recordMessage(`/stale_fair_${index}`, 1)
+    }
+
+    monitor.start()
+    await vi.advanceTimersByTimeAsync(PERFORMANCE_ALERT_COOLDOWN_MS + 2_000)
+    monitor.stop()
+
+    const reportedTopics = new Set(
+      alert.mock.calls
+        .map(([value]) => value as { type: string; topic?: string })
+        .filter((value) => value.type === 'low_throughput')
+        .map((value) => value.topic)
+    )
+    expect(reportedTopics.size).toBe(200)
   })
 
   it('expires frozen traffic from rolling health while retaining lifetime totals', () => {
@@ -157,6 +248,7 @@ describe('ROSPerformanceMonitor', () => {
     monitor.recordLatency('/pose', 20)
     monitor.recordLatency('/pose', -1)
     monitor.recordLatency('/pose', Number.POSITIVE_INFINITY)
+    monitor.recordLatency('/pose/', 5)
 
     expect(monitor.getTopicStats('/pose')).toEqual(
       expect.objectContaining({ avgLatencyMs: 20, minLatencyMs: 20, maxLatencyMs: 20 })
@@ -183,6 +275,47 @@ describe('ROSPerformanceMonitor', () => {
     expect(vi.getTimerCount()).toBe(0)
   })
 
+  it('counts only active monitor time across stop, restart, and reset', () => {
+    vi.useFakeTimers()
+    const monitor = createPerformanceMonitor()
+
+    vi.advanceTimersByTime(250)
+    expect(monitor.getUptimeSeconds()).toBe(0)
+
+    monitor.start()
+    vi.advanceTimersByTime(400)
+    monitor.stop()
+    vi.advanceTimersByTime(600)
+    expect(monitor.getUptimeSeconds()).toBe(0.4)
+
+    monitor.start()
+    vi.advanceTimersByTime(100)
+    expect(monitor.getUptimeSeconds()).toBe(0.5)
+
+    monitor.reset()
+    expect(monitor.getUptimeSeconds()).toBe(0)
+    vi.advanceTimersByTime(250)
+    expect(monitor.getConnectionQuality().uptimeSeconds).toBe(0.25)
+    monitor.stop()
+  })
+
+  it('does not inflate retained throughput when the monitor restarts', () => {
+    vi.useFakeTimers()
+    const monitor = createPerformanceMonitor({ windowSizeMs: 10_000 })
+
+    monitor.start()
+    vi.advanceTimersByTime(1_000)
+    monitor.recordMessage('/camera', 100)
+    monitor.stop()
+    vi.advanceTimersByTime(1_000)
+    monitor.start()
+
+    expect(monitor.getTopicStats('/camera')).toEqual(
+      expect.objectContaining({ messagesPerSecond: 0.5, bytesPerSecond: 50 })
+    )
+    monitor.stop()
+  })
+
   it('resets statistics and supports config updates', () => {
     const monitor = createPerformanceMonitor({ highLatencyThresholdMs: 100 })
 
@@ -197,7 +330,7 @@ describe('ROSPerformanceMonitor', () => {
 
   it('rejects invalid configuration atomically', () => {
     expect(() => createPerformanceMonitor({ windowSizeMs: 0 })).toThrow(
-      'Performance window size must be a positive safe integer'
+      'Performance window size must be an integer from 1'
     )
     expect(() => createPerformanceMonitor({ maxSamplesPerTopic: 1.5 })).toThrow(
       `Maximum samples per topic must be an integer from 1 to ${MAX_PERFORMANCE_SAMPLES_PER_TOPIC}`
@@ -212,11 +345,20 @@ describe('ROSPerformanceMonitor', () => {
     ).toThrow(
       `High latency threshold must be between 0 and ${MAX_PERFORMANCE_LATENCY_MS} milliseconds`
     )
+    expect(() => createPerformanceMonitor({ windowSizeMs: MAX_PERFORMANCE_WINDOW_MS + 1 })).toThrow(
+      'Performance window size'
+    )
+    expect(() =>
+      createPerformanceMonitor({ messageGapThresholdMs: MAX_PERFORMANCE_WINDOW_MS + 1 })
+    ).toThrow('Message gap threshold')
+    expect(() =>
+      createPerformanceMonitor({ minMessagesPerSecond: MAX_PERFORMANCE_MESSAGES_PER_SECOND + 1 })
+    ).toThrow('Minimum message rate')
 
     const monitor = createPerformanceMonitor()
     const original = monitor.getConfig()
     expect(() => monitor.setConfig({ minMessagesPerSecond: Number.NaN })).toThrow(
-      'Minimum message rate must be a finite non-negative number'
+      'Minimum message rate must be between 0'
     )
     expect(monitor.getConfig()).toBe(original)
   })
@@ -258,8 +400,16 @@ describe('ROSPerformanceMonitor', () => {
     const stats = monitor.getTopicStats('/camera')
     const quality = monitor.getConnectionQuality()
     expect(stats).not.toBeNull()
-    expect(Object.values(stats ?? {}).filter((value) => typeof value === 'number').every(Number.isFinite)).toBe(true)
-    expect(Object.values(quality).filter((value) => typeof value === 'number').every(Number.isFinite)).toBe(true)
+    expect(
+      Object.values(stats ?? {})
+        .filter((value) => typeof value === 'number')
+        .every(Number.isFinite)
+    ).toBe(true)
+    expect(
+      Object.values(quality)
+        .filter((value) => typeof value === 'number')
+        .every(Number.isFinite)
+    ).toBe(true)
     expect(stats?.avgLatencyMs).toBe(MAX_PERFORMANCE_LATENCY_MS)
   })
 
@@ -328,23 +478,61 @@ describe('ROSPerformanceMonitor', () => {
     )
   })
 
-  it('clamps uptime when the wall clock moves backwards', () => {
+  it('clamps interval time without manufacturing epoch latency when the wall clock moves backwards', () => {
     vi.useFakeTimers()
     vi.setSystemTime(80_000)
-    const monitor = createPerformanceMonitor()
+    const monitor = createPerformanceMonitor({ highLatencyThresholdMs: 500 })
     const alert = vi.fn()
     monitor.onAlert(alert)
     monitor.recordMessage('/camera', 1)
     vi.setSystemTime(79_000)
-    monitor.recordMessage('/camera', 1)
+    monitor.recordMessage('/camera', 1, 78_900)
     vi.setSystemTime(80_000)
 
     expect(monitor.getUptimeSeconds()).toBe(0)
     expect(monitor.getConnectionQuality().uptimeSeconds).toBe(0)
     expect(monitor.getTopicStats('/camera')).toEqual(
-      expect.objectContaining({ messageCount: 2, windowMessageCount: 2 })
+      expect.objectContaining({
+        messageCount: 2,
+        windowMessageCount: 2,
+        avgLatencyMs: 100,
+      })
     )
     expect(monitor.getDroppedMessageCount()).toBe(0)
     expect(alert).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'message_gap' }))
+    expect(alert).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'high_latency' }))
+  })
+
+  it('keeps duration statistics stable across a forward wall-clock correction', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(90_000)
+    const monitor = createPerformanceMonitor({ messageGapThresholdMs: 100 })
+    monitor.recordMessage('/camera', 1)
+
+    vi.setSystemTime(9_000_000)
+    monitor.recordMessage('/camera', 1)
+
+    expect(monitor.getDroppedMessageCount()).toBe(0)
+    expect(monitor.getUptimeSeconds()).toBe(0)
+    expect(monitor.getTopicStats('/camera')).toEqual(
+      expect.objectContaining({ messageCount: 2, windowMessageCount: 2 })
+    )
+  })
+
+  it('publishes immutable alerts so one observer cannot corrupt another', () => {
+    const monitor = createPerformanceMonitor({ highLatencyThresholdMs: 1 })
+    const laterObserver = vi.fn()
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    monitor.onAlert((alert) => {
+      ;(alert as { topic?: string }).topic = '/corrupted'
+    })
+    monitor.onAlert(laterObserver)
+
+    monitor.recordLatency('/camera', 2)
+
+    expect(laterObserver).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'high_latency', topic: '/camera' })
+    )
+    errorSpy.mockRestore()
   })
 })

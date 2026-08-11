@@ -1,11 +1,15 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ActionBuffer, NCP_VERSION } from '@sepahead/ncp'
 import {
+  assertDevNcpEntityCapacity,
   DevNcpCommandStream,
+  MAX_DEV_NCP_ENTITIES,
+  MAX_DEV_NCP_KINEMATIC_SCALE,
   boundedDevNcpElapsed,
   commitSimulationPauseState,
   ingestDevNcpCommand,
   normalizeDevNcpCommand,
+  validateDevNcpKinematicSpawn,
 } from '../useDroneController'
 
 // Wire-0.8 identity fixtures: canonical lowercase UUIDv4 stream.epoch /
@@ -127,6 +131,55 @@ describe('dev NCP command ingress', () => {
     ).toThrow(/short string/)
   })
 
+  it('rejects a sixty-fifth channel before it reads that channel value', () => {
+    const channels: Record<string, unknown> = {
+      velocity_setpoint: { data: [1, 2, 3], unit: 'm/s' },
+    }
+    for (let index = 1; index < 64; index += 1) {
+      channels[`aux_${index}`] = { data: [index] }
+    }
+    let overflowValueRead = false
+    Object.defineProperty(channels, 'overflow', {
+      enumerable: true,
+      get() {
+        overflowValueRead = true
+        return { data: [0] }
+      },
+    })
+
+    expect(() => normalizeDevNcpCommand({ ...activeCommand(), channels })).toThrow(
+      /exceeds 64 channels/
+    )
+    expect(overflowValueRead).toBe(false)
+  })
+
+  it('strips irrelevant fail-safe payloads before upstream wire validation', () => {
+    let discardedPayloadRead = false
+    const command = activeCommand()
+    command.mode = 'hold'
+    Object.defineProperties(command, {
+      channels: {
+        enumerable: true,
+        get() {
+          discardedPayloadRead = true
+          throw new Error('discarded channels must not be read')
+        },
+      },
+      horizon: {
+        enumerable: true,
+        get() {
+          discardedPayloadRead = true
+          throw new Error('discarded horizon must not be read')
+        },
+      },
+    })
+
+    const normalized = normalizeDevNcpCommand(command)
+    expect(normalized.mode).toBe('hold')
+    expect(normalized.channels).toEqual({})
+    expect(discardedPayloadRead).toBe(false)
+  })
+
   it('bounds and validates predictive horizons', () => {
     const step = { velocity_setpoint: { data: [0.5, 0, 0], unit: 'm/s' } }
     expect(() =>
@@ -245,5 +298,37 @@ describe('dev NCP command ingress', () => {
     expect(boundedDevNcpElapsed(10.01, 10.02)).toBeCloseTo(0.01)
     expect(boundedDevNcpElapsed(10, 9)).toBe(0)
     expect(boundedDevNcpElapsed(10, 20)).toBe(0.5)
+  })
+
+  it('rejects scene-poisoning kinematic spawn transforms', () => {
+    expect(() => validateDevNcpKinematicSpawn(0, 1.5, 0, 2.5)).not.toThrow()
+    expect(() => validateDevNcpKinematicSpawn(0, 1.5, 0, MAX_DEV_NCP_KINEMATIC_SCALE)).not.toThrow()
+
+    for (const values of [
+      [Number.NaN, 1.5, 0, 2.5],
+      [0, Number.POSITIVE_INFINITY, 0, 2.5],
+      [0, 1.5, Number.NEGATIVE_INFINITY, 2.5],
+      [0, 1.5, 0, 0],
+      [0, 1.5, 0, -1],
+      [0, 1.5, 0, MAX_DEV_NCP_KINEMATIC_SCALE + 1],
+    ] as const) {
+      const [x, y, z, scale] = values
+      expect(() => validateDevNcpKinematicSpawn(x, y, z, scale)).toThrow()
+    }
+  })
+
+  it('shares the scene entity ceiling with the development NCP harness', () => {
+    expect(() => assertDevNcpEntityCapacity(0, 0)).not.toThrow()
+    expect(() => assertDevNcpEntityCapacity(MAX_DEV_NCP_ENTITIES - 1, 0)).not.toThrow()
+    expect(() => assertDevNcpEntityCapacity(1, MAX_DEV_NCP_ENTITIES - 1)).toThrow(/entity limit/)
+
+    for (const [kinematicCount, physicsCount] of [
+      [-1, 0],
+      [0, -1],
+      [1.5, 0],
+      [0, Number.MAX_SAFE_INTEGER + 1],
+    ]) {
+      expect(() => assertDevNcpEntityCapacity(kinematicCount, physicsCount)).toThrow()
+    }
   })
 })

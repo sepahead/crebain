@@ -56,6 +56,7 @@ describe('route limits', () => {
       })
     ).toBe(true)
     expect(isFiniteRouteWaypoint({ ...validWaypoint, altitude: Number.NaN })).toBe(false)
+    expect(isFiniteRouteWaypoint({ ...validWaypoint, altitude: 1 })).toBe(false)
     expect(
       isFiniteRouteWaypoint({
         ...validWaypoint,
@@ -101,6 +102,16 @@ describe('route limits', () => {
           altitude: MAX_ROUTE_ALTITUDE_M + 1,
         },
         { maxAltitude: Number.MAX_VALUE }
+      )
+    ).toBe(false)
+    expect(isFiniteRouteWaypoint(validWaypoint, { maxAltitude: Number.NaN })).toBe(false)
+    expect(parseWaypointInput({ x: '0', y: '0', z: '0' }, { maxAltitude: Number.NaN })).toBeNull()
+    expect(isAdmissibleRouteWaypoints([], { maxAltitude: Number.NaN })).toBe(false)
+    expect(isFiniteRouteWaypoint(validWaypoint, { maxSpeedMultiplier: Number.NaN })).toBe(false)
+    expect(
+      isFiniteRouteWaypoint(
+        { position: { x: 0, y: 1, z: 0 }, altitude: 1 },
+        { maxAltitude: Number.NaN }
       )
     ).toBe(false)
   })

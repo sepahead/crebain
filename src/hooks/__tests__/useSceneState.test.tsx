@@ -221,4 +221,23 @@ describe('useSceneState helpers', () => {
 
     await act(async () => root.unmount())
   })
+
+  it('does not initialize or write scene state in Engram embedded mode', async () => {
+    const initialState = structuredClone(sceneStateManager.getState())
+    window.history.replaceState({}, '', '/?engramHost=1')
+    const root = await renderHarness()
+
+    expect(() =>
+      hook.saveCurrentState(
+        'Blocked Scene',
+        [],
+        [],
+        { position: new THREE.Vector3(), target: new THREE.Vector3() },
+        {}
+      )
+    ).toThrow('Scene mutation is disabled in Engram embedded mode')
+    expect(sceneStateManager.getState()).toEqual(initialState)
+
+    await act(async () => root.unmount())
+  })
 })

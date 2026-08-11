@@ -61,8 +61,35 @@ type IncomingCameraFrame =
 
 type PendingCameraFrame = IncomingCameraFrame & { settle: () => void }
 
+/**
+ * Receives exclusive ownership of one decoded frame.
+ *
+ * The callback must call {@link closeFrameImage} when it no longer needs an
+ * ImageBitmap-backed frame. Register at most one distinct frame callback.
+ */
 export type FrameCallback = (frame: DecodedFrame) => void
 export type CameraInfoCallback = (info: CameraInfo) => void
+
+function snapshotHeader(header: Header): Header {
+  return {
+    ...(header.seq === undefined ? {} : { seq: header.seq }),
+    stamp: { ...header.stamp },
+    frame_id: header.frame_id,
+  }
+}
+
+function snapshotCameraInfo(info: CameraInfo): CameraInfo {
+  return {
+    header: snapshotHeader(info.header),
+    height: info.height,
+    width: info.width,
+    distortion_model: info.distortion_model,
+    D: [...info.D],
+    K: [...info.K],
+    R: [...info.R],
+    P: [...info.P],
+  }
+}
 
 /**
  * Release the GPU-backed bitmap owned by a decoded frame.
@@ -97,6 +124,8 @@ export const MAX_CAMERA_DECODE_WORKERS = 2
 const MAX_BASE64_IMAGE_CHARS = Math.ceil(MAX_CAMERA_ENCODED_BYTES / 3) * 4
 const MAX_CAMERA_FORMAT_LENGTH = 64
 const MAX_CAMERA_FRAME_ID_LENGTH = 256
+const MAX_CAMERA_THROTTLE_MS = 60_000
+const MAX_CAMERA_QUEUE_LENGTH = 4
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ROS CAMERA STREAM
@@ -128,11 +157,19 @@ export class ROSCameraStream {
 
   constructor(config: Partial<CameraStreamConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config }
-    if (!Number.isSafeInteger(this.config.throttleMs) || this.config.throttleMs < 0) {
-      throw new Error('Camera throttleMs must be a safe non-negative integer')
+    if (
+      !Number.isSafeInteger(this.config.throttleMs) ||
+      this.config.throttleMs < 0 ||
+      this.config.throttleMs > MAX_CAMERA_THROTTLE_MS
+    ) {
+      throw new Error(`Camera throttleMs must be within 0-${MAX_CAMERA_THROTTLE_MS}`)
     }
-    if (!Number.isSafeInteger(this.config.queueLength) || this.config.queueLength < 0) {
-      throw new Error('Camera queueLength must be a safe non-negative integer')
+    if (
+      !Number.isSafeInteger(this.config.queueLength) ||
+      this.config.queueLength < 1 ||
+      this.config.queueLength > MAX_CAMERA_QUEUE_LENGTH
+    ) {
+      throw new Error(`Camera queueLength must be within 1-${MAX_CAMERA_QUEUE_LENGTH}`)
     }
   }
 
@@ -151,45 +188,48 @@ export class ROSCameraStream {
     this.bridge = bridge
     const generation = ++this.streamGeneration
 
-    // Subscribe to compressed image (preferred)
-    if (this.config.compressedTopic) {
-      // namespacedRosTopic yields absolute topic names even for empty or
-      // non-`/` namespaces (raw prefixing would produce invalid relative ones)
-      const topic = namespacedRosTopic(namespace, this.config.compressedTopic)
-      const unsub = bridge.subscribe<CompressedImage>(
-        topic,
-        'sensor_msgs/CompressedImage',
-        (msg) => this.enqueueFrame({ kind: 'compressed', message: msg, generation }),
-        this.config.throttleMs,
-        this.config.queueLength
-      )
-      this.unsubscribes.push(unsub)
-    }
+    try {
+      // Subscribe to compressed image (preferred)
+      if (this.config.compressedTopic) {
+        // namespacedRosTopic yields absolute topic names even for empty or
+        // non-`/` namespaces (raw prefixing would produce invalid relative ones)
+        const topic = namespacedRosTopic(namespace, this.config.compressedTopic)
+        const unsub = bridge.subscribe<CompressedImage>(
+          topic,
+          'sensor_msgs/CompressedImage',
+          (msg) => this.enqueueFrame({ kind: 'compressed', message: msg, generation }),
+          this.config.throttleMs,
+          this.config.queueLength
+        )
+        this.unsubscribes.push(unsub)
+      }
 
-    // Subscribe to raw image (fallback)
-    if (this.config.rawTopic && !this.config.compressedTopic) {
-      const topic = namespacedRosTopic(namespace, this.config.rawTopic)
-      const unsub = bridge.subscribe<Image>(
-        topic,
-        'sensor_msgs/Image',
-        (msg) => this.enqueueFrame({ kind: 'raw', message: msg, generation }),
-        this.config.throttleMs,
-        this.config.queueLength
-      )
-      this.unsubscribes.push(unsub)
-    }
+      // Subscribe to raw image (fallback)
+      if (this.config.rawTopic && !this.config.compressedTopic) {
+        const topic = namespacedRosTopic(namespace, this.config.rawTopic)
+        const unsub = bridge.subscribe<Image>(
+          topic,
+          'sensor_msgs/Image',
+          (msg) => this.enqueueFrame({ kind: 'raw', message: msg, generation }),
+          this.config.throttleMs,
+          this.config.queueLength
+        )
+        this.unsubscribes.push(unsub)
+      }
 
-    // Subscribe to camera info (intrinsics/calibration)
-    if (this.config.infoTopic) {
-      const topic = namespacedRosTopic(namespace, this.config.infoTopic)
-      const unsub = bridge.subscribe<CameraInfo>(
-        topic,
-        'sensor_msgs/CameraInfo',
-        (msg) => {
+      // Subscribe to camera info (intrinsics/calibration)
+      if (this.config.infoTopic) {
+        const topic = namespacedRosTopic(namespace, this.config.infoTopic)
+        const unsub = bridge.subscribe<CameraInfo>(topic, 'sensor_msgs/CameraInfo', (msg) => {
           if (generation === this.streamGeneration) this.handleCameraInfo(msg)
-        }
-      )
-      this.unsubscribes.push(unsub)
+        })
+        this.unsubscribes.push(unsub)
+      }
+    } catch (error) {
+      // A later declaration can fail after an earlier one succeeded. Roll the
+      // whole generation back so a failed start never leaves a live subscription.
+      this.stop()
+      throw error
     }
   }
 
@@ -200,13 +240,20 @@ export class ROSCameraStream {
     this.streamGeneration += 1
     this.pendingFrame?.settle()
     this.pendingFrame = null
-    for (const unsub of this.unsubscribes) {
-      unsub()
-    }
+    const unsubscribes = this.unsubscribes
     this.unsubscribes = []
     this.bridge = null
     this.cameraInfo = null
     this.resetStats()
+    for (const unsubscribe of unsubscribes) {
+      try {
+        unsubscribe()
+      } catch (error) {
+        // Teardown is best effort. One faulty bridge callback must not retain
+        // the other subscriptions or leave this stream in a half-stopped state.
+        log.error('ROS camera unsubscribe callback error', { error })
+      }
+    }
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -287,10 +334,11 @@ export class ROSCameraStream {
       log.warn('Dropping malformed ROS camera info')
       return
     }
-    this.cameraInfo = msg
+    const snapshot = snapshotCameraInfo(msg)
+    this.cameraInfo = snapshot
     for (const callback of this.infoCallbacks) {
       try {
-        callback(msg)
+        callback(snapshotCameraInfo(snapshot))
       } catch (error) {
         log.error('Camera info callback error', { error })
       }
@@ -336,7 +384,7 @@ export class ROSCameraStream {
         image: bitmap,
         width: bitmap.width,
         height: bitmap.height,
-        header: msg.header,
+        header: snapshotHeader(msg.header),
         decodeTimeMs: performance.now() - startTime,
         sequence: msg.header.seq ?? 0,
       }
@@ -370,7 +418,7 @@ export class ROSCameraStream {
             image: imageData,
             width,
             height,
-            header: msg.header,
+            header: snapshotHeader(msg.header),
             decodeTimeMs: performance.now() - startTime,
             sequence: msg.header.seq ?? 0,
           })
@@ -464,7 +512,7 @@ export class ROSCameraStream {
         image: bitmap,
         width,
         height,
-        header: msg.header,
+        header: snapshotHeader(msg.header),
         decodeTimeMs: performance.now() - startTime,
         sequence: msg.header.seq ?? 0,
       }
@@ -474,7 +522,7 @@ export class ROSCameraStream {
       image: imageData,
       width,
       height,
-      header: msg.header,
+      header: snapshotHeader(msg.header),
       decodeTimeMs: performance.now() - startTime,
       sequence: msg.header.seq ?? 0,
     }
@@ -558,7 +606,8 @@ export class ROSCameraStream {
     const pngSignature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
     if (bytes.length >= 24 && pngSignature.every((byte, index) => bytes[index] === byte)) {
       const ihdrLength = this.readUint32BigEndian(bytes, 8)
-      const isIhdr = bytes[12] === 0x49 && bytes[13] === 0x48 && bytes[14] === 0x44 && bytes[15] === 0x52
+      const isIhdr =
+        bytes[12] === 0x49 && bytes[13] === 0x48 && bytes[14] === 0x44 && bytes[15] === 0x52
       if (ihdrLength !== 13 || !isIhdr) return null
       return {
         mimeType: 'image/png',
@@ -607,15 +656,14 @@ export class ROSCameraStream {
     )
   }
 
-  private declaredFormatMatches(
-    format: string,
-    detected: 'image/png' | 'image/jpeg'
-  ): boolean {
+  private declaredFormatMatches(format: string, detected: 'image/png' | 'image/jpeg'): boolean {
     if (
       format.length > MAX_CAMERA_FORMAT_LENGTH ||
       Array.from(format).some((character) => {
         const codePoint = character.codePointAt(0)
-        return codePoint === undefined || codePoint <= 0x1f || (codePoint >= 0x7f && codePoint <= 0x9f)
+        return (
+          codePoint === undefined || codePoint <= 0x1f || (codePoint >= 0x7f && codePoint <= 0x9f)
+        )
       })
     ) {
       return false
@@ -752,6 +800,9 @@ export class ROSCameraStream {
    * Register callback for decoded frames
    */
   onFrame(callback: FrameCallback): () => void {
+    if (this.frameCallbacks.size > 0 && !this.frameCallbacks.has(callback)) {
+      throw new Error('A ROS camera stream permits exactly one decoded-frame owner')
+    }
     this.frameCallbacks.add(callback)
     return () => this.frameCallbacks.delete(callback)
   }
@@ -763,7 +814,11 @@ export class ROSCameraStream {
     this.infoCallbacks.add(callback)
     // Immediately call with cached info if available
     if (this.cameraInfo) {
-      callback(this.cameraInfo)
+      try {
+        callback(snapshotCameraInfo(this.cameraInfo))
+      } catch (error) {
+        log.error('Camera info callback error', { error })
+      }
     }
     return () => this.infoCallbacks.delete(callback)
   }
@@ -775,13 +830,16 @@ export class ROSCameraStream {
       closeFrameImage(frame)
       return
     }
+    let accepted = false
     for (const callback of this.frameCallbacks) {
       try {
         callback(frame)
+        accepted = true
       } catch (error) {
         log.error('Frame callback error', { error })
       }
     }
+    if (!accepted) closeFrameImage(frame)
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -808,7 +866,8 @@ export class ROSCameraStream {
     if (this.decodeWindow.length > 30) {
       this.decodeWindow.shift()
     }
-    this.stats.averageDecodeMs = this.decodeWindow.reduce((a, b) => a + b, 0) / this.decodeWindow.length
+    this.stats.averageDecodeMs =
+      this.decodeWindow.reduce((a, b) => a + b, 0) / this.decodeWindow.length
   }
 
   private resetStats(): void {
@@ -829,14 +888,14 @@ export class ROSCameraStream {
    * Get current streaming statistics
    */
   getStats(): Readonly<CameraStreamStats> {
-    return this.stats
+    return { ...this.stats }
   }
 
   /**
    * Get cached camera info
    */
   getCameraInfo(): CameraInfo | null {
-    return this.cameraInfo
+    return this.cameraInfo ? snapshotCameraInfo(this.cameraInfo) : null
   }
 }
 

@@ -25,6 +25,7 @@ import { installMockWebSocket, MockWebSocket, sentMessages } from '../../test/mo
 // Wire-0.8 identity fixtures: canonical lowercase UUIDv4 `session.generation` /
 // `stream.epoch`, carried on every post-open session-scoped frame.
 const GEN = '00000000-0000-4000-8000-0000000000a2'
+const STALE_GEN = '00000000-0000-4000-8000-0000000000a3'
 const EPOCH = '00000000-0000-4000-8000-000000000001'
 const SESSION = { generation: GEN }
 
@@ -150,6 +151,14 @@ describe('reply ncp_version guard', () => {
   it('throws on a reply that is missing ncp_version', () => {
     const reply = { kind: 'session_closed', session_id: 'session-1', ok: true }
     expect(() => assertReplyVersion(reply)).toThrow(/<absent>/)
+  })
+
+  it('reports hostile non-string versions through the stable mismatch error', () => {
+    for (const ncpVersion of [1n, Symbol('wire'), {}, null]) {
+      expect(() => assertReplyVersion({ kind: 'session_closed', ncp_version: ncpVersion })).toThrow(
+        NcpVersionMismatchError
+      )
+    }
   })
 
   it('rejects a reply that violates the scientific boundary', () => {
@@ -399,6 +408,44 @@ describe('reply ncp_version guard', () => {
         session: SESSION,
       })
     ).rejects.toThrow(/request_kind mismatch/)
+  })
+
+  it('rejects a typed error attributed to a stale session generation', async () => {
+    const staleError = guardReplyVersion(async () => ({
+      kind: 'error',
+      ncp_version: NCP_VERSION,
+      error: 'stale session',
+      request_kind: 'close_session',
+      session_id: 'session-1',
+      session: { generation: STALE_GEN },
+    }))
+    await expect(
+      staleError({
+        kind: 'close_session',
+        ncp_version: NCP_VERSION,
+        session_id: 'session-1',
+        session: SESSION,
+      })
+    ).rejects.toThrow(/error generation mismatch/)
+  })
+
+  it('rejects a success reply from a stale session generation', async () => {
+    const staleGeneration = guardReplyVersion(async () => ({
+      kind: 'session_closed',
+      ncp_version: NCP_VERSION,
+      session_id: 'session-1',
+      session: { generation: STALE_GEN },
+      ok: true,
+    }))
+
+    await expect(
+      staleGeneration({
+        kind: 'close_session',
+        ncp_version: NCP_VERSION,
+        session_id: 'session-1',
+        session: SESSION,
+      })
+    ).rejects.toThrow(/generation mismatch/)
   })
 
   it('passes a sessionless typed error to the canonical client denial path', async () => {

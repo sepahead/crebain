@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "release_target": "0.9.0",
   "generated_from": [
     {
@@ -8,11 +8,11 @@
     },
     {
       "path": "src-tauri/src/lib.rs",
-      "sha256": "8f457f4a6b15ab059789f353a1053331c2f12202c290e2bc650409b8c398ff4f"
+      "sha256": "16251fe7b2e239e34aa3131642afb8857b010fc3683c47815f1ac3da394e14cf"
     },
     {
       "path": "src-tauri/src/transport/commands.rs",
-      "sha256": "c1c384e5e4654c61062685a68b1df77ee2f3d4ad1e2c3aded62db9a7392b74a4"
+      "sha256": "afb29ada6131229b806e81d0afd30a41f08215f2cf1f5b43824825c0b64fedd7"
     },
     {
       "path": "src/lib/transportEvents.ts",
@@ -20,15 +20,15 @@
     },
     {
       "path": "src/ros/ZenohBridge.ts",
-      "sha256": "2dba8c4bc69789ec7cd33264f07de85b3740378f3caed7aa0a9fce168c3ed3e2"
+      "sha256": "06419dc6ec2e1bc5bf79550f13404c3b3be0168719c73212fb4e9bc38ff30ed9"
     },
     {
       "path": "src/ros/MessageRegistry.ts",
-      "sha256": "5cbb6570636cc3305d8f0604e9804cf39deedc4d5f4c85f2af06a614e4ffb351"
+      "sha256": "fcb253620601cadf22d8952905e0dc382674eb16e18109c2f2f48e0d12cf21fa"
     },
     {
       "path": "src/ros/types.ts",
-      "sha256": "d94729fe7a5b0dca82e582d884c06147d37db39be5a6cd5f8511a85970e295b2"
+      "sha256": "83d0f87e1e6e07484607e50bd460e4b76e226772eb9698023396b244f49e5e19"
     }
   ],
   "transport_identity_contract": {
@@ -48,6 +48,20 @@
         "transport_unsubscribe"
       ],
       "camera_ready_event_field": "generation"
+    },
+    "subscription_identity": {
+      "wire_encoding": "canonical-positive-u64-decimal-string",
+      "native_encoding": "u64",
+      "input_commands": [
+        "transport_subscribe_camera",
+        "transport_subscribe_camera_info",
+        "transport_subscribe_imu",
+        "transport_subscribe_model_states",
+        "transport_subscribe_pose",
+        "transport_unsubscribe"
+      ],
+      "non_camera_event_fields": ["generation", "subscriptionId", "data"],
+      "camera_ready_event_field": "cameraSubscriptionId"
     }
   },
   "commands": [
@@ -248,7 +262,7 @@
       "name": "crebain:transport:{bijective-escaped-validated-topic}",
       "kind": "bounded-dynamic-pattern",
       "direction": "rust-to-frontend",
-      "payload": "validated registered telemetry schema, or exact camera-ready delivery descriptor with canonical-positive-u64-decimal-string generation, deliveryId, and cameraSubscriptionId fields for image subscriptions",
+      "payload": "non-image telemetry uses an exact generation/subscriptionId/data identity envelope around a validated registered schema; image telemetry uses an exact camera-ready descriptor with canonical-positive-u64-decimal-string generation, deliveryId, and cameraSubscriptionId fields",
       "authority": "none"
     }
   ],

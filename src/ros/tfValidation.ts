@@ -73,11 +73,7 @@ export function normalizeIngressTfQuaternion(value: unknown): Quaternion | null 
   const quaternion = finiteQuaternion(value)
   if (!quaternion) return null
   const norm = Math.hypot(quaternion.x, quaternion.y, quaternion.z, quaternion.w)
-  if (
-    !Number.isFinite(norm) ||
-    norm === 0 ||
-    Math.abs(norm - 1) > TF_QUATERNION_NORM_TOLERANCE
-  ) {
+  if (!Number.isFinite(norm) || norm === 0 || Math.abs(norm - 1) > TF_QUATERNION_NORM_TOLERANCE) {
     return null
   }
   return {
@@ -134,9 +130,7 @@ export function normalizeComputedTfTransform(value: unknown): Transform | null {
   return { translation, rotation }
 }
 
-export function normalizeIngressTransformStamped(
-  value: TransformStamped
-): TransformStamped | null {
+export function normalizeIngressTransformStamped(value: TransformStamped): TransformStamped | null {
   if (!isValidTfFrameId(value.header?.frame_id) || !isValidTfFrameId(value.child_frame_id)) {
     return null
   }
@@ -144,7 +138,10 @@ export function normalizeIngressTransformStamped(
   if (!transform) return null
   return {
     ...value,
-    header: { ...value.header },
+    header: {
+      ...value.header,
+      stamp: { ...value.header.stamp },
+    },
     transform,
   }
 }

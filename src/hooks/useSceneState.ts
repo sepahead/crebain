@@ -22,6 +22,7 @@ import {
 } from '../state/SceneState'
 import type { ManagedDrone } from './useDroneController'
 import { sceneLogger as log } from '../lib/logger'
+import { assertSceneMutationAllowed, isEngramEmbeddedMode } from '../integrations/engramHost'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CAMERA TYPE DEFINITION (matches CrebainViewer)
@@ -194,6 +195,12 @@ export function useSceneState(options: UseSceneStateOptions = {}): UseSceneState
 
   // Initialize state manager on mount
   useEffect(() => {
+    if (isEngramEmbeddedMode()) {
+      sceneStateManager.disableAutosave()
+      autosaveEnabledRef.current = false
+      return
+    }
+
     // Create initial state if none exists
     if (!sceneStateManager.getState()) {
       sceneStateManager.createNew('Neue Szene')
@@ -226,6 +233,8 @@ export function useSceneState(options: UseSceneStateOptions = {}): UseSceneState
       assets: SceneAssetState[] = [],
       activeCameraId?: string
     ): SceneState => {
+      assertSceneMutationAllowed()
+
       // Serialize cameras
       const cameraStates = cameras.map(serializeCamera)
 

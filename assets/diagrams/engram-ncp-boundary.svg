@@ -1,0 +1,125 @@
+<svg xmlns="http://www.w3.org/2000/svg" xml:lang="en" viewBox="0 0 1200 800" width="1200" height="800" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="engram-ncp-title engram-ncp-desc">
+  <title id="engram-ncp-title">CREBAIN headless NCP and restricted Engram host boundaries</title>
+  <desc id="engram-ncp-desc">The separate feature-gated ncp-headless workspace package provides the external crebain-ncp-headless process without Tauri, inference, image, or plant dependencies. It requires a strict client configuration for NCP wire 0.8 and runs a bounded open, 1–4,096 steps, and close lifecycle against a compatible external wire 0.8 responder. Local self-check and validation modes do not cross the transport boundary. The separate restricted Engram UI host is read-only and has no NCP path. The current Engram native candidate uses incompatible wire 1.0, and no translation or live loop exists. A successful reply proves that one compatible responder replied. It does not identify the intended deployment receiver or prove end-to-end deployment effect, TLS, ACL, scientific validity, or deployment readiness.</desc>
+  <style>
+    * { vector-effect: non-scaling-stroke; }
+    .canvas { fill: #f8fafc; }
+    text { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 14px; fill: #172033; text-anchor: middle; }
+    .title { font-size: 18px; font-weight: 700; letter-spacing: 2px; text-anchor: start; }
+    .subtitle { font-size: 13px; fill: #475569; text-anchor: start; }
+    .section { font-size: 14px; font-weight: 700; letter-spacing: 1.2px; text-anchor: start; }
+    .small { font-size: 13px; fill: #475569; }
+    .left { text-anchor: start; }
+    .present-text { fill: #047857; }
+    .data-text { fill: #0369a1; }
+    .conditional-text { fill: #92400e; }
+    .optional-text { fill: #6d28d9; }
+    .absent-text { fill: #b91c1c; }
+    .local-zone { fill: none; stroke: #047857; stroke-width: 1.7; }
+    .transport-zone { fill: none; stroke: #92400e; stroke-width: 1.7; stroke-dasharray: 7 5; }
+    .deployment-zone { fill: none; stroke: #b91c1c; stroke-width: 1.7; stroke-dasharray: 3 4; }
+    .surface { fill: #ffffff; stroke: #52643f; stroke-width: 1.4; }
+    .lifecycle-box { fill: #ffffff; stroke: #0369a1; stroke-width: 1.5; }
+    .check-box { fill: #ffffff; stroke: #64748b; stroke-width: 1.4; stroke-dasharray: 3 4; }
+    .absent-box { fill: #ffffff; stroke: #b91c1c; stroke-width: 1.5; }
+    .edge { fill: none; stroke: #0369a1; stroke-width: 1.6; marker-end: url(#engram-arrow-data); }
+    .transport-edge { fill: none; stroke: #92400e; stroke-width: 1.7; stroke-dasharray: 7 5; marker-end: url(#engram-arrow-conditional); }
+    .blocked-edge { fill: none; stroke: #b91c1c; stroke-width: 1.5; stroke-dasharray: 3 5; }
+    .marker-data { fill: #0369a1; }
+    .marker-conditional { fill: #92400e; }
+    .barrier { stroke: #b91c1c; stroke-width: 4; }
+    .corner { fill: none; stroke: #52643f; stroke-width: 1.8; }
+    @media (prefers-color-scheme: dark) {
+      .canvas { fill: #0d1117; }
+      text { fill: #d6dde5; }
+      .subtitle, .small { fill: #9aa7b4; }
+      .present-text { fill: #34d399; }
+      .data-text { fill: #38bdf8; }
+      .conditional-text { fill: #fbbf24; }
+      .optional-text { fill: #c4b5fd; }
+      .absent-text { fill: #f87171; }
+      .surface, .lifecycle-box, .check-box, .absent-box { fill: #111820; }
+      .local-zone { stroke: #34d399; }
+      .transport-zone, .transport-edge { stroke: #fbbf24; }
+      .deployment-zone, .absent-box, .blocked-edge, .barrier { stroke: #f87171; }
+      .surface, .corner { stroke: #87967a; }
+      .lifecycle-box, .edge { stroke: #38bdf8; }
+      .check-box { stroke: #7d8996; }
+      .marker-data { fill: #38bdf8; }
+      .marker-conditional { fill: #fbbf24; }
+    }
+  </style>
+  <defs>
+    <marker id="engram-arrow-data" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="marker-data" d="M0 0 L8 4 L0 8 Z"/></marker>
+    <marker id="engram-arrow-conditional" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="marker-conditional" d="M0 0 L8 4 L0 8 Z"/></marker>
+  </defs>
+
+  <rect class="canvas" x="0" y="0" width="1200" height="800"/>
+  <path class="corner" d="M18 42 V18 H42 M1158 18 H1182 V42 M18 758 V782 H42 M1182 758 V782 H1158"/>
+  <text class="title" x="48" y="42">CREBAIN · HEADLESS NCP + RESTRICTED ENGRAM HOST BOUNDARIES</text>
+  <text class="subtitle" x="48" y="66">DEPENDENCY-ISOLATED WORKSPACE PACKAGE · NCP WIRE 0.8 · CLAIM BOUNDARIES STAY SEPARATE</text>
+
+  <rect class="local-zone" x="40" y="96" width="1120" height="184"/>
+  <text class="section present-text" x="62" y="124">LOCAL COMPONENT EVIDENCE · NO NETWORK REQUIRED</text>
+  <rect class="check-box" x="72" y="148" width="190" height="94"/>
+  <text x="167" y="177">self-check</text>
+  <text class="small" x="167" y="201">binary invariants</text>
+  <text class="small absent-text" x="167" y="224">NO TRANSPORT EDGE</text>
+  <rect class="check-box" x="282" y="148" width="190" height="94"/>
+  <text x="377" y="177">validate</text>
+  <text class="small" x="377" y="201">bounded contract input</text>
+  <text class="small absent-text" x="377" y="224">NO RECEIVER EVIDENCE</text>
+  <rect class="check-box" x="492" y="136" width="264" height="118"/>
+  <text x="624" y="166">Restricted Engram UI host</text>
+  <text class="small" x="624" y="190">bounded context + heartbeat</text>
+  <text class="small" x="624" y="214">read-only embedded surface</text>
+  <text class="small absent-text" x="624" y="237">NO NCP PATH</text>
+  <rect class="surface" x="776" y="136" width="352" height="118"/>
+  <text class="present-text" x="952" y="166">crebain-ncp-headless</text>
+  <text class="small" x="952" y="190">separate opt-in package · feature "ncp"</text>
+  <text class="small conditional-text" x="952" y="214">strict client config · pinned NCP wire 0.8</text>
+  <text class="small" x="952" y="237">no Tauri · ORT · image · plant dependency</text>
+
+  <rect class="transport-zone" x="40" y="310" width="1120" height="286"/>
+  <text class="section conditional-text" x="62" y="338">TRANSPORT CONTRACT · ACTIVE ONLY WHEN THE EXTERNAL PROCESS RUNS</text>
+  <rect class="lifecycle-box" x="86" y="382" width="196" height="86"/>
+  <text class="data-text" x="184" y="411">OPEN</text>
+  <text class="small" x="184" y="435">one bounded session</text>
+  <text class="small" x="184" y="456">exact identity</text>
+  <path class="edge" d="M282 425 H328"/>
+  <rect class="lifecycle-box" x="336" y="382" width="222" height="86"/>
+  <text class="data-text" x="447" y="411">STEP(S)</text>
+  <text class="small" x="447" y="435">bounded request / reply</text>
+  <text class="small" x="447" y="456">1–4,096 steps</text>
+  <path class="edge" d="M558 425 H604"/>
+  <rect class="lifecycle-box" x="612" y="382" width="196" height="86"/>
+  <text class="data-text" x="710" y="411">CLOSE</text>
+  <text class="small" x="710" y="435">bounded final reply</text>
+  <text class="small" x="710" y="456">session ends</text>
+
+  <path class="transport-edge" d="M808 425 H844"/>
+  <rect class="surface" x="852" y="370" width="276" height="110"/>
+  <text class="conditional-text" x="990" y="400">Compatible NCP responder</text>
+  <text class="small" x="990" y="425">external wire 0.8 request / reply</text>
+  <text class="small" x="990" y="449">secure mode requested</text>
+  <text class="small absent-text" x="990" y="471">NOT CURRENT ENGRAM 1.0</text>
+
+  <rect class="absent-box" x="86" y="496" width="1042" height="88"/>
+  <text class="absent-text" x="607" y="524">CURRENT ENGRAM NATIVE CANDIDATE IS WIRE 1.0 · INCOMPATIBLE · NO TRANSLATION OR LIVE LOOP</text>
+  <text class="small absent-text" x="607" y="548">NO ACTION SUBSCRIPTION · NO TAURI COMMAND · NO PLANT OR FCU PATH</text>
+  <text class="small" x="607" y="572">The headless lifecycle is request / reply only. It cannot authorize or apply vehicle motion.</text>
+
+  <rect class="deployment-zone" x="40" y="626" width="1120" height="126"/>
+  <text class="section absent-text" x="62" y="654">DEPLOYMENT EVIDENCE · UNESTABLISHED</text>
+  <rect class="absent-box" x="72" y="678" width="232" height="50"/>
+  <text class="absent-text" x="188" y="700">Intended deployment</text>
+  <text class="small absent-text" x="188" y="719">receiver identity</text>
+  <rect class="absent-box" x="328" y="678" width="232" height="50"/>
+  <text class="absent-text" x="444" y="700">End-to-end</text>
+  <text class="small absent-text" x="444" y="719">deployment effect</text>
+  <rect class="absent-box" x="584" y="678" width="232" height="50"/>
+  <text class="absent-text" x="700" y="708">TLS / mTLS identity</text>
+  <rect class="absent-box" x="840" y="678" width="288" height="50"/>
+  <text class="absent-text" x="984" y="708">Exact-route ACL + topology</text>
+  <line class="barrier" x1="40" y1="772" x2="1160" y2="772"/>
+</svg>

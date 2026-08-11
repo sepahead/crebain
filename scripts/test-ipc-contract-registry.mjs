@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { createRegistry, verifyRegistry } from './generate-ipc-contract-registry.mjs'
 
 const registry = createRegistry()
-if (registry.schema_version !== 2) {
+if (registry.schema_version !== 3) {
   throw new Error('unexpected IPC registry schema version')
 }
 if (registry.commands.length !== 23 || registry.events.length !== 2) {
@@ -52,12 +52,33 @@ const expectedGenerationInputs = [
 if (JSON.stringify(lifecycleContract.input_commands) !== JSON.stringify(expectedGenerationInputs)) {
   throw new Error('lifecycle-generation command coverage is incomplete')
 }
+const subscriptionContract = registry.transport_identity_contract?.subscription_identity
+const expectedSubscriptionInputs = [
+  'transport_subscribe_camera',
+  'transport_subscribe_camera_info',
+  'transport_subscribe_imu',
+  'transport_subscribe_model_states',
+  'transport_subscribe_pose',
+  'transport_unsubscribe',
+]
+if (
+  subscriptionContract?.wire_encoding !== 'canonical-positive-u64-decimal-string' ||
+  subscriptionContract.native_encoding !== 'u64' ||
+  JSON.stringify(subscriptionContract.input_commands) !==
+    JSON.stringify(expectedSubscriptionInputs) ||
+  JSON.stringify(subscriptionContract.non_camera_event_fields) !==
+    JSON.stringify(['generation', 'subscriptionId', 'data']) ||
+  subscriptionContract.camera_ready_event_field !== 'cameraSubscriptionId'
+) {
+  throw new Error('subscription-identity contract is missing or incomplete')
+}
 if (
   !registry.events.some(
     ({ kind, payload }) =>
       kind === 'bounded-dynamic-pattern' &&
       payload.includes('camera-ready') &&
-      payload.includes('canonical-positive-u64-decimal-string generation')
+      payload.includes('canonical-positive-u64-decimal-string generation') &&
+      payload.includes('generation/subscriptionId/data identity envelope')
   )
 ) {
   throw new Error('camera-ready descriptor event contract is missing')
@@ -71,7 +92,7 @@ try {
   writeFileSync(path, `${JSON.stringify(tracked, null, 2)}\n`)
   let rejected = false
   try {
-    verifyRegistry(path)
+    await verifyRegistry(path)
   } catch (error) {
     rejected = String(error).includes('registry drift')
   }

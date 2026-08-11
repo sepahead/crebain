@@ -17,6 +17,9 @@ const log = logger.scope('Physics')
 
 /** Fixed simulation step: 120 Hz. Shared by Rapier and the local fallback. */
 export const PHYSICS_FIXED_DT = 1 / 120
+export const MAX_PHYSICS_DT_SECONDS = 0.1
+const MAX_ROTOR_RPM = 15_000
+const BATTERY_DRAIN_RATE_PER_SECOND = 0.0001
 
 type RapierModule = typeof RapierNamespace
 type World = InstanceType<RapierModule['World']>
@@ -75,8 +78,56 @@ export interface MotorCommands {
   rear_right: number
 }
 
+const ZERO_MOTOR_COMMANDS: Readonly<MotorCommands> = Object.freeze({
+  front_left: 0,
+  front_right: 0,
+  rear_left: 0,
+  rear_right: 0,
+})
+
 function clampMotorCommand(value: number): number {
+  if (!Number.isFinite(value)) return 0
   return Math.max(0, Math.min(1, value))
+}
+
+function isFiniteVector3(value: THREE.Vector3): boolean {
+  return Number.isFinite(value.x) && Number.isFinite(value.y) && Number.isFinite(value.z)
+}
+
+function assertPositiveFinite(value: number, name: string): void {
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(`${name} must be a positive finite number`)
+  }
+}
+
+function validateQuadcopterParams(params: QuadcopterParams): void {
+  for (const [name, value] of [
+    ['mass', params.mass],
+    ['armLength', params.armLength],
+    ['rotorRadius', params.rotorRadius],
+    ['maxThrust', params.maxThrust],
+    ['maxTorque', params.maxTorque],
+    ['crossSectionArea', params.crossSectionArea],
+    ['thrustCoefficient', params.thrustCoefficient],
+    ['torqueCoefficient', params.torqueCoefficient],
+  ] as const) {
+    assertPositiveFinite(value, `Quadcopter ${name}`)
+  }
+  if (!Number.isFinite(params.dragCoefficient) || params.dragCoefficient < 0) {
+    throw new Error('Quadcopter dragCoefficient must be a non-negative finite number')
+  }
+  if (!isFiniteVector3(params.momentOfInertia)) {
+    throw new Error('Quadcopter momentOfInertia must contain finite values')
+  }
+  assertPositiveFinite(params.momentOfInertia.x, 'Quadcopter momentOfInertia.x')
+  assertPositiveFinite(params.momentOfInertia.y, 'Quadcopter momentOfInertia.y')
+  assertPositiveFinite(params.momentOfInertia.z, 'Quadcopter momentOfInertia.z')
+}
+
+function assertValidPhysicsStep(dt: number): void {
+  if (!Number.isFinite(dt) || dt <= 0 || dt > MAX_PHYSICS_DT_SECONDS) {
+    throw new Error(`Physics dt must be finite and in (0, ${MAX_PHYSICS_DT_SECONDS}] seconds`)
+  }
 }
 
 /**
@@ -110,6 +161,13 @@ function calculateThrust(rpm: number, k_t: number): number {
 function calculateTorque(rpm: number, k_τ: number): number {
   const omega = (rpm * 2 * Math.PI) / 60
   return k_τ * omega * omega
+}
+
+function advanceBattery(state: DroneState, dt: number): void {
+  if (state.rotors.length === 0) return
+  const normalizedPower =
+    state.rotors.reduce((sum, rotor) => sum + rotor.rpm / MAX_ROTOR_RPM, 0) / state.rotors.length
+  state.battery = Math.max(0, state.battery - normalizedPower * BATTERY_DRAIN_RATE_PER_SECOND * dt)
 }
 
 /** F_drag = 0.5 * ρ * v² * C_d * A */
@@ -170,14 +228,9 @@ export class DronePhysicsBody {
   public collider: Collider | null = null
   public mesh: THREE.Object3D | null = null
 
-  private _targetCommands: MotorCommands = {
-    front_left: 0,
-    front_right: 0,
-    rear_left: 0,
-    rear_right: 0,
-  }
+  private _targetCommands: Readonly<MotorCommands> = ZERO_MOTOR_COMMANDS
 
-  get targetCommands(): MotorCommands {
+  get targetCommands(): Readonly<MotorCommands> {
     return this._targetCommands
   }
 
@@ -187,9 +240,16 @@ export class DronePhysicsBody {
     initialPosition: THREE.Vector3 = new THREE.Vector3(0, 10, 0)
   ) {
     this.id = id
-    this.params = params
+    validateQuadcopterParams(params)
+    if (!isFiniteVector3(initialPosition)) {
+      throw new Error('Initial drone position must contain finite values')
+    }
+    this.params = {
+      ...params,
+      momentOfInertia: params.momentOfInertia.clone(),
+    }
 
-    const arm = params.armLength
+    const arm = this.params.armLength
     const rotorLayout = [
       { position: new THREE.Vector3(-arm, 0, arm), direction: -1 as const },
       { position: new THREE.Vector3(arm, 0, arm), direction: 1 as const },
@@ -216,20 +276,28 @@ export class DronePhysicsBody {
   }
 
   setMotorCommands(commands: MotorCommands) {
-    this._targetCommands = commands
+    this._targetCommands = Object.freeze({
+      front_left: clampMotorCommand(commands.front_left),
+      front_right: clampMotorCommand(commands.front_right),
+      rear_left: clampMotorCommand(commands.rear_left),
+      rear_right: clampMotorCommand(commands.rear_right),
+    })
   }
 
   setArmed(armed: boolean) {
     this.state.armed = armed
     if (!armed) {
-      this._targetCommands = { front_left: 0, front_right: 0, rear_left: 0, rear_right: 0 }
+      this._targetCommands = ZERO_MOTOR_COMMANDS
     }
   }
 
   updatePhysics(dt: number, gravity: THREE.Vector3 = new THREE.Vector3(0, -9.81, 0)) {
+    assertValidPhysicsStep(dt)
+    if (!isFiniteVector3(gravity)) {
+      throw new Error('Physics gravity must contain finite values')
+    }
     const { params, state } = this
 
-    const maxRPM = 15000
     const motorResponseRate = 10
     const commands = [
       this._targetCommands.front_left,
@@ -261,9 +329,9 @@ export class DronePhysicsBody {
       })
     } else {
       state.rotors.forEach((rotor, i) => {
-        const targetRPM = commands[i] * maxRPM
+        const targetRPM = commands[i] * MAX_ROTOR_RPM
         rotor.rpm += (targetRPM - rotor.rpm) * motorResponseRate * dt
-        rotor.rpm = Math.max(0, Math.min(maxRPM, rotor.rpm))
+        rotor.rpm = Math.max(0, Math.min(MAX_ROTOR_RPM, rotor.rpm))
 
         rotor.thrust = calculateThrust(rotor.rpm, params.thrustCoefficient)
         rotor.torque = calculateTorque(rotor.rpm, params.torqueCoefficient)
@@ -332,9 +400,7 @@ export class DronePhysicsBody {
       state.velocity.y = Math.max(0, state.velocity.y)
     }
 
-    const powerDraw = state.rotors.reduce((sum, r) => sum + r.rpm / maxRPM, 0) / 4
-    state.battery -= powerDraw * 0.0001 * dt
-    state.battery = Math.max(0, state.battery)
+    advanceBattery(state, dt)
   }
 
   syncMesh() {
@@ -379,27 +445,65 @@ export class DronePhysicsWorld {
   private accumulator: number = 0
   private isInitialized: boolean = false
   private usingFallback: boolean = false
+  private initializationPromise: Promise<void> | null = null
+  private lifecycleGeneration = 0
 
-  async init(): Promise<void> {
+  init(): Promise<void> {
+    if (this.isInitialized) return Promise.resolve()
+    if (this.initializationPromise) return this.initializationPromise
+
+    const generation = this.lifecycleGeneration
+    const trackedInitialization = this.initialize(generation).finally(() => {
+      if (this.initializationPromise === trackedInitialization) {
+        this.initializationPromise = null
+      }
+    })
+    this.initializationPromise = trackedInitialization
+    return trackedInitialization
+  }
+
+  private async initialize(generation: number): Promise<void> {
+    let candidateWorld: World | null = null
     try {
-      this.RAPIER = await loadRapier()
+      const rapier = await loadRapier()
+      if (this.lifecycleGeneration !== generation) return
 
-      this.world = new this.RAPIER.World({ x: 0.0, y: -9.81, z: 0.0 })
-      this.world.timestep = PHYSICS_FIXED_DT
+      candidateWorld = new rapier.World({ x: 0.0, y: -9.81, z: 0.0 })
+      candidateWorld.timestep = PHYSICS_FIXED_DT
 
-      const groundDesc = this.RAPIER.RigidBodyDesc.fixed()
-      const groundBody = this.world.createRigidBody(groundDesc)
-      const groundCollider = this.RAPIER.ColliderDesc.cuboid(1000.0, 0.1, 1000.0).setTranslation(
+      const groundDesc = rapier.RigidBodyDesc.fixed()
+      const groundBody = candidateWorld.createRigidBody(groundDesc)
+      const groundCollider = rapier.ColliderDesc.cuboid(1000.0, 0.1, 1000.0).setTranslation(
         0.0,
         -0.1,
         0.0
       )
-      this.world.createCollider(groundCollider, groundBody)
+      candidateWorld.createCollider(groundCollider, groundBody)
 
+      if (this.lifecycleGeneration !== generation) {
+        candidateWorld.free()
+        candidateWorld = null
+        return
+      }
+
+      // Publish the Rapier pair only after the complete world is usable. A
+      // failed ground allocation must not leave a half-initialized world on the
+      // object while the public state reports that the local fallback is active.
+      this.RAPIER = rapier
+      this.world = candidateWorld
+      candidateWorld = null
       this.isInitialized = true
       this.usingFallback = false
       this.lastUpdate = performance.now()
     } catch (error) {
+      try {
+        candidateWorld?.free()
+      } catch (cleanupError) {
+        log.error('Failed to release a partially initialized Rapier world', { cleanupError })
+      }
+      if (this.lifecycleGeneration !== generation) return
+      this.world = null
+      this.RAPIER = null
       // Rapier failed to load/init (e.g. WASM unavailable). Fall back to the
       // local integrator path (DronePhysicsBody.updatePhysics) and say so
       // loudly instead of silently swallowing the failure.
@@ -425,6 +529,13 @@ export class DronePhysicsWorld {
     position?: THREE.Vector3,
     mesh?: THREE.Object3D
   ): DronePhysicsBody {
+    // A drone must enter exactly one physics implementation for its complete
+    // lifetime. Creating it while Rapier is still loading would register a
+    // local-integrator body that cannot be migrated safely after init().
+    if (!this.isInitialized) {
+      throw new Error('Drone physics world must be initialized before creating drones')
+    }
+
     // Reject before constructing a replacement or allocating Rapier resources.
     // Overwriting the Map entry would strand the old body in the physics world,
     // where it would remain simulated and collidable but no longer removable.
@@ -436,28 +547,46 @@ export class DronePhysicsWorld {
     drone.mesh = mesh || null
 
     if (this.RAPIER && this.world) {
-      const bodyDesc = this.RAPIER.RigidBodyDesc.dynamic()
-        .setTranslation(drone.state.position.x, drone.state.position.y, drone.state.position.z)
-        .setLinearDamping(0.1)
-        .setAngularDamping(0.5)
+      let createdBody: RigidBody | null = null
+      try {
+        const bodyDesc = this.RAPIER.RigidBodyDesc.dynamic()
+          .setTranslation(drone.state.position.x, drone.state.position.y, drone.state.position.z)
+          .setLinearDamping(0.1)
+          .setAngularDamping(0.5)
 
-      drone.rigidBody = this.world.createRigidBody(bodyDesc)
+        createdBody = this.world.createRigidBody(bodyDesc)
+        drone.rigidBody = createdBody
 
-      // Use the same configured mass and body-frame principal inertia as the
-      // local integrator. The cuboid remains the collision shape; its inferred
-      // mass properties must not silently replace the flight-model parameters.
-      const colliderDesc = this.RAPIER.ColliderDesc.cuboid(0.2, 0.05, 0.2).setMassProperties(
-        drone.params.mass,
-        { x: 0, y: 0, z: 0 },
-        {
-          x: drone.params.momentOfInertia.x,
-          y: drone.params.momentOfInertia.y,
-          z: drone.params.momentOfInertia.z,
-        },
-        { x: 0, y: 0, z: 0, w: 1 }
-      )
+        // Use the same configured mass and body-frame principal inertia as the
+        // local integrator. The cuboid remains the collision shape; its inferred
+        // mass properties must not silently replace the flight-model parameters.
+        const colliderDesc = this.RAPIER.ColliderDesc.cuboid(0.2, 0.05, 0.2).setMassProperties(
+          drone.params.mass,
+          { x: 0, y: 0, z: 0 },
+          {
+            x: drone.params.momentOfInertia.x,
+            y: drone.params.momentOfInertia.y,
+            z: drone.params.momentOfInertia.z,
+          },
+          { x: 0, y: 0, z: 0, w: 1 }
+        )
 
-      drone.collider = this.world.createCollider(colliderDesc, drone.rigidBody)
+        drone.collider = this.world.createCollider(colliderDesc, createdBody)
+      } catch (error) {
+        if (createdBody) {
+          try {
+            this.world.removeRigidBody(createdBody)
+          } catch (cleanupError) {
+            log.error('Failed to roll back a partially created Rapier drone', {
+              id,
+              cleanupError,
+            })
+          }
+        }
+        drone.rigidBody = null
+        drone.collider = null
+        throw error
+      }
     }
 
     this.drones.set(id, drone)
@@ -491,10 +620,11 @@ export class DronePhysicsWorld {
     if (!this.isInitialized) return
 
     const now = performance.now()
+    if (!Number.isFinite(now)) return
     let deltaTime = (now - this.lastUpdate) / 1000
+    if (!Number.isFinite(deltaTime) || deltaTime < 0) return
     this.lastUpdate = now
-
-    if (deltaTime > 0.1) deltaTime = 0.1
+    if (deltaTime > MAX_PHYSICS_DT_SECONDS) deltaTime = MAX_PHYSICS_DT_SECONDS
 
     this.accumulator += deltaTime
 
@@ -555,8 +685,6 @@ export class DronePhysicsWorld {
     }
 
     const { params, state } = drone
-    const maxRPM = 15000
-
     const totalThrust = new THREE.Vector3()
     const totalTorque = new THREE.Vector3()
 
@@ -575,9 +703,9 @@ export class DronePhysicsWorld {
     ]
 
     state.rotors.forEach((rotor, i) => {
-      const targetRPM = commands[i] * maxRPM
+      const targetRPM = commands[i] * MAX_ROTOR_RPM
       rotor.rpm += (targetRPM - rotor.rpm) * 10 * dt
-      rotor.rpm = Math.max(0, Math.min(maxRPM, rotor.rpm))
+      rotor.rpm = Math.max(0, Math.min(MAX_ROTOR_RPM, rotor.rpm))
 
       rotor.thrust = calculateThrust(rotor.rpm, params.thrustCoefficient)
       rotor.thrust = Math.min(rotor.thrust, params.maxThrust)
@@ -597,21 +725,42 @@ export class DronePhysicsWorld {
       totalTorque.add(rotorTorque)
     })
 
+    // Keep public simulation state consistent with the local fallback. Without
+    // this update, the default Rapier path reported a permanently full battery.
+    advanceBattery(state, dt)
+
     drone.rigidBody.addForce({ x: totalThrust.x, y: totalThrust.y, z: totalThrust.z }, true)
     drone.rigidBody.addTorque({ x: totalTorque.x, y: totalTorque.y, z: totalTorque.z }, true)
   }
 
   destroy() {
-    for (const id of this.drones.keys()) {
-      this.removeDrone(id)
+    this.lifecycleGeneration += 1
+    this.initializationPromise = null
+    const cleanupErrors: unknown[] = []
+    for (const id of Array.from(this.drones.keys())) {
+      try {
+        this.removeDrone(id)
+      } catch (error) {
+        cleanupErrors.push(error)
+      }
     }
     // Free the Rapier World's WASM allocation. Dropping the JS reference alone
     // leaks the underlying linear-memory backing store. World.free() also frees
     // all attached bodies/colliders, so no per-object free is needed.
-    this.world?.free()
+    try {
+      this.world?.free()
+    } catch (error) {
+      cleanupErrors.push(error)
+    }
+    this.drones.clear()
     this.world = null
     this.RAPIER = null
     this.isInitialized = false
+    this.usingFallback = false
+    this.accumulator = 0
+    if (cleanupErrors.length > 0) {
+      throw new AggregateError(cleanupErrors, 'Drone physics world cleanup failed')
+    }
   }
 }
 
@@ -656,7 +805,24 @@ export class FlightController {
   private lastAltitudeError: number = 0
 
   constructor(config: FlightControllerConfig = DEFAULT_FLIGHT_CONTROLLER_CONFIG) {
-    this.config = config
+    for (const [name, gains] of [
+      ['rollPID', config.rollPID],
+      ['pitchPID', config.pitchPID],
+      ['yawPID', config.yawPID],
+      ['altitudePID', config.altitudePID],
+    ] as const) {
+      if (![gains.kp, gains.ki, gains.kd].every(Number.isFinite)) {
+        throw new Error(`${name} gains must be finite`)
+      }
+    }
+    assertPositiveFinite(config.maxAngle, 'Flight controller maxAngle')
+    this.config = {
+      rollPID: { ...config.rollPID },
+      pitchPID: { ...config.pitchPID },
+      yawPID: { ...config.yawPID },
+      altitudePID: { ...config.altitudePID },
+      maxAngle: config.maxAngle,
+    }
   }
 
   update(
@@ -674,6 +840,11 @@ export class FlightController {
       // wind up on the ground or kick on the next arm.
       this.reset()
       return { front_left: 0, front_right: 0, rear_left: 0, rear_right: 0 }
+    }
+
+    assertValidPhysicsStep(dt)
+    if (![targetRoll, targetPitch, targetYawRate, targetAltitude].every(Number.isFinite)) {
+      throw new Error('Flight controller targets must be finite')
     }
 
     const euler = new THREE.Euler().setFromQuaternion(state.orientation, 'YXZ')

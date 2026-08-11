@@ -21,6 +21,8 @@ import {
   writeStoredScale,
   type UIScaleContextValue,
   type UIScalePreset,
+  usesDockedPanelLayout,
+  usesMagnifiedUiLayout,
 } from './uiScale'
 import { logger } from '../lib/logger'
 
@@ -57,6 +59,11 @@ export function UIScaleProvider({ children, initialScale, persist = true }: UISc
     }
     return UI_SCALE_CONFIG.DEFAULT
   })
+  const [isDocked, setIsDocked] = useState(() =>
+    typeof window === 'undefined'
+      ? true
+      : usesDockedPanelLayout(scale, window.innerWidth, window.innerHeight)
+  )
 
   // Persist to localStorage when scale changes
   useEffect(() => {
@@ -67,9 +74,28 @@ export function UIScaleProvider({ children, initialScale, persist = true }: UISc
 
   // Apply CSS variable to document root for global access
   useEffect(() => {
-    document.documentElement.style.setProperty('--ui-scale', scale.toString())
+    const root = document.documentElement
+    root.style.setProperty('--ui-scale', scale.toString())
+    if (usesMagnifiedUiLayout(scale)) root.dataset.uiScaleLayout = 'magnified'
+    else delete root.dataset.uiScaleLayout
+
+    const updatePanelLayout = () => {
+      const docked = usesDockedPanelLayout(scale, window.innerWidth, window.innerHeight)
+      setIsDocked(docked)
+      if (docked) {
+        root.dataset.uiLayout = 'docked'
+      } else {
+        delete root.dataset.uiLayout
+      }
+    }
+    updatePanelLayout()
+    window.addEventListener('resize', updatePanelLayout)
+
     return () => {
-      document.documentElement.style.removeProperty('--ui-scale')
+      window.removeEventListener('resize', updatePanelLayout)
+      root.style.removeProperty('--ui-scale')
+      delete root.dataset.uiLayout
+      delete root.dataset.uiScaleLayout
     }
   }, [scale])
 
@@ -90,7 +116,7 @@ export function UIScaleProvider({ children, initialScale, persist = true }: UISc
   }, [])
 
   const setPreset = useCallback((preset: UIScalePreset) => {
-    setScaleInternal(preset)
+    setScaleInternal(clampScale(preset))
   }, [])
 
   const value = useMemo<UIScaleContextValue>(
@@ -103,10 +129,11 @@ export function UIScaleProvider({ children, initialScale, persist = true }: UISc
       setPreset,
       scalePercent: Math.round(scale * 100),
       cssVar: { '--ui-scale': scale },
+      isDocked,
       isAtMin: scale <= UI_SCALE_CONFIG.MIN,
       isAtMax: scale >= UI_SCALE_CONFIG.MAX,
     }),
-    [scale, setScale, increaseScale, decreaseScale, resetScale, setPreset]
+    [scale, isDocked, setScale, increaseScale, decreaseScale, resetScale, setPreset]
   )
 
   return <UIScaleContext.Provider value={value}>{children}</UIScaleContext.Provider>

@@ -2,6 +2,16 @@
 
 This index groups the top-level documents in `docs/` by audience.
 
+<p align="center">
+  <img alt="CREBAIN current system architecture" src="../assets/diagrams/system-architecture.svg" width="900">
+</p>
+
+Text alternative: The React frontend uses Tauri inter-process communication
+(IPC) to reach Rust inference, sensor fusion, and read-only telemetry transports.
+A feature-gated producer can make local puts to two advisory NCP routes. Those
+puts do not prove receiver delivery. The separate plant foundation is inert and
+has no vehicle-authority path.
+
 ## User guides
 
 - [CONTROLS.md](CONTROLS.md) — Full keyboard reference
@@ -20,7 +30,7 @@ This index groups the top-level documents in `docs/` by audience.
 ## Integrations
 
 - [GALADRIEL_PRODUCER.md](GALADRIEL_PRODUCER.md) — Optional live evidence routes, deployment pins, bounds, and claim limits
-- [NCP_BRIDGE_HANDOFF.md](NCP_BRIDGE_HANDOFF.md) — Optional Neuro-Cybernetic Protocol (NCP)/Engram bridge status and boundaries
+- [NCP_BRIDGE_HANDOFF.md](NCP_BRIDGE_HANDOFF.md) — Dormant action adapter, dependency-isolated headless perception runner, advisory producer, and Engram compatibility boundaries
 
 ## Plant foundation (inactive/unwired candidates)
 
@@ -49,5 +59,8 @@ This index groups the top-level documents in `docs/` by audience.
 
 ## Notes
 
+- [`markdown-visual-coverage.json`](markdown-visual-coverage.json) accounts for
+  every tracked Markdown file as visually covered or specifically exempt. The
+  verifier also requires concise alt text and an adjacent prose alternative.
 - `archive/` is historical. Do not use it as an implementation plan.
 - `baselines/` holds machine-readable frozen artifacts.

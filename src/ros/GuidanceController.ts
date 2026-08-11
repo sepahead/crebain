@@ -7,13 +7,7 @@
  */
 
 import type { Point, Vector3 } from './types'
-import {
-  subtract,
-  normalize,
-  scale,
-  magnitude,
-  clampMagnitude,
-} from '../lib/mathUtils'
+import { subtract, normalize, scale, magnitude, clampMagnitude } from '../lib/mathUtils'
 import { rosLogger as log } from '../lib/logger'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -76,6 +70,61 @@ const DEFAULT_CONFIG: GuidanceConfig = {
 // Clamp dt to a few nominal control periods so timer stalls or connection
 // outages cannot inflate the acceleration-ramp budget (maxAcceleration · dt).
 const MAX_DT_NOMINAL_PERIODS = 3
+export const MAX_GUIDANCE_RATE_HZ = 240
+const MAX_GUIDANCE_SPEED_MPS = 1_000
+const MAX_GUIDANCE_ACCELERATION_MPS2 = 1_000
+const MAX_GUIDANCE_GAIN = 1_000
+const MAX_GUIDANCE_DISTANCE_M = 1_000_000
+
+function finiteVector(value: Vector3, name: string): Vector3 {
+  if (![value.x, value.y, value.z].every((component) => Number.isFinite(component))) {
+    throw new Error(`${name} must contain finite coordinates`)
+  }
+  return { x: value.x, y: value.y, z: value.z }
+}
+
+function finiteWithin(value: number, minimum: number, maximum: number, name: string): number {
+  if (!Number.isFinite(value) || value < minimum || value > maximum) {
+    throw new Error(`${name} must be finite and within ${minimum}-${maximum}`)
+  }
+  return value
+}
+
+function validateGuidanceConfig(config: GuidanceConfig): GuidanceConfig {
+  const validated = {
+    rateHz: finiteWithin(config.rateHz, 1, MAX_GUIDANCE_RATE_HZ, 'Guidance rateHz'),
+    maxVelocity: finiteWithin(
+      config.maxVelocity,
+      Number.EPSILON,
+      MAX_GUIDANCE_SPEED_MPS,
+      'Guidance maxVelocity'
+    ),
+    maxAcceleration: finiteWithin(
+      config.maxAcceleration,
+      Number.EPSILON,
+      MAX_GUIDANCE_ACCELERATION_MPS2,
+      'Guidance maxAcceleration'
+    ),
+    kP: finiteWithin(config.kP, 0, MAX_GUIDANCE_GAIN, 'Guidance kP'),
+    kD: finiteWithin(config.kD, 0, MAX_GUIDANCE_GAIN, 'Guidance kD'),
+    approachDistance: finiteWithin(
+      config.approachDistance,
+      Number.EPSILON,
+      MAX_GUIDANCE_DISTANCE_M,
+      'Guidance approachDistance'
+    ),
+    arrivalThreshold: finiteWithin(
+      config.arrivalThreshold,
+      Number.EPSILON,
+      MAX_GUIDANCE_DISTANCE_M,
+      'Guidance arrivalThreshold'
+    ),
+  }
+  if (validated.arrivalThreshold > validated.approachDistance) {
+    throw new Error('Guidance arrivalThreshold must not exceed approachDistance')
+  }
+  return validated
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GUIDANCE CONTROLLER
@@ -88,7 +137,7 @@ export class GuidanceController {
   private callbacks: Set<GuidanceCallback> = new Set()
 
   constructor(config: Partial<GuidanceConfig> = {}) {
-    this.config = { ...DEFAULT_CONFIG, ...config }
+    this.config = validateGuidanceConfig({ ...DEFAULT_CONFIG, ...config })
     this.state = {
       targetPosition: null,
       targetVelocity: null,
@@ -162,8 +211,10 @@ export class GuidanceController {
    * The controller will continuously update velocity to reach this position
    */
   setTargetPosition(position: Point, targetVelocity?: Vector3): void {
-    this.state.targetPosition = position
-    this.state.targetVelocity = targetVelocity || null
+    this.state.targetPosition = finiteVector(position, 'Guidance target position')
+    this.state.targetVelocity = targetVelocity
+      ? finiteVector(targetVelocity, 'Guidance target velocity')
+      : null
   }
 
   /**
@@ -171,7 +222,7 @@ export class GuidanceController {
    */
   setPreviewVelocity(velocity: Vector3): void {
     this.state.targetPosition = null
-    this.state.targetVelocity = velocity
+    this.state.targetVelocity = finiteVector(velocity, 'Guidance preview velocity')
   }
 
   /**
@@ -187,15 +238,17 @@ export class GuidanceController {
    * This should be called with pose updates from MAVROS or Gazebo
    */
   updateCurrentPosition(position: Point, velocity: Vector3): void {
-    this.state.currentPosition = position
-    this.state.currentVelocity = velocity
+    const nextPosition = finiteVector(position, 'Guidance current position')
+    const nextVelocity = finiteVector(velocity, 'Guidance current velocity')
+    this.state.currentPosition = nextPosition
+    this.state.currentVelocity = nextVelocity
   }
 
   /**
    * Get current tracked position
    */
   getCurrentPosition(): Point {
-    return this.state.currentPosition
+    return { ...this.state.currentPosition }
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -210,7 +263,7 @@ export class GuidanceController {
   private notifyCallbacks(proposal: GuidanceProposal): void {
     for (const callback of this.callbacks) {
       try {
-        callback(proposal)
+        callback({ ...proposal, velocity: { ...proposal.velocity } })
       } catch (err) {
         log.error('Callback error', { error: err })
       }
@@ -240,7 +293,7 @@ export class GuidanceController {
       proposal = this.calculateDeceleration(dt)
     }
 
-    this.state.lastProposedVelocity = proposal.velocity
+    this.state.lastProposedVelocity = { ...proposal.velocity }
     this.notifyCallbacks(proposal)
   }
 
@@ -298,11 +351,7 @@ export class GuidanceController {
     desiredVelocity = clampMagnitude(desiredVelocity, this.config.maxVelocity)
 
     // Apply velocity ramping from the last local proposal, not the measurement.
-    const velocity = this.applyVelocityRamp(
-      this.state.lastProposedVelocity,
-      desiredVelocity,
-      dt
-    )
+    const velocity = this.applyVelocityRamp(this.state.lastProposedVelocity, desiredVelocity, dt)
 
     // Estimate time to arrival
     const speed = magnitude(velocity)
@@ -322,11 +371,7 @@ export class GuidanceController {
    */
   private calculateRampedVelocity(target: Vector3, dt: number): GuidanceProposal {
     const clamped = clampMagnitude(target, this.config.maxVelocity)
-    const velocity = this.applyVelocityRamp(
-      this.state.lastProposedVelocity,
-      clamped,
-      dt
-    )
+    const velocity = this.applyVelocityRamp(this.state.lastProposedVelocity, clamped, dt)
 
     return {
       authority: 'NoAuthority',
@@ -398,21 +443,30 @@ export class GuidanceController {
   }
 
   getState(): Readonly<GuidanceState> {
-    return this.state
+    return {
+      ...this.state,
+      targetPosition: this.state.targetPosition ? { ...this.state.targetPosition } : null,
+      targetVelocity: this.state.targetVelocity ? { ...this.state.targetVelocity } : null,
+      currentPosition: { ...this.state.currentPosition },
+      currentVelocity: { ...this.state.currentVelocity },
+      lastProposedVelocity: { ...this.state.lastProposedVelocity },
+    }
   }
 
   getConfig(): Readonly<GuidanceConfig> {
-    return this.config
+    return { ...this.config }
   }
 
   setConfig(config: Partial<GuidanceConfig>): void {
-    this.config = { ...this.config, ...config }
+    const previousRate = this.config.rateHz
+    const nextConfig = validateGuidanceConfig({ ...this.config, ...config })
+    this.config = nextConfig
 
     // Recreate only the control-loop interval on a rate change; a full
     // stop/start cycle would discard the current preview state.
-    if (config.rateHz && this.intervalId) {
+    if (nextConfig.rateHz !== previousRate && this.intervalId) {
       clearInterval(this.intervalId)
-      this.intervalId = setInterval(() => this.update(), 1000 / this.config.rateHz)
+      this.intervalId = setInterval(() => this.update(), 1000 / nextConfig.rateHz)
     }
   }
 }

@@ -464,6 +464,27 @@
       }
     },
     {
+      "id": "TEST-NCP-HEADLESS-LIFECYCLE",
+      "locator": {
+        "file": "src-tauri/crates/ncp-headless/src/lib.rs",
+        "selector": "async fn successful_session_uses_exact_order_and_closes()"
+      }
+    },
+    {
+      "id": "TEST-NCP-HEADLESS-CLI",
+      "locator": {
+        "file": "src-tauri/crates/ncp-headless/tests/cli.rs",
+        "selector": "fn self_check_is_network_free_and_wire_exact()"
+      }
+    },
+    {
+      "id": "TEST-NCP-HEADLESS-BOUNDARY",
+      "locator": {
+        "file": "scripts/test-ncp-headless-boundary.mjs",
+        "selector": "quiet-development-connector"
+      }
+    },
+    {
       "id": "TEST-NO-RENDERER-ROTOR-PUBLISHER",
       "locator": {
         "file": "src/lib/__tests__/tauriCommandRegistration.test.ts",
@@ -712,6 +733,7 @@
     "production_roots": [
       "src",
       "src-tauri/src",
+      "src-tauri/crates/ncp-headless/src",
       "src-tauri/crates/plant-authority/src",
       "src-tauri/capabilities",
       "ros",
@@ -727,22 +749,34 @@
       "flake.lock",
       "src-tauri/Cargo.toml",
       "src-tauri/Cargo.lock",
+      "src-tauri/crates/ncp-headless/Cargo.toml",
       "src-tauri/crates/plant-authority/Cargo.toml",
       "src-tauri/build.rs",
       "src-tauri/deny.toml",
       "src-tauri/tauri.conf.json",
       "tsconfig.json",
       "vite.config.ts",
+      ".ncp-consumer",
       "scripts/check-bundle-size.mjs",
+      "scripts/check-ncp-coherence.sh",
+      "scripts/check-ncp-headless-boundary.mjs",
+      "scripts/ncp-release-identities.tsv",
       "scripts/check-plant-authority-boundary.mjs",
       "scripts/check-production-authority-boundary.mjs",
       "scripts/lib/production-vendor-boundary.mjs",
       "scripts/test-production-authority-boundary.mjs",
-      "scripts/test-production-vendor-boundary.mjs"
+      "scripts/test-production-vendor-boundary.mjs",
+      "scripts/test-ncp-headless-boundary.mjs",
+      "scripts/test-ncp-coherence.sh"
     ],
     "conditional_executable_inputs": [
       { "path": ".cargo/config.toml", "state": "absent", "consumer": "cargo" },
       { "path": ".cargo/config", "state": "absent", "consumer": "cargo" },
+      {
+        "path": "src-tauri/crates/ncp-headless/build.rs",
+        "state": "absent",
+        "consumer": "cargo"
+      },
       {
         "path": "src-tauri/crates/plant-authority/build.rs",
         "state": "absent",
@@ -812,7 +846,7 @@
       ".yaml",
       ".yml"
     ],
-    "production_file_manifest_sha256": "57c883bf561715709f699b35ad57bb7f6550a66e94e814284a0148a88a25b644",
+    "production_file_manifest_sha256": "e31ca86a03594adc83b649c149d09b4786fa79826239893a338a24a65f9edb64",
     "known_route_prefixes": ["mavros/", "gazebo/", "cmd/motor_speed/"],
     "development_network_modules": [
       {
@@ -2444,6 +2478,50 @@
       ]
     },
     {
+      "group_id": "GROUP-NATIVE-NCP-HEADLESS-PERCEPTION",
+      "domain": "native_ncp",
+      "kind": "headless-opt-in-process",
+      "classification": "evidence",
+      "owner": "ncp-integration",
+      "profiles": { "current": ["ncp-feature-external-process"], "secure_sitl": "read-only" },
+      "hazard_ids": ["HAZ-004", "HAZ-008", "HAZ-011", "HAZ-012", "HAZ-013", "HAZ-014"],
+      "tests": [
+        { "id": "TEST-NCP-HEADLESS-LIFECYCLE", "status": "existing-component" },
+        { "id": "TEST-NCP-HEADLESS-CLI", "status": "existing-component" },
+        { "id": "TEST-NCP-HEADLESS-BOUNDARY", "status": "existing-component" }
+      ],
+      "members": [
+        {
+          "id": "SURF-136",
+          "name": "Headless NCP wire-0.8 perception session",
+          "route": "process://crebain-ncp-headless/run",
+          "locator": {
+            "file": "src-tauri/crates/ncp-headless/src/main.rs",
+            "symbol": "HeadlessDispatch::Run"
+          },
+          "status": "declared",
+          "source_assertion": {
+            "type": "contains",
+            "needle": "HeadlessDispatch::Run(config) => {"
+          }
+        },
+        {
+          "id": "SURF-137",
+          "name": "Headless NCP network-free self-check",
+          "route": "process://crebain-ncp-headless/self-check",
+          "locator": {
+            "file": "src-tauri/crates/ncp-headless/src/lib.rs",
+            "symbol": "self_check"
+          },
+          "status": "declared",
+          "source_assertion": {
+            "type": "contains",
+            "needle": "pub fn self_check() -> Result<HeadlessSelfCheckReport, HeadlessError> {"
+          }
+        }
+      ]
+    },
+    {
       "group_id": "GROUP-PLANT-AUTHORITY-FOUNDATION",
       "domain": "plant_authority",
       "kind": "headless-inert-process",
@@ -2533,7 +2611,7 @@
       "members": [
         {
           "id": "SURF-105",
-          "name": "Galadriel-oriented PID JSONL; configured ncp builds preflight the sink, validate/serialize each batch before writing, and use capacity-16 active drop-new admission whose writer failure degrades the epoch and stops the worker",
+          "name": "Galadriel-oriented PID JSONL; the first active frame opens a configured sink under the frame pipeline, batches validate/serialize before writing, and capacity-16 drop-new admission or writer failure degrades the epoch; writer failure stops the worker",
           "route": "file://CREBAIN_PID_JSONL",
           "locator": { "file": "src-tauri/src/lib.rs", "symbol": "append_pid_observations" },
           "status": "live",

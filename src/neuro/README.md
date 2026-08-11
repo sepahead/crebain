@@ -14,6 +14,21 @@ behavior or performance evidence. A separately gated native Galadriel evidence
 producer does not import or activate this TypeScript glue and is not an Engram
 action/control loop.
 
+<p align="center">
+  <img alt="CREBAIN headless NCP and Engram host boundaries" src="../../assets/diagrams/engram-ncp-boundary.svg" width="900">
+</p>
+
+Text alternative: The feature-gated `crebain-ncp-headless` process uses a
+strict client configuration and NCP wire 0.8 without Tauri, inference, image,
+or plant dependencies.
+It bounds open, 1–4,096 steps, and close against a compatible external responder.
+Self-check and validation do not cross the transport boundary. The separate
+Engram UI host is read-only and has no NCP path. Current Engram wire 1.0 is
+incompatible, and no translator or live loop exists. A successful, validated
+RPC reply shows that one compatible responder replied. It does not prove
+receiver identity, end-to-end effect, TLS, ACL, scientific validity, or
+deployment readiness.
+
 ## Single source of truth
 
 NCP wire types, enums, `NeuroSimClient`, and `WebSocketNeuroSim` are owned by
@@ -22,9 +37,9 @@ NCP wire types, enums, `NeuroSimClient`, and `WebSocketNeuroSim` are owned by
 `ncp-zenoh` to the same tag in `src-tauri/Cargo.toml`.
 
 Keep `package.json`, `bun.lock`, `src-tauri/Cargo.toml`, and
-`src-tauri/Cargo.lock` coherent when upgrading. Do not use incompatible older
+`src-tauri/Cargo.lock` coherent when upgrading. Do not use incompatible
 external Engram examples as the version source. The current CREBAIN pin is
-`v0.8.0`.
+`v0.8.0` with wire `0.8`.
 
 ## Guarded example
 
@@ -37,21 +52,21 @@ import {
 } from './neuro'
 
 const transport = new WebSocketNeuroSim('ws://127.0.0.1:28471/api/neurocontrol/ws')
-const engram = new NeuroSimClient(guardReplyVersion(transport.send))
+const client = new NeuroSimClient(guardReplyVersion(transport.send))
 
-await engram.open(
+await client.open(
   'uav3-percept',
   { kind: 'builtin', ref: 'iaf_psc_alpha', population_sizes: { feat: 1 } },
   [{ port: 'spk', target: 'feat', observable: 'spikes' }],
   [{ port: 'drive', target: 'feat', kind: 'current_pA' }]
 )
-const obs: ObservationFrameReply = await engram.step(
+const obs: ObservationFrameReply = await client.step(
   'uav3-percept',
   { drive: { data: [500], unit: 'pA' } },
   50
 )
 const spikeCount = obs.records.spk.times.length
-await engram.close('uav3-percept')
+await client.close('uav3-percept')
 ```
 
 The guard always throws when a success reply lacks a compatible `ncp_version`.
@@ -63,8 +78,9 @@ permissive or warning-only mode.
 
 ## Transport choices are integration work
 
-- `WebSocketNeuroSim` can target Engram's WebSocket endpoint once a product
-  integration explicitly constructs it.
+- `WebSocketNeuroSim` requires a compatible NCP wire-0.8 responder. Current
+  Engram/Paper2Brain native wire 1.0 is incompatible. No translator or live
+  CREBAIN↔current-Engram loop exists.
 - A TypeScript Zenoh `Send` adapter is not implemented here. CREBAIN's robotics
   `ZenohBridge` cannot be assumed to implement NCP query/reply merely because both
   use Zenoh.
@@ -72,6 +88,9 @@ permissive or warning-only mode.
   Its action/control Tauri commands also remain unregistered. The same Cargo feature
   contains an independently gated two-route Galadriel evidence producer. See
   [`src-tauri/src/ncp/README.md`](../../src-tauri/src/ncp/README.md).
+- The dependency-isolated `crebain-ncp-headless` workspace package builds a
+  separate bounded perception process. Its `engram/ncp` default realm does not
+  establish compatibility with current Engram.
 - Vite development builds separately expose `window.__ncpDrone`, a manual
   in-browser injection harness for wire-shaped command frames. It opens no NCP
   transport or session and is absent from production builds.

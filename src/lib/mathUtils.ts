@@ -367,13 +367,23 @@ export function slerpQuaternion(q1: Quaternion, q2: Quaternion, t: number): Quat
   const halfTheta = Math.acos(cosHalfTheta)
   const sinHalfTheta = Math.sqrt(1.0 - cosHalfTheta * cosHalfTheta)
 
-  // If theta is 180 degrees, result is not fully defined
+  // After the shortest-path adjustment, a small sine means the rotations are
+  // nearly equal. Use t-aware normalized linear interpolation so the endpoint
+  // contract remains exact; a fixed midpoint would make t=0 and t=1 incorrect.
   if (Math.abs(sinHalfTheta) < 0.001) {
+    const result = {
+      w: q1.w + (q2Adj.w - q1.w) * t,
+      x: q1.x + (q2Adj.x - q1.x) * t,
+      y: q1.y + (q2Adj.y - q1.y) * t,
+      z: q1.z + (q2Adj.z - q1.z) * t,
+    }
+    const norm = Math.hypot(result.x, result.y, result.z, result.w)
+    if (!Number.isFinite(norm) || norm < 1e-12) return { ...q1 }
     return {
-      w: q1.w * 0.5 + q2Adj.w * 0.5,
-      x: q1.x * 0.5 + q2Adj.x * 0.5,
-      y: q1.y * 0.5 + q2Adj.y * 0.5,
-      z: q1.z * 0.5 + q2Adj.z * 0.5,
+      x: result.x / norm,
+      y: result.y / norm,
+      z: result.z / norm,
+      w: result.w / norm,
     }
   }
 

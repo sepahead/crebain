@@ -1,0 +1,138 @@
+<svg xmlns="http://www.w3.org/2000/svg" xml:lang="en" viewBox="0 0 1200 920" width="1200" height="920" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="camera-delivery-title camera-delivery-desc">
+  <title id="camera-delivery-title">CREBAIN bounded native camera delivery lifecycle</title>
+  <desc id="camera-delivery-desc">Zenoh and native rosbridge camera callbacks share a 384 MiB weighted nonblocking budget. An admitted frame retains its exact topic slot and permit while a small identity descriptor crosses Tauri events. The renderer pulls once, settles listeners, and acknowledges the same lifecycle, subscription, and delivery identifiers. Exact acknowledgment or the 30-second native lease releases ownership. Failure quarantines only the matching declaration and fences stale cleanup.</desc>
+  <style>
+    * { vector-effect: non-scaling-stroke; }
+    .canvas { fill: #f8fafc; }
+    text { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 14px; fill: #172033; text-anchor: middle; }
+    .title { font-size: 18px; font-weight: 700; letter-spacing: 2px; text-anchor: start; }
+    .subtitle { font-size: 13px; fill: #475569; text-anchor: start; }
+    .lane-title { font-size: 14px; font-weight: 700; letter-spacing: 1px; }
+    .small { font-size: 13px; fill: #475569; }
+    .left { text-anchor: start; }
+    .data-text { fill: #0369a1; }
+    .present-text { fill: #047857; }
+    .conditional-text { fill: #92400e; }
+    .optional-text { fill: #6d28d9; }
+    .absent-text { fill: #b91c1c; }
+    .lane-head { fill: #ffffff; stroke: #52643f; stroke-width: 1.5; }
+    .lane-line { stroke: #64748b; stroke-width: 1.2; stroke-dasharray: 4 6; }
+    .step { fill: #ffffff; stroke: #52643f; stroke-width: 1.4; }
+    .budget { fill: #ffffff; stroke: #047857; stroke-width: 1.7; }
+    .deadline { fill: #ffffff; stroke: #92400e; stroke-width: 1.4; }
+    .failure { fill: #ffffff; stroke: #b91c1c; stroke-width: 1.5; stroke-dasharray: 7 5; }
+    .message { fill: none; stroke: #0369a1; stroke-width: 1.5; marker-end: url(#camera-arrow-data); }
+    .return { fill: none; stroke: #047857; stroke-width: 1.5; marker-end: url(#camera-arrow-present); }
+    .timeout { fill: none; stroke: #b91c1c; stroke-width: 1.5; stroke-dasharray: 7 5; marker-end: url(#camera-arrow-absent); }
+    .marker-data { fill: #0369a1; }
+    .marker-present { fill: #047857; }
+    .marker-absent { fill: #b91c1c; }
+    .corner { fill: none; stroke: #52643f; stroke-width: 1.8; }
+    @media (prefers-color-scheme: dark) {
+      .canvas { fill: #0d1117; }
+      text { fill: #d6dde5; }
+      .subtitle, .small { fill: #9aa7b4; }
+      .data-text { fill: #38bdf8; }
+      .present-text { fill: #34d399; }
+      .conditional-text { fill: #fbbf24; }
+      .optional-text { fill: #c4b5fd; }
+      .absent-text { fill: #f87171; }
+      .lane-head, .step, .budget, .deadline, .failure { fill: #111820; }
+      .lane-head, .step, .corner { stroke: #87967a; }
+      .lane-line { stroke: #7d8996; }
+      .budget, .return { stroke: #34d399; }
+      .deadline { stroke: #fbbf24; }
+      .failure, .timeout { stroke: #f87171; }
+      .message { stroke: #38bdf8; }
+      .marker-data { fill: #38bdf8; }
+      .marker-present { fill: #34d399; }
+      .marker-absent { fill: #f87171; }
+    }
+  </style>
+  <defs>
+    <marker id="camera-arrow-data" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="marker-data" d="M0 0 L8 4 L0 8 Z"/></marker>
+    <marker id="camera-arrow-present" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="marker-present" d="M0 0 L8 4 L0 8 Z"/></marker>
+    <marker id="camera-arrow-absent" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="marker-absent" d="M0 0 L8 4 L0 8 Z"/></marker>
+  </defs>
+
+  <rect class="canvas" x="0" y="0" width="1200" height="920"/>
+  <path class="corner" d="M18 42 V18 H42 M1158 18 H1182 V42 M18 878 V902 H42 M1182 878 V902 H1158"/>
+  <text class="title" x="48" y="42">CREBAIN · BOUNDED CAMERA DELIVERY LIFECYCLE</text>
+  <text class="subtitle" x="48" y="66">EXACT IDENTITIES · RETAINED OWNERSHIP · FAIL-CLOSED PER-TOPIC RECOVERY</text>
+
+  <rect class="lane-head" x="40" y="94" width="232" height="62"/>
+  <text class="lane-title data-text" x="156" y="120">TELEMETRY SOURCE</text>
+  <text class="small" x="156" y="143">Zenoh CDR / rosbridge JSON</text>
+  <rect class="lane-head" x="334" y="94" width="232" height="62"/>
+  <text class="lane-title conditional-text" x="450" y="120">RUST OWNERSHIP</text>
+  <text class="small" x="450" y="143">topic slot + weighted permit</text>
+  <rect class="lane-head" x="628" y="94" width="232" height="62"/>
+  <text class="lane-title optional-text" x="744" y="120">TAURI IPC</text>
+  <text class="small" x="744" y="143">descriptor · pull · ack</text>
+  <rect class="lane-head" x="922" y="94" width="238" height="62"/>
+  <text class="lane-title present-text" x="1041" y="120">RENDERER TOPIC</text>
+  <text class="small" x="1041" y="143">one active + one pending</text>
+  <line class="lane-line" x1="156" y1="156" x2="156" y2="854"/>
+  <line class="lane-line" x1="450" y1="156" x2="450" y2="854"/>
+  <line class="lane-line" x1="744" y1="156" x2="744" y2="854"/>
+  <line class="lane-line" x1="1041" y1="156" x2="1041" y2="854"/>
+
+  <rect class="deadline" x="878" y="180" width="282" height="70"/>
+  <text class="conditional-text" x="1019" y="208">SETUP · SHARED 12 s DEADLINE</text>
+  <text class="small" x="1019" y="232">listener registration + declaration</text>
+  <path class="message" d="M922 216 H574"/>
+
+  <rect class="budget" x="304" y="268" width="292" height="104"/>
+  <text class="present-text" x="450" y="298">TRY RESERVE · NEVER WAIT</text>
+  <text class="small" x="450" y="324">shared weighted envelope: 384 MiB</text>
+  <text class="small" x="450" y="348">one validated image body ≤ 64 MiB</text>
+  <path class="message" d="M156 316 H296"/>
+  <text class="small data-text" x="226" y="304">validated frame</text>
+  <rect class="failure" x="40" y="394" width="232" height="74"/>
+  <text class="absent-text" x="156" y="424">CAPACITY FULL</text>
+  <text class="small" x="156" y="449">drop new frame · count loss</text>
+  <path class="timeout" d="M304 348 H286 V431 H272"/>
+
+  <rect class="step" x="622" y="382" width="244" height="108"/>
+  <text class="optional-text" x="744" y="412">READINESS DESCRIPTOR</text>
+  <text class="small" x="744" y="438">lifecycle + subscription</text>
+  <text class="small" x="744" y="461">+ delivery identity</text>
+  <text class="small" x="744" y="482">canonical nonzero-u64 IDs</text>
+  <path class="message" d="M596 320 H610 V436 H614"/>
+  <path class="message" d="M866 436 H914"/>
+
+  <rect class="deadline" x="922" y="506" width="238" height="86"/>
+  <text class="conditional-text" x="1041" y="536">EXACT PULL · 10 s</text>
+  <text class="small" x="1041" y="560">large frame transfers once</text>
+  <text class="small" x="1041" y="582">permit remains charged</text>
+  <path class="return" d="M922 548 H752"/>
+  <path class="message" d="M736 574 H574"/>
+
+  <rect class="deadline" x="922" y="612" width="238" height="94"/>
+  <text class="conditional-text" x="1041" y="642">SETTLE LISTENERS · 8 s</text>
+  <text class="small" x="1041" y="667">callback failures isolated</text>
+  <text class="small" x="1041" y="691">exact acknowledgment · 4 s</text>
+  <path class="return" d="M922 654 H752"/>
+  <path class="return" d="M736 682 H450 V726"/>
+
+  <rect class="budget" x="334" y="734" width="232" height="154"/>
+  <text class="present-text" x="450" y="774">RELEASE EXACT OWNER</text>
+  <text class="small" x="450" y="800">matching ack releases</text>
+  <text class="small" x="450" y="823">slot + permit</text>
+  <text class="small" x="450" y="846">stale IDs cannot release</text>
+
+  <rect class="failure" x="600" y="724" width="310" height="164"/>
+  <text class="absent-text" x="755" y="766">30 s NATIVE LEASE</text>
+  <text class="small" x="755" y="792">lost / late / rejected ack</text>
+  <text class="small" x="755" y="818">release exact owner + quarantine</text>
+  <text class="small" x="755" y="844">bounded undeclare · retain on failure</text>
+  <path class="timeout" d="M1041 706 V716 H918"/>
+
+  <rect class="failure" x="922" y="724" width="238" height="164"/>
+  <text class="absent-text" x="1041" y="746">GENERATION FENCE</text>
+  <text class="small" x="1041" y="772">reopen rotates</text>
+  <text class="small" x="1041" y="795">exact identity</text>
+  <text class="small" x="1041" y="818">stale callback is rejected</text>
+  <text class="small" x="1041" y="841">stale cleanup cannot remove</text>
+  <text class="small" x="1041" y="864">the new topic</text>
+</svg>

@@ -6,6 +6,10 @@ import {
   CAMERA_CAPTURE_UNAVAILABLE_ERROR,
   convertDetection,
   imageDataToRGBA,
+  MAX_DETECTION_INTERVAL_MS,
+  normalizeDetectionConfidenceThreshold,
+  normalizeDetectionIntervalMs,
+  pruneCaptureDropReports,
   useDetectionLoop,
 } from '../useDetectionLoop'
 import type { CoreMLDetection } from '../../detection/types'
@@ -65,7 +69,7 @@ function renderDetectionLoop({
 } = {}) {
   function Harness({ active }: { active: boolean }) {
     useDetectionLoop({
-      cameras: [{ id: 'cam-1', name: 'Camera 1', isActive: true }],
+      cameras: [{ id: 'cam-1', instanceId: 'camera-1', name: 'Camera 1', isActive: true }],
       exportCameraFeed,
       enabled: active,
       intervalMs: 1_000,
@@ -192,6 +196,23 @@ describe('useDetectionLoop helpers', () => {
     expect(rgba[1]).toBe(9)
   })
 
+  it('normalizes timer values that browsers would otherwise run as tight loops', () => {
+    expect(normalizeDetectionIntervalMs(1)).toBe(1)
+    expect(normalizeDetectionIntervalMs(MAX_DETECTION_INTERVAL_MS)).toBe(MAX_DETECTION_INTERVAL_MS)
+    for (const invalid of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(normalizeDetectionIntervalMs(invalid)).toBe(100)
+    }
+    expect(normalizeDetectionIntervalMs(MAX_DETECTION_INTERVAL_MS + 1)).toBe(100)
+  })
+
+  it('normalizes confidence thresholds to the common native backend envelope', () => {
+    expect(normalizeDetectionConfidenceThreshold(0.25)).toBe(0.25)
+    expect(normalizeDetectionConfidenceThreshold(1)).toBe(1)
+    for (const invalid of [0.24, 1.01, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(normalizeDetectionConfidenceThreshold(invalid)).toBe(0.25)
+    }
+  })
+
   it('reports malformed native detection responses instead of dispatching detections', async () => {
     invokeMock.mockResolvedValue({
       success: true,
@@ -255,8 +276,8 @@ describe('useDetectionLoop helpers', () => {
   it('reports unavailable captures per camera without flooding onError', async () => {
     vi.useFakeTimers()
     const cameras = [
-      { id: 'cam-1', name: 'Camera 1', isActive: true },
-      { id: 'cam-2', name: 'Camera 2', isActive: true },
+      { id: 'cam-1', instanceId: 'camera-1', name: 'Camera 1', isActive: true },
+      { id: 'cam-2', instanceId: 'camera-2', name: 'Camera 2', isActive: true },
     ]
     const exportCameraFeed = vi.fn(() => null)
     const onError = vi.fn()
@@ -304,6 +325,21 @@ describe('useDetectionLoop helpers', () => {
     await act(async () => root.unmount())
   })
 
+  it('retires capture-outage state for removed and replaced camera instances', () => {
+    const reports = new Map([
+      ['retained', { instanceId: 'camera-a', reportedAt: 1 }],
+      ['removed', { instanceId: 'camera-b', reportedAt: 2 }],
+      ['replaced', { instanceId: 'camera-old', reportedAt: 3 }],
+    ])
+
+    pruneCaptureDropReports(reports, [
+      { id: 'retained', instanceId: 'camera-a' },
+      { id: 'replaced', instanceId: 'camera-new' },
+    ])
+
+    expect([...reports]).toEqual([['retained', { instanceId: 'camera-a', reportedAt: 1 }]])
+  })
+
   it.each([7, 64])(
     'detects every one of %i active cameras fairly across repeated round-robin sweeps',
     async (cameraCount) => {
@@ -311,6 +347,7 @@ describe('useDetectionLoop helpers', () => {
       invokeMock.mockResolvedValue(successfulResult())
       const cameras = Array.from({ length: cameraCount }, (_, index) => ({
         id: `cam-${index + 1}`,
+        instanceId: `camera-${index + 1}`,
         name: `Camera ${index + 1}`,
         isActive: true,
       }))
@@ -373,7 +410,14 @@ describe('useDetectionLoop helpers', () => {
 
     function Harness(props: HarnessProps) {
       useDetectionLoop({
-        cameras: [{ id: props.cameraId, name: props.cameraId, isActive: true }],
+        cameras: [
+          {
+            id: props.cameraId,
+            instanceId: props.cameraId,
+            name: props.cameraId,
+            isActive: true,
+          },
+        ],
         exportCameraFeed: props.exportCameraFeed,
         enabled: true,
         intervalMs: 1_000,
@@ -438,6 +482,22 @@ describe('useDetectionLoop helpers', () => {
     await act(async () => root.unmount())
   })
 
+  it('cancels its scheduled delay when the loop unmounts', async () => {
+    vi.useFakeTimers()
+    invokeMock.mockResolvedValue(successfulResult())
+    const { root, render } = renderDetectionLoop()
+
+    await act(async () => {
+      render()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(vi.getTimerCount()).toBe(1)
+
+    await act(async () => root.unmount())
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
   it('delivers an in-flight result only to the latest callbacks without restarting', async () => {
     let resolveDetection!: (value: ReturnType<typeof successfulResult>) => void
     invokeMock.mockImplementation(
@@ -450,7 +510,12 @@ describe('useDetectionLoop helpers', () => {
     const secondDetection = vi.fn()
     const firstPerformance = vi.fn()
     const secondPerformance = vi.fn()
-    const stableCamera = { id: 'cam-1', name: 'Camera 1', isActive: true }
+    const stableCamera = {
+      id: 'cam-1',
+      instanceId: 'camera-1',
+      name: 'Camera 1',
+      isActive: true,
+    }
 
     function Harness({ latest }: { latest: boolean }) {
       useDetectionLoop({
@@ -494,6 +559,79 @@ describe('useDetectionLoop helpers', () => {
     await act(async () => root.unmount())
   })
 
+  it('isolates observer failures so one callback cannot terminate the loop', async () => {
+    vi.useFakeTimers()
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    invokeMock.mockResolvedValue(successfulResult())
+    const onDetection = vi.fn(() => {
+      throw new Error('observer failed')
+    })
+    const onPerformance = vi.fn()
+    const { root, render } = renderDetectionLoop({ onDetection, onPerformance })
+
+    await act(async () => {
+      render()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+
+    expect(invokeMock).toHaveBeenCalledTimes(2)
+    expect(onDetection).toHaveBeenCalledTimes(2)
+    expect(onPerformance).toHaveBeenCalledTimes(2)
+    await act(async () => root.unmount())
+  })
+
+  it('keeps an in-flight result when only camera metadata is replaced', async () => {
+    let resolveDetection!: (value: ReturnType<typeof successfulResult>) => void
+    invokeMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveDetection = resolve
+        })
+    )
+    const onDetection = vi.fn()
+
+    function Harness({ renamed }: { renamed: boolean }) {
+      useDetectionLoop({
+        cameras: [
+          {
+            id: 'cam-1',
+            instanceId: 'physical-camera-1',
+            name: renamed ? 'Renamed Camera' : 'Camera 1',
+            isActive: true,
+          },
+        ],
+        exportCameraFeed: () => imageData(),
+        enabled: true,
+        intervalMs: 1_000,
+        onDetection,
+      })
+      return null
+    }
+
+    const root = createRoot(document.createElement('div'))
+    await act(async () => {
+      root.render(createElement(Harness, { renamed: false }))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    await act(async () => {
+      root.render(createElement(Harness, { renamed: true }))
+      await Promise.resolve()
+    })
+    await act(async () => {
+      resolveDetection(successfulResult())
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(onDetection).toHaveBeenCalledTimes(1)
+    await act(async () => root.unmount())
+  })
+
   it('drops an in-flight result when its camera is removed', async () => {
     let resolveDetection!: (value: ReturnType<typeof successfulResult>) => void
     invokeMock.mockImplementation(
@@ -507,7 +645,9 @@ describe('useDetectionLoop helpers', () => {
 
     function Harness({ includeCamera }: { includeCamera: boolean }) {
       useDetectionLoop({
-        cameras: includeCamera ? [{ id: 'cam-1', name: 'Camera 1', isActive: true }] : [],
+        cameras: includeCamera
+          ? [{ id: 'cam-1', instanceId: 'camera-1', name: 'Camera 1', isActive: true }]
+          : [],
         exportCameraFeed: () => imageData(),
         enabled: true,
         intervalMs: 1_000,
@@ -550,8 +690,18 @@ describe('useDetectionLoop helpers', () => {
           resolveDetection = resolve
         })
     )
-    const oldCamera = { id: 'cam-1', name: 'Old Camera', isActive: true }
-    const restoredCamera = { id: 'cam-1', name: 'Restored Camera', isActive: true }
+    const oldCamera = {
+      id: 'cam-1',
+      instanceId: 'old-camera',
+      name: 'Old Camera',
+      isActive: true,
+    }
+    const restoredCamera = {
+      id: 'cam-1',
+      instanceId: 'restored-camera',
+      name: 'Restored Camera',
+      isActive: true,
+    }
     const onDetection = vi.fn()
 
     function Harness({ restored }: { restored: boolean }) {

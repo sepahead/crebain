@@ -43,7 +43,7 @@ jobs:
       - name: Internal version coherence (HEAD)
         run: scripts/check-version-coherence.sh
       - name: NCP consumer coherence (HEAD)
-        run: scripts/check-ncp-coherence.sh
+        run: bun run check:ncp-coherence
       - name: Phase 0 assurance baseline and fail-closed self-test (HEAD)
         run: node scripts/verify-phase0-baseline.mjs && node scripts/test-phase0-baseline.mjs
       - name: Version coherence (tag)
@@ -74,13 +74,19 @@ jobs:
       - name: Build + bundle-size budget
         run: bun run check:bundle
 
+      - name: Install Chromium for responsive smoke test
+        run: bunx playwright install --with-deps chromium
+
+      - name: Responsive production-browser smoke test
+        run: bun run test:responsive
+
       - name: Record frontend validation summary
         if: always()
         run: |
           {
             echo "### Frontend validation"
             echo ""
-            echo "- Command: \`bun run validate\` + \`bun run check:bundle\`"
+            echo "- Commands: \`bun run validate\`, \`bun run check:bundle\`, and \`bun run test:responsive\`"
             echo ""
             echo "\`\`\`"
             grep -E "Test Files|Tests|tsc --noEmit|within budget" frontend-validation.log || true
@@ -178,8 +184,8 @@ jobs:
           bun run clippy:rust 2>&1 | tee rust-clippy.log
 
       # The dormant NCP bridge and runtime-gated Galadriel producer live behind
-      # `ncp`, so default checks do not compile them. Lint the complete feature
-      # surface (clippy also catches build breaks).
+      # `ncp`, so default checks do not compile them. Lint the complete Tauri
+      # feature surface. Clippy also catches build breaks.
       - name: Clippy NCP bridge and Galadriel producer (feature `ncp`)
         run: |
           set -o pipefail
@@ -195,6 +201,30 @@ jobs:
           set -o pipefail
           bun run test:rust:ncp 2>&1 | tee rust-ncp-test.log
 
+      # The external runner is a separate default-empty workspace package. Test
+      # its binary, CLI, lifecycle, and dependency boundary independently from
+      # the Tauri package.
+      - name: Verify isolated headless NCP dependency boundary
+        run: |
+          set -o pipefail
+          bun run check:ncp-headless-boundary 2>&1 | tee rust-ncp-headless-boundary.log
+
+      - name: Clippy isolated headless NCP runner
+        run: |
+          set -o pipefail
+          bun run clippy:ncp-headless 2>&1 | tee rust-ncp-headless-clippy.log
+
+      - name: Test isolated headless NCP runner
+        timeout-minutes: 30
+        run: |
+          set -o pipefail
+          bun run test:ncp-headless 2>&1 | tee rust-ncp-headless-test.log
+
+      - name: Self-check isolated headless NCP runner
+        run: |
+          set -o pipefail
+          bun run self-check:ncp-headless 2>&1 | tee rust-ncp-headless-self-check.log
+
       - name: Run tests
         run: |
           set -o pipefail
@@ -206,10 +236,10 @@ jobs:
           {
             echo "### Backend validation (${{ matrix.os }})"
             echo ""
-            echo "- Commands: \`fmt:rust:check\`, \`check:rust\`, \`clippy:rust\`, \`clippy:rust:ncp\`, \`test:rust\`, \`test:rust:ncp\`"
+            echo "- Commands: \`fmt:rust:check\`, \`check:rust\`, \`clippy:rust\`, \`clippy:rust:ncp\`, \`test:rust\`, \`test:rust:ncp\`, \`check:ncp-headless-boundary\`, \`clippy:ncp-headless\`, \`test:ncp-headless\`, \`self-check:ncp-headless\`"
             echo ""
             echo "\`\`\`"
-            grep -E "test result:|Finished|error:" rust-check.log rust-clippy.log rust-test.log rust-ncp-test.log || true
+            grep -E "test result:|Finished|error:|OK:|crebain_ncp_headless_self_check" rust-check.log rust-clippy.log rust-test.log rust-ncp.log rust-ncp-test.log rust-ncp-headless-boundary.log rust-ncp-headless-clippy.log rust-ncp-headless-test.log rust-ncp-headless-self-check.log || true
             echo "\`\`\`"
           } >> "$GITHUB_STEP_SUMMARY"
 

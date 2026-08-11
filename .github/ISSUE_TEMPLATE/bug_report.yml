@@ -39,6 +39,7 @@ body:
       options:
         - bun run dev (browser-only)
         - bun run tauri:dev (native)
+        - crebain-ncp-headless (opt-in)
         - packaged build
     validations:
       required: true

@@ -22,8 +22,15 @@ It is written to be read alongside the code. Primary sources:
 | `src/components/SensorFusionPanel.tsx` | Operator-facing track list and filter selector |
 
 <p align="center">
-  <img alt="CREBAIN native sensor-fusion pipeline: six measurement sources feed a bounded exact-time intake, then predict, Mahalanobis gate, cluster-plus-Hungarian association, sequential update, and M-of-N lifecycle stages produce track output for the Sensor Fusion panel. A gated emit_innovations branch and the separate browser multi-camera module are shown dashed" src="../assets/diagrams/fusion-pipeline.svg" width="900">
+  <img alt="CREBAIN native sensor-fusion pipeline" src="../assets/diagrams/fusion-pipeline.svg" width="900">
 </p>
+
+Text alternative: Six bounded measurement sources enter the native fusion
+engine. The engine predicts tracks, applies Mahalanobis gates, and associates
+measurements. Associated measurements update filters. Unassociated measurements
+initiate tracks before lifecycle processing. Local JSON Lines innovation output
+and the separately gated two-route producer remain distinct. The browser
+multi-camera estimator has separate state and output.
 
 ---
 
@@ -55,26 +62,10 @@ is a separate camera-only geometric estimator with a different input, state,
 identity, covariance, and output contract. It is not a substitute, oracle, or
 parity implementation of `MultiSensorFusion`.
 
-Text alternative: The browser camera estimator correlates camera detections,
+Path summary: The browser camera estimator correlates camera detections,
 triangulates them, and returns `FusedTrack` values. Separately, ROS and visual
 measurements enter the native Rust engine through Tauri IPC. The native engine
 predicts, associates, updates, and reports tracks to the Sensor Fusion panel.
-
-```mermaid
-graph LR
-    subgraph Browser["Browser (TypeScript)"]
-        Cams["Multi-camera<br/>detections + intrinsics"] --> TSF["SensorFusion.ts<br/>correlate → triangulate → track"]
-        TSF --> TSTracks["FusedTrack[]<br/>(THREE.Vector3)"]
-    end
-
-    subgraph Native["Native engine (Rust, through Tauri)"]
-        ROS["ROS sensor topics<br/>(thermal/acoustic/radar/lidar)"] --> Bridge["useROSSensors.ts<br/>+ AdvancedSensorFusion.ts"]
-        Visual["CoreML / YOLO<br/>visual detections"] --> Bridge
-        Bridge -->|"invoke('fusion_process')"| Engine["MultiSensorFusion<br/>predict → associate → update → lifecycle"]
-        Engine --> Out["TrackOutput[]"]
-        Out --> Panel["SensorFusionPanel"]
-    end
-```
 
 ### 1. Native multi-modal engine — `sensor_fusion.rs`
 
@@ -136,20 +127,9 @@ out the browser estimator explicitly in
 Each call to `fusion_process(measurements, timestamp_ms)` runs one cycle of a
 standard recursive multi-target tracker:
 
-Text alternative: Each cycle predicts existing tracks, associates gated
+Cycle summary: Each cycle predicts existing tracks, associates gated
 measurements, updates matched tracks, creates tentative tracks from unmatched
 measurements, applies lifecycle transitions, and returns `TrackOutput` values.
-
-```mermaid
-flowchart TD
-    A["measurements[]<br/>(this frame)"] --> B["1. PREDICT<br/>advance every track to now<br/>x' = F·x,  P' = F·P·Fᵀ + Q·dt"]
-    B --> C["2. ASSOCIATE<br/>gate by Mahalanobis distance,<br/>global nearest neighbor (Hungarian) per cluster"]
-    C --> D["3. UPDATE<br/>fuse associated measurements,<br/>correct state + covariance"]
-    C --> E["4. INITIATE<br/>spawn Tentative track from<br/>each unassociated measurement"]
-    D --> F["5. LIFECYCLE<br/>age, confirm, coast,<br/>delete missed tracks"]
-    E --> F
-    F --> G["TrackOutput[]"]
-```
 
 1. **Predict** — every existing track is advanced from its last update to the
    current frame time using the constant-velocity motion model. `dt` is computed
@@ -418,7 +398,7 @@ transitions below reflect the actual Rust implementation in `update_track`,
 `min_confirmation_hits = 3` (M), `confirmation_window = 5` (N), so **3-of-5**;
 `max_missed_detections = 5` misses within the window. `max_position_cov_volume = 1e6`).
 
-Text alternative: A new track starts as Tentative. At least M hits in the last N
+Lifecycle summary: A new track starts as Tentative. At least M hits in the last N
 opportunities confirm it. Two consecutive misses move a Tentative or Confirmed
 track to Coasting. At least M hits in the window reconfirm a Coasting track.
 Excess misses or covariance remove the track as Lost.
@@ -509,7 +489,7 @@ The browser engine (`SensorFusion.ts`) turns 2D detections from multiple cameras
 *bearing*, a ray from the camera center through the back-projected pixel. A 3D
 position requires triangulating rays from two or more viewpoints.
 
-Text alternative: Each camera bounding-box center becomes a ray from that
+Triangulation summary: Each camera bounding-box center becomes a ray from that
 camera. A least-squares intersection of two or more rays produces a 3D position
 and residual error.
 

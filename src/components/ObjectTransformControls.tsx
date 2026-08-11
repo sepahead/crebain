@@ -198,6 +198,7 @@ export function ObjectTransformControls({
   const pos = object.position
   const rot = object.rotation
   const scl = object.scale
+  const contentId = 'object-transform-controls-content'
 
   return (
     <div
@@ -207,28 +208,41 @@ export function ObjectTransformControls({
         left: `${panelDrag.position.x}px`,
         top: `${panelDrag.position.y}px`,
         cursor: panelDrag.isDragging ? 'grabbing' : undefined,
-        fontSize: 'calc(8px * var(--ui-scale, 1))',
+        fontSize: 'calc(12px * var(--ui-scale, 1))',
       }}
       onMouseDown={panelDrag.handleMouseDown}
     >
       <div className="bg-[#0c0c0c] border border-[#1a1a1a]">
-        {/* Header */}
+        {/* Header: dragging and disclosure have distinct interaction surfaces. */}
         <div
           data-drag-handle
-          className="h-7 border-b border-[#1a1a1a] flex items-center justify-between px-3 bg-[#101010] cursor-grab select-none"
-          onClick={handleHeaderClick}
+          className="h-7 border-b border-[#1a1a1a] flex items-stretch bg-[#101010] select-none"
         >
-          <span
-            className="text-[0.875em] text-[#909090] tracking-[0.2em] truncate"
-            title={objectName}
-          >
-            {objectName.toUpperCase().slice(0, 12)}
+          <span aria-hidden="true" className="flex cursor-grab items-center px-1 text-[#505050]">
+            ⋮
           </span>
-          <button className="text-[#505050] hover:text-[#707070]">{isExpanded ? '▼' : '▶'}</button>
+          <button
+            type="button"
+            className="flex min-w-0 flex-1 items-center justify-between px-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-[#8fb69a]"
+            onClick={handleHeaderClick}
+            aria-expanded={isExpanded}
+            aria-controls={contentId}
+            aria-label={`${isExpanded ? 'Collapse' : 'Expand'} transform controls for ${objectName}`}
+          >
+            <span
+              className="truncate text-[0.875em] tracking-[0.2em] text-[#909090]"
+              title={objectName}
+            >
+              {objectName.toUpperCase().slice(0, 12)}
+            </span>
+            <span aria-hidden="true" className="text-[#505050] hover:text-[#707070]">
+              {isExpanded ? '▼' : '▶'}
+            </span>
+          </button>
         </div>
 
         {isExpanded && (
-          <div className="p-3 space-y-3">
+          <div id={contentId} className="p-3 space-y-3">
             {/* Position Display */}
             <div className="p-2 bg-[#0a0a0a] border border-[#1a1a1a]">
               <div className="text-[0.75em] text-[#606060] tracking-wider mb-1">POSITION</div>
@@ -251,12 +265,14 @@ export function ObjectTransformControls({
                 {(['x', 'y', 'z'] as const).map((axis) => (
                   <div key={axis} className="flex gap-0.5">
                     <button
+                      type="button"
                       onClick={() => nudgePosition(axis, -1)}
                       className="flex-1 py-1 bg-[#0e0e0e] border border-[#252525] text-[0.875em] text-[#606060] hover:border-[#404040] hover:text-[#909090]"
                     >
                       -{axis.toUpperCase()}
                     </button>
                     <button
+                      type="button"
                       onClick={() => nudgePosition(axis, 1)}
                       className="flex-1 py-1 bg-[#0e0e0e] border border-[#252525] text-[0.875em] text-[#606060] hover:border-[#404040] hover:text-[#909090]"
                     >
@@ -272,6 +288,7 @@ export function ObjectTransformControls({
               <div className="flex items-center justify-between mb-1">
                 <span className="text-[0.75em] text-[#606060] tracking-wider">ROTATION</span>
                 <button
+                  type="button"
                   onClick={resetRotation}
                   className="text-[0.625em] text-[#505050] hover:text-[#808080] px-1"
                 >
@@ -306,12 +323,14 @@ export function ObjectTransformControls({
                 ].map(({ label, rotate }) => (
                   <div key={label} className="flex gap-0.5">
                     <button
+                      type="button"
                       onClick={() => rotate(-1)}
                       className="flex-1 py-1 bg-[#0e0e0e] border border-[#252525] text-[0.875em] text-[#606060] hover:border-[#404040] hover:text-[#909090]"
                     >
                       ↺{label}
                     </button>
                     <button
+                      type="button"
                       onClick={() => rotate(1)}
                       className="flex-1 py-1 bg-[#0e0e0e] border border-[#252525] text-[0.875em] text-[#606060] hover:border-[#404040] hover:text-[#909090]"
                     >
@@ -327,6 +346,7 @@ export function ObjectTransformControls({
               <div className="flex items-center justify-between mb-1">
                 <span className="text-[0.75em] text-[#606060] tracking-wider">SKALIERUNG</span>
                 <button
+                  type="button"
                   onClick={resetScale}
                   className="text-[0.625em] text-[#505050] hover:text-[#808080] px-1"
                 >
@@ -338,13 +358,17 @@ export function ObjectTransformControls({
               </div>
               <div className="flex gap-1">
                 <button
+                  type="button"
                   onClick={() => scaleUniform(-1)}
+                  aria-label="Decrease object scale"
                   className="flex-1 py-1.5 bg-[#0e0e0e] border border-[#252525] text-[1.25em] text-[#606060] hover:border-[#404040] hover:text-[#909090]"
                 >
                   −
                 </button>
                 <button
+                  type="button"
                   onClick={() => scaleUniform(1)}
+                  aria-label="Increase object scale"
                   className="flex-1 py-1.5 bg-[#0e0e0e] border border-[#252525] text-[1.25em] text-[#606060] hover:border-[#404040] hover:text-[#909090]"
                 >
                   +
@@ -354,6 +378,7 @@ export function ObjectTransformControls({
 
             {/* Delete Button */}
             <button
+              type="button"
               onClick={handleDelete}
               className="w-full py-2 bg-[#1a0808] border border-[#3a2020] text-[0.875em] text-[#8b4a4a] hover:border-[#5a3030] hover:text-[#a06060] tracking-wider"
             >

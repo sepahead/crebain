@@ -8,8 +8,9 @@
  * if the protocol has to change, it changes there via a pull request and we bump
  * the pin. This module re-exports the package as CREBAIN's local integration point
  * (`src/neuro`); any CREBAIN-specific TS glue would live here. The CREBAIN-specific
- * mapping (pose/velocity ↔ NCP frames, MAVROS) lives in the Rust client at
- * `src-tauri/src/ncp/`. See README.md.
+ * dormant proposal adapter and its validation gates live in the Rust module at
+ * `src-tauri/src/ncp/`. That module does not write to MAVROS or an actuator.
+ * See README.md.
  */
 
 export * from '@sepahead/ncp'

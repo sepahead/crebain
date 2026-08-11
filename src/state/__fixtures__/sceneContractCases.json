@@ -1,0 +1,372 @@
+{
+  "current": {
+    "version": "1.0.0",
+    "timestamp": 1700000000000,
+    "name": "Shared contract scene",
+    "description": "Cross-language scene contract fixture",
+    "splatScene": {
+      "url": "/splats/site.splat",
+      "localPath": "/display-only/original.splat",
+      "position": { "x": 0, "y": 0, "z": 0 },
+      "rotation": { "x": 0, "y": 0, "z": 0 },
+      "scale": { "x": 1, "y": 1, "z": 1 }
+    },
+    "assets": [
+      {
+        "id": "asset-1",
+        "name": "Site model",
+        "type": "glb",
+        "source": "/models/site.glb",
+        "position": { "x": 0, "y": 0, "z": 0 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "scale": { "x": 1, "y": 1, "z": 1 }
+      }
+    ],
+    "cameras": [
+      {
+        "id": "camera-1",
+        "name": "North camera",
+        "type": "patrol",
+        "position": { "x": 1, "y": 2, "z": 3 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "fov": 60,
+        "near": 0.1,
+        "far": 1000,
+        "isActive": true,
+        "resolution": [640, 360],
+        "pan": 0,
+        "tilt": 0,
+        "zoom": 60,
+        "patrolPoints": [{ "x": 2, "y": 3, "z": 4 }],
+        "patrolSpeed": 0.5
+      }
+    ],
+    "activeCameraId": "camera-1",
+    "drones": [
+      {
+        "id": "drone-1",
+        "name": "Patrol drone",
+        "type": "maverick",
+        "position": { "x": 0, "y": 10, "z": 0 },
+        "orientation": { "x": 0, "y": 0, "z": 0, "w": 1 },
+        "velocity": { "x": 0, "y": 0, "z": 0 },
+        "angularVelocity": { "x": 0, "y": 0, "z": 0 },
+        "armed": false,
+        "battery": 90,
+        "targetAltitude": 10,
+        "targetPosition": { "x": 1, "y": 10, "z": 1 },
+        "flightMode": "waypoint",
+        "waypoints": [{ "x": 1, "y": 10, "z": 1 }],
+        "routeMode": "once",
+        "routeActive": true,
+        "routeCurrentWaypointIndex": 0
+      }
+    ],
+    "recentDetections": [
+      {
+        "id": "detection-1",
+        "cameraId": "camera-1",
+        "class": "drone",
+        "confidence": 0.9,
+        "bbox": [10, 20, 30, 40],
+        "timestamp": 1700000000000,
+        "threatLevel": 2
+      }
+    ],
+    "settings": {
+      "detectionEnabled": true,
+      "showDetectionPanel": true,
+      "showPerformancePanel": true,
+      "renderQuality": "high",
+      "physicsEnabled": true,
+      "sensorSimulationEnabled": true
+    },
+    "viewCamera": {
+      "position": { "x": 0, "y": 5, "z": 10 },
+      "target": { "x": 0, "y": 0, "z": 0 }
+    },
+    "metadata": { "source": "shared-fixture" }
+  },
+  "legacy": {
+    "version": "0.4.0",
+    "timestamp": 42,
+    "name": "Legacy contract scene"
+  },
+  "migratedLegacy": {
+    "version": "1.0.0",
+    "timestamp": 42,
+    "name": "Legacy contract scene",
+    "cameras": [],
+    "assets": [],
+    "drones": [],
+    "recentDetections": [],
+    "settings": {
+      "detectionEnabled": true,
+      "showDetectionPanel": true,
+      "showPerformancePanel": true,
+      "renderQuality": "high",
+      "physicsEnabled": true,
+      "sensorSimulationEnabled": true
+    },
+    "viewCamera": {
+      "position": { "x": 0, "y": 5, "z": 10 },
+      "target": { "x": 0, "y": 0, "z": 0 }
+    }
+  },
+  "cases": [
+    { "name": "complete current scene", "source": "current", "accept": true },
+    {
+      "name": "minimal declared legacy scene",
+      "source": "legacy",
+      "accept": true,
+      "canonical": "migratedLegacy"
+    },
+    {
+      "name": "present scene version is not a string",
+      "source": "current",
+      "accept": false,
+      "mutation": { "operation": "set", "path": ["version"], "value": 1 }
+    },
+    {
+      "name": "current scene missing settings",
+      "source": "current",
+      "accept": false,
+      "mutation": { "operation": "remove", "path": ["settings"] }
+    },
+    {
+      "name": "scene identity contains NUL",
+      "source": "current",
+      "accept": false,
+      "mutation": { "operation": "set", "path": ["name"], "value": "bad\u0000name" }
+    },
+    {
+      "name": "scene identity contains a non-NUL control character",
+      "source": "current",
+      "accept": false,
+      "mutation": { "operation": "set", "path": ["name"], "value": "bad\tname" }
+    },
+    {
+      "name": "scene identity has surrounding whitespace",
+      "source": "current",
+      "accept": false,
+      "mutation": { "operation": "set", "path": ["name"], "value": " padded " }
+    },
+    {
+      "name": "current scene has incomplete settings",
+      "source": "current",
+      "accept": false,
+      "mutation": { "operation": "set", "path": ["settings"], "value": {} }
+    },
+    {
+      "name": "current scene has incomplete view camera",
+      "source": "current",
+      "accept": false,
+      "mutation": { "operation": "set", "path": ["viewCamera"], "value": {} }
+    },
+    {
+      "name": "camera has zero-width resolution",
+      "source": "current",
+      "accept": false,
+      "mutation": {
+        "operation": "set",
+        "path": ["cameras", 0, "resolution"],
+        "value": [0, 360]
+      }
+    },
+    {
+      "name": "scene timestamp is negative",
+      "source": "current",
+      "accept": false,
+      "mutation": { "operation": "set", "path": ["timestamp"], "value": -1 }
+    },
+    {
+      "name": "camera pan exceeds the live control range",
+      "source": "current",
+      "accept": false,
+      "mutation": { "operation": "set", "path": ["cameras", 0, "pan"], "value": 181 }
+    },
+    {
+      "name": "camera tilt exceeds the live control range",
+      "source": "current",
+      "accept": false,
+      "mutation": { "operation": "set", "path": ["cameras", 0, "tilt"], "value": -86 }
+    },
+    {
+      "name": "camera zoom is below the live control range",
+      "source": "current",
+      "accept": false,
+      "mutation": { "operation": "set", "path": ["cameras", 0, "zoom"], "value": 4 }
+    },
+    {
+      "name": "drone type is not installed",
+      "source": "current",
+      "accept": false,
+      "mutation": {
+        "operation": "set",
+        "path": ["drones", 0, "type"],
+        "value": "not-installed"
+      }
+    },
+    {
+      "name": "shahed profile remains accepted",
+      "source": "current",
+      "accept": true,
+      "mutation": { "operation": "set", "path": ["drones", 0, "type"], "value": "shahed" }
+    },
+    {
+      "name": "fpv profile remains accepted",
+      "source": "current",
+      "accept": true,
+      "mutation": {
+        "operation": "set",
+        "path": ["drones", 0, "type"],
+        "value": "fpv_racer"
+      }
+    },
+    {
+      "name": "recon profile remains accepted",
+      "source": "current",
+      "accept": true,
+      "mutation": {
+        "operation": "set",
+        "path": ["drones", 0, "type"],
+        "value": "recon_hex"
+      }
+    },
+    {
+      "name": "switchblade profile remains accepted",
+      "source": "current",
+      "accept": true,
+      "mutation": {
+        "operation": "set",
+        "path": ["drones", 0, "type"],
+        "value": "switchblade"
+      }
+    },
+    {
+      "name": "asset and camera identifiers collide",
+      "source": "current",
+      "accept": false,
+      "mutation": {
+        "operation": "set",
+        "path": ["assets", 0, "id"],
+        "value": "camera-1"
+      }
+    },
+    {
+      "name": "detection references an absent camera",
+      "source": "current",
+      "accept": false,
+      "mutation": {
+        "operation": "set",
+        "path": ["recentDetections", 0, "cameraId"],
+        "value": "absent-camera"
+      }
+    },
+    {
+      "name": "detection class is outside the runtime domain",
+      "source": "current",
+      "accept": false,
+      "mutation": {
+        "operation": "set",
+        "path": ["recentDetections", 0, "class"],
+        "value": "executable-payload"
+      }
+    },
+    {
+      "name": "detection threat level is fractional",
+      "source": "current",
+      "accept": false,
+      "mutation": {
+        "operation": "set",
+        "path": ["recentDetections", 0, "threatLevel"],
+        "value": 1.5
+      }
+    },
+    {
+      "name": "detection bounding box has zero area",
+      "source": "current",
+      "accept": false,
+      "mutation": {
+        "operation": "set",
+        "path": ["recentDetections", 0, "bbox"],
+        "value": [10, 20, 10, 40]
+      }
+    },
+    {
+      "name": "asset uses an executable data URL",
+      "source": "current",
+      "accept": false,
+      "mutation": {
+        "operation": "set",
+        "path": ["assets", 0, "source"],
+        "value": "data:model/gltf-binary;base64,AAAA"
+      }
+    },
+    {
+      "name": "asset uses a scheme without two slashes",
+      "source": "current",
+      "accept": false,
+      "mutation": {
+        "operation": "set",
+        "path": ["assets", 0, "source"],
+        "value": "https:assets.example/site.glb"
+      }
+    },
+    {
+      "name": "asset uses an ambiguous triple-slash URL",
+      "source": "current",
+      "accept": false,
+      "mutation": {
+        "operation": "set",
+        "path": ["assets", 0, "source"],
+        "value": "https:///assets.example/site.glb"
+      }
+    },
+    {
+      "name": "metadata is an array",
+      "source": "current",
+      "accept": false,
+      "mutation": { "operation": "set", "path": ["metadata"], "value": [] }
+    },
+    {
+      "name": "optional root field is explicit null",
+      "source": "current",
+      "accept": false,
+      "mutation": { "operation": "set", "path": ["description"], "value": null }
+    },
+    {
+      "name": "optional camera field is explicit null",
+      "source": "current",
+      "accept": false,
+      "mutation": { "operation": "set", "path": ["cameras", 0, "pan"], "value": null }
+    },
+    {
+      "name": "optional drone field is explicit null",
+      "source": "current",
+      "accept": false,
+      "mutation": { "operation": "set", "path": ["drones", 0, "routeActive"], "value": null }
+    },
+    {
+      "name": "optional splat field is explicit null",
+      "source": "current",
+      "accept": false,
+      "mutation": {
+        "operation": "set",
+        "path": ["splatScene", "localPath"],
+        "value": null
+      }
+    },
+    {
+      "name": "identifier exceeds the UTF-8 byte limit",
+      "source": "current",
+      "accept": false,
+      "mutation": {
+        "operation": "repeat",
+        "path": ["cameras", 0, "name"],
+        "value": "😀",
+        "count": 65
+      }
+    }
+  ]
+}

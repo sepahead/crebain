@@ -4,7 +4,10 @@ import { loadConfigFromFile } from 'vite'
 
 const root = process.cwd()
 const tauriConfig = JSON.parse(readFileSync(`${root}/src-tauri/tauri.conf.json`, 'utf8')) as {
-  app: { security: { csp: string; devCsp: string } }
+  app: {
+    security: { csp: string; devCsp: string }
+    windows: Array<{ minWidth?: number; minHeight?: number; width: number; height: number }>
+  }
 }
 const viteConfig = readFileSync(`${root}/vite.config.ts`, 'utf8')
 const disabledRendererBridge = readFileSync(`${root}/src/ros/ROSBridgeDisabled.ts`, 'utf8')
@@ -31,6 +34,12 @@ function cspDirective(policy: string, directive: string): string[] {
 }
 
 describe('authority and renderer network boundary', () => {
+  it('declares a supported resizable-window floor', () => {
+    expect(tauriConfig.app.windows).toEqual([
+      expect.objectContaining({ width: 1600, height: 1000, minWidth: 1024, minHeight: 720 }),
+    ])
+  })
+
   it('denies every raw WebSocket destination in the production Tauri CSP', () => {
     const sources = cspDirective(tauriConfig.app.security.csp, 'connect-src')
 

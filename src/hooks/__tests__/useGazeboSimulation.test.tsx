@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
     registerInterceptor: vi.fn(),
     removeInterceptor: vi.fn(),
     getActiveMissions: vi.fn<() => InterceptionMission[]>(() => []),
+    getMission: vi.fn<() => InterceptionMission | undefined>(() => undefined),
     updateMission: vi.fn(),
     predictTargetTrajectory: vi.fn<() => TrajectoryPoint[]>(() => []),
     getGuidanceCommand: vi.fn<() => Vector3 | null>(() => null),
@@ -31,6 +32,7 @@ const mocks = vi.hoisted(() => ({
     createMission: vi.fn<() => InterceptionMission | null>(() => null),
     activateMission: vi.fn(() => false),
     abortMission: vi.fn(() => false),
+    abortAllMissions: vi.fn(() => 0),
   },
 }))
 
@@ -44,7 +46,7 @@ vi.mock('../useGazeboDrones', () => ({
 }))
 
 vi.mock('../../simulation/InterceptionSystem', () => ({
-  getInterceptionSystem: () => mocks.interceptionSystem,
+  createInterceptionSystem: () => mocks.interceptionSystem,
 }))
 
 let hook: UseGazeboSimulationReturn
@@ -133,12 +135,14 @@ describe('useGazeboSimulation', () => {
     vi.clearAllMocks()
     mocks.interceptionSystem.getInterceptor.mockReset()
     mocks.interceptionSystem.getActiveMissions.mockReset().mockReturnValue([])
+    mocks.interceptionSystem.getMission.mockReset().mockReturnValue(undefined)
     mocks.interceptionSystem.predictTargetTrajectory.mockReset().mockReturnValue([])
     mocks.interceptionSystem.getGuidanceCommand.mockReset().mockReturnValue(null)
     mocks.interceptionSystem.assignBestInterceptor.mockReset().mockReturnValue(null)
     mocks.interceptionSystem.createMission.mockReset().mockReturnValue(null)
     mocks.interceptionSystem.activateMission.mockReset().mockReturnValue(false)
     mocks.interceptionSystem.abortMission.mockReset().mockReturnValue(false)
+    mocks.interceptionSystem.abortAllMissions.mockReset().mockReturnValue(0)
     mocks.useRosBridge.mockReturnValue(rosBridgeReturn())
     mocks.useGazeboDrones.mockReturnValue(gazeboDronesReturn())
   })
@@ -355,12 +359,18 @@ describe('useGazeboSimulation', () => {
       mission.status = 'ACTIVE'
       return true
     })
+    mocks.interceptionSystem.getMission.mockImplementation(() => ({ ...mission }))
     mocks.interceptionSystem.getActiveMissions.mockImplementation(() =>
       mission.status === 'ACTIVE' ? [mission] : []
     )
     mocks.interceptionSystem.abortMission.mockImplementation(() => {
       mission.status = 'ABORTED'
       return true
+    })
+    mocks.interceptionSystem.abortAllMissions.mockImplementation(() => {
+      if (mission.status !== 'PENDING' && mission.status !== 'ACTIVE') return 0
+      mission.status = 'ABORTED'
+      return 1
     })
     mocks.interceptionSystem.getGuidanceCommand.mockReturnValue({ x: 2, y: 0, z: 0 })
     mocks.interceptionSystem.predictTargetTrajectory.mockReturnValue([
@@ -381,8 +391,11 @@ describe('useGazeboSimulation', () => {
       hook.toggleSimulation()
     })
     await act(async () => {
-      expect(hook.initiateIntercept(target.id)).toBe(mission)
+      expect(hook.initiateIntercept(target.id, 'LEAD')).toEqual(
+        expect.objectContaining({ id: mission.id, status: 'ACTIVE' })
+      )
     })
+    expect(mocks.interceptionSystem.assignBestInterceptor).toHaveBeenCalledWith(target.id, 'LEAD')
     await act(async () => {
       await vi.advanceTimersByTimeAsync(100)
     })
@@ -405,7 +418,7 @@ describe('useGazeboSimulation', () => {
       )
     })
 
-    expect(mocks.interceptionSystem.abortMission).toHaveBeenCalledWith(mission.id)
+    expect(mocks.interceptionSystem.abortAllMissions).toHaveBeenCalled()
     expect(hook.activeMissions).toEqual([])
     expect(hook.guidancePreviews.size).toBe(0)
     expect(hook.trajectoryPredictions.size).toBe(0)

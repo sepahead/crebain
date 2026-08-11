@@ -6,7 +6,12 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-import { DronePhysicsWorld, type DronePhysicsBody, FlightController } from '../physics/DronePhysics'
+import {
+  DronePhysicsWorld,
+  type DronePhysicsBody,
+  FlightController,
+  MAX_PHYSICS_DT_SECONDS,
+} from '../physics/DronePhysics'
 import { DRONE_TYPES, toQuadcopterParams, type DroneTypeDefinition } from '../physics/DroneTypes'
 import { useKeyboardControls, type DroneControlInput } from './useKeyboardControls'
 import { logger } from '../lib/logger'
@@ -15,19 +20,32 @@ import {
   isFiniteRouteWaypoint,
   MAX_ROUTE_WAYPOINTS,
 } from '../lib/routeLimits'
-import { disposeObject3D, forEachMesh } from '../lib/three/sceneObjects'
-import { isEngramEmbeddedMode } from '../integrations/engramHost'
-// The SDK plant-side wire gate + deadline/seq/latch primitive for the dev
-// NCP→drone bridge.
 import {
-  ActionBuffer,
-  assertWireFrame,
-  maxHorizonLen,
-  MAX_TTL_MS,
-  type CommandLike,
-  type Mode,
-  type WireChannels,
-} from '@sepahead/ncp'
+  attachObject3DToScene,
+  disposeObject3D,
+  isObject3DInScene,
+} from '../lib/three/sceneObjects'
+import { isEngramEmbeddedMode } from '../integrations/engramHost'
+import { isBoundedSceneName, MAX_SCENE_DRONES } from '../lib/sceneLimits'
+import type { CommandLike } from '@sepahead/ncp'
+import {
+  assertDevNcpEntityCapacity,
+  boundedDevNcpElapsed,
+  DevNcpCommandStream,
+  validateDevNcpKinematicSpawn,
+} from './devNcpCommand'
+import { createPlaceholderDrone, loadDroneModel as loadDroneModelAsset } from './droneModel'
+
+export {
+  assertDevNcpEntityCapacity,
+  boundedDevNcpElapsed,
+  DevNcpCommandStream,
+  ingestDevNcpCommand,
+  MAX_DEV_NCP_ENTITIES,
+  MAX_DEV_NCP_KINEMATIC_SCALE,
+  normalizeDevNcpCommand,
+  validateDevNcpKinematicSpawn,
+} from './devNcpCommand'
 
 const log = logger.scope('DroneController')
 
@@ -37,279 +55,42 @@ const scratchEuler = new THREE.Euler()
 const scratchVelocity = new THREE.Vector3()
 const scratchQuaternion = new THREE.Quaternion()
 
-const MAX_DEV_NCP_CHANNELS = 64
-const MAX_DEV_NCP_CHANNEL_VALUES = 64
-const MAX_DEV_NCP_HORIZON_STEPS = 1_000
-const MAX_DEV_NCP_NAME_BYTES = 128
-const MAX_DEV_NCP_UNIT_BYTES = 32
-const MAX_DEV_NCP_DT_S = 0.5
-const INITIAL_DEV_NCP_DT_S = 0.05
-const utf8Encoder = new TextEncoder()
-
-export interface DevNcpCommandFrame {
-  kind?: unknown
-  ncp_version?: unknown
-  mode?: unknown
-  // Wire 0.8: the old top-level `seq` is gone. `stream` is THIS frame's own
-  // `{epoch, seq}` (the ActionBuffer dedup / `seq >= 1` gate reads it); `source`
-  // is the driving sensor echo (correlation only); `session_id`/`session` bind the
-  // live session incarnation.
-  stream?: unknown
-  source?: unknown
-  session?: unknown
-  session_id?: unknown
-  t?: unknown
-  frame_id?: unknown
-  ttl_ms?: unknown
-  channels?: unknown
-  horizon?: unknown
-  horizon_dt_ms?: unknown
-}
+export const MAX_MANAGED_DRONES = MAX_SCENE_DRONES
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function utf8Length(value: string): number {
-  return utf8Encoder.encode(value).byteLength
+function isFiniteVector3(value: THREE.Vector3): boolean {
+  return Number.isFinite(value.x) && Number.isFinite(value.y) && Number.isFinite(value.z)
 }
 
-function containsUnsafeText(value: string): boolean {
-  return Array.from(value).some(
-    (character) => /\s/u.test(character) || character.charCodeAt(0) < 32 || character === '\u007f'
-  )
-}
-
-function isWireMode(value: unknown): value is Mode {
-  return (
-    typeof value === 'string' &&
-    value.length > 0 &&
-    utf8Length(value) <= MAX_DEV_NCP_NAME_BYTES &&
-    !containsUnsafeText(value)
-  )
-}
-
-function parseWireChannels(value: unknown, label: string): WireChannels {
-  if (!isRecord(value)) throw new Error(`${label} must be an object`)
-  const entries = Object.entries(value)
-  if (entries.length > MAX_DEV_NCP_CHANNELS) {
-    throw new Error(`${label} exceeds ${MAX_DEV_NCP_CHANNELS} channels`)
+function validateDroneSpawnState(position: THREE.Vector3, state?: DroneSpawnState): void {
+  if (!isFiniteVector3(position)) {
+    throw new Error('Drone spawn position must contain finite values')
   }
-
-  // A null-prototype map prevents special input keys such as `__proto__` from
-  // mutating the normalized channel container.
-  const channels = Object.create(null) as WireChannels
-  for (const [name, rawChannel] of entries) {
+  if (state?.orientation) {
+    const orientation = state.orientation
+    const lengthSquared = orientation.lengthSq()
     if (
-      name.length === 0 ||
-      utf8Length(name) > MAX_DEV_NCP_NAME_BYTES ||
-      containsUnsafeText(name)
+      ![orientation.x, orientation.y, orientation.z, orientation.w].every(Number.isFinite) ||
+      !Number.isFinite(lengthSquared) ||
+      lengthSquared <= Number.EPSILON
     ) {
-      throw new Error(`${label} contains an invalid channel name`)
-    }
-    if (!isRecord(rawChannel) || !Array.isArray(rawChannel.data)) {
-      throw new Error(`${label}.${name}.data must be an array`)
-    }
-    if (rawChannel.data.length > MAX_DEV_NCP_CHANNEL_VALUES) {
-      throw new Error(`${label}.${name}.data exceeds ${MAX_DEV_NCP_CHANNEL_VALUES} values`)
-    }
-    if (
-      !rawChannel.data.every(
-        (entry): entry is number => typeof entry === 'number' && Number.isFinite(entry)
-      )
-    ) {
-      throw new Error(`${label}.${name}.data must contain only finite numbers`)
-    }
-    const unit = rawChannel.unit
-    if (
-      unit !== undefined &&
-      unit !== null &&
-      (typeof unit !== 'string' ||
-        utf8Length(unit) > MAX_DEV_NCP_UNIT_BYTES ||
-        containsUnsafeText(unit))
-    ) {
-      throw new Error(`${label}.${name}.unit must be a short string or null`)
-    }
-    channels[name] = { data: [...rawChannel.data], unit }
-  }
-  return channels
-}
-
-function requireVelocitySetpoint(channels: WireChannels, label: string): void {
-  const velocity = channels.velocity_setpoint
-  if (
-    velocity?.unit !== 'm/s' ||
-    velocity.data.length !== 3 ||
-    !velocity.data.every(Number.isFinite)
-  ) {
-    throw new Error(`${label}.velocity_setpoint must be a finite m/s vec3`)
-  }
-}
-
-/** Normalize and validate the dev-only NCP action ingress against published wire 0.8. */
-export function normalizeDevNcpCommand(input: unknown): CommandLike {
-  if (!isRecord(input)) throw new Error('NCP command must be an object')
-  const mode = input.mode === undefined ? 'hold' : input.mode
-  if (!isWireMode(mode)) throw new Error('NCP command mode is invalid')
-  // Wire 0.8: the frame's OWN position lives in `stream.seq` (the ActionBuffer
-  // dedup / `seq >= 1` gate), not a top-level `seq`. `assertWireFrame` below fully
-  // validates `stream.epoch` / `session.generation` / `session_id`.
-  const stream = input.stream
-  if (!isRecord(stream)) throw new Error('NCP command stream must be an object')
-  const seq = stream.seq
-  if (typeof seq !== 'number' || !Number.isSafeInteger(seq) || seq < 1) {
-    throw new Error('NCP command stream.seq must be a safe integer greater than zero')
-  }
-  if (Array.isArray(input.horizon) && input.horizon.length > MAX_DEV_NCP_HORIZON_STEPS) {
-    throw new Error(`NCP command horizon exceeds ${MAX_DEV_NCP_HORIZON_STEPS} steps`)
-  }
-  assertWireFrame(input, 'command_frame')
-  const ncpVersion = input.ncp_version
-  if (typeof ncpVersion !== 'string') {
-    throw new Error('NCP command ncp_version must be a string')
-  }
-
-  // Forward the validated wire-0.8 identity so the normalized command still passes
-  // the ActionBuffer's own ingress gate and epoch-keyed acceptance downstream.
-  const streamOut: CommandLike['stream'] = { epoch: stream.epoch as string, seq }
-  const session = input.session as CommandLike['session']
-  const sessionId = input.session_id as CommandLike['session_id']
-
-  // Fail-safe modes never need to retain attacker-controlled channel/horizon
-  // payloads. Normalize them to the smallest safe command after the envelope
-  // gate; omitted mode/channels follow the wire-0.8 HOLD/empty-map defaults.
-  if (mode !== 'active') {
-    return {
-      kind: 'command_frame',
-      ncp_version: ncpVersion,
-      mode,
-      stream: streamOut,
-      session,
-      session_id: sessionId,
-      ttl_ms: 200,
-      channels: Object.create(null) as WireChannels,
+      throw new Error('Drone spawn orientation must be a finite non-zero quaternion')
     }
   }
-
-  const ttlMs = input.ttl_ms === undefined ? 200 : input.ttl_ms
-  if (typeof ttlMs !== 'number' || !Number.isFinite(ttlMs) || ttlMs <= 0 || ttlMs > MAX_TTL_MS) {
-    throw new Error(`NCP command ttl_ms must be within (0, ${MAX_TTL_MS}]`)
-  }
-  if (input.t !== undefined && (typeof input.t !== 'number' || !Number.isFinite(input.t))) {
-    throw new Error('NCP command timestamp must be finite')
-  }
-  if (
-    input.frame_id !== undefined &&
-    (typeof input.frame_id !== 'string' ||
-      utf8Length(input.frame_id) > MAX_DEV_NCP_NAME_BYTES ||
-      containsUnsafeText(input.frame_id))
-  ) {
-    throw new Error('NCP command frame_id is invalid')
-  }
-
-  const channels = parseWireChannels(input.channels ?? {}, 'NCP command channels')
-  requireVelocitySetpoint(channels, 'NCP command channels')
-
-  let horizon: WireChannels[] | undefined
-  let horizonDtMs: number | null | undefined
-  if (input.horizon_dt_ms !== undefined && input.horizon_dt_ms !== null) {
-    if (
-      typeof input.horizon_dt_ms !== 'number' ||
-      !Number.isFinite(input.horizon_dt_ms) ||
-      input.horizon_dt_ms <= 0
-    ) {
-      throw new Error('NCP command horizon_dt_ms must be finite and positive')
+  for (const [label, vector] of [
+    ['velocity', state?.velocity],
+    ['angular velocity', state?.angularVelocity],
+  ] as const) {
+    if (vector && !isFiniteVector3(vector)) {
+      throw new Error(`Drone spawn ${label} must contain finite values`)
     }
-    horizonDtMs = input.horizon_dt_ms
-  } else {
-    horizonDtMs = input.horizon_dt_ms
   }
-  if (input.horizon !== undefined) {
-    if (!Array.isArray(input.horizon)) throw new Error('NCP command horizon must be an array')
-    if (input.horizon.length > MAX_DEV_NCP_HORIZON_STEPS) {
-      throw new Error(`NCP command horizon exceeds ${MAX_DEV_NCP_HORIZON_STEPS} steps`)
-    }
-    if (input.horizon.length > 0 && typeof horizonDtMs !== 'number') {
-      throw new Error('NCP command horizon requires horizon_dt_ms')
-    }
-    const allowedSteps =
-      typeof horizonDtMs === 'number'
-        ? Math.min(MAX_DEV_NCP_HORIZON_STEPS, maxHorizonLen(ttlMs, horizonDtMs))
-        : 0
-    if (input.horizon.length > allowedSteps) {
-      throw new Error(
-        `NCP command horizon exceeds its ttl or ${MAX_DEV_NCP_HORIZON_STEPS}-step cap`
-      )
-    }
-    horizon = input.horizon.map((entry, index) => {
-      const step = parseWireChannels(entry, `NCP command horizon[${index}]`)
-      requireVelocitySetpoint(step, `NCP command horizon[${index}]`)
-      return step
-    })
+  if (state?.battery !== undefined && !Number.isFinite(state.battery)) {
+    throw new Error('Drone spawn battery must be finite')
   }
-  const command: CommandLike = {
-    kind: 'command_frame',
-    ncp_version: ncpVersion,
-    mode,
-    stream: streamOut,
-    session,
-    session_id: sessionId,
-    t: typeof input.t === 'number' ? input.t : undefined,
-    frame_id: typeof input.frame_id === 'string' ? input.frame_id : undefined,
-    ttl_ms: ttlMs,
-    channels,
-    horizon,
-    horizon_dt_ms: horizonDtMs,
-  }
-  return command
-}
-
-/** Latch raw ESTOP first, then admit only a fully validated wire-0.8 command. */
-export function ingestDevNcpCommand(
-  buffer: ActionBuffer,
-  nowS: number,
-  input: unknown
-): CommandLike {
-  if (isRecord(input) && input.mode === 'estop') {
-    // Wire 0.8: the old `{ estop, seq: 0 }` unstamped sentinel becomes an unstamped
-    // `stream.seq`. A fail-safe latches regardless of stream identity/ordering.
-    buffer.onCommand(nowS, { mode: 'estop', stream: { epoch: '', seq: 0 }, channels: {} })
-  }
-  if (!Number.isFinite(nowS) || nowS < 0) throw new Error('NCP receive time is invalid')
-  const command = normalizeDevNcpCommand(input)
-  buffer.onCommand(nowS, command)
-  return command
-}
-
-/** Per-entity command state. Reset replaces the buffer so old commands cannot
- * become active again when an ESTOP latch is cleared. */
-export class DevNcpCommandStream {
-  private buffer = new ActionBuffer()
-
-  ingest(nowS: number, input: unknown): CommandLike {
-    return ingestDevNcpCommand(this.buffer, nowS, input)
-  }
-
-  active(nowS: number): WireChannels | null {
-    return this.buffer.active(nowS)
-  }
-
-  isEstopped(): boolean {
-    return this.buffer.isEstopped()
-  }
-
-  reset(): void {
-    this.buffer = new ActionBuffer()
-  }
-}
-
-/** Integrate only monotonic local elapsed time; callers cannot supply a larger
- * simulation step by invoking the developer hook repeatedly. */
-export function boundedDevNcpElapsed(previousS: number | null, nowS: number): number {
-  if (!Number.isFinite(nowS)) return 0
-  if (previousS === null) return INITIAL_DEV_NCP_DT_S
-  if (!Number.isFinite(previousS) || nowS < previousS) return 0
-  return Math.min(nowS - previousS, MAX_DEV_NCP_DT_S)
 }
 
 export type RouteMode = 'none' | 'once' | 'patrol'
@@ -351,64 +132,20 @@ export interface DroneSpawnState {
   battery?: number
 }
 
+export interface SuspendedDroneScene {
+  readonly drones: readonly ManagedDrone[]
+  readonly droneCounter: number
+  readonly selectedDroneId: string | null
+  readonly wasPaused: boolean
+  readonly errors: readonly unknown[]
+  state: 'suspended' | 'restored' | 'disposed'
+}
+
 interface UseDroneControllerOptions {
   scene: THREE.Scene | null
   /** If false, skip physics initialization and make every mutation callback inert. */
   enabled?: boolean
   onDroneStateChange?: (drones: ManagedDrone[]) => void
-}
-
-/**
- * Build a simple procedural placeholder mesh for a drone type, used when a model
- * is missing or fails to load. Pure factory (depends only on `droneType`), kept at
- * module scope so it is not a React dependency.
- */
-function createPlaceholderDrone(droneType: DroneTypeDefinition): THREE.Object3D {
-  const group = new THREE.Group()
-
-  if (droneType.category === 'quadcopter' || droneType.category === 'hexacopter') {
-    const bodyGeom = new THREE.BoxGeometry(0.2, 0.05, 0.2)
-    const bodyMat = new THREE.MeshStandardMaterial({ color: 0x333333 })
-    const body = new THREE.Mesh(bodyGeom, bodyMat)
-    group.add(body)
-
-    const armLength = droneType.physics.armLength || 0.175
-    const rotorCount = droneType.physics.rotorCount || 4
-
-    for (let i = 0; i < rotorCount; i++) {
-      const angle = (i / rotorCount) * Math.PI * 2 + Math.PI / 4
-      const x = Math.cos(angle) * armLength
-      const z = Math.sin(angle) * armLength
-
-      const armGeom = new THREE.CylinderGeometry(0.01, 0.01, armLength * 0.7)
-      const armMat = new THREE.MeshStandardMaterial({ color: 0x444444 })
-      const arm = new THREE.Mesh(armGeom, armMat)
-      arm.position.set(x * 0.5, 0, z * 0.5)
-      arm.rotation.z = Math.PI / 2
-      arm.rotation.y = angle
-      group.add(arm)
-
-      const rotorGeom = new THREE.CylinderGeometry(0.08, 0.08, 0.01, 16)
-      const rotorMat = new THREE.MeshStandardMaterial({
-        color: 0x666666,
-        transparent: true,
-        opacity: 0.5,
-      })
-      const rotor = new THREE.Mesh(rotorGeom, rotorMat)
-      rotor.position.set(x, 0.03, z)
-      rotor.name = `rotor_${i}`
-      group.add(rotor)
-    }
-  } else if (droneType.category === 'loitering_munition' || droneType.category === 'fixed_wing') {
-    const wingGeom = new THREE.ConeGeometry(0.5, 1.5, 3)
-    const wingMat = new THREE.MeshStandardMaterial({ color: 0x4a4a4a })
-    const wing = new THREE.Mesh(wingGeom, wingMat)
-    wing.rotation.x = Math.PI / 2
-    wing.rotation.z = Math.PI
-    group.add(wing)
-  }
-
-  return group
 }
 
 /** Collect `rotor_<i>` meshes in index order for caching on a managed drone. */
@@ -420,6 +157,81 @@ function collectRotorMeshes(root: THREE.Object3D): THREE.Object3D[] {
     rotors.push(rotor)
   }
   return rotors
+}
+
+interface DroneDetachmentResult {
+  released: boolean
+  errors: unknown[]
+}
+
+/**
+ * Detach the live resources for one managed drone without disposing its mesh.
+ * Three.js events and Rapier cleanup can throw after mutating ownership, so the
+ * result is derived from the resulting graph and world rather than exceptions.
+ */
+function detachManagedDroneResources(
+  scene: THREE.Scene | null,
+  world: DronePhysicsWorld | null,
+  drone: ManagedDrone
+): DroneDetachmentResult {
+  const errors: unknown[] = []
+  const mesh = drone.mesh
+  const meshErrorCount = errors.length
+  if (mesh?.parent) {
+    if (!isObject3DInScene(scene, mesh)) {
+      errors.push(new Error(`Drone ${drone.id} mesh belongs to an unexpected scene graph`))
+    } else {
+      try {
+        mesh.removeFromParent()
+      } catch (error) {
+        errors.push(error)
+      }
+    }
+  }
+  const meshReleased = mesh?.parent == null
+  if (!meshReleased && errors.length === meshErrorCount) {
+    errors.push(new Error(`Drone ${drone.id} mesh remains attached after cleanup`))
+  }
+
+  const retainedBody = world?.getDrone(drone.id)
+  const bodyErrorCount = errors.length
+  if (retainedBody === drone.physicsBody) {
+    try {
+      world?.removeDrone(drone.id)
+    } catch (error) {
+      errors.push(error)
+    }
+  } else if (retainedBody !== undefined) {
+    errors.push(new Error(`Drone ${drone.id} physics ID belongs to a different body`))
+  }
+  const bodyReleased = world?.getDrone(drone.id) !== drone.physicsBody
+  if (!bodyReleased && errors.length === bodyErrorCount) {
+    errors.push(new Error(`Drone ${drone.id} physics body remains active after cleanup`))
+  }
+
+  return { released: meshReleased && bodyReleased, errors }
+}
+
+function disposeDetachedDroneMesh(drone: ManagedDrone, errors: unknown[]): void {
+  if (!drone.mesh) return
+  try {
+    disposeObject3D(drone.mesh)
+  } catch (error) {
+    errors.push(error)
+  }
+}
+
+function insertManagedDroneAt(
+  store: Map<string, ManagedDrone>,
+  drone: ManagedDrone,
+  index: number
+): boolean {
+  if (store.has(drone.id)) return store.get(drone.id) === drone
+  const entries = [...store.entries()]
+  entries.splice(Math.min(Math.max(index, 0), entries.length), 0, [drone.id, drone])
+  store.clear()
+  for (const [id, entry] of entries) store.set(id, entry)
+  return true
 }
 
 export function commitSimulationPauseState(
@@ -446,6 +258,7 @@ export function useDroneController(options: UseDroneControllerOptions) {
   const [physicsReady, setPhysicsReady] = useState(false)
   const dronesRef = useRef<Map<string, ManagedDrone>>(new Map())
   const [drones, setDrones] = useState<ManagedDrone[]>([])
+  const onDroneStateChangeRef = useRef(onDroneStateChange)
   const [selectedDroneId, setSelectedDroneId] = useState<string | null>(null)
   const [isPaused, setIsPaused] = useState(true)
   const isPausedRef = useRef(true)
@@ -453,6 +266,13 @@ export function useDroneController(options: UseDroneControllerOptions) {
   const loaderRef = useRef<GLTFLoader | null>(null)
   const droneCounterRef = useRef(0)
   const spawnGenerationRef = useRef(0)
+  const pendingDroneSpawnsRef = useRef<Set<symbol>>(new Set())
+  const pendingDroneIdsRef = useRef<Set<string>>(new Set())
+  const pendingDroneDisposalsRef = useRef<Set<SuspendedDroneScene>>(new Set())
+
+  useEffect(() => {
+    onDroneStateChangeRef.current = onDroneStateChange
+  }, [onDroneStateChange])
 
   if (!loaderRef.current) {
     loaderRef.current = new GLTFLoader()
@@ -461,8 +281,14 @@ export function useDroneController(options: UseDroneControllerOptions) {
   const updateDronesList = useCallback(() => {
     const dronesList = Array.from(dronesRef.current.values())
     setDrones(dronesList)
-    onDroneStateChange?.(dronesList)
-  }, [onDroneStateChange])
+    try {
+      onDroneStateChangeRef.current?.(dronesList)
+    } catch (error) {
+      // A presentation callback must not unwind an ownership transition after
+      // the scene graph or physics registry has already changed.
+      log.warn('Drone state observer failed', { error })
+    }
+  }, [])
 
   const setSimulationPaused = useCallback(
     (paused: boolean) => {
@@ -488,21 +314,243 @@ export function useDroneController(options: UseDroneControllerOptions) {
       // objects intentionally keep their identity, so identity checks alone
       // cannot distinguish a stale spawn from the new simulation generation.
       spawnGenerationRef.current += 1
-      dronesRef.current.forEach((drone) => {
-        if (drone.mesh && sceneRef.current) {
-          sceneRef.current.remove(drone.mesh)
-          disposeObject3D(drone.mesh)
-        }
-        physicsWorldRef.current?.removeDrone(drone.id)
-      })
+      const retiring = Array.from(dronesRef.current.values())
+      const previouslySelectedDroneId = selectedDroneId
       dronesRef.current.clear()
       updateDronesList()
       setSelectedDroneId(null)
       isPausedRef.current = pausedAfterReset
       setIsPaused(pausedAfterReset)
+      const cleanupErrors: unknown[] = []
+      const retained: ManagedDrone[] = []
+      for (const drone of retiring) {
+        const result = detachManagedDroneResources(sceneRef.current, physicsWorldRef.current, drone)
+        cleanupErrors.push(...result.errors)
+        if (result.released) disposeDetachedDroneMesh(drone, cleanupErrors)
+        else retained.push(drone)
+      }
+      for (const [index, drone] of retained.entries()) {
+        if (!insertManagedDroneAt(dronesRef.current, drone, index)) {
+          cleanupErrors.push(
+            new Error(`Cannot retain drone ${drone.id}: a different live drone owns its ID`)
+          )
+        }
+      }
+      if (retained.length > 0) {
+        updateDronesList()
+        setSelectedDroneId(
+          previouslySelectedDroneId &&
+            retained.some((drone) => drone.id === previouslySelectedDroneId)
+            ? previouslySelectedDroneId
+            : (retained[0]?.id ?? null)
+        )
+      }
+      if (cleanupErrors.length > 0) {
+        log.warn('Simulation reset completed with resource-cleanup failures', {
+          count: cleanupErrors.length,
+          firstError: cleanupErrors[0],
+        })
+      }
+    },
+    [enabled, selectedDroneId, updateDronesList]
+  )
+
+  /**
+   * Detach the current drone graph without disposing its meshes. The caller
+   * owns the returned token and must restore or dispose it exactly once.
+   */
+  const suspendDronesForSceneRestore = useCallback((): SuspendedDroneScene => {
+    if (!enabled) throw new Error('Drone simulation is disabled')
+    const world = physicsWorldRef.current
+    const scene = sceneRef.current
+    if (!world || !scene) throw new Error('Drone simulation is not ready')
+
+    spawnGenerationRef.current += 1
+    const suspended = Array.from(dronesRef.current.values())
+    dronesRef.current.clear()
+    updateDronesList()
+    setSelectedDroneId(null)
+    const wasPaused = isPausedRef.current
+    isPausedRef.current = true
+    setIsPaused(true)
+    const errors: unknown[] = []
+    for (const drone of suspended) {
+      errors.push(...detachManagedDroneResources(scene, world, drone).errors)
+    }
+    return {
+      drones: suspended,
+      droneCounter: droneCounterRef.current,
+      selectedDroneId,
+      wasPaused,
+      errors,
+      state: 'suspended',
+    }
+  }, [enabled, selectedDroneId, updateDronesList])
+
+  const restoreSuspendedDrones = useCallback(
+    (suspension: SuspendedDroneScene): void => {
+      if (suspension.state !== 'suspended') {
+        throw new Error(`Drone scene suspension is already ${suspension.state}`)
+      }
+      const world = physicsWorldRef.current
+      const scene = sceneRef.current
+      if (!enabled || !world || !scene) throw new Error('Drone simulation is not ready')
+      if (dronesRef.current.size !== 0) {
+        throw new Error('Cannot restore drones into a non-empty simulation')
+      }
+
+      const restored: Array<{ drone: ManagedDrone; createdBody: boolean }> = []
+      try {
+        for (const suspended of suspension.drones) {
+          const oldBody = suspended.physicsBody
+          const oldState = oldBody.state
+          const retainedBody = world.getDrone(suspended.id)
+          if (retainedBody && retainedBody !== oldBody) {
+            throw new Error(`Cannot restore drone ${suspended.id}: its physics ID is already owned`)
+          }
+          const createdBody = retainedBody === undefined
+          const body =
+            retainedBody ??
+            world.createDrone(
+              suspended.id,
+              oldBody.params,
+              oldState.position,
+              suspended.mesh ?? undefined
+            )
+          const managed = { ...suspended, physicsBody: body }
+          // Track ownership immediately. Any later Rapier setter or scene event
+          // can throw. Rollback removes only a body created by this attempt and
+          // preserves a retained body whose earlier detach reported failure.
+          restored.push({ drone: managed, createdBody })
+          dronesRef.current.set(managed.id, managed)
+          body.state.position.copy(oldState.position)
+          body.state.velocity.copy(oldState.velocity)
+          body.state.acceleration.copy(oldState.acceleration)
+          body.state.orientation.copy(oldState.orientation).normalize()
+          body.state.angularVelocity.copy(oldState.angularVelocity)
+          body.state.battery = oldState.battery
+          body.state.rotors = oldState.rotors.map((rotor) => ({
+            ...rotor,
+            position: rotor.position.clone(),
+          }))
+          body.setMotorCommands(oldBody.targetCommands)
+          body.setArmed(oldState.armed)
+          body.rigidBody?.setTranslation(oldState.position, true)
+          body.rigidBody?.setRotation(body.state.orientation, true)
+          body.rigidBody?.setLinvel(oldState.velocity, true)
+          body.rigidBody?.setAngvel(oldState.angularVelocity, true)
+          if (suspended.mesh) {
+            suspended.mesh.position.copy(oldState.position)
+            suspended.mesh.quaternion.copy(body.state.orientation)
+            const attachment = attachObject3DToScene(scene, suspended.mesh, `drone ${suspended.id}`)
+            if (!attachment.attached) {
+              throw new AggregateError(
+                attachment.errors,
+                `Cannot restore drone ${suspended.id} mesh`
+              )
+            }
+            if (attachment.errors.length > 0) {
+              log.warn('Drone mesh attached with scene-event failures', {
+                id: suspended.id,
+                count: attachment.errors.length,
+                firstError: attachment.errors[0],
+              })
+            }
+          }
+        }
+      } catch (error) {
+        const cleanupErrors: unknown[] = []
+        for (const { drone, createdBody } of restored) {
+          if (drone.mesh) {
+            try {
+              scene.remove(drone.mesh)
+            } catch (cleanupError) {
+              cleanupErrors.push(cleanupError)
+            }
+            if (drone.mesh.parent !== null) {
+              cleanupErrors.push(
+                new Error(`Restored drone ${drone.id} did not detach during rollback`)
+              )
+            }
+          }
+          if (createdBody) {
+            try {
+              world.removeDrone(drone.id)
+            } catch (cleanupError) {
+              cleanupErrors.push(cleanupError)
+            }
+            if (world.getDrone(drone.id) === drone.physicsBody) {
+              const retained = suspension.drones.find((entry) => entry.id === drone.id)
+              if (retained) retained.physicsBody = drone.physicsBody
+            }
+          }
+        }
+        dronesRef.current.clear()
+        updateDronesList()
+        if (cleanupErrors.length > 0) {
+          log.warn('Failed to fully roll back a suspended drone restoration', {
+            count: cleanupErrors.length,
+            firstError: cleanupErrors[0],
+          })
+        }
+        throw error
+      }
+
+      suspension.state = 'restored'
+      pendingDroneDisposalsRef.current.delete(suspension)
+      droneCounterRef.current = suspension.droneCounter
+      updateDronesList()
+      setSelectedDroneId(
+        suspension.selectedDroneId && dronesRef.current.has(suspension.selectedDroneId)
+          ? suspension.selectedDroneId
+          : null
+      )
+      commitSimulationPauseState(
+        isPausedRef,
+        setIsPaused,
+        () => world.resetTime(),
+        suspension.wasPaused
+      )
     },
     [enabled, updateDronesList]
   )
+
+  const disposeSuspendedDrones = useCallback((suspension: SuspendedDroneScene): boolean => {
+    if (suspension.state !== 'suspended') return suspension.state === 'disposed'
+    const errors: unknown[] = []
+    const world = physicsWorldRef.current
+    let allReleased = true
+    for (const drone of suspension.drones) {
+      const result = detachManagedDroneResources(sceneRef.current, world, drone)
+      errors.push(...result.errors)
+      allReleased &&= result.released
+    }
+    if (!allReleased) {
+      pendingDroneDisposalsRef.current.add(suspension)
+      log.warn('Suspended drone cleanup retains live resources for a retry', {
+        count: errors.length,
+        firstError: errors[0],
+      })
+      return false
+    }
+    for (const drone of suspension.drones) disposeDetachedDroneMesh(drone, errors)
+    suspension.state = 'disposed'
+    pendingDroneDisposalsRef.current.delete(suspension)
+    if (errors.length > 0) {
+      log.warn('Suspended drone resources detached with disposal failures', {
+        count: errors.length,
+        firstError: errors[0],
+      })
+    }
+    return true
+  }, [])
+
+  useEffect(() => {
+    const pending = pendingDroneDisposalsRef.current
+    return () => {
+      for (const suspension of [...pending]) disposeSuspendedDrones(suspension)
+    }
+  }, [disposeSuspendedDrones, enabled])
 
   const { keyState, getControlInput, setArmed } = useKeyboardControls({
     enabled: enabled && selectedDroneId !== null,
@@ -531,7 +579,17 @@ export function useDroneController(options: UseDroneControllerOptions) {
     },
   })
   useEffect(() => {
-    if (!enabled) return
+    if (!enabled) {
+      // A disabled controller owns no physics world or drone state. React runs
+      // the preceding enabled effect's cleanup before this branch, so publish
+      // the cleared public state without issuing state updates during unmount.
+      updateDronesList()
+      setSelectedDroneId(null)
+      isPausedRef.current = true
+      setIsPaused(true)
+      setPhysicsReady(false)
+      return
+    }
 
     let mounted = true
     // Stable Map identity snapshotted for the cleanup (the ref is never
@@ -545,109 +603,52 @@ export function useDroneController(options: UseDroneControllerOptions) {
         physicsWorldRef.current = world
         setPhysicsReady(true)
       } else {
-        world.destroy()
+        try {
+          world.destroy()
+        } catch (error) {
+          log.warn('Late physics initialization cleanup failed after unmount', { error })
+        }
       }
     }
 
-    void initPhysics()
+    void initPhysics().catch((error: unknown) => {
+      if (!mounted) return
+      setPhysicsReady(false)
+      log.error('Drone physics initialization failed', { error })
+    })
 
     return () => {
       mounted = false
       spawnGenerationRef.current += 1
-      // Remove and dispose spawned drone meshes (same loop as resetSimulation)
-      // before destroying the world — scene removal alone leaks GPU resources.
-      drones.forEach((drone) => {
-        if (drone.mesh && sceneRef.current) {
-          sceneRef.current.remove(drone.mesh)
-          disposeObject3D(drone.mesh)
-        }
-        physicsWorldRef.current?.removeDrone(drone.id)
-      })
+      const retiring = Array.from(drones.values())
+      const world = physicsWorldRef.current
+      const activeScene = sceneRef.current
+      // Publish both tombstones before cleanup. Three.js and Rapier can invoke
+      // synchronous callbacks, and reentrant code must not observe retired state.
       drones.clear()
-      physicsWorldRef.current?.destroy()
       physicsWorldRef.current = null
-      setPhysicsReady(false)
+      const cleanupErrors: unknown[] = []
+      for (const drone of retiring) {
+        const result = detachManagedDroneResources(activeScene, world, drone)
+        cleanupErrors.push(...result.errors)
+        if (result.released) disposeDetachedDroneMesh(drone, cleanupErrors)
+      }
+      try {
+        world?.destroy()
+      } catch (error) {
+        cleanupErrors.push(error)
+      }
+      if (cleanupErrors.length > 0) {
+        log.warn('Drone controller unmounted with resource-cleanup failures', {
+          count: cleanupErrors.length,
+          firstError: cleanupErrors[0],
+        })
+      }
     }
-  }, [enabled])
+  }, [enabled, updateDronesList])
 
   const loadDroneModel = useCallback(
-    async (droneType: DroneTypeDefinition): Promise<THREE.Object3D | null> => {
-      const createFallback = () => {
-        const placeholder = createPlaceholderDrone(droneType)
-        const ringGeom = new THREE.RingGeometry(0.6, 0.7, 32)
-        const ringMat = new THREE.MeshBasicMaterial({
-          color: 0x00ff00,
-          side: THREE.DoubleSide,
-          transparent: true,
-          opacity: 0.8,
-        })
-        const ring = new THREE.Mesh(ringGeom, ringMat)
-        ring.rotation.x = -Math.PI / 2
-        ring.name = 'selection_ring'
-        ring.visible = false
-        placeholder.add(ring)
-        return placeholder
-      }
-
-      const modelPath = droneType.modelPath
-      if (!modelPath) return createFallback()
-      if (!loaderRef.current) return null
-      return new Promise((resolve) => {
-        loaderRef.current!.load(
-          modelPath,
-          (gltf) => {
-            const model = gltf.scene.clone()
-            const box = new THREE.Box3().setFromObject(model)
-
-            if (!box.isEmpty()) {
-              const center = box.getCenter(new THREE.Vector3())
-              const size = box.getSize(new THREE.Vector3())
-
-              const wrapper = new THREE.Group()
-              wrapper.name = 'drone_wrapper'
-              model.position.sub(center)
-              wrapper.add(model)
-
-              let rotorIdx = 0
-              forEachMesh(model, (mesh) => {
-                if (
-                  mesh.name.toLowerCase().includes('rotor') ||
-                  mesh.name.toLowerCase().includes('prop')
-                ) {
-                  mesh.name = `rotor_${rotorIdx++}`
-                }
-              })
-
-              const ringRadius = Math.max(size.x, size.z) * 0.6
-              const ringGeom = new THREE.RingGeometry(ringRadius, ringRadius * 1.1, 32)
-              const ringMat = new THREE.MeshBasicMaterial({
-                color: 0x00ff00,
-                side: THREE.DoubleSide,
-                transparent: true,
-                opacity: 0.8,
-              })
-              const ring = new THREE.Mesh(ringGeom, ringMat)
-              ring.rotation.x = -Math.PI / 2
-              ring.position.y = -size.y * 0.5 - 0.05
-              ring.name = 'selection_ring'
-              ring.visible = false
-              wrapper.add(ring)
-
-              wrapper.scale.setScalar(1)
-              resolve(wrapper)
-            } else {
-              log.warn(`Model ${droneType.id} has empty bounds, using placeholder`)
-              const placeholder = createPlaceholderDrone(droneType)
-              resolve(placeholder)
-            }
-          },
-          undefined,
-          () => {
-            resolve(createFallback())
-          }
-        )
-      })
-    },
+    (droneType: DroneTypeDefinition) => loadDroneModelAsset(loaderRef.current, droneType),
     []
   )
 
@@ -672,6 +673,28 @@ export function useDroneController(options: UseDroneControllerOptions) {
 
       const droneType = DRONE_TYPES[typeId]
       if (!droneType) return null
+      if (dronesRef.current.size + pendingDroneSpawnsRef.current.size >= MAX_MANAGED_DRONES) {
+        log.warn('Spawn rejected: managed drone limit reached', { limit: MAX_MANAGED_DRONES })
+        return null
+      }
+      if (customName !== undefined && !isBoundedSceneName(customName)) {
+        log.warn('Spawn rejected: drone name is invalid')
+        return null
+      }
+      const requestedId = initialState?.id
+      if (requestedId !== undefined && !isBoundedSceneName(requestedId)) {
+        log.warn('Spawn rejected: drone id is invalid')
+        return null
+      }
+      if (
+        requestedId !== undefined &&
+        (dronesRef.current.has(requestedId) ||
+          initialWorld.getDrone(requestedId) !== undefined ||
+          pendingDroneIdsRef.current.has(requestedId))
+      ) {
+        log.warn('Spawn rejected: duplicate drone id', { id: requestedId })
+        return null
+      }
 
       const spawnPos = position
         ? position.clone()
@@ -680,106 +703,203 @@ export function useDroneController(options: UseDroneControllerOptions) {
             5 + Math.random() * 5,
             (Math.random() - 0.5) * 10
           )
-
-      const mesh = await loadDroneModel(droneType)
-      if (
-        spawnGenerationRef.current !== spawnGeneration ||
-        physicsWorldRef.current !== initialWorld ||
-        sceneRef.current !== initialScene
-      ) {
-        if (mesh) disposeObject3D(mesh)
+      try {
+        validateDroneSpawnState(spawnPos, initialState)
+      } catch (error) {
+        log.error('Spawn rejected before model load', { error })
         return null
       }
 
-      droneCounterRef.current++
-      const id = initialState?.id || `drone_${Date.now()}_${droneCounterRef.current}`
-      const name =
-        customName || `${droneType.name.split(' ')[0].toUpperCase()}-${droneCounterRef.current}`
-      if (dronesRef.current.has(id)) {
-        if (mesh) disposeObject3D(mesh)
-        log.error('Spawn failed: duplicate drone id', { id })
-        return null
-      }
+      const spawnToken = Symbol('drone-spawn')
+      pendingDroneSpawnsRef.current.add(spawnToken)
+      if (requestedId !== undefined) pendingDroneIdsRef.current.add(requestedId)
+      try {
+        let mesh: THREE.Object3D | null
+        try {
+          mesh = await loadDroneModel(droneType)
+        } catch (error) {
+          log.error('Spawn failed while loading the drone model', { typeId, error })
+          return null
+        }
+        if (
+          spawnGenerationRef.current !== spawnGeneration ||
+          physicsWorldRef.current !== initialWorld ||
+          sceneRef.current !== initialScene
+        ) {
+          if (mesh) {
+            try {
+              disposeObject3D(mesh)
+            } catch (error) {
+              log.warn('Stale drone model cleanup failed', { typeId, error })
+            }
+          }
+          return null
+        }
 
-      const params = toQuadcopterParams(droneType)
-      const physicsBody = initialWorld.createDrone(id, params, spawnPos)
-      if (initialState?.orientation) {
-        physicsBody.state.orientation.copy(initialState.orientation).normalize()
-        physicsBody.rigidBody?.setRotation(physicsBody.state.orientation, true)
-      }
-      if (initialState?.velocity) {
-        physicsBody.state.velocity.copy(initialState.velocity)
-        physicsBody.rigidBody?.setLinvel(initialState.velocity, true)
-      }
-      if (initialState?.angularVelocity) {
-        physicsBody.state.angularVelocity.copy(initialState.angularVelocity)
-        physicsBody.rigidBody?.setAngvel(initialState.angularVelocity, true)
-      }
-      if (initialState?.battery !== undefined) {
-        physicsBody.state.battery = THREE.MathUtils.clamp(initialState.battery, 0, 1)
-      }
-      physicsBody.setArmed(initialState?.armed ?? true)
+        droneCounterRef.current++
+        const id = requestedId ?? `drone_${Date.now()}_${droneCounterRef.current}`
+        const name =
+          customName ?? `${droneType.name.split(' ')[0].toUpperCase()}-${droneCounterRef.current}`
+        if (dronesRef.current.has(id) || initialWorld.getDrone(id) !== undefined) {
+          if (mesh) disposeObject3D(mesh)
+          log.error('Spawn failed: duplicate drone id', { id })
+          return null
+        }
 
-      if (mesh) {
-        mesh.position.copy(spawnPos)
-        mesh.quaternion.copy(physicsBody.state.orientation)
-        initialScene.add(mesh)
-        physicsBody.mesh = mesh
+        let managedDrone: ManagedDrone | null = null
+        try {
+          const rotorMeshes = mesh ? collectRotorMeshes(mesh) : []
+          const flightController = new FlightController()
+          const params = toQuadcopterParams(droneType)
+          const physicsBody = initialWorld.createDrone(id, params, spawnPos)
+          managedDrone = {
+            id,
+            type: typeId,
+            name,
+            physicsBody,
+            flightController,
+            mesh,
+            rotorMeshes,
+            route: {
+              waypoints: [],
+              mode: 'none',
+              currentWaypointIndex: 0,
+              isActive: false,
+              arrivalThreshold: 2.0,
+            },
+          }
+
+          if (initialState?.orientation) {
+            physicsBody.state.orientation.copy(initialState.orientation).normalize()
+            physicsBody.rigidBody?.setRotation(physicsBody.state.orientation, true)
+          }
+          if (initialState?.velocity) {
+            physicsBody.state.velocity.copy(initialState.velocity)
+            physicsBody.rigidBody?.setLinvel(initialState.velocity, true)
+          }
+          if (initialState?.angularVelocity) {
+            physicsBody.state.angularVelocity.copy(initialState.angularVelocity)
+            physicsBody.rigidBody?.setAngvel(initialState.angularVelocity, true)
+          }
+          if (initialState?.battery !== undefined) {
+            physicsBody.state.battery = THREE.MathUtils.clamp(initialState.battery, 0, 1)
+          }
+          physicsBody.setArmed(initialState?.armed ?? true)
+
+          if (mesh) {
+            mesh.position.copy(spawnPos)
+            mesh.quaternion.copy(physicsBody.state.orientation)
+            physicsBody.mesh = mesh
+            const attachment = attachObject3DToScene(initialScene, mesh, `drone ${id}`)
+            if (!attachment.attached) {
+              throw new AggregateError(attachment.errors, `Cannot activate drone ${id} mesh`)
+            }
+            if (attachment.errors.length > 0) {
+              log.warn('Drone mesh attached with scene-event failures', {
+                id,
+                count: attachment.errors.length,
+                firstError: attachment.errors[0],
+              })
+            }
+          }
+
+          dronesRef.current.set(id, managedDrone)
+          updateDronesList()
+
+          if (dronesRef.current.size === 1) {
+            setSelectedDroneId(id)
+          }
+
+          return id
+        } catch (error) {
+          const cleanupErrors: unknown[] = []
+          if (managedDrone) {
+            if (dronesRef.current.get(id) === managedDrone) dronesRef.current.delete(id)
+            const result = detachManagedDroneResources(initialScene, initialWorld, managedDrone)
+            cleanupErrors.push(...result.errors)
+            if (result.released) {
+              disposeDetachedDroneMesh(managedDrone, cleanupErrors)
+            } else if (
+              !insertManagedDroneAt(dronesRef.current, managedDrone, dronesRef.current.size)
+            ) {
+              cleanupErrors.push(
+                new Error(`Cannot retain partially spawned drone ${id}: its ID is already owned`)
+              )
+            }
+          } else {
+            // No managed owner exists until createDrone returns. The model is
+            // still detached in this branch and can be reclaimed directly.
+            if (initialWorld.getDrone(id) !== undefined) {
+              try {
+                initialWorld.removeDrone(id)
+              } catch (cleanupError) {
+                cleanupErrors.push(cleanupError)
+              }
+            }
+            if (mesh) {
+              try {
+                disposeObject3D(mesh)
+              } catch (cleanupError) {
+                cleanupErrors.push(cleanupError)
+              }
+            }
+          }
+          updateDronesList()
+          if (dronesRef.current.get(id) === managedDrone) setSelectedDroneId(id)
+          log.error('Spawn failed after model load', {
+            id,
+            error,
+            cleanupErrorCount: cleanupErrors.length,
+            firstCleanupError: cleanupErrors[0],
+          })
+          return null
+        }
+      } finally {
+        pendingDroneSpawnsRef.current.delete(spawnToken)
+        if (requestedId !== undefined) pendingDroneIdsRef.current.delete(requestedId)
       }
-
-      const flightController = new FlightController()
-
-      const route: DroneRoute = {
-        waypoints: [],
-        mode: 'none',
-        currentWaypointIndex: 0,
-        isActive: false,
-        arrivalThreshold: 2.0,
-      }
-
-      const managedDrone: ManagedDrone = {
-        id,
-        type: typeId,
-        name,
-        physicsBody,
-        flightController,
-        mesh,
-        rotorMeshes: mesh ? collectRotorMeshes(mesh) : [],
-        route,
-      }
-
-      dronesRef.current.set(id, managedDrone)
-      updateDronesList()
-
-      if (dronesRef.current.size === 1) {
-        setSelectedDroneId(id)
-      }
-
-      return id
     },
     [enabled, loadDroneModel, updateDronesList]
   )
 
   const removeDrone = useCallback(
-    (id: string) => {
-      if (!enabled) return
+    (id: string): boolean => {
+      if (!enabled) return false
       const drone = dronesRef.current.get(id)
-      if (!drone) return
+      if (!drone) return false
+      const originalIndex = [...dronesRef.current.keys()].indexOf(id)
+      const wasSelected = selectedDroneId === id
 
-      if (drone.mesh && sceneRef.current) {
-        sceneRef.current.remove(drone.mesh)
-        disposeObject3D(drone.mesh)
-      }
-
-      physicsWorldRef.current?.removeDrone(id)
-
+      // Publish the tombstone before Three.js or Rapier cleanup can dispatch a
+      // synchronous callback. Reentrant removal must observe absence.
       dronesRef.current.delete(id)
       updateDronesList()
 
-      if (selectedDroneId === id) {
+      const errors: unknown[] = []
+      const result = detachManagedDroneResources(sceneRef.current, physicsWorldRef.current, drone)
+      errors.push(...result.errors)
+      if (result.released) {
+        disposeDetachedDroneMesh(drone, errors)
+      } else if (!insertManagedDroneAt(dronesRef.current, drone, originalIndex)) {
+        errors.push(new Error(`Cannot retain drone ${id}: a different live drone owns its ID`))
+      }
+      updateDronesList()
+
+      if (!result.released && dronesRef.current.get(id) === drone) {
+        if (wasSelected) setSelectedDroneId(id)
+      } else if (wasSelected) {
         const remaining = Array.from(dronesRef.current.keys())
         setSelectedDroneId(remaining.length > 0 ? remaining[0] : null)
       }
+      if (errors.length > 0) {
+        log.warn(
+          result.released
+            ? 'Drone removed with detached-resource disposal failures'
+            : 'Drone cleanup retained resources for a later retry',
+          { id, count: errors.length, firstError: errors[0] }
+        )
+      }
+      return result.released
     },
     [enabled, selectedDroneId, updateDronesList]
   )
@@ -787,6 +907,7 @@ export function useDroneController(options: UseDroneControllerOptions) {
   const selectDrone = useCallback(
     (id: string | null) => {
       if (!enabled) return
+      if (id !== null && !dronesRef.current.has(id)) return
       setSelectedDroneId(id)
 
       if (id) {
@@ -800,13 +921,14 @@ export function useDroneController(options: UseDroneControllerOptions) {
   )
 
   const renameDrone = useCallback(
-    (id: string, newName: string) => {
-      if (!enabled) return
+    (id: string, newName: string): boolean => {
+      if (!enabled || !isBoundedSceneName(newName)) return false
       const drone = dronesRef.current.get(id)
-      if (!drone) return
+      if (!drone) return false
 
       drone.name = newName
       updateDronesList()
+      return true
     },
     [enabled, updateDronesList]
   )
@@ -818,20 +940,34 @@ export function useDroneController(options: UseDroneControllerOptions) {
       mode: RouteMode,
       restored?: { isActive?: boolean; currentWaypointIndex?: number }
     ) => {
-      if (!enabled) return false
+      if (!enabled || !Array.isArray(waypoints)) return false
       const drone = dronesRef.current.get(droneId)
       if (!drone) return false
+      if (mode !== 'none' && mode !== 'once' && mode !== 'patrol') return false
+      if (restored?.isActive !== undefined && typeof restored.isActive !== 'boolean') {
+        return false
+      }
+      if (
+        restored?.currentWaypointIndex !== undefined &&
+        (!Number.isSafeInteger(restored.currentWaypointIndex) ||
+          restored.currentWaypointIndex < 0 ||
+          (waypoints.length === 0
+            ? restored.currentWaypointIndex !== 0
+            : restored.currentWaypointIndex >= waypoints.length))
+      ) {
+        return false
+      }
+      if (mode === 'none' && waypoints.length > 0) return false
+      if (restored?.isActive === true && (mode === 'none' || waypoints.length === 0)) return false
       const maxAltitude = DRONE_TYPES[drone.type]?.physics.maxAltitude
       if (!isAdmissibleRouteWaypoints(waypoints, { maxAltitude })) return false
 
       const convertedWaypoints = waypoints.map((wp) => {
         const pos = wp.position as { x: number; y: number; z: number }
         return {
-          ...wp,
-          position:
-            wp.position instanceof THREE.Vector3
-              ? wp.position
-              : new THREE.Vector3(pos.x, pos.y, pos.z),
+          position: new THREE.Vector3(pos.x, pos.y, pos.z),
+          altitude: wp.altitude,
+          ...(wp.speed === undefined ? {} : { speed: wp.speed }),
         }
       })
 
@@ -870,7 +1006,12 @@ export function useDroneController(options: UseDroneControllerOptions) {
       )
         return
 
-      drone.route.waypoints.push(waypoint)
+      const position = waypoint.position as { x: number; y: number; z: number }
+      drone.route.waypoints.push({
+        position: new THREE.Vector3(position.x, position.y, position.z),
+        altitude: waypoint.altitude,
+        ...(waypoint.speed === undefined ? {} : { speed: waypoint.speed }),
+      })
       updateDronesList()
     },
     [enabled, updateDronesList]
@@ -924,7 +1065,7 @@ export function useDroneController(options: UseDroneControllerOptions) {
 
     const update = () => {
       const now = performance.now()
-      const dt = (now - lastTime) / 1000
+      const elapsedSeconds = (now - lastTime) / 1000
       lastTime = now
 
       if (isPaused) {
@@ -932,15 +1073,21 @@ export function useDroneController(options: UseDroneControllerOptions) {
         return
       }
 
-      dronesRef.current.forEach((drone) => {
-        if (!drone.physicsBody.state.armed) return
+      if (!Number.isFinite(elapsedSeconds) || elapsedSeconds <= 0) {
+        animationFrameRef.current = requestAnimationFrame(update)
+        return
+      }
+      const dt = Math.min(elapsedSeconds, MAX_PHYSICS_DT_SECONDS)
 
+      dronesRef.current.forEach((drone) => {
         const isSelected = drone.id === selectedDroneId
 
         if (drone.mesh) {
           const ring = drone.mesh.getObjectByName('selection_ring')
           if (ring) ring.visible = isSelected
         }
+
+        if (!drone.physicsBody.state.armed) return
 
         const hasActiveRoute = drone.route.isActive && drone.route.waypoints.length > 0
 
@@ -955,9 +1102,11 @@ export function useDroneController(options: UseDroneControllerOptions) {
             const pos = drone.physicsBody.state.position
             const dx = currentWaypoint.position.x - pos.x
             const dz = currentWaypoint.position.z - pos.z
-            const distXZ = Math.sqrt(dx * dx + dz * dz)
+            const distanceSquared = dx * dx + dz * dz
+            const arrivalThresholdSquared =
+              drone.route.arrivalThreshold * drone.route.arrivalThreshold
 
-            if (distXZ < drone.route.arrivalThreshold) {
+            if (distanceSquared < arrivalThresholdSquared) {
               const localVel = scratchVelocity
                 .copy(drone.physicsBody.state.velocity)
                 .applyQuaternion(
@@ -969,8 +1118,8 @@ export function useDroneController(options: UseDroneControllerOptions) {
               targetRoll = Math.max(-0.4, Math.min(0.4, -localVel.x * brakeGain))
               targetAlt = currentWaypoint.altitude
 
-              const speed = Math.sqrt(localVel.x * localVel.x + localVel.z * localVel.z)
-              if (speed < 0.5) {
+              const speedSquared = localVel.x * localVel.x + localVel.z * localVel.z
+              if (speedSquared < 0.25) {
                 drone.route.currentWaypointIndex++
 
                 if (drone.route.currentWaypointIndex >= drone.route.waypoints.length) {
@@ -983,6 +1132,7 @@ export function useDroneController(options: UseDroneControllerOptions) {
                 }
               }
             } else {
+              const distXZ = Math.sqrt(distanceSquared)
               const targetHeading = Math.atan2(dx, dz)
               const currentHeading = scratchEuler.setFromQuaternion(
                 drone.physicsBody.state.orientation,
@@ -1152,11 +1302,41 @@ export function useDroneController(options: UseDroneControllerOptions) {
       },
       // Physics-free spawn: a visible drone mesh moved purely by NCP setpoints.
       spawnKinematic(x = 0, y = 1.5, z = 0, scale = 2.5): string {
+        validateDevNcpKinematicSpawn(x, y, z, scale)
+        assertDevNcpEntityCapacity(kin.size, physicsWorldRef.current?.getAllDrones().length ?? 0)
         const type = DRONE_TYPES['maverick'] ?? Object.values(DRONE_TYPES)[0]
         const mesh = createPlaceholderDrone(type)
         mesh.scale.setScalar(scale)
         mesh.position.set(x, clampUp(y), z)
-        sceneRef.current?.add(mesh)
+        const activeScene = sceneRef.current
+        if (!activeScene) {
+          disposeObject3D(mesh)
+          throw new Error('Cannot spawn a kinematic drone without an active scene')
+        }
+        const attachment = attachObject3DToScene(activeScene, mesh, 'dev NCP kinematic drone')
+        if (!attachment.attached) {
+          const cleanupErrors = [...attachment.errors]
+          if (mesh.parent === null) {
+            try {
+              disposeObject3D(mesh)
+            } catch (cleanupError) {
+              cleanupErrors.push(cleanupError)
+            }
+          } else {
+            cleanupErrors.push(
+              new Error('Kinematic drone is attached to an unexpected scene graph')
+            )
+          }
+          throw new AggregateError(cleanupErrors, 'Kinematic drone activation failed', {
+            cause: attachment.errors[0],
+          })
+        }
+        if (attachment.errors.length > 0) {
+          log.warn('Kinematic drone attached with scene-event failures', {
+            count: attachment.errors.length,
+            firstError: attachment.errors[0],
+          })
+        }
         const id = `ncp-kin-${++kinCounter}`
         kin.set(id, mesh)
         return id
@@ -1235,7 +1415,18 @@ export function useDroneController(options: UseDroneControllerOptions) {
     const w = window as unknown as { __ncpDrone?: typeof bridge }
     w.__ncpDrone = bridge
     return () => {
-      for (const m of kin.values()) sceneRef.current?.remove(m)
+      for (const mesh of kin.values()) {
+        try {
+          mesh.removeFromParent()
+        } catch (error) {
+          log.warn('Failed to remove a dev NCP kinematic mesh', { error })
+        }
+        try {
+          disposeObject3D(mesh)
+        } catch (error) {
+          log.warn('Failed to dispose a dev NCP kinematic mesh', { error })
+        }
+      }
       kin.clear()
       commandStreams.clear()
       delete w.__ncpDrone
@@ -1261,6 +1452,9 @@ export function useDroneController(options: UseDroneControllerOptions) {
     togglePause,
     setSimulationPaused,
     resetSimulation,
+    suspendDronesForSceneRestore,
+    restoreSuspendedDrones,
+    disposeSuspendedDrones,
   }
 }
 

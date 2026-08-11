@@ -214,7 +214,7 @@ export interface CoreMLDetectionResult {
   inferenceTimeMs: number
   preprocessTimeMs: number | null
   postprocessTimeMs: number | null
-  backend?: string | null
+  backend: string
   error: string | null
 }
 

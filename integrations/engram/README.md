@@ -4,6 +4,20 @@ CREBAIN remains a standalone browser and Tauri application. Engram host API 1.0
 adds an optional restricted browser surface. The manifest version tracks the
 CREBAIN release, not the date this embedding was introduced.
 
+<p align="center">
+  <img alt="CREBAIN headless NCP and Engram host boundaries" src="../../assets/diagrams/engram-ncp-boundary.svg" width="900">
+</p>
+
+Text alternative: The feature-gated `crebain-ncp-headless` process uses
+strict-client-config NCP wire 0.8 without Tauri, inference, image, or plant dependencies.
+It bounds open, 1–4,096 steps, and close against a compatible external responder.
+Self-check and validation do not cross the transport boundary. The separate
+Engram UI host is read-only and has no NCP path. Current Engram wire 1.0 is
+incompatible, and no translator or live loop exists. A successful, validated
+RPC reply shows that one compatible responder replied. It does not prove
+receiver identity, end-to-end effect, TLS, ACL, scientific validity, or
+deployment readiness.
+
 ## Start CREBAIN
 
 Run this command from the CREBAIN repository:
@@ -61,7 +75,8 @@ Engram continues health challenges after readiness.
 CREBAIN increments a heartbeat sequence for each accepted challenge.
 Engram relocks the frame when replies stop.
 
-CREBAIN probes the harmless Engram `get_extension_host_security` command.
+CREBAIN probes the harmless, host-owned Engram `get_extension_host_security` command.
+CREBAIN does not register this command.
 Engram unlocks the frame only when native Engram inter-process communication
 (IPC) is inaccessible.
 On supported Tauri targets, the local-window capability policy is the primary
@@ -80,11 +95,18 @@ Do not send secrets or authority through the host protocol.
 
 The protocol accepts no host command.
 It does not enable NCP, a closed loop, artifact exchange, or plant authority.
+
+The dependency-isolated `crebain-ncp-headless` process is not part of this host
+protocol. Engram does not start, configure, or control it. Its networked mode
+requires a compatible external NCP wire-0.8 responder. The `engram/ncp` default
+realm is only routing text and does not establish current Engram compatibility.
+
 CREBAIN pins the latest immutable NCP release, `v0.8.0` (wire `0.8`). The NCP
 `1.0.0-rc.1` candidate uses wire `1.0` and compact proto contract hash
 `163acc57d8a62b66`. It is unreleased, release-blocked, and incompatible with
 wire `0.8`. No native-1.0 role is certified. Engram's native-1.0 migration
-worktree is neither an installed artifact nor a live certification result.
+worktree is neither an installed artifact nor a live certification result. No
+translator or live CREBAIN↔current-Engram loop exists.
 
 ## Validation
 

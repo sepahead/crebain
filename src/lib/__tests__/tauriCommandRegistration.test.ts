@@ -8,6 +8,7 @@ const TRANSPORT_COMMANDS = readFileSync(
   'utf8'
 )
 const ONNX_DETECTOR = readFileSync(`${process.cwd()}/src-tauri/src/onnx_detector.rs`, 'utf8')
+const COREML_BACKEND = readFileSync(`${process.cwd()}/src-tauri/src/inference/coreml.rs`, 'utf8')
 const COMMAND_SOURCES = `${BACKEND}\n${TRANSPORT_COMMANDS}`
 const FRONTEND_SOURCES = readSourceFiles(`${process.cwd()}/src`)
 
@@ -159,7 +160,8 @@ describe('Tauri command registration', () => {
   })
 
   it('keeps model path environment variables guarded by model-path validation', () => {
-    expect(BACKEND).toContain('validate_model_path(&custom_path, Some(&["mlmodelc"]))')
+    expect(COREML_BACKEND).toContain('CREBAIN_MODEL_PATH')
+    expect(COREML_BACKEND).toContain('validate_model_path(trimmed, Some(&["mlmodelc"]))')
     expect(ONNX_DETECTOR).toContain('validate_model_path(&custom_path, Some(&["onnx"]))')
     expect(ONNX_DETECTOR).toContain('CREBAIN_ONNX_MODEL')
     expect(ONNX_DETECTOR).toContain('CREBAIN_MODEL_PATH')

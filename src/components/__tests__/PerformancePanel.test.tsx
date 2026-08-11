@@ -45,7 +45,7 @@ describe('PerformancePanel', () => {
         <PerformancePanel
           data={sample(2_000)}
           history={[sample(1_000), sample(2_000)]}
-          isReady
+          status="ready"
           error={null}
         />
       )
@@ -63,7 +63,7 @@ describe('PerformancePanel', () => {
         <PerformancePanel
           data={sample(1_000)}
           history={[sample(2_000), sample(1_000)]}
-          isReady
+          status="ready"
           error={null}
         />
       )
@@ -78,7 +78,13 @@ describe('PerformancePanel', () => {
   it('starts collapsed for a restricted host and exposes keyboard disclosure semantics', () => {
     act(() => {
       root.render(
-        <PerformancePanel data={null} history={[]} isReady error={null} initiallyExpanded={false} />
+        <PerformancePanel
+          data={null}
+          history={[]}
+          status="ready"
+          error={null}
+          initiallyExpanded={false}
+        />
       )
     })
 
@@ -88,5 +94,24 @@ describe('PerformancePanel', () => {
     expect(disclosure).not.toBeNull()
     expect(disclosure?.getAttribute('aria-expanded')).toBe('false')
     expect(container.querySelector('#performance-panel-content')).toBeNull()
+    const dragSurface = container.querySelector<HTMLElement>('[data-drag-handle]')
+    expect(dragSurface?.tagName).toBe('DIV')
+    expect(disclosure?.hasAttribute('data-drag-handle')).toBe(false)
+    expect(dragSurface?.contains(disclosure ?? null)).toBe(true)
+  })
+
+  it.each([
+    ['loading', 'Loading'],
+    ['unavailable', 'Unavailable'],
+    ['initializing', 'Initializing'],
+    ['busy', 'Busy'],
+    ['unknown', 'Unknown'],
+    ['error', 'Error'],
+  ] as const)('renders the %s backend state truthfully', (status, label) => {
+    act(() => {
+      root.render(<PerformancePanel data={null} history={[]} status={status} error={null} />)
+    })
+
+    expect(container.querySelector('[role="status"]')?.textContent).toBe(label)
   })
 })

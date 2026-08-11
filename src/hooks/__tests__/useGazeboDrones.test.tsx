@@ -128,6 +128,47 @@ describe('useGazeboDrones', () => {
     await act(async () => root.unmount())
   })
 
+  it('accepts the first snapshot after a connected bridge replacement', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(1_000)
+    let firstCallback: ((msg: ModelStates) => void) | undefined
+    let secondCallback: ((msg: ModelStates) => void) | undefined
+    const firstBridge = {
+      isConnected: () => true,
+      subscribeToModelStates: vi.fn((callback: (msg: ModelStates) => void) => {
+        firstCallback = callback
+        return vi.fn()
+      }),
+    }
+    const secondBridge = {
+      isConnected: () => true,
+      subscribeToModelStates: vi.fn((callback: (msg: ModelStates) => void) => {
+        secondCallback = callback
+        return vi.fn()
+      }),
+    }
+    const root = createRoot(document.createElement('div'))
+
+    await act(async () => {
+      root.render(<Harness bridge={firstBridge} tick={0} config={{ throttleRateMs: 1_000 }} />)
+    })
+    await act(async () => {
+      firstCallback?.(modelStates(['hostile_drone_old'], [{ x: 1, y: 0, z: 1 }]))
+    })
+
+    await act(async () => {
+      root.render(<Harness bridge={secondBridge} tick={1} config={{ throttleRateMs: 1_000 }} />)
+    })
+    await act(async () => {
+      secondCallback?.(modelStates(['hostile_drone_new'], [{ x: 2, y: 0, z: 2 }]))
+    })
+
+    expect(result.getDrone('hostile_drone_new')).toBeDefined()
+    expect(result.getDrone('hostile_drone_old')).toBeUndefined()
+
+    await act(async () => root.unmount())
+  })
+
   it('converts model states into classified drones and predictions', async () => {
     let modelStatesCallback: ((msg: ModelStates) => void) | undefined
     const bridge = {
@@ -229,7 +270,7 @@ describe('useGazeboDrones', () => {
       { x: 2, y: 0, z: 1 },
     ])
 
-    vi.setSystemTime(7_001)
+    await act(async () => vi.advanceTimersByTimeAsync(6_001))
     await act(async () => {
       modelStatesCallback?.(modelStates(['friendly_drone'], [{ x: 3, y: 0, z: 1 }]))
     })
@@ -265,6 +306,59 @@ describe('useGazeboDrones', () => {
     await act(async () => vi.advanceTimersByTime(5_000))
 
     expect(result.getDrone('hostile_drone_target')).toBeUndefined()
+
+    await act(async () => root.unmount())
+  })
+
+  it('fails ambiguous classification closed and isolates history from caller mutation', async () => {
+    let modelStatesCallback: ((msg: ModelStates) => void) | undefined
+    const bridge = {
+      isConnected: () => true,
+      subscribeToModelStates: vi.fn((callback: (msg: ModelStates) => void) => {
+        modelStatesCallback = callback
+        return vi.fn()
+      }),
+    }
+    const root = createRoot(document.createElement('div'))
+    await act(async () => {
+      root.render(
+        <Harness bridge={bridge} tick={0} config={{ throttleRateMs: 0, maxHistoryLength: 3 }} />
+      )
+    })
+
+    const firstPosition = { x: 5, y: 0, z: 5 }
+    await act(async () => {
+      modelStatesCallback?.(
+        modelStates(
+          ['friendly_hostile_drone', 'hostile_drone_target'],
+          [{ x: 0, y: 0, z: 1 }, firstPosition]
+        )
+      )
+    })
+    expect(result.getDrone('friendly_hostile_drone')?.type).toBe('unknown')
+    firstPosition.x = 99
+    result.getDrone('hostile_drone_target')!.positionHistory[0].x = -1
+
+    await act(async () => {
+      modelStatesCallback?.(modelStates(['hostile_drone_target'], [{ x: 6, y: 0, z: 5 }]))
+    })
+    expect(result.getDrone('hostile_drone_target')?.positionHistory).toEqual([
+      { x: 5, y: 0, z: 5 },
+      { x: 6, y: 0, z: 5 },
+    ])
+
+    await act(async () => {
+      modelStatesCallback?.(
+        modelStates(
+          ['hostile_drone_target', 'hostile_drone_target'],
+          [
+            { x: 7, y: 0, z: 5 },
+            { x: 8, y: 0, z: 5 },
+          ]
+        )
+      )
+    })
+    expect(result.getDrone('hostile_drone_target')?.pose.position.x).toBe(6)
 
     await act(async () => root.unmount())
   })

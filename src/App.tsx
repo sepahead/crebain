@@ -6,7 +6,7 @@
  * Uses UIScaleProvider for centralized UI scaling management.
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import CrebainViewer from './components/CrebainViewer'
@@ -21,7 +21,13 @@ import { useGazeboSimulation } from './hooks/useGazeboSimulation'
 import { ROS_SENSOR_WEBSOCKET_REQUIRED, useROSSensors } from './ros/useROSSensors'
 import { APP_SHORTCUTS, isTextInputTarget, normalizeShortcutKey } from './lib/shortcuts'
 import { TAURI_COMMANDS } from './lib/tauriCommands'
-import { getBackendHealth, normalizeSystemInfo, type SystemInfo } from './lib/diagnostics'
+import { runWithOperationDeadline } from './lib/operationDeadline'
+import {
+  getBackendHealth,
+  normalizeSystemInfo,
+  type DiagnosticsStatus,
+  type SystemInfo,
+} from './lib/diagnostics'
 import { logger } from './lib/logger'
 import { isEngramEmbeddedMode, isNativeBackendAvailable } from './integrations/engramHost'
 import type { FilterAlgorithm } from './detection/AdvancedSensorFusion'
@@ -30,9 +36,17 @@ import { RENDERER_ROSBRIDGE_AVAILABLE } from '#renderer-rosbridge'
 const log = logger.scope('App')
 const PRODUCTION_CUSTOM_SENSOR_NOTICE =
   'Custom ROS sensor topics are available only in the Vite development profile; packaged builds remain on native Zenoh telemetry.'
+const DIAGNOSTICS_POLL_INTERVAL_MS = 500
+const DIAGNOSTICS_REQUEST_TIMEOUT_MS = 10_000
+const TRANSIENT_DIAGNOSTICS_STATUSES: ReadonlySet<DiagnosticsStatus> = new Set([
+  'loading',
+  'initializing',
+  'busy',
+])
 
 export default function App() {
   const embeddedInEngram = isEngramEmbeddedMode()
+  const [nativeBackendAvailable] = useState(() => isNativeBackendAvailable())
   const performanceTracker = usePerformanceTracker({ maxHistory: 100 })
   const { recordSample } = performanceTracker
   const [detectionError, setDetectionError] = useState<string | null>(null)
@@ -43,6 +57,12 @@ export default function App() {
   const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null)
   const [fusionAlgorithm, setFusionAlgorithm] = useState<FilterAlgorithm>('ExtendedKalman')
   const [systemInfo, setSystemInfo] = useState<SystemInfo>(() => normalizeSystemInfo(null))
+  const [diagnosticsStatus, setDiagnosticsStatus] = useState<DiagnosticsStatus>(() =>
+    nativeBackendAvailable ? 'loading' : 'unavailable'
+  )
+  const [diagnosticsError, setDiagnosticsError] = useState<string | null>(null)
+  const diagnosticsRequestRef = useRef(0)
+  const diagnosticsInFlightRef = useRef<Promise<DiagnosticsStatus | null> | null>(null)
   const handleCloseAbout = useCallback(() => setShowAbout(false), [])
 
   // ROS-Gazebo simulation
@@ -115,6 +135,72 @@ export default function App() {
     [recordSample]
   )
 
+  const onDetectionError = useCallback((message: string) => {
+    setDetectionError(message)
+  }, [])
+
+  const loadSystemInfo = useCallback(
+    (showLoading: boolean): Promise<DiagnosticsStatus | null> => {
+      if (!nativeBackendAvailable) {
+        setSystemInfo(normalizeSystemInfo(null))
+        setDiagnosticsStatus('unavailable')
+        setDiagnosticsError(null)
+        return Promise.resolve('unavailable')
+      }
+
+      if (showLoading) setDiagnosticsStatus('loading')
+      setDiagnosticsError(null)
+      const inFlight = diagnosticsInFlightRef.current
+      if (inFlight !== null) return inFlight
+
+      const request = diagnosticsRequestRef.current + 1
+      diagnosticsRequestRef.current = request
+      const operation = (async (): Promise<DiagnosticsStatus | null> => {
+        try {
+          const info = normalizeSystemInfo(
+            await runWithOperationDeadline(
+              async (guard) => {
+                const result = await invoke<unknown>(TAURI_COMMANDS.detection.systemInfo)
+                guard.assertActive()
+                return result
+              },
+              {
+                timeoutMs: DIAGNOSTICS_REQUEST_TIMEOUT_MS,
+                timeoutMessage: 'Backend diagnostics request timed out',
+                supersededMessage: 'Backend diagnostics request was superseded',
+                isCurrent: () => diagnosticsRequestRef.current === request,
+                onTimeout: () => undefined,
+              }
+            )
+          )
+          if (diagnosticsRequestRef.current !== request) return null
+          const status = getBackendHealth(info)
+          setSystemInfo(info)
+          setDiagnosticsStatus(status)
+          setDiagnosticsError(status === 'unavailable' ? info.inferenceInitializationError : null)
+          return status
+        } catch (error) {
+          log.warn('Failed to refresh system info', { error })
+          if (diagnosticsRequestRef.current !== request) return null
+          setSystemInfo(normalizeSystemInfo(null))
+          setDiagnosticsStatus('error')
+          setDiagnosticsError('Backend diagnostics are unavailable')
+          return 'error'
+        }
+      })()
+      diagnosticsInFlightRef.current = operation
+      void operation.then(() => {
+        if (diagnosticsInFlightRef.current === operation) diagnosticsInFlightRef.current = null
+      })
+      return operation
+    },
+    [nativeBackendAvailable]
+  )
+
+  const refreshSystemInfo = useCallback(async () => {
+    await loadSystemInfo(true)
+  }, [loadSystemInfo])
+
   // Keyboard shortcuts and Menu Events
   useEffect(() => {
     let disposed = false
@@ -141,9 +227,9 @@ export default function App() {
 
     // The native menu does not exist in browser/Vite mode. Guarding this call
     // avoids a rejected Tauri IPC promise on every browser mount.
-    if (isNativeBackendAvailable()) {
+    if (nativeBackendAvailable) {
       void listen('show-about', () => {
-        setShowAbout(true)
+        if (!disposed) setShowAbout(true)
       })
         .then((cleanup) => {
           if (disposed) {
@@ -162,35 +248,36 @@ export default function App() {
       window.removeEventListener('keydown', handleKeyDown)
       unlisten?.()
     }
-  }, [embeddedInEngram])
+  }, [embeddedInEngram, nativeBackendAvailable])
 
   useEffect(() => {
-    if (!isNativeBackendAvailable()) return
-
-    let cancelled = false
-
-    const refreshSystemInfo = async () => {
-      try {
-        const info = await invoke<unknown>(TAURI_COMMANDS.detection.systemInfo)
-        if (!cancelled) {
-          setSystemInfo(normalizeSystemInfo(info))
-        }
-      } catch (error) {
-        log.warn('Failed to refresh system info', { error })
-        if (!cancelled) {
-          setSystemInfo(normalizeSystemInfo(null))
-        }
-      }
-    }
-
-    void refreshSystemInfo()
+    void loadSystemInfo(true)
 
     return () => {
-      cancelled = true
+      diagnosticsRequestRef.current += 1
+      diagnosticsInFlightRef.current = null
     }
-  }, [])
+  }, [loadSystemInfo])
 
-  const backendHealth = getBackendHealth(systemInfo)
+  useEffect(() => {
+    if (!nativeBackendAvailable || !TRANSIENT_DIAGNOSTICS_STATUSES.has(diagnosticsStatus)) {
+      return
+    }
+
+    let disposed = false
+    let timeout: number | null = null
+    const poll = async () => {
+      const nextStatus = await loadSystemInfo(false)
+      if (!disposed && nextStatus !== null && TRANSIENT_DIAGNOSTICS_STATUSES.has(nextStatus)) {
+        timeout = window.setTimeout(() => void poll(), DIAGNOSTICS_POLL_INTERVAL_MS)
+      }
+    }
+    timeout = window.setTimeout(() => void poll(), DIAGNOSTICS_POLL_INTERVAL_MS)
+    return () => {
+      disposed = true
+      if (timeout !== null) window.clearTimeout(timeout)
+    }
+  }, [diagnosticsStatus, loadSystemInfo, nativeBackendAvailable])
 
   return (
     <ErrorBoundary>
@@ -203,13 +290,17 @@ export default function App() {
             onPerformancePanelVisibleChange={setShowPerformancePanel}
             rosConnectionState={gazebo.connectionState}
             rosTransport={gazebo.transport}
+            systemInfo={systemInfo}
+            diagnosticsStatus={diagnosticsStatus}
+            onRefreshSystemInfo={refreshSystemInfo}
+            onDetectionError={onDetectionError}
           />
           {showPerformancePanel && (
             <PerformancePanel
               data={performanceTracker.currentData}
               history={performanceTracker.history}
-              isReady={backendHealth === 'ready'}
-              error={detectionError}
+              status={diagnosticsStatus}
+              error={detectionError ?? diagnosticsError}
               backend={systemInfo.backend}
               backendDetail={systemInfo.mode !== 'unknown' ? systemInfo.mode : undefined}
               initiallyExpanded={!embeddedInEngram}

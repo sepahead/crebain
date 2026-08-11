@@ -1816,8 +1816,8 @@ fn validate_bounded_text(name: &str, value: &str) -> Result<(), String> {
             MAX_FUSION_STRING_LEN
         ));
     }
-    if value.contains('\0') {
-        return Err(format!("{} must not contain null bytes", name));
+    if value.chars().any(char::is_control) {
+        return Err(format!("{} must not contain control characters", name));
     }
     Ok(())
 }
@@ -6539,6 +6539,27 @@ mod tests {
         let mut at_bound = valid_meas();
         at_bound.source_frame_id = Some("é".repeat(MAX_FUSION_STRING_LEN / 2));
         assert!(validate_sensor_measurements(&[at_bound]).is_ok());
+    }
+
+    #[test]
+    fn bounded_measurement_text_rejects_controls_but_preserves_plain_spaces() {
+        let mut readable_label = valid_meas();
+        readable_label.class_label = "small drone".to_string();
+        assert!(validate_sensor_measurements(&[readable_label]).is_ok());
+
+        for control in ['\n', '\u{0085}'] {
+            let mut sensor = valid_meas();
+            sensor.sensor_id = format!("camera{control}one");
+            assert!(validate_sensor_measurements(&[sensor]).is_err());
+
+            let mut label = valid_meas();
+            label.class_label = format!("small{control}drone");
+            assert!(validate_sensor_measurements(&[label]).is_err());
+
+            let mut metadata = valid_meas();
+            metadata.metadata.insert(format!("range{control}m"), 1.0);
+            assert!(validate_sensor_measurements(&[metadata]).is_err());
+        }
     }
 
     #[test]

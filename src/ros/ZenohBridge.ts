@@ -27,6 +27,7 @@ import { rosLogger as log } from '../lib/logger'
 import { TAURI_COMMANDS } from '../lib/tauriCommands'
 import { getTransportEventName } from '../lib/transportEvents'
 import { assertNativeBackendAllowed } from '../integrations/engramHost'
+import { validateRosGraphName } from './rosNameValidation'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES (Backend Mappings)
@@ -61,6 +62,12 @@ interface RustCameraReady {
   cameraSubscriptionId: string
 }
 
+interface RustTelemetryEnvelope {
+  generation: string
+  subscriptionId: string
+  data: unknown
+}
+
 interface RustCameraInfoData {
   height: number
   width: number
@@ -77,9 +84,29 @@ interface RustImuData {
   orientation: [number, number, number, number]
   orientation_covariance: [number, number, number, number, number, number, number, number, number]
   angular_velocity: [number, number, number]
-  angular_velocity_covariance: [number, number, number, number, number, number, number, number, number]
+  angular_velocity_covariance: [
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+  ]
   linear_acceleration: [number, number, number]
-  linear_acceleration_covariance: [number, number, number, number, number, number, number, number, number]
+  linear_acceleration_covariance: [
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+  ]
   timestamp: number
   frame_id: string
 }
@@ -116,10 +143,9 @@ interface CameraDeliveryRunner {
   pending: PendingCameraDelivery | null
 }
 
-const ROS_TOPIC_PATTERN = /^\/[A-Za-z0-9_/]+$/
-const MAX_ROS_TOPIC_LENGTH = 256
 const DEFAULT_NATIVE_QUEUE_LENGTH = 1
 const MAX_NATIVE_QUEUE_LENGTH = 4
+const MAX_NATIVE_THROTTLE_MS = 60_000
 const MAX_NATIVE_LISTENERS_PER_TOPIC = 256
 const MAX_NATIVE_LISTENERS = 1024
 const POSITIVE_U64_DECIMAL_PATTERN = /^[1-9][0-9]{0,19}$/
@@ -128,10 +154,13 @@ const CAMERA_SETUP_TIMEOUT_MS = 12_000
 const CAMERA_TAKE_TIMEOUT_MS = 10_000
 const CAMERA_LISTENER_SETTLE_TIMEOUT_MS = 8_000
 const CAMERA_ACK_TIMEOUT_MS = 4_000
+const NATIVE_CONNECT_TIMEOUT_MS = 15_000
+const NATIVE_DISCONNECT_TIMEOUT_MS = 10_000
+const NATIVE_SUBSCRIPTION_SETUP_TIMEOUT_MS = 12_000
 
-class CameraOperationTimeoutError extends Error {}
+class NativeOperationTimeoutError extends Error {}
 
-function withCameraOperationDeadline<T>(
+function withNativeOperationDeadline<T>(
   operation: PromiseLike<T>,
   timeoutMs: number,
   message: string,
@@ -157,7 +186,7 @@ function withCameraOperationDeadline<T>(
 
     timeoutId = setTimeout(() => {
       timeoutId = undefined
-      finish('reject', new CameraOperationTimeoutError(message))
+      finish('reject', new NativeOperationTimeoutError(message))
     }, timeoutMs)
 
     void Promise.resolve(operation).then(
@@ -182,7 +211,7 @@ function isCanonicalPositiveU64(value: unknown): value is string {
 // operation starts, preventing an older instance from becoming locally connected.
 let nativeLifecycleTail: Promise<void> = Promise.resolve()
 let latestNativeConnectIntent = 0
-let latestNativeCameraSubscriptionIntent = 0
+let latestNativeSubscriptionIntent = 0
 
 function nextGeneration(current: number, label: string): number {
   if (!Number.isSafeInteger(current) || current >= Number.MAX_SAFE_INTEGER) {
@@ -196,12 +225,12 @@ function reserveNativeConnectIntent(): number {
   return latestNativeConnectIntent
 }
 
-function reserveNativeCameraSubscriptionId(): string {
-  latestNativeCameraSubscriptionIntent = nextGeneration(
-    latestNativeCameraSubscriptionIntent,
-    'Native camera subscription'
+function reserveNativeSubscriptionId(): string {
+  latestNativeSubscriptionIntent = nextGeneration(
+    latestNativeSubscriptionIntent,
+    'Native subscription'
   )
-  return latestNativeCameraSubscriptionIntent.toString()
+  return latestNativeSubscriptionIntent.toString()
 }
 
 function enqueueNativeLifecycle<T>(operation: () => Promise<T>): Promise<T> {
@@ -214,16 +243,80 @@ function enqueueNativeLifecycle<T>(operation: () => Promise<T>): Promise<T> {
 }
 
 function validateNativeTopic(topic: string): void {
-  if (
-    topic.length === 0 ||
-    topic.length > MAX_ROS_TOPIC_LENGTH ||
-    topic.trim() !== topic ||
-    topic === '/' ||
-    topic.includes('//') ||
-    !ROS_TOPIC_PATTERN.test(topic)
-  ) {
+  try {
+    validateRosGraphName(topic, 'topic')
+  } catch {
     throw new Error('Invalid native ROS topic')
   }
+}
+
+function snapshotMappedMessage(type: string, message: unknown): unknown {
+  if (type === 'sensor_msgs/Image') {
+    const image = message as Image
+    return {
+      ...image,
+      header: { ...image.header, stamp: { ...image.header.stamp } },
+      data: Array.isArray(image.data) ? [...image.data] : image.data,
+    }
+  }
+  if (type === 'sensor_msgs/CompressedImage') {
+    const image = message as CompressedImage
+    return {
+      ...image,
+      header: { ...image.header, stamp: { ...image.header.stamp } },
+      data: Array.isArray(image.data) ? [...image.data] : image.data,
+    }
+  }
+  if (type === 'sensor_msgs/CameraInfo') {
+    const info = message as CameraInfo
+    return {
+      ...info,
+      header: { ...info.header, stamp: { ...info.header.stamp } },
+      D: [...info.D],
+      K: [...info.K],
+      R: [...info.R],
+      P: [...info.P],
+    }
+  }
+  if (type === 'sensor_msgs/Imu') {
+    const imu = message as Imu
+    return {
+      ...imu,
+      header: { ...imu.header, stamp: { ...imu.header.stamp } },
+      orientation: { ...imu.orientation },
+      orientation_covariance: [...imu.orientation_covariance],
+      angular_velocity: { ...imu.angular_velocity },
+      angular_velocity_covariance: [...imu.angular_velocity_covariance],
+      linear_acceleration: { ...imu.linear_acceleration },
+      linear_acceleration_covariance: [...imu.linear_acceleration_covariance],
+    }
+  }
+  if (type === 'geometry_msgs/PoseStamped') {
+    const pose = message as PoseStamped
+    return {
+      ...pose,
+      header: { ...pose.header, stamp: { ...pose.header.stamp } },
+      pose: {
+        position: { ...pose.pose.position },
+        orientation: { ...pose.pose.orientation },
+      },
+    }
+  }
+  if (type === 'gazebo_msgs/ModelStates') {
+    const states = message as ModelStates
+    return {
+      name: [...states.name],
+      pose: states.pose.map((pose) => ({
+        position: { ...pose.position },
+        orientation: { ...pose.orientation },
+      })),
+      twist: states.twist.map((twist) => ({
+        linear: { ...twist.linear },
+        angular: { ...twist.angular },
+      })),
+    }
+  }
+  throw new Error(`Cannot snapshot unsupported native ROS message type: ${type}`)
 }
 
 function headerFromRust(frameId: string, timestamp: number) {
@@ -248,10 +341,9 @@ export class ZenohBridge {
   private lifecycleGeneration = 0
   private subscriptionGeneration = 0
   private topicGenerations: Map<string, number> = new Map()
-  private cameraSubscriptionIds: Map<string, string> = new Map()
+  private subscriptionIds: Map<string, string> = new Map()
   private cameraDeliveryRunners: Map<string, CameraDeliveryRunner> = new Map()
   private backendGeneration: string | null = null
-  private pendingDisconnect: Promise<void> | null = null
 
   // Configuration (mocking ROSBridge config)
   public config = {
@@ -262,6 +354,7 @@ export class ZenohBridge {
   }
 
   public onStateChange?: (state: ConnectionState) => void
+  public onError?: (error: Error) => void
 
   constructor() {}
 
@@ -283,7 +376,21 @@ export class ZenohBridge {
 
     try {
       await enqueueNativeLifecycle(async () => {
-        const backendGeneration = await invoke<unknown>(TAURI_COMMANDS.transport.connect)
+        const backendGeneration = await withNativeOperationDeadline(
+          invoke<unknown>(TAURI_COMMANDS.transport.connect),
+          NATIVE_CONNECT_TIMEOUT_MS,
+          'Native transport connection timed out',
+          (lateGeneration) => {
+            if (!isCanonicalPositiveU64(lateGeneration)) return
+            void invoke(TAURI_COMMANDS.transport.disconnect, {
+              generation: lateGeneration,
+            }).catch((cleanupError: unknown) => {
+              log.warn('Failed to close a late native transport connection', {
+                error: cleanupError,
+              })
+            })
+          }
+        )
         if (!isCanonicalPositiveU64(backendGeneration)) {
           throw new Error('Native transport returned an invalid lifecycle generation')
         }
@@ -314,6 +421,7 @@ export class ZenohBridge {
       }
       this.backendGeneration = null
       this.setState('disconnected')
+      this.notifyError(error)
       throw error
     }
   }
@@ -340,25 +448,28 @@ export class ZenohBridge {
     for (const topic of this.listeners.keys()) this.deactivateTopic(topic)
     this.listeners.clear()
     this.topicGenerations.clear()
-    this.cameraSubscriptionIds.clear()
+    this.subscriptionIds.clear()
     this.cameraDeliveryRunners.clear()
     this.setState('disconnected')
 
     const operation = enqueueNativeLifecycle(async () => {
       if (backendGeneration === null) return
       try {
-        await invoke(TAURI_COMMANDS.transport.disconnect, {
-          generation: backendGeneration,
-        })
-      } catch {
+        await withNativeOperationDeadline(
+          invoke(TAURI_COMMANDS.transport.disconnect, {
+            generation: backendGeneration,
+          }),
+          NATIVE_DISCONNECT_TIMEOUT_MS,
+          'Native transport disconnect timed out'
+        )
+      } catch (error) {
         // Disconnect errors are non-fatal; local delivery is already fenced.
+        this.notifyError(error)
       }
     })
-    this.pendingDisconnect = operation
     try {
       await operation
     } finally {
-      if (this.pendingDisconnect === operation) this.pendingDisconnect = null
       if (lifecycleGeneration === this.lifecycleGeneration) {
         this.backendGeneration = null
       }
@@ -380,6 +491,32 @@ export class ZenohBridge {
     } catch (error) {
       log.warn('Native transport state callback failed', { error, state })
     }
+  }
+
+  private notifyError(error: unknown): void {
+    const normalized = error instanceof Error ? error : new Error(String(error))
+    try {
+      this.onError?.(normalized)
+    } catch (callbackError) {
+      log.warn('Native transport error callback failed', { error: callbackError })
+    }
+  }
+
+  private async cleanUpBackendSubscription(
+    topic: string,
+    generation: string,
+    subscriptionId: string,
+    context: string
+  ): Promise<void> {
+    await withNativeOperationDeadline(
+      invoke(TAURI_COMMANDS.transport.unsubscribe, {
+        topic,
+        generation,
+        subscriptionId,
+      }),
+      CAMERA_ACK_TIMEOUT_MS,
+      `${context} timed out for ${topic}`
+    )
   }
 
   private nextTopicGeneration(topic: string): number {
@@ -494,13 +631,65 @@ export class ZenohBridge {
 
   private isCameraReady(value: unknown): value is RustCameraReady {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
-    const candidate = value as Record<string, unknown>
-    return (
-      Object.keys(candidate).length === 3 &&
-      isCanonicalPositiveU64(candidate.deliveryId) &&
-      isCanonicalPositiveU64(candidate.cameraSubscriptionId) &&
-      isCanonicalPositiveU64(candidate.generation)
-    )
+    try {
+      const candidate = value as Record<string, unknown>
+      const keys = Object.keys(candidate)
+      return (
+        keys.length === 3 &&
+        Object.hasOwn(candidate, 'deliveryId') &&
+        Object.hasOwn(candidate, 'cameraSubscriptionId') &&
+        Object.hasOwn(candidate, 'generation') &&
+        isCanonicalPositiveU64(candidate.deliveryId) &&
+        isCanonicalPositiveU64(candidate.cameraSubscriptionId) &&
+        isCanonicalPositiveU64(candidate.generation)
+      )
+    } catch {
+      return false
+    }
+  }
+
+  private admitTelemetryEnvelope(
+    topic: string,
+    eventName: string,
+    payload: unknown,
+    expectedSubscriptionId: string
+  ): RustTelemetryEnvelope | null {
+    try {
+      if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
+        throw new Error('expected an object')
+      }
+      const candidate = payload as Record<string, unknown>
+      const keys = Object.keys(candidate)
+      if (
+        keys.length !== 3 ||
+        !keys.includes('generation') ||
+        !keys.includes('subscriptionId') ||
+        !keys.includes('data') ||
+        !isCanonicalPositiveU64(candidate.generation) ||
+        !isCanonicalPositiveU64(candidate.subscriptionId)
+      ) {
+        throw new Error('expected an exact native telemetry envelope')
+      }
+      if (
+        candidate.generation !== this.backendGeneration ||
+        candidate.subscriptionId !== expectedSubscriptionId ||
+        candidate.subscriptionId !== this.subscriptionIds.get(topic)
+      ) {
+        return null
+      }
+      return {
+        generation: candidate.generation,
+        subscriptionId: candidate.subscriptionId,
+        data: candidate.data,
+      }
+    } catch (error) {
+      log.warn('Rejected malformed native telemetry envelope', {
+        topic,
+        eventName,
+        error,
+      })
+      return null
+    }
   }
 
   private admitCameraReadyDescriptor(
@@ -524,12 +713,12 @@ export class ZenohBridge {
       return false
     }
     if (payload.generation !== this.backendGeneration) return false
-    if (payload.cameraSubscriptionId !== this.cameraSubscriptionIds.get(topic)) {
-      void withCameraOperationDeadline(
+    if (payload.cameraSubscriptionId !== this.subscriptionIds.get(topic)) {
+      void withNativeOperationDeadline(
         invoke(TAURI_COMMANDS.transport.unsubscribe, {
           topic,
           generation: payload.generation,
-          cameraSubscriptionId: payload.cameraSubscriptionId,
+          subscriptionId: payload.cameraSubscriptionId,
         }),
         CAMERA_ACK_TIMEOUT_MS,
         `Stale native camera descriptor cleanup timed out for ${topic}`
@@ -558,17 +747,10 @@ export class ZenohBridge {
     }
   }
 
-  private isCameraDeliveryRunnerCurrent(
-    topic: string,
-    runner: CameraDeliveryRunner
-  ): boolean {
+  private isCameraDeliveryRunnerCurrent(topic: string, runner: CameraDeliveryRunner): boolean {
     return (
       this.cameraDeliveryRunners.get(topic) === runner &&
-      this.isSubscriptionCurrent(
-        topic,
-        runner.subscriptionGeneration,
-        runner.topicGeneration
-      )
+      this.isSubscriptionCurrent(topic, runner.subscriptionGeneration, runner.topicGeneration)
     )
   }
 
@@ -588,14 +770,7 @@ export class ZenohBridge {
     ) {
       return
     }
-    if (
-      !this.admitCameraReadyDescriptor(
-        topic,
-        payload,
-        subscriptionGeneration,
-        topicGeneration
-      )
-    ) {
+    if (!this.admitCameraReadyDescriptor(topic, payload, subscriptionGeneration, topicGeneration)) {
       return
     }
 
@@ -666,14 +841,18 @@ export class ZenohBridge {
     this.deactivateTopic(topic)
     this.listeners.delete(topic)
     this.cameraDeliveryRunners.delete(topic)
-    const cameraSubscriptionId = this.cameraSubscriptionIds.get(topic)
-    this.cameraSubscriptionIds.delete(topic)
-    const args =
-      cameraSubscriptionId === undefined
-        ? { topic, generation }
-        : { topic, generation, cameraSubscriptionId }
-    void withCameraOperationDeadline(
-      invoke(TAURI_COMMANDS.transport.unsubscribe, args),
+    const subscriptionId = this.subscriptionIds.get(topic)
+    this.subscriptionIds.delete(topic)
+    if (subscriptionId === undefined) {
+      this.notifyError(new Error(`Native camera subscription identity is missing for ${topic}`))
+      return
+    }
+    void withNativeOperationDeadline(
+      invoke(TAURI_COMMANDS.transport.unsubscribe, {
+        topic,
+        generation,
+        subscriptionId,
+      }),
       CAMERA_ACK_TIMEOUT_MS,
       `Native camera unsubscribe timed out for ${topic}`
     ).catch((error: unknown) => {
@@ -697,16 +876,15 @@ export class ZenohBridge {
     for (const listener of listeners) {
       if (!listener.active) continue
       const now = performance.now()
-      if (
-        listener.throttleRateMs > 0 &&
-        now - listener.lastQueuedAt < listener.throttleRateMs
-      ) {
+      if (listener.throttleRateMs > 0 && now - listener.lastQueuedAt < listener.throttleRateMs) {
         continue
       }
       listener.lastQueuedAt = now
 
       try {
-        const result = (listener.callback as (value: unknown) => unknown)(message)
+        const result = (listener.callback as (value: unknown) => unknown)(
+          snapshotMappedMessage(listener.type, message)
+        )
         completions.push(
           this.settleCameraListener(
             topic,
@@ -732,21 +910,14 @@ export class ZenohBridge {
     subscriptionGeneration: number,
     topicGeneration: number
   ): Promise<void> {
-    if (
-      !this.admitCameraReadyDescriptor(
-        topic,
-        payload,
-        subscriptionGeneration,
-        topicGeneration
-      )
-    )
+    if (!this.admitCameraReadyDescriptor(topic, payload, subscriptionGeneration, topicGeneration))
       return
     const eventName = getTransportEventName(topic)
     const { deliveryId, generation, cameraSubscriptionId } = payload
 
     let pulled = false
     try {
-      const frame = await withCameraOperationDeadline(
+      const frame = await withNativeOperationDeadline(
         invoke<RustCameraFrame>(TAURI_COMMANDS.transport.takeCameraFrame, {
           topic,
           deliveryId,
@@ -775,12 +946,7 @@ export class ZenohBridge {
         })
         return
       }
-      await this.deliverPulledCameraMessage(
-        topic,
-        message,
-        subscriptionGeneration,
-        topicGeneration
-      )
+      await this.deliverPulledCameraMessage(topic, message, subscriptionGeneration, topicGeneration)
     } catch (error) {
       log.warn(`Failed to pull native camera delivery for ${topic}`, { error, eventName })
       this.failCameraTopic(
@@ -793,7 +959,7 @@ export class ZenohBridge {
     } finally {
       if (pulled) {
         try {
-          await withCameraOperationDeadline(
+          await withNativeOperationDeadline(
             invoke(TAURI_COMMANDS.transport.ackCameraFrame, {
               topic,
               deliveryId,
@@ -830,10 +996,7 @@ export class ZenohBridge {
     if (!listener.active) return
 
     const now = performance.now()
-    if (
-      listener.throttleRateMs > 0 &&
-      now - listener.lastQueuedAt < listener.throttleRateMs
-    ) {
+    if (listener.throttleRateMs > 0 && now - listener.lastQueuedAt < listener.throttleRateMs) {
       return
     }
     listener.lastQueuedAt = now
@@ -841,17 +1004,19 @@ export class ZenohBridge {
     if (listener.queue.length >= listener.queueLength) {
       listener.queue.splice(0, listener.queue.length - listener.queueLength + 1)
     }
-    listener.queue.push(message)
+    let snapshot: unknown
+    try {
+      snapshot = snapshotMappedMessage(listener.type, message)
+    } catch (error) {
+      this.reportListenerError(topic, error)
+      return
+    }
+    listener.queue.push(snapshot)
     if (listener.draining) return
 
     listener.draining = true
     queueMicrotask(() =>
-      this.drainListener(
-        topic,
-        listener,
-        subscriptionGeneration,
-        topicGeneration
-      )
+      this.drainListener(topic, listener, subscriptionGeneration, topicGeneration)
     )
   }
 
@@ -904,7 +1069,7 @@ export class ZenohBridge {
   private unsupported(feature: string): Error {
     return new Error(
       `[ZenohBridge] ${feature} is not supported over Zenoh transport. ` +
-      'Use ROSBridge for this capability or add a native Zenoh request/response implementation.'
+        'Use ROSBridge for this capability or add a native Zenoh request/response implementation.'
     )
   }
 
@@ -920,7 +1085,12 @@ export class ZenohBridge {
     queueLength?: number
   ): () => void {
     validateNativeTopic(topic)
-    if (throttleRate !== undefined && (!Number.isFinite(throttleRate) || throttleRate < 0)) {
+    if (
+      throttleRate !== undefined &&
+      (!Number.isSafeInteger(throttleRate) ||
+        throttleRate < 0 ||
+        throttleRate > MAX_NATIVE_THROTTLE_MS)
+    ) {
       throw new Error('Invalid native ROS throttle rate')
     }
     if (
@@ -976,13 +1146,8 @@ export class ZenohBridge {
     this.listeners.set(topic, [listener])
     const subscriptionGeneration = this.subscriptionGeneration
     const topicGeneration = this.nextTopicGeneration(topic)
-    const cameraSubscriptionId =
-      type === 'sensor_msgs/Image' || type === 'sensor_msgs/CompressedImage'
-        ? reserveNativeCameraSubscriptionId()
-        : null
-    if (cameraSubscriptionId !== null) {
-      this.cameraSubscriptionIds.set(topic, cameraSubscriptionId)
-    }
+    const subscriptionId = reserveNativeSubscriptionId()
+    this.subscriptionIds.set(topic, subscriptionId)
 
     this.setupSubscription(
       topic,
@@ -990,15 +1155,11 @@ export class ZenohBridge {
       command,
       subscriptionGeneration,
       topicGeneration,
-      cameraSubscriptionId
+      subscriptionId
     )
       .then((unlisten) => {
         if (!this.isSubscriptionCurrent(topic, subscriptionGeneration, topicGeneration)) {
-          this.removeCameraDeliveryRunnerExact(
-            topic,
-            subscriptionGeneration,
-            topicGeneration
-          )
+          this.removeCameraDeliveryRunnerExact(topic, subscriptionGeneration, topicGeneration)
           if (unlisten) this.releaseUnlistener(unlisten, topic)
           return
         }
@@ -1012,10 +1173,11 @@ export class ZenohBridge {
           error: err,
           eventName: getTransportEventName(topic),
         })
+        this.notifyError(err)
         this.deactivateTopic(topic)
         this.listeners.delete(topic)
-        if (this.cameraSubscriptionIds.get(topic) === cameraSubscriptionId) {
-          this.cameraSubscriptionIds.delete(topic)
+        if (this.subscriptionIds.get(topic) === subscriptionId) {
+          this.subscriptionIds.delete(topic)
         }
       })
 
@@ -1042,18 +1204,22 @@ export class ZenohBridge {
       this.listeners.delete(topic)
       this.cameraDeliveryRunners.delete(topic)
       // Tell backend to stop subscription
-      const cameraSubscriptionId = this.cameraSubscriptionIds.get(topic)
-      this.cameraSubscriptionIds.delete(topic)
+      const subscriptionId = this.subscriptionIds.get(topic)
+      this.subscriptionIds.delete(topic)
       const generation = this.backendGeneration
       if (generation === null) return
-      const args =
-        cameraSubscriptionId === undefined
-          ? { topic, generation }
-          : { topic, generation, cameraSubscriptionId }
-      void withCameraOperationDeadline(
-        invoke(TAURI_COMMANDS.transport.unsubscribe, args),
+      if (subscriptionId === undefined) {
+        this.notifyError(new Error(`Native subscription identity is missing for ${topic}`))
+        return
+      }
+      void withNativeOperationDeadline(
+        invoke(TAURI_COMMANDS.transport.unsubscribe, {
+          topic,
+          generation,
+          subscriptionId,
+        }),
         CAMERA_ACK_TIMEOUT_MS,
-        `Native camera unsubscribe timed out for ${topic}`
+        `Native unsubscribe timed out for ${topic}`
       ).catch((err: unknown) => {
         log.warn(`Failed to unsubscribe from ${topic}`, {
           error: err,
@@ -1069,14 +1235,13 @@ export class ZenohBridge {
     command: string,
     subscriptionGeneration: number,
     topicGeneration: number,
-    cameraSubscriptionId: string | null
+    subscriptionId: string
   ): Promise<UnlistenFn | null> {
     const registry = getMessageRegistry()
-    const isCamera =
-      type === 'sensor_msgs/Image' || type === 'sensor_msgs/CompressedImage'
-    const cameraSetupDeadline = isCamera
-      ? performance.now() + CAMERA_SETUP_TIMEOUT_MS
-      : null
+    const isCamera = type === 'sensor_msgs/Image' || type === 'sensor_msgs/CompressedImage'
+    const setupDeadline =
+      performance.now() +
+      (isCamera ? CAMERA_SETUP_TIMEOUT_MS : NATIVE_SUBSCRIPTION_SETUP_TIMEOUT_MS)
 
     let mapper: (data: unknown) => unknown
     if (type === 'sensor_msgs/Image') {
@@ -1107,12 +1272,9 @@ export class ZenohBridge {
     // Set up listener FIRST to avoid race condition
     // This ensures we're listening before the backend sends frames
     const eventName = getTransportEventName(topic)
-    const listenerTimeoutMs =
-      cameraSetupDeadline === null ? null : cameraSetupDeadline - performance.now()
-    if (listenerTimeoutMs !== null && listenerTimeoutMs <= 0) {
-      throw new CameraOperationTimeoutError(
-        `Native camera listener registration timed out for ${topic}`
-      )
+    const listenerTimeoutMs = setupDeadline - performance.now()
+    if (listenerTimeoutMs <= 0) {
+      throw new NativeOperationTimeoutError(`Native listener registration timed out for ${topic}`)
     }
     const listenerRegistration = listen(eventName, (event) => {
       if (!this.isSubscriptionCurrent(topic, subscriptionGeneration, topicGeneration)) return
@@ -1129,14 +1291,17 @@ export class ZenohBridge {
         return
       }
 
-      if (!registry.validate(type, event.payload)) {
+      const envelope = this.admitTelemetryEnvelope(topic, eventName, event.payload, subscriptionId)
+      if (envelope === null) return
+
+      if (!registry.validate(type, envelope.data)) {
         log.warn(`Rejected malformed native ${type} telemetry`, { topic, eventName })
         return
       }
 
       let msg: unknown
       try {
-        msg = mapper(event.payload)
+        msg = mapper(envelope.data)
       } catch (error) {
         log.warn(`Failed to map native ${type} telemetry`, { topic, eventName, error })
         return
@@ -1144,25 +1309,16 @@ export class ZenohBridge {
       const subs = this.listeners.get(topic)
       if (subs) {
         for (const listener of [...subs]) {
-          this.enqueueForListener(
-            topic,
-            listener,
-            msg,
-            subscriptionGeneration,
-            topicGeneration
-          )
+          this.enqueueForListener(topic, listener, msg, subscriptionGeneration, topicGeneration)
         }
       }
     })
-    const unlisten =
-      listenerTimeoutMs === null
-        ? await listenerRegistration
-        : await withCameraOperationDeadline(
-            listenerRegistration,
-            listenerTimeoutMs,
-            `Native camera listener registration timed out for ${topic}`,
-            (lateUnlisten) => this.releaseUnlistener(lateUnlisten, `${topic}:late-registration`)
-          )
+    const unlisten = await withNativeOperationDeadline(
+      listenerRegistration,
+      listenerTimeoutMs,
+      `Native listener registration timed out for ${topic}`,
+      (lateUnlisten) => this.releaseUnlistener(lateUnlisten, `${topic}:late-registration`)
+    )
 
     if (!this.isSubscriptionCurrent(topic, subscriptionGeneration, topicGeneration)) {
       this.removeCameraDeliveryRunnerExact(topic, subscriptionGeneration, topicGeneration)
@@ -1184,71 +1340,64 @@ export class ZenohBridge {
           ? {
               topic,
               compressed: type === 'sensor_msgs/CompressedImage',
-              cameraSubscriptionId,
+              cameraSubscriptionId: subscriptionId,
               generation,
             }
-          : { topic, generation }
-      if (cameraSubscriptionId === null) await invoke(command, args)
-      else {
-        if (cameraSetupDeadline === null) {
-          throw new Error('Native camera setup deadline is unavailable')
-        }
-        const remainingSetupMs = cameraSetupDeadline - performance.now()
-        if (remainingSetupMs <= 0) {
-          throw new CameraOperationTimeoutError(
-            `Native camera setup timed out for ${topic}`
-          )
-        }
-        await withCameraOperationDeadline(
-          invoke(command, args),
-          remainingSetupMs,
-          `Native camera setup timed out for ${topic}`
-        )
+          : { topic, generation, subscriptionId }
+      const remainingSetupMs = setupDeadline - performance.now()
+      if (remainingSetupMs <= 0) {
+        throw new NativeOperationTimeoutError(`Native subscription setup timed out for ${topic}`)
       }
-      if (!this.isSubscriptionCurrent(topic, subscriptionGeneration, topicGeneration)) {
-        this.removeCameraDeliveryRunnerExact(topic, subscriptionGeneration, topicGeneration)
-        this.releaseUnlistener(unlisten, topic)
-        const unsubscribeArgs =
-          cameraSubscriptionId === null
-            ? { topic, generation }
-            : { topic, generation, cameraSubscriptionId }
-        if (cameraSubscriptionId === null) {
-          void invoke(TAURI_COMMANDS.transport.unsubscribe, unsubscribeArgs)
-        } else {
-          void withCameraOperationDeadline(
-            invoke(TAURI_COMMANDS.transport.unsubscribe, unsubscribeArgs),
-            CAMERA_ACK_TIMEOUT_MS,
-            `Stale native camera setup cleanup timed out for ${topic}`
+      await withNativeOperationDeadline(
+        invoke(command, args),
+        remainingSetupMs,
+        `Native subscription setup timed out for ${topic}`,
+        () => {
+          void this.cleanUpBackendSubscription(
+            topic,
+            generation,
+            subscriptionId,
+            'Late native subscription cleanup'
           ).catch((cleanupError: unknown) => {
-            log.warn(`Failed to clean up stale native camera setup for ${topic}`, {
+            log.warn(`Failed to clean up late native subscription for ${topic}`, {
               error: cleanupError,
               eventName,
             })
           })
         }
+      )
+      if (!this.isSubscriptionCurrent(topic, subscriptionGeneration, topicGeneration)) {
+        this.removeCameraDeliveryRunnerExact(topic, subscriptionGeneration, topicGeneration)
+        this.releaseUnlistener(unlisten, topic)
+        void this.cleanUpBackendSubscription(
+          topic,
+          generation,
+          subscriptionId,
+          'Stale native subscription cleanup'
+        ).catch((cleanupError: unknown) => {
+          log.warn(`Failed to clean up stale native subscription for ${topic}`, {
+            error: cleanupError,
+            eventName,
+          })
+        })
         return null
       }
     } catch (error) {
       // If backend subscription fails, clean up the listener
       this.removeCameraDeliveryRunnerExact(topic, subscriptionGeneration, topicGeneration)
       this.releaseUnlistener(unlisten, topic)
-      if (cameraSubscriptionId !== null) {
-        try {
-          await withCameraOperationDeadline(
-            invoke(TAURI_COMMANDS.transport.unsubscribe, {
-              topic,
-              generation,
-              cameraSubscriptionId,
-            }),
-            CAMERA_ACK_TIMEOUT_MS,
-            `Native camera setup cleanup timed out for ${topic}`
-          )
-        } catch (cleanupError) {
-          log.warn(`Failed to clean up native camera setup for ${topic}`, {
-            error: cleanupError,
-            eventName,
-          })
-        }
+      try {
+        await this.cleanUpBackendSubscription(
+          topic,
+          generation,
+          subscriptionId,
+          'Native subscription setup cleanup'
+        )
+      } catch (cleanupError) {
+        log.warn(`Failed to clean up native subscription setup for ${topic}`, {
+          error: cleanupError,
+          eventName,
+        })
       }
       log.warn(`Backend subscription failed for ${topic}`, { error, eventName })
       throw error
@@ -1269,7 +1418,7 @@ export class ZenohBridge {
       encoding: frame.encoding,
       is_bigendian: frame.is_bigendian,
       step: frame.step,
-      data: frame.data
+      data: frame.data,
     }
   }
 
@@ -1297,12 +1446,25 @@ export class ZenohBridge {
   private mapImuData(data: RustImuData): Imu {
     return {
       header: headerFromRust(data.frame_id, data.timestamp),
-      orientation: { x: data.orientation[0], y: data.orientation[1], z: data.orientation[2], w: data.orientation[3] },
+      orientation: {
+        x: data.orientation[0],
+        y: data.orientation[1],
+        z: data.orientation[2],
+        w: data.orientation[3],
+      },
       orientation_covariance: [...data.orientation_covariance],
-      angular_velocity: { x: data.angular_velocity[0], y: data.angular_velocity[1], z: data.angular_velocity[2] },
+      angular_velocity: {
+        x: data.angular_velocity[0],
+        y: data.angular_velocity[1],
+        z: data.angular_velocity[2],
+      },
       angular_velocity_covariance: [...data.angular_velocity_covariance],
-      linear_acceleration: { x: data.linear_acceleration[0], y: data.linear_acceleration[1], z: data.linear_acceleration[2] },
-      linear_acceleration_covariance: [...data.linear_acceleration_covariance]
+      linear_acceleration: {
+        x: data.linear_acceleration[0],
+        y: data.linear_acceleration[1],
+        z: data.linear_acceleration[2],
+      },
+      linear_acceleration_covariance: [...data.linear_acceleration_covariance],
     }
   }
 
@@ -1352,12 +1514,7 @@ export class ZenohBridge {
     callback: ROSMessageCallback<ModelStates>,
     throttleRate: number = 50
   ): () => void {
-    return this.subscribe(
-      '/gazebo/model_states',
-      'gazebo_msgs/ModelStates',
-      callback,
-      throttleRate
-    )
+    return this.subscribe('/gazebo/model_states', 'gazebo_msgs/ModelStates', callback, throttleRate)
   }
 
   subscribeToPose(
@@ -1374,6 +1531,10 @@ export class ZenohBridge {
     )
   }
 
-  subscribeToOdometry(_ns: string, _cb: (msg: unknown) => void): () => void { throw this.unsupported('Odometry subscriptions') }
-  subscribeToState(_ns: string, _cb: (msg: unknown) => void): () => void { throw this.unsupported('MAVROS state subscriptions') }
+  subscribeToOdometry(_ns: string, _cb: (msg: unknown) => void): () => void {
+    throw this.unsupported('Odometry subscriptions')
+  }
+  subscribeToState(_ns: string, _cb: (msg: unknown) => void): () => void {
+    throw this.unsupported('MAVROS state subscriptions')
+  }
 }

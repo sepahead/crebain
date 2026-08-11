@@ -146,6 +146,7 @@ class BoundedJsonDuplicateKeyScanner {
   }
 
   private parseNumber(): void {
+    const start = this.index
     if (this.json[this.index] === '-') this.index += 1
     if (this.json[this.index] === '0') {
       this.index += 1
@@ -165,6 +166,10 @@ class BoundedJsonDuplicateKeyScanner {
       if (this.json[this.index] === '+' || this.json[this.index] === '-') this.index += 1
       if (!this.isDigit(this.json[this.index], true)) this.failSyntax()
       while (this.isDigit(this.json[this.index], true)) this.index += 1
+    }
+
+    if (!Number.isFinite(Number(this.json.slice(start, this.index)))) {
+      throw new Error('GLB JSON contains a number outside finite JavaScript bounds')
     }
   }
 

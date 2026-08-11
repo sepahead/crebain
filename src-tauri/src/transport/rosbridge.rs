@@ -9,8 +9,9 @@
 
 use super::camera_work::{shared_camera_work_budget, CameraWorkBudget, CameraWorkPermit};
 use super::{
-    CameraFrame, CameraFrameDelivery, CameraInfoData, CameraStreamKind, ImuData, ModelStates,
-    PoseData, Result, Transport, TransportError, TransportStats, VelocityCmd,
+    validate_absolute_ros_graph_name, CameraFrame, CameraFrameDelivery, CameraInfoData,
+    CameraStreamKind, ImuData, ModelStates, PoseData, Result, Transport, TransportError,
+    TransportStats, VelocityCmd,
 };
 use base64::{engine::general_purpose, Engine as _};
 use futures_util::{SinkExt, StreamExt};
@@ -28,7 +29,6 @@ use tokio_tungstenite::connect_async_with_config;
 use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
 use tokio_tungstenite::tungstenite::Message;
 
-const MAX_TOPIC_LEN: usize = 256;
 const DEFAULT_ROSBRIDGE_URL: &str = "ws://localhost:9090";
 /// Maximum queued subscription-protocol messages before sends fail fast instead of
 /// buffering without bound against a slow/stalled server.
@@ -285,29 +285,9 @@ pub fn validate_topic_for_test(topic: &str) -> Result<()> {
 }
 
 fn validate_topic(topic: &str) -> Result<()> {
-    if topic.is_empty() || topic.trim() != topic || topic.len() > MAX_TOPIC_LEN {
-        return Err(TransportError::SubscriptionFailed(format!(
-            "Invalid topic length: {}",
-            topic.len()
-        )));
-    }
-    if topic == "/" || !topic.starts_with('/') {
-        return Err(TransportError::SubscriptionFailed(
-            "Topic must start with '/'".to_string(),
-        ));
-    }
-    if topic.contains("//")
-        || topic.contains('\0')
-        || !topic
-            .chars()
-            .all(|character| character.is_ascii_alphanumeric() || matches!(character, '_' | '/'))
-    {
-        return Err(TransportError::SubscriptionFailed(format!(
-            "Invalid topic: {}",
-            topic
-        )));
-    }
-    Ok(())
+    validate_absolute_ros_graph_name(topic).map_err(|reason| {
+        TransportError::SubscriptionFailed(format!("Invalid topic {topic:?}: {reason}"))
+    })
 }
 
 /// Shared so the read task can clone a callback out of the subscriptions map
@@ -1115,17 +1095,18 @@ impl RosbridgeTransport {
     where
         F: FnOnce(&HashMap<String, SubscriptionCallback>) -> Result<()>,
     {
-        // Keep the registration lock across the non-blocking queue send so
-        // concurrent subscriptions for the same topic cannot corrupt rollback.
+        // Keep the registration lock across the non-blocking queue send so a
+        // second schema cannot replace an active callback for the same topic.
         let mut subscriptions = lock_recover(&self.inner.subscriptions);
-        let previous = subscriptions.insert(topic.clone(), callback);
+        if subscriptions.contains_key(&topic) {
+            return Err(TransportError::SubscriptionFailed(format!(
+                "Topic {topic} already has a native rosbridge subscriber"
+            )));
+        }
+        subscriptions.insert(topic.clone(), callback);
 
         if let Err(error) = send(&subscriptions) {
-            if let Some(previous) = previous {
-                subscriptions.insert(topic, previous);
-            } else {
-                subscriptions.remove(&topic);
-            }
+            subscriptions.remove(&topic);
             return Err(error);
         }
 
@@ -1814,5 +1795,32 @@ mod tests {
         assert!(
             result.is_err() && !lock_recover(&transport.inner.subscriptions).contains_key(&topic)
         );
+    }
+
+    #[test]
+    fn duplicate_native_subscription_is_rejected_without_replacing_callback() {
+        let (transport, _write_rx) = test_transport();
+        let topic = "/shared".to_string();
+        let original: SubscriptionCallback = Arc::new(|_, _| {});
+        transport
+            .register_subscription_before_send(topic.clone(), Arc::clone(&original), |_| Ok(()))
+            .unwrap();
+
+        let send_called = AtomicBool::new(false);
+        let replacement: SubscriptionCallback = Arc::new(|_, _| {});
+        let error = transport
+            .register_subscription_before_send(topic.clone(), replacement, |_| {
+                send_called.store(true, Ordering::Release);
+                Ok(())
+            })
+            .unwrap_err();
+
+        assert!(error.to_string().contains("already has"));
+        assert!(!send_called.load(Ordering::Acquire));
+        let installed = lock_recover(&transport.inner.subscriptions)
+            .get(&topic)
+            .cloned()
+            .unwrap();
+        assert!(Arc::ptr_eq(&installed, &original));
     }
 }

@@ -10,6 +10,16 @@
 No component-level success promotes the system. Promotion requires all evidence
 for one exact topology, source/configuration manifest, and ODD.
 
+<p align="center">
+  <img alt="CREBAIN current and target authority boundaries" src="../assets/diagrams/authority-boundaries.svg" width="900">
+</p>
+
+Text alternative: Current L0 surfaces provide visualization, local simulation,
+read-only telemetry, and optional advisory evidence. None can command a vehicle.
+The target L1 chain requires signed intent, Haldir, NCP, a native plant, a safety
+governor, a typed PX4 adapter, and a flight control unit. CREBAIN has not
+implemented these components as an integrated authority chain.
+
 ## Levels
 
 | Level | Permitted claim | Minimum evidence | Still prohibited |

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { BrowserFusionBatcher, MAX_BROWSER_FUSION_PENDING_CAMERAS } from '../BrowserFusionBatcher'
+import {
+  BrowserFusionBatcher,
+  MAX_BROWSER_FUSION_DETECTIONS_PER_CAMERA,
+  MAX_BROWSER_FUSION_PENDING_CAMERAS,
+} from '../BrowserFusionBatcher'
 import type { Detection } from '../types'
 
 function detection(id: string, timestamp: number): Detection {
@@ -69,5 +73,48 @@ describe('BrowserFusionBatcher', () => {
         ?.detections.get('camera-a')
         ?.map(({ id }) => id)
     ).toEqual(['new'])
+  })
+
+  it('snapshots accepted frames and rejects invalid identity or oversized work', () => {
+    const batcher = new BrowserFusionBatcher()
+    const source = detection('stable', 100)
+    source.sensorSources = ['camera-a']
+
+    expect(batcher.enqueue('camera-a', [source], 100)).toBe('accepted')
+    source.id = 'mutated'
+    source.bbox[0] = 999
+    source.sensorSources[0] = 'mutated-camera'
+
+    const accepted = batcher.takeBatch()?.detections.get('camera-a')?.[0]
+    expect(accepted).toMatchObject({ id: 'stable', bbox: [1, 1, 2, 2] })
+    expect(accepted?.sensorSources).toEqual(['camera-a'])
+    expect(batcher.enqueue(' padded ', [], 100)).toBe('rejected_invalid')
+    expect(batcher.enqueue('camera\nforged', [], 100)).toBe('rejected_invalid')
+    expect(batcher.enqueue('camera-a', [{ ...detection(' padded ', 100) }], 100)).toBe(
+      'rejected_invalid'
+    )
+    expect(
+      batcher.enqueue(
+        'camera-a',
+        [{ ...detection('invalid-confidence', 100), confidence: Number.NaN }],
+        100
+      )
+    ).toBe('rejected_invalid')
+    expect(
+      batcher.enqueue(
+        'camera-a',
+        [{ ...detection('malformed', 100), bbox: null } as unknown as Detection],
+        100
+      )
+    ).toBe('rejected_invalid')
+    expect(
+      batcher.enqueue(
+        'camera-a',
+        Array.from({ length: MAX_BROWSER_FUSION_DETECTIONS_PER_CAMERA + 1 }, (_, index) =>
+          detection(`detection-${index}`, 100)
+        ),
+        100
+      )
+    ).toBe('rejected_invalid')
   })
 })

@@ -1,8 +1,23 @@
 # Galadriel evidence producer
 
-CREBAIN contains an optional native producer for Galadriel-compatible fusion
+CREBAIN contains an optional native producer for Galadriel-oriented fusion
 evidence. It is an advisory evidence path, not a controller, plant, actuator, or
 proof that a Galadriel process received or accepted anything.
+
+<p align="center">
+  <img alt="CREBAIN headless NCP and Engram host boundaries" src="../assets/diagrams/engram-ncp-boundary.svg" width="900">
+</p>
+
+Text alternative: The feature-gated `crebain-ncp-headless` process accepts only
+the NCP wire-0.8 strict client configuration posture. It has no Tauri, inference,
+image, or plant dependencies.
+It bounds open, 1–4,096 steps, and close against a compatible external responder.
+Self-check and validation do not cross the transport boundary. The separate
+Engram UI host is read-only and has no NCP path. Current Engram wire 1.0 is
+incompatible, and no translator or live loop exists. A successful, validated
+RPC reply shows that one compatible responder replied. It does not prove
+receiver identity, end-to-end effect, TLS, ACL, scientific validity, or
+deployment readiness.
 
 ## Two independent opt-ins
 
@@ -67,12 +82,12 @@ digest of the actual fully materialized effective configuration in those cases.
 When the live producer is active, JSONL copies enter a separate capacity-16
 frame archive channel through nonblocking drop-new admission. Queue-full,
 disconnected, or initialization failure marks the producer degraded before its
-frame summary is admitted. An `ncp`-feature startup preflights a configured sink
-before opening the producer session. The writer validates and serializes a whole
-batch before its first write. Write or flush failure permanently degrades the
-epoch and terminates the archive worker. This archive path is not one of the four
-NCP lanes, and a later OS write failure can still leave a partial already-
-validated batch.
+frame summary is admitted. The first active frame opens a configured sink under
+the serialized frame pipeline. This avoids a late file-open side effect from a
+timed-out startup task. The writer validates and serializes a whole batch before
+its first write. Write or flush failure permanently degrades the epoch and
+terminates the archive worker. This archive path is not one of the four NCP
+lanes. A later OS write failure can still leave a partial validated batch.
 
 An enabled startup requires both three-way equalities:
 

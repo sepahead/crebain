@@ -34,5 +34,21 @@ export async function runSceneRestoreTransaction(
     throw operationError
   }
 
-  if (options.isCurrent()) options.commit()
+  if (!options.isCurrent()) return
+
+  try {
+    options.commit()
+  } catch (commitError) {
+    if (!options.isCurrent()) throw commitError
+    try {
+      options.rollback()
+    } catch (rollbackError) {
+      throw new AggregateError(
+        [commitError, rollbackError],
+        'Scene commit and its rollback both failed',
+        { cause: rollbackError }
+      )
+    }
+    throw commitError
+  }
 }

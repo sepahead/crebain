@@ -64,4 +64,31 @@ describe('ObjectTransformControls keyboard lifecycle', () => {
 
     await act(async () => root.unmount())
   })
+
+  it('uses separate drag and keyboard disclosure surfaces', async () => {
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    const object = new THREE.Object3D()
+    object.name = 'camera-rig'
+
+    await act(async () => {
+      root.render(<ObjectTransformControls object={object} visible />)
+    })
+
+    const dragSurface = container.querySelector<HTMLElement>('[data-drag-handle]')
+    const disclosure = container.querySelector<HTMLButtonElement>(
+      '[aria-label="Collapse transform controls for camera-rig"]'
+    )
+    expect(dragSurface?.tagName).toBe('DIV')
+    expect(disclosure?.hasAttribute('data-drag-handle')).toBe(false)
+    expect(disclosure?.getAttribute('aria-expanded')).toBe('true')
+
+    await act(async () => disclosure?.click())
+    expect(container.querySelector('#object-transform-controls-content')).toBeNull()
+    expect(
+      container.querySelector('[aria-label="Expand transform controls for camera-rig"]')
+    ).not.toBeNull()
+
+    await act(async () => root.unmount())
+  })
 })

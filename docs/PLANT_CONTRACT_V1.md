@@ -4,6 +4,18 @@ Status: **inactive and unapproved**. This document records component semantics
 for review. It does not authorize a deployment, enable command ingress, or
 change CREBAIN's L0 claim.
 
+<p align="center">
+  <img alt="CREBAIN inert plant foundation boundary" src="../assets/diagrams/plant-foundation.svg" width="900">
+</p>
+
+Text alternative: The dependency-free plant package implements inactive
+command, health, age, apply-observation, deadline-monitor, safe-action,
+lifecycle, channel, frame, and expiry mechanics. Solid arrows show narrow data
+dependencies between those components. The package lacks authenticated ingress,
+approved policy, an authorizing governor, output invalidation, a flight control
+unit adapter, and runtime wiring. These missing boundaries stop every path
+before vehicle authority.
+
 ## Purpose
 
 `crebain-plant-authority::contract` removes stringly typed and unit-ambiguous

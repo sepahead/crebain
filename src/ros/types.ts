@@ -530,7 +530,7 @@ export function quaternionToEuler(q: Quaternion): { roll: number; pitch: number;
 
   // Pitch (y-axis rotation)
   const sinp = 2 * (w * y - z * x)
-  const pitch = Math.abs(sinp) >= 1 ? Math.sign(sinp) * Math.PI / 2 : Math.asin(sinp)
+  const pitch = Math.abs(sinp) >= 1 ? (Math.sign(sinp) * Math.PI) / 2 : Math.asin(sinp)
 
   // Yaw (z-axis rotation)
   const siny_cosp = 2 * (w * z + x * y)

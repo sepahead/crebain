@@ -56,30 +56,6 @@ export interface SensorMeasurement {
   metadata: Record<string, number>
 }
 
-/** Thermal-specific measurement */
-export interface ThermalMeasurement extends SensorMeasurement {
-  modality: 'thermal'
-  /** Temperature in Kelvin */
-  temperature_k: number
-  /** Thermal signature area in m² */
-  signature_area: number
-  /** Emissivity estimate */
-  emissivity: number
-}
-
-/** Acoustic-specific measurement */
-export interface AcousticMeasurement extends SensorMeasurement {
-  modality: 'acoustic'
-  /** Sound pressure level in dB */
-  spl_db: number
-  /** Dominant frequency in Hz */
-  frequency_hz: number
-  /** Direction of arrival [azimuth, elevation] in radians */
-  doa: [number, number]
-  /** Doppler shift in Hz */
-  doppler_hz?: number
-}
-
 /** Fused track output from backend */
 export interface FusedTrack {
   id: string
@@ -160,10 +136,289 @@ const SENSOR_MODALITIES = new Set<SensorModality>([
 ])
 const TRACK_STATES = new Set<TrackStateLabel>(['Tentative', 'Confirmed', 'Coasting', 'Lost'])
 const MAX_FUSION_TRACKS = 1_024
+const MAX_FUSION_MEASUREMENTS = 512
 const MAX_TRACK_AGE = 0xffff_ffff
+const MAX_FUSION_STRING_BYTES = 256
+const MAX_FUSION_METADATA_ENTRIES = 64
+const MAX_FUSION_NOISE = 10_000
+const MAX_ASSOCIATION_THRESHOLD = 100_000
+const MAX_MISSED_DETECTIONS = 1_000
+const MAX_CONFIRMATION_HITS = 1_000
+const MAX_CONFIRMATION_WINDOW = 32
+const MAX_FUSION_PARTICLE_COUNT = 1_000
+const MAX_MEASUREMENT_POSITION_ABS_M = 10_000_000
+const MAX_MEASUREMENT_VELOCITY_ABS_MPS = 100_000
+const MAX_MEASUREMENT_VARIANCE = 1_000_000_000_000
+const MAX_MEASUREMENT_METADATA_ABS = 1_000_000_000_000
+const MAX_RADAR_AZIMUTH_RAD = 2 * Math.PI
+const MAX_RADAR_ELEVATION_RAD = Math.PI / 2
+const FUSION_TEXT_ENCODER = new TextEncoder()
+const FUSION_CONTROL_CHARACTER = /\p{Cc}/u
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function hasOnlyKeys(value: Record<string, unknown>, allowed: readonly string[]): boolean {
+  const allowedKeys = new Set(allowed)
+  return Object.keys(value).every((key) => allowedKeys.has(key))
+}
+
+function requestNumberInRange(
+  value: unknown,
+  field: string,
+  minimum: number,
+  maximum: number
+): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < minimum || value > maximum) {
+    throw new Error(
+      `Invalid fusion request: ${field} must be finite and within [${minimum}, ${maximum}]`
+    )
+  }
+  return value
+}
+
+function requestIntegerInRange(
+  value: unknown,
+  field: string,
+  minimum: number,
+  maximum: number
+): number {
+  if (!Number.isSafeInteger(value) || (value as number) < minimum || (value as number) > maximum) {
+    throw new Error(
+      `Invalid fusion request: ${field} must be an integer within [${minimum}, ${maximum}]`
+    )
+  }
+  return value as number
+}
+
+function boundedRequestString(value: unknown, field: string, frameId = false): string {
+  if (
+    typeof value !== 'string' ||
+    value.trim().length === 0 ||
+    FUSION_CONTROL_CHARACTER.test(value) ||
+    FUSION_TEXT_ENCODER.encode(value).byteLength > MAX_FUSION_STRING_BYTES ||
+    (frameId && Array.from(value).some((character) => /\s/u.test(character)))
+  ) {
+    throw new Error(
+      `Invalid fusion request: ${field} must be a bounded non-empty string${frameId ? ' without whitespace or controls' : ''}`
+    )
+  }
+  return value
+}
+
+function requestTuple3(value: unknown, field: string): [number, number, number] {
+  if (!Array.isArray(value) || value.length !== 3) {
+    throw new Error(`Invalid fusion request: ${field} must be a 3-element array`)
+  }
+  return [
+    requestNumberInRange(value[0], `${field}[0]`, -Number.MAX_VALUE, Number.MAX_VALUE),
+    requestNumberInRange(value[1], `${field}[1]`, -Number.MAX_VALUE, Number.MAX_VALUE),
+    requestNumberInRange(value[2], `${field}[2]`, -Number.MAX_VALUE, Number.MAX_VALUE),
+  ]
+}
+
+function normalizeFusionConfigRequest(config: unknown): FusionConfig {
+  if (
+    !isRecord(config) ||
+    !hasOnlyKeys(config, [
+      'algorithm',
+      'process_noise',
+      'measurement_noise',
+      'association_threshold',
+      'max_missed_detections',
+      'min_confirmation_hits',
+      'confirmation_window',
+      'max_position_cov_volume',
+      'particle_count',
+    ])
+  ) {
+    throw new Error('Invalid fusion request: config must match the public configuration schema')
+  }
+  const algorithm = config.algorithm ?? 'ExtendedKalman'
+  if (!FILTER_ALGORITHMS.has(algorithm as FilterAlgorithm)) {
+    throw new Error('Invalid fusion request: algorithm must be a known filter')
+  }
+  const processNoise = requestNumberInRange(
+    config.process_noise ?? 1,
+    'process_noise',
+    Number.EPSILON,
+    MAX_FUSION_NOISE
+  )
+  const measurementNoise = requestNumberInRange(
+    config.measurement_noise ?? 2,
+    'measurement_noise',
+    Number.EPSILON,
+    MAX_FUSION_NOISE
+  )
+  const associationThreshold = requestNumberInRange(
+    config.association_threshold ?? 11.345,
+    'association_threshold',
+    Number.EPSILON,
+    MAX_ASSOCIATION_THRESHOLD
+  )
+  const maxMissedDetections = requestIntegerInRange(
+    config.max_missed_detections ?? 5,
+    'max_missed_detections',
+    1,
+    MAX_MISSED_DETECTIONS
+  )
+  const minConfirmationHits = requestIntegerInRange(
+    config.min_confirmation_hits ?? 3,
+    'min_confirmation_hits',
+    1,
+    MAX_CONFIRMATION_HITS
+  )
+  const confirmationWindow = requestIntegerInRange(
+    config.confirmation_window ?? 5,
+    'confirmation_window',
+    1,
+    MAX_CONFIRMATION_WINDOW
+  )
+  if (minConfirmationHits > confirmationWindow) {
+    throw new Error(
+      'Invalid fusion request: min_confirmation_hits must not exceed confirmation_window'
+    )
+  }
+  if (maxMissedDetections > confirmationWindow) {
+    throw new Error(
+      'Invalid fusion request: max_missed_detections must not exceed confirmation_window'
+    )
+  }
+  const maxPositionCovVolume = requestNumberInRange(
+    config.max_position_cov_volume ?? 1e6,
+    'max_position_cov_volume',
+    Number.EPSILON,
+    Number.MAX_VALUE
+  )
+  const particleCount = requestIntegerInRange(
+    config.particle_count ?? 100,
+    'particle_count',
+    1,
+    MAX_FUSION_PARTICLE_COUNT
+  )
+  return {
+    algorithm: algorithm as FilterAlgorithm,
+    process_noise: processNoise,
+    measurement_noise: measurementNoise,
+    association_threshold: associationThreshold,
+    max_missed_detections: maxMissedDetections,
+    min_confirmation_hits: minConfirmationHits,
+    confirmation_window: confirmationWindow,
+    max_position_cov_volume: maxPositionCovVolume,
+    particle_count: particleCount,
+  }
+}
+
+function normalizeMeasurementRequest(value: unknown, index: number): SensorMeasurement {
+  const field = `measurements[${index}]`
+  if (
+    !isRecord(value) ||
+    !hasOnlyKeys(value, [
+      'sensor_id',
+      'modality',
+      'timestamp_ms',
+      'source_frame_id',
+      'position',
+      'velocity',
+      'covariance',
+      'confidence',
+      'class_label',
+      'metadata',
+    ]) ||
+    !SENSOR_MODALITIES.has(value.modality as SensorModality)
+  ) {
+    throw new Error(`Invalid fusion request: ${field} must match the measurement schema`)
+  }
+
+  const modality = value.modality as SensorModality
+  const position = requestTuple3(value.position, `${field}.position`)
+  if (modality === 'radar') {
+    requestNumberInRange(position[0], `${field}.position[0]`, 0, MAX_MEASUREMENT_POSITION_ABS_M)
+    requestNumberInRange(
+      position[1],
+      `${field}.position[1]`,
+      -MAX_RADAR_AZIMUTH_RAD,
+      MAX_RADAR_AZIMUTH_RAD
+    )
+    requestNumberInRange(
+      position[2],
+      `${field}.position[2]`,
+      -MAX_RADAR_ELEVATION_RAD,
+      MAX_RADAR_ELEVATION_RAD
+    )
+  } else {
+    position.forEach((entry, axis) =>
+      requestNumberInRange(
+        entry,
+        `${field}.position[${axis}]`,
+        -MAX_MEASUREMENT_POSITION_ABS_M,
+        MAX_MEASUREMENT_POSITION_ABS_M
+      )
+    )
+  }
+
+  const velocity =
+    value.velocity === undefined ? undefined : requestTuple3(value.velocity, `${field}.velocity`)
+  velocity?.forEach((entry, axis) =>
+    requestNumberInRange(
+      entry,
+      `${field}.velocity[${axis}]`,
+      -MAX_MEASUREMENT_VELOCITY_ABS_MPS,
+      MAX_MEASUREMENT_VELOCITY_ABS_MPS
+    )
+  )
+  const covariance = requestTuple3(value.covariance, `${field}.covariance`)
+  covariance.forEach((entry, axis) =>
+    requestNumberInRange(
+      entry,
+      `${field}.covariance[${axis}]`,
+      Number.MIN_VALUE,
+      MAX_MEASUREMENT_VARIANCE
+    )
+  )
+  if (
+    !isRecord(value.metadata) ||
+    Object.keys(value.metadata).length > MAX_FUSION_METADATA_ENTRIES
+  ) {
+    throw new Error(`Invalid fusion request: ${field}.metadata exceeds its entry limit`)
+  }
+  const metadata: Record<string, number> = {}
+  for (const [key, entry] of Object.entries(value.metadata)) {
+    const normalizedKey = boundedRequestString(key, `${field}.metadata key`)
+    Object.defineProperty(metadata, normalizedKey, {
+      configurable: true,
+      enumerable: true,
+      value: requestNumberInRange(
+        entry,
+        `${field}.metadata.${normalizedKey}`,
+        -MAX_MEASUREMENT_METADATA_ABS,
+        MAX_MEASUREMENT_METADATA_ABS
+      ),
+      writable: true,
+    })
+  }
+
+  return {
+    sensor_id: boundedRequestString(value.sensor_id, `${field}.sensor_id`),
+    modality,
+    timestamp_ms: requestTimestamp(value.timestamp_ms, `${field}.timestamp_ms`),
+    ...(value.source_frame_id === undefined
+      ? {}
+      : {
+          source_frame_id: boundedRequestString(
+            value.source_frame_id,
+            `${field}.source_frame_id`,
+            true
+          ),
+        }),
+    position,
+    ...(velocity ? { velocity } : {}),
+    covariance,
+    confidence: requestNumberInRange(value.confidence, `${field}.confidence`, 0, 1),
+    class_label: boundedRequestString(value.class_label, `${field}.class_label`),
+    metadata,
+  }
 }
 
 function finiteNumber(value: unknown, field: string): number {
@@ -199,7 +454,12 @@ function requestTimestamp(value: unknown, field: string): number {
 }
 
 function stringField(value: unknown, field: string): string {
-  if (typeof value !== 'string') {
+  if (
+    typeof value !== 'string' ||
+    value.trim().length === 0 ||
+    FUSION_CONTROL_CHARACTER.test(value) ||
+    FUSION_TEXT_ENCODER.encode(value).byteLength > MAX_FUSION_STRING_BYTES
+  ) {
     throw new Error(`Invalid fusion response: ${field} must be a string`)
   }
   return value
@@ -229,12 +489,18 @@ function normalizeTrack(value: unknown, index: number): FusedTrack {
   if (!isRecord(value)) {
     throw new Error(`Invalid fusion response: ${field} must be an object`)
   }
+  const sensorSources: unknown[] | null = Array.isArray(value.sensor_sources)
+    ? value.sensor_sources
+    : null
   if (
-    !Array.isArray(value.sensor_sources) ||
-    value.sensor_sources.length === 0 ||
-    value.sensor_sources.length > SENSOR_MODALITIES.size ||
-    new Set(value.sensor_sources).size !== value.sensor_sources.length ||
-    !value.sensor_sources.every((source) => SENSOR_MODALITIES.has(source as SensorModality))
+    sensorSources === null ||
+    sensorSources.length === 0 ||
+    sensorSources.length > SENSOR_MODALITIES.size ||
+    new Set(sensorSources).size !== sensorSources.length ||
+    !sensorSources.every(
+      (source): source is SensorModality =>
+        typeof source === 'string' && SENSOR_MODALITIES.has(source as SensorModality)
+    )
   ) {
     throw new Error(
       `Invalid fusion response: ${field}.sensor_sources must contain known modalities`
@@ -258,7 +524,7 @@ function normalizeTrack(value: unknown, index: number): FusedTrack {
     ),
     class_label: stringField(value.class_label, `${field}.class_label`),
     confidence: numberInRange(value.confidence, `${field}.confidence`, 0, 1),
-    sensor_sources: value.sensor_sources as SensorModality[],
+    sensor_sources: [...sensorSources],
     last_update_ms: integerInRange(
       value.last_update_ms,
       `${field}.last_update_ms`,
@@ -280,7 +546,51 @@ function normalizeTracks(value: unknown): FusedTrack[] {
       `Invalid fusion response: tracks must contain at most ${MAX_FUSION_TRACKS} entries`
     )
   }
-  return value.map(normalizeTrack)
+  const tracks = value.map(normalizeTrack)
+  if (new Set(tracks.map((track) => track.id)).size !== tracks.length) {
+    throw new Error('Invalid fusion response: track IDs must be unique')
+  }
+  return tracks
+}
+
+function normalizeAlgorithms(value: unknown): AlgorithmInfo[] {
+  if (!Array.isArray(value) || value.length > FILTER_ALGORITHMS.size) {
+    throw new Error('Invalid fusion response: algorithms must be a bounded array')
+  }
+  const algorithms = value.map((entry, index): AlgorithmInfo => {
+    if (!isRecord(entry) || !FILTER_ALGORITHMS.has(entry.id as FilterAlgorithm)) {
+      throw new Error(`Invalid fusion response: algorithms[${index}] is malformed`)
+    }
+    return {
+      id: entry.id as FilterAlgorithm,
+      name: stringField(entry.name, `algorithms[${index}].name`),
+      description: stringField(entry.description, `algorithms[${index}].description`),
+    }
+  })
+  if (new Set(algorithms.map((algorithm) => algorithm.id)).size !== algorithms.length) {
+    throw new Error('Invalid fusion response: algorithm IDs must be unique')
+  }
+  return algorithms
+}
+
+function normalizeModalities(value: unknown): ModalityInfo[] {
+  if (!Array.isArray(value) || value.length > SENSOR_MODALITIES.size) {
+    throw new Error('Invalid fusion response: modalities must be a bounded array')
+  }
+  const modalities = value.map((entry, index): ModalityInfo => {
+    if (!isRecord(entry) || !SENSOR_MODALITIES.has(entry.id as SensorModality)) {
+      throw new Error(`Invalid fusion response: modalities[${index}] is malformed`)
+    }
+    return {
+      id: entry.id as SensorModality,
+      name: stringField(entry.name, `modalities[${index}].name`),
+      icon: stringField(entry.icon, `modalities[${index}].icon`),
+    }
+  })
+  if (new Set(modalities.map((modality) => modality.id)).size !== modalities.length) {
+    throw new Error('Invalid fusion response: modality IDs must be unique')
+  }
+  return modalities
 }
 
 function normalizeFusionStats(value: unknown): FusionStats {
@@ -342,19 +652,7 @@ function normalizeFusionStats(value: unknown): FusionStats {
  */
 export async function initFusion(config?: Partial<FusionConfig>): Promise<void> {
   assertNativeBackendAllowed()
-  const fullConfig: FusionConfig | undefined = config
-    ? {
-        algorithm: config.algorithm ?? 'ExtendedKalman',
-        process_noise: config.process_noise ?? 1.0,
-        measurement_noise: config.measurement_noise ?? 2.0,
-        association_threshold: config.association_threshold ?? 11.345,
-        max_missed_detections: config.max_missed_detections ?? 5,
-        min_confirmation_hits: config.min_confirmation_hits ?? 3,
-        confirmation_window: config.confirmation_window ?? 5,
-        max_position_cov_volume: config.max_position_cov_volume ?? 1e6,
-        particle_count: config.particle_count ?? 100,
-      }
-    : undefined
+  const fullConfig = config === undefined ? undefined : normalizeFusionConfigRequest(config)
 
   await invoke(TAURI_COMMANDS.fusion.init, { config: fullConfig })
 }
@@ -368,18 +666,28 @@ export async function processMeasurements(
   upstreamDroppedMeasurements = 0
 ): Promise<FusedTrack[]> {
   assertNativeBackendAllowed()
+  if (!Array.isArray(measurements)) {
+    throw new Error('Invalid fusion request: measurements must be an array')
+  }
   if (measurements.length === 0 && timestampMs === undefined) {
     throw new Error(
       'Invalid fusion request: timestampMs is required when processing an empty measurement frame'
     )
   }
+  if (measurements.length > MAX_FUSION_MEASUREMENTS) {
+    throw new Error(
+      `Invalid fusion request: measurements must contain at most ${MAX_FUSION_MEASUREMENTS} entries`
+    )
+  }
+
+  const normalizedMeasurements = measurements.map(normalizeMeasurementRequest)
 
   const requestedTimestamp =
     timestampMs === undefined ? undefined : requestTimestamp(timestampMs, 'timestampMs')
   let measurementTimestamp: number | undefined
-  for (let index = 0; index < measurements.length; index += 1) {
+  for (let index = 0; index < normalizedMeasurements.length; index += 1) {
     const candidate = requestTimestamp(
-      measurements[index].timestamp_ms,
+      normalizedMeasurements[index].timestamp_ms,
       `measurements[${index}].timestamp_ms`
     )
     measurementTimestamp ??= candidate
@@ -402,7 +710,7 @@ export async function processMeasurements(
     'upstreamDroppedMeasurements'
   )
   const response = await invoke<unknown>(TAURI_COMMANDS.fusion.process, {
-    measurements,
+    measurements: normalizedMeasurements,
     timestampMs: ts,
     upstreamDroppedMeasurements: droppedMeasurements,
   })
@@ -432,7 +740,9 @@ export async function getFusionStats(): Promise<FusionStats> {
  */
 export async function setFusionConfig(config: FusionConfig): Promise<void> {
   assertNativeBackendAllowed()
-  await invoke(TAURI_COMMANDS.fusion.setConfig, { config })
+  await invoke(TAURI_COMMANDS.fusion.setConfig, {
+    config: normalizeFusionConfigRequest(config),
+  })
 }
 
 /**
@@ -448,7 +758,7 @@ export async function clearTracks(): Promise<void> {
  */
 export async function getAlgorithms(): Promise<AlgorithmInfo[]> {
   assertNativeBackendAllowed()
-  return invoke<AlgorithmInfo[]>(TAURI_COMMANDS.fusion.getAlgorithms)
+  return normalizeAlgorithms(await invoke<unknown>(TAURI_COMMANDS.fusion.getAlgorithms))
 }
 
 /**
@@ -456,94 +766,7 @@ export async function getAlgorithms(): Promise<AlgorithmInfo[]> {
  */
 export async function getModalities(): Promise<ModalityInfo[]> {
   assertNativeBackendAllowed()
-  return invoke<ModalityInfo[]>(TAURI_COMMANDS.fusion.getModalities)
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// HELPER FUNCTIONS
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/**
- * Create a visual camera measurement from detection
- */
-export function createVisualMeasurement(
-  sensorId: string,
-  position: [number, number, number],
-  confidence: number,
-  classLabel: string,
-  covariance: [number, number, number] = [1, 1, 1]
-): SensorMeasurement {
-  return {
-    sensor_id: sensorId,
-    modality: 'visual',
-    timestamp_ms: Date.now(),
-    position,
-    covariance,
-    confidence,
-    class_label: classLabel,
-    metadata: {},
-  }
-}
-
-/**
- * Create a thermal measurement
- */
-export function createThermalMeasurement(
-  sensorId: string,
-  position: [number, number, number],
-  confidence: number,
-  classLabel: string,
-  temperatureK: number,
-  signatureArea: number = 0.5,
-  emissivity: number = 0.9
-): ThermalMeasurement {
-  return {
-    sensor_id: sensorId,
-    modality: 'thermal',
-    timestamp_ms: Date.now(),
-    position,
-    covariance: [2, 2, 2], // Thermal typically has higher uncertainty
-    confidence,
-    class_label: classLabel,
-    metadata: {},
-    temperature_k: temperatureK,
-    signature_area: signatureArea,
-    emissivity,
-  }
-}
-
-/**
- * Create an acoustic measurement
- */
-export function createAcousticMeasurement(
-  sensorId: string,
-  doa: [number, number], // [azimuth, elevation] in radians
-  confidence: number,
-  classLabel: string,
-  splDb: number,
-  frequencyHz: number,
-  dopplerHz?: number
-): AcousticMeasurement {
-  // Convert DOA to approximate Cartesian (assume 50m range for initial estimate)
-  const range = 50
-  const x = range * Math.cos(doa[1]) * Math.cos(doa[0])
-  const y = range * Math.cos(doa[1]) * Math.sin(doa[0])
-  const z = range * Math.sin(doa[1])
-
-  return {
-    sensor_id: sensorId,
-    modality: 'acoustic',
-    timestamp_ms: Date.now(),
-    position: [x, y, z],
-    covariance: [10, 10, 10], // Acoustic has high position uncertainty
-    confidence,
-    class_label: classLabel,
-    metadata: {},
-    spl_db: splDb,
-    frequency_hz: frequencyHz,
-    doa,
-    doppler_hz: dopplerHz,
-  }
+  return normalizeModalities(await invoke<unknown>(TAURI_COMMANDS.fusion.getModalities))
 }
 
 /**
@@ -616,32 +839,3 @@ export function formatModality(modality: SensorModality): string {
   }
   return modalityMap[modality] ?? modality.slice(0, 3).toUpperCase()
 }
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// DEFAULT EXPORT
-// ═══════════════════════════════════════════════════════════════════════════════
-
-const AdvancedSensorFusion = {
-  // Core API
-  initFusion,
-  processMeasurements,
-  getTracks,
-  getFusionStats,
-  setFusionConfig,
-  clearTracks,
-  getAlgorithms,
-  getModalities,
-
-  // Measurement creators
-  createVisualMeasurement,
-  createThermalMeasurement,
-  createAcousticMeasurement,
-
-  // Helpers
-  getThreatColor,
-  getTrackStateColor,
-  formatAlgorithmName,
-  formatModality,
-}
-
-export default AdvancedSensorFusion

@@ -18,9 +18,12 @@ bun run format           # Prettier (write); format:check verifies
 bun run test             # Run tests in watch mode
 bun run test:run         # Run tests once
 bun run test:coverage    # Run tests with coverage (enforces thresholds)
+bun run test:responsive  # Production-browser layout smoke at supported viewport/scale boundaries
 bun run benchmark:native-detector -- --help # Release-only native detector evidence CLI
 bun run check:bundle     # Build + initial-bundle size budget
+bun run check:docs-visuals # Verify tracked Markdown diagram coverage and SVG accessibility
 bun run check:ncp-coherence # Verify NCP manifests, locks, and normative docs agree
+bun run check:ncp-headless-boundary # Verify the isolated headless package boundary
 bun run check:phase0-baseline # Verify the frozen Phase 0 command-surface baseline
 bun run check:product-profiles # Verify all eight immutable 0.9 NoAuthority profiles
 bun run check:ipc-contracts # Verify frontend/Rust commands and event contracts
@@ -45,9 +48,13 @@ bun run check:rust       # locked cargo check for src-tauri/Cargo.toml
 bun run test:rust        # locked cargo test for all default targets
 bun run clippy:rust      # locked cargo clippy for all default targets; warnings denied
 bun run fmt:rust:check   # Rustfmt check for src-tauri (part of validate:all)
-bun run check:rust:ncp   # locked check of dormant NCP bridge + opt-in Galadriel producer
-bun run clippy:rust:ncp  # locked clippy bridge/producer, all targets, warnings denied
-bun run test:rust:ncp    # locked tests for bridge/producer feature, including all targets
+bun run check:rust:ncp   # locked check of dormant bridge and Galadriel producer
+bun run clippy:rust:ncp  # locked clippy for bridge/producer targets; warnings denied
+bun run test:rust:ncp    # locked tests for bridge/producer targets
+bun run check:ncp-headless # locked check of all isolated headless NCP targets
+bun run clippy:ncp-headless # strict Clippy for all isolated headless NCP targets
+bun run test:ncp-headless # locked tests for all isolated headless NCP targets
+bun run self-check:ncp-headless # Run the network-free headless invariant check
 cargo build --locked --manifest-path src-tauri/Cargo.toml
 ```
 
@@ -102,13 +109,21 @@ cargo build --locked --manifest-path src-tauri/Cargo.toml
   It includes unwired deadline-monitor and apply-observation candidates. It is
   not linked into Tauri or tied to a write. It cannot authorize, revoke, or
   apply output.
+- `crates/ncp-headless/` - Separate dependency-isolated perception package.
+  Its `crebain-ncp-headless` binary requires the package's opt-in `ncp` feature
+  and a compatible NCP wire-0.8 responder. It is not a Tauri command or plant
+  authority path. Its default `engram/ncp` realm is not an Engram compatibility
+  claim. Current Engram native wire 1.0 is incompatible, and no translator or
+  live loop exists. An RPC reply does not identify the responder as the
+  intended deployment receiver or prove an end-to-end effect.
 - `ncp/` - Dormant NCP Engram action/control adapter behind the off-by-default
   `ncp` feature. Its Tauri commands remain unregistered. The feature also
   compiles the separately gated Galadriel evidence path. Do not describe secure
   configuration loading as TLS or ACL proof. Do not describe local puts as
-  receiver delivery. See `src-tauri/src/ncp/README.md` and
-  `docs/GALADRIEL_PRODUCER.md`. The dormant TypeScript peer is `src/neuro/`.
-  Vite development exposes the transport-free `window.__ncpDrone` harness.
+  receiver delivery. See `src-tauri/src/ncp/README.md`,
+  `docs/NCP_BRIDGE_HANDOFF.md`, and `docs/GALADRIEL_PRODUCER.md`. The dormant
+  TypeScript peer is `src/neuro/`. Vite development exposes the transport-free
+  `window.__ncpDrone` harness.
 - `sensor_fusion.rs` - Kalman, EKF, UKF, particle, and IMM filters. It also
   contains the feature-gated exact-time Galadriel ledger, bounded accounting,
   and sparse assignment. Registry transforms are not executed. Component load
@@ -172,6 +187,8 @@ ASD-STE100 unless a qualified review verifies it.
   vocabulary as technical terms. Keep their spelling consistent.
 - Preserve the meaning of historical records, frozen evidence, generated
   files, vendored documentation, quotations, licenses, and codes of conduct.
+- Give each complex SVG diagram concise alt text and an adjacent prose text
+  alternative. Keep each SVG self-contained and accessible.
 
 ## Documentation consistency
 
@@ -187,4 +204,7 @@ changes, keep these files synchronized:
 - `.github/**/*.md`
 - `.windsurf/workflows/*.md`
 
-For documentation-only edits (Markdown files with no command, status, or behavior changes), run `git diff --check` at minimum. Run `bun run validate:all` when the edit reflects or accompanies Rust, IPC, model-loading, transport, ROS, scene, or sensor-fusion behavior changes.
+For documentation-only edits, run `bun run check:docs-visuals` and
+`git diff --check` at minimum. Run `bun run validate:all` when the edit reflects
+or accompanies Rust, IPC, model-loading, transport, ROS, scene, or sensor-fusion
+behavior changes.

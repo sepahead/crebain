@@ -26,13 +26,21 @@ export default function DetectionPanel({
 }: DetectionPanelProps) {
   return (
     <div
+      role="region"
+      aria-label="Detection results"
+      data-viewer-overlay="detection-panel"
       className="absolute top-[68px] right-[220px] w-56 z-40"
-      style={{ fontSize: `calc(8px * var(--ui-scale, 1))` }}
+      style={{ fontSize: `calc(12px * var(--ui-scale, 1))` }}
     >
       <div className="bg-[#0c0c0c] border border-[#1a1a1a]">
         <div className="h-7 border-b border-[#1a1a1a] flex items-center justify-between px-3 bg-[#101010]">
           <span className="text-[0.875em] text-[#909090] tracking-[0.2em]">DETEKTIONEN</span>
-          <button onClick={onClose} className="text-[1em] text-[#404040] hover:text-[#808080]">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Detektionspanel schließen"
+            className="min-h-10 min-w-10 text-[1em] text-[#737373] hover:text-[#b0b0b0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#b0b0b0]"
+          >
             ×
           </button>
         </div>

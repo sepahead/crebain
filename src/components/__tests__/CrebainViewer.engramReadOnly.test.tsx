@@ -251,6 +251,10 @@ describe('CrebainViewer Engram read-only composition', () => {
     expect(container.textContent).toContain('START SIM')
     expect(container.textContent).toContain('SIM-RESET')
     expect(container.textContent).toContain('BEREITSTELLUNG')
+    expect(
+      (container.querySelector('[aria-label="Simulation controls and shortcuts"]') as HTMLElement)
+        .tabIndex
+    ).toBe(0)
 
     const objectsTab = Array.from(container.querySelectorAll('button')).find(
       (button) => button.textContent === 'OBJEKTE'

@@ -14,11 +14,12 @@ import {
   type InterceptionMission,
   type InterceptionStrategy,
   type TrajectoryPoint,
-  getInterceptionSystem,
+  createInterceptionSystem,
 } from '../simulation/InterceptionSystem'
 import {
   type GuidanceController,
   createGuidanceController,
+  MAX_GUIDANCE_RATE_HZ,
   type GuidanceProposal,
 } from '../ros/GuidanceController'
 import type { ConnectionState } from '../ros/ROSBridge'
@@ -28,7 +29,27 @@ const log = logger.scope('GazeboSim')
 
 function isFreshDroneObservation(drone: DroneState, timestamp: number = Date.now()): boolean {
   const ageMs = timestamp - drone.lastUpdate
-  return Number.isFinite(ageMs) && ageMs <= GAZEBO_DRONE_STALE_MS
+  return Number.isFinite(ageMs) && ageMs >= 0 && ageMs <= GAZEBO_DRONE_STALE_MS
+}
+
+function missionsEqual(left: InterceptionMission, right: InterceptionMission): boolean {
+  const leftPoint = left.interceptPoint
+  const rightPoint = right.interceptPoint
+  const pointsEqual =
+    leftPoint === null || rightPoint === null
+      ? leftPoint === rightPoint
+      : leftPoint.x === rightPoint.x && leftPoint.y === rightPoint.y && leftPoint.z === rightPoint.z
+  return (
+    left.id === right.id &&
+    left.targetId === right.targetId &&
+    left.interceptorId === right.interceptorId &&
+    left.strategy === right.strategy &&
+    left.status === right.status &&
+    left.startTime === right.startTime &&
+    left.timeToIntercept === right.timeToIntercept &&
+    left.lastUpdate === right.lastUpdate &&
+    pointsEqual
+  )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -106,6 +127,54 @@ const DEFAULT_CONFIG: UseGazeboSimulationConfig = {
   guidancePreviewRateHz: 20,
 }
 
+const MIN_SIMULATION_UPDATE_INTERVAL_MS = 10
+const MAX_SIMULATION_UPDATE_INTERVAL_MS = 60_000
+const MAX_TRAJECTORY_DURATION_SECONDS = 3_600
+
+function validatedSimulationConfig(
+  config: Partial<UseGazeboSimulationConfig>
+): UseGazeboSimulationConfig {
+  const candidate = { ...DEFAULT_CONFIG, ...config }
+  if (candidate.transport !== 'websocket' && candidate.transport !== 'zenoh') {
+    throw new Error('Gazebo transport must be websocket or zenoh')
+  }
+  if (typeof candidate.rosUrl !== 'string' || candidate.rosUrl.length === 0) {
+    throw new Error('Gazebo ROS URL must not be empty')
+  }
+  if (
+    typeof candidate.autoConnect !== 'boolean' ||
+    typeof candidate.enableGuidancePreview !== 'boolean'
+  ) {
+    throw new Error('Gazebo simulation flags must be boolean')
+  }
+  if (
+    !Number.isSafeInteger(candidate.updateIntervalMs) ||
+    candidate.updateIntervalMs < MIN_SIMULATION_UPDATE_INTERVAL_MS ||
+    candidate.updateIntervalMs > MAX_SIMULATION_UPDATE_INTERVAL_MS
+  ) {
+    throw new Error(
+      `Gazebo updateIntervalMs must be within ${MIN_SIMULATION_UPDATE_INTERVAL_MS}-${MAX_SIMULATION_UPDATE_INTERVAL_MS}`
+    )
+  }
+  if (
+    !Number.isFinite(candidate.trajectoryDurationSec) ||
+    candidate.trajectoryDurationSec <= 0 ||
+    candidate.trajectoryDurationSec > MAX_TRAJECTORY_DURATION_SECONDS
+  ) {
+    throw new Error(
+      `Gazebo trajectoryDurationSec must be within (0, ${MAX_TRAJECTORY_DURATION_SECONDS}]`
+    )
+  }
+  if (
+    !Number.isFinite(candidate.guidancePreviewRateHz) ||
+    candidate.guidancePreviewRateHz < 1 ||
+    candidate.guidancePreviewRateHz > MAX_GUIDANCE_RATE_HZ
+  ) {
+    throw new Error(`Gazebo guidancePreviewRateHz must be within 1-${MAX_GUIDANCE_RATE_HZ}`)
+  }
+  return candidate
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // HOOK
 // ─────────────────────────────────────────────────────────────────────────────
@@ -113,7 +182,7 @@ const DEFAULT_CONFIG: UseGazeboSimulationConfig = {
 export function useGazeboSimulation(
   config: Partial<UseGazeboSimulationConfig> = {}
 ): UseGazeboSimulationReturn {
-  const mergedConfig = { ...DEFAULT_CONFIG, ...config }
+  const mergedConfig = validatedSimulationConfig(config)
 
   // State
   const [transport, setTransport] = useState<'websocket' | 'zenoh'>(mergedConfig.transport)
@@ -131,9 +200,11 @@ export function useGazeboSimulation(
   )
 
   // Refs
-  const interceptionSystemRef = useRef<InterceptionSystem>(getInterceptionSystem())
+  const [interceptionSystem] = useState(createInterceptionSystem)
+  const interceptionSystemRef = useRef<InterceptionSystem>(interceptionSystem)
   const updateIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const guidancePreviewsRef = useRef<Map<string, GuidanceController>>(new Map())
+  const guidancePreviewRateRef = useRef(mergedConfig.guidancePreviewRateHz)
   const syncedTargetIdsRef = useRef<Set<string>>(new Set())
   const syncedInterceptorIdsRef = useRef<Set<string>>(new Set())
   const configRef = useRef(mergedConfig)
@@ -166,11 +237,7 @@ export function useGazeboSimulation(
         prev.length === next.length &&
         next.every((mission, i) => {
           const previous = prev[i]
-          return (
-            previous.id === mission.id &&
-            previous.status === mission.status &&
-            previous.lastUpdate === mission.lastUpdate
-          )
+          return missionsEqual(previous, mission)
         })
       if (unchanged) return prev
       return next
@@ -180,17 +247,14 @@ export function useGazeboSimulation(
   /**
    * Irreversibly discard the current local preview generation.
    *
-   * The interception system is a singleton and retains mission objects after
-   * they leave React state. Merely stopping controller timers would therefore
-   * let an old ACTIVE mission reappear when simulation or telemetry comes back.
-   * Every authority-boundary transition aborts those missions first, then
-   * clears every derived snapshot exposed by this hook.
+   * The hook owns its interception system, which retains mission history during
+   * the mount. Merely stopping controller timers would let an old ACTIVE mission
+   * reappear when simulation or telemetry comes back. Every authority-boundary
+   * transition aborts those missions first, then clears every derived snapshot.
    */
   const discardGuidancePreviewGeneration = useCallback(() => {
     const system = interceptionSystemRef.current
-    for (const mission of system.getActiveMissions()) {
-      system.abortMission(mission.id)
-    }
+    system.abortAllMissions()
 
     for (const controller of guidancePreviewsRef.current.values()) {
       controller.stop()
@@ -259,8 +323,8 @@ export function useGazeboSimulation(
     rosBridge.isConnected,
   ])
 
-  // The interception system is a singleton, so release this hook's models on
-  // unmount as well as on ordinary disconnect/model-removal transitions.
+  // Release this hook's models on unmount as well as on ordinary
+  // disconnect/model-removal transitions.
   useEffect(() => {
     const system = interceptionSystemRef.current
     const targetIds = syncedTargetIdsRef.current
@@ -287,6 +351,13 @@ export function useGazeboSimulation(
     const cfg = configRef.current
     const controllers = guidancePreviewsRef.current
     let snapshotChanged = false
+
+    if (guidancePreviewRateRef.current !== cfg.guidancePreviewRateHz) {
+      for (const controller of controllers.values()) {
+        controller.setConfig({ rateHz: cfg.guidancePreviewRateHz })
+      }
+      guidancePreviewRateRef.current = cfg.guidancePreviewRateHz
+    }
 
     if (
       !isSimulationActive ||
@@ -399,17 +470,15 @@ export function useGazeboSimulation(
       const cfg = configRef.current
 
       // Update active missions
-      const missions = system.getActiveMissions()
-      for (const mission of missions) {
+      const missionsBeforeUpdate = system.getActiveMissions()
+      for (const mission of missionsBeforeUpdate) {
         system.updateMission(mission.id)
       }
       publishActiveMissions()
 
       // Selective trajectory prediction - only for active mission targets
       // This reduces computation by ~80% compared to predicting all hostiles
-      const activeTargetIds = new Set(
-        missions.filter((m) => m.status === 'ACTIVE').map((m) => m.targetId)
-      )
+      const activeTargetIds = new Set(system.getActiveMissions().map((mission) => mission.targetId))
 
       const newPredictions = new Map<string, TrajectoryPoint[]>()
       for (const targetId of activeTargetIds) {
@@ -434,7 +503,7 @@ export function useGazeboSimulation(
         updateIntervalRef.current = null
       }
     }
-  }, [isSimulationActive, publishActiveMissions])
+  }, [isSimulationActive, mergedConfig.updateIntervalMs, publishActiveMissions])
 
   // Initiate intercept
   const initiateIntercept = useCallback(
@@ -460,7 +529,7 @@ export function useGazeboSimulation(
       }
 
       // Find best available interceptor
-      const assignment = system.assignBestInterceptor(targetId)
+      const assignment = system.assignBestInterceptor(targetId, strategy)
       if (!assignment) {
         log.warn('No available interceptor for target', { targetId })
         return null
@@ -470,13 +539,14 @@ export function useGazeboSimulation(
       const mission = system.createMission(assignment.interceptorId, targetId, strategy)
 
       if (mission) {
-        system.activateMission(mission.id)
+        if (!system.activateMission(mission.id)) return null
         publishActiveMissions()
         // Guidance controller will be created automatically by the effect
         // when activeMissions state updates
+        return system.getMission(mission.id) ?? null
       }
 
-      return mission
+      return null
     },
     [
       gazeboDrones.hostileDrones,
@@ -519,6 +589,14 @@ export function useGazeboSimulation(
     [discardGuidancePreviewGeneration, transport]
   )
 
+  const selectRosUrl = useCallback(
+    (nextUrl: string) => {
+      if (nextUrl !== rosUrl) discardGuidancePreviewGeneration()
+      setRosUrl(nextUrl)
+    },
+    [discardGuidancePreviewGeneration, rosUrl]
+  )
+
   const holdAllGuidancePreviews = useCallback(() => {
     for (const controller of guidancePreviewsRef.current.values()) {
       controller.hold()
@@ -532,7 +610,7 @@ export function useGazeboSimulation(
     transport,
     setTransport: selectTransport,
     rosUrl,
-    setRosUrl,
+    setRosUrl: selectRosUrl,
     connect: rosBridge.connect,
     disconnect,
     connectionError: rosBridge.error,

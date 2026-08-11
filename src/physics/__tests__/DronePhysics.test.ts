@@ -123,9 +123,11 @@ function installFakeRapierCreationWorld(world: DronePhysicsWorld) {
   const internals = world as unknown as {
     RAPIER: typeof fakeRapier | null
     world: typeof fakeWorld | null
+    isInitialized: boolean
   }
   internals.RAPIER = fakeRapier
   internals.world = fakeWorld
+  internals.isInitialized = true
 
   return { activeBodies, bodyDescription, colliderDescription, fakeWorld }
 }
@@ -164,6 +166,25 @@ describe('canonical quad mixer', () => {
       rear_left: 1,
       rear_right: 0,
     })
+  })
+
+  it('fails motor output safe when a control input is non-finite', () => {
+    expect(mixQuadMotorCommands(Number.NaN, 0, 0, 0)).toEqual(ZERO_COMMANDS)
+
+    const drone = new DronePhysicsBody('invalid-command')
+    drone.setMotorCommands({
+      front_left: Number.POSITIVE_INFINITY,
+      front_right: -1,
+      rear_left: 2,
+      rear_right: 0.5,
+    })
+    expect(drone.targetCommands).toEqual({
+      front_left: 0,
+      front_right: 0,
+      rear_left: 1,
+      rear_right: 0.5,
+    })
+    expect(Object.isFrozen(drone.targetCommands)).toBe(true)
   })
 
   it('stores rotors in truthful FL, FR, RL, RR order with diagonal spin pairs', () => {
@@ -224,6 +245,26 @@ describe('canonical quad mixer', () => {
 })
 
 describe('DronePhysicsBody local integrator', () => {
+  it('rejects invalid physical parameters and time steps before mutating state', () => {
+    expect(
+      () =>
+        new DronePhysicsBody('zero-mass', {
+          ...DEFAULT_QUADCOPTER_PARAMS,
+          mass: 0,
+        })
+    ).toThrow('mass must be a positive finite number')
+    expect(
+      () => new DronePhysicsBody('invalid-position', undefined, new THREE.Vector3(Number.NaN, 0, 0))
+    ).toThrow('Initial drone position')
+
+    const body = new DronePhysicsBody('invalid-dt')
+    const before = body.state.position.clone()
+    expect(() => body.updatePhysics(0)).toThrow('Physics dt must be finite')
+    expect(() => body.updatePhysics(Number.NaN)).toThrow('Physics dt must be finite')
+    expect(() => body.updatePhysics(0.101)).toThrow('Physics dt must be finite')
+    expect(body.state.position).toEqual(before)
+  })
+
   it('integrates gravity while disarmed instead of hanging mid-air', () => {
     const body = new DronePhysicsBody('drone-1', undefined, new THREE.Vector3(0, 10, 0))
     body.setArmed(false)
@@ -308,6 +349,23 @@ describe('DronePhysicsBody local integrator', () => {
 })
 
 describe('DronePhysicsWorld Rapier force application', () => {
+  it('ignores a backward wall-clock sample without corrupting the accumulator', () => {
+    const world = new DronePhysicsWorld() as unknown as WorldUpdateInternals
+    world.isInitialized = true
+    world.lastUpdate = 1_000
+    world.accumulator = PHYSICS_FIXED_DT / 2
+    const now = vi.spyOn(performance, 'now').mockReturnValue(900)
+
+    try {
+      world.update()
+    } finally {
+      now.mockRestore()
+    }
+
+    expect(world.accumulator).toBe(PHYSICS_FIXED_DT / 2)
+    expect(world.lastUpdate).toBe(1_000)
+  })
+
   it('applies forces before advancing exactly one fixed Rapier step', () => {
     const world = new DronePhysicsWorld() as unknown as WorldUpdateInternals
     const drone = new DronePhysicsBody('ordered-step')
@@ -414,9 +472,37 @@ describe('DronePhysicsWorld Rapier force application', () => {
     expect(torqueArg.x).toBeCloseTo(-armLength * thrust, 10)
     expect(torqueArg.z).toBeCloseTo(-armLength * thrust, 10)
   })
+
+  it('advances battery state identically in the Rapier and local paths', () => {
+    const world = new DronePhysicsWorld() as unknown as WorldInternals
+    world.RAPIER = {}
+    const rapierDrone = new DronePhysicsBody('rapier-battery')
+    const localDrone = new DronePhysicsBody('local-battery')
+    const commands = { front_left: 1, front_right: 1, rear_left: 1, rear_right: 1 }
+    rapierDrone.setArmed(true)
+    rapierDrone.setMotorCommands(commands)
+    localDrone.setArmed(true)
+    localDrone.setMotorCommands(commands)
+    attachFakeRigidBody(rapierDrone, createFakeRigidBody())
+
+    world.applyDroneForces(rapierDrone, PHYSICS_FIXED_DT)
+    localDrone.updatePhysics(PHYSICS_FIXED_DT, new THREE.Vector3())
+
+    expect(rapierDrone.state.battery).toBeLessThan(1)
+    expect(rapierDrone.state.battery).toBeCloseTo(localDrone.state.battery, 15)
+  })
 })
 
 describe('DronePhysicsWorld drone lifecycle', () => {
+  it('rejects creation before initialization chooses a physics implementation', () => {
+    const world = new DronePhysicsWorld()
+
+    expect(() => world.createDrone('too-early')).toThrowError(
+      'Drone physics world must be initialized before creating drones'
+    )
+    expect(world.getAllDrones()).toEqual([])
+  })
+
   it('configures Rapier with the flight model mass and principal inertia', () => {
     const world = new DronePhysicsWorld()
     const { colliderDescription } = installFakeRapierCreationWorld(world)
@@ -458,6 +544,19 @@ describe('DronePhysicsWorld drone lifecycle', () => {
     expect(activeBodies.size).toBe(0)
     expect(world.getDrone('duplicate')).toBeUndefined()
   })
+
+  it('removes a Rapier body when collider creation fails', () => {
+    const world = new DronePhysicsWorld()
+    const { activeBodies, fakeWorld } = installFakeRapierCreationWorld(world)
+    fakeWorld.createCollider.mockImplementationOnce(() => {
+      throw new Error('collider allocation failed')
+    })
+
+    expect(() => world.createDrone('partial')).toThrowError('collider allocation failed')
+    expect(fakeWorld.removeRigidBody).toHaveBeenCalledOnce()
+    expect(activeBodies.size).toBe(0)
+    expect(world.getDrone('partial')).toBeUndefined()
+  })
 })
 
 describe('DronePhysicsWorld initialization', () => {
@@ -482,15 +581,30 @@ describe('DronePhysicsWorld initialization', () => {
 
     rapierMock.init.mockResolvedValueOnce(undefined)
     const retryWorld = new DronePhysicsWorld()
+    const worldsBeforeRetry = rapierMock.World.mock.calls.length
 
+    await Promise.all([retryWorld.init(), retryWorld.init()])
     await retryWorld.init()
 
     expect(retryWorld.isReady()).toBe(true)
     expect(retryWorld.isUsingFallback()).toBe(false)
     expect(rapierMock.init).toHaveBeenCalledTimes(2)
+    expect(rapierMock.World.mock.calls.length - worldsBeforeRetry).toBe(1)
     expect(rapierMock.world.timestep).toBe(PHYSICS_FIXED_DT)
 
     retryWorld.destroy()
+
+    rapierMock.world.createCollider.mockImplementationOnce(() => {
+      throw new Error('ground allocation failed')
+    })
+    const partialWorld = new DronePhysicsWorld()
+    await partialWorld.init()
+
+    expect(partialWorld.isReady()).toBe(true)
+    expect(partialWorld.isUsingFallback()).toBe(true)
+    expect(rapierMock.world.free).toHaveBeenCalledTimes(2)
+    expect((partialWorld as unknown as { world: unknown; RAPIER: unknown }).world).toBeNull()
+    expect((partialWorld as unknown as { world: unknown; RAPIER: unknown }).RAPIER).toBeNull()
   })
 })
 
@@ -517,6 +631,20 @@ describe('FlightController PID state', () => {
     expect(Math.abs(internals.pitchIntegral)).toBeLessThanOrEqual(10)
     expect(Math.abs(internals.yawIntegral)).toBeLessThanOrEqual(10)
     expect(Math.abs(internals.altitudeIntegral)).toBeLessThanOrEqual(10)
+  })
+
+  it('rejects invalid armed time steps and targets before PID state changes', () => {
+    const controller = new FlightController()
+    const internals = controller as unknown as ControllerInternals
+    const drone = new DronePhysicsBody('invalid-controller-input')
+    drone.setArmed(true)
+
+    expect(() => controller.update(drone, 0, 0, 0, 1, 0)).toThrow('Physics dt must be finite')
+    expect(() => controller.update(drone, Number.NaN, 0, 0, 1, PHYSICS_FIXED_DT)).toThrow(
+      'targets must be finite'
+    )
+    expect(internals.rollIntegral).toBe(0)
+    expect(internals.altitudeIntegral).toBe(0)
   })
 
   it('resets PID state and outputs zero commands while disarmed', () => {

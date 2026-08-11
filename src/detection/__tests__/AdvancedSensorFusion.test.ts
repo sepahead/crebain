@@ -126,6 +126,77 @@ describe('AdvancedSensorFusion IPC', () => {
     expect(invokeMock).not.toHaveBeenCalled()
   })
 
+  it('rejects malformed configuration and measurements before IPC', async () => {
+    await expect(initFusion({ process_noise: 0 })).rejects.toThrow('process_noise must be finite')
+    await expect(
+      initFusion({
+        algorithm: 'IMM',
+        unexpected: true,
+      } as unknown as Partial<FusionConfig>)
+    ).rejects.toThrow('config must match the public configuration schema')
+    await expect(
+      processMeasurements([
+        {
+          ...measurement(100),
+          position: [Number.POSITIVE_INFINITY, 0, 0],
+        },
+      ])
+    ).rejects.toThrow('measurements[0].position[0]')
+    await expect(
+      processMeasurements([
+        {
+          ...measurement(100),
+          metadata: Object.fromEntries(
+            Array.from({ length: 65 }, (_, index) => [`key-${index}`, index])
+          ),
+        },
+      ])
+    ).rejects.toThrow('metadata exceeds its entry limit')
+
+    expect(invokeMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects Unicode control characters with the same text contract as Rust', async () => {
+    for (const mutation of [
+      { sensor_id: 'camera\u0085one' },
+      { class_label: 'small\u0085drone' },
+      { metadata: { ['range\u0085m']: 1 } },
+    ]) {
+      await expect(processMeasurements([{ ...measurement(100), ...mutation }])).rejects.toThrow(
+        'bounded non-empty string'
+      )
+    }
+
+    expect(invokeMock).not.toHaveBeenCalled()
+  })
+
+  it('snapshots mutable measurement inputs before IPC', async () => {
+    let resolveInvoke: ((value: unknown[]) => void) | undefined
+    invokeMock.mockImplementation(
+      () =>
+        new Promise<unknown[]>((resolve) => {
+          resolveInvoke = resolve
+        })
+    )
+    const input = measurement(125)
+    input.velocity = [4, 5, 6]
+    input.metadata.temperature = 295
+
+    const pending = processMeasurements([input])
+    input.position[0] = 999
+    input.velocity[0] = 999
+    input.metadata.temperature = 999
+
+    const request = invokeMock.mock.calls[0][1] as { measurements: SensorMeasurement[] }
+    expect(request.measurements[0]).toEqual({
+      ...measurement(125),
+      velocity: [4, 5, 6],
+      metadata: { temperature: 295 },
+    })
+    resolveInvoke?.([])
+    await expect(pending).resolves.toEqual([])
+  })
+
   it('requires an explicit measurement-domain timestamp for an empty frame', async () => {
     await expect(processMeasurements([])).rejects.toThrow(
       'timestampMs is required when processing an empty measurement frame'
@@ -162,12 +233,28 @@ describe('AdvancedSensorFusion IPC', () => {
         'tracks[0].position_uncertainty entries must be non-negative',
       ],
       [Array.from({ length: 1_025 }, () => track()), 'tracks must contain at most 1024 entries'],
+      [[track({ class_label: 'drone\u0085status' })], 'tracks[0].class_label'],
     ]
 
     for (const [response, message] of cases) {
       invokeMock.mockResolvedValueOnce(response)
       await expect(processMeasurements([input], 123)).rejects.toThrow(message)
     }
+  })
+
+  it('rejects duplicate track identities and snapshots accepted responses', async () => {
+    invokeMock.mockResolvedValueOnce([track(), track()])
+    await expect(processMeasurements([measurement(123)])).rejects.toThrow(
+      'track IDs must be unique'
+    )
+
+    const backendTrack = track()
+    invokeMock.mockResolvedValueOnce([backendTrack])
+    const accepted = await processMeasurements([measurement(124)])
+    backendTrack.position[0] = 999
+    backendTrack.sensor_sources[0] = 'radar'
+    expect(accepted[0].position).toEqual([1, 2, 3])
+    expect(accepted[0].sensor_sources).toEqual(['visual', 'thermal'])
   })
 
   it('rejects malformed fusion stats responses', async () => {
@@ -217,7 +304,12 @@ describe('AdvancedSensorFusion IPC', () => {
         algorithm: 'ExtendedKalman',
         frame_count: 0,
       })
-      .mockResolvedValue(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce([
+        { id: 'ExtendedKalman', name: 'Extended Kalman', description: 'Nonlinear filter' },
+      ])
+      .mockResolvedValueOnce([{ id: 'visual', name: 'Visual', icon: 'camera' }])
     const config: FusionConfig = {
       algorithm: 'ExtendedKalman',
       process_noise: 1,
@@ -243,7 +335,25 @@ describe('AdvancedSensorFusion IPC', () => {
       'fusion_get_algorithms',
       'fusion_get_modalities',
     ])
-    expect(invokeMock).toHaveBeenCalledWith('fusion_set_config', { config })
+    expect(invokeMock).toHaveBeenCalledWith('fusion_set_config', {
+      config: {
+        ...config,
+        confirmation_window: 5,
+        max_position_cov_volume: 1e6,
+      },
+    })
+  })
+
+  it('rejects malformed algorithm and modality catalogs', async () => {
+    invokeMock
+      .mockResolvedValueOnce([
+        { id: 'IMM', name: 'IMM', description: 'First' },
+        { id: 'IMM', name: 'Duplicate', description: 'Second' },
+      ])
+      .mockResolvedValueOnce([{ id: 'visual', name: '', icon: 'camera' }])
+
+    await expect(getAlgorithms()).rejects.toThrow('algorithm IDs must be unique')
+    await expect(getModalities()).rejects.toThrow('modalities[0].name')
   })
 
   // Embedded mode is irreversible for one document. Keep this control last.

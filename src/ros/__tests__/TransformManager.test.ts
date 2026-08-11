@@ -1,11 +1,9 @@
-import { describe, expect, it } from 'vitest'
-import { TransformManager } from '../TransformManager'
+import { describe, expect, it, vi } from 'vitest'
+import { MAX_TF_DYNAMIC_SAMPLES, MAX_TF_FRAMES, TransformManager } from '../TransformManager'
 import { createTime } from '../types'
+import type { ROSBridge } from '../ROSBridge'
 import type { Point, Quaternion, TFMessage, Time, Transform, TransformStamped } from '../types'
-import {
-  MAX_TF_TRANSLATION_METERS,
-  TF_QUATERNION_NORM_TOLERANCE,
-} from '../tfValidation'
+import { MAX_TF_TRANSLATION_METERS, TF_QUATERNION_NORM_TOLERANCE } from '../tfValidation'
 
 const IDENTITY: Quaternion = { x: 0, y: 0, z: 0, w: 1 }
 // 90° rotation about +Z.
@@ -60,12 +58,84 @@ function buildTree(): TransformManager {
   // world -> odom -> base_link, with a non-trivial rotation on the second hop.
   const manager = new TransformManager()
   ingest(manager, {
-    transforms: [tf('world', 'odom', [10, 0, 0], IDENTITY), tf('odom', 'base_link', [0, 5, 0], Z90)],
+    transforms: [
+      tf('world', 'odom', [10, 0, 0], IDENTITY),
+      tf('odom', 'base_link', [0, 5, 0], Z90),
+    ],
   })
   return manager
 }
 
 describe('TransformManager multi-hop chains', () => {
+  it('rejects unsafe cache and subscription bounds before allocating', () => {
+    expect(() => new TransformManager({ cacheDurationMs: 99 })).toThrow(/cacheDurationMs/)
+    expect(() => new TransformManager({ throttleRateMs: -1 })).toThrow(/throttleRateMs/)
+    expect(() => new TransformManager({ maxCacheSize: 1_001 })).toThrow(/maxCacheSize/)
+    expect(
+      () => new TransformManager({ maxTotalDynamicSamples: MAX_TF_DYNAMIC_SAMPLES + 1 })
+    ).toThrow(/maxTotalDynamicSamples/)
+  })
+
+  it('admits dynamic history atomically within one aggregate budget', () => {
+    const manager = new TransformManager({ maxCacheSize: 1, maxTotalDynamicSamples: 2 })
+    ingest(
+      manager,
+      {
+        transforms: [
+          tf('world', 'first', [1, 0, 0], IDENTITY, 1_000),
+          tf('world', 'second', [2, 0, 0], IDENTITY, 1_000),
+          tf('world', 'overflow', [3, 0, 0], IDENTITY, 1_000),
+        ],
+      },
+      false
+    )
+
+    expect(manager.getCacheStats()).toEqual({
+      dynamicTransforms: 2,
+      staticTransforms: 0,
+      knownFrames: 3,
+    })
+    expect(manager.hasFrame('overflow')).toBe(false)
+
+    // A full edge can replace its oldest sample without increasing the total.
+    ingest(manager, { transforms: [tf('world', 'first', [9, 0, 0], IDENTITY, 2_000)] }, false)
+    expect(manager.lookupTransform('world', 'first').transform.translation.x).toBe(9)
+    expect(manager.getCacheStats().dynamicTransforms).toBe(2)
+  })
+
+  it('rolls back a partial start and isolates teardown failures', () => {
+    const manager = new TransformManager()
+    const firstUnsubscribe = vi.fn()
+    const failedSubscribe = vi
+      .fn()
+      .mockReturnValueOnce(firstUnsubscribe)
+      .mockImplementationOnce(() => {
+        throw new Error('second subscription failed')
+      })
+
+    expect(() => manager.start({ subscribe: failedSubscribe } as unknown as ROSBridge)).toThrow(
+      'second subscription failed'
+    )
+    expect(firstUnsubscribe).toHaveBeenCalledOnce()
+
+    const throwingUnsubscribe = vi.fn(() => {
+      throw new Error('unsubscribe failed')
+    })
+    const finalUnsubscribe = vi.fn()
+    const workingSubscribe = vi
+      .fn()
+      .mockReturnValueOnce(throwingUnsubscribe)
+      .mockReturnValueOnce(finalUnsubscribe)
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    manager.start({ subscribe: workingSubscribe } as unknown as ROSBridge)
+    manager.stop()
+
+    expect(throwingUnsubscribe).toHaveBeenCalledOnce()
+    expect(finalUnsubscribe).toHaveBeenCalledOnce()
+    errorSpy.mockRestore()
+  })
+
   it('two-hop lookup equals composing the two verified single hops', () => {
     const manager = buildTree()
     const pBase: Point = { x: 1, y: 2, z: 3 }
@@ -176,9 +246,7 @@ describe('TransformManager multi-hop chains', () => {
       false
     )
 
-    expect(
-      manager.lookupTransform('world', 'base_link', createTime(new Date(500)))
-    ).toMatchObject({
+    expect(manager.lookupTransform('world', 'base_link', createTime(new Date(500)))).toMatchObject({
       valid: false,
       error: expect.stringContaining('extrapolation is disabled'),
     })
@@ -214,12 +282,12 @@ describe('TransformManager multi-hop chains', () => {
         tf('world', 'zero-quaternion', [0, 0, 0], { x: 0, y: 0, z: 0, w: 0 }),
         tf('world', 'non-unit', [0, 0, 0], { x: 0, y: 0, z: 0, w: 0.5 }),
         tf('world', 'unbounded', [MAX_TF_TRANSLATION_METERS + 1, 0, 0], IDENTITY),
-        tf(
-          'world',
-          'normalized',
-          [1, 0, 0],
-          { x: 0, y: 0, z: 0, w: 1 + TF_QUATERNION_NORM_TOLERANCE / 2 }
-        ),
+        tf('world', 'normalized', [1, 0, 0], {
+          x: 0,
+          y: 0,
+          z: 0,
+          w: 1 + TF_QUATERNION_NORM_TOLERANCE / 2,
+        }),
       ],
     })
 
@@ -232,6 +300,90 @@ describe('TransformManager multi-hop chains', () => {
     const accepted = manager.lookupTransform('world', 'normalized')
     expect(accepted.valid).toBe(true)
     expect(Math.hypot(...Object.values(accepted.transform.rotation))).toBeCloseTo(1, 12)
+  })
+
+  it('snapshots ingress and lookup values across the cache boundary', () => {
+    const manager = new TransformManager()
+    const incoming = tf('world', 'camera', [1, 2, 3], IDENTITY, {
+      secs: 4,
+      nsecs: 5,
+    })
+    ingest(manager, { transforms: [incoming] })
+
+    incoming.header.stamp.secs = 99
+    incoming.transform.translation.x = 99
+    const first = manager.lookupTransform('world', 'camera')
+    expect(first).toMatchObject({
+      valid: true,
+      timestamp: { secs: 4, nsecs: 5 },
+      transform: { translation: { x: 1, y: 2, z: 3 } },
+    })
+
+    first.timestamp.secs = 88
+    first.transform.translation.x = 88
+    expect(manager.lookupTransform('world', 'camera')).toMatchObject({
+      valid: true,
+      timestamp: { secs: 4, nsecs: 5 },
+      transform: { translation: { x: 1, y: 2, z: 3 } },
+    })
+  })
+
+  it('rejects reparenting and cycles while keeping delimiter-like frame IDs distinct', () => {
+    const manager = new TransformManager()
+    ingest(manager, {
+      transforms: [
+        tf('world', 'child', [1, 0, 0], IDENTITY),
+        tf('other', 'child', [2, 0, 0], IDENTITY),
+        tf('child', 'world', [3, 0, 0], IDENTITY),
+        tf('a->b', 'c', [4, 0, 0], IDENTITY),
+        tf('a', 'b->c', [5, 0, 0], IDENTITY),
+      ],
+    })
+
+    expect(manager.getParentFrame('child')).toBe('world')
+    expect(manager.getParentFrame('world')).toBeNull()
+    expect(manager.lookupTransform('a->b', 'c').transform.translation.x).toBe(4)
+    expect(manager.lookupTransform('a', 'b->c').transform.translation.x).toBe(5)
+    expect(manager.getCacheStats().staticTransforms).toBe(3)
+  })
+
+  it('releases expired dynamic topology using one monotonic clock domain', () => {
+    const nowSpy = vi.spyOn(performance, 'now').mockReturnValue(1_000)
+    const manager = new TransformManager({ cacheDurationMs: 100 })
+    ingest(manager, { transforms: [tf('world', 'ephemeral', [1, 0, 0], IDENTITY)] }, false)
+    expect(manager.hasFrame('ephemeral')).toBe(true)
+
+    nowSpy.mockReturnValue(1_101)
+    ;(manager as unknown as { cleanupCache: () => void }).cleanupCache()
+
+    expect(manager.getCacheStats()).toEqual({
+      dynamicTransforms: 0,
+      staticTransforms: 0,
+      knownFrames: 0,
+    })
+    expect(manager.getParentFrame('ephemeral')).toBeNull()
+
+    // Expiry must release the child identity so a later valid parent can own it.
+    ingest(manager, { transforms: [tf('map', 'ephemeral', [2, 0, 0], IDENTITY)] }, false)
+    expect(manager.getParentFrame('ephemeral')).toBe('map')
+    nowSpy.mockRestore()
+  })
+
+  it('caps the topology before accepting an additional frame', () => {
+    const manager = new TransformManager()
+    const transforms = Array.from({ length: MAX_TF_FRAMES - 1 }, (_, index) =>
+      tf('world', `child-${index}`, [0, 0, 0], IDENTITY)
+    )
+    transforms.push(tf('world', 'overflow', [0, 0, 0], IDENTITY))
+
+    ingest(manager, { transforms })
+
+    expect(manager.getCacheStats()).toEqual({
+      dynamicTransforms: 0,
+      staticTransforms: MAX_TF_FRAMES - 1,
+      knownFrames: MAX_TF_FRAMES,
+    })
+    expect(manager.hasFrame('overflow')).toBe(false)
   })
 
   it('fails closed when an extreme multi-hop composition exceeds the transform bound', () => {
@@ -265,11 +417,7 @@ describe('TransformManager multi-hop chains', () => {
 
     expect(compose(extreme, extreme)).toBeNull()
     expect(
-      manager.transformPoint(
-        { x: Number.POSITIVE_INFINITY, y: 0, z: 0 },
-        'world',
-        'world'
-      )
+      manager.transformPoint({ x: Number.POSITIVE_INFINITY, y: 0, z: 0 }, 'world', 'world')
     ).toBeNull()
   })
 })

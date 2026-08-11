@@ -8,11 +8,13 @@ export interface SystemInfo {
   availableBackends: string[]
   experimentalMlxEnabled: boolean
   inferenceReady: boolean | null
+  inferenceInitializationError: string | null
   onnxDetector?: unknown
   sensorFusion?: unknown
 }
 
 export type BackendHealth = 'ready' | 'unavailable' | 'initializing' | 'busy' | 'unknown'
+export type DiagnosticsStatus = BackendHealth | 'loading' | 'error'
 export type DiagnosticsConnectionState =
   'disconnected' | 'connecting' | 'connected' | 'reconnecting'
 
@@ -36,12 +38,20 @@ const UNKNOWN_SYSTEM_INFO: SystemInfo = {
   availableBackends: [],
   experimentalMlxEnabled: false,
   inferenceReady: null,
+  inferenceInitializationError: null,
 }
+
+const MAX_DIAGNOSTICS_ERROR_LENGTH = 2_048
+const MAX_DIAGNOSTICS_STRING_LENGTH = 256
+const MAX_AVAILABLE_BACKENDS = 32
+export const MAX_LATENCY_STAT_SAMPLES = 10_000
 
 function readString(value: unknown, fallback: string): string {
   if (typeof value !== 'string') return fallback
   const trimmed = value.trim()
-  return trimmed.length > 0 ? trimmed : fallback
+  return trimmed.length > 0 && !trimmed.includes('\0')
+    ? trimmed.slice(0, MAX_DIAGNOSTICS_STRING_LENGTH)
+    : fallback
 }
 
 function readBoolean(value: unknown): boolean {
@@ -52,11 +62,23 @@ function readOptionalBoolean(value: unknown): boolean | null {
   return typeof value === 'boolean' ? value : null
 }
 
+function readOptionalError(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  if (trimmed.length === 0) return null
+  return trimmed.slice(0, MAX_DIAGNOSTICS_ERROR_LENGTH)
+}
+
 function readStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return []
   return value
-    .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
-    .map((item) => item.trim())
+    .slice(0, MAX_AVAILABLE_BACKENDS)
+    .filter(
+      (item): item is string =>
+        typeof item === 'string' && item.trim().length > 0 && !item.includes('\0')
+    )
+    .map((item) => item.trim().slice(0, MAX_DIAGNOSTICS_STRING_LENGTH))
+    .filter((item) => item.length > 0)
 }
 
 export function normalizeSystemInfo(value: unknown): SystemInfo {
@@ -74,6 +96,7 @@ export function normalizeSystemInfo(value: unknown): SystemInfo {
     availableBackends: readStringArray(record.availableBackends),
     experimentalMlxEnabled: readBoolean(record.experimentalMlxEnabled),
     inferenceReady: readOptionalBoolean(record.inferenceReady),
+    inferenceInitializationError: readOptionalError(record.inferenceInitializationError),
     onnxDetector: record.onnxDetector,
     sensorFusion: record.sensorFusion,
   }
@@ -127,10 +150,16 @@ export function getBackendHealthLabel(health: BackendHealth): string {
   return {
     ready: 'BEREIT',
     unavailable: 'NICHT VERFÜGBAR',
-    initializing: 'NICHT INITIALISIERT',
+    initializing: 'WIRD INITIALISIERT...',
     busy: 'BESCHÄFTIGT',
     unknown: 'UNBEKANNT',
   }[health]
+}
+
+export function getDiagnosticsStatusLabel(status: DiagnosticsStatus): string {
+  if (status === 'loading') return 'LÄDT...'
+  if (status === 'error') return 'FEHLER'
+  return getBackendHealthLabel(status)
 }
 
 export function getConnectionStatusLabel(state: DiagnosticsConnectionState): string {
@@ -162,8 +191,15 @@ export function calculateLatencyStats(times: number[]): LatencyStats {
   if (times.some((time) => !Number.isFinite(time) || time < 0)) {
     throw new Error('Cannot calculate latency stats for invalid samples')
   }
+  if (times.length > MAX_LATENCY_STAT_SAMPLES) {
+    throw new Error(
+      `Cannot calculate latency stats for more than ${MAX_LATENCY_STAT_SAMPLES} samples`
+    )
+  }
 
-  const mean = times.reduce((a, b) => a + b, 0) / times.length
+  // Incremental mean avoids overflowing the sum for individually finite values.
+  const mean = times.reduce((average, value, index) => average + (value - average) / (index + 1), 0)
+  const rawFps = mean > 0 ? 1000 / mean : 0
   const sorted = [...times].sort((a, b) => a - b)
   // Nearest-rank percentile: rank ceil(n·p) (1-based), i.e. index ceil(n·p)-1.
   const percentile = (value: number) => sorted[Math.max(0, Math.ceil(sorted.length * value) - 1)]
@@ -175,6 +211,6 @@ export function calculateLatencyStats(times: number[]): LatencyStats {
     p99: percentile(0.99),
     min: sorted[0],
     max: sorted[sorted.length - 1],
-    fps: mean > 0 ? 1000 / mean : 0,
+    fps: Number.isFinite(rawFps) ? rawFps : Number.MAX_VALUE,
   }
 }

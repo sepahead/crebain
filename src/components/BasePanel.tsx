@@ -135,6 +135,13 @@ export function BasePanel({
     return (
       <div
         ref={elementRef}
+        data-floating-panel={panelId}
+        data-floating-panel-side={positionConfig.side}
+        data-floating-panel-slot={positionConfig.magnifiedSlot}
+        data-panel-expanded="false"
+        aria-label={`${title} panel`}
+        role="region"
+        tabIndex={0}
         className={`fixed ${zClass} ${sideClass}`}
         style={panelStyle}
         onMouseDown={handleMouseDown}
@@ -169,6 +176,13 @@ export function BasePanel({
   return (
     <div
       ref={elementRef}
+      data-floating-panel={panelId}
+      data-floating-panel-side={positionConfig.side}
+      data-floating-panel-slot={positionConfig.magnifiedSlot}
+      data-panel-expanded="true"
+      aria-label={`${title} panel`}
+      role="region"
+      tabIndex={0}
       className={`fixed ${zClass} ${sideClass} ${widthClass} max-h-[calc(100vh-92px)] overflow-y-auto border ${themeStyles.border} bg-[#0a0a0a]/95 backdrop-blur-sm font-mono ${className}`}
       style={panelStyle}
       onMouseDown={handleMouseDown}

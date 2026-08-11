@@ -7,9 +7,9 @@
  * the transport boundary so reply shape, scientific claims, and request
  * attribution fail closed before the canonical client consumes them.
  *
- * NCP stays pinned by immutable release tag. Typed errors pass the same canonical
- * version/message gate as successes; optional request/session attribution must
- * match when present.
+ * NCP stays pinned by its release tag and lockfile identities. Typed errors pass
+ * the same canonical version/message gate as successes. Optional request and
+ * session attribution must match when present.
  */
 import {
   NCP_VERSION,
@@ -27,7 +27,7 @@ export class NcpVersionMismatchError extends Error {
   constructor(received: unknown) {
     super(
       `NCP reply version mismatch: expected wire-compatible with "${NCP_VERSION}", got ` +
-        `${received === undefined ? '<absent>' : JSON.stringify(received)}`
+        describeVersionValue(received)
     )
     this.name = 'NcpVersionMismatchError'
     this.expected = NCP_VERSION
@@ -35,10 +35,18 @@ export class NcpVersionMismatchError extends Error {
   }
 }
 
+function describeVersionValue(value: unknown): string {
+  if (value === undefined) return '<absent>'
+  if (typeof value === 'string') return JSON.stringify(value)
+  if (value === null) return 'null'
+  return `<${typeof value}>`
+}
+
 /**
  * Wrap a `Send` so each reply is checked before it reaches
  * `NeuroSimClient`: compatible version, scientific boundary, exact success
- * kind/session attribution, and optional error-session consistency.
+ * kind/session attribution, post-open generation attribution, and optional
+ * error-session consistency.
  */
 export function guardReplyVersion(send: Send): Send {
   return async (message) => {
@@ -92,7 +100,7 @@ function assertReplyAttribution(
   if (!isRecord(reply)) throw new Error('NCP reply is not an object')
   const requestKind = request.kind
   const sessionId = request.session_id
-  if (typeof requestKind !== 'string' || EXPECTED_REPLY_KIND[requestKind] === undefined) {
+  if (typeof requestKind !== 'string' || !Object.hasOwn(EXPECTED_REPLY_KIND, requestKind)) {
     throw new Error(`unsupported NCP request kind ${JSON.stringify(requestKind)}`)
   }
   if (typeof sessionId !== 'string' || sessionId.length === 0) {
@@ -109,6 +117,15 @@ function assertReplyAttribution(
         `NCP error session mismatch: expected ${JSON.stringify(sessionId)}, got ${JSON.stringify(reply.session_id)}`
       )
     }
+    if (requestKind !== 'open_session' && reply.session != null) {
+      const requestGeneration = sessionGeneration(request)
+      const replyGeneration = sessionGeneration(reply)
+      if (requestGeneration !== replyGeneration) {
+        throw new Error(
+          `NCP error generation mismatch: expected ${JSON.stringify(requestGeneration)}, got ${JSON.stringify(replyGeneration)}`
+        )
+      }
+    }
     return
   }
   const expectedKind = EXPECTED_REPLY_KIND[requestKind]
@@ -122,6 +139,28 @@ function assertReplyAttribution(
       `NCP reply session mismatch: expected ${JSON.stringify(sessionId)}, got ${JSON.stringify(reply.session_id)}`
     )
   }
+
+  if (requestKind !== 'open_session') {
+    const requestGeneration = sessionGeneration(request)
+    const replyGeneration = sessionGeneration(reply)
+    if (requestGeneration !== replyGeneration) {
+      throw new Error(
+        `NCP reply generation mismatch: expected ${JSON.stringify(requestGeneration)}, got ${JSON.stringify(replyGeneration)}`
+      )
+    }
+  }
+}
+
+function sessionGeneration(message: Record<string, unknown>): string {
+  const session = message.session
+  if (
+    !isRecord(session) ||
+    typeof session.generation !== 'string' ||
+    session.generation.length === 0
+  ) {
+    throw new Error('NCP session-scoped message carries no non-empty session generation')
+  }
+  return session.generation
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

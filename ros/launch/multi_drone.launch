@@ -9,8 +9,7 @@
   <!-- Supported reference cardinalities: interceptors 0..2, targets 0..1. -->
 
   <!-- Spawn interceptor drones -->
-  <group ns="interceptor_0" if="$(eval int(arg('num_interceptors')) >= 1)">
-    <arg name="id" value="0"/>
+  <group if="$(eval int(arg('num_interceptors')) >= 1)">
     <arg name="x" value="0"/>
     <arg name="y" value="0"/>
     <arg name="z" value="0.1"/>
@@ -26,7 +25,7 @@
     </include>
   </group>
 
-  <group ns="interceptor_1" if="$(eval int(arg('num_interceptors')) >= 2)">
+  <group if="$(eval int(arg('num_interceptors')) >= 2)">
     <include file="$(dirname)/single_drone.launch">
       <arg name="namespace" value="interceptor_1"/>
       <arg name="vehicle" value="$(arg vehicle)"/>
@@ -39,7 +38,7 @@
   </group>
 
   <!-- Spawn target drones -->
-  <group ns="target_0" if="$(eval int(arg('num_targets')) >= 1)">
+  <group if="$(eval int(arg('num_targets')) >= 1)">
     <include file="$(dirname)/single_drone.launch">
       <arg name="namespace" value="target_0"/>
       <arg name="vehicle" value="$(arg vehicle)"/>

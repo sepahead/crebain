@@ -238,6 +238,37 @@ describe('useRosBridge', () => {
     await act(async () => root.unmount())
   })
 
+  it('resets performance ownership when a native transport session connects', async () => {
+    vi.useFakeTimers()
+    tauriMocks.invoke.mockImplementation((command: string) => {
+      if (command === 'transport_connect') return Promise.resolve('1')
+      return Promise.resolve(undefined)
+    })
+    const root = await renderHook({
+      transport: 'zenoh',
+      autoConnect: false,
+      enablePerformanceMonitoring: true,
+    })
+
+    await act(async () => {
+      hook.recordMessage('/stale_session', 100, 20)
+      await vi.advanceTimersByTimeAsync(1000)
+    })
+    expect(hook.performance.topicStats).toHaveLength(1)
+    expect(hook.performance.alerts).toHaveLength(0)
+
+    await act(async () => {
+      await hook.connect()
+    })
+
+    expect(hook.state).toBe('connected')
+    expect(hook.performance.topicStats).toEqual([])
+    expect(hook.performance.quality).toBeNull()
+    expect(hook.performance.alerts).toEqual([])
+
+    await act(async () => root.unmount())
+  })
+
   it('runs freeze detection and stops both monitoring intervals on cleanup', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(10_000)

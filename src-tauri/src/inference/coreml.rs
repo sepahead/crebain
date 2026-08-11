@@ -6,8 +6,29 @@
 use super::{
     validate_rgba_input_len, Backend, Detection, Detector, InferenceError, InferenceStats, Result,
 };
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::OnceLock;
 use std::time::Instant;
+
+/// Packaged model candidate registered by Tauri before the renderer can invoke
+/// detection. Registration does not open or validate the model. The persistent
+/// runtime remains the only owner of discovery, loading, warmup, and failure
+/// caching.
+static PACKAGED_MODEL_PATH: OnceLock<PathBuf> = OnceLock::new();
+
+pub fn register_packaged_model_path(path: PathBuf) {
+    if let Some(existing) = PACKAGED_MODEL_PATH.get() {
+        if existing != &path {
+            log::warn!(
+                "[CoreML] Ignoring a second packaged model candidate: {}",
+                path.display()
+            );
+        }
+        return;
+    }
+    let _ = PACKAGED_MODEL_PATH.set(path);
+}
 
 /// CoreML detector using Vision framework
 ///
@@ -89,6 +110,25 @@ impl CoreMlDetector {
                     }
                 }
 
+                if let Some(packaged_path) = PACKAGED_MODEL_PATH.get() {
+                    if let Some(packaged_path) = packaged_path.to_str() {
+                        match crate::common::path::validate_model_path(
+                            packaged_path,
+                            Some(&["mlmodelc"]),
+                        ) {
+                            Ok(validated) => {
+                                let validated = validated.to_string_lossy().to_string();
+                                if !model_paths.contains(&validated) {
+                                    model_paths.push(validated);
+                                }
+                            }
+                            Err(error) => log::debug!(
+                                "[CoreML] Packaged model candidate is unavailable: {error}"
+                            ),
+                        }
+                    }
+                }
+
                 // Fall back to common default locations (validated for security)
                 for fallback in &[
                     "resources/yolov8s.mlmodelc",
@@ -98,7 +138,10 @@ impl CoreMlDetector {
                     if let Ok(validated) =
                         crate::common::path::validate_model_path(fallback, Some(&["mlmodelc"]))
                     {
-                        model_paths.push(validated.to_string_lossy().to_string());
+                        let validated = validated.to_string_lossy().to_string();
+                        if !model_paths.contains(&validated) {
+                            model_paths.push(validated);
+                        }
                     }
                 }
 

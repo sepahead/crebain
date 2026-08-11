@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ROSBridge, validateRosUrl, type ROSBridgeConfig } from '../ROSBridge'
+import {
+  MAX_ROSBRIDGE_URL_BYTES,
+  ROSBridge,
+  validateRosUrl,
+  type ROSBridgeConfig,
+} from '../ROSBridge'
 import { installMockWebSocket, MockWebSocket, sentMessages } from '../../test/mockWebSocket'
 import { MAX_TF_TRANSLATION_METERS } from '../tfValidation'
 
@@ -94,7 +99,38 @@ describe('ROSBridge telemetry surface', () => {
       valid: false,
       error: 'Invalid hostname format',
     })
+    expect(validateRosUrl('ws://operator:secret@localhost:9090')).toMatchObject({
+      valid: false,
+      error: 'Credentials are not allowed in the ROS bridge URL',
+    })
+    expect(validateRosUrl('ws://localhost:9090/#diagnostics')).toMatchObject({
+      valid: false,
+      error: 'Fragments are not allowed in the ROS bridge URL',
+    })
+    for (const url of [
+      ' ws://localhost:9090',
+      'ws://localhost:9090\n',
+      `ws://localhost/${'a'.repeat(MAX_ROSBRIDGE_URL_BYTES)}`,
+    ]) {
+      expect(validateRosUrl(url)).toMatchObject({ valid: false })
+    }
     expect(() => new ROSBridge({ url: 'file:///tmp/socket' })).toThrow('Invalid ROS bridge URL')
+  })
+
+  it('rejects unsafe reconnect configuration before opening a socket', () => {
+    expect(() => new ROSBridge({ url: 'ws://localhost:9090', reconnectIntervalMs: 0 })).toThrow(
+      'reconnect interval'
+    )
+    expect(() => new ROSBridge({ url: 'ws://localhost:9090', maxReconnectAttempts: -1 })).toThrow(
+      'reconnect attempts'
+    )
+    expect(
+      () =>
+        new ROSBridge({
+          url: 'ws://localhost:9090',
+          autoReconnect: 'yes' as unknown as boolean,
+        })
+    ).toThrow('autoReconnect')
   })
 
   it('gives every consumer an exact subscription ID and dispatches telemetry once', async () => {
@@ -103,7 +139,13 @@ describe('ROSBridge telemetry surface', () => {
     const secondCallback = vi.fn()
 
     const unsubscribeFirst = bridge.subscribe('/camera', 'sensor_msgs/Image', firstCallback, 50, 10)
-    const unsubscribeSecond = bridge.subscribe('/camera', 'sensor_msgs/Image', secondCallback, 50, 10)
+    const unsubscribeSecond = bridge.subscribe(
+      '/camera',
+      'sensor_msgs/Image',
+      secondCallback,
+      50,
+      10
+    )
     ws.receive({ op: 'publish', topic: '/camera', msg: rawImage(1) })
     unsubscribeFirst()
     unsubscribeSecond()
@@ -147,9 +189,9 @@ describe('ROSBridge telemetry surface', () => {
     const { bridge, ws } = await connectBridge()
     bridge.subscribe('/camera', 'sensor_msgs/Image', vi.fn())
 
-    expect(() =>
-      bridge.subscribe('/camera', 'sensor_msgs/CompressedImage', vi.fn())
-    ).toThrow('refusing conflicting type')
+    expect(() => bridge.subscribe('/camera', 'sensor_msgs/CompressedImage', vi.fn())).toThrow(
+      'refusing conflicting type'
+    )
     expect(sentMessages(ws).filter((message) => message.op === 'subscribe')).toHaveLength(1)
   })
 
@@ -172,10 +214,7 @@ describe('ROSBridge telemetry surface', () => {
     const callback = vi.fn()
     bridge.subscribe('/camera', 'sensor_msgs/Image', callback)
 
-    receiveRaw(
-      ws,
-      '{"op":"publish","topic":"/camera","msg":{"width":1,"\\u0077idth":2}}'
-    )
+    receiveRaw(ws, '{"op":"publish","topic":"/camera","msg":{"width":1,"\\u0077idth":2}}')
     ws.receive({ op: 'publish', topic: '/camera', msg: rawImage(1), unexpected: true })
     ws.receive({ op: 'publish', topic: '/camera', msg: { frame: 1 } })
 
@@ -186,6 +225,32 @@ describe('ROSBridge telemetry surface', () => {
       expect.stringContaining('malformed ROS bridge publish envelope'),
       expect.stringContaining('did not match its runtime schema'),
     ])
+  })
+
+  it('rejects control characters and applies string limits in UTF-8 bytes', async () => {
+    const onError = vi.fn()
+    const { bridge, ws } = await connectBridge({ onError })
+    const callback = vi.fn()
+    bridge.subscribe('/camera', 'sensor_msgs/Image', callback)
+
+    ws.receive({
+      op: 'publish',
+      topic: '/camera',
+      msg: { ...rawImage(1), header: { ...rawImage(1).header, frame_id: 'camera\tframe' } },
+    })
+    ws.receive({
+      op: 'publish',
+      topic: '/camera',
+      msg: { ...rawImage(2), header: { ...rawImage(2).header, frame_id: '🚁'.repeat(65) } },
+    })
+    ws.receive({
+      op: 'publish',
+      topic: '/camera',
+      msg: { ...rawImage(3), header: { ...rawImage(3).header, frame_id: '🚁'.repeat(64) } },
+    })
+
+    expect(callback).toHaveBeenCalledOnce()
+    expect(onError).toHaveBeenCalledTimes(2)
   })
 
   it('enforces bounded frame, translation, and quaternion schemas for TF ingress', async () => {
@@ -307,11 +372,7 @@ describe('ROSBridge telemetry surface', () => {
     const onError = vi.fn()
     const { bridge, ws } = await connectBridge({ onError })
     const callback = vi.fn()
-    bridge.subscribe(
-      '/crebain/lidar/detections',
-      'crebain_msgs/LidarDetectionArray',
-      callback
-    )
+    bridge.subscribe('/crebain/lidar/detections', 'crebain_msgs/LidarDetectionArray', callback)
     const validDetection = {
       header: { stamp: { secs: 10, nsecs: 500_000_000 }, frame_id: 'lidar' },
       id: 'lidar-1',
@@ -381,6 +442,51 @@ describe('ROSBridge telemetry surface', () => {
     )
   })
 
+  it('freezes validated telemetry so one consumer cannot mutate later delivery', async () => {
+    const onError = vi.fn()
+    const { bridge, ws } = await connectBridge({ onError })
+    const laterCallback = vi.fn()
+    bridge.subscribe<ReturnType<typeof rawImage>>('/camera', 'sensor_msgs/Image', (message) => {
+      message.width = 99
+    })
+    bridge.subscribe('/camera', 'sensor_msgs/Image', laterCallback)
+
+    ws.receive({ op: 'publish', topic: '/camera', msg: rawImage(4) })
+
+    expect(laterCallback).toHaveBeenCalledWith(expect.objectContaining({ width: 1 }))
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining('ROS callback failed') })
+    )
+  })
+
+  it('bounds unsupported operation names without reflecting attacker-controlled text', async () => {
+    const onError = vi.fn()
+    const { ws } = await connectBridge({ onError })
+    const operation = 'x'.repeat(1_000)
+
+    ws.receive({ op: operation })
+
+    expect(onError).toHaveBeenCalledOnce()
+    expect(String(onError.mock.calls[0]?.[0])).not.toContain(operation)
+  })
+
+  it('contains WebSocket send failures and retains the local subscription', async () => {
+    const onError = vi.fn()
+    const { bridge, ws } = await connectBridge({ onError })
+    vi.spyOn(ws, 'send').mockImplementation(() => {
+      throw new Error('socket raced closed')
+    })
+    const callback = vi.fn()
+
+    expect(() => bridge.subscribe('/camera', 'sensor_msgs/Image', callback)).not.toThrow()
+    ws.receive({ op: 'publish', topic: '/camera', msg: rawImage(5) })
+
+    expect(callback).toHaveBeenCalledOnce()
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining('socket raced closed') })
+    )
+  })
+
   it('reports rejected callback promises without blocking later consumers', async () => {
     const onError = vi.fn()
     const { bridge, ws } = await connectBridge({ onError })
@@ -440,9 +546,10 @@ describe('ROSBridge telemetry surface', () => {
     expect(() => bridge.subscribe('/bad topic', 'sensor_msgs/Image', vi.fn())).toThrow(
       'Invalid ROS topic: name contains invalid characters'
     )
-    expect(() => bridge.subscribe('/camera', 'Image', vi.fn())).toThrow(
-      'Invalid ROS message type'
+    expect(() => bridge.subscribe('/camera/', 'sensor_msgs/Image', vi.fn())).toThrow(
+      'Invalid ROS topic: name contains invalid characters'
     )
+    expect(() => bridge.subscribe('/camera', 'Image', vi.fn())).toThrow('Invalid ROS message type')
     expect(() => bridge.subscribe('/camera', 'sensor_msgs/Image', vi.fn(), -1)).toThrow(
       'Invalid ROS throttle rate'
     )
@@ -507,6 +614,30 @@ describe('ROSBridge telemetry surface', () => {
     MockWebSocket.last().error('failed-connect')
 
     await expect(promise).rejects.toThrow('WebSocket error: failed-connect')
+    expect(bridge.getState()).toBe('disconnected')
+  })
+
+  it('restores disconnected state when WebSocket construction fails', async () => {
+    class ThrowingWebSocket {
+      constructor() {
+        throw new Error('constructor blocked')
+      }
+    }
+    Object.defineProperty(globalThis, 'WebSocket', {
+      configurable: true,
+      writable: true,
+      value: ThrowingWebSocket,
+    })
+    const onError = vi.fn()
+    const bridge = new ROSBridge({
+      url: 'ws://localhost:9090',
+      autoReconnect: false,
+      onError,
+    })
+
+    await expect(bridge.connect()).rejects.toThrow('constructor blocked')
+    expect(bridge.getState()).toBe('disconnected')
+    expect(onError).toHaveBeenCalledOnce()
   })
 
   it('reconnects even when disconnect and state observers throw', async () => {

@@ -83,6 +83,10 @@ export function useDraggable(config: DraggableConfig): DraggableReturn {
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
+      // Magnified mode assigns each panel a stable, scrollable slot. Moving a
+      // panel in that mode would create hidden state without a visible effect.
+      if (document.documentElement.dataset.uiLayout === 'docked') return
+
       // Only drag from elements with data-drag-handle attribute
       const target = e.target as HTMLElement
       if (!target.closest('[data-drag-handle]')) return
@@ -142,7 +146,7 @@ export function useDraggable(config: DraggableConfig): DraggableReturn {
         //   minX = edgePadding - viewportWidth + 12 + elementWidth
         //   minX = -(viewportWidth - elementWidth - edgePadding - 12)
         const rightOffset = 12 // Matches right-3 Tailwind class
-        minX = -(viewportWidth - elementWidth - edgePadding - rightOffset)
+        minX = Math.min(0, -(viewportWidth - elementWidth - edgePadding - rightOffset))
         maxX = 0 // At right edge (snapped to right with rightOffset from CSS)
       }
 

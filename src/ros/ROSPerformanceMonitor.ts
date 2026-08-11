@@ -71,6 +71,7 @@ export interface PerformanceAlert {
   topic?: string
   message: string
   severity: 'warning' | 'error'
+  /** Monotonic milliseconds from the browser performance time origin. */
   timestamp: number
 }
 
@@ -111,21 +112,36 @@ export const MAX_PERFORMANCE_SAMPLE_SLOTS = 1_024_000
 export const MAX_PERFORMANCE_MESSAGE_BYTES = 128 * 1024 * 1024
 /** Samples above one day are not actionable transport latency measurements. */
 export const MAX_PERFORMANCE_LATENCY_MS = 24 * 60 * 60 * 1_000
+export const MAX_PERFORMANCE_WINDOW_MS = MAX_PERFORMANCE_LATENCY_MS
+export const MAX_PERFORMANCE_MESSAGES_PER_SECOND = 1_000_000
 export const MAX_PERFORMANCE_TOPIC_LENGTH = MAX_ROS_GRAPH_NAME_LENGTH
+/** Prevent one noisy topic from driving UI work at transport message rate. */
+export const PERFORMANCE_ALERT_COOLDOWN_MS = 5_000
+/** Bound periodic callback work while still rotating through stale topics. */
+export const MAX_PERFORMANCE_ALERTS_PER_CHECK = 32
 
 function isValidPerformanceTopic(topic: string): boolean {
   return isValidRosGraphName(topic)
 }
 
 function validatePerformanceConfig(config: PerformanceConfig): PerformanceConfig {
-  if (!Number.isSafeInteger(config.windowSizeMs) || config.windowSizeMs <= 0) {
-    throw new Error('Performance window size must be a positive safe integer')
+  if (
+    !Number.isSafeInteger(config.windowSizeMs) ||
+    config.windowSizeMs <= 0 ||
+    config.windowSizeMs > MAX_PERFORMANCE_WINDOW_MS
+  ) {
+    throw new Error(
+      `Performance window size must be an integer from 1 to ${MAX_PERFORMANCE_WINDOW_MS}`
+    )
   }
   if (
     !Number.isSafeInteger(config.messageGapThresholdMs) ||
-    config.messageGapThresholdMs < 0
+    config.messageGapThresholdMs < 0 ||
+    config.messageGapThresholdMs > MAX_PERFORMANCE_WINDOW_MS
   ) {
-    throw new Error('Message gap threshold must be a non-negative safe integer')
+    throw new Error(
+      `Message gap threshold must be an integer from 0 to ${MAX_PERFORMANCE_WINDOW_MS}`
+    )
   }
   if (
     !Number.isFinite(config.highLatencyThresholdMs) ||
@@ -136,8 +152,14 @@ function validatePerformanceConfig(config: PerformanceConfig): PerformanceConfig
       `High latency threshold must be between 0 and ${MAX_PERFORMANCE_LATENCY_MS} milliseconds`
     )
   }
-  if (!Number.isFinite(config.minMessagesPerSecond) || config.minMessagesPerSecond < 0) {
-    throw new Error('Minimum message rate must be a finite non-negative number')
+  if (
+    !Number.isFinite(config.minMessagesPerSecond) ||
+    config.minMessagesPerSecond < 0 ||
+    config.minMessagesPerSecond > MAX_PERFORMANCE_MESSAGES_PER_SECOND
+  ) {
+    throw new Error(
+      `Minimum message rate must be between 0 and ${MAX_PERFORMANCE_MESSAGES_PER_SECOND}`
+    )
   }
   if (
     !Number.isSafeInteger(config.maxSamplesPerTopic) ||
@@ -166,8 +188,12 @@ export class ROSPerformanceMonitor {
   private trackedTopics: Set<string> = new Set()
   private allocatedSampleSlots = 0
   private alertCallbacks: Set<AlertCallback> = new Set()
-  private lastObservedTime: number = Date.now()
-  private startTime: number = this.lastObservedTime
+  private lastAlertAt: Map<string, number> = new Map()
+  private lowThroughputScanCursor = 0
+  private lastObservedTime: number = performance.now()
+  private statisticsStartTime: number = this.lastObservedTime
+  private accumulatedUptimeMs = 0
+  private runningSince: number | null = null
   private droppedMessages: number = 0
   private updateIntervalId: ReturnType<typeof setInterval> | null = null
 
@@ -185,7 +211,7 @@ export class ROSPerformanceMonitor {
   start(): void {
     if (this.updateIntervalId !== null) return
 
-    this.startTime = this.now()
+    this.runningSince = this.now()
 
     // Start periodic stats calculation and alert checking
     this.updateIntervalId = setInterval(() => {
@@ -200,6 +226,10 @@ export class ROSPerformanceMonitor {
     if (this.updateIntervalId !== null) {
       clearInterval(this.updateIntervalId)
       this.updateIntervalId = null
+      if (this.runningSince !== null) {
+        this.accumulatedUptimeMs += this.now() - this.runningSince
+        this.runningSince = null
+      }
     }
   }
 
@@ -214,9 +244,14 @@ export class ROSPerformanceMonitor {
     this.topicLastReceived.clear()
     this.topicLastObserved.clear()
     this.trackedTopics.clear()
+    this.lastAlertAt.clear()
+    this.lowThroughputScanCursor = 0
     this.allocatedSampleSlots = 0
     this.droppedMessages = 0
-    this.startTime = this.now()
+    const now = this.now()
+    this.statisticsStartTime = now
+    this.accumulatedUptimeMs = 0
+    this.runningSince = this.updateIntervalId === null ? null : now
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -238,6 +273,7 @@ export class ROSPerformanceMonitor {
       return
     }
 
+    const wallTime = Date.now()
     const now = this.now()
     this.trackTopic(topic, now)
     const messageBuffer = this.getOrCreateBuffer(this.topicMessageSamples, topic)
@@ -258,8 +294,8 @@ export class ROSPerformanceMonitor {
 
     // Check for message gap
     const lastReceived = this.topicLastReceived.get(topic)
-    if (lastReceived && (now - lastReceived) > this.config.messageGapThresholdMs) {
-      this.droppedMessages++
+    if (lastReceived !== undefined && now - lastReceived > this.config.messageGapThresholdMs) {
+      this.droppedMessages = Math.min(Number.MAX_SAFE_INTEGER, this.droppedMessages + 1)
       this.emitAlert({
         type: 'message_gap',
         topic,
@@ -276,10 +312,10 @@ export class ROSPerformanceMonitor {
       sentTimestamp !== undefined &&
       Number.isFinite(sentTimestamp) &&
       sentTimestamp >= 0 &&
-      sentTimestamp <= now &&
-      now - sentTimestamp <= MAX_PERFORMANCE_LATENCY_MS
+      sentTimestamp <= wallTime &&
+      wallTime - sentTimestamp <= MAX_PERFORMANCE_LATENCY_MS
     ) {
-      this.recordLatencySample(topic, now - sentTimestamp, now)
+      this.recordLatencySample(topic, wallTime - sentTimestamp, now)
     }
   }
 
@@ -329,6 +365,10 @@ export class ROSPerformanceMonitor {
    * Get statistics for a specific topic
    */
   getTopicStats(topic: string): TopicStats | null {
+    return this.getTopicStatsAt(topic, this.now())
+  }
+
+  private getTopicStatsAt(topic: string, now: number): TopicStats | null {
     const messageCount = this.topicLifetimeMessageCounts.get(topic) || 0
     const byteCount = this.topicLifetimeByteCounts.get(topic) || 0
     const lastReceived = this.topicLastReceived.get(topic) || 0
@@ -337,7 +377,6 @@ export class ROSPerformanceMonitor {
 
     if (messageCount === 0) return null
 
-    const now = this.now()
     const cutoff = now - this.config.windowSizeMs
     const messageSamples = messageBuffer?.filter((sample) => sample.timestamp >= cutoff) ?? []
     const windowMessageCount = messageSamples.length
@@ -345,11 +384,8 @@ export class ROSPerformanceMonitor {
     // Before one complete window has elapsed, divide by the observed duration;
     // afterwards use the fixed configured window. Keep a positive denominator at
     // startup without stretching a sub-second configured window.
-    const elapsedMs = Math.max(0, now - this.startTime)
-    const windowDurationMs = Math.min(
-      this.config.windowSizeMs,
-      Math.max(1, elapsedMs)
-    )
+    const elapsedMs = Math.max(0, now - this.statisticsStartTime)
+    const windowDurationMs = Math.min(this.config.windowSizeMs, Math.max(1, elapsedMs))
     const windowDurationSeconds = windowDurationMs / 1000
 
     // Calculate latency stats
@@ -393,6 +429,10 @@ export class ROSPerformanceMonitor {
    * Get statistics for all topics
    */
   getAllTopicStats(): TopicStats[] {
+    return this.getAllTopicStatsAt(this.now())
+  }
+
+  private getAllTopicStatsAt(now: number): TopicStats[] {
     const topics = new Set<string>([
       ...this.topicLifetimeMessageCounts.keys(),
       ...this.topicLatencies.keys(),
@@ -400,7 +440,7 @@ export class ROSPerformanceMonitor {
 
     const stats: TopicStats[] = []
     for (const topic of topics) {
-      const topicStats = this.getTopicStats(topic)
+      const topicStats = this.getTopicStatsAt(topic, now)
       if (topicStats) {
         stats.push(topicStats)
       }
@@ -413,8 +453,24 @@ export class ROSPerformanceMonitor {
    * Get overall connection quality
    */
   getConnectionQuality(): ConnectionQuality {
-    const stats = this.getAllTopicStats()
-    const uptimeSeconds = (this.now() - this.startTime) / 1000
+    const now = this.now()
+    return this.getConnectionQualityAt(this.getAllTopicStatsAt(now), now)
+  }
+
+  getPerformanceSnapshot(): {
+    quality: ConnectionQuality
+    topicStats: TopicStats[]
+  } {
+    const now = this.now()
+    const topicStats = this.getAllTopicStatsAt(now)
+    return {
+      quality: this.getConnectionQualityAt(topicStats, now),
+      topicStats,
+    }
+  }
+
+  private getConnectionQualityAt(stats: TopicStats[], now: number): ConnectionQuality {
+    const uptimeSeconds = this.uptimeMsAt(now) / 1000
 
     if (stats.length === 0) {
       return {
@@ -448,7 +504,6 @@ export class ROSPerformanceMonitor {
     // A topic with no message in the complete rolling window is stale even when
     // its lifetime average was once high. Penalize that condition separately so
     // a fully frozen connection cannot remain "good".
-    const now = this.now()
     const staleTopicCount = stats.filter(
       (stat) => now - stat.lastReceived >= this.config.windowSizeMs
     ).length
@@ -495,42 +550,71 @@ export class ROSPerformanceMonitor {
     return () => this.alertCallbacks.delete(callback)
   }
 
-  private emitAlert(alert: PerformanceAlert): void {
-    for (const callback of this.alertCallbacks) {
+  private emitAlert(alert: PerformanceAlert): boolean {
+    const key = `${alert.type}\0${alert.topic ?? ''}`
+    const previous = this.lastAlertAt.get(key)
+    if (previous !== undefined && alert.timestamp - previous < PERFORMANCE_ALERT_COOLDOWN_MS) {
+      return false
+    }
+    this.lastAlertAt.delete(key)
+    this.lastAlertAt.set(key, alert.timestamp)
+    // Snapshot the subscribers. A callback that registers another callback
+    // cannot extend the active dispatch and manufacture unbounded work.
+    const publishedAlert = Object.freeze({ ...alert })
+    for (const callback of [...this.alertCallbacks]) {
       try {
-        callback(alert)
+        callback(publishedAlert)
       } catch (error) {
         log.error('Alert callback error', { error })
       }
     }
+    return true
   }
 
   private checkForAlerts(): void {
     const now = this.now()
-    const quality = this.getConnectionQuality()
+    const quality = this.getConnectionQualityAt(this.getAllTopicStatsAt(now), now)
+    let emittedAlerts = 0
 
     // Check for degraded connection
     if (quality.level === 'poor' || quality.level === 'critical') {
-      this.emitAlert({
-        type: 'connection_degraded',
-        message: `Connection quality ${quality.level}: score ${quality.score}/100`,
-        severity: quality.level === 'critical' ? 'error' : 'warning',
-        timestamp: now,
-      })
-    }
-
-    // Check for low throughput on individual topics
-    for (const [topic, lastReceived] of this.topicLastReceived) {
-      if ((now - lastReceived) > this.config.windowSizeMs) {
+      if (
         this.emitAlert({
-          type: 'low_throughput',
-          topic,
-          message: `No messages received on ${topic} for ${((now - lastReceived) / 1000).toFixed(1)}s`,
-          severity: 'warning',
+          type: 'connection_degraded',
+          message: `Connection quality ${quality.level}: score ${quality.score}/100`,
+          severity: quality.level === 'critical' ? 'error' : 'warning',
           timestamp: now,
         })
+      ) {
+        emittedAlerts += 1
       }
     }
+
+    // Check individual topics from a persistent cursor. Starting at the first
+    // Map entry on every pass lets its cooldown expire before a large tail is
+    // reached, which can starve later topics forever.
+    const topics = [...this.topicLastReceived.entries()]
+    const topicCount = topics.length
+    const startIndex = topicCount === 0 ? 0 : this.lowThroughputScanCursor % topicCount
+    let visitedTopics = 0
+    while (visitedTopics < topicCount && emittedAlerts < MAX_PERFORMANCE_ALERTS_PER_CHECK) {
+      const [topic, lastReceived] = topics[(startIndex + visitedTopics) % topicCount]
+      visitedTopics += 1
+      if (now - lastReceived > this.config.windowSizeMs) {
+        if (
+          this.emitAlert({
+            type: 'low_throughput',
+            topic,
+            message: `No messages received on ${topic} for ${((now - lastReceived) / 1000).toFixed(1)}s`,
+            severity: 'warning',
+            timestamp: now,
+          })
+        ) {
+          emittedAlerts += 1
+        }
+      }
+    }
+    this.lowThroughputScanCursor = topicCount === 0 ? 0 : (startIndex + visitedTopics) % topicCount
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -567,16 +651,21 @@ export class ROSPerformanceMonitor {
   }
 
   getUptimeSeconds(): number {
-    return (this.now() - this.startTime) / 1000
+    return this.uptimeMsAt(this.now()) / 1000
   }
 
   getDroppedMessageCount(): number {
     return this.droppedMessages
   }
 
-  private now(): number {
-    this.lastObservedTime = Math.max(this.lastObservedTime, Date.now())
+  private now(observedDurationTime: number = performance.now()): number {
+    this.lastObservedTime = Math.max(this.lastObservedTime, observedDurationTime)
     return this.lastObservedTime
+  }
+
+  private uptimeMsAt(now: number): number {
+    if (this.runningSince === null) return this.accumulatedUptimeMs
+    return this.accumulatedUptimeMs + Math.max(0, now - this.runningSince)
   }
 
   private trackTopic(topic: string, now: number): void {
@@ -626,6 +715,9 @@ export class ROSPerformanceMonitor {
     this.topicLastReceived.delete(oldestTopic)
     this.topicLastObserved.delete(oldestTopic)
     this.trackedTopics.delete(oldestTopic)
+    for (const type of ['high_latency', 'low_throughput', 'message_gap'] as const) {
+      this.lastAlertAt.delete(`${type}\0${oldestTopic}`)
+    }
     return true
   }
 
@@ -646,15 +738,6 @@ export class ROSPerformanceMonitor {
 // ─────────────────────────────────────────────────────────────────────────────
 // FACTORY
 // ─────────────────────────────────────────────────────────────────────────────
-
-let instance: ROSPerformanceMonitor | null = null
-
-export function getPerformanceMonitor(): ROSPerformanceMonitor {
-  if (!instance) {
-    instance = new ROSPerformanceMonitor()
-  }
-  return instance
-}
 
 export function createPerformanceMonitor(
   config?: Partial<PerformanceConfig>

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createGuidanceController } from '../GuidanceController'
+import { createGuidanceController, MAX_GUIDANCE_RATE_HZ } from '../GuidanceController'
 
 describe('GuidanceController local preview', () => {
   afterEach(() => {
@@ -167,14 +167,64 @@ describe('GuidanceController local preview', () => {
   it('exposes no transport write methods', () => {
     const controller = createGuidanceController() as unknown as Record<string, unknown>
 
-    for (const method of [
-      'publish',
-      'callService',
-      'publishSetpointVelocity',
-      'setMode',
-      'arm',
-    ]) {
+    for (const method of ['publish', 'callService', 'publishSetpointVelocity', 'setMode', 'arm']) {
       expect(controller[method], method).toBeUndefined()
     }
+  })
+
+  it('rejects unsafe timer and control configuration atomically', () => {
+    expect(() => createGuidanceController({ rateHz: 0 })).toThrow('Guidance rateHz')
+    expect(() => createGuidanceController({ rateHz: MAX_GUIDANCE_RATE_HZ + 1 })).toThrow(
+      'Guidance rateHz'
+    )
+    expect(() => createGuidanceController({ maxAcceleration: Number.POSITIVE_INFINITY })).toThrow(
+      'Guidance maxAcceleration'
+    )
+
+    const controller = createGuidanceController()
+    const before = controller.getConfig()
+    expect(() => controller.setConfig({ arrivalThreshold: before.approachDistance + 1 })).toThrow(
+      'must not exceed approachDistance'
+    )
+    expect(controller.getConfig()).toEqual(before)
+  })
+
+  it('snapshots vector inputs and state outputs', () => {
+    const controller = createGuidanceController()
+    const target = { x: 1, y: 2, z: 3 }
+    const current = { x: 4, y: 5, z: 6 }
+    controller.setTargetPosition(target)
+    controller.updateCurrentPosition(current, { x: 0, y: 0, z: 0 })
+
+    target.x = 99
+    current.x = 99
+    const firstSnapshot = controller.getState()
+    expect(firstSnapshot.targetPosition).toEqual({ x: 1, y: 2, z: 3 })
+    expect(firstSnapshot.currentPosition).toEqual({ x: 4, y: 5, z: 6 })
+
+    firstSnapshot.currentPosition.x = -1
+    expect(controller.getCurrentPosition()).toEqual({ x: 4, y: 5, z: 6 })
+    expect(() => controller.setPreviewVelocity({ x: Number.NaN, y: 0, z: 0 })).toThrow(
+      'must contain finite coordinates'
+    )
+  })
+
+  it('isolates proposal observers from each other and from controller state', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(5_000)
+    const controller = createGuidanceController({ rateHz: 10, maxAcceleration: 10 })
+    controller.onProposal((proposal) => {
+      proposal.velocity.x = 999
+    })
+    const second = vi.fn()
+    controller.onProposal(second)
+    controller.startPreview()
+    controller.setPreviewVelocity({ x: 5, y: 0, z: 0 })
+
+    await vi.advanceTimersByTimeAsync(100)
+
+    expect(second).toHaveBeenCalledWith(expect.objectContaining({ velocity: { x: 1, y: 0, z: 0 } }))
+    expect(controller.getState().lastProposedVelocity).toEqual({ x: 1, y: 0, z: 0 })
+    controller.stop()
   })
 })

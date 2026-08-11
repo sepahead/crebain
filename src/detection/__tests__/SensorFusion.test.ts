@@ -39,6 +39,21 @@ describe('SensorFusion triangulation', () => {
     vi.useRealTimers()
   })
 
+  it('rejects unsafe browser-fusion configuration before processing', () => {
+    expect(() => new SensorFusion({ correlationThreshold: Number.NaN })).toThrow(
+      'correlationThreshold'
+    )
+    expect(() => new SensorFusion({ positionSmoothing: 1.1 })).toThrow('positionSmoothing')
+    expect(() => new SensorFusion({ maxTrackAge: 0 })).toThrow('maxTrackAge')
+    expect(() => new SensorFusion({ minConfirmationFrames: 31 })).toThrow('minConfirmationFrames')
+    expect(
+      () =>
+        new SensorFusion({
+          unexpected: true,
+        } as unknown as ConstructorParameters<typeof SensorFusion>[0])
+    ).toThrow('configuration schema')
+  })
+
   it('triangulates near the ray intersection for two cameras', () => {
     const target = new THREE.Vector3(0, 0, 0)
 
@@ -184,6 +199,70 @@ describe('SensorFusion triangulation', () => {
     expect(hasFiniteMultiCameraTriangulation(track)).toBe(false)
   })
 
+  it('never promotes camera-forward guesses when image dimensions are absent', () => {
+    const inputs = toFusionInputs(createDroneApproachScenario())
+    const geometryless = new Map(
+      [...inputs.detections].map(([cameraId, detections]) => [
+        cameraId,
+        detections.map((detection) => ({
+          ...detection,
+          frameWidth: undefined,
+          frameHeight: undefined,
+        })),
+      ])
+    )
+
+    const [track] = new SensorFusion({ correlationThreshold: 0.1 }).processFrame(
+      geometryless,
+      inputs.cameras
+    )
+
+    expect(track.contributingCameras.length).toBeGreaterThanOrEqual(2)
+    expect(track.triangulatedPosition.toArray().every(Number.isFinite)).toBe(true)
+    expect(track.triangulationError).toBe(Number.POSITIVE_INFINITY)
+    expect(hasFiniteMultiCameraTriangulation(track)).toBe(false)
+  })
+
+  it('does not use an unreliable fallback as a hard track-association gate', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(1_700_000_000_000)
+    const inputs = toFusionInputs(createDroneApproachScenario())
+    const fusion = new SensorFusion({ correlationThreshold: 0.1 })
+    const initial = fusion.processFrame(inputs.detections, inputs.cameras)[0]
+
+    vi.setSystemTime(1_700_000_000_100)
+    const parallelCameras = new Map(
+      [...inputs.cameras].map(([cameraId, camera]) => [
+        cameraId,
+        makeCameraParams(
+          cameraId,
+          camera.position,
+          camera.position.clone().add(new THREE.Vector3(0, 0, -20)),
+          camera.fov,
+          camera.aspectRatio
+        ),
+      ])
+    )
+    const geometryless = new Map(
+      [...inputs.detections].map(([cameraId, detections]) => [
+        cameraId,
+        detections.map((detection, index) => ({
+          ...detection,
+          id: `${cameraId}-continuation-${index}`,
+          timestamp: Date.now(),
+          frameWidth: undefined,
+          frameHeight: undefined,
+        })),
+      ])
+    )
+
+    const continued = fusion.processFrame(geometryless, parallelCameras)
+
+    expect(continued).toHaveLength(1)
+    expect(continued[0].id).toBe(initial.id)
+    expect(continued[0].triangulationError).toBe(Number.POSITIVE_INFINITY)
+  })
+
   it('does not refresh an old triangulation from a single-camera continuation', () => {
     vi.useFakeTimers()
     vi.setSystemTime(1_700_000_000_000)
@@ -264,6 +343,64 @@ describe('SensorFusion triangulation', () => {
       totalTracks: 0,
       frameCount: 4,
     })
+  })
+
+  it('does not expose mutable internal track state', () => {
+    const inputs = toFusionInputs(createDroneApproachScenario())
+    const fusion = new SensorFusion({ correlationThreshold: 0.1 })
+    const returned = fusion.processFrame(inputs.detections, inputs.cameras)
+
+    returned[0].state = 'lost'
+    returned[0].position.set(999, 999, 999)
+    returned[0].sensorSources.length = 0
+    returned[0].lastDetection.bbox[0] = 999
+    returned[0].positionHistory.length = 0
+    returned[0].detectionHistory.length = 0
+
+    const firstSnapshot = fusion.getActiveTracks()
+    expect(firstSnapshot).toHaveLength(1)
+    expect(firstSnapshot[0].state).toBe('tentative')
+    expect(firstSnapshot[0].position.toArray()).not.toEqual([999, 999, 999])
+    expect(firstSnapshot[0].sensorSources.length).toBeGreaterThan(0)
+    expect(firstSnapshot[0].lastDetection.bbox[0]).not.toBe(999)
+    expect(firstSnapshot[0].positionHistory).toHaveLength(1)
+    expect(firstSnapshot[0].detectionHistory).toHaveLength(1)
+
+    firstSnapshot[0].state = 'lost'
+    expect(fusion.getActiveTracks()[0].state).toBe('tentative')
+  })
+
+  it('expires a track whose unmatched interval starts at timestamp zero', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(0)
+    const inputs = toFusionInputs(createDroneApproachScenario())
+    for (const detections of inputs.detections.values()) {
+      for (const detection of detections) detection.timestamp = 0
+    }
+    const fusion = new SensorFusion({ correlationThreshold: 0.1, maxTrackAge: 100 })
+
+    expect(fusion.processFrame(inputs.detections, inputs.cameras)).toHaveLength(1)
+    expect(fusion.processFrame(new Map(), inputs.cameras)).toHaveLength(1)
+    vi.setSystemTime(101)
+    expect(fusion.processFrame(new Map(), inputs.cameras)).toHaveLength(0)
+  })
+
+  it('does not age a legacy frame backward when the wall clock rolls back', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(1_000)
+    const inputs = toFusionInputs(createDroneApproachScenario())
+    for (const detections of inputs.detections.values()) {
+      for (const detection of detections) detection.timestamp = 1_000
+    }
+    const fusion = new SensorFusion({ correlationThreshold: 0.1, maxTrackAge: 50 })
+
+    expect(fusion.processFrame(inputs.detections, inputs.cameras)).toHaveLength(1)
+    vi.setSystemTime(900)
+    expect(fusion.processFrame(new Map(), inputs.cameras)).toHaveLength(1)
+    vi.setSystemTime(1_000)
+    expect(fusion.processFrame(new Map(), inputs.cameras)).toHaveLength(1)
+    vi.setSystemTime(1_051)
+    expect(fusion.processFrame(new Map(), inputs.cameras)).toHaveLength(0)
   })
 })
 

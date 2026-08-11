@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, relative, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { format as formatWithPrettier } from 'prettier'
 import ts from 'typescript'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -258,9 +259,39 @@ export function createRegistry() {
     prefixMatch && rustPrefixMatch && prefixMatch[1] === rustPrefixMatch[1],
     'transport event prefix drift'
   )
+  const transportSource = source(TRANSPORT_COMMANDS)
+  const transportFrontendSource = source(TRANSPORT_FRONTEND)
+  assert(
+    /struct\s+TelemetryEvent<T>\s*\{[\s\S]*generation:\s*String,[\s\S]*subscription_id:\s*String,[\s\S]*data:\s*T,/.test(
+      transportSource
+    ),
+    'native non-camera telemetry identity envelope is missing'
+  )
+  for (const command of [
+    'transport_subscribe_camera_info',
+    'transport_subscribe_imu',
+    'transport_subscribe_model_states',
+    'transport_subscribe_pose',
+    'transport_unsubscribe',
+  ]) {
+    const signature = transportSource.match(
+      new RegExp(`pub async fn ${command}\\b([\\s\\S]*?)\\) -> Result`)
+    )?.[1]
+    assert(
+      signature?.includes('subscription_id: String'),
+      `${command} lacks exact subscription identity`
+    )
+  }
+  assert(
+    transportFrontendSource.includes('candidate.generation !== this.backendGeneration') &&
+      transportFrontendSource.includes(
+        'candidate.subscriptionId !== this.subscriptionIds.get(topic)'
+      ),
+    'frontend telemetry identity admission is missing'
+  )
 
   return {
-    schema_version: 2,
+    schema_version: 3,
     release_target: '0.9.0',
     generated_from: SOURCE_PATHS.map((path) => ({ path, sha256: sha256(source(path)) })),
     transport_identity_contract: {
@@ -270,6 +301,20 @@ export function createRegistry() {
         connect_result_command: 'transport_connect',
         input_commands: LIFECYCLE_GENERATION_INPUT_COMMANDS,
         camera_ready_event_field: 'generation',
+      },
+      subscription_identity: {
+        wire_encoding: 'canonical-positive-u64-decimal-string',
+        native_encoding: 'u64',
+        input_commands: [
+          'transport_subscribe_camera',
+          'transport_subscribe_camera_info',
+          'transport_subscribe_imu',
+          'transport_subscribe_model_states',
+          'transport_subscribe_pose',
+          'transport_unsubscribe',
+        ],
+        non_camera_event_fields: ['generation', 'subscriptionId', 'data'],
+        camera_ready_event_field: 'cameraSubscriptionId',
       },
     },
     commands: frontend
@@ -288,7 +333,7 @@ export function createRegistry() {
         kind: 'bounded-dynamic-pattern',
         direction: 'rust-to-frontend',
         payload:
-          'validated registered telemetry schema, or exact camera-ready delivery descriptor with canonical-positive-u64-decimal-string generation, deliveryId, and cameraSubscriptionId fields for image subscriptions',
+          'non-image telemetry uses an exact generation/subscriptionId/data identity envelope around a validated registered schema; image telemetry uses an exact camera-ready descriptor with canonical-positive-u64-decimal-string generation, deliveryId, and cameraSubscriptionId fields',
         authority: 'none',
       },
     ],
@@ -302,13 +347,15 @@ export function createRegistry() {
   }
 }
 
-export function formattedRegistry() {
-  return `${JSON.stringify(createRegistry(), null, 2)}\n`
+export async function formattedRegistry() {
+  return formatWithPrettier(JSON.stringify(createRegistry()), {
+    filepath: OUTPUT,
+  })
 }
 
-export function verifyRegistry(path = OUTPUT) {
+export async function verifyRegistry(path = OUTPUT) {
   assert(existsSync(path), `registry is missing: ${relative(ROOT, path)}`)
-  const expected = formattedRegistry()
+  const expected = await formattedRegistry()
   const actual = readFileSync(path, 'utf8')
   assert(
     actual === expected,
@@ -320,8 +367,8 @@ export function verifyRegistry(path = OUTPUT) {
 const isMain = process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url
 if (isMain) {
   try {
-    if (process.argv.includes('--write')) writeFileSync(OUTPUT, formattedRegistry())
-    const registry = verifyRegistry()
+    if (process.argv.includes('--write')) writeFileSync(OUTPUT, await formattedRegistry())
+    const registry = await verifyRegistry()
     console.log(
       `OK: IPC registry covers ${registry.commands.length} commands and ${registry.events.length} event contracts`
     )

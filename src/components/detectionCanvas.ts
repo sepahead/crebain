@@ -66,7 +66,13 @@ function drawDetectionBox(
   if (!clippedBox) return
   const { x: boxX, y: boxY, width: boxW, height: boxH } = clippedBox
 
-  const threatLevel = detection.threatLevel ?? getThreatLevel(detection.class, detection.confidence)
+  const threatLevel =
+    detection.threatLevel !== undefined && THREAT_LEVEL_COLORS[detection.threatLevel]
+      ? detection.threatLevel
+      : getThreatLevel(detection.class, detection.confidence)
+  const confidence = Number.isFinite(detection.confidence)
+    ? Math.max(0, Math.min(1, detection.confidence))
+    : 0
   const baseColor = THREAT_LEVEL_COLORS[threatLevel]
   const colors = {
     border: baseColor,
@@ -113,7 +119,7 @@ function drawDetectionBox(
 
   if (showLabels || showConfidence) {
     const className = CLASS_DISPLAY_NAMES[detection.class] || detection.class.toUpperCase()
-    const confidenceText = showConfidence ? ` ${Math.round(detection.confidence * 100)}%` : ''
+    const confidenceText = showConfidence ? ` ${Math.round(confidence * 100)}%` : ''
     const labelText = showLabels ? className + confidenceText : confidenceText.trim()
 
     if (labelText) {
@@ -142,7 +148,7 @@ function drawDetectionBox(
     ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'
     ctx.fillRect(boxX + 2, barY, barWidth, barHeight)
     ctx.fillStyle = colors.border
-    ctx.fillRect(boxX + 2, barY, barWidth * detection.confidence, barHeight)
+    ctx.fillRect(boxX + 2, barY, barWidth * confidence, barHeight)
   }
 
   if (detection.id) {

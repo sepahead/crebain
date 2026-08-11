@@ -112,6 +112,8 @@ pub enum InferenceError {
     InferenceError(String),
     /// Invalid input
     InvalidInput(String),
+    /// The persistent runtime is still initializing
+    RuntimeBusy,
     /// Backend-specific error
     BackendError(String),
 }
@@ -133,6 +135,9 @@ impl fmt::Display for InferenceError {
             InferenceError::ModelLoadError(s) => write!(f, "Model load error: {}", s),
             InferenceError::InferenceError(s) => write!(f, "Inference error: {}", s),
             InferenceError::InvalidInput(s) => write!(f, "Invalid input: {}", s),
+            InferenceError::RuntimeBusy => {
+                f.write_str("Inference runtime is still initializing; retry later")
+            }
             InferenceError::BackendError(s) => write!(f, "Backend error: {}", s),
         }
     }
@@ -218,8 +223,40 @@ pub struct DetectionPolicy {
 pub const BACKEND_MIN_CONFIDENCE_THRESHOLD: f32 = 0.25;
 pub const BACKEND_MAX_IOU_THRESHOLD: f32 = 0.45;
 pub const BACKEND_MAX_DETECTIONS: usize = 100;
+const MAX_DETECTION_CLASS_LABEL_BYTES: usize = 256;
 
 impl DetectionPolicy {
+    /// Build a policy from JavaScript-compatible double-precision values.
+    ///
+    /// Validate before narrowing to `f32`. Otherwise, a value immediately
+    /// outside a boundary can round onto that boundary and become admissible.
+    pub fn new_from_f64(
+        confidence_threshold: f64,
+        iou_threshold: f64,
+        max_detections: usize,
+    ) -> Result<Self> {
+        if !confidence_threshold.is_finite()
+            || !(f64::from(BACKEND_MIN_CONFIDENCE_THRESHOLD)..=1.0).contains(&confidence_threshold)
+        {
+            return Err(InferenceError::InvalidInput(format!(
+                "confidence threshold must be finite and between {BACKEND_MIN_CONFIDENCE_THRESHOLD} and 1; the common backend envelope starts at {BACKEND_MIN_CONFIDENCE_THRESHOLD}"
+            )));
+        }
+        if !iou_threshold.is_finite()
+            || !(0.0..=f64::from(BACKEND_MAX_IOU_THRESHOLD)).contains(&iou_threshold)
+        {
+            return Err(InferenceError::InvalidInput(format!(
+                "IoU threshold must be finite and between 0 and {BACKEND_MAX_IOU_THRESHOLD}; the common backend envelope ends at {BACKEND_MAX_IOU_THRESHOLD}"
+            )));
+        }
+
+        Self::new(
+            confidence_threshold as f32,
+            iou_threshold as f32,
+            max_detections,
+        )
+    }
+
     /// Build a validated detection policy.
     pub fn new(
         confidence_threshold: f32,
@@ -288,6 +325,7 @@ pub struct RuntimeSnapshot {
 
 enum RuntimeState {
     Uninitialized,
+    Initializing,
     Ready(Arc<dyn Detector>),
     Failed(InferenceError),
 }
@@ -384,6 +422,12 @@ impl DetectorRuntime {
                 initialization_error: None,
                 stats: None,
             },
+            RuntimeState::Initializing => RuntimeSnapshot {
+                status: RuntimeStatus::Busy,
+                active_backend: None,
+                initialization_error: None,
+                stats: None,
+            },
             RuntimeState::Ready(detector) => RuntimeSnapshot {
                 status: RuntimeStatus::Ready,
                 active_backend: Some(detector.backend()),
@@ -400,18 +444,21 @@ impl DetectorRuntime {
     }
 
     fn detector(&self) -> Result<Arc<dyn Detector>> {
-        let mut state = self.state.lock().map_err(|_| {
-            InferenceError::BackendError("inference runtime state lock poisoned".to_string())
-        })?;
-
-        match &*state {
-            RuntimeState::Ready(detector) => return Ok(Arc::clone(detector)),
-            RuntimeState::Failed(error) => {
-                return Err(error.clone());
+        {
+            let mut state = self.state.lock().map_err(|_| {
+                InferenceError::BackendError("inference runtime state lock poisoned".to_string())
+            })?;
+            match &*state {
+                RuntimeState::Ready(detector) => return Ok(Arc::clone(detector)),
+                RuntimeState::Failed(error) => return Err(error.clone()),
+                RuntimeState::Initializing => return Err(InferenceError::RuntimeBusy),
+                RuntimeState::Uninitialized => *state = RuntimeState::Initializing,
             }
-            RuntimeState::Uninitialized => {}
         }
 
+        // Model discovery and warmup can take seconds. Run them without the
+        // state mutex so diagnostics and frame admission can observe Busy and
+        // fail fast instead of retaining work behind initialization.
         let initialized = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             (self.factory)().and_then(|mut detector| {
                 let backend = detector.backend();
@@ -430,6 +477,9 @@ impl DetectorRuntime {
             ))
         });
 
+        let mut state = self.state.lock().map_err(|_| {
+            InferenceError::BackendError("inference runtime state lock poisoned".to_string())
+        })?;
         match initialized {
             Ok(detector) => {
                 log::info!(
@@ -511,9 +561,23 @@ pub(crate) fn validate_backend_detection(
             "backend returned a degenerate bounding box".to_string(),
         ));
     }
-    if detection.class_label.trim().is_empty() {
+    if usize::try_from(detection.class_id)
+        .ok()
+        .is_none_or(|class_id| class_id >= crate::common::coco::NUM_CLASSES)
+    {
+        return Err(InferenceError::InferenceError(format!(
+            "backend returned class ID {} outside the COCO range",
+            detection.class_id
+        )));
+    }
+    if detection.class_label.trim().is_empty()
+        || detection.class_label.len() > MAX_DETECTION_CLASS_LABEL_BYTES
+        || detection.class_label.chars().any(char::is_control)
+    {
         return Err(InferenceError::InferenceError(
-            "backend returned an empty class label".to_string(),
+            format!(
+                "backend returned an invalid class label; labels must contain 1..={MAX_DETECTION_CLASS_LABEL_BYTES} UTF-8 bytes and no control characters"
+            ),
         ));
     }
 
@@ -926,6 +990,30 @@ mod tests {
     }
 
     #[test]
+    fn detection_policy_rejects_f64_values_that_would_round_onto_a_boundary() {
+        let confidence_just_below = f64::from(BACKEND_MIN_CONFIDENCE_THRESHOLD) - f64::EPSILON;
+        assert_eq!(
+            confidence_just_below as f32,
+            BACKEND_MIN_CONFIDENCE_THRESHOLD
+        );
+        assert!(DetectionPolicy::new_from_f64(
+            confidence_just_below,
+            f64::from(BACKEND_MAX_IOU_THRESHOLD),
+            BACKEND_MAX_DETECTIONS,
+        )
+        .is_err());
+
+        let iou_just_above = f64::from(BACKEND_MAX_IOU_THRESHOLD) + f64::EPSILON;
+        assert_eq!(iou_just_above as f32, BACKEND_MAX_IOU_THRESHOLD);
+        assert!(DetectionPolicy::new_from_f64(
+            f64::from(BACKEND_MIN_CONFIDENCE_THRESHOLD),
+            iou_just_above,
+            BACKEND_MAX_DETECTIONS,
+        )
+        .is_err());
+    }
+
+    #[test]
     fn detection_policy_rejects_confidence_below_common_backend_boundary() {
         let error = DetectionPolicy::new(
             BACKEND_MIN_CONFIDENCE_THRESHOLD - 0.01,
@@ -1017,7 +1105,7 @@ mod tests {
     }
 
     #[test]
-    fn concurrent_first_use_initializes_and_warms_factory_detector_once() {
+    fn concurrent_first_use_initializes_once_and_rejects_only_transient_overlap() {
         const WORKERS: usize = 8;
 
         let factory_count = Arc::new(AtomicUsize::new(0));
@@ -1036,21 +1124,26 @@ mod tests {
                 let barrier = Arc::clone(&barrier);
                 std::thread::spawn(move || {
                     barrier.wait();
-                    runtime
-                        .detect(
-                            &[0, 0, 0, 255],
-                            1,
-                            1,
-                            DetectionPolicy::new(0.25, 0.45, 10).unwrap(),
-                        )
-                        .unwrap();
+                    runtime.detect(
+                        &[0, 0, 0, 255],
+                        1,
+                        1,
+                        DetectionPolicy::new(0.25, 0.45, 10).unwrap(),
+                    )
                 })
             })
             .collect();
 
-        for worker in workers {
-            worker.join().unwrap();
-        }
+        let outcomes: Vec<_> = workers
+            .into_iter()
+            .map(|worker| worker.join().unwrap())
+            .collect();
+        let successful = outcomes.iter().filter(|outcome| outcome.is_ok()).count();
+        assert!(successful >= 1);
+        assert!(outcomes.iter().all(|outcome| match outcome {
+            Ok(_) => true,
+            Err(error) => matches!(error, InferenceError::RuntimeBusy),
+        }));
 
         assert_eq!(
             (
@@ -1058,8 +1151,55 @@ mod tests {
                 warmup_count.load(Ordering::SeqCst),
                 detect_count.load(Ordering::SeqCst),
             ),
-            (1, 1, WORKERS)
+            (1, 1, successful)
         );
+
+        runtime
+            .detect(
+                &[0, 0, 0, 255],
+                1,
+                1,
+                DetectionPolicy::new(0.25, 0.45, 10).unwrap(),
+            )
+            .unwrap();
+        assert_eq!(detect_count.load(Ordering::SeqCst), successful + 1);
+    }
+
+    #[test]
+    fn runtime_reports_busy_without_holding_frames_behind_warmup() {
+        let initialization_started = Arc::new(Barrier::new(2));
+        let release_initialization = Arc::new(Barrier::new(2));
+        let started_for_factory = Arc::clone(&initialization_started);
+        let release_for_factory = Arc::clone(&release_initialization);
+        let runtime = Arc::new(DetectorRuntime::new(move || {
+            started_for_factory.wait();
+            release_for_factory.wait();
+            Ok(Box::new(FakeDetector {
+                backend: Backend::ONNX,
+                detections: Vec::new(),
+                warmup_count: Arc::new(AtomicUsize::new(0)),
+                detect_count: Arc::new(AtomicUsize::new(0)),
+                detection_error: None,
+            }))
+        }));
+        let initializing_runtime = Arc::clone(&runtime);
+        let initializer = std::thread::spawn(move || initializing_runtime.initialize());
+
+        initialization_started.wait();
+        assert_eq!(runtime.snapshot().status, RuntimeStatus::Busy);
+        let error = runtime
+            .detect(
+                &[0, 0, 0, 255],
+                1,
+                1,
+                DetectionPolicy::new(0.25, 0.45, 10).unwrap(),
+            )
+            .unwrap_err();
+        assert!(matches!(error, InferenceError::RuntimeBusy));
+
+        release_initialization.wait();
+        assert_eq!(initializer.join().unwrap().unwrap(), Backend::ONNX);
+        assert_eq!(runtime.snapshot().status, RuntimeStatus::Ready);
     }
 
     #[test]
@@ -1298,6 +1438,36 @@ mod tests {
             .unwrap();
 
         assert_eq!(output.detections.len(), 1);
+    }
+
+    #[test]
+    fn runtime_rejects_backend_identity_outside_the_renderer_contract() {
+        for candidate in [
+            detection([0.0, 0.0, 1.0, 1.0], 0.9, 80, "unknown"),
+            detection([0.0, 0.0, 1.0, 1.0], 0.9, 0, "person\nspoof"),
+            detection(
+                [0.0, 0.0, 1.0, 1.0],
+                0.9,
+                0,
+                &"x".repeat(MAX_DETECTION_CLASS_LABEL_BYTES + 1),
+            ),
+        ] {
+            let runtime = fake_runtime(
+                vec![candidate],
+                Arc::new(AtomicUsize::new(0)),
+                Arc::new(AtomicUsize::new(0)),
+                Arc::new(AtomicUsize::new(0)),
+            );
+
+            assert!(runtime
+                .detect(
+                    &[0, 0, 0, 255],
+                    1,
+                    1,
+                    DetectionPolicy::new(0.25, 0.45, 10).unwrap(),
+                )
+                .is_err());
+        }
     }
 
     #[test]

@@ -8,7 +8,13 @@ import {
   radarToMeasurement,
   thermalToMeasurement,
 } from '../useROSSensors'
-import type { AcousticDetection, Header, LidarDetection, RadarDetection, ThermalDetection } from '../types'
+import type {
+  AcousticDetection,
+  Header,
+  LidarDetection,
+  RadarDetection,
+  ThermalDetection,
+} from '../types'
 
 const header: Header = {
   stamp: { secs: 10, nsecs: 500_000_000 },
@@ -72,7 +78,30 @@ describe('useROSSensors helpers', () => {
       classification: 'drone',
     }
 
-    expect(() => thermalToMeasurement(detection, 'thermal_sensor')).toThrow('thermal.position.y must be finite')
+    expect(() => thermalToMeasurement(detection, 'thermal_sensor')).toThrow(
+      'thermal.position.y must be finite'
+    )
+  })
+
+  it('rejects control characters in fusion identifiers and labels', () => {
+    const detection: ThermalDetection = {
+      header,
+      id: 'thermal-1',
+      position: { x: 1, y: 2, z: 3 },
+      temperature_kelvin: 320,
+      signature_area: 1.5,
+      confidence: 0.8,
+      classification: 'small\u0085drone',
+    }
+
+    expect(() => thermalToMeasurement(detection, 'thermal_sensor')).toThrow(
+      'without control characters'
+    )
+    detection.classification = 'small drone'
+    expect(() => thermalToMeasurement(detection, 'thermal\nsensor')).toThrow(
+      'without control characters'
+    )
+    expect(thermalToMeasurement(detection, 'thermal_sensor').class_label).toBe('small drone')
   })
 
   it('rejects finite thermal coordinates outside the native position envelope', () => {
@@ -327,28 +356,28 @@ describe('useROSSensors helpers', () => {
       classification: 'drone',
     }
 
-    expect(() => lidarToMeasurement(detection, 'lidar_sensor')).toThrow('lidar.bbox_size_x must be non-negative')
+    expect(() => lidarToMeasurement(detection, 'lidar_sensor')).toThrow(
+      'lidar.bbox_size_x must be non-negative'
+    )
   })
 
   it.each([0, -1, Number.NaN, 1_000_000_000_001])(
     'rejects %s LIDAR covariance before native fusion',
     (variance) => {
-    const detection: LidarDetection = {
-      header,
-      id: 'lidar-covariance-bad',
-      centroid: { x: 1, y: 2, z: 3 },
-      bbox_min: { x: 0, y: 0, z: 1 },
-      bbox_max: { x: 2, y: 4, z: 5 },
-      velocity: { x: 0.1, y: 0.2, z: 0.3 },
-      covariance: [variance, 0.09, 0.16],
-      num_points: 42,
-      confidence: 0.85,
-      classification: 'drone',
-    }
+      const detection: LidarDetection = {
+        header,
+        id: 'lidar-covariance-bad',
+        centroid: { x: 1, y: 2, z: 3 },
+        bbox_min: { x: 0, y: 0, z: 1 },
+        bbox_max: { x: 2, y: 4, z: 5 },
+        velocity: { x: 0.1, y: 0.2, z: 0.3 },
+        covariance: [variance, 0.09, 0.16],
+        num_points: 42,
+        confidence: 0.85,
+        classification: 'drone',
+      }
 
-      expect(() => lidarToMeasurement(detection, 'lidar_sensor')).toThrow(
-        'lidar.covariance[0]'
-      )
+      expect(() => lidarToMeasurement(detection, 'lidar_sensor')).toThrow('lidar.covariance[0]')
     }
   )
 

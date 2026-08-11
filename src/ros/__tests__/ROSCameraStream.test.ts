@@ -3,9 +3,10 @@ import {
   MAX_CAMERA_DECODE_WORKERS,
   MAX_CAMERA_DIMENSION,
   ROSCameraStream,
+  type CameraStreamStats,
   type DecodedFrame,
 } from '../ROSCameraStream'
-import type { CompressedImage, Image } from '../types'
+import type { CameraInfo, CompressedImage, Image } from '../types'
 import type { ROSBridge } from '../ROSBridge'
 
 type RawDecoder = {
@@ -16,34 +17,54 @@ type CompressedDecoder = {
   decodeCompressedImage(msg: CompressedImage): Promise<DecodedFrame | null>
 }
 
+type CameraStreamInternals = {
+  handleCameraInfo(info: CameraInfo): void
+  notifyFrameCallbacks(frame: DecodedFrame): void
+}
+
 class FakeImageBitmap {
   close = vi.fn()
 
-  constructor(readonly width: number, readonly height: number) {}
+  constructor(
+    readonly width: number,
+    readonly height: number
+  ) {}
 }
 
 beforeAll(() => {
-  vi.stubGlobal('ImageData', class {
-    readonly data: Uint8ClampedArray
-    readonly colorSpace = 'srgb'
+  vi.stubGlobal(
+    'ImageData',
+    class {
+      readonly data: Uint8ClampedArray
+      readonly colorSpace = 'srgb'
 
-    constructor(readonly width: number, readonly height: number) {
-      this.data = new Uint8ClampedArray(width * height * 4)
+      constructor(
+        readonly width: number,
+        readonly height: number
+      ) {
+        this.data = new Uint8ClampedArray(width * height * 4)
+      }
     }
-  })
+  )
   vi.stubGlobal('ImageBitmap', FakeImageBitmap)
 })
 
 beforeEach(() => {
   vi.unstubAllGlobals()
-  vi.stubGlobal('ImageData', class {
-    readonly data: Uint8ClampedArray
-    readonly colorSpace = 'srgb'
+  vi.stubGlobal(
+    'ImageData',
+    class {
+      readonly data: Uint8ClampedArray
+      readonly colorSpace = 'srgb'
 
-    constructor(readonly width: number, readonly height: number) {
-      this.data = new Uint8ClampedArray(width * height * 4)
+      constructor(
+        readonly width: number,
+        readonly height: number
+      ) {
+        this.data = new Uint8ClampedArray(width * height * 4)
+      }
     }
-  })
+  )
   vi.stubGlobal('ImageBitmap', FakeImageBitmap)
 })
 
@@ -64,11 +85,27 @@ function jpeg(width = 2, height = 2): Uint8Array {
   // Minimal marker sequence for the bounded header preflight. Browser decode is
   // stubbed in these unit tests; a real decoder remains the final syntax check.
   return new Uint8Array([
-    0xff, 0xd8,
-    0xff, 0xc0, 0x00, 0x11, 0x08,
-    (height >> 8) & 0xff, height & 0xff,
-    (width >> 8) & 0xff, width & 0xff,
-    0x03, 0x01, 0x11, 0x00, 0x02, 0x11, 0x00, 0x03, 0x11, 0x00,
+    0xff,
+    0xd8,
+    0xff,
+    0xc0,
+    0x00,
+    0x11,
+    0x08,
+    (height >> 8) & 0xff,
+    height & 0xff,
+    (width >> 8) & 0xff,
+    width & 0xff,
+    0x03,
+    0x01,
+    0x11,
+    0x00,
+    0x02,
+    0x11,
+    0x00,
+    0x03,
+    0x11,
+    0x00,
   ])
 }
 
@@ -85,11 +122,7 @@ function bridgeHarness() {
   const unsubscribe = vi.fn()
   const bridge = {
     subscribe: vi.fn(
-      (
-        _topic: string,
-        type: string,
-        callback: (message: CompressedImage) => void
-      ) => {
+      (_topic: string, type: string, callback: (message: CompressedImage) => void) => {
         if (type === 'sensor_msgs/CompressedImage') compressedCallback = callback
         return unsubscribe
       }
@@ -102,6 +135,20 @@ function bridgeHarness() {
   }
 }
 
+describe('ROSCameraStream configuration', () => {
+  it.each([{ queueLength: 0 }, { queueLength: 5 }, { throttleMs: -1 }, { throttleMs: 60_001 }])(
+    'rejects configuration outside the shared transport envelope: %o',
+    (config) => {
+      expect(() => new ROSCameraStream(config)).toThrow()
+    }
+  )
+
+  it('accepts the exact queue and throttle boundaries', () => {
+    expect(() => new ROSCameraStream({ queueLength: 1, throttleMs: 0 })).not.toThrow()
+    expect(() => new ROSCameraStream({ queueLength: 4, throttleMs: 60_000 })).not.toThrow()
+  })
+})
+
 describe('ROSCameraStream raw image decoding', () => {
   it('decodes padded rgb8 rows using the ROS step field', async () => {
     const stream = new ROSCameraStream({ useImageBitmap: false })
@@ -112,10 +159,7 @@ describe('ROSCameraStream raw image decoding', () => {
       encoding: 'rgb8',
       is_bigendian: 0,
       step: 8,
-      data: new Uint8Array([
-        255, 0, 0, 0, 255, 0, 99, 99,
-        0, 0, 255, 255, 255, 255, 88, 88,
-      ]),
+      data: new Uint8Array([255, 0, 0, 0, 255, 0, 99, 99, 0, 0, 255, 255, 255, 255, 88, 88]),
     }
 
     const frame = await decodeRaw(stream, msg)
@@ -123,10 +167,7 @@ describe('ROSCameraStream raw image decoding', () => {
     expect(frame).not.toBeNull()
     expect(frame?.image).toBeInstanceOf(ImageData)
     expect(Array.from((frame?.image as ImageData).data)).toEqual([
-      255, 0, 0, 255,
-      0, 255, 0, 255,
-      0, 0, 255, 255,
-      255, 255, 255, 255,
+      255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255,
     ])
   })
 
@@ -204,7 +245,10 @@ describe('ROSCameraStream compressed ingress', () => {
       decodeCompressed(stream, compressedMessage(2, new Uint8Array([1, 2, 3])))
     ).resolves.toBeNull()
     await expect(
-      decodeCompressed(stream, compressedMessage(3, jpeg(MAX_CAMERA_DIMENSION, MAX_CAMERA_DIMENSION)))
+      decodeCompressed(
+        stream,
+        compressedMessage(3, jpeg(MAX_CAMERA_DIMENSION, MAX_CAMERA_DIMENSION))
+      )
     ).resolves.toBeNull()
 
     expect(createBitmap).not.toHaveBeenCalled()
@@ -212,7 +256,10 @@ describe('ROSCameraStream compressed ingress', () => {
 
   it('closes a decoded bitmap whose dimensions disagree with the encoded header', async () => {
     const mismatched = new FakeImageBitmap(3, 2)
-    vi.stubGlobal('createImageBitmap', vi.fn(async () => mismatched))
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn(async () => mismatched)
+    )
     const stream = new ROSCameraStream({ useImageBitmap: true })
 
     await expect(decodeCompressed(stream, compressedMessage(1))).resolves.toBeNull()
@@ -352,5 +399,120 @@ describe('ROSCameraStream compressed ingress', () => {
     resolvers[1](new FakeImageBitmap(2, 2))
 
     expect(maximumActiveDecodes).toBe(MAX_CAMERA_DECODE_WORKERS)
+  })
+})
+
+describe('ROSCameraStream lifecycle ownership', () => {
+  it('rolls back an earlier subscription when a later declaration fails', () => {
+    const unsubscribe = vi.fn()
+    const failure = new Error('camera info subscription failed')
+    const bridge = {
+      subscribe: vi
+        .fn()
+        .mockReturnValueOnce(unsubscribe)
+        .mockImplementationOnce(() => {
+          throw failure
+        }),
+    } as unknown as ROSBridge
+    const stream = new ROSCameraStream({
+      compressedTopic: '/camera/compressed',
+      infoTopic: '/camera/info',
+    })
+
+    expect(() => stream.start(bridge)).toThrow(failure)
+    expect(unsubscribe).toHaveBeenCalledTimes(1)
+  })
+
+  it('attempts every unsubscribe even when one teardown callback throws', () => {
+    const first = vi.fn(() => {
+      throw new Error('first unsubscribe failed')
+    })
+    const second = vi.fn()
+    const bridge = {
+      subscribe: vi.fn().mockReturnValueOnce(first).mockReturnValueOnce(second),
+    } as unknown as ROSBridge
+    const stream = new ROSCameraStream({
+      compressedTopic: '/camera/compressed',
+      infoTopic: '/camera/info',
+    })
+    stream.start(bridge)
+
+    expect(() => stream.stop()).not.toThrow()
+    expect(first).toHaveBeenCalledTimes(1)
+    expect(second).toHaveBeenCalledTimes(1)
+  })
+
+  it('closes a frame when every registered consumer rejects it', () => {
+    const bitmap = new FakeImageBitmap(2, 2)
+    const stream = new ROSCameraStream()
+    stream.onFrame(() => {
+      throw new Error('consumer failed')
+    })
+
+    ;(stream as unknown as CameraStreamInternals).notifyFrameCallbacks({
+      image: bitmap,
+      width: 2,
+      height: 2,
+      header,
+      decodeTimeMs: 1,
+      sequence: 1,
+    })
+
+    expect(bitmap.close).toHaveBeenCalledTimes(1)
+  })
+
+  it('assigns each decoded frame to exactly one owner', () => {
+    const stream = new ROSCameraStream()
+    const unsubscribe = stream.onFrame(vi.fn())
+
+    expect(() => stream.onFrame(vi.fn())).toThrow('exactly one decoded-frame owner')
+    unsubscribe()
+    expect(() => stream.onFrame(vi.fn())).not.toThrow()
+  })
+
+  it('isolates a callback that rejects cached camera information', () => {
+    const stream = new ROSCameraStream()
+    const info: CameraInfo = {
+      header,
+      height: 2,
+      width: 2,
+      distortion_model: 'plumb_bob',
+      D: [0, 0, 0, 0, 0],
+      K: [1, 0, 0, 0, 1, 0, 0, 0, 1],
+      R: [1, 0, 0, 0, 1, 0, 0, 0, 1],
+      P: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
+    }
+    ;(stream as unknown as CameraStreamInternals).handleCameraInfo(info)
+
+    expect(() =>
+      stream.onCameraInfo(() => {
+        throw new Error('cached info rejected')
+      })
+    ).not.toThrow()
+  })
+
+  it('snapshots cached camera information and statistics', () => {
+    const stream = new ROSCameraStream()
+    const info: CameraInfo = {
+      header,
+      height: 2,
+      width: 2,
+      distortion_model: 'plumb_bob',
+      D: [0, 0, 0, 0, 0],
+      K: [1, 0, 0, 0, 1, 0, 0, 0, 1],
+      R: [1, 0, 0, 0, 1, 0, 0, 0, 1],
+      P: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
+    }
+    ;(stream as unknown as CameraStreamInternals).handleCameraInfo(info)
+
+    info.D[0] = 99
+    const first = stream.getCameraInfo()!
+    first.K[0] = 99
+    expect(stream.getCameraInfo()!.D[0]).toBe(0)
+    expect(stream.getCameraInfo()!.K[0]).toBe(1)
+
+    const stats = stream.getStats() as CameraStreamStats
+    stats.framesReceived = 99
+    expect(stream.getStats().framesReceived).toBe(0)
   })
 })

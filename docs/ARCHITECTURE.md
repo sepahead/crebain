@@ -17,65 +17,15 @@ these documents for detailed information:
 
 ## System overview
 
-Text alternative: The React frontend sends scene, camera, fusion, and telemetry
-requests through Tauri IPC to the Rust backend. The backend provides inference,
-fusion, and read-only transport paths. The separately gated Galadriel producer
-writes two advisory NCP routes. The inert plant package has no connection to the
-application or external hardware.
+<p align="center">
+  <img alt="CREBAIN current system architecture" src="../assets/diagrams/system-architecture.svg" width="900">
+</p>
 
-```mermaid
-graph TB
-    subgraph Frontend["Frontend (React 19 + TypeScript)"]
-        ThreeJS["SparkJS/Three.js<br/>(3D Scene)"]
-        CameraFeeds["Camera Feeds<br/>(Overlays)"]
-        FusionUI["Sensor Fusion UI<br/>(Tracks)"]
-        ROSControls["ROS Telemetry<br/>(Bridge)"]
-    end
-
-    subgraph IPC["Tauri IPC"]
-        Invoke["invoke/events"]
-    end
-
-    subgraph Backend["Rust Backend (Tauri)"]
-        Inference["Inference<br/>Abstraction Layer"]
-        SensorFusion["Sensor Fusion<br/>Engine"]
-        Zenoh["Transport<br/>(Zenoh)"]
-        ROSBridge["ROS Telemetry Fallback<br/>(WebSocket, read-only)"]
-        EvidenceProducer["Galadriel Evidence Producer<br/>(NCP feature + exact opt-in)"]
-
-        subgraph Platform["Platform Abstraction"]
-            macOS["macOS<br/>CoreML default<br/>MLX experimental<br/>Metal GPU<br/>framework-managed CoreML placement"]
-            Linux["Linux / Nix<br/>ONNX Runtime default<br/>CPU fallback<br/>optional NVIDIA EPs"]
-        end
-    end
-
-    subgraph PlantFoundation["Separate headless package (L0, inert)"]
-        Plantd["crebain-plantd<br/>Inactive command/health/captured-age/apply-observation/situation-dispatch candidates + receipt-anchored active deadline monitor + frame/lifecycle/channels/passive expiry<br/>Self-check only"]
-    end
-
-    subgraph External["External Systems"]
-        Gazebo["Gazebo (Headless)<br/>Physics Engine<br/>Sensor Plugins"]
-        Hardware["Real Hardware<br/>PX4/ArduPilot<br/>Cameras & Sensors"]
-        Galadriel["Galadriel<br/>(external advisory observer)"]
-    end
-
-    ThreeJS --> Invoke
-    CameraFeeds --> Invoke
-    FusionUI --> Invoke
-    ROSControls --> Invoke
-
-    Invoke --> Inference
-    Invoke --> SensorFusion
-    Invoke --> Zenoh
-    Invoke --> ROSBridge
-    SensorFusion -. pinned evidence .-> EvidenceProducer
-
-    Inference --> Platform
-
-    Zenoh --> External
-    ROSBridge --> External
-    EvidenceProducer -. two named NCP routes .-> Galadriel
-```
+Text alternative: The React frontend uses Tauri inter-process communication
+(IPC) to reach Rust inference, sensor fusion, and read-only telemetry transports.
+A feature-gated producer can make local puts to two advisory NCP routes. Those
+puts do not prove receiver delivery. The separate plant foundation is inert and
+has no vehicle-authority path.
 
 ### Inert headless plant foundation
 
@@ -204,7 +154,7 @@ explicit development/native telemetry fallback, and inventory the separate
 feature-gated Galadriel evidence writer as two exact routes. Measure end-to-end
 latency in the target deployment before making performance claims.
 
-The three paths and when to use them:
+The current transport and integration paths are:
 
 - **rosbridge (JSON over WebSocket)** — a telemetry-only fallback. The
   TypeScript client is selectable only in Vite development. Production builds
@@ -219,6 +169,13 @@ The three paths and when to use them:
   Gazebo mutation method. It speaks CREBAIN's own plain-key topic scheme — direct interop
   with an `rmw_zenoh_cpp` ROS 2 graph (which keys topics as
   `<domain>/<topic>/<type>/<hash>`) requires an explicit re-keying bridge.
+- **Exact telemetry ownership** — each native topic declaration has a
+  renderer-issued canonical positive-u64 subscription ID. Non-camera events
+  carry an exact `generation`/`subscriptionId`/`data` envelope. The renderer
+  verifies both identities before schema validation. Camera readiness events
+  carry the same ownership relation through `cameraSubscriptionId`. An exact
+  token also fences unsubscribe, replacement, late callbacks, and queued events
+  from a prior declaration on the same topic.
 - **Native camera-work admission** — both native backends share one process-wide
   384 MiB weighted, nonblocking envelope.
   - Rosbridge reserves before JSON expansion for retained wire/JSON, decoded
@@ -261,6 +218,28 @@ The three paths and when to use them:
   - Duplicate pulls or acknowledgements, malformed readiness events, deadline
     failures, and overlapping topic deliveries fail closed. Callback failures
     are isolated and still reach bounded acknowledgement.
+
+<p align="center">
+  <img alt="CREBAIN native camera delivery lifecycle" src="../assets/diagrams/camera-delivery-lifecycle.svg" width="900">
+</p>
+
+Text alternative: Zenoh and native rosbridge camera callbacks share a 384 MiB,
+nonblocking frame budget. Each admitted frame retains its topic slot and permit
+while a small identity descriptor crosses Tauri events. The renderer pulls once,
+settles its listeners, and acknowledges the same lifecycle, subscription, and
+delivery identifiers. Exact acknowledgment or the 30-second native lease
+releases ownership. A failure quarantines only the matching declaration.
+Generation checks prevent stale cleanup.
+
+- **Headless NCP perception runner (separate package, optional)** — the
+  dependency-isolated `crebain-ncp-headless` workspace package is outside the
+  Tauri application. Its explicit `run` command accepts only the strict client
+  configuration posture for one bounded wire-0.8 open, 1–4,096 steps, and close.
+  That local posture does not prove transport security. It requires a compatible NCP
+  wire-0.8 responder. The default `engram/ncp` realm does not establish current
+  Engram compatibility. Current Engram native wire 1.0 is incompatible, and no
+  translator or live loop exists. The package has no command subscription,
+  sensor put, action callback, Tauri registration, or plant dependency.
 - **Galadriel evidence producer (native NCP, optional)** — absent from default
   binaries and disabled unless an `ncp` build also receives exact runtime opt-in
   plus valid registry/config/executable pins. It can put frozen evidence only to
@@ -288,38 +267,10 @@ disconnecting telemetry, changing transport, or toggling simulation off aborts
 the active singleton missions and clears trajectories, proposals, and
 controller snapshots so reconnection cannot resume an earlier generation.
 
-Text alternative: The frontend reaches Rust Zenoh through registered Tauri IPC.
+Transport summary: The frontend reaches Rust Zenoh through registered Tauri IPC.
 The development-only TypeScript rosbridge reaches ROS telemetry by WebSocket.
 The Galadriel producer can write only two advisory evidence keys. None of these
 paths supplies a MAVROS or vehicle-command route.
-
-```mermaid
-flowchart TB
-    subgraph Tauri["TAURI APP"]
-        Frontend["Frontend<br/>(React/Three.js)"]
-
-        subgraph Transport["Transport Layer"]
-            RustZenoh["Rust Transport<br/>(zenoh-rs)"]
-            TSBridge["TypeScript ROSBridge<br/>(development telemetry only)"]
-            GaladrielProducer["Galadriel Producer<br/>(two evidence keys only)"]
-        end
-
-        Frontend -->|"Tauri commands/events<br/>(JSON IPC)"| RustZenoh
-        Frontend -.->|"Vite development only<br/>(JSON telemetry)"| TSBridge
-        Frontend -.->|"fusion_process; exact deployment opt-in"| GaladrielProducer
-    end
-
-    subgraph ROS["GAZEBO / ROS (Headless)"]
-        Peers["Zenoh peers<br/>(CREBAIN key scheme)"]
-        Camera["Camera Plugins"]
-        Physics["Physics Engine"]
-        MAVROS["MAVROS Bridge"]
-    end
-
-    RustZenoh -->|"Zenoh Protocol<br/>(plain-topic keys)"| ROS
-    TSBridge -->|"WebSocket<br/>(TCP port 9090)"| ROS
-    GaladrielProducer -. "raw NCP named perception" .-> Observer["Galadriel observer"]
-```
 
 ### 2. Platform-native inference
 
@@ -372,47 +323,19 @@ Notes:
 
 ### Detection flow
 
-Text alternative: Camera views render WebGL pixels. A WebGL render target and
-`readPixels()` produce an RGBA buffer. Tauri IPC sends the buffer to Rust. Rust
-resizes and normalizes it, runs native inference, and applies non-maximum
-suppression. JSON detections return to the frontend. The canvas draws bounding
-boxes, threat-level colors, and track identifiers.
+Camera views first render WebGL pixels. A render target and `readPixels()`
+capture a red-green-blue-alpha (RGBA) buffer. The frontend admits one capture
+and sends the buffer through Tauri inter-process communication (IPC). The native
+command then applies separate one-job and 64 MiB admission gates. Rust resizes
+and normalizes the image, runs inference, and applies non-maximum suppression.
+JSON detections return, and the canvas overlays boxes, threat colors, and track
+identifiers.
 
 The native command admits one inference job at a time. A concurrent frame gets
 the structured `NATIVE_DETECTION_BUSY` response and does not enter the blocking
 work queue. The 64 MiB aggregate input permit remains charged until detached
 blocking work exits, including after caller cancellation. Admission occurs after
 Tauri decodes the IPC request, so it does not bound transient request decoding.
-
-```mermaid
-flowchart TB
-    CameraViews["Camera Views<br/>(CrebainViewer)"]
-
-    subgraph Capture["Frame Capture"]
-        WebGL["WebGL RenderTarget"]
-        ReadPixels["readPixels()"]
-        RGBA["RGBA Buffer"]
-        WebGL --> ReadPixels --> RGBA
-    end
-
-    subgraph Backend["Rust Backend: create_detector()"]
-        Preprocess["Preprocess<br/>(resize 640×640, normalize)"]
-        Inference["Inference<br/>(native providers/CPU)"]
-        Postprocess["Postprocess<br/>(NMS, filter confidence)"]
-
-        Preprocess --> Inference --> Postprocess
-    end
-
-    subgraph Overlay["Detection Overlay (Canvas 2D)"]
-        BBox["Bounding Boxes"]
-        Threat["Threat Level Coloring"]
-        TrackID["Track IDs"]
-    end
-
-    CameraViews --> Capture
-    Capture -->|"Tauri IPC (invoke)"| Backend
-    Backend -->|"JSON Detections"| Overlay
-```
 
 Performance depends on hardware, model format, model size, runtime provider,
 image size, and batching. Treat any latency target as invalid until reproduced
@@ -479,8 +402,9 @@ Key files, not an exhaustive listing.
 ```text
 src/
 ├── components/
-│   ├── CrebainViewer.tsx      # Main 3D viewer (scene, cameras, feeds, splats)
+│   ├── CrebainViewer.tsx      # Renderer, scene, asset, and camera orchestration
 │   ├── DetectionOverlay.tsx   # Bounding box rendering
+│   ├── viewer/ViewerChrome.tsx # Presentational camera, event, and footer overlays
 │   └── *Panel.tsx             # Draggable UI panels
 │
 ├── hooks/
@@ -541,9 +465,13 @@ src-tauri/src/
 │   ├── camera_work.rs    # Frame-admission envelope (weighted, nonblocking)
 │   └── commands.rs       # Lifecycle + typed subscription Tauri commands
 │
-├── ncp/                  # Dormant NCP (Engram) action/control adapter
-│
-└── ../crates/plant-authority/  # Inert headless plant foundation crate (separate workspace package)
+└── ncp/                  # Dormant NCP action/control adapter
+```
+
+```text
+src-tauri/crates/
+├── ncp-headless/         # Dependency-isolated opt-in wire-0.8 perception runner
+└── plant-authority/      # Inert headless plant foundation
 ```
 
 The producer does not execute registry transform chains. It attaches a common
@@ -574,11 +502,12 @@ combined-load/deadline evidence. Queue lanes are bounded and report drops/degrad
 single-worker monitor ordering can delay heartbeats behind older events. Those
 limits are part of the architectural boundary, not end-to-end liveness proof.
 The optional JSONL archive is another boundary: active admission uses a separate
-capacity-16 drop-new channel. Configured `ncp` sinks are startup-preflighted and
-each batch is validated/serialized before writing. Writer I/O failure degrades
-the epoch and terminates that worker. Its blocking standard writer is not
-forcibly abortable after the two-second exit wait, and no-producer fusion awaits
-synchronous append/flush outside the fusion lock.
+capacity-16 drop-new channel. The first active frame opens a configured `ncp`
+sink under the serialized frame pipeline. Each batch is validated and serialized
+before writing. Writer I/O failure degrades the epoch and terminates that worker.
+Its blocking standard writer is not forcibly abortable after the two-second exit
+wait. No-producer fusion awaits synchronous append and flush outside the fusion
+lock.
 
 The native macOS CoreML/Vision bridge is implemented directly in
 `src-tauri/src/coreml.rs`. There is no separately built Swift package or

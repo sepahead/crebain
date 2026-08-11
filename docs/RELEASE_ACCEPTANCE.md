@@ -14,19 +14,30 @@ exact-tag package gate. The release stays draft/unpublished unless it passes,
 while manual/deployment entries remain visibly pending and the published artifact
 retains the documented NO_GO boundaries.
 
+<p align="center">
+  <img alt="CREBAIN evidence and claim maturity chain" src="../assets/diagrams/evidence-claim-chain.svg" width="900">
+</p>
+
+Text alternative: Eleven named stages separate weak claims from strong claims.
+They cover source existence, builds, tests, integration, transport, receiver
+validation, authorization, and attempted application. Later stages cover flight
+control unit acceptance, observed effect, and safe-state evidence. Each stronger
+claim needs new evidence. No stage advances automatically. Expiry and hardware
+or field tests provide separate facts.
+
 ## Required evidence
 
 ### Local cross-language gate
 
-- **Acceptance evidence:** `bun run validate:all` passes: Phase 0 baseline plus fail-closed self-test; NCP manifest/lock/doc coherence; frontend typecheck/lint/format/tests; inert plant dependency boundary, digest-bound JavaScript/Rust frame corpus, scoped-rustfmt/check/test/strict-clippy/headless self-check; Rust fmt/default check/all-target tests/clippy; NCP bridge/producer feature clippy/all-target tests; every default/NCP Cargo package command uses `--locked`
+- **Acceptance evidence:** `bun run validate:all` passes: Phase 0 baseline plus fail-closed self-test; NCP manifest/lock/doc coherence; frontend typecheck/lint/format/tests; inert plant dependency boundary, digest-bound JavaScript/Rust frame corpus, scoped-rustfmt/check/test/strict-clippy/headless self-check; isolated headless NCP boundary/check/test/strict-clippy/network-free self-check; Rust fmt/default check/all-target tests/clippy; NCP bridge/producer feature clippy/all-target tests; every default/NCP Cargo package command uses `--locked`
 
 - **Blocking conditions:** Any error, inventory/config/pin drift, stale normative NCP version, unlocked package acceptance command, plant-boundary/frame-corpus drift, benchmark-logic test failure, other test failure, or clippy warning
 
 ### Hosted frontend gates
 
-- **Acceptance evidence:** CI `bun run validate`, `bun run check:bundle`, and `bun run test:coverage` pass; `validate` includes `check:production-vendors`, which binds the exact Spark/Rapier/Three transforms and local-byte/texture runtimes; every build emits schema-v2 module provenance, excludes the development rosbridge module, hashes/scans every finalized JavaScript chunk, runs split/aliased/reflective artifact rejection fixtures, and `check:bundle` then applies the size budget
+- **Acceptance evidence:** CI `bun run validate`, `bun run check:bundle`, `bun run test:responsive`, and `bun run test:coverage` pass; the browser smoke covers the 1,600×1,200 free layout, the 1,600×1,000 docked layout, the 1,024×720 minimum, and the minimum at 200% UI scale; it rejects hidden document overflow, panel collisions, clipped chrome, and inaccessible rail overflow; `validate` includes `check:production-vendors`, which binds the exact Spark/Rapier/Three transforms and local-byte/texture runtimes; every build emits schema-v2 module provenance, excludes the development rosbridge module, hashes/scans every finalized JavaScript chunk, runs split/aliased/reflective artifact rejection fixtures, and `check:bundle` then applies the size budget
 
-- **Blocking conditions:** Vendor package/module/payload/AST drift, transformed runtime or mutation failure, module graph/provenance drift, chunk hash/capability scan, artifact self-test, bundle budget, or coverage threshold fails, even if another local gate passed
+- **Blocking conditions:** Vendor package/module/payload/AST drift, transformed runtime or mutation failure, module graph/provenance drift, chunk hash/capability scan, artifact self-test, responsive layout smoke, bundle budget, or coverage threshold fails, even if another local gate passed
 
 ### Hosted Rust feature gates
 
@@ -123,6 +134,12 @@ retains the documented NO_GO boundaries.
 - **Acceptance evidence:** Default runtime remains independent; NCP feature compiles/tests; missing secure config fails closed; quiet development is explicit; lifecycle `ok`, payload/command bounds, sensor/normal-command route binding, exact callback-key gating, subscriber cleanup, raw ESTOP, malformed dev-call HOLD, per-entity sequencing, TTL, and final-HOLD failure reporting are tested
 
 - **Blocking conditions:** Registering/invoking dormant action paths accidentally, accepting inferred success, sharing action state across entities, treating the raw wire-0.8 ESTOP exception as payload-session-bound, or claiming a live Engram/action/TLS-secure loop without deployment evidence
+
+### Headless NCP perception runner
+
+- **Acceptance evidence:** The runner remains a separate dependency-isolated, opt-in workspace package; `self-check` reads no runner configuration and opens no Zenoh session; `validate` checks bounded CLI values and the required strict client snapshot without opening a Zenoh session; `run` accepts only that local posture, requires a compatible wire-0.8 responder, and bounds open, 1–4,096 steps, close, each operation, and the whole lifecycle; the posture does not prove transport security; after open is confirmed, the running process makes a bounded close attempt; the package has no command subscription, sensor put, action callback, Tauri registration, or plant dependency
+
+- **Blocking conditions:** Including the runner in default app behavior; adding quiet development or an implicit network command; skipping the bounded close attempt in a running process after confirmed open; treating the `engram/ncp` default realm as compatibility; claiming current Engram/Paper2Brain wire-1.0 compatibility, translation, a live loop, intended deployment-receiver identity, end-to-end effect, TLS identity, ACL proof, deployment qualification, or scientific validity without external evidence
 
 ### Galadriel producer opt-in
 

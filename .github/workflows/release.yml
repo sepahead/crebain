@@ -68,6 +68,12 @@ jobs:
         run: |
           set -o pipefail
           bun run check:bundle 2>&1 | tee qualification/bundle.log
+      - name: Install Chromium for responsive smoke test
+        run: bunx playwright install --with-deps chromium
+      - name: Responsive production-browser smoke test
+        run: |
+          set -o pipefail
+          bun run test:responsive 2>&1 | tee qualification/responsive.log
       - name: ROS references, vendor provenance, and npm advisories
         run: |
           set -o pipefail
@@ -153,7 +159,8 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: scripts/check-version-coherence.sh --expected-commit "$GITHUB_SHA" "$GITHUB_REF_NAME"
       # The standard release artifact intentionally uses Cargo's default
-      # features. It omits the dormant NCP bridge and Galadriel producer.
+      # features and default workspace package. It omits the dormant NCP bridge,
+      # Galadriel producer, and separate opt-in headless NCP binary.
       - name: Build default-feature application packages
         env:
           BUILD_TARGET: ${{ matrix.target }}

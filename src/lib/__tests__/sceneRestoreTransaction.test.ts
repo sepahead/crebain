@@ -72,4 +72,45 @@ describe('runSceneRestoreTransaction', () => {
     expect(rollback).not.toHaveBeenCalled()
     expect(commit).toHaveBeenCalledOnce()
   })
+
+  it('rolls back a current transaction when its success commit fails', async () => {
+    const rollback = vi.fn()
+    const commit = vi.fn(() => {
+      throw new Error('pause-state commit failed')
+    })
+
+    await expect(
+      runSceneRestoreTransaction(async () => undefined, {
+        isCurrent: () => true,
+        rollback,
+        commit,
+      })
+    ).rejects.toThrow('pause-state commit failed')
+
+    expect(commit).toHaveBeenCalledOnce()
+    expect(rollback).toHaveBeenCalledOnce()
+  })
+
+  it('reports both commit and rollback failures', async () => {
+    const commitError = new Error('commit failed')
+    const rollbackError = new Error('rollback failed')
+
+    let thrown: unknown
+    try {
+      await runSceneRestoreTransaction(async () => undefined, {
+        isCurrent: () => true,
+        commit: () => {
+          throw commitError
+        },
+        rollback: () => {
+          throw rollbackError
+        },
+      })
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toBeInstanceOf(AggregateError)
+    expect((thrown as AggregateError).errors).toEqual([commitError, rollbackError])
+  })
 })

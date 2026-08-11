@@ -10,7 +10,9 @@ describe('ROS namespace utilities', () => {
 
   it('builds namespaced topics without duplicate slashes', () => {
     expect(namespacedRosTopic('/drone1/', '/mavros/state')).toBe('/drone1/mavros/state')
-    expect(namespacedRosTopic('fleet/drone1', 'mavros/local_position/pose')).toBe('/fleet/drone1/mavros/local_position/pose')
+    expect(namespacedRosTopic('fleet/drone1', 'mavros/local_position/pose')).toBe(
+      '/fleet/drone1/mavros/local_position/pose'
+    )
   })
 
   it('builds root topics for empty namespaces', () => {

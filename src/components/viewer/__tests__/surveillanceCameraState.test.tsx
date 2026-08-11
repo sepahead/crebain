@@ -7,8 +7,10 @@ import ts from 'typescript'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
+  detachAllSurveillanceCameras,
   disposeAllSurveillanceCamerasOnce,
   removeSurveillanceCameraOnce,
+  restoreDetachedSurveillanceCameras,
   type SurveillanceCameraStore,
   updateSurveillanceCameraPtz,
 } from '../surveillanceCameraState'
@@ -77,7 +79,7 @@ function CameraMutationHarness({
       <button
         type="button"
         data-testid="ptz"
-        onClick={() => updateSurveillanceCameraPtz(store, commit, 'camera-1', 45, -100, 140)}
+        onClick={() => updateSurveillanceCameraPtz(store, commit, 'camera-1', 450, -100, 140)}
       >
         PTZ
       </button>
@@ -179,9 +181,9 @@ describe('surveillance camera state transactions', () => {
     await act(async () => ptz?.click())
 
     expect(projectionSpy).toHaveBeenCalledOnce()
-    expect(store.current[0]).toMatchObject({ pan: 45, tilt: -85, zoom: 120 })
+    expect(store.current[0]).toMatchObject({ pan: 180, tilt: -85, zoom: 120 })
     const updatedCamera = store.current[0]
-    expect(state?.textContent).toBe('45/-85/120')
+    expect(state?.textContent).toBe('180/-85/120')
     expect(onCommit).toHaveBeenCalledTimes(1)
     expect(Array.isArray(onCommit.mock.calls[0]?.[0])).toBe(true)
 
@@ -209,6 +211,21 @@ describe('surveillance camera state transactions', () => {
     expect(targetDisposeSpy).toHaveBeenCalledOnce()
 
     await act(async () => root.unmount())
+  })
+
+  it('rejects non-finite PTZ input without changing camera state', () => {
+    const { camera } = makeCamera()
+    const store: SurveillanceCameraStore = { current: [camera] }
+    const commit = vi.fn<(next: SurveillanceCamera[]) => void>()
+    const quaternion = camera.camera.quaternion.clone()
+
+    expect(updateSurveillanceCameraPtz(store, commit, camera.id, Number.NaN)).toBe(false)
+    expect(updateSurveillanceCameraPtz(store, commit, camera.id, 0, Number.POSITIVE_INFINITY)).toBe(
+      false
+    )
+    expect(camera.camera.quaternion.equals(quaternion)).toBe(true)
+    expect(store.current).toEqual([camera])
+    expect(commit).not.toHaveBeenCalled()
   })
 
   it('tombstones a bulk camera snapshot before synchronous disposal hooks can reenter', () => {
@@ -248,5 +265,183 @@ describe('surveillance camera state transactions', () => {
     expect(firstTargetDispose).toHaveBeenCalledOnce()
     expect(secondHelperDispose).toHaveBeenCalledOnce()
     expect(secondTargetDispose).toHaveBeenCalledOnce()
+  })
+
+  it('attempts every camera cleanup after one disposal hook fails', () => {
+    const first = makeCamera('camera-1')
+    const second = makeCamera('camera-2')
+    const scene = new THREE.Scene()
+    scene.add(first.camera.helper, first.camera.mesh, second.camera.helper, second.camera.mesh)
+    const store: SurveillanceCameraStore = { current: [first.camera, second.camera] }
+    vi.spyOn(first.camera.helper, 'dispose').mockImplementationOnce(() => {
+      throw new Error('helper cleanup failed')
+    })
+    const firstTargetDispose = vi.spyOn(first.camera.renderTarget, 'dispose')
+    const secondTargetDispose = vi.spyOn(second.camera.renderTarget, 'dispose')
+
+    expect(() => disposeAllSurveillanceCamerasOnce(scene, store)).toThrow(
+      'Failed to fully dispose all surveillance cameras'
+    )
+    expect(store.current).toEqual([])
+    expect(firstTargetDispose).toHaveBeenCalledOnce()
+    expect(secondTargetDispose).toHaveBeenCalledOnce()
+    expect(scene.children).not.toContain(first.camera.mesh)
+    expect(scene.children).not.toContain(second.camera.mesh)
+  })
+
+  it('does not dispose camera resources that a removal hook reparents', () => {
+    const { camera, geometry, material } = makeCamera('camera-1')
+    const scene = new THREE.Scene()
+    const replacementOwner = new THREE.Group()
+    scene.add(camera.helper, camera.mesh, replacementOwner)
+    const helperDispose = vi.spyOn(camera.helper, 'dispose')
+    const targetDispose = vi.spyOn(camera.renderTarget, 'dispose')
+    const geometryDispose = vi.spyOn(geometry, 'dispose')
+    const materialDispose = vi.spyOn(material, 'dispose')
+    const removeFromScene = scene.remove.bind(scene)
+    vi.spyOn(scene, 'remove').mockImplementation((...objects) => {
+      const result = removeFromScene(...objects)
+      for (const object of objects) replacementOwner.add(object)
+      return result
+    })
+
+    const store: SurveillanceCameraStore = { current: [camera] }
+    const commit = vi.fn<(next: SurveillanceCamera[]) => void>()
+
+    expect(() => disposeAllSurveillanceCamerasOnce(scene, store, commit)).toThrow(
+      'Failed to fully dispose all surveillance cameras'
+    )
+    expect(store.current).toEqual([camera])
+    expect(commit.mock.calls.map(([next]) => next)).toEqual([[], [camera]])
+    expect(camera.helper.parent).toBe(replacementOwner)
+    expect(camera.mesh.parent).toBe(replacementOwner)
+    expect(helperDispose).not.toHaveBeenCalled()
+    expect(targetDispose).not.toHaveBeenCalled()
+    expect(geometryDispose).not.toHaveBeenCalled()
+    expect(materialDispose).not.toHaveBeenCalled()
+  })
+
+  it('restores single-camera ownership when removal leaves a resource attached', () => {
+    const { camera } = makeCamera('camera-1')
+    const scene = new THREE.Scene()
+    const replacementOwner = new THREE.Group()
+    scene.add(camera.helper, camera.mesh, replacementOwner)
+    const store: SurveillanceCameraStore = { current: [camera] }
+    const commit = vi.fn<(next: SurveillanceCamera[]) => void>()
+    const onRemoved = vi.fn<(removed: SurveillanceCamera) => void>()
+    const removeFromScene = scene.remove.bind(scene)
+    vi.spyOn(scene, 'remove').mockImplementation((...objects) => {
+      const result = removeFromScene(...objects)
+      for (const object of objects) replacementOwner.add(object)
+      return result
+    })
+
+    expect(() => removeSurveillanceCameraOnce(scene, store, commit, camera.id, onRemoved)).toThrow(
+      'Failed to fully remove surveillance camera'
+    )
+    expect(store.current).toEqual([camera])
+    expect(commit.mock.calls.map(([next]) => next)).toEqual([[], [camera]])
+    expect(onRemoved).not.toHaveBeenCalled()
+  })
+
+  it('reports a snapshot member that remains attached after detachment', () => {
+    const { camera } = makeCamera('camera-1')
+    const scene = new THREE.Scene()
+    const replacementOwner = new THREE.Group()
+    scene.add(camera.helper, camera.mesh, replacementOwner)
+    const removeFromScene = scene.remove.bind(scene)
+    vi.spyOn(scene, 'remove').mockImplementation((...objects) => {
+      const result = removeFromScene(...objects)
+      for (const object of objects) replacementOwner.add(object)
+      return result
+    })
+
+    const snapshot = detachAllSurveillanceCameras(scene, { current: [camera] })
+
+    expect(snapshot.errors).toHaveLength(1)
+    expect(camera.helper.parent).toBe(replacementOwner)
+    expect(camera.mesh.parent).toBe(replacementOwner)
+  })
+
+  it('detaches and restores a camera snapshot without disposing its resources', () => {
+    const first = makeCamera('camera-1')
+    const second = makeCamera('camera-2')
+    const scene = new THREE.Scene()
+    scene.add(first.camera.helper, first.camera.mesh, second.camera.helper, second.camera.mesh)
+    const store: SurveillanceCameraStore = { current: [first.camera, second.camera] }
+    const commit = vi.fn<(next: SurveillanceCamera[]) => void>()
+    const firstHelperDispose = vi.spyOn(first.camera.helper, 'dispose')
+    const firstTargetDispose = vi.spyOn(first.camera.renderTarget, 'dispose')
+
+    const detached = detachAllSurveillanceCameras(scene, store, commit)
+
+    expect(detached.cameras).toEqual([first.camera, second.camera])
+    expect(detached.errors).toEqual([])
+    expect(store.current).toEqual([])
+    expect(scene.children).not.toContain(first.camera.helper)
+    expect(scene.children).not.toContain(first.camera.mesh)
+    expect(firstHelperDispose).not.toHaveBeenCalled()
+    expect(firstTargetDispose).not.toHaveBeenCalled()
+
+    const restored = restoreDetachedSurveillanceCameras(scene, store, detached.cameras, commit)
+
+    expect(restored).toEqual({ restored: detached.cameras, retained: [], errors: [] })
+    expect(store.current).toBe(detached.cameras)
+    expect(scene.children).toContain(first.camera.helper)
+    expect(scene.children).toContain(first.camera.mesh)
+    expect(firstHelperDispose).not.toHaveBeenCalled()
+    expect(firstTargetDispose).not.toHaveBeenCalled()
+    expect(commit).toHaveBeenNthCalledWith(1, [])
+    expect(commit).toHaveBeenNthCalledWith(2, detached.cameras)
+    expect(() =>
+      restoreDetachedSurveillanceCameras(scene, store, detached.cameras, commit)
+    ).toThrow('non-empty camera store')
+  })
+
+  it('transfers retained ownership before a scene add listener can throw', () => {
+    const { camera } = makeCamera('camera-1')
+    const scene = new THREE.Scene()
+    const store: SurveillanceCameraStore = { current: [] }
+    const commit = vi.fn<(next: SurveillanceCamera[]) => void>()
+    const addToScene = scene.add.bind(scene)
+    let throwOnce = true
+    vi.spyOn(scene, 'add').mockImplementation((...objects) => {
+      const result = addToScene(...objects)
+      if (throwOnce) {
+        throwOnce = false
+        throw new Error('synthetic added-listener failure')
+      }
+      return result
+    })
+
+    const result = restoreDetachedSurveillanceCameras(scene, store, [camera], commit)
+
+    expect(result.errors).toHaveLength(1)
+    expect(result.restored).toEqual([camera])
+    expect(result.retained).toEqual([])
+    expect(store.current).toEqual([camera])
+    expect(commit).toHaveBeenCalledWith([camera])
+    expect(scene.children).toContain(camera.helper)
+    expect(scene.children).toContain(camera.mesh)
+  })
+
+  it('keeps a camera detached when scene admission fails before graph mutation', () => {
+    const { camera } = makeCamera('camera-1')
+    const scene = new THREE.Scene()
+    const store: SurveillanceCameraStore = { current: [] }
+    const commit = vi.fn<(next: SurveillanceCamera[]) => void>()
+    vi.spyOn(scene, 'add').mockImplementation(() => {
+      throw new Error('synthetic admission failure')
+    })
+
+    const result = restoreDetachedSurveillanceCameras(scene, store, [camera], commit)
+
+    expect(result.restored).toEqual([])
+    expect(result.retained).toEqual([camera])
+    expect(result.errors).toHaveLength(3)
+    expect(store.current).toEqual([])
+    expect(commit).toHaveBeenCalledWith([])
+    expect(camera.helper.parent).toBeNull()
+    expect(camera.mesh.parent).toBeNull()
   })
 })

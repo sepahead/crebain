@@ -23,10 +23,7 @@ import { rosLogger as log } from '../lib/logger'
 import { MAX_ROS_GRAPH_NAME_LENGTH, validateRosGraphName } from './rosNameValidation'
 import { assertExternalTelemetryAllowed } from '../integrations/engramHost'
 import { validateGazeboPose, validateGazeboTwist } from './gazeboValidation'
-import {
-  isValidTfFrameId,
-  normalizeIngressTfTransform,
-} from './tfValidation'
+import { isValidTfFrameId, normalizeIngressTfTransform } from './tfValidation'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -55,7 +52,7 @@ interface Subscription {
   topic: string
   type: string
   callback: ROSMessageCallback<unknown>
-  validator: ROSMessageValidator
+  customValidator?: ROSMessageValidator
   throttleRate?: number
   queueLength?: number
 }
@@ -68,19 +65,39 @@ export type ROSMessageValidator = (message: unknown) => boolean
 
 // Allowed URL schemes for ROS bridge connections
 const ALLOWED_SCHEMES = ['ws:', 'wss:']
+export const MAX_ROSBRIDGE_URL_BYTES = 2_048
 const ROS_MESSAGE_TYPE_PATTERN = /^[A-Za-z][A-Za-z0-9_]*\/[A-Za-z][A-Za-z0-9_]*$/
 /** Matches the native rosbridge bound: one 64 MiB image plus JSON overhead. */
-export const MAX_RENDERER_ROSBRIDGE_MESSAGE_BYTES = Math.ceil((64 * 1024 * 1024) / 3) * 4 + 64 * 1024
+export const MAX_RENDERER_ROSBRIDGE_MESSAGE_BYTES =
+  Math.ceil((64 * 1024 * 1024) / 3) * 4 + 64 * 1024
 const MAX_JSON_NESTING_DEPTH = 64
 const MAX_JSON_CONTAINER_ENTRIES = 10_000
 const MAX_SUBSCRIPTIONS_PER_TOPIC = 256
 const MAX_SUBSCRIPTIONS = 1_024
 const MAX_PROTOCOL_ID_LENGTH = 128
+const MAX_PROTOCOL_OPERATION_LENGTH = 32
 const MAX_STATUS_MESSAGE_LENGTH = 4_096
 const MAX_SENSOR_MEASUREMENT_VARIANCE = 1_000_000_000_000
+const MAX_RECONNECT_INTERVAL_MS = 86_400_000
+const MAX_RECONNECT_ATTEMPTS = 1_000
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function freezeJsonValue(value: unknown): void {
+  if (!isRecord(value) && !Array.isArray(value)) return
+  const pending: object[] = [value]
+  while (pending.length > 0) {
+    const current = pending.pop()!
+    if (Object.isFrozen(current)) continue
+    for (const child of Object.values(current)) {
+      if ((isRecord(child) || Array.isArray(child)) && !Object.isFrozen(child)) {
+        pending.push(child)
+      }
+    }
+    Object.freeze(current)
+  }
 }
 
 function validateRosMessageType(type: string): void {
@@ -90,10 +107,7 @@ function validateRosMessageType(type: string): void {
 }
 
 function validateNonNegativeNumber(value: number | undefined, field: string): void {
-  if (
-    value !== undefined &&
-    (!Number.isSafeInteger(value) || value < 0 || value > 0x7fffffff)
-  ) {
+  if (value !== undefined && (!Number.isSafeInteger(value) || value < 0 || value > 0x7fffffff)) {
     throw new Error(`Invalid ROS ${field}: value must be a non-negative int32`)
   }
 }
@@ -122,10 +136,21 @@ function isBoundedString(
   value: unknown,
   maximumLength = MAX_ROS_GRAPH_NAME_LENGTH
 ): value is string {
-  return typeof value === 'string' && value.length <= maximumLength && !value.includes('\0')
+  return (
+    typeof value === 'string' &&
+    !exceedsUtf8ByteLimit(value, maximumLength) &&
+    !Array.from(value).some((character) => {
+      const codePoint = character.codePointAt(0) ?? 0
+      return codePoint <= 0x1f || (codePoint >= 0x7f && codePoint <= 0x9f)
+    })
+  )
 }
 
-function isFiniteNumberArray(value: unknown, expectedLength?: number, maximumLength = 10_000): value is number[] {
+function isFiniteNumberArray(
+  value: unknown,
+  expectedLength?: number,
+  maximumLength = 10_000
+): value is number[] {
   return (
     Array.isArray(value) &&
     value.length <= maximumLength &&
@@ -251,15 +276,7 @@ function isBytePayload(value: unknown): boolean {
 function isRawImage(value: unknown): boolean {
   return (
     isRecord(value) &&
-    hasOnlyKeys(value, [
-      'header',
-      'height',
-      'width',
-      'encoding',
-      'is_bigendian',
-      'step',
-      'data',
-    ]) &&
+    hasOnlyKeys(value, ['header', 'height', 'width', 'encoding', 'is_bigendian', 'step', 'data']) &&
     isHeader(value.header) &&
     isSafeNonNegativeInteger(value.height) &&
     isSafeNonNegativeInteger(value.width) &&
@@ -382,7 +399,7 @@ function isModelStates(value: unknown): boolean {
     return false
   }
   return (
-    value.name.every((name) => isBoundedString(name)) &&
+    value.name.every((name) => isBoundedString(name) && name.length > 0) &&
     value.pose.every(isPose) &&
     value.twist.every(isTwist)
   )
@@ -551,10 +568,7 @@ function isLidarDetection(value: unknown): boolean {
   )
 }
 
-function isDetectionArray(
-  value: unknown,
-  detectionValidator: ROSMessageValidator
-): boolean {
+function isDetectionArray(value: unknown, detectionValidator: ROSMessageValidator): boolean {
   return (
     isRecord(value) &&
     hasOnlyKeys(value, ['header', 'detections']) &&
@@ -566,11 +580,7 @@ function isDetectionArray(
 }
 
 function isStringMessage(value: unknown): boolean {
-  return (
-    isRecord(value) &&
-    hasOnlyKeys(value, ['data']) &&
-    isBoundedString(value.data, 1024 * 1024)
-  )
+  return isRecord(value) && hasOnlyKeys(value, ['data']) && isBoundedString(value.data, 1024 * 1024)
 }
 
 function isClockMessage(value: unknown): boolean {
@@ -587,10 +597,8 @@ const BUILTIN_MESSAGE_VALIDATORS: Readonly<Record<string, ROSMessageValidator>> 
   'nav_msgs/Odometry': isOdometry,
   'geometry_msgs/PoseStamped': isPoseStamped,
   'mavros_msgs/State': isMavrosState,
-  'crebain_msgs/ThermalDetectionArray': (value) =>
-    isDetectionArray(value, isThermalDetection),
-  'crebain_msgs/AcousticDetectionArray': (value) =>
-    isDetectionArray(value, isAcousticDetection),
+  'crebain_msgs/ThermalDetectionArray': (value) => isDetectionArray(value, isThermalDetection),
+  'crebain_msgs/AcousticDetectionArray': (value) => isDetectionArray(value, isAcousticDetection),
   'crebain_msgs/RadarDetectionArray': (value) => isDetectionArray(value, isRadarDetection),
   'crebain_msgs/LidarDetectionArray': (value) => isDetectionArray(value, isLidarDetection),
   'std_msgs/Header': isHeader,
@@ -754,22 +762,49 @@ function parseStrictBoundedJson(data: string, byteLimit: number): unknown {
 
 // Validate ROS bridge URL for security
 export function validateRosUrl(url: string): { valid: boolean; error?: string } {
+  if (
+    typeof url !== 'string' ||
+    url.length === 0 ||
+    url.trim() !== url ||
+    exceedsUtf8ByteLimit(url, MAX_ROSBRIDGE_URL_BYTES) ||
+    Array.from(url).some((character) => {
+      const codePoint = character.codePointAt(0) ?? 0
+      return codePoint <= 0x1f || (codePoint >= 0x7f && codePoint <= 0x9f)
+    })
+  ) {
+    return {
+      valid: false,
+      error: 'URL must be bounded and contain no surrounding or control whitespace',
+    }
+  }
+
   try {
     const parsed = new URL(url)
-    
+
     if (!ALLOWED_SCHEMES.includes(parsed.protocol)) {
-      return { valid: false, error: `Invalid scheme: ${parsed.protocol}. Only ws:// and wss:// are allowed.` }
+      return {
+        valid: false,
+        error: `Invalid scheme: ${parsed.protocol}. Only ws:// and wss:// are allowed.`,
+      }
     }
-    
+
     if (!parsed.hostname) {
       return { valid: false, error: 'Missing hostname in URL' }
     }
-    
+
+    if (parsed.username || parsed.password) {
+      return { valid: false, error: 'Credentials are not allowed in the ROS bridge URL' }
+    }
+
+    if (parsed.hash) {
+      return { valid: false, error: 'Fragments are not allowed in the ROS bridge URL' }
+    }
+
     // Block potentially dangerous hostnames
     if (parsed.hostname.includes('..') || parsed.hostname.startsWith('-')) {
       return { valid: false, error: 'Invalid hostname format' }
     }
-    
+
     return { valid: true }
   } catch {
     return { valid: false, error: 'Invalid URL format' }
@@ -795,13 +830,34 @@ export class ROSBridge {
     if (!validation.valid) {
       throw new Error(`Invalid ROS bridge URL: ${validation.error}`)
     }
-    
+
     this.config = {
       autoReconnect: true,
       reconnectIntervalMs: 3000,
       maxReconnectAttempts: 10,
       maxIncomingMessageBytes: MAX_RENDERER_ROSBRIDGE_MESSAGE_BYTES,
       ...config,
+    }
+    if (typeof this.config.autoReconnect !== 'boolean') {
+      throw new Error('Invalid ROS bridge autoReconnect flag')
+    }
+    if (
+      !Number.isSafeInteger(this.config.reconnectIntervalMs) ||
+      this.config.reconnectIntervalMs < 1 ||
+      this.config.reconnectIntervalMs > MAX_RECONNECT_INTERVAL_MS
+    ) {
+      throw new Error(
+        `Invalid ROS bridge reconnect interval: expected an integer within [1, ${MAX_RECONNECT_INTERVAL_MS}]`
+      )
+    }
+    if (
+      !Number.isSafeInteger(this.config.maxReconnectAttempts) ||
+      this.config.maxReconnectAttempts < 0 ||
+      this.config.maxReconnectAttempts > MAX_RECONNECT_ATTEMPTS
+    ) {
+      throw new Error(
+        `Invalid ROS bridge reconnect attempts: expected an integer within [0, ${MAX_RECONNECT_ATTEMPTS}]`
+      )
     }
     if (
       !Number.isSafeInteger(this.config.maxIncomingMessageBytes) ||
@@ -848,7 +904,26 @@ export class ROSBridge {
 
       this.setState('connecting')
 
-      const ws = new WebSocket(this.config.url)
+      let ws: WebSocket
+      try {
+        ws = new WebSocket(this.config.url)
+      } catch (error) {
+        const connectionError =
+          error instanceof Error
+            ? error
+            : new Error('Failed to create ROS WebSocket', { cause: error })
+        this.setState('disconnected')
+        this.notifyError(connectionError)
+        if (
+          !this.intentionalClose &&
+          this.config.autoReconnect &&
+          this.reconnectAttempts < this.config.maxReconnectAttempts
+        ) {
+          this.scheduleReconnect()
+        }
+        reject(connectionError)
+        return
+      }
       this.ws = ws
       this.pendingConnectReject = reject
 
@@ -894,6 +969,11 @@ export class ROSBridge {
         if (this.state === 'connecting') {
           this.pendingConnectReject = null
           reject(error)
+          try {
+            ws.close()
+          } catch (closeError) {
+            this.reportProtocolError('Failed to close a faulty ROS WebSocket', closeError)
+          }
         }
       }
 
@@ -943,7 +1023,7 @@ export class ROSBridge {
     this.clearReconnectTimer()
     this.reconnectAttempts++
     this.setState('reconnecting')
-    
+
     this.reconnectTimer = setTimeout(() => {
       // Use openSocket() directly so automatic retries do not reset the
       // reconnect-attempt budget the way a manual connect() does.
@@ -985,7 +1065,11 @@ export class ROSBridge {
       return
     }
 
-    if (!isRecord(message) || typeof message.op !== 'string') {
+    if (
+      !isRecord(message) ||
+      typeof message.op !== 'string' ||
+      message.op.length > MAX_PROTOCOL_OPERATION_LENGTH
+    ) {
       this.reportProtocolError('Rejected a ROS bridge message without a valid operation')
       return
     }
@@ -1019,7 +1103,7 @@ export class ROSBridge {
         this.handleStatusMessage(message)
         break
       default:
-        this.reportProtocolError(`Ignored unsupported ROS bridge operation: ${message.op}`)
+        this.reportProtocolError('Ignored an unsupported ROS bridge operation')
         break
     }
   }
@@ -1028,9 +1112,23 @@ export class ROSBridge {
     const subs = this.subscriptions.get(topic)
     if (!subs || subs.length === 0) return
 
+    const builtinValidator = BUILTIN_MESSAGE_VALIDATORS[subs[0].type]
+    try {
+      if (builtinValidator && !builtinValidator(msg)) {
+        this.reportProtocolError(
+          `Rejected ${subs[0].type} telemetry that did not match its runtime schema`
+        )
+        return
+      }
+      freezeJsonValue(msg)
+    } catch (error) {
+      this.reportProtocolError(`Rejected malformed ${subs[0].type} telemetry`, error)
+      return
+    }
+
     for (const sub of [...subs]) {
       try {
-        if (!sub.validator(msg)) {
+        if (sub.customValidator && !sub.customValidator(msg)) {
           this.reportProtocolError(
             `Rejected ${sub.type} telemetry that did not match its runtime schema`
           )
@@ -1103,8 +1201,12 @@ export class ROSBridge {
   #send(message: ROSBridgeMessage): boolean {
     const ws = this.ws
     if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify(message))
-      return true
+      try {
+        ws.send(JSON.stringify(message))
+        return true
+      } catch (error) {
+        this.reportProtocolError('Failed to send a ROS bridge request', error)
+      }
     }
     return false
   }
@@ -1151,19 +1253,20 @@ export class ROSBridge {
         `ROS topic ${topic} is already subscribed as ${subs[0].type}; refusing conflicting type ${type}`
       )
     }
-    if (subs.length >= MAX_SUBSCRIPTIONS_PER_TOPIC || this.subscriptionCount() >= MAX_SUBSCRIPTIONS) {
+    if (
+      subs.length >= MAX_SUBSCRIPTIONS_PER_TOPIC ||
+      this.subscriptionCount() >= MAX_SUBSCRIPTIONS
+    ) {
       throw new Error('ROS subscription limit exceeded')
     }
 
     const id = this.generateId()
-    const resolvedValidator: ROSMessageValidator = (message) =>
-      (builtinValidator?.(message) ?? true) && (validator?.(message) ?? true)
     const subscription: Subscription = {
       id,
       topic,
       type,
       callback: callback as ROSMessageCallback<unknown>,
-      validator: resolvedValidator,
+      customValidator: validator,
       throttleRate,
       queueLength,
     }
@@ -1181,7 +1284,7 @@ export class ROSBridge {
     const subs = this.subscriptions.get(topic)
     if (!subs) return
 
-    const idx = subs.findIndex(s => s.callback === callback)
+    const idx = subs.findIndex((s) => s.callback === callback)
     if (idx === -1) return
 
     this.unsubscribeById(topic, subs[idx].id)
@@ -1232,12 +1335,7 @@ export class ROSBridge {
     callback: ROSMessageCallback<ModelStates>,
     throttleRate: number = 50
   ): () => void {
-    return this.subscribe(
-      '/gazebo/model_states',
-      'gazebo_msgs/ModelStates',
-      callback,
-      throttleRate
-    )
+    return this.subscribe('/gazebo/model_states', 'gazebo_msgs/ModelStates', callback, throttleRate)
   }
 
   subscribeToOdometry(
@@ -1266,15 +1364,11 @@ export class ROSBridge {
     )
   }
 
-  subscribeToState(
-    namespace: string,
-    callback: ROSMessageCallback<State>
-  ): () => void {
+  subscribeToState(namespace: string, callback: ROSMessageCallback<State>): () => void {
     return this.subscribe(
       namespacedRosTopic(namespace, 'mavros/state'),
       'mavros_msgs/State',
       callback
     )
   }
-
 }

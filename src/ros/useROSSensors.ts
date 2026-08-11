@@ -139,6 +139,11 @@ export const ROS_SENSOR_WEBSOCKET_REQUIRED =
 export const NATIVE_FUSION_BACKEND_REQUIRED =
   'Native sensor fusion is unavailable in browser mode. Open CREBAIN in the desktop app to enable fused tracks.'
 
+const FUSION_INITIALIZING_ERROR_PREFIX = 'FUSION_INITIALIZING:'
+const FUSION_INITIALIZATION_RETRY_INTERVAL_MS = 500
+const FUSION_INITIALIZATION_MAX_RETRIES = 64
+const FUSION_INITIALIZATION_CANCELLED = 'Fusion initialization was cancelled'
+
 const INACTIVE_SENSOR_STATUS: ROSSensorState['sensorStatus'] = {
   thermal: false,
   acoustic: false,
@@ -162,6 +167,7 @@ const MAX_RADAR_AZIMUTH_RAD = 2 * Math.PI
 const MAX_RADAR_ELEVATION_RAD = Math.PI / 2
 const MAX_FUSION_STRING_BYTES = 256
 const MAX_LIDAR_POINT_COUNT = 0xffff_ffff
+const FUSION_TEXT_ENCODER = new TextEncoder()
 
 export function clampFusionRateHz(rateHz: number): number {
   if (!Number.isFinite(rateHz)) return DEFAULT_ROS_SENSOR_CONFIG.fusionRateHz
@@ -193,7 +199,11 @@ function assertNonNegativeFinite(value: unknown, name: string): asserts value is
   }
 }
 
-function assertFiniteMagnitude(value: unknown, name: string, maximum: number): asserts value is number {
+function assertFiniteMagnitude(
+  value: unknown,
+  name: string,
+  maximum: number
+): asserts value is number {
   assertFiniteNumber(value, name)
   if (Math.abs(value) > maximum) {
     throw new Error(`${name} magnitude must not exceed ${maximum}`)
@@ -229,10 +239,14 @@ function assertString(value: unknown, name: string): asserts value is string {
   if (
     typeof value !== 'string' ||
     value.trim().length === 0 ||
-    value.includes('\0') ||
-    new TextEncoder().encode(value).byteLength > MAX_FUSION_STRING_BYTES
+    Array.from(value).some(
+      (character) => character.codePointAt(0) !== undefined && /\p{Cc}/u.test(character)
+    ) ||
+    FUSION_TEXT_ENCODER.encode(value).byteLength > MAX_FUSION_STRING_BYTES
   ) {
-    throw new Error(`${name} must be a non-empty string of at most 256 UTF-8 bytes without NUL`)
+    throw new Error(
+      `${name} must be a non-empty string of at most 256 UTF-8 bytes without control characters`
+    )
   }
 }
 
@@ -324,7 +338,7 @@ function optionalSourceFrameId(value: unknown, name: string): string | undefined
   if (Array.from(value).some(isSourceFrameControlOrWhitespace)) {
     throw new Error(`${name} must not contain control or whitespace characters`)
   }
-  if (new TextEncoder().encode(value).byteLength > MAX_SOURCE_FRAME_ID_BYTES) {
+  if (FUSION_TEXT_ENCODER.encode(value).byteLength > MAX_SOURCE_FRAME_ID_BYTES) {
     throw new Error(`${name} exceeds ${MAX_SOURCE_FRAME_ID_BYTES} UTF-8 bytes`)
   }
   return value
@@ -419,12 +433,7 @@ export function thermalToMeasurement(det: ThermalDetection, sensorId: string): S
     0,
     MAX_MEASUREMENT_METADATA_ABS
   )
-  assertFiniteRange(
-    det.signature_area,
-    'thermal.signature_area',
-    0,
-    MAX_MEASUREMENT_METADATA_ABS
-  )
+  assertFiniteRange(det.signature_area, 'thermal.signature_area', 0, MAX_MEASUREMENT_METADATA_ABS)
   assertConfidence(det.confidence, 'thermal.confidence')
   assertString(det.classification, 'thermal.classification')
   const sourceFrameId = optionalSourceFrameId(det.header.frame_id, 'thermal.header.frame_id')
@@ -450,12 +459,7 @@ export function acousticToMeasurement(det: AcousticDetection, sensorId: string):
   assertRecord(det, 'acoustic')
   assertString(det.id, 'acoustic.id')
   assertHeader(det.header, 'acoustic.header')
-  assertFiniteRange(
-    det.azimuth,
-    'acoustic.azimuth',
-    -MAX_RADAR_AZIMUTH_RAD,
-    MAX_RADAR_AZIMUTH_RAD
-  )
+  assertFiniteRange(det.azimuth, 'acoustic.azimuth', -MAX_RADAR_AZIMUTH_RAD, MAX_RADAR_AZIMUTH_RAD)
   assertFiniteRange(
     det.elevation,
     'acoustic.elevation',
@@ -475,11 +479,7 @@ export function acousticToMeasurement(det: AcousticDetection, sensorId: string):
     0,
     MAX_MEASUREMENT_METADATA_ABS
   )
-  assertFiniteMagnitude(
-    det.doppler_hz,
-    'acoustic.doppler_hz',
-    MAX_MEASUREMENT_METADATA_ABS
-  )
+  assertFiniteMagnitude(det.doppler_hz, 'acoustic.doppler_hz', MAX_MEASUREMENT_METADATA_ABS)
   assertConfidence(det.confidence, 'acoustic.confidence')
   assertString(det.classification, 'acoustic.classification')
   const sourceFrameId = optionalSourceFrameId(det.header.frame_id, 'acoustic.header.frame_id')
@@ -544,12 +544,7 @@ export function radarToMeasurement(det: RadarDetection, sensorId: string): Senso
   assertString(det.id, 'radar.id')
   assertHeader(det.header, 'radar.header')
   assertFiniteRange(det.range, 'radar.range', 0, MAX_MEASUREMENT_POSITION_ABS_M)
-  assertFiniteRange(
-    det.azimuth,
-    'radar.azimuth',
-    -MAX_RADAR_AZIMUTH_RAD,
-    MAX_RADAR_AZIMUTH_RAD
-  )
+  assertFiniteRange(det.azimuth, 'radar.azimuth', -MAX_RADAR_AZIMUTH_RAD, MAX_RADAR_AZIMUTH_RAD)
   assertFiniteRange(
     det.elevation,
     'radar.elevation',
@@ -585,11 +580,7 @@ export function radarToMeasurement(det: RadarDetection, sensorId: string): Senso
     vRadial * Math.sin(el),
   ]
   velocity.forEach((component, index) =>
-    assertFiniteMagnitude(
-      component,
-      `radar.velocity[${index}]`,
-      MAX_MEASUREMENT_VELOCITY_ABS_MPS
-    )
+    assertFiniteMagnitude(component, `radar.velocity[${index}]`, MAX_MEASUREMENT_VELOCITY_ABS_MPS)
   )
 
   // Measurement noise R in POLAR units to match `position`:
@@ -632,9 +623,7 @@ export function lidarToMeasurement(det: LidarDetection, sensorId: string): Senso
   assertVector3Tuple(det.covariance, 'lidar.covariance')
   det.covariance.forEach((variance, index) => {
     if (variance <= 0 || variance > MAX_MEASUREMENT_VARIANCE) {
-      throw new Error(
-        `lidar.covariance[${index}] must be within (0, ${MAX_MEASUREMENT_VARIANCE}]`
-      )
+      throw new Error(`lidar.covariance[${index}] must be within (0, ${MAX_MEASUREMENT_VARIANCE}]`)
     }
   })
   assertNonNegativeFinite(det.num_points, 'lidar.num_points')
@@ -756,9 +745,15 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
   const fusionCycleRequestedRef = useRef(false)
   const fusionCycleGenerationRef = useRef(0)
   const fusionCycleCompletionRef = useRef<Promise<void>>(Promise.resolve())
+  const runFusionCycleRef = useRef<() => Promise<void>>(() => Promise.resolve())
   const fusionMaintenanceRef = useRef<Promise<void>>(Promise.resolve())
   const fusionMaintenanceCountRef = useRef(0)
   const fusionInitGenerationRef = useRef(0)
+  const appliedAlgorithmConfigRef = useRef<{
+    algorithm: FilterAlgorithm
+    processNoise: number
+    measurementNoise: number
+  } | null>(null)
   const upstreamDroppedMeasurementsRef = useRef(0)
   // Stay in the sensor/header clock domain. Zero is a valid neutral epoch for
   // pre-data closure frames; wall time must never advance the native predictor
@@ -834,7 +829,7 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
    * repopulate the backend with measurements from the previous session.
    */
   const queueFusionMaintenance = useCallback(
-    <T,>(operation: () => Promise<T>): Promise<T> => {
+    <T>(operation: () => Promise<T>): Promise<T> => {
       if (!fusionBackendAvailable) {
         return Promise.reject(new Error(NATIVE_FUSION_BACKEND_REQUIRED))
       }
@@ -848,6 +843,13 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
         .then(operation)
         .finally(() => {
           fusionMaintenanceCountRef.current -= 1
+          if (
+            fusionMaintenanceCountRef.current === 0 &&
+            fusionCycleRequestedRef.current &&
+            fusionReadyRef.current
+          ) {
+            queueMicrotask(() => void runFusionCycleRef.current())
+          }
         })
 
       // Keep the queue usable after a failed maintenance command while still
@@ -861,35 +863,38 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
     [fusionBackendAvailable]
   )
 
-  const appendMeasurements = useCallback((measurements: SensorMeasurement[], dropped = 0) => {
-    if (!fusionBackendAvailable) return
+  const appendMeasurements = useCallback(
+    (measurements: SensorMeasurement[], dropped = 0) => {
+      if (!fusionBackendAvailable) return
 
-    const recordDropped = (count: number) => {
-      upstreamDroppedMeasurementsRef.current = Math.min(
-        Number.MAX_SAFE_INTEGER,
-        upstreamDroppedMeasurementsRef.current + count
-      )
-    }
-    recordDropped(dropped)
-    if (measurements.length === 0) return
+      const recordDropped = (count: number) => {
+        upstreamDroppedMeasurementsRef.current = Math.min(
+          Number.MAX_SAFE_INTEGER,
+          upstreamDroppedMeasurementsRef.current + count
+        )
+      }
+      recordDropped(dropped)
+      if (measurements.length === 0) return
 
-    const current = measurementBufferRef.current
-    const total = current.length + measurements.length
-    if (total <= MAX_MEASUREMENTS_PER_CYCLE) {
-      current.push(...measurements)
-      return
-    }
+      const current = measurementBufferRef.current
+      const total = current.length + measurements.length
+      if (total <= MAX_MEASUREMENTS_PER_CYCLE) {
+        current.push(...measurements)
+        return
+      }
 
-    const bufferDropped = total - MAX_MEASUREMENTS_PER_CYCLE
-    log.warn('Dropping oldest buffered ROS measurements', { dropped: bufferDropped })
-    recordDropped(bufferDropped)
-    if (measurements.length >= MAX_MEASUREMENTS_PER_CYCLE) {
-      measurementBufferRef.current = measurements.slice(-MAX_MEASUREMENTS_PER_CYCLE)
-      return
-    }
+      const bufferDropped = total - MAX_MEASUREMENTS_PER_CYCLE
+      log.warn('Dropping oldest buffered ROS measurements', { dropped: bufferDropped })
+      recordDropped(bufferDropped)
+      if (measurements.length >= MAX_MEASUREMENTS_PER_CYCLE) {
+        measurementBufferRef.current = measurements.slice(-MAX_MEASUREMENTS_PER_CYCLE)
+        return
+      }
 
-    measurementBufferRef.current = current.slice(bufferDropped).concat(measurements)
-  }, [fusionBackendAvailable])
+      measurementBufferRef.current = current.slice(bufferDropped).concat(measurements)
+    },
+    [fusionBackendAvailable]
+  )
 
   const installSensorSubscriptions = useCallback(
     (bridge: NonNullable<ExternalROSSensorConnection['bridge']>) => {
@@ -986,7 +991,13 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
         }
       } catch (error) {
         for (const unsubscribe of cleanups) {
-          unsubscribe()
+          try {
+            unsubscribe()
+          } catch (cleanupError) {
+            log.warn('Failed to roll back a ROS sensor subscription', {
+              error: cleanupError,
+            })
+          }
         }
         throw error
       }
@@ -1017,6 +1028,10 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
     const cycle = (async () => {
       try {
         do {
+          if (fusionMaintenanceCountRef.current > 0) {
+            fusionCycleRequestedRef.current = true
+            break
+          }
           fusionCycleRequestedRef.current = false
           if (!fusionReadyRef.current || generation !== fusionCycleGenerationRef.current) break
 
@@ -1080,6 +1095,20 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
                 }
                 // Commit only an exact-time group admitted by native fusion.
                 lastFusionTimestampMsRef.current = group.timestampMs
+                if (fusionMaintenanceCountRef.current > 0) {
+                  const deferredMeasurements = exactTimeGroups
+                    .slice(groupIndex + 1)
+                    .flatMap((remaining) => remaining.measurements)
+                  if (deferredMeasurements.length > 0) {
+                    // Preserve the older drained groups ahead of measurements
+                    // that arrived while the active native call was pending.
+                    measurementBufferRef.current = deferredMeasurements.concat(
+                      measurementBufferRef.current
+                    )
+                    fusionCycleRequestedRef.current = true
+                  }
+                  break
+                }
               } catch (error) {
                 const notAdmitted = exactTimeGroups
                   .slice(groupIndex)
@@ -1124,6 +1153,12 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
               lastUpdateMs,
             }))
           }
+          if (fusionMaintenanceCountRef.current > 0) {
+            if (measurementBufferRef.current.length > 0) {
+              fusionCycleRequestedRef.current = true
+            }
+            break
+          }
         } while (fusionCycleRequestedRef.current)
       } finally {
         fusionCycleRunningRef.current = false
@@ -1139,12 +1174,38 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
       }
     }
   }, [fusionBackendAvailable])
+  runFusionCycleRef.current = runFusionCycle
 
   // Initialize fusion engine
   useEffect(() => {
     const generation = ++fusionInitGenerationRef.current
-    fusionCycleGenerationRef.current += 1
     let cancelled = false
+
+    // `setAlgorithm()` applies this exact configuration behind the cycle
+    // maintenance barrier before the parent updates its controlled prop. Do
+    // not treat that acknowledgement as a second request to destroy and
+    // initialize the engine. Unrelated prop-driven changes still use the full
+    // initialization path below.
+    const appliedConfig = appliedAlgorithmConfigRef.current
+    if (
+      fusionBackendAvailable &&
+      appliedConfig?.algorithm === fullConfig.algorithm &&
+      appliedConfig.processNoise === fullConfig.processNoise &&
+      appliedConfig.measurementNoise === fullConfig.measurementNoise
+    ) {
+      appliedAlgorithmConfigRef.current = null
+      fusionReadyRef.current = true
+      setState((prev) => ({
+        ...prev,
+        fusionAvailable: true,
+        fusionError: null,
+      }))
+      return () => {
+        cancelled = true
+      }
+    }
+    appliedAlgorithmConfigRef.current = null
+    fusionCycleGenerationRef.current += 1
     fusionReadyRef.current = false
     setState((prev) => ({
       ...prev,
@@ -1162,13 +1223,44 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
       }
     }
 
-    void queueFusionMaintenance(() =>
-      initFusion({
-        algorithm: fullConfig.algorithm,
-        process_noise: fullConfig.processNoise,
-        measurement_noise: fullConfig.measurementNoise,
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null
+    let releaseRetryWait: (() => void) | null = null
+    const settleRetryWait = () => {
+      if (retryTimeout !== null) clearTimeout(retryTimeout)
+      retryTimeout = null
+      const release = releaseRetryWait
+      releaseRetryWait = null
+      release?.()
+    }
+    const waitBeforeRetry = () =>
+      new Promise<void>((resolve) => {
+        releaseRetryWait = resolve
+        retryTimeout = setTimeout(settleRetryWait, FUSION_INITIALIZATION_RETRY_INTERVAL_MS)
       })
-    )
+    const initializeWhenReady = async () => {
+      for (let retry = 0; ; retry += 1) {
+        if (cancelled) throw new Error(FUSION_INITIALIZATION_CANCELLED)
+        try {
+          await initFusion({
+            algorithm: fullConfig.algorithm,
+            process_noise: fullConfig.processNoise,
+            measurement_noise: fullConfig.measurementNoise,
+          })
+          return
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error)
+          if (
+            !message.startsWith(FUSION_INITIALIZING_ERROR_PREFIX) ||
+            retry >= FUSION_INITIALIZATION_MAX_RETRIES
+          ) {
+            throw error
+          }
+          await waitBeforeRetry()
+        }
+      }
+    }
+
+    void queueFusionMaintenance(initializeWhenReady)
       .then(() => {
         if (!cancelled && generation === fusionInitGenerationRef.current) {
           fusionReadyRef.current = true
@@ -1188,7 +1280,7 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
 
     return () => {
       cancelled = true
-      fusionReadyRef.current = false
+      settleRetryWait()
     }
   }, [
     fullConfig.algorithm,
@@ -1295,7 +1387,9 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
         }
       },
       onError: (error) => {
-        setState((prev) => ({ ...prev, connectionError: error.message }))
+        if (ownedBridgeRef.current === bridge) {
+          setState((prev) => ({ ...prev, connectionError: error.message }))
+        }
       },
     })
 
@@ -1383,6 +1477,11 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
             particle_count: 100,
           })
         )
+        appliedAlgorithmConfigRef.current = {
+          algorithm,
+          processNoise: fullConfig.processNoise,
+          measurementNoise: fullConfig.measurementNoise,
+        }
         setState((prev) => ({ ...prev, fusionError: null }))
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
@@ -1441,16 +1540,18 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
         return
       }
       visualClockEpochActiveRef.current = true
-      appendMeasurements([{
-        sensor_id: cameraId,
-        modality: 'visual',
-        timestamp_ms: timestampMs,
-        position,
-        covariance: [1, 1, 1],
-        confidence,
-        class_label: classLabel,
-        metadata: {},
-      }])
+      appendMeasurements([
+        {
+          sensor_id: cameraId,
+          modality: 'visual',
+          timestamp_ms: timestampMs,
+          position: [...position],
+          covariance: [1, 1, 1],
+          confidence,
+          class_label: classLabel,
+          metadata: {},
+        },
+      ])
     },
     [appendMeasurements, markSensorActive]
   )
@@ -1467,9 +1568,7 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
       previousExternalBridgeRef.current !== externalBridge
     if (
       fusionBackendAvailable &&
-      ((externalWasConnectedRef.current && !externalIsConnected) ||
-        bridgeChanged ||
-        (externalIsConnected && visualClockEpochActiveRef.current))
+      (externalWasConnectedRef.current || bridgeChanged || visualClockEpochActiveRef.current)
     ) {
       void queueFusionMaintenance(clearTracks).catch((error) =>
         log.error('Failed to clear tracks after ROS connection change', { error })
@@ -1539,6 +1638,16 @@ export function useROSSensors(config: ROSSensorConfigInput = {}): UseROSSensorsR
       fusionCycleRequestedRef.current = false
     }
   }, [])
+
+  useEffect(
+    () => () => {
+      if (!usesExternalConnection || !fusionBackendAvailable) return
+      void queueFusionMaintenance(clearTracks).catch((error) =>
+        log.error('Failed to clear fusion tracks during sensor-hook teardown', { error })
+      )
+    },
+    [fusionBackendAvailable, queueFusionMaintenance, usesExternalConnection]
+  )
 
   return {
     ...state,

@@ -9,7 +9,7 @@ edition = "2021"
 rust-version = "1.89.0"
 
 [workspace]
-members = [".", "crates/plant-authority"]
+members = [".", "crates/ncp-headless", "crates/plant-authority"]
 default-members = ["."]
 resolver = "2"
 
@@ -34,7 +34,12 @@ zenoh-transport = ["zenoh"]
 # default artifacts contain neither path. The NCP standard SDK is pulled from
 # https://github.com/sepahead/NCP (git; pinned by the v0.8.0 tag and the immutable
 # commit recorded in Cargo.lock).
-ncp = ["dep:ncp-core", "dep:ncp-zenoh"]
+ncp = [
+    "dep:crebain-ncp-headless",
+    "dep:ncp-core",
+    "dep:ncp-zenoh",
+    "crebain-ncp-headless/ncp",
+]
 # Dummy feature to silence warning from objc crate which checks for feature = "cargo-clippy"
 cargo-clippy = []
 
@@ -95,6 +100,7 @@ zenoh = { version = "1.9", default-features = false, features = [
 # Pinned to the immutable wire-0.8 release tag.
 ncp-core = { git = "https://github.com/sepahead/NCP", tag = "v0.8.0", optional = true }
 ncp-zenoh = { git = "https://github.com/sepahead/NCP", tag = "v0.8.0", optional = true }
+crebain-ncp-headless = { path = "crates/ncp-headless", default-features = false, optional = true }
 
 # Async runtime for Zenoh (updated to 1.48.x LTS track)
 tokio = { version = "1.48", features = ["rt-multi-thread", "sync", "time"] }

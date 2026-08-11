@@ -13,7 +13,7 @@ flake.lock
 
 # Rust, Swift, and ROS sources are formatted by their own toolchains
 src-tauri/
-ros/
+/ros/
 
 # Markdown is hand-formatted (German content, evidence tables)
 *.md

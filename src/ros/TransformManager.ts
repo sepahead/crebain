@@ -17,17 +17,14 @@ import type {
   Quaternion,
 } from './types'
 import { createTime } from './types'
-import {
-  multiplyQuaternions,
-  inverseQuaternion,
-  rotateVectorByQuaternion,
-} from '../lib/mathUtils'
+import { multiplyQuaternions, inverseQuaternion, rotateVectorByQuaternion } from '../lib/mathUtils'
 import {
   isValidTfFrameId,
   normalizeComputedTfQuaternion,
   normalizeComputedTfTransform,
   normalizeIngressTransformStamped,
 } from './tfValidation'
+import { rosLogger as log } from '../lib/logger'
 
 // Re-export TFMessage for convenience
 export type { TFMessage }
@@ -40,7 +37,7 @@ export interface CachedTransform {
   transform: TransformStamped
   /** Exact ROS header stamp — index for time-based lookups. */
   stampNanoseconds: bigint
-  /** Wall-clock arrival time in ms — used only for cache expiry */
+  /** Monotonic arrival time in ms — used only for cache expiry. */
   receivedAtMs: number
   isStatic: boolean
 }
@@ -59,6 +56,8 @@ export interface TransformManagerConfig {
   throttleRateMs: number
   /** Maximum cache size per frame pair (default: 100) */
   maxCacheSize: number
+  /** Maximum dynamic transform samples across the complete tree. */
+  maxTotalDynamicSamples: number
 }
 
 interface TransformTimeRange {
@@ -83,7 +82,7 @@ export const StandardFrames = {
   LIDAR: 'lidar_link',
 } as const
 
-export type StandardFrame = typeof StandardFrames[keyof typeof StandardFrames]
+export type StandardFrame = (typeof StandardFrames)[keyof typeof StandardFrames]
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DEFAULT CONFIG
@@ -93,6 +92,62 @@ const DEFAULT_CONFIG: TransformManagerConfig = {
   cacheDurationMs: 10000, // 10 seconds
   throttleRateMs: 10, // 100 Hz
   maxCacheSize: 100,
+  maxTotalDynamicSamples: 65_536,
+}
+
+export const MAX_TF_FRAMES = 4_096
+export const MAX_TF_CACHE_SIZE_PER_EDGE = 1_000
+export const MAX_TF_DYNAMIC_SAMPLES = 65_536
+const MIN_TF_CACHE_DURATION_MS = 100
+const MAX_TF_CACHE_DURATION_MS = 86_400_000
+const MAX_TF_THROTTLE_MS = 60_000
+
+function validatedTransformManagerConfig(
+  config: Partial<TransformManagerConfig>
+): TransformManagerConfig {
+  const candidate = { ...DEFAULT_CONFIG, ...config }
+  if (
+    !Number.isSafeInteger(candidate.cacheDurationMs) ||
+    candidate.cacheDurationMs < MIN_TF_CACHE_DURATION_MS ||
+    candidate.cacheDurationMs > MAX_TF_CACHE_DURATION_MS
+  ) {
+    throw new Error(
+      `TF cacheDurationMs must be within ${MIN_TF_CACHE_DURATION_MS}-${MAX_TF_CACHE_DURATION_MS}`
+    )
+  }
+  if (
+    !Number.isSafeInteger(candidate.throttleRateMs) ||
+    candidate.throttleRateMs < 0 ||
+    candidate.throttleRateMs > MAX_TF_THROTTLE_MS
+  ) {
+    throw new Error(`TF throttleRateMs must be within 0-${MAX_TF_THROTTLE_MS}`)
+  }
+  if (
+    !Number.isSafeInteger(candidate.maxCacheSize) ||
+    candidate.maxCacheSize < 1 ||
+    candidate.maxCacheSize > MAX_TF_CACHE_SIZE_PER_EDGE
+  ) {
+    throw new Error(`TF maxCacheSize must be within 1-${MAX_TF_CACHE_SIZE_PER_EDGE}`)
+  }
+  if (
+    !Number.isSafeInteger(candidate.maxTotalDynamicSamples) ||
+    candidate.maxTotalDynamicSamples < 1 ||
+    candidate.maxTotalDynamicSamples > MAX_TF_DYNAMIC_SAMPLES
+  ) {
+    throw new Error(`TF maxTotalDynamicSamples must be within 1-${MAX_TF_DYNAMIC_SAMPLES}`)
+  }
+  return candidate
+}
+
+function snapshotTime(time: Time): Time {
+  return { secs: time.secs, nsecs: time.nsecs }
+}
+
+function snapshotTransform(transform: Transform): Transform {
+  return {
+    translation: { ...transform.translation },
+    rotation: { ...transform.rotation },
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -106,15 +161,18 @@ export class TransformManager {
   // Cache: Map<"parent->child", Array<CachedTransform>>
   private transformCache: Map<string, CachedTransform[]> = new Map()
   private staticTransforms: Map<string, CachedTransform> = new Map()
+  private dynamicSampleCount = 0
 
   // Frame tree: Map<child, parent>
   private frameTree: Map<string, string> = new Map()
+  private frameChildren: Map<string, Set<string>> = new Map()
+  private knownFrames: Set<string> = new Set()
 
   private unsubscribes: Array<() => void> = []
   private cleanupIntervalId: ReturnType<typeof setInterval> | null = null
 
   constructor(config: Partial<TransformManagerConfig> = {}) {
-    this.config = { ...DEFAULT_CONFIG, ...config }
+    this.config = validatedTransformManagerConfig(config)
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -130,49 +188,59 @@ export class TransformManager {
     }
 
     this.bridge = bridge
+    try {
+      // Subscribe to /tf (dynamic transforms)
+      const unsubTF = bridge.subscribe<TFMessage>(
+        '/tf',
+        'tf2_msgs/TFMessage',
+        (msg) => this.handleTFMessage(msg, false),
+        this.config.throttleRateMs
+      )
+      this.unsubscribes.push(unsubTF)
 
-    // Subscribe to /tf (dynamic transforms)
-    const unsubTF = bridge.subscribe<TFMessage>(
-      '/tf',
-      'tf2_msgs/TFMessage',
-      (msg) => this.handleTFMessage(msg, false),
-      this.config.throttleRateMs
-    )
-    this.unsubscribes.push(unsubTF)
+      // Subscribe to /tf_static (static transforms)
+      const unsubTFStatic = bridge.subscribe<TFMessage>('/tf_static', 'tf2_msgs/TFMessage', (msg) =>
+        this.handleTFMessage(msg, true)
+      )
+      this.unsubscribes.push(unsubTFStatic)
 
-    // Subscribe to /tf_static (static transforms)
-    const unsubTFStatic = bridge.subscribe<TFMessage>(
-      '/tf_static',
-      'tf2_msgs/TFMessage',
-      (msg) => this.handleTFMessage(msg, true)
-    )
-    this.unsubscribes.push(unsubTFStatic)
-
-    // Start cache cleanup interval
-    this.cleanupIntervalId = setInterval(
-      () => this.cleanupCache(),
-      this.config.cacheDurationMs / 2
-    )
+      // Start cache cleanup interval
+      this.cleanupIntervalId = setInterval(
+        () => this.cleanupCache(),
+        this.config.cacheDurationMs / 2
+      )
+    } catch (error) {
+      this.stop()
+      throw error
+    }
   }
 
   /**
    * Stop the transform manager
    */
   stop(): void {
-    for (const unsub of this.unsubscribes) {
-      unsub()
-    }
+    const unsubscribes = this.unsubscribes
     this.unsubscribes = []
 
-    if (this.cleanupIntervalId) {
+    if (this.cleanupIntervalId !== null) {
       clearInterval(this.cleanupIntervalId)
       this.cleanupIntervalId = null
     }
 
     this.transformCache.clear()
     this.staticTransforms.clear()
+    this.dynamicSampleCount = 0
     this.frameTree.clear()
+    this.frameChildren.clear()
+    this.knownFrames.clear()
     this.bridge = null
+    for (const unsubscribe of unsubscribes) {
+      try {
+        unsubscribe()
+      } catch (error) {
+        log.error('TF unsubscribe callback failed', { error })
+      }
+    }
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -180,7 +248,7 @@ export class TransformManager {
   // ───────────────────────────────────────────────────────────────────────────
 
   private handleTFMessage(msg: TFMessage, isStatic: boolean): void {
-    const receivedAtMs = Date.now()
+    const receivedAtMs = performance.now()
 
     for (const incomingTf of msg.transforms) {
       // Apply the same reject-then-normalize policy used by ROSBridge. Keeping
@@ -191,8 +259,48 @@ export class TransformManager {
       if (stampNanoseconds === null) continue
       const key = this.makeKey(tf.header.frame_id, tf.child_frame_id)
 
+      const existingParent = this.frameTree.get(tf.child_frame_id)
+      if (existingParent !== undefined && existingParent !== tf.header.frame_id) continue
+      if (
+        existingParent === undefined &&
+        !this.canAttachFrame(tf.header.frame_id, tf.child_frame_id)
+      ) {
+        continue
+      }
+      if (
+        (isStatic && this.transformCache.has(key)) ||
+        (!isStatic && this.staticTransforms.has(key))
+      ) {
+        continue
+      }
+
+      const existingDynamicCache = isStatic ? undefined : this.transformCache.get(key)
+      const duplicateDynamicIndex =
+        existingDynamicCache?.findIndex(
+          (candidate) => candidate.stampNanoseconds === stampNanoseconds
+        ) ?? -1
+      const replacesOldestDynamicSample =
+        duplicateDynamicIndex === -1 &&
+        existingDynamicCache !== undefined &&
+        existingDynamicCache.length >= this.config.maxCacheSize
+      if (
+        !isStatic &&
+        duplicateDynamicIndex === -1 &&
+        !replacesOldestDynamicSample &&
+        this.dynamicSampleCount >= this.config.maxTotalDynamicSamples
+      ) {
+        continue
+      }
+
       // Update frame tree
-      this.frameTree.set(tf.child_frame_id, tf.header.frame_id)
+      if (existingParent === undefined) {
+        this.frameTree.set(tf.child_frame_id, tf.header.frame_id)
+        this.knownFrames.add(tf.header.frame_id)
+        this.knownFrames.add(tf.child_frame_id)
+        const children = this.frameChildren.get(tf.header.frame_id) ?? new Set<string>()
+        children.add(tf.child_frame_id)
+        this.frameChildren.set(tf.header.frame_id, children)
+      }
 
       const cached: CachedTransform = {
         transform: tf,
@@ -206,7 +314,7 @@ export class TransformManager {
         this.staticTransforms.set(key, cached)
       } else {
         // Dynamic transforms are cached with history for interpolation
-        let cache = this.transformCache.get(key)
+        let cache = existingDynamicCache
         if (!cache) {
           cache = []
           this.transformCache.set(key, cache)
@@ -216,9 +324,7 @@ export class TransformManager {
         // edge ordered by its sensor stamp so interpolation and common-time
         // lookup do not depend on arrival order. A repeated stamp replaces the
         // older sample instead of making selection ambiguous.
-        const duplicateIndex = cache.findIndex(
-          (candidate) => candidate.stampNanoseconds === cached.stampNanoseconds
-        )
+        const duplicateIndex = duplicateDynamicIndex
         if (duplicateIndex >= 0) {
           cache[duplicateIndex] = cached
         } else {
@@ -230,18 +336,38 @@ export class TransformManager {
           } else {
             cache.splice(insertionIndex, 0, cached)
           }
-        }
-
-        // Limit cache size
-        if (cache.length > this.config.maxCacheSize) {
-          cache.shift()
+          this.dynamicSampleCount += 1
+          if (cache.length > this.config.maxCacheSize) {
+            cache.shift()
+            this.dynamicSampleCount -= 1
+          }
         }
       }
     }
   }
 
+  private canAttachFrame(parent: string, child: string): boolean {
+    if (parent === child) return false
+    let addedFrames = 0
+    if (!this.knownFrames.has(parent)) addedFrames += 1
+    if (!this.knownFrames.has(child)) addedFrames += 1
+    if (this.knownFrames.size + addedFrames > MAX_TF_FRAMES) return false
+
+    // Adding child -> parent is invalid when parent already descends from child.
+    let ancestor: string | undefined = parent
+    const visited = new Set<string>()
+    while (ancestor !== undefined) {
+      if (ancestor === child || visited.has(ancestor)) return false
+      visited.add(ancestor)
+      ancestor = this.frameTree.get(ancestor)
+    }
+    return true
+  }
+
   private makeKey(parent: string, child: string): string {
-    return `${parent}->${child}`
+    // Length-prefix the first component so arbitrary valid frame IDs cannot
+    // collide (for example, `a->b`/`c` versus `a`/`b->c`).
+    return `${parent.length}:${parent}${child}`
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -252,20 +378,28 @@ export class TransformManager {
    * Look up transform from source frame to target frame
    * Uses cached transforms, falls back to frame tree traversal
    */
-  lookupTransform(
-    targetFrame: string,
-    sourceFrame: string,
-    time?: Time
-  ): TransformLookupResult {
+  lookupTransform(targetFrame: string, sourceFrame: string, time?: Time): TransformLookupResult {
+    const requestedTimestamp = time ? snapshotTime(time) : createTime()
     if (!isValidTfFrameId(targetFrame) || !isValidTfFrameId(sourceFrame)) {
       return {
         transform: {
           translation: { x: 0, y: 0, z: 0 },
           rotation: { x: 0, y: 0, z: 0, w: 1 },
         },
-        timestamp: time || createTime(),
+        timestamp: requestedTimestamp,
         valid: false,
         error: 'Invalid or empty TF frame ID',
+      }
+    }
+    if (time && this.timeToNanoseconds(time) === null) {
+      return {
+        transform: {
+          translation: { x: 0, y: 0, z: 0 },
+          rotation: { x: 0, y: 0, z: 0, w: 1 },
+        },
+        timestamp: requestedTimestamp,
+        valid: false,
+        error: 'Invalid requested ROS time',
       }
     }
 
@@ -276,7 +410,7 @@ export class TransformManager {
           translation: { x: 0, y: 0, z: 0 },
           rotation: { x: 0, y: 0, z: 0, w: 1 },
         },
-        timestamp: time || createTime(),
+        timestamp: requestedTimestamp,
         valid: true,
       }
     }
@@ -285,8 +419,8 @@ export class TransformManager {
     const direct = this.getDirectTransform(targetFrame, sourceFrame, time)
     if (direct) {
       return {
-        transform: direct.transform.transform,
-        timestamp: time || direct.transform.header.stamp,
+        transform: snapshotTransform(direct.transform.transform),
+        timestamp: time ? requestedTimestamp : snapshotTime(direct.transform.header.stamp),
         valid: true,
       }
     }
@@ -297,8 +431,8 @@ export class TransformManager {
       const inverted = this.invertTransform(inverse.transform.transform)
       if (inverted) {
         return {
-          transform: inverted,
-          timestamp: time || inverse.transform.header.stamp,
+          transform: snapshotTransform(inverted),
+          timestamp: time ? requestedTimestamp : snapshotTime(inverse.transform.header.stamp),
           valid: true,
         }
       }
@@ -318,7 +452,7 @@ export class TransformManager {
         translation: { x: 0, y: 0, z: 0 },
         rotation: { x: 0, y: 0, z: 0, w: 1 },
       },
-      timestamp: time || createTime(),
+      timestamp: requestedTimestamp,
       valid: false,
       error:
         `No temporally coherent transform from ${sourceFrame} to ${targetFrame}` +
@@ -329,11 +463,7 @@ export class TransformManager {
   /**
    * Get direct transform between parent and child
    */
-  private getDirectTransform(
-    parent: string,
-    child: string,
-    time?: Time
-  ): CachedTransform | null {
+  private getDirectTransform(parent: string, child: string, time?: Time): CachedTransform | null {
     const key = this.makeKey(parent, child)
 
     // Check static transforms first
@@ -360,9 +490,7 @@ export class TransformManager {
     const targetNanoseconds = this.timeToNanoseconds(time)
     if (targetNanoseconds === null) return null
 
-    const exact = cache.find(
-      (candidate) => candidate.stampNanoseconds === targetNanoseconds
-    )
+    const exact = cache.find((candidate) => candidate.stampNanoseconds === targetNanoseconds)
     if (exact) return exact
 
     const upperIndex = cache.findIndex(
@@ -377,8 +505,7 @@ export class TransformManager {
     const intervalNanoseconds = after.stampNanoseconds - before.stampNanoseconds
     if (intervalNanoseconds <= 0n) return null
 
-    const alpha =
-      Number(targetNanoseconds - before.stampNanoseconds) / Number(intervalNanoseconds)
+    const alpha = Number(targetNanoseconds - before.stampNanoseconds) / Number(intervalNanoseconds)
     if (!Number.isFinite(alpha) || alpha < 0 || alpha > 1) return null
     const interpolated = this.interpolateTransform(
       before.transform.transform,
@@ -420,12 +547,15 @@ export class TransformManager {
   ): Array<{ parent: string; child: string; inverse: boolean }> | null {
     // BFS from source to target
     const visited = new Set<string>()
-    const queue: Array<{ frame: string; path: Array<{ parent: string; child: string; inverse: boolean }> }> = [
-      { frame: source, path: [] }
-    ]
+    const queue: Array<{
+      frame: string
+      path: Array<{ parent: string; child: string; inverse: boolean }>
+    }> = [{ frame: source, path: [] }]
+    let queueIndex = 0
 
-    while (queue.length > 0) {
-      const { frame, path } = queue.shift()!
+    while (queueIndex < queue.length) {
+      const { frame, path } = queue[queueIndex]
+      queueIndex += 1
 
       if (frame === target) {
         return path
@@ -448,8 +578,8 @@ export class TransformManager {
       // Going down (we walk parent -> child). The stored `parent->child`
       // transform maps child -> parent, the opposite of our travel direction,
       // so it must be inverted.
-      for (const [child, p] of this.frameTree) {
-        if (p === frame && !visited.has(child)) {
+      for (const child of this.frameChildren.get(frame) ?? []) {
+        if (!visited.has(child)) {
           queue.push({
             frame: child,
             path: [...path, { parent: frame, child, inverse: true }],
@@ -520,7 +650,7 @@ export class TransformManager {
 
     return {
       transform: result,
-      timestamp: evaluationTime || createTime(),
+      timestamp: evaluationTime ? snapshotTime(evaluationTime) : createTime(),
       valid: true,
     }
   }
@@ -590,11 +720,7 @@ export class TransformManager {
     })
   }
 
-  private slerpQuaternion(
-    before: Quaternion,
-    after: Quaternion,
-    alpha: number
-  ): Quaternion | null {
+  private slerpQuaternion(before: Quaternion, after: Quaternion, alpha: number): Quaternion | null {
     const start = normalizeComputedTfQuaternion(before)
     const normalizedEnd = normalizeComputedTfQuaternion(after)
     if (!start || !normalizedEnd || !Number.isFinite(alpha) || alpha < 0 || alpha > 1) return null
@@ -696,20 +822,45 @@ export class TransformManager {
   // ───────────────────────────────────────────────────────────────────────────
 
   private cleanupCache(): void {
-    const now = Date.now()
+    const now = performance.now()
     const expiry = now - this.config.cacheDurationMs
 
     for (const [key, cache] of this.transformCache) {
-      // Expire by wall-clock arrival time, never by header stamp, so sim-time
-      // transforms (whose stamps lag wall time) are not evicted prematurely.
-      const filtered = cache.filter(tf => tf.receivedAtMs > expiry)
+      // Expire by monotonic arrival time, never by header stamp. Simulation
+      // stamps can lag real time and wall-clock corrections can move backward.
+      const filtered = cache.filter((tf) => tf.receivedAtMs > expiry)
+      this.dynamicSampleCount -= cache.length - filtered.length
 
       if (filtered.length === 0) {
         this.transformCache.delete(key)
+        const expired = cache[cache.length - 1]
+        this.removeTopologyEdge(expired.transform.header.frame_id, expired.transform.child_frame_id)
       } else if (filtered.length !== cache.length) {
         this.transformCache.set(key, filtered)
       }
     }
+  }
+
+  private removeTopologyEdge(parent: string, child: string): void {
+    if (this.staticTransforms.has(this.makeKey(parent, child))) return
+    if (this.frameTree.get(child) === parent) {
+      this.frameTree.delete(child)
+    }
+
+    const children = this.frameChildren.get(parent)
+    children?.delete(child)
+    if (children?.size === 0) {
+      this.frameChildren.delete(parent)
+    }
+
+    this.pruneKnownFrame(parent)
+    this.pruneKnownFrame(child)
+  }
+
+  private pruneKnownFrame(frame: string): void {
+    if (this.frameTree.has(frame)) return
+    if ((this.frameChildren.get(frame)?.size ?? 0) > 0) return
+    this.knownFrames.delete(frame)
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -720,14 +871,7 @@ export class TransformManager {
    * Get all known frames
    */
   getKnownFrames(): string[] {
-    const frames = new Set<string>()
-
-    for (const [child, parent] of this.frameTree) {
-      frames.add(child)
-      frames.add(parent)
-    }
-
-    return Array.from(frames)
+    return Array.from(this.knownFrames)
   }
 
   /**
@@ -741,7 +885,7 @@ export class TransformManager {
    * Check if a frame is known
    */
   hasFrame(frame: string): boolean {
-    return this.frameTree.has(frame) || Array.from(this.frameTree.values()).includes(frame)
+    return this.knownFrames.has(frame)
   }
 
   /**
@@ -769,17 +913,6 @@ export class TransformManager {
 // FACTORY
 // ─────────────────────────────────────────────────────────────────────────────
 
-let instance: TransformManager | null = null
-
-export function getTransformManager(): TransformManager {
-  if (!instance) {
-    instance = new TransformManager()
-  }
-  return instance
-}
-
-export function createTransformManager(
-  config?: Partial<TransformManagerConfig>
-): TransformManager {
+export function createTransformManager(config?: Partial<TransformManagerConfig>): TransformManager {
   return new TransformManager(config)
 }

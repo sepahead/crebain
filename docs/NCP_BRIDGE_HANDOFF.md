@@ -3,9 +3,24 @@
 <!-- ncp-pin: v0.8.0 -->
 
 This is the current implementation handoff for CREBAIN's optional
-Neuro-Cybernetic Protocol integrations: a dormant Engram/action adapter and a
-separately gated live Galadriel evidence producer. It replaces the former
-extraction plan. The sibling-path dependency problem is historical and fixed.
+Neuro-Cybernetic Protocol integrations: a dormant action adapter, a separate
+headless perception runner, and a separately gated Galadriel evidence producer.
+It replaces the former extraction plan. The sibling-path dependency problem is
+historical and fixed.
+
+<p align="center">
+  <img alt="CREBAIN headless NCP and Engram host boundaries" src="../assets/diagrams/engram-ncp-boundary.svg" width="900">
+</p>
+
+Text alternative: The feature-gated `crebain-ncp-headless` process uses
+strict-client-config NCP wire 0.8 without Tauri, inference, image, or plant dependencies.
+It bounds open, 1–4,096 steps, and close against a compatible external responder.
+Self-check and validation do not cross the transport boundary. The separate
+Engram UI host is read-only and has no NCP path. Current Engram wire 1.0 is
+incompatible, and no translator or live loop exists. A successful, validated
+RPC reply shows that one compatible responder replied. It does not prove
+receiver identity, end-to-end effect, TLS, ACL, scientific validity, or
+deployment readiness.
 
 ## Product boundary
 
@@ -16,6 +31,7 @@ standalone. NCP is not on the default runtime path:
 |---------|---------------|
 | Rust `src-tauri/src/ncp/mod.rs` | Compiles only with the off-by-default `ncp` feature; provides `NcpBridge`, validated feature-neuron RPCs, and a wired fail-closed `CommandPlant` action loop as library APIs |
 | Rust Tauri commands | Defined, but `NcpHandle` is not managed and the four `ncp_*` commands are not registered |
+| External `crebain-ncp-headless` process | Separate dependency-isolated workspace package with empty default features; compiles its binary only with `ncp`; provides local `self-check`, a `validate` command that opens no Zenoh session, and an explicit bounded secure-configuration-only perception `run` against a compatible NCP wire-0.8 responder |
 | Rust Galadriel producer | Compiles with `ncp`; managed by the app only when `CREBAIN_GALADRIEL_ENABLE=1`, an explicit key-safe process epoch is supplied, and all registry/config/executable pins pass; writes only two named perception evidence routes |
 | TypeScript `src/neuro` | Thin guarded re-export of `@sepahead/ncp`; imported by no product component/hook |
 | Vite-dev `window.__ncpDrone` | Manual in-browser wire-shaped command injection. It opens no NCP transport or session. It is absent from production builds and Engram embedded mode. |
@@ -23,9 +39,11 @@ standalone. NCP is not on the default runtime path:
 | Live CREBAIN↔Engram action/control loop | Not implemented or enabled |
 | Live CREBAIN→Galadriel deployed correlation | Producer component is integrated; compatible receiver, security/topology, and end-to-end evidence remain unproved |
 
-No Engram process or sibling checkout is required to run CREBAIN. Cargo's pinned
-Git dependencies must still be network/cache-resolvable when resolving or building
-the NCP feature. “No sibling checkout” does not mean “no dependency resolution.”
+No Engram process or sibling checkout is required to run the CREBAIN application.
+Cargo's pinned Git dependencies must still be network/cache-resolvable when
+resolving or building the NCP feature. The headless `run` command separately
+requires a compatible NCP wire-0.8 responder. “No sibling checkout” does not
+mean “no dependency resolution.”
 
 Engram can host the standalone Vite interface with `engramHost=1`. This mode
 uses the manifest in `integrations/engram/manifest.json`. The embedded boundary
@@ -43,19 +61,32 @@ artifact nor a live certification result. The manifest therefore marks
 compatibility as false. The source repository and Engram share a digest-locked
 `engram.host.v1` protocol vector.
 
+The restricted Engram UI host has no NCP path. The headless runner does not use
+the host protocol. Its `engram/ncp` default is only an NCP realm string. Current
+Engram/Paper2Brain native wire 1.0 is incompatible with CREBAIN's wire 0.8 pin.
+No translator or live CREBAIN↔current-Engram loop exists.
+
 ## Current dependency contract
 
 The canonical NCP SDK lives at `github.com/sepahead/NCP`. CREBAIN pins tag
 `v0.8.0` in:
 
-- `ncp-core` and `ncp-zenoh` in `src-tauri/Cargo.toml` and `Cargo.lock`
+- `ncp-core` and `ncp-zenoh` in `src-tauri/Cargo.toml`,
+  `src-tauri/crates/ncp-headless/Cargo.toml`, and the shared `Cargo.lock`
 - `@sepahead/ncp` in `package.json` and `bun.lock`
 
-All four files must move together. The SDK validates wire compatibility.
+All five files must move together. The SDK validates wire compatibility.
 CREBAIN does not coerce incompatible or missing versions into success. External
 Engram examples that show an older incompatible wire contract, old package scopes,
 or `std_msgs` profiles are stale integration material and must be corrected in their owning
 repository rather than copied here.
+
+The `v0.8.0` annotated tag object is
+`54008b16ea0c195a4ccc9691cb533dd1153bf7f0`. The Bun lock stores its `54008b1`
+abbreviation. Cargo peels the tag and stores commit
+`2f5bd586d4bb20c90362bb6f5698b7f64057ba4e`. The values differ because they
+identify different Git object types. The offline coherence check binds this
+exact mapping through `scripts/ncp-release-identities.tsv`.
 
 The audited external ACL/profile set does not establish an authorized
 Galadriel-sidecar identity in CREBAIN's intended realm. Producer code does not
@@ -63,6 +94,71 @@ close that external deployment blocker or grant permission to widen CREBAIN or
 NCP ACLs. Resolve the TLS identity, principal-to-envelope identity binding, and
 positive/negative exact-key ACL tests in the owning deployment before a live
 ecosystem claim.
+
+## Bounded headless perception runner
+
+`crebain-ncp-headless` is an external process from a separate
+dependency-isolated workspace package. Its default feature set is empty. Cargo
+feature `ncp` enables the binary and pinned wire-0.8 dependencies. It is not a
+Tauri command and does not change the desktop app.
+
+The process accepts three explicit subcommands:
+
+| Command | File and network behavior |
+|---|---|
+| `self-check` | Reads no runner configuration and opens no Zenoh session |
+| `validate --session-id <id>` | Validates bounded arguments and the strict client posture in `NCP_ZENOH_CONFIG`; opens no Zenoh session |
+| `run --session-id <id>` | Accepts only the strict secure-client configuration posture, requires `NCP_ZENOH_CONFIG`, and runs one bounded perception lifecycle against a compatible NCP wire-0.8 responder |
+
+The bounded inputs are:
+
+| Input | Default and limit |
+|---|---|
+| Realm | `engram/ncp`; safe NCP key segments; at most 128 bytes |
+| Session ID | Required safe NCP key segment; at most 64 bytes |
+| Model | `iaf_psc_alpha`; safe model name; at most 128 bytes |
+| Drive | 500 pA; finite; from -1,000,000 through 1,000,000 pA |
+| Advance | 10 ms; finite; greater than 0 and at most 10,000 ms |
+| Steps | 1; from 1 through 4,096 |
+| Operation timeout | 15,000 ms; from 10 through 15,000 ms |
+| Lifecycle timeout | 60,000 ms; at least four operation-timeout budgets and at most 300,000 ms |
+| `NCP_ZENOH_CONFIG` | Required for `validate` and `run`; strict client configuration in a regular file; at most 1 MiB |
+
+`validate` and `run` each read the configuration once through one open file
+handle. Each of these commands validates its exact bounded snapshot. `run` passes that
+parsed object to Zenoh. The gate requires client mode, disabled scouting, only `tls/` connect
+endpoints, no listeners, certificate paths, and peer-name verification. These
+checks do not attest TLS, an ACL, peer identity, or topology.
+
+Each lifecycle query accepts exactly one reply. The client rejects a second
+reply and rejects a reply larger than 1 MiB before payload materialization. A
+successful open must return a canonical server-issued session generation. Step
+and close requests echo it. Observation and close replies must match it. The
+shared client retains at most 256 session states. Ambiguous open and close
+outcomes remain fail closed until reconnect.
+
+After open is confirmed, the running process makes one bounded close attempt. A
+handled step, timeout, or lifecycle failure does not skip that attempt. The process has
+no quiet-development mode, command subscription, sensor put, action callback,
+Tauri registration, or plant-authority path.
+
+An RPC reply shows that some responder replied. It does not identify that
+responder as the intended deployment receiver. It does not prove an end-to-end
+effect, TLS identity, access-control-list policy, deployment compatibility, or
+scientific validity.
+The `engram/ncp` default realm does not establish current Engram compatibility.
+
+```bash
+cargo run --locked --manifest-path src-tauri/Cargo.toml \
+  -p crebain-ncp-headless --features ncp \
+  --bin crebain-ncp-headless -- self-check
+
+NCP_ZENOH_CONFIG=/trusted/ncp.json \
+  cargo run --locked --manifest-path src-tauri/Cargo.toml \
+  -p crebain-ncp-headless --features ncp \
+  --bin crebain-ncp-headless -- \
+  validate --session-id validation-only
+```
 
 ## Implemented Rust safety path
 
@@ -104,11 +200,12 @@ native-1.0 live-generation/authority lease. This local wire-0.8 hardening does
 not satisfy NCP ecosystem ledger task C01 or C02. It is not native-1.0
 qualification evidence.
 
-Lifecycle RPCs use the pinned SDK's `ZenohNcpClient` typed gates. Wire 0.8 checks
-the raw envelope before deserialization, requires explicit lifecycle result
-fields, binds reply kind/session to the originating request, and validates
-versioned typed-error attribution. CREBAIN accepts no local permissive reply
-path.
+Lifecycle RPCs use CREBAIN's shared feature-neuron client over `ZenohBus`.
+Pinned `ncp-core` checks the raw envelope before typed deserialization. It binds
+reply kind and session ID to the request and validates typed-error attribution.
+CREBAIN also binds the server-issued generation across open, step, observation,
+close, and close acknowledgement. The query path bounds reply count and bytes
+before materialization. CREBAIN accepts no local permissive reply path.
 
 This remains an action/control library guarantee, not a product deployment
 claim: no registered command or frontend hook calls the loop, and no callback is
@@ -141,6 +238,13 @@ bun run validate:all
 
 # Read-only Cargo/npm pin, lockfile, and normative-doc guard
 bun run check:ncp-coherence
+
+# Isolated headless-runner boundary and package gates
+bun run check:ncp-headless-boundary
+bun run check:ncp-headless
+bun run clippy:ncp-headless
+bun run test:ncp-headless
+bun run self-check:ncp-headless
 
 # Focused optional bridge and producer gates
 bun run check:rust:ncp

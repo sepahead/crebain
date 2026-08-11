@@ -13,6 +13,8 @@ const HOST_NONCE_MIN_LENGTH = 16
 const HOST_NONCE_MAX_LENGTH = 128
 const HOST_ORIGIN_MAX_LENGTH = 256
 const HOST_NONCE_PATTERN = /^[A-Za-z0-9_-]+$/
+// This command is owned and registered by the Engram host. CREBAIN must not
+// register it: success proves that the remote frame reached Engram native IPC.
 const ENGRAM_HOST_SECURITY_CANARY_COMMAND = 'get_extension_host_security'
 const TAURI_HOST_ORIGINS = new Set([
   'tauri://localhost',
@@ -148,6 +150,13 @@ export function assertExternalTelemetryAllowed(search?: string): void {
 export function assertArtifactExchangeAllowed(search?: string): void {
   if (isEngramEmbeddedMode(search)) {
     throw new Error('Artifact exchange is disabled in Engram embedded mode')
+  }
+}
+
+/** Reject in-memory scene writes from the restricted embedded document. */
+export function assertSceneMutationAllowed(search?: string): void {
+  if (isEngramEmbeddedMode(search)) {
+    throw new Error('Scene mutation is disabled in Engram embedded mode')
   }
 }
 
@@ -373,7 +382,8 @@ export function startEngramHostBridge(
           return false
         }
       })
-    void probe()
+    void Promise.resolve()
+      .then(probe)
       .then((accessible) => {
         if (!active) return
         tauriIpcAccessible = accessible

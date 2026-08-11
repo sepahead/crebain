@@ -6,6 +6,9 @@
  */
 
 import { Component, type ReactNode, type ErrorInfo } from 'react'
+import { logger } from '../lib/logger'
+
+const log = logger.scope('ErrorBoundary')
 
 interface ErrorBoundaryProps {
   children: ReactNode
@@ -29,7 +32,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   override componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-    this.props.onError?.(error, errorInfo)
+    try {
+      this.props.onError?.(error, errorInfo)
+    } catch (observerError) {
+      log.warn('Error-boundary observer failed', { error: observerError })
+    }
   }
 
   handleReset = (): void => {
@@ -44,6 +51,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
       return (
         <div
+          role="alert"
           style={{
             position: 'absolute',
             inset: 0,
@@ -73,6 +81,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             </pre>
           </div>
           <button
+            type="button"
             onClick={this.handleReset}
             style={{
               backgroundColor: '#333',

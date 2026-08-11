@@ -31,7 +31,15 @@ function isCloseableImageData(value: object): value is object & CloseableImageDa
   return 'close' in value && typeof value.close === 'function'
 }
 
-function closeImageData(value: unknown, visited: Set<object>): void {
+function attemptCleanup(errors: unknown[], operation: () => void): void {
+  try {
+    operation()
+  } catch (error) {
+    errors.push(error)
+  }
+}
+
+function closeImageData(value: unknown, visited: Set<object>, errors: unknown[]): void {
   const pending: unknown[] = [value]
 
   while (pending.length > 0) {
@@ -45,7 +53,7 @@ function closeImageData(value: unknown, visited: Set<object>): void {
       const items = candidate as unknown[]
       pending.push(...items)
     } else if (isCloseableImageData(candidate)) {
-      candidate.close()
+      attemptCleanup(errors, () => candidate.close())
     }
   }
 }
@@ -53,16 +61,17 @@ function closeImageData(value: unknown, visited: Set<object>): void {
 function disposeTexture(
   texture: THREE.Texture,
   disposedTextures: Set<THREE.Texture>,
-  closedImageData: Set<object>
+  closedImageData: Set<object>,
+  errors: unknown[]
 ): void {
   if (disposedTextures.has(texture)) {
     return
   }
   disposedTextures.add(texture)
 
-  closeImageData(texture.image, closedImageData)
-  closeImageData(texture.source.data, closedImageData)
-  texture.dispose()
+  closeImageData(texture.image, closedImageData, errors)
+  closeImageData(texture.source.data, closedImageData, errors)
+  attemptCleanup(errors, () => texture.dispose())
 }
 
 /**
@@ -75,7 +84,8 @@ function disposeTextureReferences(
   initialValue: unknown,
   includePlainRecords: boolean,
   disposedTextures: Set<THREE.Texture>,
-  closedImageData: Set<object>
+  closedImageData: Set<object>,
+  errors: unknown[]
 ): void {
   const pending: unknown[] = [initialValue]
   const visitedContainers = new Set<object>()
@@ -83,7 +93,7 @@ function disposeTextureReferences(
   while (pending.length > 0) {
     const value = pending.pop()
     if (isTexture(value)) {
-      disposeTexture(value, disposedTextures, closedImageData)
+      disposeTexture(value, disposedTextures, closedImageData, errors)
       continue
     }
     if (!isObject(value) || visitedContainers.has(value)) {
@@ -104,13 +114,14 @@ function disposeTextureReferences(
 function disposeMaterialTextures(
   material: THREE.Material,
   disposedTextures: Set<THREE.Texture>,
-  closedImageData: Set<object>
+  closedImageData: Set<object>,
+  errors: unknown[]
 ): void {
   const properties = material as unknown as UnknownRecord
 
   for (const [name, value] of Object.entries(properties)) {
     if (name !== 'uniforms') {
-      disposeTextureReferences(value, false, disposedTextures, closedImageData)
+      disposeTextureReferences(value, false, disposedTextures, closedImageData, errors)
     }
   }
 
@@ -121,7 +132,7 @@ function disposeMaterialTextures(
 
   for (const uniform of Object.values(uniforms)) {
     if (isRecord(uniform) && 'value' in uniform) {
-      disposeTextureReferences(uniform.value, true, disposedTextures, closedImageData)
+      disposeTextureReferences(uniform.value, true, disposedTextures, closedImageData, errors)
     }
   }
 }
@@ -180,24 +191,84 @@ export function objectId(object: THREE.Object3D): string {
   return object.uuid
 }
 
+export interface Object3DAttachmentResult {
+  /** True only when the object is reachable from the requested live scene. */
+  attached: boolean
+  /** Synchronous scene-event failures observed while ownership was transferred. */
+  errors: unknown[]
+}
+
+/**
+ * Test whether an object is reachable from one exact scene.
+ *
+ * Three.js updates `parent` before it dispatches `added` and `removed` events.
+ * An event listener can therefore throw even though the graph mutation took
+ * effect. Ownership code must inspect the graph instead of inferring state from
+ * whether `Scene.add` returned normally.
+ */
+export function isObject3DInScene(scene: THREE.Scene | null, object: THREE.Object3D): boolean {
+  if (!scene) return false
+  let current: THREE.Object3D | null = object
+  while (current) {
+    if (current === scene) return true
+    current = current.parent
+  }
+  return false
+}
+
+/**
+ * Attach a retained object and report ownership from the resulting graph.
+ * A listener failure is preserved as an error, but it does not make an object
+ * that reached the scene safe for a detached-resource disposer.
+ */
+export function attachObject3DToScene(
+  scene: THREE.Scene | null,
+  object: THREE.Object3D,
+  label: string
+): Object3DAttachmentResult {
+  const errors: unknown[] = []
+  if (!scene) {
+    errors.push(new Error(`Cannot restore ${label}: scene is unavailable`))
+    return { attached: false, errors }
+  }
+
+  try {
+    scene.add(object)
+  } catch (error) {
+    errors.push(error)
+  }
+
+  const attached = isObject3DInScene(scene, object)
+  if (!attached && errors.length === 0) {
+    errors.push(new Error(`Cannot restore ${label}: object did not attach to the live scene`))
+  }
+  return { attached, errors }
+}
+
 /**
  * Recursively dispose the GPU resources (geometries, textures, and materials) of
  * every mesh in the subtree rooted at `root`.
  *
  * three.js does not release these resources automatically when an object is
  * removed from a scene, so callers must dispose meshes explicitly to avoid GPU
- * memory leaks.
+ * memory leaks. The root must already be detached. Disposing an attached root
+ * can invalidate resources that a live scene graph still renders.
  */
 export function disposeObject3D(root: THREE.Object3D): void {
+  if (root.parent !== null) {
+    throw new Error(`Cannot dispose attached Three.js object: ${objectLabel(root)}`)
+  }
+
   const disposedGeometries = new Set<THREE.BufferGeometry>()
   const disposedMaterials = new Set<THREE.Material>()
   const disposedTextures = new Set<THREE.Texture>()
   const closedImageData = new Set<object>()
+  const errors: unknown[] = []
 
   forEachMesh(root, (mesh) => {
     if (!disposedGeometries.has(mesh.geometry)) {
       disposedGeometries.add(mesh.geometry)
-      mesh.geometry.dispose()
+      attemptCleanup(errors, () => mesh.geometry.dispose())
     }
 
     const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
@@ -206,8 +277,12 @@ export function disposeObject3D(root: THREE.Object3D): void {
         continue
       }
       disposedMaterials.add(material)
-      disposeMaterialTextures(material, disposedTextures, closedImageData)
-      material.dispose()
+      disposeMaterialTextures(material, disposedTextures, closedImageData, errors)
+      attemptCleanup(errors, () => material.dispose())
     }
   })
+
+  if (errors.length > 0) {
+    throw new AggregateError(errors, 'One or more Three.js resources failed to dispose')
+  }
 }

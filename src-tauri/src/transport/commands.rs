@@ -1,7 +1,8 @@
 use super::camera_work::CameraWorkPermit;
 use super::{
-    create_bridge, CameraFrame, CameraFrameDelivery, CameraInfoData, CameraStreamKind, ImuData,
-    ModelStates, PoseData, Transport, TransportError, TransportStats,
+    create_bridge, validate_absolute_ros_graph_name, CameraFrame, CameraFrameDelivery,
+    CameraInfoData, CameraStreamKind, ImuData, ModelStates, PoseData, Transport, TransportError,
+    TransportStats,
 };
 use std::collections::HashMap;
 use std::future::Future;
@@ -40,16 +41,250 @@ static TRANSPORT_ENGINE: LazyLock<Mutex<TransportEngine>> =
 static ACTIVE_TRANSPORT_GENERATION: AtomicU64 = AtomicU64::new(0);
 static CAMERA_DELIVERIES: LazyLock<StdMutex<CameraDeliveryState>> =
     LazyLock::new(|| StdMutex::new(CameraDeliveryState::default()));
-// Camera subscribe/unsubscribe operations are uncommon control-plane work.
-// Serializing them prevents a late declaration or cleanup for one topic from
-// overtaking the exact subscription identity that superseded it.
-static CAMERA_SUBSCRIPTION_OP: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+// Transport lifecycle and subscription changes are uncommon control-plane
+// work. One serialized lane makes generation rotation, registry reservation,
+// native declaration, rollback, and unsubscribe one ordered operation across
+// every telemetry schema.
+static TRANSPORT_SUBSCRIPTION_OP: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+static TRANSPORT_SUBSCRIPTIONS: LazyLock<StdMutex<SubscriptionRegistry>> =
+    LazyLock::new(|| StdMutex::new(SubscriptionRegistry::default()));
 
-const MAX_TOPIC_LEN: usize = 256;
 const TRANSPORT_EVENT_PREFIX: &str = "crebain:transport:";
 const TRANSPORT_OP_TIMEOUT: Duration = Duration::from_secs(10);
 const MAX_CAMERA_DELIVERY_TOPICS: usize = 64;
+const MAX_NON_CAMERA_SUBSCRIPTIONS: usize = 64;
+const MAX_TRANSPORT_SUBSCRIPTIONS: usize =
+    MAX_CAMERA_DELIVERY_TOPICS + MAX_NON_CAMERA_SUBSCRIPTIONS;
 const CAMERA_DELIVERY_LEASE: Duration = Duration::from_secs(30);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SubscriptionKind {
+    Camera(CameraStreamKind),
+    CameraInfo,
+    Imu,
+    Pose,
+    ModelStates,
+}
+
+impl SubscriptionKind {
+    fn is_camera(self) -> bool {
+        matches!(self, Self::Camera(_))
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::Camera(CameraStreamKind::Raw) => "raw camera",
+            Self::Camera(CameraStreamKind::Compressed) => "compressed camera",
+            Self::CameraInfo => "camera info",
+            Self::Imu => "IMU",
+            Self::Pose => "pose",
+            Self::ModelStates => "model states",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct SubscriptionRecord {
+    generation: u64,
+    kind: SubscriptionKind,
+    subscription_id: u64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SubscriptionPlan {
+    Idempotent,
+    Install,
+    Replace(SubscriptionRecord),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CameraSubscriptionAction {
+    Idempotent,
+    Install,
+    Replace(CameraSubscriptionIdentity),
+}
+
+fn camera_subscription_action(
+    plan: SubscriptionPlan,
+    delivery_state: Option<CameraSubscriptionState>,
+    desired_identity: CameraSubscriptionIdentity,
+) -> Result<CameraSubscriptionAction, String> {
+    match delivery_state {
+        Some(CameraSubscriptionState::Active(existing)) if existing == desired_identity => {
+            if plan == SubscriptionPlan::Idempotent {
+                Ok(CameraSubscriptionAction::Idempotent)
+            } else {
+                Err("Camera subscription registry and delivery state disagree".to_string())
+            }
+        }
+        Some(CameraSubscriptionState::Quarantined(existing)) if existing == desired_identity => {
+            Err(
+                "Camera subscription identity is quarantined; reopen with a new identity"
+                    .to_string(),
+            )
+        }
+        Some(existing_state) => match plan {
+            SubscriptionPlan::Replace(record)
+                if record.subscription_id == existing_state.identity().subscription_id =>
+            {
+                Ok(CameraSubscriptionAction::Replace(existing_state.identity()))
+            }
+            SubscriptionPlan::Replace(_) => {
+                Err("Camera subscription registry and delivery identity disagree".to_string())
+            }
+            SubscriptionPlan::Idempotent | SubscriptionPlan::Install => {
+                Err("Camera subscription registry and delivery state disagree".to_string())
+            }
+        },
+        None => match plan {
+            SubscriptionPlan::Install => Ok(CameraSubscriptionAction::Install),
+            SubscriptionPlan::Idempotent | SubscriptionPlan::Replace(_) => {
+                Err("Camera subscription registry and delivery state disagree".to_string())
+            }
+        },
+    }
+}
+
+#[derive(Debug, Default)]
+struct SubscriptionRegistry {
+    by_topic: HashMap<String, SubscriptionRecord>,
+    /// A timed-out declaration or removal can have completed in the backend.
+    /// Preserve that ambiguity until an explicit unsubscribe succeeds or the
+    /// transport generation rotates. Never report an uncertain topic as an
+    /// idempotent active subscription.
+    uncertain_topics: HashMap<String, SubscriptionRecord>,
+}
+
+impl SubscriptionRegistry {
+    fn get(&self, topic: &str) -> Option<SubscriptionRecord> {
+        self.by_topic.get(topic).copied()
+    }
+
+    fn plan(&self, topic: &str, desired: SubscriptionRecord) -> Result<SubscriptionPlan, String> {
+        if self.uncertain_topics.contains_key(topic) {
+            return Err(format!(
+                "Transport topic {topic} has an uncertain native subscription; retry unsubscribe or reconnect"
+            ));
+        }
+        if let Some(existing) = self.by_topic.get(topic).copied() {
+            if existing.generation != desired.generation {
+                return Err(
+                    "Transport subscription registry contains a stale generation".to_string(),
+                );
+            }
+            if existing == desired {
+                return Ok(SubscriptionPlan::Idempotent);
+            }
+            let can_replace = (existing.kind.is_camera() && desired.kind.is_camera())
+                || existing.kind == desired.kind;
+            if can_replace && existing.subscription_id != desired.subscription_id {
+                // Renderer subscription identities increase within one native
+                // transport generation. Async listener registration can finish
+                // out of order, so an older command must never displace a newer
+                // callback that reached this serialized registry first.
+                if desired.subscription_id < existing.subscription_id {
+                    return Err(format!(
+                        "Transport topic {topic} rejected stale subscription identity {} behind {}",
+                        desired.subscription_id, existing.subscription_id
+                    ));
+                }
+                return Ok(SubscriptionPlan::Replace(existing));
+            }
+            return Err(format!(
+                "Transport topic {topic} is already subscribed as {}; cannot subscribe as {}",
+                existing.kind.label(),
+                desired.kind.label()
+            ));
+        }
+
+        if self.tracked_topic_count() >= MAX_TRANSPORT_SUBSCRIPTIONS {
+            return Err(format!(
+                "Transport subscription limit of {MAX_TRANSPORT_SUBSCRIPTIONS} topics exceeded"
+            ));
+        }
+        if !desired.kind.is_camera()
+            && self.non_camera_topic_count() >= MAX_NON_CAMERA_SUBSCRIPTIONS
+        {
+            return Err(format!(
+                "Non-camera subscription limit of {MAX_NON_CAMERA_SUBSCRIPTIONS} topics exceeded"
+            ));
+        }
+        Ok(SubscriptionPlan::Install)
+    }
+
+    fn tracked_topic_count(&self) -> usize {
+        self.by_topic.len()
+            + self
+                .uncertain_topics
+                .keys()
+                .filter(|topic| !self.by_topic.contains_key(*topic))
+                .count()
+    }
+
+    fn non_camera_topic_count(&self) -> usize {
+        self.by_topic
+            .values()
+            .filter(|record| !record.kind.is_camera())
+            .count()
+            + self
+                .uncertain_topics
+                .iter()
+                .filter(|(topic, record)| {
+                    !self.by_topic.contains_key(*topic) && !record.kind.is_camera()
+                })
+                .count()
+    }
+
+    fn install(&mut self, topic: String, record: SubscriptionRecord) {
+        self.uncertain_topics.remove(&topic);
+        self.by_topic.insert(topic, record);
+    }
+
+    fn remove_exact(&mut self, topic: &str, record: SubscriptionRecord) -> bool {
+        if self.by_topic.get(topic) != Some(&record) {
+            return false;
+        }
+        self.by_topic.remove(topic);
+        self.uncertain_topics.remove(topic);
+        true
+    }
+
+    fn remove_camera_exact(&mut self, topic: &str, identity: CameraSubscriptionIdentity) -> bool {
+        let Some(record) = self.by_topic.get(topic).copied() else {
+            return false;
+        };
+        if record.generation != identity.generation
+            || record.subscription_id != identity.subscription_id
+            || !record.kind.is_camera()
+        {
+            return false;
+        }
+        self.by_topic.remove(topic);
+        self.uncertain_topics.remove(topic);
+        true
+    }
+
+    fn mark_uncertain(&mut self, topic: &str, record: SubscriptionRecord) {
+        self.uncertain_topics.insert(topic.to_string(), record);
+    }
+
+    fn is_uncertain(&self, topic: &str) -> bool {
+        self.uncertain_topics.contains_key(topic)
+    }
+
+    fn uncertain_record(&self, topic: &str) -> Option<SubscriptionRecord> {
+        self.uncertain_topics.get(topic).copied()
+    }
+
+    fn clear_uncertain(&mut self, topic: &str) {
+        self.uncertain_topics.remove(topic);
+    }
+
+    fn clear(&mut self) {
+        self.by_topic.clear();
+        self.uncertain_topics.clear();
+    }
+}
 
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -57,6 +292,19 @@ struct CameraFrameReady {
     delivery_id: String,
     generation: String,
     camera_subscription_id: String,
+}
+
+/// A small identity envelope around non-camera telemetry.
+///
+/// The event queue can outlive the callback and its native declaration. Both
+/// decimal identifiers therefore travel with every sample so the renderer can
+/// reject a sample queued for an earlier connection or topic subscription.
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TelemetryEvent<T> {
+    generation: String,
+    subscription_id: String,
+    data: T,
 }
 
 #[derive(Debug)]
@@ -79,6 +327,49 @@ struct PendingCameraDelivery {
 struct CameraSubscriptionIdentity {
     generation: u64,
     subscription_id: u64,
+}
+
+#[must_use = "keep the pending subscription guard alive until native state is reconciled"]
+struct PendingSubscriptionGuard {
+    topic: String,
+    record: SubscriptionRecord,
+    camera_identity: Option<CameraSubscriptionIdentity>,
+    armed: bool,
+}
+
+impl PendingSubscriptionGuard {
+    fn new(
+        topic: &str,
+        record: SubscriptionRecord,
+        camera_identity: Option<CameraSubscriptionIdentity>,
+    ) -> Self {
+        Self {
+            topic: topic.to_string(),
+            record,
+            camera_identity,
+            armed: true,
+        }
+    }
+
+    fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for PendingSubscriptionGuard {
+    fn drop(&mut self) {
+        if !self.armed || !generation_is_current(self.record.generation) {
+            return;
+        }
+        if let Some(identity) = self.camera_identity {
+            // A callback from an ambiguously completed declaration must not
+            // acquire a delivery lease after its command future is cancelled.
+            lock_camera_deliveries().remove_subscription_exact(&self.topic, identity);
+        }
+        // Drop cannot await backend reconciliation. Preserve the ambiguity so
+        // only an explicit unsubscribe or generation rotation can clear it.
+        mark_subscription_uncertain_if_current(&self.topic, self.record);
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -617,6 +908,58 @@ fn lock_camera_deliveries() -> StdMutexGuard<'static, CameraDeliveryState> {
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
+fn lock_transport_subscriptions() -> StdMutexGuard<'static, SubscriptionRegistry> {
+    TRANSPORT_SUBSCRIPTIONS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+fn mark_subscription_uncertain_if_current(topic: &str, record: SubscriptionRecord) {
+    let mut registry = lock_transport_subscriptions();
+    if generation_is_current(record.generation) {
+        registry.mark_uncertain(topic, record);
+    }
+}
+
+fn subscription_is_current(topic: &str, record: SubscriptionRecord) -> bool {
+    if !generation_is_current(record.generation) {
+        return false;
+    }
+    let registry = lock_transport_subscriptions();
+    registry.get(topic) == Some(record) && !registry.is_uncertain(topic)
+}
+
+fn emit_telemetry<R, T>(
+    app: &AppHandle<R>,
+    event_name: &str,
+    topic: &str,
+    record: SubscriptionRecord,
+    data: T,
+    label: &str,
+) where
+    R: Runtime,
+    T: serde::Serialize,
+{
+    if !subscription_is_current(topic, record) {
+        return;
+    }
+    let payload = TelemetryEvent {
+        generation: record.generation.to_string(),
+        subscription_id: record.subscription_id.to_string(),
+        data,
+    };
+    if let Err(error) = app.emit(event_name, &payload) {
+        log::warn!("Failed to emit {label}: {error}");
+    }
+}
+
+fn clear_subscription_uncertain_if_current(topic: &str, generation: u64) {
+    let mut registry = lock_transport_subscriptions();
+    if generation_is_current(generation) {
+        registry.clear_uncertain(topic);
+    }
+}
+
 fn queue_camera_delivery<R: Runtime>(
     app: &AppHandle<R>,
     topic: &str,
@@ -670,7 +1013,7 @@ fn schedule_camera_delivery_expiry(expiry: CameraDeliveryExpiry) {
 }
 
 async fn cleanup_expired_camera_subscription(cleanup: CameraSubscriptionCleanup) {
-    let _operation_guard = CAMERA_SUBSCRIPTION_OP.lock().await;
+    let _operation_guard = TRANSPORT_SUBSCRIPTION_OP.lock().await;
     let remains_quarantined = {
         let state = lock_camera_deliveries();
         state.is_quarantined_exact(&cleanup.topic, cleanup.identity)
@@ -690,11 +1033,16 @@ async fn cleanup_expired_camera_subscription(cleanup: CameraSubscriptionCleanup)
             return;
         }
     };
+    let record = lock_transport_subscriptions().get(&cleanup.topic);
     match with_timeout(active.bridge.unsubscribe(&cleanup.topic)).await {
         Ok(()) => {
             lock_camera_deliveries().remove_subscription_exact(&cleanup.topic, cleanup.identity);
+            lock_transport_subscriptions().remove_camera_exact(&cleanup.topic, cleanup.identity);
         }
         Err(error) => {
+            if let Some(record) = record {
+                mark_subscription_uncertain_if_current(&cleanup.topic, record);
+            }
             log::warn!(
                 "Failed to remove expired camera subscription '{}': {}",
                 cleanup.topic,
@@ -744,6 +1092,7 @@ fn rotate_engine(
     engine.generation = generation;
     ACTIVE_TRANSPORT_GENERATION.store(generation, Ordering::Release);
     lock_camera_deliveries().retire_generation();
+    lock_transport_subscriptions().clear();
     Ok((generation, engine.bridge.take()))
 }
 
@@ -775,6 +1124,10 @@ fn parse_delivery_id(delivery_id: &str) -> Result<u64, String> {
     parse_canonical_positive_u64(delivery_id, "Camera delivery ID")
 }
 
+fn parse_subscription_id(subscription_id: &str) -> Result<u64, String> {
+    parse_canonical_positive_u64(subscription_id, "Transport subscription ID")
+}
+
 fn parse_canonical_positive_u64(value: &str, label: &str) -> Result<u64, String> {
     if value.is_empty()
         || value.len() > 20
@@ -797,20 +1150,60 @@ fn parse_canonical_positive_u64(value: &str, label: &str) -> Result<u64, String>
 async fn finish_subscription(
     active: &ActiveTransport,
     topic: &str,
+    desired: SubscriptionRecord,
     result: Result<(), String>,
 ) -> Result<(), String> {
-    result?;
-    if generation_is_current(active.generation) {
-        return Ok(());
-    }
+    let outcome = match result {
+        Ok(()) if generation_is_current(active.generation) => return Ok(()),
+        Ok(()) => stale_generation_error(active.generation),
+        Err(error) => error,
+    };
 
-    // A disconnect can invalidate the generation while a native declaration
-    // is awaiting. Best-effort removal drops any declaration that completed on
-    // the old bridge; generation-gated callbacks already prevent stale emits.
-    if let Err(error) = with_timeout(active.bridge.unsubscribe(topic)).await {
-        log::debug!("Failed to remove stale subscription for {topic}: {error}");
+    // A timeout or transport error can leave the remote declaration outcome
+    // ambiguous. Reconcile the backend before releasing the serialized
+    // control-plane operation. This also removes a declaration that completed
+    // after its generation became stale. Generation-gated callbacks remain the
+    // final fence if cleanup itself fails.
+    match with_timeout(active.bridge.unsubscribe(topic)).await {
+        Ok(()) => clear_subscription_uncertain_if_current(topic, active.generation),
+        Err(cleanup_error) => {
+            mark_subscription_uncertain_if_current(topic, desired);
+            log::warn!(
+                "Failed to reconcile subscription '{}' after '{}': {}",
+                topic,
+                outcome,
+                cleanup_error
+            );
+        }
     }
-    Err(stale_generation_error(active.generation))
+    Err(outcome)
+}
+
+/// Prepare one non-camera declaration while preserving exact ownership across
+/// rapid unsubscribe/resubscribe cycles. A cancelled replacement is marked
+/// uncertain by the guard because the native unsubscribe may have completed.
+async fn prepare_non_camera_subscription(
+    active: &ActiveTransport,
+    topic: &str,
+    desired: SubscriptionRecord,
+) -> Result<bool, String> {
+    let plan = { lock_transport_subscriptions().plan(topic, desired)? };
+    match plan {
+        SubscriptionPlan::Idempotent => Ok(false),
+        SubscriptionPlan::Install => Ok(true),
+        SubscriptionPlan::Replace(existing) => {
+            if existing.kind.is_camera() || existing.kind != desired.kind {
+                return Err("A non-camera subscription cannot replace a different schema".into());
+            }
+            let mut replacement = PendingSubscriptionGuard::new(topic, existing, None);
+            with_timeout(active.bridge.unsubscribe(topic)).await?;
+            if !lock_transport_subscriptions().remove_exact(topic, existing) {
+                return Err("Transport subscription changed during replacement".to_string());
+            }
+            replacement.disarm();
+            Ok(true)
+        }
+    }
 }
 
 /// Run a transport operation with a timeout so a stalled transport cannot
@@ -823,35 +1216,7 @@ async fn with_timeout<T>(op: impl Future<Output = super::Result<T>>) -> Result<T
 }
 
 fn validate_topic(topic: &str) -> Result<(), String> {
-    if topic.is_empty() || topic.trim() != topic {
-        return Err("Transport topic must not be empty or padded".to_string());
-    }
-    if topic.contains('\0') {
-        return Err("Transport topic must not contain null bytes".to_string());
-    }
-    if topic.len() > MAX_TOPIC_LEN {
-        return Err(format!(
-            "Transport topic is too long: {} bytes exceeds {}",
-            topic.len(),
-            MAX_TOPIC_LEN
-        ));
-    }
-    if topic == "/" || !topic.starts_with('/') {
-        return Err("Transport topic must be an absolute ROS name".to_string());
-    }
-    if topic.contains("//") {
-        return Err("Transport topic must not contain empty path segments".to_string());
-    }
-    // ROS-graph character whitelist. This also keeps Zenoh key-expression
-    // metacharacters (`*`, `?`, `#`, `$`, ...) out of topics passed verbatim as
-    // key expressions.
-    if !topic
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '/'))
-    {
-        return Err("Transport topic contains unsupported characters".to_string());
-    }
-    Ok(())
+    validate_absolute_ros_graph_name(topic).map_err(|reason| format!("Transport topic {reason}"))
 }
 
 /// Map a ROS topic to a Tauri event name.
@@ -880,6 +1245,7 @@ fn transport_event_name(topic: &str) -> String {
 #[tauri::command]
 pub async fn transport_connect() -> Result<String, String> {
     log::info!("Connecting to transport layer...");
+    let _operation_guard = TRANSPORT_SUBSCRIPTION_OP.lock().await;
 
     // Rotate first. Any connect, subscription, or callback that started before
     // this point is stale even while its future is still in flight.
@@ -933,6 +1299,7 @@ pub async fn transport_connect() -> Result<String, String> {
 pub async fn transport_disconnect(generation: Option<String>) -> Result<(), String> {
     let generation = require_generation(generation.as_deref())?;
     log::info!("Disconnecting transport...");
+    let _operation_guard = TRANSPORT_SUBSCRIPTION_OP.lock().await;
 
     // Rotate and take the bridge first so callbacks become stale immediately,
     // even if the bounded native close stalls.
@@ -961,36 +1328,58 @@ pub async fn transport_subscribe_camera<R: Runtime>(
 ) -> Result<(), String> {
     validate_topic(&topic)?;
     let generation = require_generation(generation.as_deref())?;
-    let subscription_id = parse_delivery_id(&camera_subscription_id)?;
+    let subscription_id = parse_subscription_id(&camera_subscription_id)?;
     let identity = CameraSubscriptionIdentity {
         generation,
         subscription_id,
     };
-    let _operation_guard = CAMERA_SUBSCRIPTION_OP.lock().await;
+    let stream_kind = if compressed.unwrap_or(false) {
+        CameraStreamKind::Compressed
+    } else {
+        CameraStreamKind::Raw
+    };
+    let desired = SubscriptionRecord {
+        generation,
+        kind: SubscriptionKind::Camera(stream_kind),
+        subscription_id,
+    };
+    let _operation_guard = TRANSPORT_SUBSCRIPTION_OP.lock().await;
     let active = current_bridge(Some(generation)).await?;
     let generation = active.generation;
+    let plan = lock_transport_subscriptions().plan(&topic, desired)?;
 
     let existing_state = {
         let state = lock_camera_deliveries();
         state.subscription_state(&topic)
     };
-    if let Some(existing) = existing_state {
-        if existing == CameraSubscriptionState::Active(identity) {
-            return Ok(());
-        }
-        if existing.identity() == identity {
-            return Err(
-                "Camera subscription identity is quarantined; reopen with a new identity"
-                    .to_string(),
-            );
-        }
-        lock_camera_deliveries().quarantine_exact(&topic, existing.identity());
+    let action = camera_subscription_action(plan, existing_state, identity)?;
+    if action == CameraSubscriptionAction::Idempotent {
+        return Ok(());
+    }
+    if let CameraSubscriptionAction::Replace(existing_identity) = action {
+        lock_camera_deliveries().quarantine_exact(&topic, existing_identity);
+        let existing = match plan {
+            SubscriptionPlan::Replace(existing) => existing,
+            SubscriptionPlan::Idempotent | SubscriptionPlan::Install => {
+                return Err("Camera replacement plan is inconsistent".to_string())
+            }
+        };
+        let mut replacement =
+            PendingSubscriptionGuard::new(&topic, existing, Some(existing_identity));
         // The transport stores one declaration per exact topic. Remove the
         // superseded callback before installing the newer identity.
         with_timeout(active.bridge.unsubscribe(&topic)).await?;
-        lock_camera_deliveries().remove_subscription_exact(&topic, existing.identity());
+        let removed_delivery =
+            lock_camera_deliveries().remove_subscription_exact(&topic, existing_identity);
+        let removed_registry =
+            lock_transport_subscriptions().remove_camera_exact(&topic, existing_identity);
+        if !removed_delivery || !removed_registry {
+            return Err("Camera subscription changed during replacement".to_string());
+        }
+        replacement.disarm();
     }
     lock_camera_deliveries().activate(topic.clone(), identity)?;
+    let mut pending_subscription = PendingSubscriptionGuard::new(&topic, desired, Some(identity));
 
     let event_name = transport_event_name(&topic);
     log::debug!(
@@ -1011,21 +1400,21 @@ pub async fn transport_subscribe_camera<R: Runtime>(
         );
     });
 
-    let stream_kind = if compressed.unwrap_or(false) {
-        CameraStreamKind::Compressed
-    } else {
-        CameraStreamKind::Raw
-    };
     let result = with_timeout(
         active
             .bridge
             .subscribe_camera(&topic, stream_kind, callback),
     )
     .await;
-    let outcome = finish_subscription(&active, &topic, result).await;
-    if outcome.is_err() {
+    let outcome = finish_subscription(&active, &topic, desired, result).await;
+    if outcome.is_ok() {
+        lock_transport_subscriptions().install(topic, desired);
+    } else {
         lock_camera_deliveries().quarantine_exact(&topic, identity);
+        lock_camera_deliveries().remove_subscription_exact(&topic, identity);
+        lock_transport_subscriptions().remove_exact(&topic, desired);
     }
+    pending_subscription.disarm();
     outcome
 }
 
@@ -1043,7 +1432,7 @@ pub fn transport_take_camera_frame(
         return Err(stale_generation_error(generation));
     }
     let delivery_id = parse_delivery_id(&delivery_id)?;
-    let subscription_id = parse_delivery_id(&camera_subscription_id)?;
+    let subscription_id = parse_subscription_id(&camera_subscription_id)?;
     let (result, cleanup) = {
         let mut state = lock_camera_deliveries();
         state.take_with_expiry_cleanup(&topic, delivery_id, generation, subscription_id)
@@ -1069,7 +1458,7 @@ pub fn transport_ack_camera_frame(
     validate_topic(&topic)?;
     let generation = require_generation(generation.as_deref())?;
     let delivery_id = parse_delivery_id(&delivery_id)?;
-    let subscription_id = parse_delivery_id(&camera_subscription_id)?;
+    let subscription_id = parse_subscription_id(&camera_subscription_id)?;
     let (result, cleanup) = {
         let mut state = lock_camera_deliveries();
         state.acknowledge_with_expiry_cleanup(&topic, delivery_id, generation, subscription_id)
@@ -1086,12 +1475,23 @@ pub fn transport_ack_camera_frame(
 pub async fn transport_subscribe_camera_info<R: Runtime>(
     app: AppHandle<R>,
     topic: String,
+    subscription_id: String,
     generation: Option<String>,
 ) -> Result<(), String> {
     validate_topic(&topic)?;
     let generation = require_generation(generation.as_deref())?;
+    let subscription_id = parse_subscription_id(&subscription_id)?;
+    let desired = SubscriptionRecord {
+        generation,
+        kind: SubscriptionKind::CameraInfo,
+        subscription_id,
+    };
+    let _operation_guard = TRANSPORT_SUBSCRIPTION_OP.lock().await;
     let active = current_bridge(Some(generation)).await?;
-    let generation = active.generation;
+    if !prepare_non_camera_subscription(&active, &topic, desired).await? {
+        return Ok(());
+    }
+    let mut pending_subscription = PendingSubscriptionGuard::new(&topic, desired, None);
 
     let event_name = transport_event_name(&topic);
     log::debug!(
@@ -1100,17 +1500,25 @@ pub async fn transport_subscribe_camera_info<R: Runtime>(
         event_name
     );
 
+    let callback_topic = topic.clone();
     let callback = Box::new(move |info: CameraInfoData| {
-        if !generation_is_current(generation) {
-            return;
-        }
-        if let Err(e) = app.emit(&event_name, info) {
-            log::warn!("Failed to emit CameraInfo: {}", e);
-        }
+        emit_telemetry(
+            &app,
+            &event_name,
+            &callback_topic,
+            desired,
+            info,
+            "CameraInfo",
+        );
     });
 
     let result = with_timeout(active.bridge.subscribe_camera_info(&topic, callback)).await;
-    finish_subscription(&active, &topic, result).await
+    let outcome = finish_subscription(&active, &topic, desired, result).await;
+    if outcome.is_ok() {
+        lock_transport_subscriptions().install(topic, desired);
+    }
+    pending_subscription.disarm();
+    outcome
 }
 
 /// Subscribe to an IMU topic
@@ -1118,12 +1526,23 @@ pub async fn transport_subscribe_camera_info<R: Runtime>(
 pub async fn transport_subscribe_imu<R: Runtime>(
     app: AppHandle<R>,
     topic: String,
+    subscription_id: String,
     generation: Option<String>,
 ) -> Result<(), String> {
     validate_topic(&topic)?;
     let generation = require_generation(generation.as_deref())?;
+    let subscription_id = parse_subscription_id(&subscription_id)?;
+    let desired = SubscriptionRecord {
+        generation,
+        kind: SubscriptionKind::Imu,
+        subscription_id,
+    };
+    let _operation_guard = TRANSPORT_SUBSCRIPTION_OP.lock().await;
     let active = current_bridge(Some(generation)).await?;
-    let generation = active.generation;
+    if !prepare_non_camera_subscription(&active, &topic, desired).await? {
+        return Ok(());
+    }
+    let mut pending_subscription = PendingSubscriptionGuard::new(&topic, desired, None);
 
     let event_name = transport_event_name(&topic);
     log::debug!(
@@ -1132,17 +1551,25 @@ pub async fn transport_subscribe_imu<R: Runtime>(
         event_name
     );
 
+    let callback_topic = topic.clone();
     let callback = Box::new(move |data: ImuData| {
-        if !generation_is_current(generation) {
-            return;
-        }
-        if let Err(e) = app.emit(&event_name, data) {
-            log::warn!("Failed to emit IMU data: {}", e);
-        }
+        emit_telemetry(
+            &app,
+            &event_name,
+            &callback_topic,
+            desired,
+            data,
+            "IMU data",
+        );
     });
 
     let result = with_timeout(active.bridge.subscribe_imu(&topic, callback)).await;
-    finish_subscription(&active, &topic, result).await
+    let outcome = finish_subscription(&active, &topic, desired, result).await;
+    if outcome.is_ok() {
+        lock_transport_subscriptions().install(topic, desired);
+    }
+    pending_subscription.disarm();
+    outcome
 }
 
 /// Subscribe to a Pose topic
@@ -1150,12 +1577,23 @@ pub async fn transport_subscribe_imu<R: Runtime>(
 pub async fn transport_subscribe_pose<R: Runtime>(
     app: AppHandle<R>,
     topic: String,
+    subscription_id: String,
     generation: Option<String>,
 ) -> Result<(), String> {
     validate_topic(&topic)?;
     let generation = require_generation(generation.as_deref())?;
+    let subscription_id = parse_subscription_id(&subscription_id)?;
+    let desired = SubscriptionRecord {
+        generation,
+        kind: SubscriptionKind::Pose,
+        subscription_id,
+    };
+    let _operation_guard = TRANSPORT_SUBSCRIPTION_OP.lock().await;
     let active = current_bridge(Some(generation)).await?;
-    let generation = active.generation;
+    if !prepare_non_camera_subscription(&active, &topic, desired).await? {
+        return Ok(());
+    }
+    let mut pending_subscription = PendingSubscriptionGuard::new(&topic, desired, None);
 
     let event_name = transport_event_name(&topic);
     log::debug!(
@@ -1164,17 +1602,25 @@ pub async fn transport_subscribe_pose<R: Runtime>(
         event_name
     );
 
+    let callback_topic = topic.clone();
     let callback = Box::new(move |data: PoseData| {
-        if !generation_is_current(generation) {
-            return;
-        }
-        if let Err(e) = app.emit(&event_name, data) {
-            log::warn!("Failed to emit Pose data: {}", e);
-        }
+        emit_telemetry(
+            &app,
+            &event_name,
+            &callback_topic,
+            desired,
+            data,
+            "Pose data",
+        );
     });
 
     let result = with_timeout(active.bridge.subscribe_pose(&topic, callback)).await;
-    finish_subscription(&active, &topic, result).await
+    let outcome = finish_subscription(&active, &topic, desired, result).await;
+    if outcome.is_ok() {
+        lock_transport_subscriptions().install(topic, desired);
+    }
+    pending_subscription.disarm();
+    outcome
 }
 
 /// Subscribe to Model States
@@ -1182,12 +1628,23 @@ pub async fn transport_subscribe_pose<R: Runtime>(
 pub async fn transport_subscribe_model_states<R: Runtime>(
     app: AppHandle<R>,
     topic: String,
+    subscription_id: String,
     generation: Option<String>,
 ) -> Result<(), String> {
     validate_topic(&topic)?;
     let generation = require_generation(generation.as_deref())?;
+    let subscription_id = parse_subscription_id(&subscription_id)?;
+    let desired = SubscriptionRecord {
+        generation,
+        kind: SubscriptionKind::ModelStates,
+        subscription_id,
+    };
+    let _operation_guard = TRANSPORT_SUBSCRIPTION_OP.lock().await;
     let active = current_bridge(Some(generation)).await?;
-    let generation = active.generation;
+    if !prepare_non_camera_subscription(&active, &topic, desired).await? {
+        return Ok(());
+    }
+    let mut pending_subscription = PendingSubscriptionGuard::new(&topic, desired, None);
 
     let event_name = transport_event_name(&topic);
     log::debug!(
@@ -1196,17 +1653,25 @@ pub async fn transport_subscribe_model_states<R: Runtime>(
         event_name
     );
 
+    let callback_topic = topic.clone();
     let callback = Box::new(move |data: ModelStates| {
-        if !generation_is_current(generation) {
-            return;
-        }
-        if let Err(e) = app.emit(&event_name, data) {
-            log::warn!("Failed to emit ModelStates: {}", e);
-        }
+        emit_telemetry(
+            &app,
+            &event_name,
+            &callback_topic,
+            desired,
+            data,
+            "ModelStates",
+        );
     });
 
     let result = with_timeout(active.bridge.subscribe_model_states(&topic, callback)).await;
-    finish_subscription(&active, &topic, result).await
+    let outcome = finish_subscription(&active, &topic, desired, result).await;
+    if outcome.is_ok() {
+        lock_transport_subscriptions().install(topic, desired);
+    }
+    pending_subscription.disarm();
+    outcome
 }
 
 /// Unsubscribe from a topic
@@ -1214,27 +1679,67 @@ pub async fn transport_subscribe_model_states<R: Runtime>(
 pub async fn transport_unsubscribe(
     topic: String,
     generation: Option<String>,
-    camera_subscription_id: Option<String>,
+    subscription_id: String,
 ) -> Result<(), String> {
     validate_topic(&topic)?;
     let generation = require_generation(generation.as_deref())?;
-    let camera_identity = camera_subscription_id
-        .as_deref()
-        .map(|delivery_id| {
-            parse_delivery_id(delivery_id).map(|subscription_id| CameraSubscriptionIdentity {
-                generation,
-                subscription_id,
-            })
-        })
-        .transpose()?;
+    let subscription_id = parse_subscription_id(&subscription_id)?;
 
-    let _camera_operation_guard;
-    if let Some(identity) = camera_identity {
-        _camera_operation_guard = Some(CAMERA_SUBSCRIPTION_OP.lock().await);
-        let subscription_state = {
-            let state = lock_camera_deliveries();
-            state.subscription_state(&topic)
+    let _operation_guard = TRANSPORT_SUBSCRIPTION_OP.lock().await;
+    if !generation_is_current(generation) {
+        log::debug!("Ignoring unsubscribe for stale generation {generation}");
+        return Ok(());
+    }
+    let (record, uncertain_record) = {
+        let registry = lock_transport_subscriptions();
+        (registry.get(&topic), registry.uncertain_record(&topic))
+    };
+    let Some(record) = record else {
+        if lock_camera_deliveries()
+            .subscription_state(&topic)
+            .is_some()
+        {
+            return Err("Transport subscription registry and delivery state disagree".to_string());
+        }
+        let Some(uncertain_record) = uncertain_record else {
+            return Ok(());
         };
+        if uncertain_record.generation != generation
+            || uncertain_record.subscription_id != subscription_id
+        {
+            log::debug!("Ignoring stale uncertain unsubscribe for '{}'", topic);
+            return Ok(());
+        }
+
+        // A prior declaration or cleanup timed out before a local record was
+        // committed. Retry the only safe reconciliation operation. If this
+        // generation no longer has a bridge, rotation already fenced callbacks
+        // and cleared native ownership with the old bridge.
+        let active = current_bridge(Some(generation)).await.ok();
+        let Some(active) = active else {
+            clear_subscription_uncertain_if_current(&topic, generation);
+            return Ok(());
+        };
+        let outcome = with_timeout(active.bridge.unsubscribe(&topic)).await;
+        if outcome.is_ok() {
+            clear_subscription_uncertain_if_current(&topic, active.generation);
+        }
+        return outcome;
+    };
+    if record.generation != generation || record.subscription_id != subscription_id {
+        log::debug!("Ignoring stale unsubscribe for '{}'", topic);
+        return Ok(());
+    }
+
+    let camera_identity = record
+        .kind
+        .is_camera()
+        .then_some(CameraSubscriptionIdentity {
+            generation,
+            subscription_id,
+        });
+    if let Some(identity) = camera_identity {
+        let subscription_state = lock_camera_deliveries().subscription_state(&topic);
         match subscription_state {
             Some(state) if state.identity() == identity => {
                 lock_camera_deliveries().quarantine_exact(&topic, identity);
@@ -1244,14 +1749,6 @@ pub async fn transport_unsubscribe(
                 return Ok(());
             }
         }
-    } else {
-        _camera_operation_guard = None;
-        if lock_camera_deliveries()
-            .subscription_state(&topic)
-            .is_some()
-        {
-            return Err("Camera subscription identity is required for unsubscribe".to_string());
-        }
     }
 
     let active = current_bridge(Some(generation)).await.ok();
@@ -1259,6 +1756,7 @@ pub async fn transport_unsubscribe(
         if let Some(identity) = camera_identity {
             lock_camera_deliveries().remove_subscription_exact(&topic, identity);
         }
+        lock_transport_subscriptions().remove_exact(&topic, record);
         log::debug!(
             "Ignoring unsubscribe for '{}' because transport is disconnected",
             topic
@@ -1270,6 +1768,9 @@ pub async fn transport_unsubscribe(
         if let Some(identity) = camera_identity {
             lock_camera_deliveries().remove_subscription_exact(&topic, identity);
         }
+        lock_transport_subscriptions().remove_exact(&topic, record);
+    } else {
+        mark_subscription_uncertain_if_current(&topic, record);
     }
     outcome
 }
@@ -1299,6 +1800,90 @@ mod tests {
     use super::*;
     use crate::transport::camera_work::CameraWorkBudget;
 
+    #[derive(Default)]
+    struct CleanupTransport {
+        unsubscribed: StdMutex<Vec<String>>,
+    }
+
+    impl Transport for CleanupTransport {
+        fn connect(
+            &mut self,
+        ) -> std::pin::Pin<Box<dyn Future<Output = crate::transport::Result<()>> + Send + '_>>
+        {
+            Box::pin(async { Ok(()) })
+        }
+
+        fn disconnect(
+            &self,
+        ) -> std::pin::Pin<Box<dyn Future<Output = crate::transport::Result<()>> + Send + '_>>
+        {
+            Box::pin(async { Ok(()) })
+        }
+
+        fn is_connected(&self) -> bool {
+            true
+        }
+
+        fn subscribe_camera(
+            &self,
+            _topic: &str,
+            _stream_kind: CameraStreamKind,
+            _callback: crate::transport::CameraCallback,
+        ) -> std::pin::Pin<Box<dyn Future<Output = crate::transport::Result<()>> + Send + '_>>
+        {
+            Box::pin(async { Ok(()) })
+        }
+
+        fn subscribe_camera_info(
+            &self,
+            _topic: &str,
+            _callback: crate::transport::CameraInfoCallback,
+        ) -> std::pin::Pin<Box<dyn Future<Output = crate::transport::Result<()>> + Send + '_>>
+        {
+            Box::pin(async { Ok(()) })
+        }
+
+        fn subscribe_imu(
+            &self,
+            _topic: &str,
+            _callback: crate::transport::ImuCallback,
+        ) -> std::pin::Pin<Box<dyn Future<Output = crate::transport::Result<()>> + Send + '_>>
+        {
+            Box::pin(async { Ok(()) })
+        }
+
+        fn subscribe_pose(
+            &self,
+            _topic: &str,
+            _callback: crate::transport::PoseCallback,
+        ) -> std::pin::Pin<Box<dyn Future<Output = crate::transport::Result<()>> + Send + '_>>
+        {
+            Box::pin(async { Ok(()) })
+        }
+
+        fn subscribe_model_states(
+            &self,
+            _topic: &str,
+            _callback: crate::transport::ModelStatesCallback,
+        ) -> std::pin::Pin<Box<dyn Future<Output = crate::transport::Result<()>> + Send + '_>>
+        {
+            Box::pin(async { Ok(()) })
+        }
+
+        fn unsubscribe(
+            &self,
+            topic: &str,
+        ) -> std::pin::Pin<Box<dyn Future<Output = crate::transport::Result<()>> + Send + '_>>
+        {
+            self.unsubscribed.lock().unwrap().push(topic.to_string());
+            Box::pin(async { Ok(()) })
+        }
+
+        fn stats(&self) -> TransportStats {
+            TransportStats::default()
+        }
+    }
+
     fn test_camera_delivery(budget: &CameraWorkBudget, marker: u8) -> CameraFrameDelivery {
         let permit = budget.try_reserve_zenoh(1024).unwrap();
         CameraFrameDelivery::new(
@@ -1317,6 +1902,236 @@ mod tests {
             },
             permit,
         )
+    }
+
+    fn subscription_record(kind: SubscriptionKind, subscription_id: u64) -> SubscriptionRecord {
+        SubscriptionRecord {
+            generation: 7,
+            kind,
+            subscription_id,
+        }
+    }
+
+    #[test]
+    fn typed_subscription_registry_is_idempotent_and_rejects_schema_collisions() {
+        let mut registry = SubscriptionRegistry::default();
+        let imu = subscription_record(SubscriptionKind::Imu, 1);
+        assert_eq!(
+            registry.plan("/telemetry", imu).unwrap(),
+            SubscriptionPlan::Install
+        );
+        registry.install("/telemetry".to_string(), imu);
+        assert_eq!(
+            registry.plan("/telemetry", imu).unwrap(),
+            SubscriptionPlan::Idempotent
+        );
+
+        let pose = subscription_record(SubscriptionKind::Pose, 2);
+        let error = registry.plan("/telemetry", pose).unwrap_err();
+        assert!(error.contains("already subscribed as IMU"));
+        assert_eq!(registry.get("/telemetry"), Some(imu));
+
+        let reopened_imu = subscription_record(SubscriptionKind::Imu, 3);
+        assert_eq!(
+            registry.plan("/telemetry", reopened_imu).unwrap(),
+            SubscriptionPlan::Replace(imu)
+        );
+    }
+
+    #[test]
+    fn typed_subscription_registry_allows_only_identified_camera_replacement() {
+        let mut registry = SubscriptionRegistry::default();
+        let raw = subscription_record(SubscriptionKind::Camera(CameraStreamKind::Raw), 10);
+        registry.install("/camera".to_string(), raw);
+
+        let compressed =
+            subscription_record(SubscriptionKind::Camera(CameraStreamKind::Compressed), 11);
+        assert_eq!(
+            registry.plan("/camera", compressed).unwrap(),
+            SubscriptionPlan::Replace(raw)
+        );
+
+        let reused_identity =
+            subscription_record(SubscriptionKind::Camera(CameraStreamKind::Compressed), 10);
+        assert!(registry.plan("/camera", reused_identity).is_err());
+
+        let stale = subscription_record(SubscriptionKind::Camera(CameraStreamKind::Raw), 9);
+        let error = registry.plan("/camera", stale).unwrap_err();
+        assert!(error.contains("stale subscription identity"));
+        assert_eq!(registry.get("/camera"), Some(raw));
+    }
+
+    #[test]
+    fn typed_subscription_registry_rejects_out_of_order_reopen_commands() {
+        let mut registry = SubscriptionRegistry::default();
+        let newest = subscription_record(SubscriptionKind::Imu, 42);
+        registry.install("/imu/data".to_string(), newest);
+
+        let delayed = subscription_record(SubscriptionKind::Imu, 41);
+        let error = registry.plan("/imu/data", delayed).unwrap_err();
+
+        assert!(error.contains("stale subscription identity"));
+        assert_eq!(registry.get("/imu/data"), Some(newest));
+    }
+
+    #[test]
+    fn camera_preflight_never_infers_native_schema_from_delivery_identity() {
+        let identity = CameraSubscriptionIdentity {
+            generation: 7,
+            subscription_id: 10,
+        };
+        let delivery_state = Some(CameraSubscriptionState::Active(identity));
+
+        assert_eq!(
+            camera_subscription_action(SubscriptionPlan::Idempotent, delivery_state, identity,)
+                .unwrap(),
+            CameraSubscriptionAction::Idempotent
+        );
+        assert!(
+            camera_subscription_action(SubscriptionPlan::Install, delivery_state, identity,)
+                .unwrap_err()
+                .contains("registry and delivery state disagree")
+        );
+    }
+
+    #[test]
+    fn camera_preflight_replaces_only_the_registry_owned_identity() {
+        let old_identity = CameraSubscriptionIdentity {
+            generation: 7,
+            subscription_id: 10,
+        };
+        let new_identity = CameraSubscriptionIdentity {
+            generation: 7,
+            subscription_id: 11,
+        };
+        let old_record = subscription_record(
+            SubscriptionKind::Camera(CameraStreamKind::Raw),
+            old_identity.subscription_id,
+        );
+
+        assert_eq!(
+            camera_subscription_action(
+                SubscriptionPlan::Replace(old_record),
+                Some(CameraSubscriptionState::Active(old_identity)),
+                new_identity,
+            )
+            .unwrap(),
+            CameraSubscriptionAction::Replace(old_identity)
+        );
+
+        let wrong_record = subscription_record(
+            SubscriptionKind::Camera(CameraStreamKind::Raw),
+            old_identity.subscription_id + 100,
+        );
+        assert!(camera_subscription_action(
+            SubscriptionPlan::Replace(wrong_record),
+            Some(CameraSubscriptionState::Active(old_identity)),
+            new_identity,
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn typed_subscription_registry_enforces_non_camera_capacity_without_reserving_on_failure() {
+        let mut registry = SubscriptionRegistry::default();
+        for index in 0..MAX_NON_CAMERA_SUBSCRIPTIONS {
+            let record = subscription_record(SubscriptionKind::Pose, 1);
+            let topic = format!("/pose_{index}");
+            assert_eq!(
+                registry.plan(&topic, record).unwrap(),
+                SubscriptionPlan::Install
+            );
+            registry.install(topic, record);
+        }
+
+        let rejected = subscription_record(SubscriptionKind::ModelStates, 1);
+        assert!(registry.plan("/over_limit", rejected).is_err());
+        assert!(registry.get("/over_limit").is_none());
+        assert_eq!(registry.by_topic.len(), MAX_NON_CAMERA_SUBSCRIPTIONS);
+    }
+
+    #[test]
+    fn uncertain_native_outcome_never_looks_idempotent_and_can_be_reconciled() {
+        let mut registry = SubscriptionRegistry::default();
+        let imu = subscription_record(SubscriptionKind::Imu, 1);
+        registry.install("/imu/data".to_string(), imu);
+        registry.mark_uncertain("/imu/data", imu);
+
+        let error = registry.plan("/imu/data", imu).unwrap_err();
+        assert!(error.contains("uncertain native subscription"));
+        assert_eq!(registry.get("/imu/data"), Some(imu));
+
+        registry.clear_uncertain("/imu/data");
+        assert_eq!(
+            registry.plan("/imu/data", imu).unwrap(),
+            SubscriptionPlan::Idempotent
+        );
+        registry.clear();
+        assert!(!registry.is_uncertain("/imu/data"));
+        assert!(registry.get("/imu/data").is_none());
+    }
+
+    #[test]
+    fn uncertain_topics_consume_the_global_subscription_budget() {
+        let mut registry = SubscriptionRegistry::default();
+        for index in 0..MAX_TRANSPORT_SUBSCRIPTIONS {
+            let record = if index < MAX_CAMERA_DELIVERY_TOPICS {
+                subscription_record(
+                    SubscriptionKind::Camera(CameraStreamKind::Raw),
+                    index as u64 + 1,
+                )
+            } else {
+                subscription_record(SubscriptionKind::Pose, 1)
+            };
+            registry.mark_uncertain(&format!("/uncertain_{index}"), record);
+        }
+
+        let desired = subscription_record(SubscriptionKind::Pose, 1);
+        assert!(registry.plan("/over_limit", desired).is_err());
+        assert_eq!(registry.tracked_topic_count(), MAX_TRANSPORT_SUBSCRIPTIONS);
+    }
+
+    #[test]
+    fn uncertain_non_camera_topics_consume_the_non_camera_budget() {
+        let mut registry = SubscriptionRegistry::default();
+        for index in 0..MAX_NON_CAMERA_SUBSCRIPTIONS {
+            registry.mark_uncertain(
+                &format!("/uncertain_pose_{index}"),
+                subscription_record(SubscriptionKind::Pose, 1),
+            );
+        }
+
+        assert_eq!(
+            registry.non_camera_topic_count(),
+            MAX_NON_CAMERA_SUBSCRIPTIONS
+        );
+        assert!(registry
+            .plan("/over_limit", subscription_record(SubscriptionKind::Imu, 1),)
+            .is_err());
+    }
+
+    #[tokio::test]
+    async fn failed_subscription_reconciles_the_ambiguous_native_declaration() {
+        let bridge = Arc::new(CleanupTransport::default());
+        let active = ActiveTransport {
+            generation: 7,
+            bridge: Arc::clone(&bridge) as Arc<dyn Transport>,
+        };
+
+        let error = finish_subscription(
+            &active,
+            "/imu/data",
+            subscription_record(SubscriptionKind::Imu, 1),
+            Err("native declaration failed".to_string()),
+        )
+        .await
+        .unwrap_err();
+
+        assert_eq!(error, "native declaration failed");
+        assert_eq!(
+            bridge.unsubscribed.lock().unwrap().as_slice(),
+            ["/imu/data"]
+        );
     }
 
     fn activate_test_subscription(
@@ -2176,14 +2991,35 @@ mod tests {
     }
 
     #[test]
+    fn telemetry_event_serializes_exact_generation_and_subscription_identity() {
+        let event = TelemetryEvent {
+            generation: u64::MAX.to_string(),
+            subscription_id: "2".to_string(),
+            data: serde_json::json!({ "frame_id": "world" }),
+        };
+
+        assert_eq!(
+            serde_json::to_value(event).unwrap(),
+            serde_json::json!({
+                "generation": "18446744073709551615",
+                "subscriptionId": "2",
+                "data": { "frame_id": "world" }
+            })
+        );
+    }
+
+    #[test]
     fn validate_topic_accepts_common_ros_topics() {
         assert!(validate_topic("/camera/image_raw").is_ok());
     }
 
     #[test]
     fn validate_topic_accepts_exact_length_limit() {
-        let exact = format!("/{}", "a".repeat(MAX_TOPIC_LEN - 1));
-        assert_eq!(exact.len(), MAX_TOPIC_LEN);
+        let exact = format!(
+            "/{}",
+            "a".repeat(super::super::MAX_ROS_GRAPH_NAME_BYTES - 1)
+        );
+        assert_eq!(exact.len(), super::super::MAX_ROS_GRAPH_NAME_BYTES);
         assert!(validate_topic(&exact).is_ok());
     }
 
@@ -2198,7 +3034,7 @@ mod tests {
         assert!(validate_topic("/camera\0/image")
             .unwrap_err()
             .contains("null bytes"));
-        let oversized = format!("/{}", "a".repeat(MAX_TOPIC_LEN));
+        let oversized = format!("/{}", "a".repeat(super::super::MAX_ROS_GRAPH_NAME_BYTES));
         assert!(validate_topic(&oversized).unwrap_err().contains("too long"));
     }
 
@@ -2225,7 +3061,14 @@ mod tests {
 
     #[test]
     fn validate_topic_rejects_non_canonical_ros_names() {
-        for topic in ["relative/topic", "/", "/double//slash", "/padded "] {
+        for topic in [
+            "relative/topic",
+            "/",
+            "/double//slash",
+            "/padded ",
+            "/9camera/image",
+            "/camera/2raw",
+        ] {
             assert!(
                 validate_topic(topic).is_err(),
                 "expected rejection for {topic}"
@@ -2235,9 +3078,12 @@ mod tests {
 
     #[test]
     fn transport_unsubscribe_rejects_invalid_topic_before_connection_check() {
-        let error =
-            tauri::async_runtime::block_on(transport_unsubscribe(" ".to_string(), None, None))
-                .unwrap_err();
+        let error = tauri::async_runtime::block_on(transport_unsubscribe(
+            " ".to_string(),
+            None,
+            "1".to_string(),
+        ))
+        .unwrap_err();
 
         assert!(error.contains("must not be empty"));
     }

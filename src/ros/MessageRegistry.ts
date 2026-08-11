@@ -32,15 +32,13 @@ const MAX_NATIVE_IMAGE_DIMENSION = 8192
 const MAX_NATIVE_IMAGE_BYTES = 64 * 1024 * 1024
 const MAX_BASE64_IMAGE_LENGTH = Math.ceil(MAX_NATIVE_IMAGE_BYTES / 3) * 4
 const BASE64_PATTERN = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u
+const utf8Encoder = new TextEncoder()
 
 function isRecord(data: unknown): data is UnknownRecord {
   return typeof data === 'object' && data !== null && !Array.isArray(data)
 }
 
-function hasOnlyKeys(
-  value: UnknownRecord,
-  expectedKeys: readonly string[]
-): boolean {
+function hasOnlyKeys(value: UnknownRecord, expectedKeys: readonly string[]): boolean {
   const actualKeys = Object.keys(value)
   return (
     actualKeys.length === expectedKeys.length &&
@@ -59,10 +57,10 @@ function isSafeNonNegativeInteger(value: unknown): value is number {
 function isBoundedString(value: unknown, maximum = MAX_NATIVE_STRING_LENGTH): value is string {
   return (
     typeof value === 'string' &&
-    value.length <= maximum &&
+    utf8Encoder.encode(value).byteLength <= maximum &&
     !Array.from(value).some((character) => {
       const codePoint = character.codePointAt(0) ?? 0
-      return codePoint === 0 || (codePoint < 0x20 && character !== '\t')
+      return codePoint <= 0x1f || (codePoint >= 0x7f && codePoint <= 0x9f)
     })
   )
 }
@@ -236,7 +234,7 @@ function isRawModelStates(data: unknown): boolean {
   }
 
   return (
-    data.name.every((name) => isBoundedString(name, 256)) &&
+    data.name.every((name) => isBoundedString(name, 256) && name.length > 0) &&
     data.pose.every(isRawPose) &&
     data.twist.every(isRawVelocity)
   )

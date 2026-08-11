@@ -1,0 +1,48 @@
+[package]
+name = "crebain-ncp-headless"
+version = "0.1.0"
+description = "Dependency-isolated, perception-only NCP wire-0.8 session runner for CREBAIN"
+authors = ["Sepehr Mahmoudian <sepmhn@gmail.com>"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/sepahead/crebain"
+edition = "2021"
+rust-version = "1.89.0"
+publish = false
+
+[features]
+default = []
+ncp = [
+    "dep:ncp-core",
+    "dep:ncp-zenoh",
+    "dep:serde",
+    "dep:serde_json",
+    "dep:tokio",
+    "dep:zenoh",
+]
+
+[lib]
+name = "crebain_ncp_headless"
+path = "src/lib.rs"
+
+[[bin]]
+name = "crebain-ncp-headless"
+path = "src/main.rs"
+required-features = ["ncp"]
+
+[dependencies]
+ncp-core = { git = "https://github.com/sepahead/NCP", tag = "v0.8.0", optional = true }
+ncp-zenoh = { git = "https://github.com/sepahead/NCP", tag = "v0.8.0", optional = true }
+serde = { version = "1.0", features = ["derive"], optional = true }
+serde_json = { version = "1.0", optional = true }
+tokio = { version = "1.48", features = ["macros", "rt-multi-thread", "sync", "time"], optional = true }
+zenoh = { version = "1.9", default-features = false, features = ["transport_tcp", "transport_tls", "transport_udp"], optional = true }
+
+[dev-dependencies]
+tempfile = "3.27"
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }

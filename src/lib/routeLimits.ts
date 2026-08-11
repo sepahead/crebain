@@ -12,20 +12,22 @@ export interface RouteAdmissionLimits {
   maxSpeedMultiplier?: number
 }
 
-function boundedLimit(candidate: number | undefined, fallback: number): number {
+function boundedLimit(candidate: number | undefined, fallback: number): number | null {
+  if (candidate === undefined) return fallback
   return typeof candidate === 'number' && Number.isFinite(candidate) && candidate >= 0
     ? Math.min(candidate, fallback)
-    : fallback
+    : null
 }
 
 function resolveRouteLimits(limits?: RouteAdmissionLimits): {
   maxAltitude: number
   maxSpeedMultiplier: number
-} {
-  return {
-    maxAltitude: boundedLimit(limits?.maxAltitude, MAX_ROUTE_ALTITUDE_M),
-    maxSpeedMultiplier: boundedLimit(limits?.maxSpeedMultiplier, MAX_ROUTE_SPEED_MULTIPLIER),
-  }
+} | null {
+  const maxAltitude = boundedLimit(limits?.maxAltitude, MAX_ROUTE_ALTITUDE_M)
+  const maxSpeedMultiplier = boundedLimit(limits?.maxSpeedMultiplier, MAX_ROUTE_SPEED_MULTIPLIER)
+  return maxAltitude === null || maxSpeedMultiplier === null
+    ? null
+    : { maxAltitude, maxSpeedMultiplier }
 }
 
 export interface RouteWaypointInput {
@@ -40,7 +42,9 @@ export function parseWaypointInput(
 ): { x: number; y: number; z: number } | null {
   if (input.x.trim() === '' || input.y.trim() === '' || input.z.trim() === '') return null
   const parsed = { x: Number(input.x), y: Number(input.y), z: Number(input.z) }
-  const { maxAltitude } = resolveRouteLimits(limits)
+  const resolvedLimits = resolveRouteLimits(limits)
+  if (!resolvedLimits) return null
+  const { maxAltitude } = resolvedLimits
   return Number.isFinite(parsed.x) &&
     Math.abs(parsed.x) <= MAX_ROUTE_COORDINATE_MAGNITUDE_M &&
     Number.isFinite(parsed.y) &&
@@ -64,7 +68,9 @@ export function isAdmissibleRoutePosition(
 ): value is FiniteRouteWaypoint['position'] {
   if (typeof value !== 'object' || value === null) return false
   const position = value as { x?: unknown; y?: unknown; z?: unknown }
-  const { maxAltitude } = resolveRouteLimits(limits)
+  const resolvedLimits = resolveRouteLimits(limits)
+  if (!resolvedLimits) return false
+  const { maxAltitude } = resolvedLimits
   return (
     typeof position.x === 'number' &&
     Number.isFinite(position.x) &&
@@ -90,13 +96,16 @@ export function isFiniteRouteWaypoint(
     speed?: unknown
   }
   const position = waypoint.position
-  const { maxAltitude, maxSpeedMultiplier } = resolveRouteLimits(limits)
+  const resolvedLimits = resolveRouteLimits(limits)
+  if (!resolvedLimits) return false
+  const { maxAltitude, maxSpeedMultiplier } = resolvedLimits
   return (
     isAdmissibleRoutePosition(position, limits) &&
     typeof waypoint.altitude === 'number' &&
     Number.isFinite(waypoint.altitude) &&
     waypoint.altitude >= 0 &&
     waypoint.altitude <= maxAltitude &&
+    waypoint.altitude === position.y &&
     (waypoint.speed === undefined ||
       (typeof waypoint.speed === 'number' &&
         Number.isFinite(waypoint.speed) &&
@@ -109,6 +118,7 @@ export function isAdmissibleRouteWaypoints(
   value: unknown,
   limits?: RouteAdmissionLimits
 ): value is FiniteRouteWaypoint[] {
+  if (!resolveRouteLimits(limits)) return false
   return (
     Array.isArray(value) &&
     value.length <= MAX_ROUTE_WAYPOINTS &&

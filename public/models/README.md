@@ -6,6 +6,17 @@ retrieval date, modifications, and immutable digest are documented. CREBAIN
 mesh. Detection weights are not served from the browser bundle or committed to
 this repository.
 
+<p align="center">
+  <img alt="CREBAIN evidence and claim maturity chain" src="../../assets/diagrams/evidence-claim-chain.svg" width="900">
+</p>
+
+Text alternative: Eleven named stages separate weak claims from strong claims.
+They cover source existence, builds, tests, integration, transport, receiver
+validation, authorization, and attempted application. Later stages cover flight
+control unit acceptance, observed effect, and safe-state evidence. Each stronger
+claim needs new evidence. No stage advances automatically. Expiry and hardware
+or field tests provide separate facts.
+
 The operator supplies native inference models through `CREBAIN_MODEL_PATH`,
 `CREBAIN_ONNX_MODEL`, or the experimental `CREBAIN_MLX_MODEL` variable. The
 optional `CREBAIN_MLX_MODEL_SHA256` pins the selected MLX model digest. It is

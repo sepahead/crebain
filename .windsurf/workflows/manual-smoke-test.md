@@ -44,6 +44,7 @@ prerelease can have pending rows only under the exclusions in
     includes the dev server, transport subscription, producer, archive writer,
     and simulator.
 13. Record each writer that exceeds its two-second exit wait.
-14. If documentation changed during the test, run `git diff --check`.
-15. For Rust, IPC, transport, model-loading, or integration changes, run
+14. If documentation changed during the test, run `bun run check:docs-visuals`.
+15. If documentation changed during the test, run `git diff --check`.
+16. For Rust, IPC, transport, model-loading, or integration changes, run
     `bun run validate:all`.

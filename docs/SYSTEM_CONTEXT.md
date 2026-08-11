@@ -1,5 +1,15 @@
 # System context, trust boundaries, and claims
 
+<p align="center">
+  <img alt="CREBAIN current and target authority boundaries" src="../assets/diagrams/authority-boundaries.svg" width="900">
+</p>
+
+Text alternative: Current L0 surfaces provide visualization, local simulation,
+read-only telemetry, and optional advisory evidence. None can command a vehicle.
+The target L1 chain requires signed intent, Haldir, NCP, a native plant, a safety
+governor, a typed PX4 adapter, and a flight control unit. CREBAIN has not
+implemented these components as an integrated authority chain.
+
 ## Current L0 reality
 
 The renderer owns visualization and local physics. Its ROS connection surface is
@@ -18,6 +28,14 @@ exact runtime opt-in and registry/config/executable preflight, emit advisory
 fusion evidence on only the `galadriel-pid` and `galadriel-monitor` keys. It has
 no action/FCU capability and does not establish a live Galadriel receiver,
 authenticated deployment, or Haldir→NCP→native-plant→FCU authority chain.
+
+A separate dependency-isolated workspace package builds the opt-in
+`crebain-ncp-headless` process. Its explicit networked mode runs only a bounded
+perception open, step, and close lifecycle against a compatible NCP wire-0.8
+responder. It has no command subscription, sensor put, Tauri registration, or
+plant dependency. The `engram/ncp` default realm does not establish current
+Engram compatibility. Current Engram native wire 1.0 is incompatible, and no
+translator or live CREBAIN↔current-Engram loop exists.
 
 A separate dependency-free `crebain-plant-authority` workspace package and
 `crebain-plantd` process now provide an inactive draft contract-v1 validator,
@@ -102,35 +120,15 @@ and are why the current claim remains L0.
 
 ## Target L1 context
 
-Text alternative: Controllers and the operator send signed intent to Haldir.
-The target requires Haldir to publish the exclusive authenticated NCP route;
-its final version is pending convergence. The router sends that route through
+Target-flow summary: Controllers and the operator send signed intent to Haldir.
+The target requires Haldir to publish the exclusive authenticated NCP route.
+Its final version is pending convergence. The router sends that route through
 the native plant and safety governor to a typed PX4 adapter. The adapter reaches
 the simulated flight-control unit (FCU) and vehicle. Authoritative FCU state
 returns to the plant. The FCU and plant feed the evidence pipeline. The FCU also
 feeds a common projection to Galadriel. The CREBAIN fusion producer writes two
 advisory evidence keys to Galadriel. Galadriel returns advisory evidence to
 Haldir and has no command path. The plant sends read-only status to the operator.
-
-```mermaid
-flowchart LR
-  C[Controller] -->|signed typed intent| H[Haldir Gate]
-  O[Operator UI] -->|signed intent only| H
-  H -->|authenticated exclusive final NCP route; version pending convergence| R[Router]
-  R --> P[Native CREBAIN plant]
-  P --> G[Safety governor]
-  G --> A[Typed PX4 adapter]
-  A --> F[PX4 SITL FCU]
-  F --> V[SITL vehicle]
-  F -->|authoritative state| P
-  F --> E[Evidence pipeline]
-  P --> E
-  F --> CP[Common projection]
-  CP --> GA[Galadriel observer]
-  FP[CREBAIN fusion producer] -.->|two advisory evidence keys| GA
-  GA -->|advisory evidence only| H
-  P -->|read-only status| O
-```
 
 ## Trust domains
 

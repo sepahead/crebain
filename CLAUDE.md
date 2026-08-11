@@ -39,3 +39,5 @@ ASD-STE100 unless a qualified review verifies it.
   vocabulary as technical terms. Keep their spelling consistent.
 - Preserve the meaning of historical records, frozen evidence, generated
   files, vendored documentation, quotations, licenses, and codes of conduct.
+- Give each complex SVG diagram concise alt text and an adjacent prose text
+  alternative. Keep each SVG self-contained and accessible.

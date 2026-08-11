@@ -9,6 +9,32 @@ export const UI_SCALE_CONFIG = {
   STORAGE_KEY: 'crebain-ui-scale',
 } as const
 
+/**
+ * Floating panels use fixed slots once text enlargement makes free placement
+ * too dense for the supported minimum window.
+ */
+export const DOCKED_PANEL_LAYOUT_MIN_SCALE = 1.5
+export const MAGNIFIED_UI_MIN_SCALE = 1.5
+export const FREE_PANEL_LAYOUT_MIN_WIDTH = 1_200
+export const FREE_PANEL_LAYOUT_MIN_HEIGHT = 1_080
+
+export function usesDockedPanelLayout(
+  scale: number,
+  viewportWidth: number,
+  viewportHeight: number
+): boolean {
+  if (![scale, viewportWidth, viewportHeight].every(Number.isFinite)) return true
+  return (
+    scale >= DOCKED_PANEL_LAYOUT_MIN_SCALE ||
+    viewportWidth < FREE_PANEL_LAYOUT_MIN_WIDTH ||
+    viewportHeight < FREE_PANEL_LAYOUT_MIN_HEIGHT
+  )
+}
+
+export function usesMagnifiedUiLayout(scale: number): boolean {
+  return Number.isFinite(scale) && scale >= MAGNIFIED_UI_MIN_SCALE
+}
+
 export type UIScalePreset = (typeof UI_SCALE_CONFIG.PRESETS)[number]
 
 export interface UIScaleContextValue {
@@ -20,6 +46,7 @@ export interface UIScaleContextValue {
   setPreset: (preset: UIScalePreset) => void
   scalePercent: number
   cssVar: { '--ui-scale': number }
+  isDocked: boolean
   isAtMin: boolean
   isAtMax: boolean
 }

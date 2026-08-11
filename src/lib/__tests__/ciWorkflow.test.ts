@@ -306,9 +306,13 @@ describe('CI workflow', () => {
     expect(SECURITY_CONFIGURATION_STATUS).toContain(
       "type SecurityConfigurationStatus = 'not-configured' | 'unknown'"
     )
-    expect(CREBAIN_VIEWER).toContain(
-      "const SECURITY_CONFIGURATION_STATUS: SecurityConfigurationStatus = 'unknown'"
+    expect(SECURITY_CONFIGURATION_STATUS).toContain(
+      "DEFAULT_SECURITY_CONFIGURATION_STATUS: SecurityConfigurationStatus = 'unknown'"
     )
+    expect(CREBAIN_VIEWER).toContain(
+      'const SECURITY_CONFIGURATION_STATUS: SecurityConfigurationStatus ='
+    )
+    expect(CREBAIN_VIEWER).toContain('DEFAULT_SECURITY_CONFIGURATION_STATUS')
     expect(VIEWER_UI).not.toContain("const networkStatus = 'VERBUNDEN'")
     expect(VIEWER_UI).not.toContain('AES-256')
     expect(VIEWER_UI).not.toContain('<span className="text-[#808080]">YOLOv8s</span>')

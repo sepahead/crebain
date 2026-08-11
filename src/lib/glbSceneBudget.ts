@@ -12,11 +12,12 @@ import {
   MAX_GLB_MORPH_TEXTURE_BYTES,
   MAX_GLB_NODES,
   MAX_GLB_PRIMITIVE_INSTANCES,
+  MAX_GLB_SOURCE_BYTES,
   MAX_GLB_TEXTURE_PIXELS,
   type GlbValidationSummary,
 } from './glbValidation'
 
-export const MAX_GLB_SOURCE_BYTES = 128 * 1024 * 1024
+export { MAX_GLB_SOURCE_BYTES } from './glbValidation'
 export const MAX_GLB_SCENE_SOURCE_BYTES = 512 * 1024 * 1024
 
 export const GLB_SCENE_RESOURCE_FIELDS = [

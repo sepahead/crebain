@@ -1,0 +1,145 @@
+<svg xmlns="http://www.w3.org/2000/svg" xml:lang="en" viewBox="0 0 1200 760" width="1200" height="760" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="authority-boundaries-title authority-boundaries-desc">
+  <title id="authority-boundaries-title">CREBAIN current and target authority boundaries</title>
+  <desc id="authority-boundaries-desc">The current L0 product has visualization, local simulation, read-only telemetry, and optional advisory evidence, but no vehicle authority path. A separate right panel shows the target L1 chain from signed intent through Haldir, NCP, a native plant, a safety governor, a typed PX4 adapter, and the FCU. Every target component is marked not implemented as an integrated authority chain.</desc>
+  <style>
+    * { vector-effect: non-scaling-stroke; }
+    .canvas { fill: #f8fafc; }
+    text { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 14px; fill: #172033; text-anchor: middle; }
+    .title { font-size: 18px; font-weight: 700; letter-spacing: 2px; text-anchor: start; }
+    .subtitle { font-size: 13px; fill: #475569; text-anchor: start; }
+    .panel-title { font-size: 15px; font-weight: 700; letter-spacing: 1.4px; text-anchor: start; }
+    .small { font-size: 13px; fill: #475569; }
+    .left { text-anchor: start; }
+    .present-text { fill: #047857; }
+    .data-text { fill: #0369a1; }
+    .conditional-text { fill: #92400e; }
+    .optional-text { fill: #6d28d9; }
+    .absent-text { fill: #b91c1c; }
+    .panel-current { fill: none; stroke: #047857; stroke-width: 1.8; }
+    .panel-target { fill: none; stroke: #b91c1c; stroke-width: 1.8; stroke-dasharray: 8 6; }
+    .surface { fill: #ffffff; stroke: #52643f; stroke-width: 1.4; }
+    .data-box { fill: #ffffff; stroke: #0369a1; stroke-width: 1.4; }
+    .optional-box { fill: #ffffff; stroke: #6d28d9; stroke-width: 1.4; stroke-dasharray: 7 5; }
+    .target-box { fill: #ffffff; stroke: #92400e; stroke-width: 1.4; stroke-dasharray: 5 4; }
+    .absent-box { fill: #ffffff; stroke: #b91c1c; stroke-width: 1.6; }
+    .edge { fill: none; stroke: #52643f; stroke-width: 1.5; marker-end: url(#authority-arrow-flow); }
+    .data-edge { fill: none; stroke: #0369a1; stroke-width: 1.5; marker-end: url(#authority-arrow-data); }
+    .target-edge { fill: none; stroke: #92400e; stroke-width: 1.5; stroke-dasharray: 6 5; marker-end: url(#authority-arrow-target); }
+    .advisory-edge { fill: none; stroke: #6d28d9; stroke-width: 1.5; stroke-dasharray: 3 5; marker-end: url(#authority-arrow-optional); }
+    .barrier { stroke: #b91c1c; stroke-width: 4; }
+    .marker-flow { fill: #52643f; }
+    .marker-data { fill: #0369a1; }
+    .marker-target { fill: #92400e; }
+    .marker-optional { fill: #6d28d9; }
+    .corner { fill: none; stroke: #52643f; stroke-width: 1.8; }
+    @media (prefers-color-scheme: dark) {
+      .canvas { fill: #0d1117; }
+      text { fill: #d6dde5; }
+      .subtitle, .small { fill: #9aa7b4; }
+      .present-text { fill: #34d399; }
+      .data-text { fill: #38bdf8; }
+      .conditional-text { fill: #fbbf24; }
+      .optional-text { fill: #c4b5fd; }
+      .absent-text { fill: #f87171; }
+      .surface, .data-box, .optional-box, .target-box, .absent-box { fill: #111820; }
+      .surface, .edge, .corner { stroke: #87967a; }
+      .panel-current { stroke: #34d399; }
+      .panel-target, .absent-box, .barrier { stroke: #f87171; }
+      .data-box, .data-edge { stroke: #38bdf8; }
+      .optional-box, .advisory-edge { stroke: #c4b5fd; }
+      .target-box, .target-edge { stroke: #fbbf24; }
+      .marker-flow { fill: #87967a; }
+      .marker-data { fill: #38bdf8; }
+      .marker-target { fill: #fbbf24; }
+      .marker-optional { fill: #c4b5fd; }
+    }
+  </style>
+  <defs>
+    <marker id="authority-arrow-flow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="marker-flow" d="M0 0 L8 4 L0 8 Z"/></marker>
+    <marker id="authority-arrow-data" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="marker-data" d="M0 0 L8 4 L0 8 Z"/></marker>
+    <marker id="authority-arrow-target" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="marker-target" d="M0 0 L8 4 L0 8 Z"/></marker>
+    <marker id="authority-arrow-optional" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="marker-optional" d="M0 0 L8 4 L0 8 Z"/></marker>
+  </defs>
+
+  <rect class="canvas" x="0" y="0" width="1200" height="760"/>
+  <path class="corner" d="M18 42 V18 H42 M1158 18 H1182 V42 M18 718 V742 H42 M1182 718 V742 H1158"/>
+  <text class="title" x="48" y="42">CREBAIN · AUTHORITY BOUNDARIES</text>
+  <text class="subtitle" x="48" y="66">CURRENT PRODUCT REALITY AND THE SEPARATE L1 TARGET · NO CLAIM TRANSFER BETWEEN PANELS</text>
+
+  <rect class="panel-current" x="40" y="92" width="512" height="616"/>
+  <text class="panel-title present-text" x="62" y="122">CURRENT L0 · IMPLEMENTED PRODUCT SURFACES</text>
+  <rect class="surface" x="72" y="150" width="200" height="72"/>
+  <text x="172" y="179">Operator renderer</text>
+  <text class="small" x="172" y="201">visualization + local UI</text>
+  <rect class="surface" x="320" y="150" width="200" height="72"/>
+  <text x="420" y="179">Local simulation</text>
+  <text class="small" x="420" y="201">scene + physics only</text>
+  <path class="edge" d="M272 186 H312"/>
+
+  <rect class="data-box" x="72" y="266" width="200" height="76"/>
+  <text class="data-text" x="172" y="294">ROS / Zenoh telemetry</text>
+  <text class="small" x="172" y="316">fixed subscriptions</text>
+  <text class="small data-text" x="172" y="334">READ ONLY</text>
+  <path class="data-edge" d="M172 266 V230"/>
+
+  <rect class="optional-box" x="320" y="266" width="200" height="76"/>
+  <text class="optional-text" x="420" y="294">Advisory evidence</text>
+  <text class="small" x="420" y="316">two NCP route puts</text>
+  <text class="small" x="420" y="334">feature + exact opt-in</text>
+
+  <rect class="absent-box" x="72" y="390" width="448" height="104"/>
+  <text class="absent-text" x="296" y="420">NO LIVE AUTHORITY CHAIN</text>
+  <text class="small" x="296" y="446">No registered NCP control commands · no Haldir gate</text>
+  <text class="small" x="296" y="470">No authorizing governor · no typed FCU adapter</text>
+  <line class="barrier" x1="296" y1="342" x2="296" y2="382"/>
+
+  <rect class="absent-box" x="72" y="534" width="448" height="120"/>
+  <text x="296" y="565">crebain-plantd</text>
+  <text class="small" x="296" y="590">separate inert foundation · self-check only</text>
+  <text class="absent-text" x="296" y="616">UNWIRED · NO FCU OUTPUT</text>
+  <text class="small absent-text" x="296" y="638">component evidence cannot authorize motion</text>
+
+  <rect class="panel-target" x="584" y="92" width="576" height="616"/>
+  <text class="panel-title absent-text" x="606" y="122">TARGET L1 · NOT IMPLEMENTED AS AN INTEGRATED CHAIN</text>
+  <rect class="target-box" x="616" y="150" width="156" height="68"/>
+  <text x="694" y="177">Controller</text>
+  <text class="small" x="694" y="199">signed typed intent</text>
+  <rect class="target-box" x="804" y="150" width="156" height="68"/>
+  <text x="882" y="177">Operator UI</text>
+  <text class="small" x="882" y="199">signed intent only</text>
+  <path class="target-edge" d="M694 218 V238 H760 V250"/>
+  <path class="target-edge" d="M882 218 V238 H824 V250"/>
+
+  <rect class="target-box" x="704" y="258" width="176" height="68"/>
+  <text class="conditional-text" x="792" y="285">Haldir Gate</text>
+  <text class="small" x="792" y="307">exclusive publisher</text>
+  <path class="target-edge" d="M792 326 V350"/>
+  <rect class="target-box" x="696" y="358" width="192" height="68"/>
+  <text class="conditional-text" x="792" y="385">NCP router</text>
+  <text class="small" x="792" y="407">exact identity + route</text>
+  <path class="target-edge" d="M792 426 V450"/>
+  <rect class="target-box" x="616" y="458" width="156" height="68"/>
+  <text class="conditional-text" x="694" y="485">Native plant</text>
+  <text class="small" x="694" y="507">sole final writer</text>
+  <path class="target-edge" d="M772 492 H796"/>
+  <rect class="target-box" x="804" y="458" width="156" height="68"/>
+  <text class="conditional-text" x="882" y="485">Safety governor</text>
+  <text class="small" x="882" y="507">freshness + policy</text>
+  <path class="target-edge" d="M960 492 H984"/>
+  <rect class="target-box" x="992" y="458" width="136" height="68"/>
+  <text class="conditional-text" x="1060" y="485">PX4 adapter</text>
+  <text class="small" x="1060" y="507">typed actions</text>
+  <path class="target-edge" d="M1060 526 V550"/>
+  <rect class="target-box" x="992" y="558" width="136" height="68"/>
+  <text class="conditional-text" x="1060" y="585">SITL FCU</text>
+  <text class="small" x="1060" y="607">authoritative state</text>
+
+  <path class="target-edge" d="M992 592 H936 V660 H694 V534"/>
+  <text class="small conditional-text left" x="714" y="682">AUTHORITATIVE STATE RETURN · TARGET</text>
+  <rect class="optional-box" x="616" y="558" width="300" height="68"/>
+  <text class="optional-text" x="766" y="585">Evidence pipeline + Galadriel</text>
+  <text class="small" x="766" y="607">advisory only · never the command path</text>
+  <path class="advisory-edge" d="M992 578 H924"/>
+
+  <text class="small absent-text" x="872" y="696">ALL TARGET EDGES ARE PLANNED · NOT CURRENT RUNTIME WIRING</text>
+</svg>

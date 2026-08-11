@@ -38,12 +38,58 @@
 mod camera_work;
 pub mod commands;
 pub mod rosbridge;
+#[cfg(feature = "zenoh-transport")]
+mod telemetry_work;
 pub mod zenoh;
 
 use std::future::Future;
 use std::pin::Pin;
 
 use self::camera_work::CameraWorkPermit;
+
+pub(crate) const MAX_ROS_GRAPH_NAME_BYTES: usize = 256;
+
+/// Validate the fully qualified ROS graph-name subset accepted by both native
+/// transport backends. CREBAIN does not accept relative names, substitutions,
+/// or private-name syntax at its IPC boundary.
+pub(crate) fn validate_absolute_ros_graph_name(name: &str) -> std::result::Result<(), String> {
+    if name.is_empty() || name.trim() != name {
+        return Err("must not be empty or padded".to_string());
+    }
+    if name.contains('\0') {
+        return Err("must not contain null bytes".to_string());
+    }
+    if name.len() > MAX_ROS_GRAPH_NAME_BYTES {
+        return Err(format!(
+            "is too long: {} bytes exceeds {}",
+            name.len(),
+            MAX_ROS_GRAPH_NAME_BYTES
+        ));
+    }
+    if name == "/" || !name.starts_with('/') {
+        return Err("must be an absolute ROS name".to_string());
+    }
+    if name.ends_with('/') {
+        return Err("must not end with a path separator".to_string());
+    }
+    if name.contains("//") {
+        return Err("must not contain empty path segments".to_string());
+    }
+    if !name
+        .chars()
+        .all(|character| character.is_ascii_alphanumeric() || matches!(character, '_' | '/'))
+    {
+        return Err("contains unsupported characters".to_string());
+    }
+    if name
+        .split('/')
+        .skip(1)
+        .any(|token| token.as_bytes().first().is_some_and(u8::is_ascii_digit))
+    {
+        return Err("contains a path segment that starts with a digit".to_string());
+    }
+    Ok(())
+}
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // TYPES

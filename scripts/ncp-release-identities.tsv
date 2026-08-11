@@ -1,0 +1,3 @@
+# NCP release tag, full annotated tag object, and peeled commit.
+# Keep one whitespace-delimited row for each CREBAIN-supported immutable release.
+v0.8.0 54008b16ea0c195a4ccc9691cb533dd1153bf7f0 2f5bd586d4bb20c90362bb6f5698b7f64057ba4e

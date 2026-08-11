@@ -1,8 +1,10 @@
-import type { FusionFrameContext } from './SensorFusion'
-import type { Detection } from './types'
+import { normalizeBrowserFusionDetection, type FusionFrameContext } from './SensorFusion'
+import { DEFAULT_MAX_DETECTIONS, type Detection } from './types'
+import { isBoundedSceneName } from '../lib/sceneLimits'
 
 export const BROWSER_FUSION_BATCH_WINDOW_MS = 200
 export const MAX_BROWSER_FUSION_PENDING_CAMERAS = 64
+export const MAX_BROWSER_FUSION_DETECTIONS_PER_CAMERA = DEFAULT_MAX_DETECTIONS
 
 interface PendingCameraFrame {
   detections: Detection[]
@@ -39,9 +41,26 @@ export class BrowserFusionBatcher {
     detections: Detection[],
     receivedAtMs: number
   ): BrowserFusionEnqueueStatus {
-    if (!cameraId || !Number.isSafeInteger(receivedAtMs) || receivedAtMs < 0) {
+    if (
+      !isBoundedSceneName(cameraId) ||
+      !Array.isArray(detections) ||
+      detections.length > MAX_BROWSER_FUSION_DETECTIONS_PER_CAMERA ||
+      !Number.isSafeInteger(receivedAtMs) ||
+      receivedAtMs < 0
+    ) {
       return 'rejected_invalid'
     }
+    let snapshot: Detection[]
+    try {
+      snapshot = detections.map((detection) => {
+        const normalized = normalizeBrowserFusionDetection(cameraId, detection)
+        if (!normalized) throw new TypeError('Invalid browser-fusion detection')
+        return normalized
+      })
+    } catch {
+      return 'rejected_invalid'
+    }
+
     const evictsPendingFrame = this.pending.has(cameraId)
     if (!evictsPendingFrame && this.pending.size >= MAX_BROWSER_FUSION_PENDING_CAMERAS) {
       return 'rejected_capacity'
@@ -49,7 +68,7 @@ export class BrowserFusionBatcher {
 
     this.sourceFrameSequence += 1
     this.pending.set(cameraId, {
-      detections,
+      detections: snapshot,
       receivedAtMs,
       sourceFrameId: `${this.generation}:${this.sourceFrameSequence}`,
     })

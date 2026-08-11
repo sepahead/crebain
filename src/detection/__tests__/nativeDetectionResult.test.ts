@@ -59,11 +59,80 @@ describe('normalizeNativeDetectionResult', () => {
     )
   })
 
+  it('rejects duplicate identities and undeclared response fields', () => {
+    const duplicate = validResponse()
+    duplicate.detections.push({ ...duplicate.detections[0] })
+    expect(() => normalizeNativeDetectionResult(duplicate, FRAME_WIDTH, FRAME_HEIGHT)).toThrow(
+      'detection IDs must be unique'
+    )
+
+    expect(() =>
+      normalizeNativeDetectionResult(
+        { ...validResponse(), authority: 'none' },
+        FRAME_WIDTH,
+        FRAME_HEIGHT
+      )
+    ).toThrow('response must be an object')
+    expect(() =>
+      normalizeNativeDetectionResult(
+        {
+          ...validResponse(),
+          detections: [{ ...validResponse().detections[0], authority: 'none' }],
+        },
+        FRAME_WIDTH,
+        FRAME_HEIGHT
+      )
+    ).toThrow('detections[0] must be an object')
+  })
+
   it('rejects inconsistent success and error envelopes', () => {
     const response = { ...validResponse(), error: 'unexpected error' }
 
     expect(() => normalizeNativeDetectionResult(response, FRAME_WIDTH, FRAME_HEIGHT)).toThrow(
       'successful responses must carry null error'
+    )
+  })
+
+  it('rejects unbounded native timings and error text', () => {
+    expect(() =>
+      normalizeNativeDetectionResult(
+        { ...validResponse(), inferenceTimeMs: 86_400_001 },
+        FRAME_WIDTH,
+        FRAME_HEIGHT
+      )
+    ).toThrow('inferenceTimeMs must be at most')
+
+    expect(() =>
+      normalizeNativeDetectionResult(
+        {
+          ...validResponse(),
+          success: false,
+          detections: [],
+          error: 'x'.repeat(2_049),
+        },
+        FRAME_WIDTH,
+        FRAME_HEIGHT
+      )
+    ).toThrow('error must be a non-empty string of at most 2048 UTF-8 bytes')
+  })
+
+  it('rejects unsafe identity text and measures its UTF-8 byte length', () => {
+    const nulLabel = validResponse()
+    nulLabel.detections[0].classLabel = 'bad\0label'
+    expect(() => normalizeNativeDetectionResult(nulLabel, FRAME_WIDTH, FRAME_HEIGHT)).toThrow(
+      'classLabel'
+    )
+
+    const c1ControlLabel = validResponse()
+    c1ControlLabel.detections[0].classLabel = 'bad\u0085label'
+    expect(() => normalizeNativeDetectionResult(c1ControlLabel, FRAME_WIDTH, FRAME_HEIGHT)).toThrow(
+      'classLabel'
+    )
+
+    const multibyteLabel = validResponse()
+    multibyteLabel.detections[0].classLabel = '€'.repeat(86)
+    expect(() => normalizeNativeDetectionResult(multibyteLabel, FRAME_WIDTH, FRAME_HEIGHT)).toThrow(
+      '256 UTF-8 bytes'
     )
   })
 })

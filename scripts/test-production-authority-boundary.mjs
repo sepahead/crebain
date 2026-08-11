@@ -24,7 +24,10 @@ let passed = 0
 for (const testCase of fixture.cases) {
   let failure = null
   try {
-    assertNoForbiddenRuntimeCapabilities(`${testCase.id}.js`, testCase.source)
+    assertNoForbiddenRuntimeCapabilities(`${testCase.id}.js`, testCase.source, {
+      rejectPropertyDescriptors: true,
+      rejectUnknownCallableMembers: true,
+    })
   } catch (error) {
     failure = error instanceof Error ? error.message : String(error)
   }
@@ -38,7 +41,10 @@ for (const testCase of fixture.cases) {
 let allowed = 0
 for (const testCase of fixture.allowed_cases) {
   try {
-    assertNoForbiddenRuntimeCapabilities(`${testCase.id}.js`, testCase.source)
+    assertNoForbiddenRuntimeCapabilities(`${testCase.id}.js`, testCase.source, {
+      rejectPropertyDescriptors: true,
+      rejectUnknownCallableMembers: true,
+    })
   } catch (error) {
     const failure = error instanceof Error ? error.message : String(error)
     throw new Error(`${testCase.id}: allowed fixture was rejected: ${failure}`)

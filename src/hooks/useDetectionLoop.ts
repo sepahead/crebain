@@ -19,8 +19,11 @@ import {
   DEFAULT_DETECTION_INTERVAL_MS,
 } from '../detection/types'
 import { normalizeNativeDetectionResult } from '../detection/nativeDetectionResult'
+import { runNativeDetectionRequest } from '../detection/nativeDetectionRequest'
 import { TAURI_COMMANDS } from '../lib/tauriCommands'
 import { isEngramEmbeddedMode } from '../integrations/engramHost'
+import { detectionLogger as log } from '../lib/logger'
+import { isBoundedSceneName, MAX_SCENE_CAMERAS } from '../lib/sceneLimits'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -30,6 +33,23 @@ interface CameraInfo {
   id: string
   name: string
   isActive: boolean
+  /** Stable for metadata edits and different for a replacement camera instance. */
+  instanceId: string
+}
+
+interface CaptureDropReport {
+  instanceId: string
+  reportedAt: number
+}
+
+export function pruneCaptureDropReports(
+  reports: Map<string, CaptureDropReport>,
+  cameras: ReadonlyArray<{ id: string; instanceId: string }>
+): void {
+  const currentInstances = new Map(cameras.map((camera) => [camera.id, camera.instanceId]))
+  for (const [cameraId, report] of reports) {
+    if (currentInstances.get(cameraId) !== report.instanceId) reports.delete(cameraId)
+  }
 }
 
 interface DetectionLoopOptions {
@@ -60,6 +80,49 @@ interface DetectionLoopOptions {
 export const CAMERA_CAPTURE_UNAVAILABLE_ERROR =
   'Camera capture unavailable; detection cycle skipped'
 export const CAMERA_CAPTURE_DROP_REPORT_INTERVAL_MS = 5_000
+export const MAX_DETECTION_INTERVAL_MS = 60_000
+
+export function normalizeDetectionIntervalMs(value: number): number {
+  return Number.isSafeInteger(value) && value >= 1 && value <= MAX_DETECTION_INTERVAL_MS
+    ? value
+    : DEFAULT_DETECTION_INTERVAL_MS
+}
+
+export function normalizeDetectionConfidenceThreshold(value: number): number {
+  return Number.isFinite(value) && value >= DEFAULT_CONFIDENCE_THRESHOLD && value <= 1
+    ? value
+    : DEFAULT_CONFIDENCE_THRESHOLD
+}
+
+function selectActiveCameras(cameras: readonly CameraInfo[]): CameraInfo[] {
+  const selected: CameraInfo[] = []
+  const seenIds = new Set<string>()
+  for (const camera of cameras) {
+    if (selected.length >= MAX_SCENE_CAMERAS) break
+    if (
+      !camera?.isActive ||
+      !isBoundedSceneName(camera.id) ||
+      !isBoundedSceneName(camera.instanceId) ||
+      seenIds.has(camera.id)
+    ) {
+      continue
+    }
+    seenIds.add(camera.id)
+    selected.push({ ...camera })
+  }
+  return selected
+}
+
+function notifyDetectionObserver(label: string, observer: (() => void) | undefined): void {
+  if (!observer) return
+  try {
+    observer()
+  } catch (error) {
+    log.warn(`${label} callback failed`, {
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPERS
@@ -117,15 +180,14 @@ export function useDetectionLoop(options: DetectionLoopOptions): void {
     onError,
   } = options
   const nativeAccessAllowed = !isEngramEmbeddedMode()
+  const effectiveIntervalMs = normalizeDetectionIntervalMs(intervalMs)
 
   // Lock to prevent overlapping detection runs
   const isProcessingRef = useRef(false)
   // Track current camera index for round-robin processing
   const currentCameraIndexRef = useRef(0)
   const loopGenerationRef = useRef(0)
-  const captureDropReportsRef = useRef<Map<string, { camera: CameraInfo; reportedAt: number }>>(
-    new Map()
-  )
+  const captureDropReportsRef = useRef<Map<string, CaptureDropReport>>(new Map())
 
   // Detection inputs can change independently of the scheduler. Keeping their
   // latest values in refs prevents ordinary parent renders from cancelling and
@@ -139,96 +201,124 @@ export function useDetectionLoop(options: DetectionLoopOptions): void {
 
   camerasRef.current = cameras
   exportCameraFeedRef.current = exportCameraFeed
-  confidenceThresholdRef.current = confidenceThreshold
+  confidenceThresholdRef.current = normalizeDetectionConfidenceThreshold(confidenceThreshold)
   onDetectionRef.current = onDetection
   onPerformanceRef.current = onPerformance
   onErrorRef.current = onError
 
+  useEffect(() => {
+    pruneCaptureDropReports(captureDropReportsRef.current, cameras)
+  }, [cameras])
+
   // Stable reference to the detection function
-  const runDetectionCycle = useCallback(async (isCurrent: () => boolean = () => true) => {
-    // Skip if already processing or no cameras
-    if (isProcessingRef.current) return
+  const runDetectionCycle = useCallback(
+    async (isCurrent: () => boolean = () => true, signal?: AbortSignal) => {
+      // Skip if already processing or no cameras
+      if (isProcessingRef.current) return
 
-    const activeCameras = camerasRef.current.filter((camera) => camera.isActive)
-    if (activeCameras.length === 0) return
+      const activeCameras = selectActiveCameras(camerasRef.current)
+      if (activeCameras.length === 0) return
 
-    isProcessingRef.current = true
-    let processingCameraId: string | undefined
+      isProcessingRef.current = true
+      let processingCameraId: string | undefined
 
-    try {
-      // Round-robin: process one camera per cycle for better performance
-      const cameraIndex = currentCameraIndexRef.current % activeCameras.length
-      const camera = activeCameras[cameraIndex]
-      processingCameraId = camera.id
-      const cameraIsStillActive = () =>
-        camerasRef.current.some(
-          (currentCamera) => currentCamera === camera && currentCamera.isActive
-        )
-      currentCameraIndexRef.current = (cameraIndex + 1) % activeCameras.length
+      try {
+        // Round-robin: process one camera per cycle for better performance
+        const cameraIndex = currentCameraIndexRef.current % activeCameras.length
+        const camera = activeCameras[cameraIndex]
+        processingCameraId = camera.id
+        const cameraIsStillActive = () =>
+          camerasRef.current.some(
+            (currentCamera) =>
+              currentCamera.id === camera.id &&
+              currentCamera.instanceId === camera.instanceId &&
+              currentCamera.isActive
+          )
+        currentCameraIndexRef.current = (cameraIndex + 1) % activeCameras.length
 
-      // Export camera feed
-      const imageData = await exportCameraFeedRef.current(camera.id)
-      if (!isCurrent() || !cameraIsStillActive()) return
-      if (!imageData) {
-        const now = Date.now()
-        const previousReport = captureDropReportsRef.current.get(camera.id)
-        if (
-          previousReport?.camera !== camera ||
-          now < previousReport.reportedAt ||
-          now - previousReport.reportedAt >= CAMERA_CAPTURE_DROP_REPORT_INTERVAL_MS
-        ) {
-          captureDropReportsRef.current.set(camera.id, { camera, reportedAt: now })
-          onErrorRef.current?.(CAMERA_CAPTURE_UNAVAILABLE_ERROR, camera.id)
+        // Export camera feed
+        const imageData = await exportCameraFeedRef.current(camera.id)
+        if (!isCurrent() || !cameraIsStillActive()) return
+        if (!imageData) {
+          const now = Date.now()
+          const previousReport = captureDropReportsRef.current.get(camera.id)
+          if (
+            previousReport === undefined ||
+            previousReport.instanceId !== camera.instanceId ||
+            now < previousReport.reportedAt ||
+            now - previousReport.reportedAt >= CAMERA_CAPTURE_DROP_REPORT_INTERVAL_MS
+          ) {
+            captureDropReportsRef.current.set(camera.id, {
+              instanceId: camera.instanceId,
+              reportedAt: now,
+            })
+            notifyDetectionObserver('Detection error', () =>
+              onErrorRef.current?.(CAMERA_CAPTURE_UNAVAILABLE_ERROR, camera.id)
+            )
+          }
+          return
         }
-        return
+        // A recovered feed starts a new outage window if capture later drops again.
+        captureDropReportsRef.current.delete(camera.id)
+
+        // Use the raw RGBA path to avoid PNG encode/decode overhead.
+        // Uint8Array is serializable by Tauri 2.x to Vec<u8>.
+        const rgbaData = imageDataToRGBA(imageData)
+
+        const response = await runNativeDetectionRequest(
+          () =>
+            invoke<unknown>(TAURI_COMMANDS.detection.nativeRaw, {
+              rgbaData,
+              width: imageData.width,
+              height: imageData.height,
+              confidenceThreshold: confidenceThresholdRef.current,
+              maxDetections: DEFAULT_MAX_DETECTIONS,
+            }),
+          { signal, isCurrent }
+        )
+        if (!isCurrent() || !cameraIsStillActive()) return
+        const result = normalizeNativeDetectionResult(response, imageData.width, imageData.height)
+
+        if (!result.success) {
+          notifyDetectionObserver('Detection error', () =>
+            onErrorRef.current?.(result.error || 'Detection failed', camera.id)
+          )
+          return
+        }
+
+        // Convert detections
+        const detections = result.detections.map((det) =>
+          convertDetection(det, imageData.width, imageData.height)
+        )
+
+        // Report detections
+        notifyDetectionObserver('Detection result', () =>
+          onDetectionRef.current?.(camera.id, detections, result.inferenceTimeMs)
+        )
+
+        // Report performance
+        notifyDetectionObserver('Detection performance', () =>
+          onPerformanceRef.current?.({
+            inferenceTimeMs: result.inferenceTimeMs,
+            preprocessTimeMs: result.preprocessTimeMs ?? 0,
+            postprocessTimeMs: result.postprocessTimeMs ?? 0,
+            detectionCount: detections.length,
+            cameraId: camera.id,
+          })
+        )
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        if (isCurrent()) {
+          notifyDetectionObserver('Detection error', () =>
+            onErrorRef.current?.(message, processingCameraId)
+          )
+        }
+      } finally {
+        isProcessingRef.current = false
       }
-      // A recovered feed starts a new outage window if capture later drops again.
-      captureDropReportsRef.current.delete(camera.id)
-
-      // Use the raw RGBA path to avoid PNG encode/decode overhead.
-      // Uint8Array is serializable by Tauri 2.x to Vec<u8>.
-      const rgbaData = imageDataToRGBA(imageData)
-
-      const response = await invoke<unknown>(TAURI_COMMANDS.detection.nativeRaw, {
-        rgbaData,
-        width: imageData.width,
-        height: imageData.height,
-        confidenceThreshold: confidenceThresholdRef.current,
-        maxDetections: DEFAULT_MAX_DETECTIONS,
-      })
-      if (!isCurrent() || !cameraIsStillActive()) return
-      const result = normalizeNativeDetectionResult(response, imageData.width, imageData.height)
-
-      if (!result.success) {
-        onErrorRef.current?.(result.error || 'Detection failed', camera.id)
-        return
-      }
-
-      // Convert detections
-      const detections = result.detections.map((det) =>
-        convertDetection(det, imageData.width, imageData.height)
-      )
-
-      // Report detections
-      onDetectionRef.current?.(camera.id, detections, result.inferenceTimeMs)
-
-      // Report performance
-      onPerformanceRef.current?.({
-        inferenceTimeMs: result.inferenceTimeMs,
-        preprocessTimeMs: result.preprocessTimeMs ?? 0,
-        postprocessTimeMs: result.postprocessTimeMs ?? 0,
-        detectionCount: detections.length,
-        cameraId: camera.id,
-      })
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      if (isCurrent()) {
-        onErrorRef.current?.(message, processingCameraId)
-      }
-    } finally {
-      isProcessingRef.current = false
-    }
-  }, [])
+    },
+    []
+  )
 
   // Set up the detection loop using async iteration for better backpressure handling
   // This prevents queue buildup when detection takes longer than intervalMs
@@ -239,17 +329,16 @@ export function useDetectionLoop(options: DetectionLoopOptions): void {
     }
 
     let cancelled = false
+    const requestController = new AbortController()
     const generation = loopGenerationRef.current + 1
     loopGenerationRef.current = generation
     const isCurrent = () => !cancelled && loopGenerationRef.current === generation
 
-    const loop = async () => {
-      while (!cancelled) {
-        await runDetectionCycle(isCurrent)
-
-        if (!cancelled) {
-          await new Promise((resolve) => setTimeout(resolve, intervalMs))
-        }
+    let delayId: ReturnType<typeof setTimeout> | undefined
+    const loop = async (): Promise<void> => {
+      await runDetectionCycle(isCurrent, requestController.signal)
+      if (!cancelled) {
+        delayId = setTimeout(() => void loop(), effectiveIntervalMs)
       }
     }
 
@@ -258,8 +347,10 @@ export function useDetectionLoop(options: DetectionLoopOptions): void {
     return () => {
       cancelled = true
       loopGenerationRef.current += 1
+      if (delayId !== undefined) clearTimeout(delayId)
+      requestController.abort(new DOMException('Detection loop stopped', 'AbortError'))
     }
-  }, [enabled, intervalMs, nativeAccessAllowed, runDetectionCycle])
+  }, [effectiveIntervalMs, enabled, nativeAccessAllowed, runDetectionCycle])
 }
 
 export default useDetectionLoop

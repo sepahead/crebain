@@ -11,6 +11,19 @@ README and treated as unverified until measured on target hardware.
 
 ### Added
 
+- Added the feature-gated `crebain-ncp-headless` perception runner. `self-check`
+  reads no runner configuration and opens no Zenoh session. `validate` checks
+  the bounded strict client configuration and opens no Zenoh session. The explicit
+  `run` accepts only the strict secure-client configuration posture. It requires
+  `NCP_ZENOH_CONFIG` plus a compatible NCP wire-0.8 responder. It validates one
+  bounded configuration snapshot and passes that same snapshot to Zenoh. This
+  posture does not attest TLS, an ACL, or peer identity.
+  It performs a bounded open, 1–4,096 steps, and close lifecycle in a separate
+  process. Lifecycle queries accept one reply of at most 1 MiB. The shared
+  client retains and verifies the exact server-issued session generation.
+  The default `engram/ncp` realm does not establish current Engram compatibility.
+  Current Engram native wire 1.0 is incompatible, and no translator or live
+  CREBAIN-to-Engram loop exists.
 - Added the Engram restricted host embedding. The `engram.host.v1` bridge
   sends bounded readiness and read-only status from an `engramHost=1` frame.
   The document-lifetime latch disables native backend, detection, fusion,
@@ -20,6 +33,28 @@ README and treated as unverified until measured on target hardware.
 
 ### Changed
 
+- Moved native detector and Galadriel initialization out of Tauri setup. Their
+  explicit states keep diagnostics and non-inference IPC responsive during
+  model, configuration, and transport startup.
+- Added fail-fast native detector admission. One job and at most 64 MiB of
+  admitted frame data can occupy the blocking inference boundary.
+- Added single-flight sensor-fusion admission. Concurrent batches now fail
+  fast instead of retaining decoded inputs on blocking workers.
+- Added schema-specific Zenoh telemetry limits, shared work admission, callback
+  panic isolation, and typed subscription ownership across both transports.
+- Made scene save and load use one cross-language contract corpus. Current
+  schemas fail closed, while supported legacy inputs migrate deterministically.
+- Made scene restore transactional. CREBAIN retains the prior cameras, drones,
+  assets, splat, selection, and simulation state until the replacement commits.
+- Serialized sensor-fusion algorithm maintenance ahead of later measurement
+  batches and hardened simulation clocks and numeric input handling.
+- Added a responsive desktop layout with bounded side and center rails. The
+  minimum window and 200% UI scale remain keyboard-scrollable without panel
+  overlap or invisible free-layout tab stops.
+- Added an exhaustive tracked-Markdown visual coverage manifest and fail-closed
+  verifier. Active technical documents use accessible shared SVGs. Legal,
+  frozen, historical, generated, vendored, and machine-consumed records have
+  explicit exemptions.
 - Corrected the Engram integration README parser bounds. The 128-node,
   32-entry, four-level, and 1,024-character limits belong to Engram's generic
   traversal. CREBAIN accepts a fixed primitive schema and measures the 8 KiB
@@ -37,6 +72,26 @@ README and treated as unverified until measured on target hardware.
 
 ### Fixed
 
+- Made the persistent inference runtime own packaged CoreML model discovery,
+  loading, warmup, and failure state. An early frame can no longer race a
+  separate startup loader into selecting the wrong fallback backend.
+- Prevented Three.js resource disposal while an object remains attached after
+  failed removal or synchronous reparenting. Suspended drone finalization now
+  also reclaims an exact retained physics body.
+- Prevented a concurrent Galadriel shutdown from leaving a late startup runtime
+  installed or opening a transport after shutdown won.
+- Deferred optional Galadriel JSONL file opening to the first active frame. The
+  frame pipeline now marks that summary degraded if archive setup fails.
+- Prevented normal detector initialization from starting the continuous camera
+  loop. Manual detector tests and benchmarks now pause that loop.
+- Reconciled ambiguous native subscriptions after declaration errors and
+  rejected conflicting topic kinds before a backend can replace ownership.
+- Fenced queued native telemetry with exact lifecycle and subscription IDs.
+  Late non-camera events and stale unsubscribe calls cannot enter or remove a
+  reopened topic.
+- Removed duplicate namespace application from the multi-drone ROS launch file.
+  Each include now passes one namespace to `single_drone.launch`, and validation
+  rejects nested duplicates.
 - Failed safely when UI scale storage is unavailable.
 - Normalized non-finite UI scale inputs.
 
@@ -230,10 +285,10 @@ Open-source readiness, evidence, and quality hardening.
   assignment and an all-infinite short circuit bound component behavior. Four
   bounded drop-new lanes expose loss, sticky degradation, periodic heartbeats,
   five-second put bounds, and finite task shutdown. Active JSONL copies use a separate capacity-16 drop-new
-  archive worker; configured sinks are startup-preflighted, batches are
-  validated/serialized before writing, and admission or writer failure degrades
-  the epoch (writer failure also stops that worker). A blocked writer can outlive
-  its two-second shutdown wait. Common projection is
+  archive worker. The first active frame opens a configured sink under the frame
+  pipeline. Batches are validated and serialized before writing. Admission or
+  writer failure degrades the epoch, and writer failure stops that worker. A
+  blocked writer can outlive its two-second shutdown wait. Common projection is
   identity-only: the source frame
   must already equal the registry's canonical ENU frame and the transform chain
   must be empty. Component tests pin codecs/routes, ordering, drops, degradation,

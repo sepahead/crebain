@@ -40,6 +40,9 @@ use super::{CameraFrame, CameraFrameDelivery, CameraInfoData, ImuData, ModelStat
 use super::camera_work::{shared_camera_work_budget, CameraWorkBudget};
 
 #[cfg(feature = "zenoh-transport")]
+use super::telemetry_work::{shared_telemetry_work_budget, TelemetryWorkBudget};
+
+#[cfg(feature = "zenoh-transport")]
 use base64::{engine::general_purpose, Engine as _};
 
 #[cfg(feature = "zenoh-transport")]
@@ -98,6 +101,18 @@ const MAX_CDR_ENVELOPE_OVERHEAD: usize = (2 * MAX_CDR_STRING_LEN) + 64;
 const MAX_ZENOH_CDR_PAYLOAD_LEN: usize = MAX_CDR_DATA_LEN + MAX_CDR_ENVELOPE_OVERHEAD;
 
 #[cfg(feature = "zenoh-transport")]
+const MAX_CAMERA_INFO_CDR_PAYLOAD_LEN: usize = 16 * 1024;
+
+#[cfg(feature = "zenoh-transport")]
+const MAX_IMU_CDR_PAYLOAD_LEN: usize = 8 * 1024;
+
+#[cfg(feature = "zenoh-transport")]
+const MAX_POSE_CDR_PAYLOAD_LEN: usize = 8 * 1024;
+
+#[cfg(feature = "zenoh-transport")]
+const MAX_MODEL_STATES_CDR_PAYLOAD_LEN: usize = 8 * 1024 * 1024;
+
+#[cfg(feature = "zenoh-transport")]
 const MAX_CDR_SEQUENCE_LEN: usize = 10_000;
 
 #[cfg(feature = "zenoh-transport")]
@@ -108,6 +123,12 @@ const MAX_CAMERA_SCHEMA_TOKEN_LEN: usize = 64;
 
 #[cfg(feature = "zenoh-transport")]
 const MAX_DISTORTION_COEFFICIENTS: usize = 32;
+
+#[cfg(feature = "zenoh-transport")]
+const MAX_FRAME_ID_LEN: usize = 256;
+
+#[cfg(feature = "zenoh-transport")]
+const MAX_MODEL_NAME_LEN: usize = 256;
 
 #[cfg(feature = "zenoh-transport")]
 const MAX_POSITION_MAGNITUDE_M: f64 = 1_000_000.0;
@@ -132,6 +153,20 @@ fn validate_cdr_payload_admission(payload_len: usize) -> Result<()> {
         return Err(TransportError::DecodingError(format!(
             "Zenoh CDR payload length {} exceeds maximum {}",
             payload_len, MAX_ZENOH_CDR_PAYLOAD_LEN
+        )));
+    }
+    Ok(())
+}
+
+#[cfg(feature = "zenoh-transport")]
+fn validate_telemetry_payload_admission(
+    schema: &str,
+    payload_len: usize,
+    maximum: usize,
+) -> Result<()> {
+    if payload_len > maximum {
+        return Err(TransportError::DecodingError(format!(
+            "{schema} CDR payload length {payload_len} exceeds maximum {maximum}"
         )));
     }
     Ok(())
@@ -358,6 +393,11 @@ fn decode_ros2_header(
 
     // Frame ID: CDR string (length-prefixed, null-terminated)
     let frame_id = read_cdr_string(data, offset, is_little_endian)?;
+    if frame_id.len() > MAX_FRAME_ID_LEN {
+        return Err(TransportError::DecodingError(format!(
+            "ROS header.frame_id exceeds maximum {MAX_FRAME_ID_LEN} bytes"
+        )));
+    }
 
     Ok((timestamp, frame_id))
 }
@@ -947,8 +987,14 @@ fn decode_model_states_cdr(data: &[u8]) -> Result<ModelStates> {
     let name_len =
         read_bounded_sequence_len(data, &mut offset, is_little_endian, "ModelStates.name")?;
     let mut name = Vec::with_capacity(clamped_capacity(name_len, data.len(), offset, 4));
-    for _ in 0..name_len {
-        name.push(read_cdr_string(data, &mut offset, is_little_endian)?);
+    for index in 0..name_len {
+        let model_name = read_cdr_string(data, &mut offset, is_little_endian)?;
+        if model_name.is_empty() || model_name.len() > MAX_MODEL_NAME_LEN {
+            return Err(TransportError::DecodingError(format!(
+                "ModelStates.name[{index}] must contain 1..={MAX_MODEL_NAME_LEN} bytes"
+            )));
+        }
+        name.push(model_name);
     }
 
     // pose[] (7 * f64 = 56 bytes each)
@@ -992,13 +1038,13 @@ fn lock_recover<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 }
 
 #[cfg(feature = "zenoh-transport")]
-struct CameraTopicGuard {
+struct ActiveTopicGuard {
     active_topics: Arc<Mutex<HashSet<String>>>,
     topic: String,
 }
 
 #[cfg(feature = "zenoh-transport")]
-impl CameraTopicGuard {
+impl ActiveTopicGuard {
     fn try_enter(active_topics: &Arc<Mutex<HashSet<String>>>, topic: &str) -> Option<Self> {
         if !lock_recover(active_topics).insert(topic.to_string()) {
             return None;
@@ -1011,7 +1057,7 @@ impl CameraTopicGuard {
 }
 
 #[cfg(feature = "zenoh-transport")]
-impl Drop for CameraTopicGuard {
+impl Drop for ActiveTopicGuard {
     fn drop(&mut self) {
         lock_recover(&self.active_topics).remove(&self.topic);
     }
@@ -1026,6 +1072,34 @@ fn invoke_camera_callback(
 }
 
 #[cfg(feature = "zenoh-transport")]
+fn invoke_telemetry_callback<T>(callback: &Arc<dyn Fn(T) + Send + Sync>, value: T) -> bool {
+    catch_unwind(AssertUnwindSafe(|| callback(value))).is_ok()
+}
+
+#[cfg(feature = "zenoh-transport")]
+fn record_latency_sample(latency_sum_ns: &AtomicU64, latency_count: &AtomicU64, sample_ns: u64) {
+    // A hostile or badly stamped peer can report a very old timestamp. Do not
+    // let repeated, individually valid samples wrap the lifetime accumulator
+    // and turn transport diagnostics into a plausible but false low latency.
+    if latency_sum_ns
+        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |sum| {
+            sum.checked_add(sample_ns)
+        })
+        .is_ok()
+        && latency_count
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |count| {
+                count.checked_add(1)
+            })
+            .is_err()
+    {
+        // Keep the two lifetime accumulators coherent if their count is
+        // exhausted. Subtraction is safe because this call already added
+        // the exact sample, and it commutes with concurrent additions.
+        latency_sum_ns.fetch_sub(sample_ns, Ordering::Relaxed);
+    }
+}
+
+#[cfg(feature = "zenoh-transport")]
 pub struct ZenohBridge {
     session: Arc<Session>,
     connected: Arc<AtomicBool>,
@@ -1037,7 +1111,9 @@ pub struct ZenohBridge {
     // Active subscribers keyed by topic
     subscribers: Arc<Mutex<HashMap<String, zenoh::pubsub::Subscriber<()>>>>,
     active_camera_topics: Arc<Mutex<HashSet<String>>>,
+    active_telemetry_topics: Arc<Mutex<HashSet<String>>>,
     camera_work_budget: CameraWorkBudget,
+    telemetry_work_budget: TelemetryWorkBudget,
 
     // Statistics
     messages_received: Arc<AtomicU64>,
@@ -1074,7 +1150,9 @@ impl ZenohBridge {
             start_time: Instant::now(),
             subscribers: Arc::new(Mutex::new(HashMap::new())),
             active_camera_topics: Arc::new(Mutex::new(HashSet::new())),
+            active_telemetry_topics: Arc::new(Mutex::new(HashSet::new())),
             camera_work_budget: shared_camera_work_budget(),
+            telemetry_work_budget: shared_telemetry_work_budget(),
             messages_received: Arc::new(AtomicU64::new(0)),
             messages_sent: Arc::new(AtomicU64::new(0)),
             bytes_received: Arc::new(AtomicU64::new(0)),
@@ -1140,6 +1218,11 @@ impl ZenohBridge {
     ) -> Result<()> {
         let mut subscribers = lock_recover(subscribers);
         Self::ensure_generation_active(connected, generation, expected_generation, &key)?;
+        if subscribers.contains_key(&key) {
+            return Err(TransportError::SubscriptionFailed(format!(
+                "Topic {key} already has a native Zenoh subscriber"
+            )));
+        }
         subscribers.insert(key, subscriber);
         Ok(())
     }
@@ -1240,7 +1323,7 @@ impl Transport for ZenohBridge {
                         return;
                     }
                     let Some(_topic_guard) =
-                        CameraTopicGuard::try_enter(&active_camera_topics, &callback_key)
+                        ActiveTopicGuard::try_enter(&active_camera_topics, &callback_key)
                     else {
                         log::debug!(
                             "[Zenoh] Dropping camera frame for busy topic {callback_key}"
@@ -1267,6 +1350,14 @@ impl Transport for ZenohBridge {
 
                     match frame_result {
                         Ok(frame) => {
+                            // Disconnect can race materialization and decoding.
+                            // Recheck the generation at the ownership handoff so
+                            // a fenced session cannot emit a late callback.
+                            if !connected.load(Ordering::Acquire)
+                                || generation.load(Ordering::Acquire) != expected_generation
+                            {
+                                return;
+                            }
                             // Track latency if timestamp available
                             if frame.timestamp > 0.0 {
                                 let msg_time_ns = (frame.timestamp * 1e9) as u64;
@@ -1276,8 +1367,7 @@ impl Transport for ZenohBridge {
                                     .as_nanos() as u64;
                                 if now_ns > msg_time_ns {
                                     let latency_ns = now_ns - msg_time_ns;
-                                    latency_sum.fetch_add(latency_ns, Ordering::Relaxed);
-                                    latency_count.fetch_add(1, Ordering::Relaxed);
+                                    record_latency_sample(&latency_sum, &latency_count, latency_ns);
                                 }
                             }
 
@@ -1324,6 +1414,8 @@ impl Transport for ZenohBridge {
         let subscribers = self.subscribers.clone();
         let connected = self.connected.clone();
         let generation = self.generation.clone();
+        let active_telemetry_topics = self.active_telemetry_topics.clone();
+        let telemetry_work_budget = self.telemetry_work_budget.clone();
         let expected_generation = generation.load(Ordering::Acquire);
 
         Box::pin(async move {
@@ -1331,6 +1423,7 @@ impl Transport for ZenohBridge {
             log::info!("[Zenoh] Subscribing to camera info: {}", key);
 
             let callback: Arc<dyn Fn(CameraInfoData) + Send + Sync> = Arc::from(callback);
+            let callback_key = key.clone();
 
             let subscriber = session
                 .declare_subscriber(&key)
@@ -1342,19 +1435,46 @@ impl Transport for ZenohBridge {
                     }
                     let payload = sample.payload();
                     let payload_len = payload.len();
-                    if let Err(error) = validate_cdr_payload_admission(payload_len) {
+                    if let Err(error) = validate_telemetry_payload_admission(
+                        "CameraInfo",
+                        payload_len,
+                        MAX_CAMERA_INFO_CDR_PAYLOAD_LEN,
+                    ) {
                         log::warn!(
                             "[Zenoh] Rejected CameraInfo payload before materialization: {}",
                             error
                         );
                         return;
                     }
+                    let Some(_topic_guard) =
+                        ActiveTopicGuard::try_enter(&active_telemetry_topics, &callback_key)
+                    else {
+                        log::debug!("[Zenoh] Dropping CameraInfo for busy topic {callback_key}");
+                        return;
+                    };
+                    let Some(_work_permit) = telemetry_work_budget.try_reserve(payload_len) else {
+                        log::debug!(
+                            "[Zenoh] Dropping CameraInfo because telemetry capacity is full"
+                        );
+                        return;
+                    };
                     let payload = payload.to_bytes();
                     messages_received.fetch_add(1, Ordering::Relaxed);
                     bytes_received.fetch_add(payload_len as u64, Ordering::Relaxed);
 
                     match decode_camera_info_cdr(&payload) {
-                        Ok(info) => callback(info),
+                        Ok(info) => {
+                            if !connected.load(Ordering::Acquire)
+                                || generation.load(Ordering::Acquire) != expected_generation
+                            {
+                                return;
+                            }
+                            if !invoke_telemetry_callback(&callback, info) {
+                                log::error!(
+                                    "[Zenoh] CameraInfo callback panicked; callback isolated"
+                                );
+                            }
+                        }
                         Err(e) => log::warn!("[Zenoh] Failed to decode CameraInfo: {}", e),
                     }
                 })
@@ -1386,6 +1506,8 @@ impl Transport for ZenohBridge {
         let subscribers = self.subscribers.clone();
         let connected = self.connected.clone();
         let generation = self.generation.clone();
+        let active_telemetry_topics = self.active_telemetry_topics.clone();
+        let telemetry_work_budget = self.telemetry_work_budget.clone();
         let expected_generation = generation.load(Ordering::Acquire);
 
         Box::pin(async move {
@@ -1393,6 +1515,7 @@ impl Transport for ZenohBridge {
             log::info!("[Zenoh] Subscribing to IMU: {}", key);
 
             let callback: Arc<dyn Fn(ImuData) + Send + Sync> = Arc::from(callback);
+            let callback_key = key.clone();
 
             let subscriber = session
                 .declare_subscriber(&key)
@@ -1404,19 +1527,42 @@ impl Transport for ZenohBridge {
                     }
                     let payload = sample.payload();
                     let payload_len = payload.len();
-                    if let Err(error) = validate_cdr_payload_admission(payload_len) {
+                    if let Err(error) = validate_telemetry_payload_admission(
+                        "IMU",
+                        payload_len,
+                        MAX_IMU_CDR_PAYLOAD_LEN,
+                    ) {
                         log::warn!(
                             "[Zenoh] Rejected IMU payload before materialization: {}",
                             error
                         );
                         return;
                     }
+                    let Some(_topic_guard) =
+                        ActiveTopicGuard::try_enter(&active_telemetry_topics, &callback_key)
+                    else {
+                        log::debug!("[Zenoh] Dropping IMU for busy topic {callback_key}");
+                        return;
+                    };
+                    let Some(_work_permit) = telemetry_work_budget.try_reserve(payload_len) else {
+                        log::debug!("[Zenoh] Dropping IMU because telemetry capacity is full");
+                        return;
+                    };
                     let payload = payload.to_bytes();
                     messages_received.fetch_add(1, Ordering::Relaxed);
                     bytes_received.fetch_add(payload_len as u64, Ordering::Relaxed);
 
                     match decode_imu_cdr(&payload) {
-                        Ok(imu) => callback(imu),
+                        Ok(imu) => {
+                            if !connected.load(Ordering::Acquire)
+                                || generation.load(Ordering::Acquire) != expected_generation
+                            {
+                                return;
+                            }
+                            if !invoke_telemetry_callback(&callback, imu) {
+                                log::error!("[Zenoh] IMU callback panicked; callback isolated");
+                            }
+                        }
                         Err(e) => log::warn!("[Zenoh] Failed to decode IMU: {}", e),
                     }
                 })
@@ -1448,6 +1594,8 @@ impl Transport for ZenohBridge {
         let subscribers = self.subscribers.clone();
         let connected = self.connected.clone();
         let generation = self.generation.clone();
+        let active_telemetry_topics = self.active_telemetry_topics.clone();
+        let telemetry_work_budget = self.telemetry_work_budget.clone();
         let expected_generation = generation.load(Ordering::Acquire);
 
         Box::pin(async move {
@@ -1455,6 +1603,7 @@ impl Transport for ZenohBridge {
             log::info!("[Zenoh] Subscribing to pose: {}", key);
 
             let callback: Arc<dyn Fn(PoseData) + Send + Sync> = Arc::from(callback);
+            let callback_key = key.clone();
 
             let subscriber = session
                 .declare_subscriber(&key)
@@ -1466,19 +1615,42 @@ impl Transport for ZenohBridge {
                     }
                     let payload = sample.payload();
                     let payload_len = payload.len();
-                    if let Err(error) = validate_cdr_payload_admission(payload_len) {
+                    if let Err(error) = validate_telemetry_payload_admission(
+                        "Pose",
+                        payload_len,
+                        MAX_POSE_CDR_PAYLOAD_LEN,
+                    ) {
                         log::warn!(
                             "[Zenoh] Rejected pose payload before materialization: {}",
                             error
                         );
                         return;
                     }
+                    let Some(_topic_guard) =
+                        ActiveTopicGuard::try_enter(&active_telemetry_topics, &callback_key)
+                    else {
+                        log::debug!("[Zenoh] Dropping pose for busy topic {callback_key}");
+                        return;
+                    };
+                    let Some(_work_permit) = telemetry_work_budget.try_reserve(payload_len) else {
+                        log::debug!("[Zenoh] Dropping pose because telemetry capacity is full");
+                        return;
+                    };
                     let payload = payload.to_bytes();
                     messages_received.fetch_add(1, Ordering::Relaxed);
                     bytes_received.fetch_add(payload_len as u64, Ordering::Relaxed);
 
                     match decode_pose_cdr(&payload) {
-                        Ok(pose) => callback(pose),
+                        Ok(pose) => {
+                            if !connected.load(Ordering::Acquire)
+                                || generation.load(Ordering::Acquire) != expected_generation
+                            {
+                                return;
+                            }
+                            if !invoke_telemetry_callback(&callback, pose) {
+                                log::error!("[Zenoh] Pose callback panicked; callback isolated");
+                            }
+                        }
                         Err(e) => log::warn!("[Zenoh] Failed to decode pose: {}", e),
                     }
                 })
@@ -1510,6 +1682,8 @@ impl Transport for ZenohBridge {
         let subscribers = self.subscribers.clone();
         let connected = self.connected.clone();
         let generation = self.generation.clone();
+        let active_telemetry_topics = self.active_telemetry_topics.clone();
+        let telemetry_work_budget = self.telemetry_work_budget.clone();
         let expected_generation = generation.load(Ordering::Acquire);
 
         Box::pin(async move {
@@ -1517,6 +1691,7 @@ impl Transport for ZenohBridge {
             log::info!("[Zenoh] Subscribing to model states: {}", key);
 
             let callback: Arc<dyn Fn(ModelStates) + Send + Sync> = Arc::from(callback);
+            let callback_key = key.clone();
 
             let subscriber = session
                 .declare_subscriber(&key)
@@ -1528,19 +1703,46 @@ impl Transport for ZenohBridge {
                     }
                     let payload = sample.payload();
                     let payload_len = payload.len();
-                    if let Err(error) = validate_cdr_payload_admission(payload_len) {
+                    if let Err(error) = validate_telemetry_payload_admission(
+                        "ModelStates",
+                        payload_len,
+                        MAX_MODEL_STATES_CDR_PAYLOAD_LEN,
+                    ) {
                         log::warn!(
                             "[Zenoh] Rejected model-states payload before materialization: {}",
                             error
                         );
                         return;
                     }
+                    let Some(_topic_guard) =
+                        ActiveTopicGuard::try_enter(&active_telemetry_topics, &callback_key)
+                    else {
+                        log::debug!("[Zenoh] Dropping model states for busy topic {callback_key}");
+                        return;
+                    };
+                    let Some(_work_permit) = telemetry_work_budget.try_reserve(payload_len) else {
+                        log::debug!(
+                            "[Zenoh] Dropping model states because telemetry capacity is full"
+                        );
+                        return;
+                    };
                     let payload = payload.to_bytes();
                     messages_received.fetch_add(1, Ordering::Relaxed);
                     bytes_received.fetch_add(payload_len as u64, Ordering::Relaxed);
 
                     match decode_model_states_cdr(&payload) {
-                        Ok(states) => callback(states),
+                        Ok(states) => {
+                            if !connected.load(Ordering::Acquire)
+                                || generation.load(Ordering::Acquire) != expected_generation
+                            {
+                                return;
+                            }
+                            if !invoke_telemetry_callback(&callback, states) {
+                                log::error!(
+                                    "[Zenoh] ModelStates callback panicked; callback isolated"
+                                );
+                            }
+                        }
                         Err(e) => log::warn!("[Zenoh] Failed to decode model states: {}", e),
                     }
                 })
@@ -1880,9 +2082,20 @@ mod tests {
         linear: [f64; 3],
         angular: [f64; 3],
     ) -> Vec<u8> {
+        model_states_cdr_with_name("drone", position, orientation, linear, angular)
+    }
+
+    #[cfg(feature = "zenoh-transport")]
+    fn model_states_cdr_with_name(
+        name: &str,
+        position: [f64; 3],
+        orientation: [f64; 4],
+        linear: [f64; 3],
+        angular: [f64; 3],
+    ) -> Vec<u8> {
         let mut data = CDR_LE_ENCAPSULATION.to_vec();
         push_u32_le(&mut data, 1);
-        push_cdr_string(&mut data, "drone");
+        push_cdr_string(&mut data, name);
         push_u32_le(&mut data, 1);
         for value in position {
             push_f64_le(&mut data, value);
@@ -1929,14 +2142,73 @@ mod tests {
 
     #[test]
     #[cfg(feature = "zenoh-transport")]
-    fn camera_topic_guard_drops_overlap_and_reopens_after_return() {
+    fn active_topic_guard_drops_overlap_and_reopens_after_return() {
         let active_topics = Arc::new(Mutex::new(HashSet::new()));
-        let first = CameraTopicGuard::try_enter(&active_topics, "camera/topic").unwrap();
-        assert!(CameraTopicGuard::try_enter(&active_topics, "camera/topic").is_none());
+        let first = ActiveTopicGuard::try_enter(&active_topics, "camera/topic").unwrap();
+        assert!(ActiveTopicGuard::try_enter(&active_topics, "camera/topic").is_none());
 
         drop(first);
 
-        assert!(CameraTopicGuard::try_enter(&active_topics, "camera/topic").is_some());
+        assert!(ActiveTopicGuard::try_enter(&active_topics, "camera/topic").is_some());
+    }
+
+    #[test]
+    #[cfg(feature = "zenoh-transport")]
+    fn latency_accounting_rejects_sum_overflow_without_wrapping() {
+        let sum = AtomicU64::new(u64::MAX - 5);
+        let count = AtomicU64::new(7);
+
+        record_latency_sample(&sum, &count, 6);
+
+        assert_eq!(sum.load(Ordering::Relaxed), u64::MAX - 5);
+        assert_eq!(count.load(Ordering::Relaxed), 7);
+
+        record_latency_sample(&sum, &count, 5);
+        assert_eq!(sum.load(Ordering::Relaxed), u64::MAX);
+        assert_eq!(count.load(Ordering::Relaxed), 8);
+    }
+
+    #[test]
+    #[cfg(feature = "zenoh-transport")]
+    fn latency_accounting_rolls_back_when_the_count_is_exhausted() {
+        let sum = AtomicU64::new(11);
+        let count = AtomicU64::new(u64::MAX);
+
+        record_latency_sample(&sum, &count, 7);
+
+        assert_eq!(sum.load(Ordering::Relaxed), 11);
+        assert_eq!(count.load(Ordering::Relaxed), u64::MAX);
+    }
+
+    #[test]
+    #[cfg(feature = "zenoh-transport")]
+    fn telemetry_schema_limit_and_callback_panic_fail_closed() {
+        assert!(validate_telemetry_payload_admission(
+            "IMU",
+            MAX_IMU_CDR_PAYLOAD_LEN,
+            MAX_IMU_CDR_PAYLOAD_LEN,
+        )
+        .is_ok());
+        assert!(validate_telemetry_payload_admission(
+            "IMU",
+            MAX_IMU_CDR_PAYLOAD_LEN + 1,
+            MAX_IMU_CDR_PAYLOAD_LEN,
+        )
+        .is_err());
+
+        let callback: Arc<dyn Fn(ImuData) + Send + Sync> =
+            Arc::new(|_| panic!("simulated telemetry callback panic"));
+        let value = ImuData {
+            orientation: [0.0, 0.0, 0.0, 1.0],
+            orientation_covariance: [0.0; 9],
+            angular_velocity: [0.0; 3],
+            angular_velocity_covariance: [0.0; 9],
+            linear_acceleration: [0.0; 3],
+            linear_acceleration_covariance: [0.0; 9],
+            timestamp: 0.0,
+            frame_id: String::new(),
+        };
+        assert!(!invoke_telemetry_callback(&callback, value));
     }
 
     #[test]
@@ -2024,6 +2296,24 @@ mod tests {
 
     #[test]
     #[cfg(feature = "zenoh-transport")]
+    fn ros_header_applies_the_renderer_frame_id_byte_limit() {
+        let decode = |frame_id: &str| {
+            let mut data = CDR_LE_ENCAPSULATION.to_vec();
+            push_i32_le(&mut data, 0);
+            push_u32_le(&mut data, 0);
+            push_cdr_string(&mut data, frame_id);
+            let mut offset = CDR_HEADER_SIZE;
+            decode_ros2_header(&data, &mut offset, true)
+        };
+
+        assert!(decode(&"x".repeat(MAX_FRAME_ID_LEN)).is_ok());
+        assert!(decode(&"x".repeat(MAX_FRAME_ID_LEN + 1)).is_err());
+        assert!(decode(&"🚁".repeat(MAX_FRAME_ID_LEN / 4)).is_ok());
+        assert!(decode(&"🚁".repeat(MAX_FRAME_ID_LEN / 4 + 1)).is_err());
+    }
+
+    #[test]
+    #[cfg(feature = "zenoh-transport")]
     fn pose_cdr_rejects_position_above_limit_and_extreme_finite_value() {
         for position_x in [MAX_POSITION_MAGNITUDE_M + 1e-6, f64::MAX] {
             let data = pose_cdr([position_x, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0]);
@@ -2075,6 +2365,22 @@ mod tests {
         ];
 
         for data in cases {
+            assert!(decode_model_states_cdr(&data).is_err());
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "zenoh-transport")]
+    fn model_states_cdr_rejects_empty_and_overlong_names() {
+        for name in [String::new(), "x".repeat(MAX_MODEL_NAME_LEN + 1)] {
+            let data = model_states_cdr_with_name(
+                &name,
+                [0.0; 3],
+                [0.0, 0.0, 0.0, 1.0],
+                [0.0; 3],
+                [0.0; 3],
+            );
+
             assert!(decode_model_states_cdr(&data).is_err());
         }
     }

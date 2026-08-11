@@ -3,6 +3,16 @@
 Status: **draft and unapproved**. The limits below are target constraints, not
 measured capability. Missing evidence keeps CREBAIN at L0.
 
+<p align="center">
+  <img alt="CREBAIN current and target authority boundaries" src="../assets/diagrams/authority-boundaries.svg" width="900">
+</p>
+
+Text alternative: Current L0 surfaces provide visualization, local simulation,
+read-only telemetry, and optional advisory evidence. None can command a vehicle.
+The target L1 chain requires signed intent, Haldir, NCP, a native plant, a safety
+governor, a typed PX4 adapter, and a flight control unit. CREBAIN has not
+implemented these components as an integrated authority chain.
+
 ## Scope and exclusions
 
 L1 covers one simulated electric multirotor, one controller, one Gate, one

@@ -5,6 +5,17 @@ for the native detector runtime. It produces a content-identified JSON report.
 The repository contains no approved model, fixture, baseline, threshold, or
 numeric result.
 
+<p align="center">
+  <img alt="CREBAIN evidence and claim maturity chain" src="../assets/diagrams/evidence-claim-chain.svg" width="900">
+</p>
+
+Text alternative: Eleven named stages separate weak claims from strong claims.
+They cover source existence, builds, tests, integration, transport, receiver
+validation, authorization, and attempted application. Later stages cover flight
+control unit acceptance, observed effect, and safe-state evidence. Each stronger
+claim needs new evidence. No stage advances automatically. Expiry and hardware
+or field tests provide separate facts.
+
 ## Run
 
 Use a clean checkout and an approved model/fixture pair:

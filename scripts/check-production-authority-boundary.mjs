@@ -54,6 +54,63 @@ const DESCRIPTOR_METHODS = new Map([
   ['Object', new Set(['getOwnPropertyDescriptor', 'getOwnPropertyDescriptors'])],
   ['Reflect', new Set(['getOwnPropertyDescriptor'])],
 ])
+const ARRAY_CALLBACK_METHODS = new Set([
+  'every',
+  'filter',
+  'find',
+  'findIndex',
+  'findLast',
+  'findLastIndex',
+  'flatMap',
+  'forEach',
+  'map',
+  'reduce',
+  'reduceRight',
+  'some',
+  'sort',
+  'toSorted',
+])
+const DIRECT_CALLBACK_SINKS = new Set([
+  'queueMicrotask',
+  'requestAnimationFrame',
+  'requestIdleCallback',
+  'setInterval',
+  'setTimeout',
+])
+const MEMBER_CALLBACK_SINKS = new Map([
+  ['addEventListener', [1]],
+  ['catch', [0]],
+  ['finally', [0]],
+  ['replace', [1]],
+  ['replaceAll', [1]],
+  ['then', [0, 1]],
+])
+const CONSTRUCTOR_CALLBACK_SINKS = new Map([
+  ['IntersectionObserver', [0]],
+  ['MutationObserver', [0]],
+  ['PerformanceObserver', [0]],
+  ['Promise', [0]],
+  ['ResizeObserver', [0]],
+])
+const EVENT_HANDLER_PROPERTIES = new Set([
+  'onabort',
+  'onbeforeunload',
+  'onblur',
+  'onchange',
+  'onclick',
+  'onclose',
+  'onerror',
+  'onfocus',
+  'oninput',
+  'onkeydown',
+  'onkeyup',
+  'onload',
+  'onmessage',
+  'onopen',
+  'onprogress',
+  'onreadystatechange',
+  'onsubmit',
+])
 const DYNAMIC_CAPABILITY_SOURCE =
   /\b(?:WebSocket|fetch|XMLHttpRequest|EventSource|WebTransport|sendBeacon|publish|callService|sendCommand|Reflect|globalThis|window|self)\b/
 
@@ -119,6 +176,15 @@ function createBindingResolver(file, source) {
 
   const checker = program.getTypeChecker()
   const assignmentExpressions = new Map()
+  const parameterExpressions = new Map()
+  const bindings = {
+    assignmentExpressions,
+    bindingCache: new Map(),
+    checker,
+    localFunctionForExpression: null,
+    parameterExpressions,
+    sourceFile,
+  }
   const assignmentOperators = new Set([
     ts.SyntaxKind.EqualsToken,
     ts.SyntaxKind.AmpersandAmpersandEqualsToken,
@@ -142,12 +208,165 @@ function createBindingResolver(file, source) {
   }
   collectAssignments(sourceFile)
 
-  return {
-    assignmentExpressions,
-    bindingCache: new Map(),
-    checker,
-    sourceFile,
+  const localFunctionForExpression = (expression, seen = new Set()) => {
+    while (
+      ts.isParenthesizedExpression(expression) ||
+      ts.isAsExpression(expression) ||
+      ts.isTypeAssertionExpression(expression) ||
+      ts.isNonNullExpression(expression)
+    ) {
+      expression = expression.expression
+    }
+    if (ts.isArrowFunction(expression) || ts.isFunctionExpression(expression)) return expression
+    if (!ts.isIdentifier(expression)) return null
+    const symbol = checker.getSymbolAtLocation(expression)
+    if (!symbol || seen.has(symbol)) return null
+    const nextSeen = new Set(seen)
+    nextSeen.add(symbol)
+    for (const declaration of symbol.declarations ?? []) {
+      if (ts.isFunctionDeclaration(declaration)) return declaration
+      if (ts.isVariableDeclaration(declaration) && declaration.initializer) {
+        const resolved = localFunctionForExpression(declaration.initializer, nextSeen)
+        if (resolved) return resolved
+      }
+    }
+    const assignments = assignmentExpressions.get(symbol) ?? []
+    if (assignments.length === 1) {
+      return localFunctionForExpression(assignments[0], nextSeen)
+    }
+    return null
   }
+  bindings.localFunctionForExpression = localFunctionForExpression
+
+  let parameterFlowChanged = false
+  const recordLocalCallArguments = (callee, args) => {
+    const localFunction = localFunctionForExpression(callee)
+    if (!localFunction) return
+    for (let index = 0; index < localFunction.parameters.length; index += 1) {
+      const parameter = localFunction.parameters[index]
+      if (!ts.isIdentifier(parameter.name)) continue
+      const symbol = checker.getSymbolAtLocation(parameter.name)
+      if (!symbol) continue
+      const values = parameterExpressions.get(symbol) ?? []
+      const incoming = parameter.dotDotDotToken
+        ? args.slice(index)
+        : args[index]
+          ? [args[index]]
+          : []
+      for (const value of incoming) {
+        if (!values.includes(value)) {
+          values.push(value)
+          parameterFlowChanged = true
+        }
+      }
+      parameterExpressions.set(symbol, values)
+    }
+  }
+
+  const collectLocalCallFlows = (node) => {
+    if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
+      let callee = node.expression
+      let args = [...(node.arguments ?? [])]
+      if (ts.isPropertyAccessExpression(callee) || ts.isElementAccessExpression(callee)) {
+        const wrapper = propertyName(callee, bindings)
+        if (wrapper === 'call' || wrapper === 'bind') {
+          callee = callee.expression
+          args = args.slice(1)
+        } else if (wrapper === 'apply') {
+          callee = callee.expression
+          const applied = args[1]
+          args = applied && ts.isArrayLiteralExpression(applied) ? [...applied.elements] : []
+        }
+      }
+      recordLocalCallArguments(callee, args)
+
+      if (
+        ts.isCallExpression(node) &&
+        (ts.isPropertyAccessExpression(node.expression) ||
+          ts.isElementAccessExpression(node.expression)) &&
+        ARRAY_CALLBACK_METHODS.has(propertyName(node.expression, bindings)) &&
+        node.arguments[0]
+      ) {
+        const collection = resolvedExpression(node.expression.expression, bindings)
+        if (ts.isArrayLiteralExpression(collection)) {
+          for (const element of collection.elements) {
+            if (!ts.isOmittedExpression(element) && !ts.isSpreadElement(element)) {
+              const method = propertyName(node.expression, bindings)
+              recordLocalCallArguments(
+                node.arguments[0],
+                method === 'reduce' || method === 'reduceRight' ? [element, element] : [element]
+              )
+            }
+          }
+        }
+      }
+      if (
+        ts.isCallExpression(node) &&
+        (ts.isPropertyAccessExpression(node.expression) ||
+          ts.isElementAccessExpression(node.expression)) &&
+        propertyName(node.expression, bindings) === 'then' &&
+        node.arguments[0]
+      ) {
+        const promiseFactory = resolvedExpression(node.expression.expression, bindings)
+        if (
+          ts.isCallExpression(promiseFactory) &&
+          resolvedMethod(promiseFactory.expression, bindings)?.owner === 'Promise' &&
+          resolvedMethod(promiseFactory.expression, bindings)?.name === 'resolve' &&
+          promiseFactory.arguments[0]
+        ) {
+          recordLocalCallArguments(node.arguments[0], [promiseFactory.arguments[0]])
+        }
+      }
+    }
+    ts.forEachChild(node, collectLocalCallFlows)
+  }
+  // A callback source can itself arrive through another local parameter. Run
+  // the finite node-identity flow to a fixed point, and invalidate cached
+  // bindings between passes. A single source-order pass can otherwise miss a
+  // later call such as `invoke([bridge[key]])` for an earlier `values.map(...)`.
+  do {
+    parameterFlowChanged = false
+    bindings.bindingCache.clear()
+    collectLocalCallFlows(sourceFile)
+  } while (parameterFlowChanged)
+  bindings.bindingCache.clear()
+
+  return bindings
+}
+
+function directReturnExpressions(fn) {
+  if (ts.isArrowFunction(fn) && !ts.isBlock(fn.body)) return [fn.body]
+  if (!fn.body || !ts.isBlock(fn.body)) return []
+  const expressions = []
+  const visit = (node) => {
+    if (node !== fn && ts.isFunctionLike(node)) return
+    if (ts.isReturnStatement(node)) {
+      if (node.expression) expressions.push(node.expression)
+      return
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(fn.body)
+  return expressions
+}
+
+function arrayBindingElementExpression(declaration, bindings) {
+  if (!ts.isArrayBindingPattern(declaration.parent)) return null
+  const pattern = declaration.parent
+  const index = pattern.elements.indexOf(declaration)
+  if (index < 0) return null
+
+  const container = pattern.parent
+  const initializer =
+    ts.isVariableDeclaration(container) || ts.isParameter(container) ? container.initializer : null
+  if (!initializer) return null
+
+  const source = resolvedExpression(initializer, bindings)
+  if (!ts.isArrayLiteralExpression(source)) return null
+  const element = source.elements[index]
+  return element && !ts.isOmittedExpression(element) && !ts.isSpreadElement(element)
+    ? element
+    : null
 }
 
 function bindingInfo(identifier, bindings) {
@@ -170,8 +389,14 @@ function bindingInfo(identifier, bindings) {
       if (name && RESERVED_CALL_CAPABILITIES.has(name)) info.capabilities.push(name)
       if (declaration.initializer) info.expressions.push(declaration.initializer)
     }
+    if (ts.isBindingElement(declaration) && ts.isArrayBindingPattern(declaration.parent)) {
+      const element = arrayBindingElementExpression(declaration, bindings)
+      if (element) info.expressions.push(element)
+      if (declaration.initializer) info.expressions.push(declaration.initializer)
+    }
   }
   info.expressions.push(...(bindings.assignmentExpressions.get(symbol) ?? []))
+  info.expressions.push(...(bindings.parameterExpressions.get(symbol) ?? []))
   return info
 }
 
@@ -271,18 +496,41 @@ function resolvedExpressionState(expression, bindings, seen = new Set()) {
     nextSeen.add(info.symbol)
     return resolvedExpressionState(info.expressions[0], bindings, nextSeen)
   }
+  if (ts.isCallExpression(expression)) {
+    let callee = expression.expression
+    if (ts.isPropertyAccessExpression(callee) || ts.isElementAccessExpression(callee)) {
+      const wrapper = propertyName(callee, bindings)
+      if (wrapper === 'call' || wrapper === 'apply') callee = callee.expression
+    }
+    const localFunction = bindings.localFunctionForExpression?.(callee)
+    if (localFunction && !seen.has(localFunction)) {
+      const returned = directReturnExpressions(localFunction)
+      if (returned.length === 1) {
+        const nextSeen = new Set(seen)
+        nextSeen.add(localFunction)
+        return resolvedExpressionState(returned[0], bindings, nextSeen)
+      }
+    }
+  }
   if (ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression)) {
     const owner = resolvedExpressionState(expression.expression, bindings, seen)
     if (ts.isObjectLiteralExpression(owner.expression)) {
       const name = propertyName(expression, bindings)
       if (name !== null) {
         const properties = owner.expression.properties.filter(
-          (property) =>
-            ts.isPropertyAssignment(property) &&
-            objectLiteralPropertyName(property, bindings) === name
+          (property) => objectLiteralPropertyName(property, bindings) === name
         )
         if (properties.length === 1) {
-          return resolvedExpressionState(properties[0].initializer, bindings, owner.seen)
+          const property = properties[0]
+          if (ts.isPropertyAssignment(property)) {
+            return resolvedExpressionState(property.initializer, bindings, owner.seen)
+          }
+          if (ts.isGetAccessorDeclaration(property)) {
+            const returned = directReturnExpressions(property)
+            if (returned.length === 1) {
+              return resolvedExpressionState(returned[0], bindings, owner.seen)
+            }
+          }
         }
       }
     }
@@ -384,6 +632,151 @@ function callableCapability(expression, bindings, seen = new Set()) {
   }
 }
 
+function isUnknownComputedCallable(expression, bindings, seen = new Set()) {
+  if (
+    ts.isParenthesizedExpression(expression) ||
+    ts.isAsExpression(expression) ||
+    ts.isTypeAssertionExpression(expression) ||
+    ts.isNonNullExpression(expression) ||
+    ts.isSatisfiesExpression(expression) ||
+    ts.isAwaitExpression(expression)
+  ) {
+    return isUnknownComputedCallable(expression.expression, bindings, seen)
+  }
+  if (ts.isConditionalExpression(expression)) {
+    return (
+      isUnknownComputedCallable(expression.whenTrue, bindings, seen) ||
+      isUnknownComputedCallable(expression.whenFalse, bindings, seen)
+    )
+  }
+  if (
+    ts.isBinaryExpression(expression) &&
+    (expression.operatorToken.kind === ts.SyntaxKind.CommaToken ||
+      expression.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken ||
+      expression.operatorToken.kind === ts.SyntaxKind.BarBarToken ||
+      expression.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken)
+  ) {
+    return (
+      isUnknownComputedCallable(expression.left, bindings, seen) ||
+      isUnknownComputedCallable(expression.right, bindings, seen)
+    )
+  }
+  if (ts.isIdentifier(expression)) {
+    const info = bindingInfo(expression, bindings)
+    if (!info || seen.has(info.symbol)) return false
+    if (
+      (info.symbol.declarations ?? []).some(
+        (declaration) =>
+          ts.isBindingElement(declaration) &&
+          declaration.propertyName &&
+          ts.isComputedPropertyName(declaration.propertyName) &&
+          staticString(declaration.propertyName.expression, bindings) === null
+      )
+    ) {
+      return true
+    }
+    const nextSeen = new Set(seen)
+    nextSeen.add(info.symbol)
+    return info.expressions.some((initializer) =>
+      isUnknownComputedCallable(initializer, bindings, nextSeen)
+    )
+  }
+
+  // Resolve statically indexed array/object wrappers before examining the
+  // member itself. This closes value-boxing forms such as
+  // `[bridge[key]][0]()` and `{ invoke: bridge[key] }.invoke()` while retaining
+  // ordinary computed data reads that are never invoked.
+  const resolved = resolvedExpressionState(expression, bindings, seen)
+  if (resolved.expression !== expression) {
+    return isUnknownComputedCallable(resolved.expression, bindings, resolved.seen)
+  }
+
+  if (
+    ts.isCallExpression(expression) &&
+    (ts.isPropertyAccessExpression(expression.expression) ||
+      ts.isElementAccessExpression(expression.expression)) &&
+    propertyName(expression.expression, bindings) === 'bind'
+  ) {
+    return isUnknownComputedCallable(expression.expression.expression, bindings, seen)
+  }
+  if (ts.isCallExpression(expression)) {
+    const method = resolvedMethod(expression.expression, bindings)
+    if (
+      method?.owner === 'Promise' &&
+      method.name === 'resolve' &&
+      expression.arguments[0] &&
+      isUnknownComputedCallable(expression.arguments[0], bindings, seen)
+    ) {
+      return true
+    }
+  }
+  if (!ts.isPropertyAccessExpression(expression) && !ts.isElementAccessExpression(expression)) {
+    return false
+  }
+
+  const name = propertyName(expression, bindings)
+  if (name === 'call' || name === 'apply' || name === 'bind') {
+    return isUnknownComputedCallable(expression.expression, bindings, seen)
+  }
+  if (ts.isElementAccessExpression(expression) && name === null) return true
+  if (isUnknownDescriptorLookup(expression.expression, bindings)) return true
+
+  const owner = resolvedExpression(expression.expression, bindings)
+  if (ts.isCallExpression(owner)) {
+    const descriptor = descriptorInvocation(owner, bindings)
+    if (descriptor && descriptor.key !== null && staticString(descriptor.key, bindings) === null) {
+      return true
+    }
+  }
+  return false
+}
+
+function callbackSinkArguments(node, bindings) {
+  const directName = resolvedObjectName(node.expression, bindings)
+  if (DIRECT_CALLBACK_SINKS.has(directName)) return node.arguments[0] ? [node.arguments[0]] : []
+  if (
+    !ts.isPropertyAccessExpression(node.expression) &&
+    !ts.isElementAccessExpression(node.expression)
+  ) {
+    return []
+  }
+  const memberName = propertyName(node.expression, bindings)
+  if (ARRAY_CALLBACK_METHODS.has(memberName)) {
+    return node.arguments[0] ? [node.arguments[0]] : []
+  }
+  const argumentIndexes = MEMBER_CALLBACK_SINKS.get(memberName) ?? []
+  return argumentIndexes.flatMap((argumentIndex) =>
+    node.arguments[argumentIndex] ? [node.arguments[argumentIndex]] : []
+  )
+}
+
+function constructorCallbackArguments(node, bindings) {
+  const constructorName = resolvedObjectName(node.expression, bindings)
+  const argumentIndexes = CONSTRUCTOR_CALLBACK_SINKS.get(constructorName) ?? []
+  return argumentIndexes.flatMap((argumentIndex) =>
+    node.arguments?.[argumentIndex] ? [node.arguments[argumentIndex]] : []
+  )
+}
+
+function isUnknownCallbackValue(expression, bindings, seen = new Set()) {
+  if (isUnknownComputedCallable(expression, bindings, seen)) return true
+  const resolved = resolvedExpressionState(expression, bindings, seen)
+  if (resolved.expression !== expression) {
+    return isUnknownCallbackValue(resolved.expression, bindings, resolved.seen)
+  }
+  if (!ts.isObjectLiteralExpression(expression)) return false
+  return expression.properties.some((property) => {
+    if (objectLiteralPropertyName(property, bindings) !== 'handleEvent') return false
+    if (ts.isPropertyAssignment(property)) {
+      return isUnknownComputedCallable(property.initializer, bindings, seen)
+    }
+    if (ts.isShorthandPropertyAssignment(property)) {
+      return isUnknownComputedCallable(property.name, bindings, seen)
+    }
+    return false
+  })
+}
+
 function isExactCallCallee(node) {
   return ts.isCallExpression(node.parent) && node.parent.expression === node
 }
@@ -444,6 +837,20 @@ function descriptorInvocation(node, bindings) {
   }
 }
 
+function isUnknownDescriptorLookup(expression, bindings) {
+  const current = resolvedExpression(expression, bindings)
+  if (
+    !ts.isElementAccessExpression(current) ||
+    staticString(current.argumentExpression, bindings) !== null
+  ) {
+    return false
+  }
+  const owner = resolvedExpression(current.expression, bindings)
+  if (!ts.isCallExpression(owner)) return false
+  const method = descriptorMethod(owner.expression, bindings)
+  return method?.owner === 'Object' && method.name === 'getOwnPropertyDescriptors'
+}
+
 function bindingElementName(element, bindings) {
   if (!element.propertyName) return ts.isIdentifier(element.name) ? element.name.text : null
   if (ts.isComputedPropertyName(element.propertyName)) {
@@ -496,7 +903,15 @@ function reflectMethod(expression, bindings) {
   return owner === 'Reflect' ? propertyName(expression, bindings) : null
 }
 
-function runtimeBoundaryReferences(file, source, { allowVendorFunctionConstructors = false } = {}) {
+function runtimeBoundaryReferences(
+  file,
+  source,
+  {
+    allowVendorFunctionConstructors = false,
+    rejectPropertyDescriptors = false,
+    rejectUnknownCallableMembers = false,
+  } = {}
+) {
   const bindings = createBindingResolver(file, source)
   const { sourceFile } = bindings
   const references = []
@@ -553,6 +968,9 @@ function runtimeBoundaryReferences(file, source, { allowVendorFunctionConstructo
     }
     if (ts.isCallExpression(node)) {
       const descriptor = descriptorInvocation(node, bindings)
+      if (rejectPropertyDescriptors && descriptor !== undefined) {
+        record(node, 'property descriptor access')
+      }
       if (
         descriptor !== undefined &&
         (descriptor.target === null || isGlobalObject(descriptor.target, bindings))
@@ -574,12 +992,29 @@ function runtimeBoundaryReferences(file, source, { allowVendorFunctionConstructo
       ) {
         const reflectiveTarget = dynamicConstructorKind(node.arguments[0], bindings)
         if (reflectiveTarget) record(node, `reflective dynamic ${reflectiveTarget}`)
+        if (
+          rejectUnknownCallableMembers &&
+          isUnknownComputedCallable(node.arguments[0], bindings)
+        ) {
+          record(node, 'unknown computed reflective target')
+        }
       }
       const capability = callableCapability(node.expression, bindings)
       if (capability) {
         const form =
           capability.form === 'direct' && node.questionDotToken ? 'optional' : capability.form
         record(node, `${form} ${capability.name}`)
+      }
+      if (rejectUnknownCallableMembers && isUnknownComputedCallable(node.expression, bindings)) {
+        record(node, 'unknown computed callable')
+      }
+      if (
+        rejectUnknownCallableMembers &&
+        callbackSinkArguments(node, bindings).some((argument) =>
+          isUnknownCallbackValue(argument, bindings)
+        )
+      ) {
+        record(node, 'unknown computed callback sink')
       }
     }
     if (ts.isNewExpression(node)) {
@@ -604,6 +1039,27 @@ function runtimeBoundaryReferences(file, source, { allowVendorFunctionConstructo
             : `dynamic ${dynamicKind ?? 'constructor'} code`
         record(node, label)
       }
+      if (rejectUnknownCallableMembers && isUnknownComputedCallable(node.expression, bindings)) {
+        record(node, 'unknown computed constructor')
+      }
+      if (
+        rejectUnknownCallableMembers &&
+        constructorCallbackArguments(node, bindings).some((argument) =>
+          isUnknownCallbackValue(argument, bindings)
+        )
+      ) {
+        record(node, 'unknown computed constructor callback')
+      }
+    }
+    if (
+      rejectUnknownCallableMembers &&
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      (ts.isPropertyAccessExpression(node.left) || ts.isElementAccessExpression(node.left)) &&
+      EVENT_HANDLER_PROPERTIES.has(propertyName(node.left, bindings)) &&
+      isUnknownCallbackValue(node.right, bindings)
+    ) {
+      record(node, 'unknown computed event handler')
     }
     if (
       (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) &&
@@ -892,6 +1348,23 @@ export function verifyProductionAuthorityBoundary() {
     assert(
       approvedVendorFunctionChunks.has(moduleId),
       `module graph omits the exact ${spec.displayName} Function-constructor chunk`
+    )
+  }
+  for (const moduleId of reportedModules) {
+    if (!/\.[cm]?[jt]sx?$/.test(moduleId)) continue
+    const modulePath = resolve(process.cwd(), moduleId)
+    assert(existsSync(modulePath), `reported project module is missing: ${moduleId}`)
+    const unresolvedCalls = runtimeBoundaryReferences(moduleId, readFileSync(modulePath, 'utf8'), {
+      rejectPropertyDescriptors: true,
+      rejectUnknownCallableMembers: true,
+    }).filter(
+      (reference) =>
+        reference.startsWith('unknown computed ') ||
+        reference.startsWith('property descriptor access@')
+    )
+    assert(
+      unresolvedCalls.length === 0,
+      `${moduleId} uses runtime-computed callable dispatch: ${unresolvedCalls.join(',')}`
     )
   }
   verifyApprovedFetchSource(APPROVED_FETCH_MODULE, APPROVED_DIRECT_FETCH_CALLS)

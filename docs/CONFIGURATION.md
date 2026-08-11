@@ -5,6 +5,18 @@ For sensor-fusion tuning, see [SENSOR_FUSION.md](SENSOR_FUSION.md). For model
 requirements, see [MODEL_CONTRACTS.md](MODEL_CONTRACTS.md). For the security
 semantics of trust-sensitive variables, see [../SECURITY.md](../SECURITY.md).
 
+<p align="center">
+  <img alt="CREBAIN native camera delivery lifecycle" src="../assets/diagrams/camera-delivery-lifecycle.svg" width="900">
+</p>
+
+Text alternative: Zenoh and native rosbridge camera callbacks share a 384 MiB,
+nonblocking frame budget. Each admitted frame retains its topic slot and permit
+while a small identity descriptor crosses Tauri events. The renderer pulls once,
+settles its listeners, and acknowledges the same lifecycle, subscription, and
+delivery identifiers. Exact acknowledgment or the 30-second native lease
+releases ownership. A failure quarantines only the matching declaration.
+Generation checks prevent stale cleanup.
+
 ## Environment variables
 
 | Variable | Description | Values |
@@ -40,7 +52,7 @@ semantics of trust-sensitive variables, see [../SECURITY.md](../SECURITY.md).
 | `CREBAIN_GALADRIEL_OUTCOME_QUEUE_CAPACITY` | Optional outcome/miss-lane override | Positive; bounded by registry/wire policy |
 | `CREBAIN_GALADRIEL_SUMMARY_QUEUE_CAPACITY` | Optional summary-lane override | Positive; bounded by registry/wire policy |
 | `CREBAIN_GALADRIEL_HEARTBEAT_QUEUE_CAPACITY` | Optional heartbeat-lane override | Positive; bounded by registry/wire policy |
-| `NCP_ZENOH_CONFIG` | Zenoh configuration required by the enabled producer's secure mode and by the optional native NCP bridge's secure connection mode | Readable deployment-controlled path |
+| `NCP_ZENOH_CONFIG` | Zenoh configuration required by the enabled producer, the dormant native bridge's secure mode, and headless `validate` or `run`; headless validation checks a bounded strict client snapshot but opens no Zenoh session | Readable deployment-controlled regular file, at most 1 MiB for the headless runner |
 
 Model paths reject a final symlink and require a regular file for ONNX and
 safetensors or a real directory for `.mlmodelc`. The runtime subsequently
@@ -104,6 +116,23 @@ and never extrapolates. A latest multi-hop lookup chooses the newest timestamp
 in the intersection of all dynamic-edge histories and evaluates every dynamic
 edge at that one common time. Static edges are timeless. No common interval
 fails closed.
+
+## Headless NCP perception runner
+
+The dependency-isolated `crebain-ncp-headless` package uses CLI arguments for
+its realm, session, model, step input, and timeouts. It reads no runner-specific
+environment variable other than `NCP_ZENOH_CONFIG`.
+
+`self-check` reads no runner configuration and opens no Zenoh session.
+`validate` requires and checks the bounded strict client configuration but does
+not open a Zenoh session. `run` accepts the same strict secure-client posture
+and requires a compatible NCP wire-0.8 responder. It validates the exact parsed
+snapshot that it passes to Zenoh. This gate does not attest TLS, an ACL, or peer
+identity. The `engram/ncp` default realm is only routing text. Current
+Engram/Paper2Brain native wire 1.0 is incompatible, and no translator or live
+loop exists. See
+[NCP_BRIDGE_HANDOFF.md](NCP_BRIDGE_HANDOFF.md) for CLI bounds and lifecycle
+semantics.
 
 ## Galadriel deployment pins
 
@@ -273,6 +302,13 @@ leaves physics paused before propagating the failure. A superseded generation
 cannot clear or commit the newer restore.
 
 ## Platform matrix
+
+The desktop window opens at 1,600 × 1,000 logical pixels. Its supported minimum
+is 1,024 × 720. Header status rows remain keyboard-scrollable at high UI scales.
+Under viewport pressure, or at 150% scale and above, panels move into two
+non-overlapping side rails. Conditional viewer overlays move into one bounded
+center rail. Each side slot and the center rail are keyboard-scrollable. The
+center wrapper does not create a tab stop in the free layout.
 
 The macOS application targets macOS 13.4 or later, matching the minimum of its
 build-time-linked ONNX Runtime dependency. Both the ordinary Cargo/Tauri build

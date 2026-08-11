@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
-import { invoke } from '@tauri-apps/api/core'
 import * as THREE from 'three'
 import { SplatMesh } from '@sparkjsdev/spark'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
@@ -13,13 +12,8 @@ import {
   BROWSER_FUSION_BATCH_WINDOW_MS,
   BrowserFusionBatcher,
 } from '../detection/BrowserFusionBatcher'
-import type { CoreMLDetectionResult, Detection, FusedTrack, CameraParams } from '../detection/types'
+import type { Detection, FusedTrack, CameraParams } from '../detection/types'
 import { drawDetectionsOnCanvas } from './detectionCanvas'
-import {
-  DEFAULT_CONFIDENCE_THRESHOLD,
-  DEFAULT_IOU_THRESHOLD,
-  DEFAULT_MAX_DETECTIONS,
-} from '../detection/types'
 import { useDetectionLoop } from '../hooks/useDetectionLoop'
 import { useDroneController } from '../hooks/useDroneController'
 import { useSceneState, type CrebainCamera } from '../hooks/useSceneState'
@@ -30,20 +24,41 @@ import { useUIScale } from '../context/useUIScale'
 import DroneSpawnPanel from './DroneSpawnPanel'
 import SaveLoadPanel from './SaveLoadPanel'
 import ObjectTransformControls from './ObjectTransformControls'
+import { PANEL_POSITIONS } from './panelPositions'
 import { createTacticalGrid, createGridLabels } from './viewer/TacticalGrid'
 import DetectionPanel from './viewer/DetectionPanel'
 import HeaderBar from './viewer/HeaderBar'
 import {
+  CameraDetailsOverlay,
+  CameraFeedsOverlay,
+  ViewerEventLog,
+  ViewerOverlayRail,
+  ViewerFooter,
+  ViewerLoadingOverlay,
+} from './viewer/ViewerChrome'
+import { useNativeDetectorDiagnostics } from './viewer/useNativeDetectorDiagnostics'
+import {
+  DEFAULT_SECURITY_CONFIGURATION_STATUS,
   getSecurityConfigurationStatusLabel,
   type SecurityConfigurationStatus,
 } from './viewer/securityConfigurationStatus'
 import { captureCameraPixels, withCameraRenderTarget } from './viewer/cameraCapture'
+import { activateFloorMesh } from './viewer/floorMeshOwnership'
 import {
+  detachAllSurveillanceCameras,
   disposeAllSurveillanceCamerasOnce,
+  disposeSurveillanceCamera,
   removeSurveillanceCameraOnce,
+  restoreDetachedSurveillanceCameras,
   updateSurveillanceCameraPtz,
 } from './viewer/surveillanceCameraState'
-import { disposeObject3D, forEachMesh, objectLabel } from '../lib/three/sceneObjects'
+import {
+  attachObject3DToScene,
+  disposeObject3D,
+  forEachMesh,
+  isObject3DInScene,
+  objectLabel,
+} from '../lib/three/sceneObjects'
 import { fetchAssetWithLimit, readFileAsArrayBuffer } from '../lib/boundedFetch'
 import { inspectPngJpegDimensions, validateSelfContainedGlb } from '../lib/glbValidation'
 import {
@@ -57,29 +72,38 @@ import {
   type FloorStyle,
 } from './viewer/ProceduralTerrain'
 import {
-  calculateLatencyStats,
   getBackendHealth,
-  getBackendHealthLabel,
+  getDiagnosticsStatusLabel,
   getConnectionStatusLabel,
   normalizeSystemInfo,
   type DiagnosticsConnectionState,
+  type DiagnosticsStatus,
   type SystemInfo,
 } from '../lib/diagnostics'
 import { runWithOperationDeadline } from '../lib/operationDeadline'
 import { runSceneRestoreTransaction } from '../lib/sceneRestoreTransaction'
 import { isTextInputTarget, VIEWER_SHORTCUTS } from '../lib/shortcuts'
-import { TAURI_COMMANDS } from '../lib/tauriCommands'
+import {
+  MAX_SURVEILLANCE_CAMERA_NAME_BYTES,
+  normalizeSurveillanceCameraName,
+} from '../lib/surveillanceCameraLimits'
 import {
   isReloadableGlbSource,
   isReloadableSceneSource,
   isReloadableSplatSource,
-  MAX_SCENE_ASSETS,
   type CameraState,
   type DetectionState,
   type SceneAssetState,
   type SceneState,
   type SplatSceneState,
 } from '../state/SceneState'
+import {
+  isBoundedSceneName,
+  MAX_CAMERA_RENDER_PIXELS,
+  MAX_SCENE_ASSETS,
+  MAX_SCENE_CAMERAS,
+  MAX_SCENE_NAME_BYTES,
+} from '../lib/sceneLimits'
 
 import type {
   LoadedAsset,
@@ -94,43 +118,11 @@ import { isSplatFormat, isGlbFormat, generateCameraDesignation } from './viewer/
 import { isEngramEmbeddedMode, isNativeBackendAvailable } from '../integrations/engramHost'
 
 /**
- * ═══════════════════════════════════════════════════════════════════════════════
- * CREBAIN - ADAPTIVE RESPONSE & AWARENESS SYSTEM (ARAS)
- * Adaptives Reaktions- und Aufklärungssystem
- * ═══════════════════════════════════════════════════════════════════════════════
+ * Main CREBAIN visualization and local-simulation surface.
  *
- * Version: 0.9.0
- *
- * 3D-Gaussian-Splatting-Visualisierung für Verteidigungsanwendungen
- *
- * ═══════════════════════════════════════════════════════════════════════════════
- * ROS-GAZEBO INTEGRATIONSARCHITEKTUR
- * ═══════════════════════════════════════════════════════════════════════════════
- *
- * OPTION A: SIMULATION (GAZEBO + ROS)
- * ┌─────────────────────────────────────────────────────────────────────────────┐
- * │  CREBAIN UI  ◄──WebSocket──►  rosbridge_server (ws://localhost:9090)       │
- * │       │                                    │                                │
- * │       ▼                                    ▼                                │
- * │  Kameraposen ──►  /crebain/camera_poses ──►  Gazebo Kamera-Plugins         │
- * │  Feed Export ◄──  /crebain/cam_N/image  ◄──  gazebo_ros_camera             │
- * │  Erkennung   ◄──  /darknet_ros/boxes    ◄──  YOLO/CV Pipeline              │
- * └─────────────────────────────────────────────────────────────────────────────┘
- *
- * OPTION B: HARDWARE-IN-THE-LOOP
- * ┌─────────────────────────────────────────────────────────────────────────────┐
- * │  Physische Sensoren ──► ROS Treiber ──► tf2 Transforms ──► CREBAIN Sync    │
- * │  - Velodyne LIDAR      /velodyne_points                                     │
- * │  - LORD IMU            /imu/data                                            │
- * │  - uBlox GPS           /fix, /navpvt                                        │
- * │  - FLIR Wärmebild      /thermal/image_raw                                   │
- * └─────────────────────────────────────────────────────────────────────────────┘
- *
- * YOLO INTEGRATION:
- *   const imageData = exportCameraFeed(cameraId)  // ImageData für CV
- *   // POST an Inferenz-Server oder lokale tfjs/onnxruntime Verarbeitung
- *
- * ═══════════════════════════════════════════════════════════════════════════════
+ * Native ROS and Zenoh integrations are telemetry-only. Detection uses the
+ * browser pipeline or registered Tauri inference IPC. This component does not
+ * own a vehicle-command, plant-authority, or external artifact-exchange path.
  */
 
 interface CrebainViewerProps {
@@ -151,23 +143,37 @@ interface CrebainViewerProps {
   onPerformancePanelVisibleChange?: (visible: boolean) => void
   rosConnectionState?: DiagnosticsConnectionState
   rosTransport?: 'websocket' | 'zenoh'
+  systemInfo?: SystemInfo
+  diagnosticsStatus?: DiagnosticsStatus
+  onRefreshSystemInfo?: () => void | Promise<void>
+  onDetectionError?: (message: string) => void
 }
 
-type NativeDetectionResult = CoreMLDetectionResult & { backend?: string | null }
-
-const COREML_TEST_WIDTH = 640
-const COREML_TEST_HEIGHT = 480
-const VIEWER_BENCHMARK_ITERATIONS = 100
-const VIEWER_BENCHMARK_PROGRESS_STEP = 10
 const MAX_SPLAT_BYTES = 256 * 1024 * 1024
 const MAX_FLOOR_TEXTURE_BYTES = 32 * 1024 * 1024
 const MAX_FLOOR_TEXTURE_PIXELS = 16_777_216
 const ASSET_DOWNLOAD_TIMEOUT_MS = 30_000
+const IMAGE_DECODE_TIMEOUT_MS = 30_000
+const GLB_PARSE_TIMEOUT_MS = 60_000
+const SPLAT_LOAD_TIMEOUT_MS = 120_000
 const SCENE_RESTORE_TIMEOUT_MS = 120_000
-const MAX_SURVEILLANCE_CAMERAS = 64
-const MAX_CAMERA_RENDER_PIXELS = 16_777_216
+const MAX_CONSOLE_MESSAGES = 9
 // No runtime source currently attests transport security configuration.
-const SECURITY_CONFIGURATION_STATUS: SecurityConfigurationStatus = 'unknown'
+const SECURITY_CONFIGURATION_STATUS: SecurityConfigurationStatus =
+  DEFAULT_SECURITY_CONFIGURATION_STATUS
+const UNKNOWN_SYSTEM_INFO = normalizeSystemInfo(null)
+
+function normalizeOperationError(value: unknown, message: string): Error {
+  return value instanceof Error ? value : new Error(message, { cause: value })
+}
+
+function notifyObserver(label: string, operation: () => void): void {
+  try {
+    operation()
+  } catch (error) {
+    log.warn(`${label} observer failed`, { error })
+  }
+}
 
 export default function CrebainViewer({
   onDetectionComplete,
@@ -176,8 +182,13 @@ export default function CrebainViewer({
   onPerformancePanelVisibleChange,
   rosConnectionState = 'disconnected',
   rosTransport = 'zenoh',
+  systemInfo = UNKNOWN_SYSTEM_INFO,
+  diagnosticsStatus,
+  onRefreshSystemInfo,
+  onDetectionError,
 }: CrebainViewerProps) {
-  const { increaseScale, decreaseScale, scalePercent, isAtMin, isAtMax, cssVar } = useUIScale()
+  const { increaseScale, decreaseScale, scalePercent, isDocked, isAtMin, isAtMax, cssVar } =
+    useUIScale()
   const embeddedInEngram = useMemo(() => isEngramEmbeddedMode(), [])
 
   const containerRef = useRef<HTMLDivElement>(null)
@@ -231,6 +242,11 @@ export default function CrebainViewer({
     setLoadingProgress(0)
   }, [])
   const [currentAsset, setCurrentAsset] = useState<string | null>(null)
+  const currentAssetRef = useRef<string | null>(null)
+  const commitCurrentAsset = useCallback((value: string | null): void => {
+    currentAssetRef.current = value
+    setCurrentAsset(value)
+  }, [])
   const [loadedAssets, setLoadedAssets] = useState<LoadedAsset[]>([])
   const loadedAssetsRef = useRef<LoadedAsset[]>([])
   const viewerMountedRef = useRef(false)
@@ -239,6 +255,7 @@ export default function CrebainViewer({
   const floorLoadingTokenRef = useRef<symbol | null>(null)
   const assetLoadGenerationRef = useRef(0)
   const sceneRestoreGenerationRef = useRef(0)
+  const sceneRestoreInFlightRef = useRef(false)
   const splatCancellationRef = useRef<(() => void) | null>(null)
   const assetAbortControllersRef = useRef<Set<AbortController>>(new Set())
   const pendingAssetReservationsRef = useRef<Map<symbol, number>>(new Map())
@@ -247,6 +264,7 @@ export default function CrebainViewer({
   )
   const [isDragging, setIsDragging] = useState(false)
   const [consoleMessages, setConsoleMessages] = useState<ConsoleMessage[]>([])
+  const consoleMessagesRef = useRef<ConsoleMessage[]>([])
 
   const [cameras, setCameras] = useState<SurveillanceCamera[]>([])
   const camerasRef = useRef<SurveillanceCamera[]>([])
@@ -300,14 +318,12 @@ export default function CrebainViewer({
   const onVisualTrackRef = useRef(onVisualTrack)
   onVisualTrackRef.current = onVisualTrack
   const [showDetectionPanel, setShowDetectionPanel] = useState(true)
-  const [isTestingCoreML, setIsTestingCoreML] = useState(false)
   const [showDronePanel, setShowDronePanel] = useState(true)
   const [showSaveLoadPanel, setShowSaveLoadPanel] = useState(true)
   const [editingCameraId, setEditingCameraId] = useState<string | null>(null)
   const [editingCameraName, setEditingCameraName] = useState('')
+  const cameraRenameCancelledRef = useRef(false)
   const [showControlPanel, setShowControlPanel] = useState(true)
-  const [isBenchmarking, setIsBenchmarking] = useState(false)
-  const [systemInfo, setSystemInfo] = useState<SystemInfo>(() => normalizeSystemInfo(null))
 
   const controlPanelDrag = useDraggable({
     initialPosition: { x: 12, y: 80 },
@@ -315,21 +331,6 @@ export default function CrebainViewer({
     edgePadding: 12,
     side: 'left',
   })
-  const controlPanelWasDraggedRef = useRef(false)
-  useEffect(() => {
-    if (controlPanelDrag.wasDragged !== controlPanelWasDraggedRef.current) {
-      controlPanelWasDraggedRef.current = controlPanelDrag.wasDragged
-    }
-  }, [controlPanelDrag.wasDragged])
-  const handleControlPanelHeaderClick = useCallback(() => {
-    if (!controlPanelWasDraggedRef.current) {
-      setShowControlPanel((prev) => !prev)
-    }
-    controlPanelWasDraggedRef.current = false
-  }, [])
-  const [benchmarkProgress, setBenchmarkProgress] = useState(0)
-  const benchmarkAbortRef = useRef(false)
-  const benchmarkRunIdRef = useRef(0)
   const sensorFusionRef = useRef<SensorFusion | null>(null)
   const cameraCounterRef = useRef({ static: 0, ptz: 0, patrol: 0 })
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -480,10 +481,22 @@ export default function CrebainViewer({
   const addMessage = useCallback((type: ConsoleMessage['type'], message: string) => {
     const timestamp = Date.now()
     const newMessage: ConsoleMessage = { id: crypto.randomUUID(), type, message, timestamp }
-    setConsoleMessages((prev) => [...prev.slice(-8), newMessage])
+    const previous = consoleMessagesRef.current
+    const next = [...previous, newMessage].slice(-MAX_CONSOLE_MESSAGES)
+    const retainedIds = new Set(next.map((entry) => entry.id))
+    for (const dropped of previous) {
+      if (retainedIds.has(dropped.id)) continue
+      const timeoutId = messageTimeoutsRef.current.get(dropped.id)
+      if (timeoutId !== undefined) clearTimeout(timeoutId)
+      messageTimeoutsRef.current.delete(dropped.id)
+    }
+    consoleMessagesRef.current = next
+    setConsoleMessages(next)
 
     const timeoutId = window.setTimeout(() => {
-      setConsoleMessages((prev) => prev.filter((m) => m.id !== newMessage.id))
+      const remaining = consoleMessagesRef.current.filter((entry) => entry.id !== newMessage.id)
+      consoleMessagesRef.current = remaining
+      setConsoleMessages(remaining)
       messageTimeoutsRef.current.delete(newMessage.id)
     }, 10000)
     messageTimeoutsRef.current.set(newMessage.id, timeoutId)
@@ -494,31 +507,24 @@ export default function CrebainViewer({
   // `invoke` rejects with "Failed to fetch". Detect that up front so the UI can
   // disable the native buttons and show a clear message instead.
   const nativeAvailable = useMemo(() => isNativeBackendAvailable(), [])
+  const backendStatus = diagnosticsStatus ?? getBackendHealth(systemInfo)
+  const nativeDetectorReady = nativeAvailable && backendStatus === 'ready'
 
-  const refreshSystemInfo = useCallback(async () => {
-    if (!nativeAvailable) {
-      setSystemInfo(normalizeSystemInfo(null))
-      return
-    }
-    try {
-      const info = await invoke<unknown>(TAURI_COMMANDS.detection.systemInfo)
-      setSystemInfo(normalizeSystemInfo(info))
-    } catch (error) {
-      log.warn('Failed to refresh detector system info', { error })
-      setSystemInfo(normalizeSystemInfo(null))
-    }
-  }, [nativeAvailable])
-
-  useEffect(() => {
-    void refreshSystemInfo()
-  }, [refreshSystemInfo])
-
-  useEffect(() => {
-    return () => {
-      benchmarkAbortRef.current = true
-      benchmarkRunIdRef.current += 1
-    }
-  }, [])
+  const {
+    benchmarkProgress,
+    cancelBenchmark: cancelCoreMLBenchmark,
+    isBenchmarking,
+    isTesting: isTestingCoreML,
+    runBenchmark: runCoreMLBenchmark,
+    testDetector: testCoreMLInference,
+  } = useNativeDetectorDiagnostics({
+    nativeAvailable,
+    viewerMountedRef,
+    addMessage,
+    onDetectionComplete,
+    onDetectionError,
+    onRefreshSystemInfo,
+  })
 
   const {
     drones: managedDrones,
@@ -536,6 +542,9 @@ export default function CrebainViewer({
     togglePause,
     setSimulationPaused,
     resetSimulation,
+    suspendDronesForSceneRestore,
+    restoreSuspendedDrones,
+    disposeSuspendedDrones,
   } = useDroneController({
     scene: sceneRef.current,
     enabled: !embeddedInEngram,
@@ -604,12 +613,14 @@ export default function CrebainViewer({
     }) => {
       if (embeddedInEngram) return
       if (onDetectionComplete) {
-        onDetectionComplete({
-          inferenceTimeMs: metrics.inferenceTimeMs,
-          preprocessTimeMs: metrics.preprocessTimeMs,
-          postprocessTimeMs: metrics.postprocessTimeMs,
-          detectionCount: metrics.detectionCount,
-        })
+        notifyObserver('Detection result', () =>
+          onDetectionComplete({
+            inferenceTimeMs: metrics.inferenceTimeMs,
+            preprocessTimeMs: metrics.preprocessTimeMs,
+            postprocessTimeMs: metrics.postprocessTimeMs,
+            detectionCount: metrics.detectionCount,
+          })
+        )
       }
     },
     [embeddedInEngram, onDetectionComplete]
@@ -654,13 +665,15 @@ export default function CrebainViewer({
       for (const track of sensorFusionRef.current.getLastFrameObservedTracks()) {
         const position = track.triangulatedPosition
         if (hasFiniteMultiCameraTriangulation(track)) {
-          onVisualTrackRef.current?.({
-            id: track.id,
-            position: [position.x, position.y, position.z],
-            confidence: track.fusedConfidence,
-            classLabel: track.class,
-            timestampMs: track.updatedAt,
-          })
+          notifyObserver('Visual track', () =>
+            onVisualTrackRef.current?.({
+              id: track.id,
+              position: [position.x, position.y, position.z],
+              confidence: track.fusedConfidence,
+              classLabel: track.class,
+              timestampMs: track.updatedAt,
+            })
+          )
         }
       }
 
@@ -748,7 +761,8 @@ export default function CrebainViewer({
   const placeCamera = useCallback(
     (position: THREE.Vector3, type: CameraType, restored?: CameraState) => {
       if (embeddedInEngram) return
-      if (!sceneRef.current || !rendererRef.current) return
+      const scene = sceneRef.current
+      if (!scene || !rendererRef.current) return
 
       const resolution: [number, number] = restored?.resolution ?? [640, 360]
       const existingCameras = camerasRef.current
@@ -758,71 +772,131 @@ export default function CrebainViewer({
       )
       const requestedPixels = resolution[0] * resolution[1]
       if (
-        existingCameras.length >= MAX_SURVEILLANCE_CAMERAS ||
+        existingCameras.length >= MAX_SCENE_CAMERAS ||
         allocatedPixels + requestedPixels > MAX_CAMERA_RENDER_PIXELS
       ) {
         addMessage('error', 'KAMERA-LIMIT ERREICHT: GPU-RENDERTARGET-BUDGET ÜBERSCHRITTEN')
         return
       }
 
-      cameraCounterRef.current[type]++
-      const designation =
-        restored?.name ?? generateCameraDesignation(type, cameraCounterRef.current[type])
+      const nextCameraNumber = cameraCounterRef.current[type] + 1
+      const designation = restored?.name ?? generateCameraDesignation(type, nextCameraNumber)
 
-      const feedCamera = new THREE.PerspectiveCamera(
-        restored?.fov ?? 60,
-        resolution[0] / resolution[1],
-        restored?.near ?? 0.1,
-        restored?.far ?? 500
-      )
-      feedCamera.position.copy(position)
-      if (restored) {
-        feedCamera.rotation.set(restored.rotation.x, restored.rotation.y, restored.rotation.z)
-      } else {
-        feedCamera.lookAt(position.x, position.y - 0.5, position.z - 2)
-      }
+      let helper: THREE.CameraHelper | null = null
+      let mesh: THREE.Group | null = null
+      let renderTarget: THREE.WebGLRenderTarget | null = null
+      let newCamera: SurveillanceCamera
+      try {
+        const restoredPan = restored?.pan ?? 0
+        const restoredTilt = restored?.tilt ?? 0
+        const restoredZoom = restored?.zoom ?? restored?.fov ?? 60
+        const feedCamera = new THREE.PerspectiveCamera(
+          type === 'ptz' ? restoredZoom : (restored?.fov ?? 60),
+          resolution[0] / resolution[1],
+          restored?.near ?? 0.1,
+          restored?.far ?? 500
+        )
+        feedCamera.position.copy(position)
+        if (restored) {
+          if (type === 'ptz' && (restored.pan !== undefined || restored.tilt !== undefined)) {
+            feedCamera.rotation.set(
+              THREE.MathUtils.degToRad(-restoredTilt),
+              THREE.MathUtils.degToRad(restoredPan),
+              0,
+              'YXZ'
+            )
+          } else {
+            feedCamera.rotation.set(restored.rotation.x, restored.rotation.y, restored.rotation.z)
+          }
+        } else {
+          feedCamera.lookAt(position.x, position.y - 0.5, position.z - 2)
+        }
 
-      const renderTarget = new THREE.WebGLRenderTarget(resolution[0], resolution[1], {
-        format: THREE.RGBAFormat,
-        type: THREE.UnsignedByteType,
-      })
+        renderTarget = new THREE.WebGLRenderTarget(resolution[0], resolution[1], {
+          format: THREE.RGBAFormat,
+          type: THREE.UnsignedByteType,
+        })
+        helper = new THREE.CameraHelper(feedCamera)
+        helper.visible = false
+        scene.add(helper)
 
-      const helper = new THREE.CameraHelper(feedCamera)
-      helper.visible = false
-      sceneRef.current.add(helper)
+        mesh = createCameraMesh(type)
+        mesh.position.copy(position)
+        mesh.quaternion.copy(feedCamera.quaternion)
+        scene.add(mesh)
 
-      const mesh = createCameraMesh(type)
-      mesh.position.copy(position)
-      mesh.quaternion.copy(feedCamera.quaternion)
-      sceneRef.current.add(mesh)
-
-      const newCamera: SurveillanceCamera = {
-        id: restored?.id ?? crypto.randomUUID(),
-        name: designation,
-        type,
-        camera: feedCamera,
-        helper,
-        mesh,
-        renderTarget,
-        pan: restored?.pan ?? 0,
-        tilt: restored?.tilt ?? 0,
-        zoom: restored?.zoom ?? restored?.fov ?? 60,
-        isActive: restored?.isActive ?? true,
-        // Camera feeds are live previews; no recorder is implemented.
-        isRecording: false,
-        patrolPoints:
-          restored?.patrolPoints?.map((point) => new THREE.Vector3(point.x, point.y, point.z)) ??
-          (type === 'patrol'
-            ? [position.clone(), position.clone().add(new THREE.Vector3(5, 0, 0))]
-            : undefined),
-        patrolIndex: 0,
-        patrolSpeed: THREE.MathUtils.clamp(restored?.patrolSpeed ?? 0.015, 0, 1),
-        patrolDirection: 1,
+        newCamera = {
+          id: restored?.id ?? crypto.randomUUID(),
+          name: designation,
+          type,
+          camera: feedCamera,
+          helper,
+          mesh,
+          renderTarget,
+          pan: restoredPan,
+          tilt: restoredTilt,
+          zoom: restoredZoom,
+          isActive: restored?.isActive ?? true,
+          // Camera feeds are live previews; no recorder is implemented.
+          isRecording: false,
+          patrolPoints:
+            restored?.patrolPoints?.map((point) => new THREE.Vector3(point.x, point.y, point.z)) ??
+            (type === 'patrol'
+              ? [position.clone(), position.clone().add(new THREE.Vector3(5, 0, 0))]
+              : undefined),
+          patrolIndex: 0,
+          patrolSpeed: THREE.MathUtils.clamp(restored?.patrolSpeed ?? 0.015, 0, 1),
+          patrolDirection: 1,
+        }
+      } catch (error) {
+        const cleanupErrors: unknown[] = []
+        const attempt = (operation: () => void) => {
+          try {
+            operation()
+          } catch (cleanupError) {
+            cleanupErrors.push(cleanupError)
+          }
+        }
+        if (helper) {
+          const rejectedHelper = helper
+          attempt(() => scene.remove(rejectedHelper))
+        }
+        if (mesh) {
+          const rejectedMesh = mesh
+          attempt(() => scene.remove(rejectedMesh))
+        }
+        const cameraObjectsDetached =
+          (!helper || helper.parent === null) && (!mesh || mesh.parent === null)
+        if (!cameraObjectsDetached) {
+          cleanupErrors.push(
+            new Error('Rejected camera resources remain attached to a scene graph')
+          )
+        } else {
+          if (helper) {
+            const rejectedHelper = helper
+            attempt(() => rejectedHelper.dispose())
+          }
+          if (mesh) {
+            const rejectedMesh = mesh
+            attempt(() => disposeObject3D(rejectedMesh))
+          }
+        }
+        if (renderTarget && cameraObjectsDetached) {
+          const rejectedRenderTarget = renderTarget
+          attempt(() => rejectedRenderTarget.dispose())
+        }
+        log.error('Camera placement failed before ownership transfer', {
+          error,
+          cleanupErrors,
+        })
+        addMessage('error', `KAMERA KONNTE NICHT AKTIVIERT WERDEN: ${designation}`)
+        return undefined
       }
 
       const nextCameras = [...existingCameras, newCamera]
       camerasRef.current = nextCameras
       setCameras(nextCameras)
+      cameraCounterRef.current[type] = nextCameraNumber
       addMessage('tactical', `${designation} AKTIVIERT`)
       return newCamera
     },
@@ -840,9 +914,17 @@ export default function CrebainViewer({
   const removeCamera = useCallback(
     (cameraId: string) => {
       if (embeddedInEngram) return
-      removeSurveillanceCameraOnce(sceneRef.current, camerasRef, setCameras, cameraId, (camera) =>
-        addMessage('system', `${camera.name} DEAKTIVIERT`)
-      )
+      try {
+        removeSurveillanceCameraOnce(sceneRef.current, camerasRef, setCameras, cameraId, (camera) =>
+          addMessage('system', `${camera.name} DEAKTIVIERT`)
+        )
+      } catch (error) {
+        // Disposal can report a listener/GPU cleanup failure after the camera
+        // has already left the graph. Reconcile the caches from the authoritative
+        // registry instead of abandoning the remainder of the transition.
+        log.warn('Camera removal completed with cleanup failures', { cameraId, error })
+      }
+      if (camerasRef.current.some((camera) => camera.id === cameraId)) return
       setSelectedCamera((current) => (current === cameraId ? null : current))
       // Free the per-camera feed state: the canvas ref callback also deletes
       // its entry on unmount, but the pixel-readback buffer and pooled
@@ -867,30 +949,58 @@ export default function CrebainViewer({
 
   const clearAllCameras = useCallback(() => {
     if (embeddedInEngram) return
-    disposeAllSurveillanceCamerasOnce(sceneRef.current, camerasRef, setCameras)
+    try {
+      disposeAllSurveillanceCamerasOnce(sceneRef.current, camerasRef, setCameras)
+    } catch (error) {
+      log.warn('Bulk camera removal completed with cleanup failures', { error })
+    }
+    const retainedIds = new Set(camerasRef.current.map((camera) => camera.id))
     resetVisualFusion(true)
-    setSelectedCamera(null)
-    feedCanvasRefs.current.clear()
-    feedBuffersRef.current.clear()
-    feedImageDataRef.current.clear()
-    feedLastRenderAtRef.current.clear()
+    setSelectedCamera((current) => (current && retainedIds.has(current) ? current : null))
+    for (const cameraId of feedCanvasRefs.current.keys()) {
+      if (!retainedIds.has(cameraId)) feedCanvasRefs.current.delete(cameraId)
+    }
+    for (const cameraId of feedBuffersRef.current.keys()) {
+      if (!retainedIds.has(cameraId)) feedBuffersRef.current.delete(cameraId)
+    }
+    for (const cameraId of feedImageDataRef.current.keys()) {
+      if (!retainedIds.has(cameraId)) feedImageDataRef.current.delete(cameraId)
+    }
+    for (const cameraId of feedLastRenderAtRef.current.keys()) {
+      if (!retainedIds.has(cameraId)) feedLastRenderAtRef.current.delete(cameraId)
+    }
     cameraDetectionsRef.current = new Map()
     setCameraDetections(new Map())
   }, [embeddedInEngram, resetVisualFusion])
 
   const renameCamera = useCallback(
-    (cameraId: string, newName: string) => {
-      if (embeddedInEngram) return
+    (cameraId: string, newName: string): boolean => {
+      if (embeddedInEngram) return false
+      const normalizedName = normalizeSurveillanceCameraName(newName)
+      if (!normalizedName) {
+        addMessage(
+          'warning',
+          `KAMERANAME MUSS 1–${MAX_SURVEILLANCE_CAMERA_NAME_BYTES} UTF-8-BYTES ENTHALTEN`
+        )
+        return false
+      }
       const current = camerasRef.current
-      if (!current.some((camera) => camera.id === cameraId)) return
+      if (!current.some((camera) => camera.id === cameraId)) return false
       const next = current.map((camera) =>
-        camera.id === cameraId ? { ...camera, name: newName } : camera
+        camera.id === cameraId ? { ...camera, name: normalizedName } : camera
       )
       camerasRef.current = next
       setCameras(next)
+      return true
     },
-    [embeddedInEngram]
+    [addMessage, embeddedInEngram]
   )
+
+  const beginCameraRename = useCallback((camera: SurveillanceCamera): void => {
+    cameraRenameCancelledRef.current = false
+    setEditingCameraId(camera.id)
+    setEditingCameraName(camera.name)
+  }, [])
 
   // GPU pixel readback is synchronous; the Promise contract is kept for API
   // stability and to match async camera-capture backends. Reuses the pooled
@@ -964,280 +1074,35 @@ export default function CrebainViewer({
     [addMessage, cameras, embeddedInEngram, exportCameraFeed]
   )
 
-  const testCoreMLInference = useCallback(async () => {
-    if (isTestingCoreML || isBenchmarking) return
-    if (!nativeAvailable) {
-      addMessage('error', 'NATIVE DETEKTION NUR IN DER DESKTOP-APP VERFÜGBAR (nicht im Browser)')
-      return
-    }
-
-    setIsTestingCoreML(true)
-    addMessage('info', 'NATIVE DETECTOR TEST: Generiere Testbild...')
-
-    try {
-      const canvas = document.createElement('canvas')
-      canvas.width = COREML_TEST_WIDTH
-      canvas.height = COREML_TEST_HEIGHT
-      const ctx = canvas.getContext('2d')
-      if (!ctx) throw new Error('Canvas context not available')
-
-      const gradient = ctx.createLinearGradient(0, 0, 0, COREML_TEST_HEIGHT)
-      gradient.addColorStop(0, '#87CEEB')
-      gradient.addColorStop(1, '#228B22')
-      ctx.fillStyle = gradient
-      ctx.fillRect(0, 0, COREML_TEST_WIDTH, COREML_TEST_HEIGHT)
-
-      ctx.fillStyle = '#8B4513'
-      ctx.fillRect(100, 280, 40, 100)
-      ctx.fillStyle = '#FFE4C4'
-      ctx.beginPath()
-      ctx.arc(120, 265, 20, 0, Math.PI * 2)
-      ctx.fill()
-
-      ctx.fillStyle = '#333'
-      ctx.beginPath()
-      ctx.moveTo(300, 100)
-      ctx.lineTo(320, 110)
-      ctx.lineTo(280, 110)
-      ctx.closePath()
-      ctx.fill()
-
-      ctx.fillStyle = '#C41E3A'
-      ctx.fillRect(400, 350, 120, 50)
-      ctx.fillStyle = '#222'
-      ctx.beginPath()
-      ctx.arc(430, 400, 15, 0, Math.PI * 2)
-      ctx.arc(490, 400, 15, 0, Math.PI * 2)
-      ctx.fill()
-
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-      const rgbaData = Array.from(imageData.data)
-
-      addMessage('info', 'NATIVE DETECTOR TEST: Starte Inferenz...')
-      const startTime = performance.now()
-
-      const result = await invoke<NativeDetectionResult>(TAURI_COMMANDS.detection.nativeRaw, {
-        rgbaData,
-        width: canvas.width,
-        height: canvas.height,
-        confidenceThreshold: DEFAULT_CONFIDENCE_THRESHOLD,
-        iouThreshold: DEFAULT_IOU_THRESHOLD,
-        maxDetections: DEFAULT_MAX_DETECTIONS,
-      })
-
-      const totalTime = performance.now() - startTime
-
-      if (result.success) {
-        const detCount = result.detections.length
-        const classes = result.detections.map((d) => d.classLabel).join(', ')
-        const backendText = result.backend ? ` [${result.backend}]` : ''
-        addMessage(
-          'success',
-          `NATIVE DETECTOR TEST ERFOLGREICH${backendText}: ${detCount} Detektionen in ${result.inferenceTimeMs.toFixed(2)}ms (Gesamt: ${totalTime.toFixed(2)}ms)`
-        )
-        if (detCount > 0) {
-          addMessage('info', `Erkannt: ${classes}`)
-        }
-
-        if (onDetectionComplete) {
-          onDetectionComplete({
-            inferenceTimeMs: result.inferenceTimeMs,
-            preprocessTimeMs: result.preprocessTimeMs ?? undefined,
-            postprocessTimeMs: result.postprocessTimeMs ?? undefined,
-            detectionCount: detCount,
-          })
-        }
-      } else {
-        addMessage('error', `NATIVE DETECTOR TEST FEHLER: ${result.error || 'Unbekannter Fehler'}`)
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      addMessage('error', `NATIVE DETECTOR TEST FEHLER: ${message}`)
-    } finally {
-      setIsTestingCoreML(false)
-      void refreshSystemInfo()
-    }
-  }, [
-    addMessage,
-    isBenchmarking,
-    isTestingCoreML,
-    nativeAvailable,
-    onDetectionComplete,
-    refreshSystemInfo,
-  ])
-
-  const cancelCoreMLBenchmark = useCallback(() => {
-    if (!isBenchmarking) return
-    benchmarkAbortRef.current = true
-    addMessage('warning', 'BENCHMARK: Abbruch angefordert')
-  }, [addMessage, isBenchmarking])
-
-  const runCoreMLBenchmark = useCallback(async () => {
-    if (isTestingCoreML || isBenchmarking) return
-    if (!nativeAvailable) {
-      addMessage('error', 'NATIVE DETEKTION NUR IN DER DESKTOP-APP VERFÜGBAR (nicht im Browser)')
-      return
-    }
-
-    const runId = benchmarkRunIdRef.current + 1
-    benchmarkRunIdRef.current = runId
-    benchmarkAbortRef.current = false
-
-    setIsBenchmarking(true)
-    setBenchmarkProgress(0)
-    addMessage('info', `BENCHMARK: Starte ${VIEWER_BENCHMARK_ITERATIONS} Inferenzen...`)
-
-    const latencies: number[] = []
-
-    try {
-      const canvas = document.createElement('canvas')
-      canvas.width = COREML_TEST_WIDTH
-      canvas.height = COREML_TEST_HEIGHT
-      const ctx = canvas.getContext('2d')
-      if (!ctx) throw new Error('Canvas context not available')
-
-      const gradient = ctx.createLinearGradient(0, 0, 0, COREML_TEST_HEIGHT)
-      gradient.addColorStop(0, '#87CEEB')
-      gradient.addColorStop(1, '#228B22')
-      ctx.fillStyle = gradient
-      ctx.fillRect(0, 0, COREML_TEST_WIDTH, COREML_TEST_HEIGHT)
-
-      ctx.fillStyle = '#8B4513'
-      ctx.fillRect(100, 280, 40, 100)
-      ctx.fillStyle = '#FFE4C4'
-      ctx.beginPath()
-      ctx.arc(120, 265, 20, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.fillStyle = '#C41E3A'
-      ctx.fillRect(400, 350, 120, 50)
-
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-      const rgbaData = Array.from(imageData.data)
-
-      addMessage('info', 'BENCHMARK: Aufwärmphase...')
-      await invoke<NativeDetectionResult>(TAURI_COMMANDS.detection.nativeRaw, {
-        rgbaData,
-        width: canvas.width,
-        height: canvas.height,
-        confidenceThreshold: DEFAULT_CONFIDENCE_THRESHOLD,
-        iouThreshold: DEFAULT_IOU_THRESHOLD,
-        maxDetections: DEFAULT_MAX_DETECTIONS,
-      })
-
-      if (benchmarkAbortRef.current) {
-        addMessage('warning', 'BENCHMARK: Abgebrochen')
-        return
-      }
-
-      addMessage('info', `BENCHMARK: Führe ${VIEWER_BENCHMARK_ITERATIONS} Iterationen aus...`)
-      const benchmarkStart = performance.now()
-
-      for (let i = 0; i < VIEWER_BENCHMARK_ITERATIONS; i++) {
-        if (benchmarkAbortRef.current) break
-
-        const result = await invoke<NativeDetectionResult>(TAURI_COMMANDS.detection.nativeRaw, {
-          rgbaData,
-          width: canvas.width,
-          height: canvas.height,
-          confidenceThreshold: DEFAULT_CONFIDENCE_THRESHOLD,
-          iouThreshold: DEFAULT_IOU_THRESHOLD,
-          maxDetections: DEFAULT_MAX_DETECTIONS,
-        })
-
-        if (
-          result.success &&
-          Number.isFinite(result.inferenceTimeMs) &&
-          result.inferenceTimeMs >= 0
-        ) {
-          latencies.push(result.inferenceTimeMs)
-        } else {
-          addMessage('warning', `BENCHMARK: Iteration ${i + 1} ohne Messwert übersprungen`)
-        }
-
-        if (
-          (i + 1) % VIEWER_BENCHMARK_PROGRESS_STEP === 0 ||
-          i + 1 === VIEWER_BENCHMARK_ITERATIONS
-        ) {
-          setBenchmarkProgress(((i + 1) / VIEWER_BENCHMARK_ITERATIONS) * 100)
-        }
-      }
-
-      if (benchmarkAbortRef.current) {
-        addMessage('warning', 'BENCHMARK: Abgebrochen')
-        return
-      }
-
-      if (latencies.length === 0) {
-        throw new Error('No successful benchmark measurements')
-      }
-
-      const totalTimeMs = performance.now() - benchmarkStart
-      const stats = calculateLatencyStats(latencies)
-      const mean = stats.mean
-      const squaredDiffs = latencies.map((latency) => (latency - mean) ** 2)
-      const avgSquaredDiff = squaredDiffs.reduce((a, b) => a + b, 0) / squaredDiffs.length
-      const stdDev = Math.sqrt(avgSquaredDiff)
-      const throughputFps = totalTimeMs > 0 ? (latencies.length / totalTimeMs) * 1000 : 0
-
-      setBenchmarkProgress(100)
-      addMessage('success', '═══════════════════════════════════════')
-      addMessage(
-        'success',
-        `BENCHMARK ERGEBNISSE (${latencies.length}/${VIEWER_BENCHMARK_ITERATIONS} Iterationen)`
-      )
-      addMessage('success', '═══════════════════════════════════════')
-      addMessage('info', `MIN:    ${stats.min.toFixed(2)} ms`)
-      addMessage('info', `MAX:    ${stats.max.toFixed(2)} ms`)
-      addMessage('info', `MEAN:   ${stats.mean.toFixed(2)} ms`)
-      addMessage('info', `MEDIAN: ${stats.p50.toFixed(2)} ms`)
-      addMessage('info', `P95:    ${stats.p95.toFixed(2)} ms`)
-      addMessage('info', `P99:    ${stats.p99.toFixed(2)} ms`)
-      addMessage('info', `STD:    ${stdDev.toFixed(2)} ms`)
-      addMessage('success', '───────────────────────────────────────')
-      addMessage('tactical', `DURCHSATZ: ${throughputFps.toFixed(1)} FPS`)
-      addMessage('tactical', `GESAMT:    ${totalTimeMs.toFixed(0)} ms`)
-      addMessage('success', '═══════════════════════════════════════')
-
-      if (onDetectionComplete) {
-        onDetectionComplete({
-          inferenceTimeMs: stats.mean,
-          detectionCount: latencies.length,
-        })
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      addMessage('error', `BENCHMARK FEHLER: ${message}`)
-    } finally {
-      if (benchmarkRunIdRef.current === runId) {
-        setIsBenchmarking(false)
-        setBenchmarkProgress(0)
-      }
-      void refreshSystemInfo()
-    }
-  }, [
-    addMessage,
-    isBenchmarking,
-    isTestingCoreML,
-    nativeAvailable,
-    onDetectionComplete,
-    refreshSystemInfo,
-  ])
-
   const detectionCameras = useMemo(
-    () => cameras.map((c) => ({ id: c.id, name: c.name, isActive: c.isActive })),
+    () =>
+      cameras.map((camera) => ({
+        id: camera.id,
+        name: camera.name,
+        isActive: camera.isActive,
+        instanceId: camera.camera.uuid,
+      })),
     [cameras]
   )
 
   useDetectionLoop({
     cameras: detectionCameras,
     exportCameraFeed,
-    enabled: !embeddedInEngram && nativeAvailable && detectionEnabled && cameras.length > 0,
+    enabled:
+      !embeddedInEngram &&
+      nativeDetectorReady &&
+      detectionEnabled &&
+      !isTestingCoreML &&
+      !isBenchmarking &&
+      cameras.length > 0,
     intervalMs: 100,
     confidenceThreshold: 0.25,
     onDetection: handleDetection,
     onPerformance: handlePerformance,
-    onError: (error, cameraId) =>
-      addMessage('error', `DETEKTION${cameraId ? ` [${cameraId}]` : ''}: ${error}`),
+    onError: (error, cameraId) => {
+      addMessage('error', `DETEKTION${cameraId ? ` [${cameraId}]` : ''}: ${error}`)
+      notifyObserver('Detection error', () => onDetectionError?.(error))
+    },
   })
 
   const selectableObjects = useMemo(() => {
@@ -1265,25 +1130,55 @@ export default function CrebainViewer({
 
       const drone = managedDrones.find((d) => d.mesh === object)
       if (drone) {
-        removeDrone(drone.id)
-        addMessage('system', `${drone.name} ENTFERNT`)
+        if (removeDrone(drone.id)) {
+          addMessage('system', `${drone.name} ENTFERNT`)
+        } else {
+          addMessage('warning', `${drone.name} BLEIBT WEGEN EINES BEREINIGUNGSFEHLERS AKTIV`)
+        }
         return
       }
 
       const asset = loadedAssets.find((a) => a.object === object)
       if (asset && sceneRef.current) {
-        sceneRef.current.remove(asset.object)
-        disposeObject3D(asset.object)
+        const scene = sceneRef.current
+        let removalError: unknown
+        try {
+          scene.remove(asset.object)
+        } catch (error) {
+          removalError = error
+        }
+        if (asset.object.parent !== null) {
+          log.warn('Loaded asset remains attached after removal failed', {
+            id: asset.id,
+            error: removalError,
+          })
+          addMessage('error', `ENTFERNEN FEHLGESCHLAGEN: ${asset.name}`)
+          return
+        }
+
+        // Detachment is the ownership transfer point. Retire the registry
+        // before disposal so a disposal failure cannot resurrect a dead asset.
         const nextAssets = loadedAssetsRef.current.filter((entry) => entry.id !== asset.id)
         loadedAssetsRef.current = nextAssets
         setLoadedAssets(nextAssets)
+        if (removalError !== undefined) {
+          log.warn('Loaded asset removal threw after detaching the object', {
+            id: asset.id,
+            error: removalError,
+          })
+        }
+        try {
+          disposeObject3D(asset.object)
+        } catch (error) {
+          log.warn('Loaded asset disposal failed after detachment', { id: asset.id, error })
+        }
         addMessage('system', `ENTFERNT: ${asset.name}`)
       }
     },
     [addMessage, cameras, embeddedInEngram, loadedAssets, managedDrones, removeCamera, removeDrone]
   )
 
-  const { selectedObjects, primarySelection, clearSelection } = useObjectSelection({
+  const { selectedObjects, primarySelection, select, clearSelection } = useObjectSelection({
     containerRef,
     cameraRef,
     sceneRef,
@@ -1388,9 +1283,11 @@ export default function CrebainViewer({
         !viewerMountedRef.current ||
         sceneRef.current !== scene ||
         splatLoadGenRef.current !== generation
-      lastSplatSourceRef.current = source
-      lastSplatNameRef.current = name
       const displayName = name || (source instanceof File ? source.name : 'OBJEKT')
+      if (!isBoundedSceneName(displayName)) {
+        addMessage('error', 'FEHLER: ASSETNAME IST LEER ODER ZU LANG')
+        return false
+      }
       const loadingToken = beginLoading(displayName)
 
       let loadTimeout: ReturnType<typeof setTimeout> | undefined
@@ -1409,12 +1306,6 @@ export default function CrebainViewer({
       assetAbortControllersRef.current.add(acquisitionController)
 
       try {
-        if (splatMeshRef.current) {
-          scene.remove(splatMeshRef.current)
-          splatMeshRef.current.dispose?.()
-          splatMeshRef.current = null
-        }
-
         let fileBytes: ArrayBuffer
 
         if (typeof source === 'string') {
@@ -1502,84 +1393,180 @@ export default function CrebainViewer({
               ? source.split('?')[0].split('/').pop() || displayName
               : displayName
 
-        const newSplat = new SplatMesh({
+        let newSplat: SplatMesh | null = null
+        let loadCallbackPending = false
+        const releaseCandidateSplat = () => {
+          const candidate = newSplat
+          if (!candidate) return
+          // Ownership has transferred to the live scene registry. A duplicate
+          // or late renderer callback must not tear down the committed splat.
+          if (splatMeshRef.current === candidate) return
+          let removalError: unknown
+          try {
+            scene.remove(candidate)
+          } catch (error) {
+            removalError = error
+          }
+          if (candidate.parent !== null) {
+            log.warn('Candidate splat remains attached after removal failed; keeping it live', {
+              error: removalError,
+            })
+            return
+          }
+          if (removalError !== undefined) {
+            log.warn('Candidate splat removal threw after detaching the object', {
+              error: removalError,
+            })
+          }
+          try {
+            candidate.dispose?.()
+          } catch (error) {
+            log.warn('Failed to dispose candidate splat scene', { error })
+          }
+        }
+        const handleSplatLoad = () => {
+          const candidate = newSplat
+          if (!candidate) {
+            // A renderer is permitted to report an already-resident asset
+            // from its constructor. Defer that callback until the candidate
+            // reference has transferred out of the constructor assignment.
+            loadCallbackPending = true
+            return
+          }
+          if (loadSettled) {
+            // Spark cannot cancel its byte-to-splat worker. A candidate can
+            // finish after our timeout or cancellation, so dispose it again
+            // after initialization releases the newly created GPU resources.
+            releaseCandidateSplat()
+            return
+          }
+          clearTimeout(loadTimeout)
+          clearInterval(progressInterval)
+          if (isStale()) {
+            releaseCandidateSplat()
+            finish(false)
+            return
+          }
+          if (isLatestLoading(loadingToken)) setLoadingProgress(100)
+
+          // Splats are captured in arbitrary world coords, so at the origin they
+          // often land off-center or underground and out of frame. Recenter on
+          // the origin, sit the scene on the ground plane, and frame the camera
+          // so it starts well-posed (no manual reset/focus needed).
+          try {
+            if (restoredTransform) {
+              candidate.position.set(
+                restoredTransform.position.x,
+                restoredTransform.position.y,
+                restoredTransform.position.z
+              )
+              candidate.rotation.set(
+                restoredTransform.rotation.x,
+                restoredTransform.rotation.y,
+                restoredTransform.rotation.z
+              )
+              candidate.scale.set(
+                restoredTransform.scale.x,
+                restoredTransform.scale.y,
+                restoredTransform.scale.z
+              )
+              candidate.updateMatrixWorld(true)
+            } else {
+              candidate.updateMatrixWorld(true)
+              const lb = candidate.getBoundingBox(true)
+              if (lb && Number.isFinite(lb.min.x) && !lb.isEmpty()) {
+                const wb = lb.clone().applyMatrix4(candidate.matrixWorld)
+                const center = wb.getCenter(new THREE.Vector3())
+                const size = wb.getSize(new THREE.Vector3())
+                candidate.position.x -= center.x
+                candidate.position.z -= center.z
+                candidate.position.y -= wb.min.y // rest on the grid
+                const dist = Math.max(size.x, size.y, size.z, 1) * 1.4
+                if (cameraRef.current && controlsRef.current) {
+                  cameraRef.current.position.set(dist, size.y * 0.5 + dist * 0.5, dist)
+                  controlsRef.current.target.set(0, size.y * 0.5, 0)
+                  velocity.current.set(0, 0, 0)
+                  controlsRef.current.update()
+                }
+              }
+            }
+          } catch {
+            /* framing is best-effort; never block the load */
+          }
+
+          // Commit only after the candidate has initialized. The previous
+          // splat remains visible and recoverable through acquisition,
+          // parsing, timeout, and format errors.
+          const replacedSplat = splatMeshRef.current
+          try {
+            const attachment = attachObject3DToScene(scene, candidate, 'splat scene')
+            if (!attachment.attached) {
+              throw new AggregateError(attachment.errors, 'The splat scene did not attach', {
+                cause: attachment.errors[0],
+              })
+            }
+            if (attachment.errors.length > 0) {
+              log.warn('Splat scene attached with scene-event failures', {
+                count: attachment.errors.length,
+                firstError: attachment.errors[0],
+              })
+            }
+            if (replacedSplat && replacedSplat !== candidate) {
+              let removalError: unknown
+              try {
+                scene.remove(replacedSplat)
+              } catch (error) {
+                removalError = error
+              }
+              if (replacedSplat.parent !== null) {
+                throw new AggregateError(
+                  removalError === undefined ? [] : [removalError],
+                  'The previous splat scene remains attached and cannot be disposed safely'
+                )
+              }
+              if (removalError !== undefined) {
+                log.warn('Replaced splat removal threw after detaching the object', {
+                  error: removalError,
+                })
+              }
+            }
+            splatMeshRef.current = candidate
+            lastSplatSourceRef.current = source
+            lastSplatNameRef.current = name
+          } catch (error) {
+            releaseCandidateSplat()
+            if (!isStale()) {
+              addMessage(
+                'error',
+                `FEHLER: ${error instanceof Error ? error.message : 'Splat konnte nicht aktiviert werden'}`
+              )
+            }
+            finish(false)
+            return
+          }
+          if (replacedSplat && replacedSplat !== candidate) {
+            try {
+              replacedSplat.dispose?.()
+            } catch (error) {
+              log.warn('Failed to dispose replaced splat scene', { error })
+            }
+          }
+
+          commitCurrentAsset(displayName)
+          addMessage('success', `GELADEN: ${displayName}`)
+          finish(true)
+        }
+        newSplat = new SplatMesh({
           fileBytes,
           fileName: splatFileName,
           ...(perfMaxSplatsRef.current > 0 ? { maxSplats: perfMaxSplatsRef.current } : {}),
-          onLoad: () => {
-            if (loadSettled) return // timed out or failed already
-            clearTimeout(loadTimeout)
-            clearInterval(progressInterval)
-            // A newer load superseded this one; it already removed/disposed
-            // this mesh via splatMeshRef, so just stand down.
-            if (isStale()) {
-              finish(false)
-              return
-            }
-            if (isLatestLoading(loadingToken)) setLoadingProgress(100)
-
-            // Splats are captured in arbitrary world coords, so at the origin they
-            // often land off-center or underground and out of frame. Recenter on
-            // the origin, sit the scene on the ground plane, and frame the camera
-            // so it starts well-posed (no manual reset/focus needed).
-            try {
-              if (restoredTransform) {
-                newSplat.position.set(
-                  restoredTransform.position.x,
-                  restoredTransform.position.y,
-                  restoredTransform.position.z
-                )
-                newSplat.rotation.set(
-                  restoredTransform.rotation.x,
-                  restoredTransform.rotation.y,
-                  restoredTransform.rotation.z
-                )
-                newSplat.scale.set(
-                  restoredTransform.scale.x,
-                  restoredTransform.scale.y,
-                  restoredTransform.scale.z
-                )
-                newSplat.updateMatrixWorld(true)
-              } else {
-                newSplat.updateMatrixWorld(true)
-                const lb = newSplat.getBoundingBox(true)
-                if (lb && Number.isFinite(lb.min.x) && !lb.isEmpty()) {
-                  const wb = lb.clone().applyMatrix4(newSplat.matrixWorld)
-                  const center = wb.getCenter(new THREE.Vector3())
-                  const size = wb.getSize(new THREE.Vector3())
-                  newSplat.position.x -= center.x
-                  newSplat.position.z -= center.z
-                  newSplat.position.y -= wb.min.y // rest on the grid
-                  const dist = Math.max(size.x, size.y, size.z, 1) * 1.4
-                  if (cameraRef.current && controlsRef.current) {
-                    cameraRef.current.position.set(dist, size.y * 0.5 + dist * 0.5, dist)
-                    controlsRef.current.target.set(0, size.y * 0.5, 0)
-                    velocity.current.set(0, 0, 0)
-                    controlsRef.current.update()
-                  }
-                }
-              }
-            } catch {
-              /* framing is best-effort; never block the load */
-            }
-
-            setTimeout(() => {
-              if (isStale()) return
-              setCurrentAsset(displayName)
-              addMessage('success', `GELADEN: ${displayName}`)
-            }, 300)
-            finish(true)
-          },
+          onLoad: handleSplatLoad,
         })
         cancelRenderer = () => {
           if (loadSettled) return
           clearTimeout(loadTimeout)
           clearInterval(progressInterval)
-          if (splatMeshRef.current === newSplat) {
-            scene.remove(newSplat)
-            newSplat.dispose?.()
-            splatMeshRef.current = null
-          }
+          releaseCandidateSplat()
           finish(false)
         }
         if (!loadSettled) {
@@ -1587,7 +1574,7 @@ export default function CrebainViewer({
             if (loadSettled) return
             cancelCurrentLoad()
             if (!isStale()) addMessage('error', `ZEITÜBERSCHREITUNG: ${displayName}`)
-          }, 120000)
+          }, SPLAT_LOAD_TIMEOUT_MS)
         }
         newSplat.position.set(0, 0, 0)
         if (restoredTransform) {
@@ -1609,19 +1596,20 @@ export default function CrebainViewer({
         } else {
           newSplat.rotation.set(Math.PI, 0, 0)
         }
-        scene.add(newSplat)
-        splatMeshRef.current = newSplat
+        // A renderer can invoke onLoad from its constructor for resident data.
+        // Apply the requested transform before replaying that deferred callback
+        // so bounding and camera framing observe the same pose as async loads.
+        if (loadCallbackPending) handleSplatLoad()
         // Spark has no onError option; `initialized` rejects on load failure
         // (e.g. unknown splat format), so clean up and surface it from there.
         newSplat.initialized.catch((error: unknown) => {
-          if (loadSettled) return
+          if (loadSettled) {
+            releaseCandidateSplat()
+            return
+          }
           clearTimeout(loadTimeout)
           clearInterval(progressInterval)
-          if (splatMeshRef.current === newSplat) {
-            scene.remove(newSplat)
-            newSplat.dispose?.()
-            splatMeshRef.current = null
-          }
+          releaseCandidateSplat()
           if (!isStale()) {
             addMessage('error', `FEHLER: ${error instanceof Error ? error.message : 'Unbekannt'}`)
           }
@@ -1643,7 +1631,7 @@ export default function CrebainViewer({
         finishLoading(loadingToken)
       }
     },
-    [addMessage, beginLoading, embeddedInEngram, finishLoading, isLatestLoading]
+    [addMessage, beginLoading, commitCurrentAsset, embeddedInEngram, finishLoading, isLatestLoading]
   )
 
   const loadGlb = useCallback(
@@ -1658,6 +1646,10 @@ export default function CrebainViewer({
       }
       if (!sceneRef.current || !glbLoaderRef.current) return null
       const displayName = name || (source instanceof File ? source.name : 'MODELL')
+      if (!isBoundedSceneName(displayName)) {
+        addMessage('error', 'FEHLER: ASSETNAME IST LEER ODER ZU LANG')
+        return null
+      }
       const reservation = Symbol(displayName)
       const pendingReservations = pendingAssetReservationsRef.current
       const pendingResourceReservations = pendingAssetResourceReservationsRef.current
@@ -1682,6 +1674,34 @@ export default function CrebainViewer({
         !viewerMountedRef.current ||
         sceneRef.current !== scene ||
         assetLoadGenerationRef.current !== generation
+      let candidateModel: THREE.Object3D | null = null
+      const releaseCandidateModel = () => {
+        const model = candidateModel
+        if (!model) return
+        let removalError: unknown
+        try {
+          scene.remove(model)
+        } catch (error) {
+          removalError = error
+        }
+        if (model.parent !== null) {
+          log.warn('Rejected GLB model remains attached after removal failed; keeping it live', {
+            error: removalError,
+          })
+          return
+        }
+        candidateModel = null
+        if (removalError !== undefined) {
+          log.warn('Rejected GLB removal threw after detaching the object', {
+            error: removalError,
+          })
+        }
+        try {
+          disposeObject3D(model)
+        } catch (error) {
+          log.warn('Failed to dispose rejected GLB model', { error })
+        }
+      }
 
       try {
         if (typeof source === 'string' && !isReloadableGlbSource(source)) {
@@ -1731,11 +1751,54 @@ export default function CrebainViewer({
         )
 
         const gltf = await new Promise<GLTF>((resolve, reject) => {
-          loader.parse(bytes, '', resolve, reject)
+          let settled = false
+          let acceptedScene: THREE.Object3D | null = null
+          const timeout = setTimeout(() => {
+            settled = true
+            reject(new Error(`GLB parsing exceeded ${GLB_PARSE_TIMEOUT_MS} milliseconds`))
+          }, GLB_PARSE_TIMEOUT_MS)
+          try {
+            loader.parse(
+              bytes,
+              '',
+              (parsed) => {
+                if (settled) {
+                  // A broken loader can invoke the success callback twice with
+                  // the same graph. Never dispose the graph already transferred
+                  // to the first completion; reclaim only a distinct late graph.
+                  if (parsed.scene !== acceptedScene) {
+                    try {
+                      disposeObject3D(parsed.scene)
+                    } catch (error) {
+                      log.warn('Failed to dispose a GLB model that completed after its deadline', {
+                        error,
+                      })
+                    }
+                  }
+                  return
+                }
+                settled = true
+                acceptedScene = parsed.scene
+                clearTimeout(timeout)
+                resolve(parsed)
+              },
+              (error) => {
+                if (settled) return
+                settled = true
+                clearTimeout(timeout)
+                reject(normalizeOperationError(error, 'GLB parser returned a non-Error failure'))
+              }
+            )
+          } catch (error) {
+            settled = true
+            clearTimeout(timeout)
+            reject(normalizeOperationError(error, 'GLB parser threw a non-Error failure'))
+          }
         })
         const model = gltf.scene
+        candidateModel = model
         if (isStale()) {
-          disposeObject3D(model)
+          releaseCandidateModel()
           return null
         }
         model.name = displayName
@@ -1761,7 +1824,6 @@ export default function CrebainViewer({
           model.position.copy(camera.position).add(dir.multiplyScalar(3))
           model.position.y = 0
         }
-        scene.add(model)
         const asset: LoadedAsset = {
           id: assetId,
           name: displayName,
@@ -1771,12 +1833,29 @@ export default function CrebainViewer({
           byteSize: bytes.byteLength,
           glbValidation,
         }
+        const attachment = attachObject3DToScene(scene, model, `GLB asset ${assetId}`)
+        if (!attachment.attached) {
+          throw new AggregateError(attachment.errors, `Cannot activate GLB asset ${assetId}`, {
+            cause: attachment.errors[0],
+          })
+        }
+        if (attachment.errors.length > 0) {
+          log.warn('GLB asset attached with scene-event failures', {
+            id: assetId,
+            count: attachment.errors.length,
+            firstError: attachment.errors[0],
+          })
+        }
         const nextAssets = [...loadedAssetsRef.current, asset]
         loadedAssetsRef.current = nextAssets
+        // The live asset registry now owns the scene object. The rejection
+        // cleanup path must not release it after this transfer point.
+        candidateModel = null
         setLoadedAssets(nextAssets)
         addMessage('success', `GELADEN: ${displayName}`)
         return asset
       } catch (error) {
+        releaseCandidateModel()
         if (!isStale()) {
           addMessage('error', `FEHLER: ${error instanceof Error ? error.message : 'Unbekannt'}`)
         }
@@ -1798,6 +1877,10 @@ export default function CrebainViewer({
       }
       if (!sceneRef.current) return
       const displayName = name || (source instanceof File ? source.name : 'BODEN')
+      if (!isBoundedSceneName(displayName)) {
+        addMessage('error', 'FEHLER: TEXTURNAME IST LEER ODER ZU LANG')
+        return
+      }
       const loadingToken = beginLoading(displayName)
       floorLoadingTokenRef.current = loadingToken
 
@@ -1847,37 +1930,94 @@ export default function CrebainViewer({
         ) {
           throw new Error(`Texture dimensions exceed ${MAX_FLOOR_TEXTURE_PIXELS} pixels`)
         }
-        const bitmap = await createImageBitmap(new Blob([bytes]))
+        const bitmap = await runWithOperationDeadline(
+          async (guard) => {
+            const decoded = await createImageBitmap(new Blob([bytes]))
+            if (!guard.isActive()) {
+              try {
+                decoded.close()
+              } finally {
+                guard.assertActive()
+              }
+            }
+            return decoded
+          },
+          {
+            timeoutMs: IMAGE_DECODE_TIMEOUT_MS,
+            timeoutMessage: `Texture decoding exceeded ${IMAGE_DECODE_TIMEOUT_MS} milliseconds`,
+            supersededMessage: 'Texture decoding was superseded',
+            isCurrent: () => !isStale(),
+            onTimeout: () => undefined,
+          }
+        )
         if (isStale()) {
           bitmap.close()
           return
         }
-        const texture = new THREE.Texture(bitmap)
-        texture.needsUpdate = true
-        texture.colorSpace = THREE.SRGBColorSpace
-        texture.wrapS = THREE.RepeatWrapping
-        texture.wrapT = THREE.RepeatWrapping
+        let texture: THREE.Texture | null = null
+        let geometry: THREE.PlaneGeometry | null = null
+        let material: THREE.MeshStandardMaterial | null = null
+        let candidate: THREE.Mesh | null = null
+        try {
+          texture = new THREE.Texture(bitmap)
+          texture.needsUpdate = true
+          texture.colorSpace = THREE.SRGBColorSpace
+          texture.wrapS = THREE.RepeatWrapping
+          texture.wrapT = THREE.RepeatWrapping
 
-        const aspect = width / height
-        const size = 200
-        if (floorMeshRef.current) {
-          scene.remove(floorMeshRef.current)
-          disposeObject3D(floorMeshRef.current)
+          const aspect = width / height
+          const size = 200
+          geometry = new THREE.PlaneGeometry(size * aspect, size)
+          geometry.rotateX(-Math.PI / 2)
+          material = new THREE.MeshStandardMaterial({
+            map: texture,
+            roughness: 0.8,
+            metalness: 0.2,
+          })
+          candidate = new THREE.Mesh(geometry, material)
+          candidate.position.y = -0.05
+          candidate.receiveShadow = true
+          candidate.userData.isFloor = true
+        } catch (error) {
+          const cleanupErrors: unknown[] = []
+          const attempt = (operation: () => void) => {
+            try {
+              operation()
+            } catch (cleanupError) {
+              cleanupErrors.push(cleanupError)
+            }
+          }
+          if (candidate) {
+            const rejectedCandidate = candidate
+            attempt(() => scene.remove(rejectedCandidate))
+            attempt(() => disposeObject3D(rejectedCandidate))
+          } else {
+            const rejectedMaterial = material
+            const rejectedGeometry = geometry
+            const rejectedTexture = texture
+            if (rejectedMaterial) attempt(() => rejectedMaterial.dispose())
+            if (rejectedGeometry) attempt(() => rejectedGeometry.dispose())
+            if (rejectedTexture) attempt(() => rejectedTexture.dispose())
+            attempt(() => bitmap.close())
+          }
+          if (cleanupErrors.length > 0) {
+            throw new AggregateError(
+              [error, ...cleanupErrors],
+              'Floor texture activation and cleanup failed',
+              { cause: error }
+            )
+          }
+          throw error
         }
 
-        const geometry = new THREE.PlaneGeometry(size * aspect, size)
-        geometry.rotateX(-Math.PI / 2)
-        const material = new THREE.MeshStandardMaterial({
-          map: texture,
-          roughness: 0.8,
-          metalness: 0.2,
-        })
-        const mesh = new THREE.Mesh(geometry, material)
-        mesh.position.y = -0.05
-        mesh.receiveShadow = true
-        mesh.userData.isFloor = true
-        scene.add(mesh)
-        floorMeshRef.current = mesh
+        const cleanupFailures = activateFloorMesh(scene, floorMeshRef.current, candidate)
+        floorMeshRef.current = candidate
+        for (const failure of cleanupFailures) {
+          log.warn('Floor activation completed with a recoverable lifecycle failure', {
+            phase: failure.phase,
+            error: failure.error,
+          })
+        }
 
         addMessage('success', `BODENTEXTUR: ${displayName}`)
       } catch (error) {
@@ -1906,21 +2046,34 @@ export default function CrebainViewer({
         floorLoadingTokenRef.current = null
       }
 
-      if (floorMeshRef.current) {
-        sceneRef.current.remove(floorMeshRef.current)
-        disposeObject3D(floorMeshRef.current)
-        floorMeshRef.current = null
+      const scene = sceneRef.current
+      let candidate: THREE.Mesh
+      try {
+        candidate = type === 'terrain' ? createTerrainMesh() : createProceduralFloor(type)
+      } catch (error) {
+        addMessage(
+          'error',
+          `BODEN KONNTE NICHT AKTIVIERT WERDEN: ${error instanceof Error ? error.message : type}`
+        )
+        return
       }
 
-      let mesh: THREE.Mesh
-      if (type === 'terrain') {
-        mesh = createTerrainMesh()
-      } else {
-        mesh = createProceduralFloor(type)
+      try {
+        const cleanupFailures = activateFloorMesh(scene, floorMeshRef.current, candidate)
+        floorMeshRef.current = candidate
+        for (const failure of cleanupFailures) {
+          log.warn('Procedural floor activation completed with a recoverable lifecycle failure', {
+            phase: failure.phase,
+            error: failure.error,
+          })
+        }
+      } catch (error) {
+        addMessage(
+          'error',
+          `BODEN KONNTE NICHT AKTIVIERT WERDEN: ${error instanceof Error ? error.message : type}`
+        )
+        return
       }
-
-      sceneRef.current.add(mesh)
-      floorMeshRef.current = mesh
       addMessage('success', `BODEN: ${type.toUpperCase()}`)
     },
     [addMessage, embeddedInEngram, finishLoading]
@@ -1963,6 +2116,40 @@ export default function CrebainViewer({
     controlsRef.current.update()
     addMessage('system', 'ANSICHT ZURÜCKGESETZT')
   }, [addMessage])
+
+  const removeCurrentSplat = useCallback(() => {
+    const splat = splatMeshRef.current
+    const scene = sceneRef.current
+    if (!splat || !scene) return
+
+    let removalError: unknown
+    try {
+      scene.remove(splat)
+    } catch (error) {
+      removalError = error
+    }
+    if (splat.parent !== null) {
+      log.warn('Splat remains attached after removal failed', { error: removalError })
+      addMessage('error', 'SPLAT KONNTE NICHT ENTFERNT WERDEN')
+      return
+    }
+
+    // Retire live ownership before disposal. The reload source must retire at
+    // the same point or performance-mode reload can resurrect removed bytes.
+    splatMeshRef.current = null
+    lastSplatSourceRef.current = null
+    lastSplatNameRef.current = undefined
+    commitCurrentAsset(null)
+    if (removalError !== undefined) {
+      log.warn('Splat removal threw after detaching the object', { error: removalError })
+    }
+    try {
+      splat.dispose?.()
+    } catch (error) {
+      log.warn('Splat disposal failed after detachment', { error })
+    }
+    addMessage('system', 'ENTFERNT')
+  }, [addMessage, commitCurrentAsset])
 
   const focusOnContent = useCallback(() => {
     if (!cameraRef.current || !controlsRef.current || !sceneRef.current) return
@@ -2015,8 +2202,10 @@ export default function CrebainViewer({
       )
         return
       const rect = containerRef.current.getBoundingClientRect()
-      mouseRef.current.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
-      mouseRef.current.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+      const viewportWidth = Math.max(rect.width, 1)
+      const viewportHeight = Math.max(rect.height, 1)
+      mouseRef.current.x = ((event.clientX - rect.left) / viewportWidth) * 2 - 1
+      mouseRef.current.y = -((event.clientY - rect.top) / viewportHeight) * 2 + 1
       raycasterRef.current.setFromCamera(mouseRef.current, cameraRef.current)
       const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
       const intersection = new THREE.Vector3()
@@ -2059,8 +2248,8 @@ export default function CrebainViewer({
     viewerMountedRef.current = true
     const container = containerRef.current
     const assetAbortControllers = assetAbortControllersRef.current
-    const width = container.clientWidth
-    const height = container.clientHeight
+    const width = Math.max(container.clientWidth, 1)
+    const height = Math.max(container.clientHeight, 1)
 
     const scene = new THREE.Scene()
     scene.background = new THREE.Color(0x0a0a0a)
@@ -2153,7 +2342,7 @@ export default function CrebainViewer({
       }
 
       const now = performance.now()
-      const deltaTime = Math.min((now - lastFrameTime.current) / 1000, 0.1)
+      const deltaTime = Math.max(0, Math.min((now - lastFrameTime.current) / 1000, 0.1))
       lastFrameTime.current = now
 
       const ms = moveState.current
@@ -2179,22 +2368,22 @@ export default function CrebainViewer({
       if (ms.up) targetVelocity.y += cfg.verticalSpeed * speedMultiplier
       if (ms.down) targetVelocity.y -= cfg.verticalSpeed * speedMultiplier
 
-      const isMoving = targetVelocity.length() > 0.001
+      const isMoving = targetVelocity.lengthSq() > 0.000001
       const accelRate = isMoving ? cfg.acceleration : cfg.deceleration
       velocityDiff.subVectors(targetVelocity, velocity.current)
       const maxDelta = accelRate * deltaTime
 
-      if (velocityDiff.length() <= maxDelta) {
+      if (velocityDiff.lengthSq() <= maxDelta * maxDelta) {
         velocity.current.copy(targetVelocity)
       } else {
         velocity.current.addScaledVector(velocityDiff.normalize(), maxDelta)
       }
 
-      if (velocity.current.length() > cfg.maxVelocity) {
+      if (velocity.current.lengthSq() > cfg.maxVelocity * cfg.maxVelocity) {
         velocity.current.normalize().multiplyScalar(cfg.maxVelocity)
       }
 
-      if (velocity.current.length() > 0.001) {
+      if (velocity.current.lengthSq() > 0.000001) {
         movement.copy(velocity.current).multiplyScalar(deltaTime)
         camera.position.add(movement)
         controls.target.add(movement)
@@ -2231,8 +2420,8 @@ export default function CrebainViewer({
     let containerRect = container.getBoundingClientRect()
 
     const handleResize = () => {
-      const w = container.clientWidth
-      const h = container.clientHeight
+      const w = Math.max(container.clientWidth, 1)
+      const h = Math.max(container.clientHeight, 1)
       camera.aspect = w / h
       camera.updateProjectionMatrix()
       renderer.setSize(w, h)
@@ -2334,8 +2523,10 @@ export default function CrebainViewer({
     }
 
     const handleMouseMove = (event: MouseEvent) => {
-      mouseRef.current.x = ((event.clientX - containerRect.left) / containerRect.width) * 2 - 1
-      mouseRef.current.y = -((event.clientY - containerRect.top) / containerRect.height) * 2 + 1
+      const viewportWidth = Math.max(containerRect.width, 1)
+      const viewportHeight = Math.max(containerRect.height, 1)
+      mouseRef.current.x = ((event.clientX - containerRect.left) / viewportWidth) * 2 - 1
+      mouseRef.current.y = -((event.clientY - containerRect.top) / viewportHeight) * 2 + 1
     }
 
     const handleVisibilityChange = () => {
@@ -2349,6 +2540,14 @@ export default function CrebainViewer({
     container.addEventListener('mousemove', handleMouseMove)
 
     return () => {
+      const cleanupErrors: unknown[] = []
+      const attemptCleanup = (operation: () => void) => {
+        try {
+          operation()
+        } catch (error) {
+          cleanupErrors.push(error)
+        }
+      }
       renderer.setAnimationLoop(null)
       window.removeEventListener('resize', handleResize)
       window.removeEventListener('keydown', handleKeyDown)
@@ -2361,62 +2560,94 @@ export default function CrebainViewer({
       splatLoadGenRef.current += 1
       assetLoadGenerationRef.current += 1
       sceneRestoreGenerationRef.current += 1
-      for (const controller of assetAbortControllers) controller.abort()
+      for (const controller of assetAbortControllers) {
+        attemptCleanup(() => controller.abort())
+      }
       assetAbortControllers.clear()
-      splatCancellationRef.current?.()
+      attemptCleanup(() => splatCancellationRef.current?.())
       splatCancellationRef.current = null
       // GLTFLoader.parse is callback-only and cannot be aborted. Its source
       // and derived-resource reservations remain until loadGlb's finally path
       // runs, even though this component will admit no further work unmounted.
       // Dispose floor mesh if it exists
-      if (floorMeshRef.current) {
-        disposeObject3D(floorMeshRef.current)
-        floorMeshRef.current = null
+      const floor = floorMeshRef.current
+      floorMeshRef.current = null
+      if (floor) {
+        attemptCleanup(() => scene.remove(floor))
+        attemptCleanup(() => disposeObject3D(floor))
       }
       // Dispose tactical grid (ShaderMaterial + 2000x2000 PlaneGeometry)
-      if (gridRef.current) {
-        scene.remove(gridRef.current)
-        disposeObject3D(gridRef.current)
-        gridRef.current = null
+      const grid = gridRef.current
+      gridRef.current = null
+      if (grid) {
+        attemptCleanup(() => scene.remove(grid))
+        attemptCleanup(() => disposeObject3D(grid))
       }
       // Dispose grid label sprites (each owns a SpriteMaterial + CanvasTexture map)
-      if (gridLabelsRef.current) {
-        gridLabelsRef.current.traverse((obj) => {
-          const sprite = obj as THREE.Sprite
-          if (sprite.isSprite) {
-            sprite.material.map?.dispose()
-            sprite.material.dispose()
-          }
-        })
-        scene.remove(gridLabelsRef.current)
-        gridLabelsRef.current = null
+      const gridLabels = gridLabelsRef.current
+      gridLabelsRef.current = null
+      if (gridLabels) {
+        attemptCleanup(() => scene.remove(gridLabels))
+        if (gridLabels.parent === null) {
+          attemptCleanup(() =>
+            gridLabels.traverse((obj) => {
+              const sprite = obj as THREE.Sprite
+              if (sprite.isSprite) {
+                attemptCleanup(() => sprite.material.map?.dispose())
+                attemptCleanup(() => sprite.material.dispose())
+              }
+            })
+          )
+        } else {
+          cleanupErrors.push(new Error('Grid labels remain attached during viewer teardown'))
+        }
       }
-      // Dispose ghost drone preview mesh
-      scene.remove(ghostDroneRef)
-      ghostDroneGeometry.dispose()
-      ghostDroneMaterial.dispose()
-      if (splatMeshRef.current) {
-        scene.remove(splatMeshRef.current)
-        splatMeshRef.current.dispose?.()
-        splatMeshRef.current = null
+      // Dispose ghost drone preview mesh.
+      attemptCleanup(() => scene.remove(ghostDroneRef))
+      if (ghostDroneRef.parent === null) {
+        attemptCleanup(() => ghostDroneGeometry.dispose())
+        attemptCleanup(() => ghostDroneMaterial.dispose())
+      } else {
+        cleanupErrors.push(new Error('Ghost drone remains attached during viewer teardown'))
       }
-      for (const asset of loadedAssetsRef.current) {
-        scene.remove(asset.object)
-        disposeObject3D(asset.object)
+      const splat = splatMeshRef.current
+      splatMeshRef.current = null
+      if (splat) {
+        attemptCleanup(() => scene.remove(splat))
+        if (splat.parent === null) {
+          attemptCleanup(() => splat.dispose?.())
+        } else {
+          cleanupErrors.push(new Error('Splat remains attached during viewer teardown'))
+        }
       }
+      const assets = loadedAssetsRef.current
       loadedAssetsRef.current = []
-      disposeAllSurveillanceCamerasOnce(scene, camerasRef)
-      controls.dispose()
-      renderer.dispose()
+      for (const asset of assets) {
+        attemptCleanup(() => scene.remove(asset.object))
+        attemptCleanup(() => disposeObject3D(asset.object))
+      }
+      attemptCleanup(() => disposeAllSurveillanceCamerasOnce(scene, camerasRef))
+      attemptCleanup(() => controls.dispose())
+      attemptCleanup(() => renderer.dispose())
       // Release the WebGL context so the GPU frees all uploaded buffers/textures
       // (grid, splat, camera render targets, loaded GLBs) that the mount-time
       // closure cannot reach. Critical under StrictMode double-invoke.
-      renderer.forceContextLoss()
-      container.removeChild(renderer.domElement)
+      attemptCleanup(() => renderer.forceContextLoss())
+      attemptCleanup(() => {
+        if (renderer.domElement.parentNode === container) {
+          container.removeChild(renderer.domElement)
+        }
+      })
       sceneRef.current = null
       cameraRef.current = null
       rendererRef.current = null
       controlsRef.current = null
+      if (cleanupErrors.length > 0) {
+        log.warn('Viewer teardown completed with resource-cleanup failures', {
+          count: cleanupErrors.length,
+          firstError: cleanupErrors[0],
+        })
+      }
     }
     // MOVE_CONFIG and addMessage are stable (useMemo/useCallback with []), so the
     // scene-setup effect still runs once at mount.
@@ -2571,7 +2802,7 @@ export default function CrebainViewer({
       isUpdating = true
 
       const now = performance.now()
-      const patrolDt = Math.min((now - lastPatrolTime) / 1000, 0.5)
+      const patrolDt = Math.max(0, Math.min((now - lastPatrolTime) / 1000, 0.5))
       lastPatrolTime = now
 
       try {
@@ -2589,15 +2820,19 @@ export default function CrebainViewer({
             cam.camera.position.lerp(end, lerpFactor)
             cam.mesh.position.copy(cam.camera.position)
 
-            if (cam.camera.position.distanceTo(end) < PATROL_ARRIVAL_THRESHOLD) {
+            if (
+              cam.camera.position.distanceToSquared(end) <
+              PATROL_ARRIVAL_THRESHOLD * PATROL_ARRIVAL_THRESHOLD
+            ) {
               cam.patrolIndex = (patrolIndex + 1) % cam.patrolPoints.length
             }
 
             const start = cam.patrolPoints[patrolIndex]
             const scratch = patrolScratchVec.current
-            scratch.subVectors(end, start).normalize()
+            scratch.subVectors(end, start)
 
             if (scratch.lengthSq() > 0.000001) {
+              scratch.normalize()
               scratch.add(cam.camera.position) // Reuse vector for target position
               cam.camera.lookAt(scratch)
               cam.mesh.quaternion.copy(cam.camera.quaternion)
@@ -2746,6 +2981,9 @@ export default function CrebainViewer({
 
   const createSceneSnapshot = useCallback(
     (sceneName: string): SceneState => {
+      if (!isBoundedSceneName(sceneName)) {
+        throw new Error(`Scene name must contain 1–${MAX_SCENE_NAME_BYTES} UTF-8 bytes and no NUL`)
+      }
       const persistedCameras: CrebainCamera[] = cameras.map((camera) => ({
         id: camera.id,
         name: camera.name,
@@ -2870,31 +3108,104 @@ export default function CrebainViewer({
   const restoreScene = useCallback(
     async (state: SceneState): Promise<void> => {
       if (!physicsReady) throw new Error('Physics engine is still initializing')
+      if (sceneRestoreInFlightRef.current) {
+        throw new Error('SCENE_RESTORE_BUSY: another scene restore is still active')
+      }
+      sceneRestoreInFlightRef.current = true
       const previousSettings = {
         detectionEnabled,
         showDetectionPanel,
         performancePanelVisible,
       }
+      const previousSimulationPaused = isPaused
+      const previousThreatLevel = threatLevel
       const previousViewPosition = cameraRef.current?.position.clone() ?? null
       const previousViewTarget = controlsRef.current?.target.clone() ?? null
+      const previousSelectedObjects = [...selectedObjects]
+      const previousSelectedCamera = selectedCamera
+      const previousCameraDetections = cameraDetectionsRef.current
+      const previousCameraCounter = { ...cameraCounterRef.current }
+      const previousPersistenceWarning = persistenceWarningActiveRef.current
+      const previousCurrentAsset = currentAssetRef.current
+      const previousAssets = loadedAssetsRef.current
+      const previousSplat = splatMeshRef.current
+      const previousSplatSource = lastSplatSourceRef.current
+      const previousSplatName = lastSplatNameRef.current
       const restoreGeneration = ++sceneRestoreGenerationRef.current
       const isCurrentRestore = () =>
         viewerMountedRef.current && sceneRestoreGenerationRef.current === restoreGeneration
+      let detachedCameras: SurveillanceCamera[] | null = null
+      let detachedAssets: LoadedAsset[] | null = null
+      let detachedSplat: SplatMesh | null = null
+      let droneSuspension: ReturnType<typeof suspendDronesForSceneRestore> | null = null
+      let replacementSceneMayOwnResources = false
       const clearLoadedSceneAssets = () => {
-        for (const asset of loadedAssetsRef.current) {
-          sceneRef.current?.remove(asset.object)
-          disposeObject3D(asset.object)
-        }
+        const assets = loadedAssetsRef.current
+        const replacementSplatSource = lastSplatSourceRef.current
+        const replacementSplatName = lastSplatNameRef.current
+        const replacementCurrentAsset = currentAssetRef.current
         loadedAssetsRef.current = []
         setLoadedAssets([])
-        if (splatMeshRef.current) {
-          sceneRef.current?.remove(splatMeshRef.current)
-          splatMeshRef.current.dispose?.()
-          splatMeshRef.current = null
-        }
+        const splat = splatMeshRef.current
+        splatMeshRef.current = null
         lastSplatSourceRef.current = null
         lastSplatNameRef.current = undefined
-        setCurrentAsset(null)
+        commitCurrentAsset(null)
+
+        const cleanupErrors: unknown[] = []
+        const retainedAssets: LoadedAsset[] = []
+        for (const asset of assets) {
+          try {
+            sceneRef.current?.remove(asset.object)
+          } catch (error) {
+            cleanupErrors.push(error)
+          }
+          if (asset.object.parent !== null) {
+            retainedAssets.push(asset)
+            cleanupErrors.push(
+              new Error(`Partial-scene asset ${asset.id} remains attached after cleanup`)
+            )
+            continue
+          }
+          try {
+            disposeObject3D(asset.object)
+          } catch (error) {
+            cleanupErrors.push(error)
+          }
+        }
+        if (retainedAssets.length > 0) {
+          loadedAssetsRef.current = retainedAssets
+          setLoadedAssets(retainedAssets)
+        }
+        if (splat) {
+          try {
+            sceneRef.current?.remove(splat)
+          } catch (error) {
+            cleanupErrors.push(error)
+          }
+          if (splat.parent !== null) {
+            cleanupErrors.push(new Error('Partial-scene splat did not detach'))
+            // The live registry must continue to own an attached resource.
+            // Restore the exact metadata captured before the cleanup attempt.
+            splatMeshRef.current = splat
+            lastSplatSourceRef.current = replacementSplatSource
+            lastSplatNameRef.current = replacementSplatName
+            commitCurrentAsset(replacementCurrentAsset)
+          } else {
+            try {
+              splat.dispose?.()
+            } catch (error) {
+              cleanupErrors.push(error)
+            }
+          }
+        }
+        if (cleanupErrors.length > 0) {
+          log.warn('Partial scene cleanup released ownership with disposal failures', {
+            count: cleanupErrors.length,
+            firstError: cleanupErrors[0],
+          })
+          throw new AggregateError(cleanupErrors, 'Partial scene asset cleanup failed')
+        }
       }
       const cancelPendingAssetOperations = () => {
         assetLoadGenerationRef.current += 1
@@ -2907,26 +3218,235 @@ export default function CrebainViewer({
         // those reservations until each stale load reaches its finally path.
         cancelLoadingOperations()
       }
-      const rollbackFailedRestore = () => {
-        // A stale failure must not clear a newer restore. When this restore is
-        // current, invalidate every nested asynchronous path before disposing
-        // the partial scene. resetSimulation also advances the drone-spawn
-        // generation, so a late GLTF callback can only dispose its own mesh.
-        if (!isCurrentRestore()) return
-        sceneRestoreGenerationRef.current += 1
+      const detachPreviousScene = () => {
+        const scene = sceneRef.current
+        if (!scene) throw new Error('Scene is unavailable')
+        const detachErrors: unknown[] = []
+
         cancelPendingAssetOperations()
         clearSelection()
         setCameraPlacementMode(null)
         setDronePlacementMode(false)
-        clearAllCameras()
-        cameraCounterRef.current = { static: 0, ptz: 0, patrol: 0 }
-        resetSimulation(true)
         setSimulationPaused(true)
-        clearLoadedSceneAssets()
+
+        const cameraSnapshot = detachAllSurveillanceCameras(scene, camerasRef, setCameras)
+        detachedCameras = cameraSnapshot.cameras
+        detachErrors.push(...cameraSnapshot.errors)
+        setSelectedCamera(null)
+        feedCanvasRefs.current.clear()
+        feedBuffersRef.current.clear()
+        feedImageDataRef.current.clear()
+        feedLastRenderAtRef.current.clear()
+        cameraDetectionsRef.current = new Map()
+        setCameraDetections(new Map())
+        cameraCounterRef.current = { static: 0, ptz: 0, patrol: 0 }
+
+        try {
+          droneSuspension = suspendDronesForSceneRestore()
+          detachErrors.push(...droneSuspension.errors)
+        } catch (error) {
+          // A suspension precondition fails before the helper mutates drone
+          // ownership. Keep those live drones outside partial-scene cleanup.
+          detachErrors.push(error)
+        }
+
+        detachedAssets = previousAssets
+        loadedAssetsRef.current = []
+        setLoadedAssets([])
+        for (const asset of detachedAssets) {
+          try {
+            scene.remove(asset.object)
+          } catch (error) {
+            detachErrors.push(error)
+          }
+          if (asset.object.parent !== null) {
+            detachErrors.push(new Error(`Asset ${asset.id} did not detach from its scene graph`))
+          }
+        }
+
+        detachedSplat = previousSplat
+        splatMeshRef.current = null
+        lastSplatSourceRef.current = null
+        lastSplatNameRef.current = undefined
+        commitCurrentAsset(null)
+        persistenceWarningActiveRef.current = false
+        if (detachedSplat) {
+          try {
+            scene.remove(detachedSplat)
+          } catch (error) {
+            detachErrors.push(error)
+          }
+          if (detachedSplat.parent !== null) {
+            detachErrors.push(new Error('Splat did not detach from its scene graph'))
+          }
+        }
+        if (detachErrors.length > 0) {
+          // All detachable categories have now transferred to retained
+          // snapshots. If drone suspension failed before transfer, rollback
+          // restores the other snapshots without resetting those live drones.
+          replacementSceneMayOwnResources = droneSuspension !== null
+          throw new AggregateError(detachErrors, 'Failed to detach previous scene assets')
+        }
+        resetVisualFusion(true)
+        replacementSceneMayOwnResources = true
+      }
+      const clearPartialScene = () => {
+        const cleanupErrors: unknown[] = []
+        const attempt = (operation: () => void) => {
+          try {
+            operation()
+          } catch (error) {
+            cleanupErrors.push(error)
+          }
+        }
+        attempt(cancelPendingAssetOperations)
+        attempt(clearSelection)
+        setCameraPlacementMode(null)
+        setDronePlacementMode(false)
+        attempt(clearAllCameras)
+        cameraCounterRef.current = { static: 0, ptz: 0, patrol: 0 }
+        attempt(() => resetSimulation(true))
+        attempt(clearLoadedSceneAssets)
+        if (cleanupErrors.length > 0) {
+          throw new AggregateError(cleanupErrors, 'Partial scene cleanup failed')
+        }
+      }
+      const disposeDetachedScene = () => {
+        const disposeSafely = (label: string, dispose: () => void) => {
+          try {
+            dispose()
+          } catch (error) {
+            log.warn(`Failed to dispose replaced ${label}`, { error })
+          }
+        }
+        if (detachedCameras) {
+          for (const camera of detachedCameras) {
+            disposeSafely(`camera ${camera.id}`, () => disposeSurveillanceCamera(null, camera))
+          }
+          detachedCameras = null
+        }
+        if (detachedAssets) {
+          for (const asset of detachedAssets) {
+            disposeSafely(`asset ${asset.id}`, () => disposeObject3D(asset.object))
+          }
+          detachedAssets = null
+        }
+        if (detachedSplat) {
+          const splat = detachedSplat
+          disposeSafely('splat scene', () => {
+            if (splat.parent !== null) throw new Error('Cannot dispose an attached splat')
+            splat.dispose?.()
+          })
+          detachedSplat = null
+        }
+        if (droneSuspension) {
+          if (disposeSuspendedDrones(droneSuspension)) {
+            droneSuspension = null
+          }
+        }
+      }
+      const rollbackFailedRestore = () => {
+        // Overlapping restores are rejected. A stale owner therefore belongs
+        // to an unmounted viewer and must not reattach resources to a dead scene.
+        if (!isCurrentRestore()) return
+        sceneRestoreGenerationRef.current += 1
+        const rollbackErrors: unknown[] = []
+        if (replacementSceneMayOwnResources) {
+          try {
+            clearPartialScene()
+          } catch (error) {
+            rollbackErrors.push(error)
+          }
+        }
+
+        if (droneSuspension) {
+          try {
+            restoreSuspendedDrones(droneSuspension)
+            droneSuspension = null
+          } catch (error) {
+            rollbackErrors.push(error)
+          }
+        } else {
+          // A suspension precondition can fail before it transfers ownership.
+          // In that case the prior drones are still live and only their pause
+          // state needs to be restored.
+          setSimulationPaused(previousSimulationPaused)
+        }
+        if (detachedCameras) {
+          const cameras = detachedCameras
+          try {
+            const restored = restoreDetachedSurveillanceCameras(
+              sceneRef.current,
+              camerasRef,
+              cameras,
+              setCameras
+            )
+            rollbackErrors.push(...restored.errors)
+            detachedCameras = restored.retained.length > 0 ? restored.retained : null
+          } catch (error) {
+            rollbackErrors.push(error)
+          }
+        }
+        if (detachedAssets) {
+          const assets = detachedAssets
+          const restoredAssets: LoadedAsset[] = []
+          const retainedAssets: LoadedAsset[] = []
+          for (const asset of assets) {
+            const result = attachObject3DToScene(
+              sceneRef.current,
+              asset.object,
+              `asset ${asset.id}`
+            )
+            rollbackErrors.push(...result.errors)
+            if (result.attached) {
+              restoredAssets.push(asset)
+            } else {
+              retainedAssets.push(asset)
+            }
+          }
+          detachedAssets = retainedAssets.length > 0 ? retainedAssets : null
+          const alreadyLiveAssets = loadedAssetsRef.current.filter((asset) =>
+            isObject3DInScene(sceneRef.current, asset.object)
+          )
+          const liveAssets = [...alreadyLiveAssets, ...restoredAssets]
+          loadedAssetsRef.current = liveAssets
+          setLoadedAssets(liveAssets)
+        }
+        if (detachedSplat) {
+          if (splatMeshRef.current) {
+            rollbackErrors.push(
+              new Error('Cannot restore the previous splat while a partial splat remains live')
+            )
+          } else {
+            const splat = detachedSplat
+            const result = attachObject3DToScene(sceneRef.current, splat, 'splat scene')
+            rollbackErrors.push(...result.errors)
+            if (result.attached) {
+              detachedSplat = null
+              splatMeshRef.current = splat
+              lastSplatSourceRef.current = previousSplatSource
+              lastSplatNameRef.current = previousSplatName
+              commitCurrentAsset(previousCurrentAsset)
+            }
+          }
+        }
+
+        cameraCounterRef.current = previousCameraCounter
+        cameraDetectionsRef.current = previousCameraDetections
+        setCameraDetections(previousCameraDetections)
+        setSelectedCamera(
+          previousSelectedCamera &&
+            camerasRef.current.some((camera) => camera.id === previousSelectedCamera)
+            ? previousSelectedCamera
+            : null
+        )
+        persistenceWarningActiveRef.current = previousPersistenceWarning
         setDetectionEnabled(previousSettings.detectionEnabled)
         setShowDetectionPanel(previousSettings.showDetectionPanel)
-        onPerformancePanelVisibleChange?.(previousSettings.performancePanelVisible)
-        setThreatLevel(1)
+        notifyObserver('Performance panel visibility', () =>
+          onPerformancePanelVisibleChange?.(previousSettings.performancePanelVisible)
+        )
+        setThreatLevel(previousThreatLevel)
         if (previousViewPosition && cameraRef.current) {
           cameraRef.current.position.copy(previousViewPosition)
         }
@@ -2934,179 +3454,201 @@ export default function CrebainViewer({
           controlsRef.current.target.copy(previousViewTarget)
           controlsRef.current.update()
         }
+        const previousSelection = previousSelectedObjects[0]
+        if (previousSelection && isObject3DInScene(sceneRef.current, previousSelection)) {
+          select(previousSelection)
+        }
+        if (rollbackErrors.length > 0) {
+          throw new AggregateError(rollbackErrors, 'Scene rollback restored with cleanup failures')
+        }
       }
 
-      await runSceneRestoreTransaction(
-        () =>
-          runWithOperationDeadline(
-            async ({ assertActive }) => {
-              assertActive()
-              const failures: string[] = []
-
-              // Supersede pending work from the previous scene before clearing its
-              // objects. Fetches are aborted; callback-only loaders are fenced by
-              // the generation counters they captured when they started.
-              cancelPendingAssetOperations()
-              clearSelection()
-              setCameraPlacementMode(null)
-              setDronePlacementMode(false)
-              setSimulationPaused(true)
-              clearAllCameras()
-              cameraCounterRef.current = { static: 0, ptz: 0, patrol: 0 }
-              resetSimulation(true)
-              clearLoadedSceneAssets()
-
-              for (const camera of state.cameras) {
-                const restoredCamera = placeCamera(
-                  new THREE.Vector3(camera.position.x, camera.position.y, camera.position.z),
-                  camera.type,
-                  camera
-                )
-                if (!restoredCamera) failures.push(`camera ${camera.name}`)
-              }
-              setSelectedCamera(state.activeCameraId ?? null)
-
-              for (const drone of state.drones) {
-                const restoredId = await spawnDrone(
-                  drone.type,
-                  drone.name,
-                  new THREE.Vector3(drone.position.x, drone.position.y, drone.position.z),
-                  {
-                    id: drone.id,
-                    orientation: new THREE.Quaternion(
-                      drone.orientation.x,
-                      drone.orientation.y,
-                      drone.orientation.z,
-                      drone.orientation.w
-                    ),
-                    velocity: new THREE.Vector3(
-                      drone.velocity.x,
-                      drone.velocity.y,
-                      drone.velocity.z
-                    ),
-                    angularVelocity: new THREE.Vector3(
-                      drone.angularVelocity.x,
-                      drone.angularVelocity.y,
-                      drone.angularVelocity.z
-                    ),
-                    armed: drone.armed,
-                    battery: drone.battery / 100,
-                  }
-                )
+      try {
+        await runSceneRestoreTransaction(
+          () =>
+            runWithOperationDeadline(
+              async ({ assertActive }) => {
                 assertActive()
-                if (!restoredId) {
-                  failures.push(`drone ${drone.name ?? drone.id}`)
-                  addMessage(
-                    'error',
-                    `DROHNE KONNTE NICHT GELADEN WERDEN: ${drone.name ?? drone.id}`
+                const failures: string[] = []
+
+                // Keep the prior graph alive but detached until all requested
+                // resources are ready. Rollback does not need another fetch,
+                // model parse, or GPU allocation.
+                detachPreviousScene()
+
+                for (const camera of state.cameras) {
+                  const restoredCamera = placeCamera(
+                    new THREE.Vector3(camera.position.x, camera.position.y, camera.position.z),
+                    camera.type,
+                    camera
                   )
-                  continue
+                  if (!restoredCamera) failures.push(`camera ${camera.name}`)
                 }
-                const waypoints = (drone.waypoints ?? []).map((waypoint) => ({
-                  position: new THREE.Vector3(waypoint.x, waypoint.y, waypoint.z),
-                  altitude: waypoint.y,
-                }))
-                const routeAccepted = setRoute(
-                  restoredId,
-                  waypoints,
-                  drone.routeMode ?? (waypoints.length ? 'once' : 'none'),
-                  {
-                    isActive: drone.routeActive,
-                    currentWaypointIndex: drone.routeCurrentWaypointIndex,
+                setSelectedCamera(state.activeCameraId ?? null)
+
+                for (const drone of state.drones) {
+                  const restoredId = await spawnDrone(
+                    drone.type,
+                    drone.name,
+                    new THREE.Vector3(drone.position.x, drone.position.y, drone.position.z),
+                    {
+                      id: drone.id,
+                      orientation: new THREE.Quaternion(
+                        drone.orientation.x,
+                        drone.orientation.y,
+                        drone.orientation.z,
+                        drone.orientation.w
+                      ),
+                      velocity: new THREE.Vector3(
+                        drone.velocity.x,
+                        drone.velocity.y,
+                        drone.velocity.z
+                      ),
+                      angularVelocity: new THREE.Vector3(
+                        drone.angularVelocity.x,
+                        drone.angularVelocity.y,
+                        drone.angularVelocity.z
+                      ),
+                      armed: drone.armed,
+                      battery: drone.battery / 100,
+                    }
+                  )
+                  assertActive()
+                  if (!restoredId) {
+                    failures.push(`drone ${drone.name ?? drone.id}`)
+                    addMessage(
+                      'error',
+                      `DROHNE KONNTE NICHT GELADEN WERDEN: ${drone.name ?? drone.id}`
+                    )
+                    continue
                   }
-                )
-                if (!routeAccepted) failures.push(`route ${drone.name ?? drone.id}`)
-              }
+                  const waypoints = (drone.waypoints ?? []).map((waypoint) => ({
+                    position: new THREE.Vector3(waypoint.x, waypoint.y, waypoint.z),
+                    altitude: waypoint.y,
+                  }))
+                  const routeAccepted = setRoute(
+                    restoredId,
+                    waypoints,
+                    drone.routeMode ?? (waypoints.length ? 'once' : 'none'),
+                    {
+                      isActive: drone.routeActive,
+                      currentWaypointIndex: drone.routeCurrentWaypointIndex,
+                    }
+                  )
+                  if (!routeAccepted) failures.push(`route ${drone.name ?? drone.id}`)
+                }
 
-              const detections = new Map<string, Detection[]>()
-              const cameraIds = new Set(state.cameras.map((camera) => camera.id))
-              for (const detection of state.recentDetections) {
-                if (!cameraIds.has(detection.cameraId)) continue
-                const cameraDetections = detections.get(detection.cameraId) ?? []
-                cameraDetections.push({
-                  id: detection.id,
-                  class: detection.class as Detection['class'],
-                  confidence: detection.confidence,
-                  bbox: [...detection.bbox],
-                  timestamp: detection.timestamp,
-                  threatLevel:
-                    detection.threatLevel >= 1 && detection.threatLevel <= 4
-                      ? (detection.threatLevel as NonNullable<Detection['threatLevel']>)
-                      : undefined,
-                })
-                detections.set(detection.cameraId, cameraDetections)
-              }
-              cameraDetectionsRef.current = detections
-              setCameraDetections(detections)
+                const detections = new Map<string, Detection[]>()
+                const cameraIds = new Set(state.cameras.map((camera) => camera.id))
+                for (const detection of state.recentDetections) {
+                  if (!cameraIds.has(detection.cameraId)) continue
+                  const cameraDetections = detections.get(detection.cameraId) ?? []
+                  cameraDetections.push({
+                    id: detection.id,
+                    class: detection.class,
+                    confidence: detection.confidence,
+                    bbox: [...detection.bbox],
+                    timestamp: detection.timestamp,
+                    threatLevel:
+                      detection.threatLevel >= 1 && detection.threatLevel <= 4
+                        ? (detection.threatLevel as NonNullable<Detection['threatLevel']>)
+                        : undefined,
+                  })
+                  detections.set(detection.cameraId, cameraDetections)
+                }
+                cameraDetectionsRef.current = detections
+                setCameraDetections(detections)
 
-              assertActive()
-              for (const asset of state.assets ?? []) {
-                const loaded = await loadGlb(asset.source, asset.name, asset)
                 assertActive()
-                if (!loaded) failures.push(`asset ${asset.name}`)
-              }
-              if (state.splatScene?.url) {
-                const loaded = await loadSplat(state.splatScene.url, undefined, state.splatScene)
+                for (const asset of state.assets ?? []) {
+                  const loaded = await loadGlb(asset.source, asset.name, asset)
+                  assertActive()
+                  if (!loaded) failures.push(`asset ${asset.name}`)
+                }
+                if (state.splatScene?.url) {
+                  const loaded = await loadSplat(state.splatScene.url, undefined, state.splatScene)
+                  assertActive()
+                  if (!loaded) failures.push('splat scene')
+                }
+
                 assertActive()
-                if (!loaded) failures.push('splat scene')
-              }
-
-              assertActive()
-              setDetectionEnabled(state.settings.detectionEnabled)
-              setShowDetectionPanel(state.settings.showDetectionPanel)
-              onPerformancePanelVisibleChange?.(state.settings.showPerformancePanel)
-              if (cameraRef.current) {
-                cameraRef.current.position.set(
-                  state.viewCamera.position.x,
-                  state.viewCamera.position.y,
-                  state.viewCamera.position.z
+                setDetectionEnabled(state.settings.detectionEnabled)
+                setShowDetectionPanel(state.settings.showDetectionPanel)
+                notifyObserver('Performance panel visibility', () =>
+                  onPerformancePanelVisibleChange?.(state.settings.showPerformancePanel)
                 )
-              }
-              if (controlsRef.current) {
-                controlsRef.current.target.set(
-                  state.viewCamera.target.x,
-                  state.viewCamera.target.y,
-                  state.viewCamera.target.z
-                )
-                controlsRef.current.update()
-              }
+                if (cameraRef.current) {
+                  cameraRef.current.position.set(
+                    state.viewCamera.position.x,
+                    state.viewCamera.position.y,
+                    state.viewCamera.position.z
+                  )
+                }
+                if (controlsRef.current) {
+                  controlsRef.current.target.set(
+                    state.viewCamera.target.x,
+                    state.viewCamera.target.y,
+                    state.viewCamera.target.z
+                  )
+                  controlsRef.current.update()
+                }
 
-              if (failures.length > 0) {
-                throw new Error(`Scene restored with failures: ${failures.join(', ')}`)
+                if (failures.length > 0) {
+                  throw new Error(`Scene restored with failures: ${failures.join(', ')}`)
+                }
+              },
+              {
+                timeoutMs: SCENE_RESTORE_TIMEOUT_MS,
+                timeoutMessage: 'Scene restore timed out',
+                supersededMessage: 'Scene restore was superseded',
+                isCurrent: isCurrentRestore,
+                onTimeout: rollbackFailedRestore,
               }
+            ),
+          {
+            isCurrent: isCurrentRestore,
+            rollback: rollbackFailedRestore,
+            commit: () => {
+              setSimulationPaused(!state.settings.physicsEnabled)
+              disposeDetachedScene()
             },
-            {
-              timeoutMs: SCENE_RESTORE_TIMEOUT_MS,
-              timeoutMessage: 'Scene restore timed out',
-              supersededMessage: 'Scene restore was superseded',
-              isCurrent: isCurrentRestore,
-              onTimeout: rollbackFailedRestore,
-            }
-          ),
-        {
-          isCurrent: isCurrentRestore,
-          rollback: rollbackFailedRestore,
-          commit: () => setSimulationPaused(!state.settings.physicsEnabled),
-        }
-      )
+          }
+        )
+      } finally {
+        // Unmount invalidates the generation and prevents rollback into a dead
+        // scene. Release any retained ownership that was neither committed nor
+        // restored before the component disappeared.
+        disposeDetachedScene()
+        sceneRestoreInFlightRef.current = false
+      }
     },
     [
       addMessage,
       cancelLoadingOperations,
       clearAllCameras,
       clearSelection,
+      commitCurrentAsset,
       detectionEnabled,
+      disposeSuspendedDrones,
       loadGlb,
       loadSplat,
       onPerformancePanelVisibleChange,
       performancePanelVisible,
       placeCamera,
       physicsReady,
+      isPaused,
       resetSimulation,
+      resetVisualFusion,
+      restoreSuspendedDrones,
+      select,
+      selectedCamera,
+      selectedObjects,
       setRoute,
       setSimulationPaused,
       showDetectionPanel,
       spawnDrone,
+      suspendDronesForSceneRestore,
+      threatLevel,
     ]
   )
 
@@ -3118,9 +3660,17 @@ export default function CrebainViewer({
           .join(', ')
       : 'KEINE'
   const mlxStatusText = systemInfo.experimentalMlxEnabled ? 'OPT-IN EXP.' : 'AUS'
-  const backendHealth = getBackendHealth(systemInfo)
-  const backendStatusText = getBackendHealthLabel(backendHealth)
-  const backendStatusColor = backendHealth === 'ready' ? 'bg-[#3a6b4a]' : 'bg-[#a08040]'
+  const backendStatusText = getDiagnosticsStatusLabel(backendStatus)
+  const backendStatusColor =
+    backendStatus === 'ready'
+      ? 'bg-[#3a6b4a]'
+      : backendStatus === 'error'
+        ? 'bg-[#8b4a4a]'
+        : backendStatus === 'loading' ||
+            backendStatus === 'initializing' ||
+            backendStatus === 'busy'
+          ? 'bg-[#a08040]'
+          : 'bg-[#505050]'
   const backendModeText = systemInfo.mode !== 'unknown' ? systemInfo.mode : 'UNBEKANNT'
   const cryptoStatusText = getSecurityConfigurationStatusLabel(SECURITY_CONFIGURATION_STATUS)
   const modelStatusText = 'VERTRAG OFFEN'
@@ -3234,31 +3784,48 @@ export default function CrebainViewer({
       {/* LINKES PANEL - STEUERUNG */}
       <div
         ref={controlPanelDrag.elementRef}
+        data-floating-panel="drone"
+        data-floating-panel-side="left"
+        data-floating-panel-slot={PANEL_POSITIONS.drone.magnifiedSlot}
+        data-panel-expanded={showControlPanel ? 'true' : 'false'}
+        aria-label={embeddedInEngram ? 'Status panel' : 'Control panel'}
+        role="region"
+        tabIndex={0}
         className="fixed z-40 w-60"
         style={{
           left: `${controlPanelDrag.position.x}px`,
           top: `${controlPanelDrag.position.y}px`,
           cursor: controlPanelDrag.isDragging ? 'grabbing' : undefined,
-          fontSize: `calc(8px * var(--ui-scale, 1))`,
+          fontSize: `calc(12px * var(--ui-scale, 1))`,
         }}
         onMouseDown={controlPanelDrag.handleMouseDown}
       >
         <div className="bg-[#0c0c0c] border border-[#1a1a1a]">
           <div
             data-drag-handle
-            className="h-7 border-b border-[#1a1a1a] flex items-center justify-between px-3 bg-[#101010] cursor-grab select-none"
-            onClick={handleControlPanelHeaderClick}
+            className="flex h-7 items-stretch border-b border-[#1a1a1a] bg-[#101010] select-none"
           >
-            <span className="text-[0.875em] text-[#909090] tracking-[0.2em]">
-              {embeddedInEngram ? 'STATUS' : 'STEUERUNG'}
+            <span aria-hidden="true" className="flex cursor-grab items-center px-2 text-[#606060]">
+              ⋮
             </span>
-            <button type="button" className="text-[#505050] hover:text-[#707070]">
-              {showControlPanel ? '▼' : '▶'}
+            <button
+              type="button"
+              className="flex min-w-0 flex-1 items-center justify-between px-1 pr-3 text-left text-[0.875em] tracking-[0.2em] text-[#909090] hover:text-[#b0b0b0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-[#a0a0a0]"
+              onClick={() => setShowControlPanel((previous) => !previous)}
+              aria-expanded={showControlPanel}
+              aria-controls="viewer-control-panel-content"
+              aria-label={`${embeddedInEngram ? 'Status' : 'Control'} panel ${showControlPanel ? 'schließen' : 'öffnen'}`}
+            >
+              <span>{embeddedInEngram ? 'STATUS' : 'STEUERUNG'}</span>
+              <span aria-hidden="true" className="text-[#707070]">
+                {showControlPanel ? '▼' : '▶'}
+              </span>
             </button>
           </div>
 
           {showControlPanel && embeddedInEngram && (
             <div
+              id="viewer-control-panel-content"
               data-testid="engram-hosted-read-only-panel"
               className="space-y-3 p-3 text-[0.875em]"
             >
@@ -3300,7 +3867,7 @@ export default function CrebainViewer({
           )}
 
           {showControlPanel && !embeddedInEngram && (
-            <>
+            <div id="viewer-control-panel-content">
               <div className="flex border-b border-[#1a1a1a]">
                 {(['sensoren', 'objekte', 'system'] as const).map((tab) => (
                   <button
@@ -3353,65 +3920,82 @@ export default function CrebainViewer({
                           {cameras.map((cam) => (
                             <div
                               key={cam.id}
-                              onClick={() =>
-                                setSelectedCamera(selectedCamera === cam.id ? null : cam.id)
-                              }
-                              className={`group flex items-center gap-2 px-2 py-1.5 cursor-pointer transition-all border ${selectedCamera === cam.id ? 'border-[#505050] bg-[#141414]' : 'border-[#1a1a1a] bg-[#0c0c0c] hover:border-[#303030]'}`}
+                              className={`group flex items-center gap-1 border px-1 py-1 transition-all ${selectedCamera === cam.id ? 'border-[#505050] bg-[#141414]' : 'border-[#1a1a1a] bg-[#0c0c0c] hover:border-[#303030]'}`}
                             >
                               <div
+                                aria-hidden="true"
                                 className={`w-1.5 h-1.5 ${cam.isActive ? 'bg-[#3a6b4a]' : 'bg-[#303030]'}`}
                               />
-                              <div className="flex-1">
+                              <div className="min-w-0 flex-1">
                                 {editingCameraId === cam.id ? (
                                   <input
                                     type="text"
+                                    aria-label={`${cam.name} umbenennen`}
                                     value={editingCameraName}
                                     onChange={(e) => setEditingCameraName(e.target.value)}
                                     onBlur={() => {
-                                      if (editingCameraName.trim()) {
-                                        renameCamera(cam.id, editingCameraName.trim())
+                                      if (!cameraRenameCancelledRef.current) {
+                                        renameCamera(cam.id, editingCameraName)
                                       }
+                                      cameraRenameCancelledRef.current = false
                                       setEditingCameraId(null)
                                     }}
                                     onKeyDown={(e) => {
                                       if (e.key === 'Enter') {
-                                        if (editingCameraName.trim()) {
-                                          renameCamera(cam.id, editingCameraName.trim())
-                                        }
-                                        setEditingCameraId(null)
+                                        e.preventDefault()
+                                        e.currentTarget.blur()
                                       } else if (e.key === 'Escape') {
-                                        setEditingCameraId(null)
+                                        e.preventDefault()
+                                        cameraRenameCancelledRef.current = true
+                                        e.currentTarget.blur()
                                       }
                                     }}
-                                    onClick={(e) => e.stopPropagation()}
+                                    maxLength={MAX_SURVEILLANCE_CAMERA_NAME_BYTES}
                                     autoFocus
-                                    className="bg-[#0a0a0a] border border-[#505050] text-[#d0d0d0] px-1 py-0 w-full text-[1em]"
+                                    className="w-full border border-[#505050] bg-[#0a0a0a] px-1 py-1 text-[1em] text-[#d0d0d0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#a0a0a0]"
                                   />
                                 ) : (
-                                  <div
-                                    className={`text-[1em] ${selectedCamera === cam.id ? 'text-[#d0d0d0]' : 'text-[#808080]'}`}
+                                  <button
+                                    type="button"
+                                    className={`min-h-10 w-full px-1 text-left text-[1em] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#a0a0a0] ${selectedCamera === cam.id ? 'text-[#d0d0d0]' : 'text-[#808080]'}`}
+                                    onClick={() =>
+                                      setSelectedCamera(selectedCamera === cam.id ? null : cam.id)
+                                    }
                                     onDoubleClick={(e) => {
                                       e.stopPropagation()
-                                      setEditingCameraId(cam.id)
-                                      setEditingCameraName(cam.name)
+                                      beginCameraRename(cam)
                                     }}
+                                    aria-pressed={selectedCamera === cam.id}
                                     title="Doppelklick zum Umbenennen"
                                   >
-                                    {cam.name}
-                                  </div>
+                                    <span className="block truncate">{cam.name}</span>
+                                    <span className="block text-[0.75em] text-[#707070]">
+                                      {cam.type.toUpperCase()}
+                                    </span>
+                                  </button>
                                 )}
-                                <div className="text-[0.75em] text-[#505050]">
-                                  {cam.type.toUpperCase()}
-                                </div>
                               </div>
+                              {editingCameraId !== cam.id && (
+                                <button
+                                  type="button"
+                                  onClick={() => beginCameraRename(cam)}
+                                  aria-label={`${cam.name} umbenennen`}
+                                  className="min-h-10 min-w-10 p-1 text-[#707070] opacity-0 hover:bg-[#1a1a1a] hover:text-[#b0b0b0] focus:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#a0a0a0] group-hover:opacity-100"
+                                >
+                                  ✎
+                                </button>
+                              )}
                               <button
+                                type="button"
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   removeCamera(cam.id)
                                 }}
-                                className="opacity-0 group-hover:opacity-100 p-1 hover:bg-[#1a1a1a]"
+                                aria-label={`${cam.name} entfernen`}
+                                className="min-h-10 min-w-10 p-1 opacity-0 hover:bg-[#1a1a1a] focus:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#d98282] group-hover:opacity-100"
                               >
                                 <svg
+                                  aria-hidden="true"
                                   className="w-2.5 h-2.5 text-[#8b4a4a]"
                                   fill="none"
                                   stroke="currentColor"
@@ -3500,20 +4084,9 @@ export default function CrebainViewer({
                                 {currentAsset}
                               </span>
                               <button
-                                onClick={() => {
-                                  if (splatMeshRef.current && sceneRef.current) {
-                                    sceneRef.current.remove(splatMeshRef.current)
-                                    splatMeshRef.current.dispose?.()
-                                    splatMeshRef.current = null
-                                    // Drop the reload source too, or perf-mode
-                                    // reload would resurrect the removed asset
-                                    // (and pin its File/ArrayBuffer in memory).
-                                    lastSplatSourceRef.current = null
-                                    lastSplatNameRef.current = undefined
-                                    setCurrentAsset(null)
-                                    addMessage('system', 'ENTFERNT')
-                                  }
-                                }}
+                                type="button"
+                                onClick={removeCurrentSplat}
+                                aria-label={`Remove ${currentAsset}`}
                                 className="p-1 hover:bg-[#1a1a1a]"
                               >
                                 <svg
@@ -3543,17 +4116,8 @@ export default function CrebainViewer({
                               </span>
                               <button
                                 onClick={() => {
-                                  if (sceneRef.current) {
-                                    clearSelection()
-                                    sceneRef.current.remove(asset.object)
-                                    disposeObject3D(asset.object)
-                                    const nextAssets = loadedAssetsRef.current.filter(
-                                      (entry) => entry.id !== asset.id
-                                    )
-                                    loadedAssetsRef.current = nextAssets
-                                    setLoadedAssets(nextAssets)
-                                    addMessage('system', `ENTFERNT: ${asset.name}`)
-                                  }
+                                  clearSelection()
+                                  handleDeleteSelectedObject(asset.object)
                                 }}
                                 type="button"
                                 aria-label={`${asset.name} entfernen`}
@@ -3619,7 +4183,7 @@ export default function CrebainViewer({
                           <span>YOLO:</span>
                           <button
                             onClick={() => setDetectionEnabled((prev) => !prev)}
-                            disabled={!nativeAvailable}
+                            disabled={!nativeDetectorReady}
                             className={`px-2 py-0.5 border text-[0.75em] disabled:opacity-40 disabled:cursor-not-allowed ${detectionEnabled ? 'border-[#3a6b4a] text-[#3a6b4a] bg-[#0a1a0a]' : 'border-[#303030] text-[#505050]'}`}
                           >
                             {detectionEnabled ? 'AKTIV' : 'INAKTIV'}
@@ -3648,7 +4212,7 @@ export default function CrebainViewer({
                         </div>
                         <button
                           onClick={() => void testCoreMLInference()}
-                          disabled={isTestingCoreML || isBenchmarking || !nativeAvailable}
+                          disabled={isTestingCoreML || isBenchmarking || !nativeDetectorReady}
                           className={`w-full mt-2 px-2 py-1 border text-[0.75em] transition-colors ${
                             isTestingCoreML
                               ? 'border-[#4a4a3a] text-[#6a6a5a] bg-[#1a1a0a] cursor-wait'
@@ -3660,7 +4224,7 @@ export default function CrebainViewer({
                         <div className="grid grid-cols-2 gap-1 mt-1">
                           <button
                             onClick={() => void runCoreMLBenchmark()}
-                            disabled={isTestingCoreML || isBenchmarking || !nativeAvailable}
+                            disabled={isTestingCoreML || isBenchmarking || !nativeDetectorReady}
                             className={`px-2 py-1 border text-[0.75em] transition-colors ${
                               isBenchmarking
                                 ? 'border-[#4a4a3a] text-[#6a6a5a] bg-[#1a1a0a] cursor-wait'
@@ -3763,309 +4327,56 @@ export default function CrebainViewer({
                   </div>
                 )}
               </div>
-            </>
+            </div>
           )}
         </div>
       </div>
 
-      {/* RECHTES PANEL */}
-      {selectedCameraData && (
-        <div
-          className="absolute top-[68px] right-3 w-52 z-40"
-          style={{ fontSize: `calc(8px * var(--ui-scale, 1))` }}
-        >
-          <div className="bg-[#0c0c0c] border border-[#1a1a1a]">
-            <div className="h-7 border-b border-[#1a1a1a] flex items-center justify-between px-3 bg-[#101010]">
-              <span className="text-[1em] text-[#c0c0c0]">{selectedCameraData.name}</span>
-              <div className="flex items-center gap-2">
-                <div
-                  className={`w-1.5 h-1.5 ${selectedCameraData.isRecording ? 'bg-[#8b4a4a] animate-pulse' : 'bg-[#303030]'}`}
-                />
-                {!embeddedInEngram && (
-                  <button
-                    onClick={() => void downloadCameraFeed(selectedCameraData.id)}
-                    className="px-2 py-0.5 bg-[#101010] border border-[#252525] text-[0.75em] text-[#707070] hover:border-[#404040] hover:text-[#a0a0a0]"
-                  >
-                    EXPORT
-                  </button>
-                )}
-              </div>
-            </div>
-            {!embeddedInEngram && selectedCameraData.type === 'ptz' && (
-              <div className="p-3 space-y-3">
-                {[
-                  {
-                    label: 'SCHWENK',
-                    value: selectedCameraData.pan,
-                    min: -180,
-                    max: 180,
-                    key: 'pan',
-                  },
-                  {
-                    label: 'NEIGUNG',
-                    value: selectedCameraData.tilt,
-                    min: -85,
-                    max: 85,
-                    key: 'tilt',
-                  },
-                  { label: 'ZOOM', value: selectedCameraData.zoom, min: 5, max: 120, key: 'zoom' },
-                ].map((control) => (
-                  <div key={control.key}>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[0.75em] text-[#606060]">{control.label}</span>
-                      <span className="text-[0.875em] text-[#a0a0a0]">
-                        {control.value.toFixed(0)}°
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min={control.min}
-                      max={control.max}
-                      value={control.value}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value)
-                        if (control.key === 'pan') updateCameraPTZ(selectedCameraData.id, val)
-                        else if (control.key === 'tilt')
-                          updateCameraPTZ(selectedCameraData.id, undefined, val)
-                        else updateCameraPTZ(selectedCameraData.id, undefined, undefined, val)
-                      }}
-                      className="w-full h-1 bg-[#1a1a1a] rounded-none appearance-none cursor-pointer [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-[#606060] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:border-0"
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-            {(embeddedInEngram || selectedCameraData.type !== 'ptz') && (
-              <div className="p-3 text-[0.875em] text-[#606060]">
-                <div>
-                  Position:{' '}
-                  <span className="text-[#a0a0a0]">
-                    {selectedCameraData.camera.position.x.toFixed(1)},{' '}
-                    {selectedCameraData.camera.position.y.toFixed(1)},{' '}
-                    {selectedCameraData.camera.position.z.toFixed(1)}
-                  </span>
-                </div>
-                <div className="mt-1">
-                  Status:{' '}
-                  <span className="text-[#3a6b4a]">
-                    {selectedCameraData.type === 'patrol' ? 'PATROUILLE' : 'ÜBERWACHUNG'}
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* DETECTION PANEL */}
-      {showDetectionPanel && (totalDetections > 0 || fusedTracks.length > 0) && (
-        <DetectionPanel
-          totalDetections={totalDetections}
-          fusedTracks={fusedTracks}
-          cameraDetections={cameraDetections}
-          cameras={cameras}
-          fusionStats={fusionStats}
-          onClose={() => setShowDetectionPanel(false)}
+      <ViewerOverlayRail isDocked={isDocked}>
+        <CameraDetailsOverlay
+          camera={selectedCameraData ?? null}
+          readOnly={embeddedInEngram}
+          onDownload={downloadCameraFeed}
+          onUpdatePtz={updateCameraPTZ}
         />
-      )}
 
-      {/* KAMERA-FEEDS */}
-      {cameras.length > 0 && showCameraFeeds && (
-        <div
-          className="absolute bottom-12 right-3 z-40"
-          style={{ fontSize: `calc(8px * var(--ui-scale, 1))` }}
-        >
-          <div className="flex items-center justify-between mb-1 px-1">
-            <span className="text-[0.75em] text-[#707070] tracking-wider">LIVE</span>
-            <button
-              onClick={() => setShowCameraFeeds(false)}
-              className="text-[0.75em] text-[#404040] hover:text-[#808080]"
-            >
-              AUSBLENDEN
-            </button>
-          </div>
-          <div className="flex gap-1 flex-wrap justify-end max-w-sm">
-            {cameras.slice(0, 4).map((cam) => (
-              <div
-                key={cam.id}
-                onClick={() => setSelectedCamera(cam.id)}
-                className={`relative cursor-pointer border transition-all ${selectedCamera === cam.id ? 'border-[#505050]' : 'border-[#1a1a1a] hover:border-[#303030]'}`}
-              >
-                {/* Bitmap matches the 640x360 render target so putImageData and
-                    detection overlays land 1:1; CSS scales it to thumbnail size. */}
-                <canvas
-                  ref={(el) => {
-                    if (el) feedCanvasRefs.current.set(cam.id, el)
-                    else feedCanvasRefs.current.delete(cam.id)
-                  }}
-                  width={640}
-                  height={360}
-                  className="bg-black block w-[140px] h-[79px]"
-                />
-                <div className="absolute inset-0 pointer-events-none">
-                  <div
-                    className={`absolute top-0 left-0 w-2 h-2 border-t border-l ${selectedCamera === cam.id ? 'border-[#505050]' : 'border-[#303030]'}`}
-                  />
-                  <div
-                    className={`absolute top-0 right-0 w-2 h-2 border-t border-r ${selectedCamera === cam.id ? 'border-[#505050]' : 'border-[#303030]'}`}
-                  />
-                  <div
-                    className={`absolute bottom-0 left-0 w-2 h-2 border-b border-l ${selectedCamera === cam.id ? 'border-[#505050]' : 'border-[#303030]'}`}
-                  />
-                  <div
-                    className={`absolute bottom-0 right-0 w-2 h-2 border-b border-r ${selectedCamera === cam.id ? 'border-[#505050]' : 'border-[#303030]'}`}
-                  />
-                  {cam.isRecording && (
-                    <div className="absolute top-1 right-1">
-                      <div className="w-1.5 h-1.5 bg-[#8b4a4a] animate-pulse" />
-                    </div>
-                  )}
-                  <div className="absolute bottom-0 left-0 right-0 h-3 bg-gradient-to-t from-black/80 to-transparent flex items-end px-1 pb-0.5">
-                    <span className="text-[0.625em] text-[#808080]">{cam.name}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+        {/* DETECTION PANEL */}
+        {showDetectionPanel && (totalDetections > 0 || fusedTracks.length > 0) && (
+          <DetectionPanel
+            totalDetections={totalDetections}
+            fusedTracks={fusedTracks}
+            cameraDetections={cameraDetections}
+            cameras={cameras}
+            fusionStats={fusionStats}
+            onClose={() => setShowDetectionPanel(false)}
+          />
+        )}
 
-      {!showCameraFeeds && cameras.length > 0 && (
-        <button
-          onClick={() => setShowCameraFeeds(true)}
-          className="absolute bottom-12 right-3 z-40 px-2 py-1 bg-[#0c0c0c] border border-[#252525] text-[0.875em] text-[#606060] hover:border-[#404040] hover:text-[#909090]"
-        >
-          FEEDS ({cameras.length})
-        </button>
-      )}
+        <CameraFeedsOverlay
+          cameras={cameras}
+          visible={showCameraFeeds}
+          selectedCameraId={selectedCamera}
+          canvasRefs={feedCanvasRefs}
+          onSelect={setSelectedCamera}
+          onVisibleChange={setShowCameraFeeds}
+        />
 
-      {/* PROTOKOLL */}
-      <div
-        className="absolute bottom-12 left-3 z-40 w-64"
-        style={{ fontSize: `calc(8px * var(--ui-scale, 1))` }}
-      >
-        <div className="text-[0.625em] text-[#505050] tracking-wider mb-1 px-1">PROTOKOLL</div>
-        <div className="space-y-0.5 max-h-20 overflow-y-auto">
-          {consoleMessages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`px-2 py-1 text-[0.875em] bg-[#0c0c0c] border-l-2 ${
-                msg.type === 'success'
-                  ? 'border-[#3a6b4a] text-[#6a9a7a]'
-                  : msg.type === 'error'
-                    ? 'border-[#8b4a4a] text-[#a06060]'
-                    : msg.type === 'warning'
-                      ? 'border-[#a08040] text-[#a08040]'
-                      : msg.type === 'tactical'
-                        ? 'border-[#3a6b4a] text-[#808080]'
-                        : 'border-[#303030] text-[#707070]'
-              }`}
-            >
-              <span className="text-[#404040] text-[0.625em]">
-                {new Date(msg.timestamp).toISOString().slice(11, 19)}
-              </span>{' '}
-              {msg.message}
-            </div>
-          ))}
-        </div>
-      </div>
+        <ViewerEventLog messages={consoleMessages} />
+      </ViewerOverlayRail>
 
-      {/* FUßZEILE */}
-      <div
-        className="absolute bottom-0 left-0 right-0 h-9 z-30 bg-[#0a0a0a] border-t border-[#1a1a1a] flex items-center justify-between px-4"
-        style={{ fontSize: `calc(8px * var(--ui-scale, 1))` }}
-      >
-        <div className="flex items-center gap-4 text-[0.75em] text-[#505050] tracking-wider">
-          <span>
-            NAV: <span className="text-[#707070]">WASD</span>
-          </span>
-          <span>
-            VERT: <span className="text-[#707070]">Q/E</span>
-          </span>
-          <span>
-            ROT: <span className="text-[#707070]">Z/X/←/→</span>
-          </span>
-          <span>
-            SPRINT: <span className="text-[#707070]">⇧</span>
-          </span>
-          <span>
-            PRÄZ: <span className="text-[#707070]">⌃</span>
-          </span>
-          <span>
-            STOP: <span className="text-[#707070]">␣</span>
-          </span>
-          {!embeddedInEngram && (
-            <>
-              <span className="text-[#303030]">│</span>
-              <span>
-                CAM: <span className="text-[#707070]">1/2/3</span>
-              </span>
-            </>
-          )}
-          <span>
-            WECHS: <span className="text-[#707070]">⇥</span>
-          </span>
-          <span>
-            FEEDS: <span className="text-[#707070]">V</span>
-          </span>
-          {!embeddedInEngram && (
-            <span>
-              DETEK: <span className="text-[#707070]">T</span>
-            </span>
-          )}
-          <span className="text-[#303030]">│</span>
-          <span>
-            RESET: <span className="text-[#707070]">R</span>
-          </span>
-          <span>
-            FOKUS: <span className="text-[#707070]">F</span>
-          </span>
-          {!embeddedInEngram && (
-            <span>
-              LADEN: <span className="text-[#707070]">⌃O</span>
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {!embeddedInEngram && (
-            <>
-              <button
-                onClick={togglePause}
-                className={`px-2 py-1 border text-[0.875em] transition-all ${isPaused ? 'bg-[#1a3a1a] border-[#3a6b4a] text-[#3a6b4a]' : 'bg-[#101010] border-[#252525] text-[#606060] hover:border-[#404040] hover:text-[#909090]'}`}
-              >
-                {isPaused ? '▶ START SIM' : '⏸ PAUSE'}
-              </button>
-              <button
-                onClick={() => {
-                  resetSimulation()
-                  addMessage('system', 'SIMULATION ZURÜCKGESETZT')
-                }}
-                className="px-2 py-1 bg-[#101010] border border-[#252525] text-[0.875em] text-[#606060] hover:border-[#404040] hover:text-[#909090] transition-all"
-              >
-                SIM-RESET
-              </button>
-            </>
-          )}
-          <button
-            onClick={() => setShowCameraFeeds((prev) => !prev)}
-            className={`px-2 py-1 border text-[0.875em] transition-all ${showCameraFeeds ? 'bg-[#1a2a1a] border-[#3a6b4a] text-[#3a6b4a]' : 'bg-[#101010] border-[#252525] text-[#606060] hover:border-[#404040] hover:text-[#909090]'}`}
-          >
-            FEEDS
-          </button>
-          <button
-            onClick={resetCamera}
-            className="px-2 py-1 bg-[#101010] border border-[#252525] text-[0.875em] text-[#606060] hover:border-[#404040] hover:text-[#909090] transition-all"
-          >
-            CAM-RESET
-          </button>
-          <button
-            onClick={focusOnContent}
-            className="px-2 py-1 bg-[#101010] border border-[#252525] text-[0.875em] text-[#606060] hover:border-[#404040] hover:text-[#909090] transition-all"
-          >
-            FOKUS
-          </button>
-        </div>
-      </div>
+      <ViewerFooter
+        readOnly={embeddedInEngram}
+        paused={isPaused}
+        feedsVisible={showCameraFeeds}
+        onTogglePause={togglePause}
+        onResetSimulation={() => {
+          resetSimulation()
+          addMessage('system', 'SIMULATION ZURÜCKGESETZT')
+        }}
+        onToggleFeeds={() => setShowCameraFeeds((previous) => !previous)}
+        onResetCamera={resetCamera}
+        onFocusContent={focusOnContent}
+      />
 
       {!embeddedInEngram && isDragging && (
         <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none">
@@ -4077,31 +4388,7 @@ export default function CrebainViewer({
       )}
 
       {isLoading && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="absolute top-24 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 px-6 py-3 bg-[#0c0c0c] border border-[#252525] min-w-[240px]"
-        >
-          <div className="flex items-center gap-3 w-full">
-            <div
-              aria-hidden="true"
-              className="w-2 h-2 border border-[#808080] border-t-transparent animate-spin motion-reduce:animate-none"
-            />
-            <span className="text-[#808080] text-[1em] flex-1">
-              {loadingStage === 'reading' && 'LESEN'}
-              {loadingStage === 'processing' && 'VERARBEITEN'}
-              {loadingStage === 'rendering' && 'RENDERN'}:{' '}
-              <span className="text-[#a0a0a0]">{loadingName}</span>
-            </span>
-            <span className="text-[#606060] text-[1em]">{Math.round(loadingProgress)}%</span>
-          </div>
-          <div className="w-full h-1 bg-[#1a1a1a] rounded overflow-hidden">
-            <div
-              className="h-full bg-[#3a6b4a] transition-[width] duration-200 motion-reduce:transition-none"
-              style={{ width: `${loadingProgress}%` }}
-            />
-          </div>
-        </div>
+        <ViewerLoadingOverlay name={loadingName} progress={loadingProgress} stage={loadingStage} />
       )}
 
       {/* Corner accents */}

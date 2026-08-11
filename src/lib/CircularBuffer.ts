@@ -7,14 +7,21 @@
  */
 
 export class CircularBuffer<T> {
+  static readonly MAX_CAPACITY = 1_000_000
   private buffer: (T | undefined)[]
   private head: number = 0 // Next write position
   private count: number = 0
   private readonly capacity: number
 
   constructor(capacity: number) {
-    if (capacity <= 0) {
-      throw new Error('CircularBuffer capacity must be positive')
+    if (
+      !Number.isSafeInteger(capacity) ||
+      capacity <= 0 ||
+      capacity > CircularBuffer.MAX_CAPACITY
+    ) {
+      throw new RangeError(
+        `CircularBuffer capacity must be a positive safe integer no greater than ${CircularBuffer.MAX_CAPACITY}`
+      )
     }
     this.capacity = capacity
     this.buffer = new Array<T | undefined>(capacity)
@@ -37,7 +44,7 @@ export class CircularBuffer<T> {
    * O(1) complexity
    */
   get(index: number): T | undefined {
-    if (index < 0 || index >= this.count) {
+    if (!Number.isSafeInteger(index) || index < 0 || index >= this.count) {
       return undefined
     }
     // Calculate actual position: start from tail (oldest) and offset by index
@@ -73,6 +80,9 @@ export class CircularBuffer<T> {
    * O(n) where n is count parameter
    */
   lastN(n: number): T[] {
+    if (!Number.isSafeInteger(n) || n < 0) {
+      throw new RangeError('CircularBuffer lastN count must be a non-negative safe integer')
+    }
     const result: T[] = []
     const actualN = Math.min(n, this.count)
     for (let i = this.count - 1; i >= this.count - actualN; i--) {
@@ -129,13 +139,12 @@ export class CircularBuffer<T> {
 
   /**
    * Clear all items
-   * O(1) complexity - doesn't actually clear array
+   * O(capacity) complexity so removed objects are immediately eligible for garbage collection.
    */
   clear(): void {
     this.head = 0
     this.count = 0
-    // Note: We don't clear buffer array for performance
-    // Items are simply overwritten on next push
+    this.buffer.fill(undefined)
   }
 
   /**

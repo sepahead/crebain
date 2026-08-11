@@ -1,0 +1,380 @@
+{
+  "schema_version": 1,
+  "policy": "Each tracked Markdown file must reference a meaningful local SVG diagram or state a specific exemption. Each complex SVG diagram needs concise alt text and an adjacent prose text alternative. Diagrams never replace normative text, evidence, tables, procedures, or legal terms.",
+  "documents": [
+    {
+      "path": ".github/PULL_REQUEST_TEMPLATE.md",
+      "classification": "project-process",
+      "exemption": {
+        "kind": "machine-consumed-template",
+        "reason": "GitHub renders this compact form for each pull request. A diagram would obstruct completion and review."
+      }
+    },
+    {
+      "path": ".windsurf/workflows/manual-smoke-test.md",
+      "classification": "project-process",
+      "exemption": {
+        "kind": "machine-consumed-workflow",
+        "reason": "The workflow is an executable procedural surface. The canonical smoke document carries the relevant lifecycle visual."
+      }
+    },
+    {
+      "path": "AGENTS.md",
+      "classification": "project-process",
+      "exemption": {
+        "kind": "agent-instructions",
+        "reason": "Repository instructions must stay concise and directly actionable. Technical diagrams belong in the linked architecture documents."
+      }
+    },
+    {
+      "path": "CHANGELOG.md",
+      "classification": "historical-record",
+      "exemption": {
+        "kind": "append-only-history",
+        "reason": "Released entries are historical records. New release notes may be appended without retroactive visual reinterpretation."
+      }
+    },
+    {
+      "path": "CLAUDE.md",
+      "classification": "project-process",
+      "exemption": {
+        "kind": "agent-instructions",
+        "reason": "This file delegates to AGENTS.md and repeats documentation rules. A visual would duplicate authoritative technical documents."
+      }
+    },
+    {
+      "path": "CODE_OF_CONDUCT.md",
+      "classification": "legal-community",
+      "exemption": {
+        "kind": "community-terms",
+        "reason": "The Contributor Covenant adaptation is community-governance text whose meaning must remain intact and unembellished."
+      }
+    },
+    {
+      "path": "CONTRIBUTING.md",
+      "classification": "project-process",
+      "visuals": ["assets/diagrams/evidence-claim-chain.svg"]
+    },
+    {
+      "path": "README.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/system-architecture.svg"]
+    },
+    {
+      "path": "SECURITY.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/authority-boundaries.svg"]
+    },
+    {
+      "path": "SUPPORT.md",
+      "classification": "legal-community",
+      "exemption": {
+        "kind": "support-routing",
+        "reason": "This short community document only routes questions, defects, and vulnerabilities to the correct channels."
+      }
+    },
+    {
+      "path": "audit/README.md",
+      "classification": "frozen-evidence",
+      "exemption": {
+        "kind": "evidence-index",
+        "reason": "This index defines the frozen audit record and its limits. Visual reinterpretation could blur evidence provenance."
+      }
+    },
+    {
+      "path": "audit/candidate/README.md",
+      "classification": "frozen-evidence",
+      "exemption": {
+        "kind": "candidate-evidence-index",
+        "reason": "This file records the disposition corpus and its generated CSV relationship. Preserve its exact evidentiary meaning."
+      }
+    },
+    {
+      "path": "audit/candidate/TWENTY_LENS_REVIEW.md",
+      "classification": "frozen-evidence",
+      "exemption": {
+        "kind": "review-record",
+        "reason": "The twenty-lens table is a dated review record. A new visual could imply a different review result or scope."
+      }
+    },
+    {
+      "path": "audit/frozen/REVIEW_REPORT.md",
+      "classification": "frozen-evidence",
+      "exemption": {
+        "kind": "frozen-review",
+        "reason": "This report is bound to a frozen Git commit and must remain a faithful source-review evidence record."
+      }
+    },
+    {
+      "path": "brand.md",
+      "classification": "active-technical",
+      "exemption": {
+        "kind": "design-token-reference",
+        "reason": "Exact color, typography, density, and interaction tokens are clearer as text and swatches in the product itself."
+      }
+    },
+    {
+      "path": "docs/ARCHITECTURE.md",
+      "classification": "active-technical",
+      "visuals": [
+        "assets/diagrams/system-architecture.svg",
+        "assets/diagrams/camera-delivery-lifecycle.svg"
+      ]
+    },
+    {
+      "path": "docs/BACKLOG.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/evidence-claim-chain.svg"]
+    },
+    {
+      "path": "docs/COMPLETION_LEVELS.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/authority-boundaries.svg"]
+    },
+    {
+      "path": "docs/CONFIGURATION.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/camera-delivery-lifecycle.svg"]
+    },
+    {
+      "path": "docs/CONTROLS.md",
+      "classification": "active-technical",
+      "exemption": {
+        "kind": "direct-reference-table",
+        "reason": "The keyboard reference is already a compact one-to-one mapping. A graph would slow command lookup."
+      }
+    },
+    {
+      "path": "docs/CROSS_REPOSITORY_REQUIREMENTS_0.9.0.md",
+      "classification": "frozen-evidence",
+      "exemption": {
+        "kind": "dated-boundary-record",
+        "reason": "The exact external repository identities and dated status statements form a frozen requirements handoff."
+      }
+    },
+    {
+      "path": "docs/FUSION_VALIDATION_PROTOCOL.md",
+      "classification": "frozen-evidence",
+      "exemption": {
+        "kind": "preregistered-protocol",
+        "reason": "The not-yet-run experimental design is preregistered. A later diagram could change or appear to change that design."
+      }
+    },
+    {
+      "path": "docs/GALADRIEL_PRODUCER.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/engram-ncp-boundary.svg"]
+    },
+    {
+      "path": "docs/HAZARD_LOG.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/plant-foundation.svg"]
+    },
+    {
+      "path": "docs/L1_ODD.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/authority-boundaries.svg"]
+    },
+    {
+      "path": "docs/MANUAL_SMOKE_TEST.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/camera-delivery-lifecycle.svg"]
+    },
+    {
+      "path": "docs/MODEL_CONTRACTS.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/evidence-claim-chain.svg"]
+    },
+    {
+      "path": "docs/NARROWED_GO_0.9.0.md",
+      "classification": "frozen-evidence",
+      "exemption": {
+        "kind": "release-decision",
+        "reason": "This dated NARROWED_GO and NO_GO decision is a release record. Preserve its exact claim boundary."
+      }
+    },
+    {
+      "path": "docs/NATIVE_DETECTOR_BENCHMARK.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/evidence-claim-chain.svg"]
+    },
+    {
+      "path": "docs/NCP_BRIDGE_HANDOFF.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/engram-ncp-boundary.svg"]
+    },
+    {
+      "path": "docs/PHASE0_BASELINE.md",
+      "classification": "frozen-evidence",
+      "exemption": {
+        "kind": "frozen-baseline",
+        "reason": "This document describes the digest-checked Phase 0 baseline. Do not add a parallel visual contract."
+      }
+    },
+    {
+      "path": "docs/PLANT_APPLY_OBSERVATION_V1.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/plant-foundation.svg"]
+    },
+    {
+      "path": "docs/PLANT_CONTRACT_V1.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/plant-foundation.svg"]
+    },
+    {
+      "path": "docs/PLANT_FRESHNESS_V1.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/plant-foundation.svg"]
+    },
+    {
+      "path": "docs/PLANT_HEALTH_V1.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/plant-foundation.svg"]
+    },
+    {
+      "path": "docs/PLANT_SAFE_ACTION_V1.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/plant-foundation.svg"]
+    },
+    {
+      "path": "docs/PLANT_WATCHDOG_V1.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/plant-foundation.svg"]
+    },
+    {
+      "path": "docs/README.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/system-architecture.svg"]
+    },
+    {
+      "path": "docs/RELEASE_ACCEPTANCE.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/evidence-claim-chain.svg"]
+    },
+    {
+      "path": "docs/RELEASE_EVIDENCE.md",
+      "classification": "frozen-evidence",
+      "exemption": {
+        "kind": "release-evidence-log",
+        "reason": "The log preserves exact released and historical evidence. New diagrams must not reinterpret recorded results."
+      }
+    },
+    {
+      "path": "docs/RELEASE_HISTORY.md",
+      "classification": "historical-record",
+      "exemption": {
+        "kind": "release-identity-history",
+        "reason": "This record preserves retired identifiers and commit mappings. Visual restatement adds ambiguity without information."
+      }
+    },
+    {
+      "path": "docs/SENSOR_FUSION.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/fusion-pipeline.svg"]
+    },
+    {
+      "path": "docs/SYSTEM_CONTEXT.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/authority-boundaries.svg"]
+    },
+    {
+      "path": "docs/archive/SENSOR_FUSION_AGENT_SPECS.md",
+      "classification": "historical-record",
+      "exemption": {
+        "kind": "superseded-transcript",
+        "reason": "The file is an explicitly superseded historical transcript. Editing it could revive unsafe instructions."
+      }
+    },
+    {
+      "path": "integrations/engram/README.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/engram-ncp-boundary.svg"]
+    },
+    {
+      "path": "public/models/README.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/evidence-claim-chain.svg"]
+    },
+    {
+      "path": "public/splats/README.md",
+      "classification": "active-technical",
+      "exemption": {
+        "kind": "asset-license-record",
+        "reason": "Exact source, author, license, and conversion tables are the useful interface. A graph could obscure restrictions."
+      }
+    },
+    {
+      "path": "ros/README.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/camera-delivery-lifecycle.svg"]
+    },
+    {
+      "path": "src-tauri/crates/ncp-headless/README.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/engram-ncp-boundary.svg"]
+    },
+    {
+      "path": "src-tauri/crates/plant-authority/README.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/plant-foundation.svg"]
+    },
+    {
+      "path": "src-tauri/src/ncp/README.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/engram-ncp-boundary.svg"]
+    },
+    {
+      "path": "src-tauri/vendor-compat/README.md",
+      "classification": "active-technical",
+      "exemption": {
+        "kind": "provenance-procedure",
+        "reason": "Exact hashes, archives, replacements, and verification commands are authoritative. A graph would duplicate them."
+      }
+    },
+    {
+      "path": "src-tauri/vendor-compat/buddy_system_allocator-0.10.0/README.md",
+      "classification": "vendored-upstream",
+      "exemption": {
+        "kind": "vendored-documentation",
+        "reason": "This README is retained from the digest-verified upstream crate and must not receive project-authored edits."
+      }
+    },
+    {
+      "path": "src-tauri/vendor-compat/flume-0.11.1/CHANGELOG.md",
+      "classification": "vendored-upstream",
+      "exemption": {
+        "kind": "vendored-documentation",
+        "reason": "This changelog is retained from the digest-verified upstream crate and must remain byte-compatible with provenance."
+      }
+    },
+    {
+      "path": "src-tauri/vendor-compat/flume-0.11.1/README.md",
+      "classification": "vendored-upstream",
+      "exemption": {
+        "kind": "vendored-documentation",
+        "reason": "This README is retained from the digest-verified upstream crate and must not receive project-authored edits."
+      }
+    },
+    {
+      "path": "src-tauri/vendor-compat/uhlc-0.8.2/README.md",
+      "classification": "vendored-upstream",
+      "exemption": {
+        "kind": "vendored-documentation",
+        "reason": "This README is retained from the digest-verified upstream crate and must not receive project-authored edits."
+      }
+    },
+    {
+      "path": "src-tauri/vendor-compat/zenoh-transport-1.9.0/README.md",
+      "classification": "vendored-upstream",
+      "exemption": {
+        "kind": "vendored-documentation",
+        "reason": "This README is retained from the digest-verified upstream crate and must not receive project-authored edits."
+      }
+    },
+    {
+      "path": "src/neuro/README.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/engram-ncp-boundary.svg"]
+    }
+  ]
+}

@@ -145,6 +145,8 @@ const SensorIcon = ({ modality, active }: { modality: SensorModality; active: bo
     case 'radiofrequency':
       return (
         <svg
+          aria-hidden="true"
+          focusable="false"
           width={size}
           height={size}
           viewBox="0 0 24 24"
@@ -264,29 +266,49 @@ export default function SensorFusionPanel({
     return (
       <div
         ref={elementRef}
+        data-floating-panel="sensorFusion"
+        data-floating-panel-side="right"
+        data-floating-panel-slot={PANEL_POSITIONS.sensorFusion.magnifiedSlot}
+        data-panel-expanded="false"
         data-read-only={readOnly ? 'true' : 'false'}
+        aria-label="Sensor fusion panel"
+        role="region"
+        tabIndex={0}
         className="absolute top-0 right-3 z-40"
         style={panelStyle}
         onMouseDown={handleMouseDown}
       >
-        <button
-          type="button"
+        <div
           data-drag-handle
-          onClick={handleHeaderClick}
-          className="min-h-10 border border-[#252525] bg-[#0c0c0c] px-3 py-2 text-[1.25em] hover:border-[#404040] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8fb69a] cursor-grab select-none"
-          aria-label="Sensor-Fusion-Panel ausklappen"
+          className="flex min-h-10 items-stretch border border-[#252525] bg-[#0c0c0c] text-[1.25em] hover:border-[#404040]"
         >
-          <div className="flex items-center gap-2">
-            <span className="text-[#606060]">FUSION</span>
-            <span className={tracks.length > 0 ? 'text-[#3a6b4a]' : 'text-[#404040]'}>
-              {tracks.length} TRK
+          <span
+            aria-hidden="true"
+            className="flex cursor-grab select-none items-center px-1 text-[#505050]"
+          >
+            ⋮
+          </span>
+          <button
+            type="button"
+            onClick={handleHeaderClick}
+            className="min-h-10 flex-1 px-2 py-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-[#8fb69a]"
+            aria-expanded={false}
+            aria-label="Sensor-Fusion-Panel ausklappen"
+          >
+            <span className="flex items-center gap-2">
+              <span className="text-[#606060]">FUSION</span>
+              <span className={tracks.length > 0 ? 'text-[#3a6b4a]' : 'text-[#404040]'}>
+                {tracks.length} TRK
+              </span>
+              <span className="text-[#505050]">|</span>
+              <span
+                className={connectionState === 'connected' ? 'text-[#606060]' : 'text-[#a06a4a]'}
+              >
+                {connectionState === 'connected' ? formatAlgorithmName(algorithm) : 'ROS OFF'}
+              </span>
             </span>
-            <span className="text-[#505050]">|</span>
-            <span className={connectionState === 'connected' ? 'text-[#606060]' : 'text-[#a06a4a]'}>
-              {connectionState === 'connected' ? formatAlgorithmName(algorithm) : 'ROS OFF'}
-            </span>
-          </div>
-        </button>
+          </button>
+        </div>
       </div>
     )
   }
@@ -294,26 +316,36 @@ export default function SensorFusionPanel({
   return (
     <div
       ref={elementRef}
+      data-floating-panel="sensorFusion"
+      data-floating-panel-side="right"
+      data-floating-panel-slot={PANEL_POSITIONS.sensorFusion.magnifiedSlot}
+      data-panel-expanded="true"
       data-read-only={readOnly ? 'true' : 'false'}
+      aria-label="Sensor fusion panel"
+      role="region"
+      tabIndex={0}
       className="absolute top-0 right-3 w-72 z-40"
       style={panelStyle}
       onMouseDown={handleMouseDown}
     >
       <div className="bg-[#0c0c0c] border border-[#1a1a1a]">
-        {/* Header - Drag Handle */}
-        <div className="min-h-10 border-b border-[#1a1a1a] flex items-center justify-between bg-[#101010] select-none">
-          <button
-            type="button"
+        {/* Header: controls remain clickable while the title surface owns dragging. */}
+        <div
+          data-drag-handle
+          className="min-h-10 border-b border-[#1a1a1a] flex items-center justify-between bg-[#101010] select-none"
+        >
+          <div
+            className="min-h-10 flex min-w-0 flex-1 cursor-grab items-center gap-2 px-1"
             data-drag-handle
-            className="min-h-10 flex min-w-0 flex-1 cursor-grab items-center gap-2 px-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-[#8fb69a]"
-            onClick={handleHeaderClick}
-            aria-label="Sensor-Fusion-Panel einklappen"
           >
+            <span aria-hidden="true" className="text-[#505050]">
+              ⋮
+            </span>
             <span className="text-[1.25em] text-[#909090] tracking-[0.2em]">SENSOR FUSION</span>
             <span className="text-[1.125em] px-1.5 py-0.5 bg-[#1a1a1a] border border-[#252525] text-[#707070]">
               {formatAlgorithmName(stats?.algorithm ?? algorithm)}
             </span>
-          </button>
+          </div>
           <div className="flex items-center gap-2">
             {!readOnly && (
               <button
@@ -492,14 +524,15 @@ const TrackRow = memo(function TrackRow({ track, isSelected, onClick }: TrackRow
 
   // Format velocity magnitude
   const vel = track.velocity
-  const speed = Math.sqrt(vel[0] ** 2 + vel[1] ** 2 + vel[2] ** 2)
+  const speed = Math.hypot(vel[0], vel[1], vel[2])
 
   // Format uncertainty (RMS of position uncertainty)
   const unc = track.position_uncertainty
-  const rmsUnc = Math.sqrt((unc[0] ** 2 + unc[1] ** 2 + unc[2] ** 2) / 3)
+  const rmsUnc = Math.hypot(unc[0], unc[1], unc[2]) / Math.sqrt(3)
 
   return (
     <button
+      type="button"
       onClick={onClick}
       className={`w-full text-left px-3 py-2 transition-all ${
         isSelected

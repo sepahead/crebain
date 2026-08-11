@@ -1,0 +1,140 @@
+<svg xmlns="http://www.w3.org/2000/svg" xml:lang="en" viewBox="0 0 1200 920" width="1200" height="920" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="plant-foundation-title plant-foundation-desc">
+  <title id="plant-foundation-title">CREBAIN inert plant-authority foundation</title>
+  <desc id="plant-foundation-desc">The dependency-free plant package contains implemented but inactive command, health, age, apply-observation, deadline-monitor, safe-action, lifecycle, channel, frame, and expiry mechanics. Solid arrows show narrow component data dependencies. Missing authenticated ingress, approved policy, an authorizing governor, output invalidation, an FCU adapter, and runtime wiring stop every path before vehicle authority.</desc>
+  <style>
+    * { vector-effect: non-scaling-stroke; }
+    .canvas { fill: #f8fafc; }
+    text { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 14px; fill: #172033; text-anchor: middle; }
+    .title { font-size: 18px; font-weight: 700; letter-spacing: 2px; text-anchor: start; }
+    .subtitle { font-size: 13px; fill: #475569; text-anchor: start; }
+    .section { font-size: 14px; font-weight: 700; letter-spacing: 1.3px; text-anchor: start; }
+    .small { font-size: 13px; fill: #475569; }
+    .left { text-anchor: start; }
+    .present-text { fill: #047857; }
+    .data-text { fill: #0369a1; }
+    .conditional-text { fill: #92400e; }
+    .optional-text { fill: #6d28d9; }
+    .absent-text { fill: #b91c1c; }
+    .package { fill: none; stroke: #047857; stroke-width: 1.8; }
+    .candidate { fill: #ffffff; stroke: #92400e; stroke-width: 1.5; }
+    .foundation { fill: #ffffff; stroke: #0369a1; stroke-width: 1.4; }
+    .isolated { fill: #ffffff; stroke: #64748b; stroke-width: 1.4; stroke-dasharray: 3 4; }
+    .absent-box { fill: #ffffff; stroke: #b91c1c; stroke-width: 1.7; stroke-dasharray: 7 5; }
+    .edge { fill: none; stroke: #52643f; stroke-width: 1.5; marker-end: url(#plant-arrow-flow); }
+    .data-edge { fill: none; stroke: #0369a1; stroke-width: 1.5; marker-end: url(#plant-arrow-data); }
+    .barrier { stroke: #b91c1c; stroke-width: 4; }
+    .marker-flow { fill: #52643f; }
+    .marker-data { fill: #0369a1; }
+    .corner { fill: none; stroke: #52643f; stroke-width: 1.8; }
+    .divider { stroke: #64748b; stroke-width: 1.2; stroke-dasharray: 3 5; }
+    @media (prefers-color-scheme: dark) {
+      .canvas { fill: #0d1117; }
+      text { fill: #d6dde5; }
+      .subtitle, .small { fill: #9aa7b4; }
+      .present-text { fill: #34d399; }
+      .data-text { fill: #38bdf8; }
+      .conditional-text { fill: #fbbf24; }
+      .optional-text { fill: #c4b5fd; }
+      .absent-text { fill: #f87171; }
+      .candidate, .foundation, .isolated, .absent-box { fill: #111820; }
+      .package { stroke: #34d399; }
+      .candidate { stroke: #fbbf24; }
+      .foundation, .data-edge { stroke: #38bdf8; }
+      .isolated, .divider { stroke: #7d8996; }
+      .absent-box, .barrier { stroke: #f87171; }
+      .edge, .corner { stroke: #87967a; }
+      .marker-flow { fill: #87967a; }
+      .marker-data { fill: #38bdf8; }
+    }
+  </style>
+  <defs>
+    <marker id="plant-arrow-flow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="marker-flow" d="M0 0 L8 4 L0 8 Z"/></marker>
+    <marker id="plant-arrow-data" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="marker-data" d="M0 0 L8 4 L0 8 Z"/></marker>
+  </defs>
+
+  <rect class="canvas" x="0" y="0" width="1200" height="920"/>
+  <path class="corner" d="M18 42 V18 H42 M1158 18 H1182 V42 M18 878 V902 H42 M1182 878 V902 H1158"/>
+  <text class="title" x="48" y="42">CREBAIN · INERT PLANT-AUTHORITY FOUNDATION</text>
+  <text class="subtitle" x="48" y="66">DEPENDENCY-FREE RUST PACKAGE · IMPLEMENTED COMPONENT MECHANICS · NO OPERATIONAL AUTHORITY</text>
+
+  <rect class="package" x="40" y="92" width="1120" height="670"/>
+  <text class="section present-text" x="62" y="120">crebain-plant-authority · crebain-plantd --self-check</text>
+
+  <text class="section conditional-text" x="68" y="158">VALIDATED CANDIDATES AND OBSERVATIONS</text>
+  <rect class="candidate" x="68" y="174" width="218" height="118"/>
+  <text class="conditional-text" x="177" y="202">Command contract V1</text>
+  <text class="small" x="177" y="228">closed action / frame</text>
+  <text class="small" x="177" y="251">unit · draft speed</text>
+  <text class="small" x="177" y="274">+ TTL bounds</text>
+
+  <rect class="candidate" x="334" y="174" width="218" height="118"/>
+  <text class="conditional-text" x="443" y="202">Vehicle-health V1</text>
+  <text class="small" x="443" y="228">one coherent</text>
+  <text class="small" x="443" y="251">retained commit</text>
+  <text class="small" x="443" y="274">source not authenticated</text>
+
+  <rect class="candidate" x="600" y="174" width="218" height="118"/>
+  <text class="conditional-text" x="709" y="202">Lifecycle machine</text>
+  <text class="small" x="709" y="228">9 states</text>
+  <text class="small" x="709" y="251">generation guards</text>
+  <text class="small" x="709" y="274">no autonomous observer</text>
+
+  <rect class="candidate" x="866" y="174" width="246" height="118"/>
+  <text class="conditional-text" x="989" y="202">Captured-read age policy</text>
+  <text class="small" x="989" y="235">8 exclusive comparisons</text>
+  <text class="small" x="989" y="264">no aggregate health verdict</text>
+
+  <path class="edge" d="M443 292 V312 H664 V322"/>
+  <path class="edge" d="M989 292 V306 H828 V322"/>
+  <rect class="candidate" x="532" y="330" width="344" height="124"/>
+  <text class="conditional-text" x="704" y="360">Apply-check observation candidate</text>
+  <text class="small" x="704" y="388">health load → one reference instant</text>
+  <text class="small" x="704" y="413">command age + 8 health-age relations</text>
+  <text class="absent-text" x="704" y="438">NO BOOLEAN OR AUTHORIZING VERDICT</text>
+  <path class="edge" d="M177 292 V306 H580 V322"/>
+  <path class="edge" d="M709 292 V322"/>
+
+  <path class="edge" d="M177 292 V478"/>
+  <rect class="candidate" x="68" y="486" width="250" height="142"/>
+  <text class="conditional-text" x="193" y="516">Deadline monitor candidate</text>
+  <text class="small" x="193" y="542">receipt-derived ticket</text>
+  <text class="small" x="193" y="566">one active slot</text>
+  <text class="small" x="193" y="590">sticky terminal evidence</text>
+  <text class="small absent-text" x="193" y="614">detects only · no revocation</text>
+
+  <rect class="candidate" x="344" y="486" width="250" height="142"/>
+  <text class="conditional-text" x="469" y="516">Safe-action candidate</text>
+  <text class="small" x="469" y="542">opaque situation</text>
+  <text class="small" x="469" y="566">→ closed intent</text>
+  <text class="small" x="469" y="590">no default row</text>
+  <text class="small absent-text" x="469" y="614">no state / trigger classifier</text>
+
+  <rect class="isolated" x="620" y="486" width="228" height="142"/>
+  <text x="734" y="516">Frame conventions</text>
+  <text class="small" x="734" y="542">ENU↔NED · FLU↔FRD</text>
+  <text class="small" x="734" y="566">finite velocity</text>
+  <text class="small" x="734" y="590">vectors only</text>
+  <text class="small absent-text" x="734" y="614">not wired to admission</text>
+
+  <rect class="isolated" x="876" y="486" width="236" height="142"/>
+  <text x="994" y="516">Passive expiry guard</text>
+  <text class="small" x="994" y="542">generation + monotonic</text>
+  <text class="small" x="994" y="566">half-open validity window</text>
+  <text class="small absent-text" x="994" y="600">no timer or callback</text>
+
+  <line class="divider" x1="68" y1="650" x2="1112" y2="650"/>
+  <text class="section data-text" x="68" y="682">BOUNDED FOUNDATIONS</text>
+  <rect class="foundation" x="68" y="698" width="250" height="48"/>
+  <text class="data-text" x="193" y="728">latest value · capacity 1</text>
+  <rect class="foundation" x="332" y="698" width="250" height="48"/>
+  <text class="data-text" x="457" y="728">lifecycle · reject new</text>
+  <rect class="foundation" x="596" y="698" width="250" height="48"/>
+  <text class="data-text" x="721" y="728">evidence · drop oldest</text>
+  <rect class="foundation" x="860" y="698" width="252" height="48"/>
+  <text class="data-text" x="986" y="728">first-cause safety latch</text>
+
+  <line class="barrier" x1="40" y1="796" x2="1160" y2="796"/>
+  <text class="absent-text" x="600" y="828">AUTHORITY BARRIER · NO RUNTIME CONSUMER CROSSES THIS LINE</text>
+  <rect class="absent-box" x="64" y="848" width="1072" height="44"/>
+  <text class="small absent-text" x="600" y="876">MISSING: authenticated ingress · approved policy · write-adjacent governor · output invalidation · typed FCU adapter · effect evidence</text>
+</svg>

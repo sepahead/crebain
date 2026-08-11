@@ -20,14 +20,14 @@ export type RendererWithAsync = THREE.WebGLRenderer & {
   renderAsync?: (scene: THREE.Scene, camera: THREE.Camera) => Promise<void>
 }
 
-/** Represents a loaded 3D asset (Gaussian splat or GLTF model) in the scene. */
+/** Represents a loaded GLB model in the scene. Splats have a separate single-owner slot. */
 export interface LoadedAsset {
   /** Unique identifier for the asset */
   id: string
   /** Display name (typically the filename) */
   name: string
   /** Asset format type */
-  type: 'splat' | 'glb'
+  type: 'glb'
   /** The THREE.js object added to the scene */
   object: THREE.Object3D
   /** Reloadable source URL. Local File handles are intentionally not persisted. */
