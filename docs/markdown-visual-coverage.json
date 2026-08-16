@@ -58,7 +58,7 @@
     {
       "path": "README.md",
       "classification": "active-technical",
-      "visuals": ["assets/diagrams/system-architecture.svg"]
+      "visuals": ["assets/diagrams/system-architecture.svg", "assets/diagrams/drone-mgw-study.svg"]
     },
     {
       "path": "SECURITY.md",
@@ -151,6 +151,14 @@
         "kind": "dated-boundary-record",
         "reason": "The exact external repository identities and dated status statements form a frozen requirements handoff."
       }
+    },
+    {
+      "path": "docs/DRONE_MGW_PID_STUDY.md",
+      "classification": "active-technical",
+      "visuals": [
+        "assets/diagrams/drone-mgw-study.svg",
+        "assets/diagrams/pid-method-eligibility.svg"
+      ]
     },
     {
       "path": "docs/FUSION_VALIDATION_PROTOCOL.md",
@@ -270,7 +278,7 @@
     {
       "path": "docs/SENSOR_FUSION.md",
       "classification": "active-technical",
-      "visuals": ["assets/diagrams/fusion-pipeline.svg"]
+      "visuals": ["assets/diagrams/fusion-pipeline.svg", "assets/diagrams/drone-mgw-study.svg"]
     },
     {
       "path": "docs/SYSTEM_CONTEXT.md",

@@ -7337,6 +7337,518 @@ mod tests {
             registry_with_max_active(1024)
         }
 
+        const DRONE_MGW_FIXTURE_PATH: &str = "tests/fixtures/crebain_drone_mgw_v1.json";
+        const DRONE_MGW_FIXTURE_SCHEMA: &str = "crebain.drone-mgw-study/1.0.0";
+        const DRONE_MGW_PID_RS_REVISION: &str = "1cd2424f7967e1752dcc8e53859e8fdad3566f51";
+        const DRONE_MGW_EPISODES_PER_CELL: u8 = 8;
+        const DRONE_MGW_PRIOR_TIMESTAMP_MS: u64 = 1_000;
+        const DRONE_MGW_OBSERVATION_TIMESTAMP_MS: u64 = 1_100;
+        const DRONE_MGW_EAST_PLANE_M: f64 = 50.0;
+        const DRONE_MGW_NORTH_PLANE_M: f64 = 1.0;
+        const DRONE_MGW_UP_PLANE_M: f64 = 1.0;
+
+        fn drone_mgw_registry() -> crate::galadriel_registry::DeploymentRegistry {
+            let extrinsic = content("map_identity_v1", '4');
+            let value = serde_json::json!({
+                "schema_version": "1.0",
+                "registry_version": "crebain-drone-mgw-v1",
+                "opportunity_policy": {
+                    "rule": "frozen_active_track_modality_input_order_v1",
+                    "max_active_tracks": 8,
+                    "max_frame_inputs": 8,
+                    "max_attempts_per_track_modality": 2,
+                    "max_outcomes_per_frame": 32,
+                    "max_monitor_queue_events": 128
+                },
+                "frames": [{
+                    "frame_id": 7,
+                    "canonical_enu_frame": "map_enu",
+                    "origin": content("origin_v1", '1'),
+                    "datum": content("datum_v1", '2'),
+                    "axis_order": ["east", "north", "up"],
+                    "axis_directions": ["positive_east", "positive_north", "positive_up"],
+                    "handedness": "right_handed",
+                    "linear_unit": "meter",
+                    "applicability": { "valid_from_timestamp_ms": 0 },
+                    "source_frames": [{
+                        "canonical_source_frame": "map_enu",
+                        "transform_authority": "identity",
+                        "aggregate_extrinsic": extrinsic.clone(),
+                        "transform_chain": []
+                    }]
+                }],
+                "contexts": [{
+                    "context_id": 11,
+                    "frame_id": 7,
+                    "applicability": { "valid_from_timestamp_ms": 0 },
+                    "projection_algorithm": {
+                        "identifier": "cartesian_frozen_residual",
+                        "version": "1.0.0",
+                        "content_digest": digest('5')
+                    },
+                    "output_dimensions": 3,
+                    "axis_order": ["east", "north", "up"],
+                    "covariance_semantics": "frozen_prior_projected_observation_covariance",
+                    "linearization_semantics": "immutable_pre_association_prior",
+                    "expected_modalities": [
+                        {
+                            "modality": "visual",
+                            "canonical_source_frame": "map_enu",
+                            "calibration": content("visual_north_plane_v1", '6'),
+                            "extrinsic": extrinsic.clone()
+                        },
+                        {
+                            "modality": "radar",
+                            "canonical_source_frame": "map_enu",
+                            "calibration": content("radar_east_plane_v1", '7'),
+                            "extrinsic": extrinsic.clone()
+                        },
+                        {
+                            "modality": "acoustic",
+                            "canonical_source_frame": "map_enu",
+                            "calibration": content("acoustic_up_plane_v1", 'a'),
+                            "extrinsic": extrinsic
+                        }
+                    ],
+                    "producer_software_digest": digest('8'),
+                    "producer_configuration_digest": digest('9')
+                }]
+            });
+            crate::galadriel_registry::DeploymentRegistry::from_json(
+                &serde_json::to_vec(&value).expect("drone registry encodes"),
+            )
+            .expect("drone registry validates")
+        }
+
+        fn canonical_json(value: &serde_json::Value, output: &mut Vec<u8>) {
+            match value {
+                serde_json::Value::Null => output.extend_from_slice(b"null"),
+                serde_json::Value::Bool(value) => {
+                    output.extend_from_slice(if *value { b"true" } else { b"false" })
+                }
+                serde_json::Value::Number(value) => {
+                    output.extend_from_slice(value.to_string().as_bytes())
+                }
+                serde_json::Value::String(value) => output.extend_from_slice(
+                    serde_json::to_string(value)
+                        .expect("JSON string encodes")
+                        .as_bytes(),
+                ),
+                serde_json::Value::Array(values) => {
+                    output.push(b'[');
+                    for (index, value) in values.iter().enumerate() {
+                        if index > 0 {
+                            output.push(b',');
+                        }
+                        canonical_json(value, output);
+                    }
+                    output.push(b']');
+                }
+                serde_json::Value::Object(values) => {
+                    output.push(b'{');
+                    let mut keys: Vec<&str> = values.keys().map(String::as_str).collect();
+                    keys.sort_unstable();
+                    for (index, key) in keys.into_iter().enumerate() {
+                        if index > 0 {
+                            output.push(b',');
+                        }
+                        output.extend_from_slice(
+                            serde_json::to_string(key)
+                                .expect("JSON object key encodes")
+                                .as_bytes(),
+                        );
+                        output.push(b':');
+                        canonical_json(&values[key], output);
+                    }
+                    output.push(b'}');
+                }
+            }
+        }
+
+        fn canonical_json_sha256(value: &serde_json::Value) -> String {
+            use sha2::{Digest, Sha256};
+
+            let mut encoded = Vec::new();
+            canonical_json(value, &mut encoded);
+            crate::common::lower_hex(Sha256::digest(encoded))
+        }
+
+        fn drone_mgw_analysis_manifest() -> serde_json::Value {
+            serde_json::json!({
+                "study_id": "crebain-drone-mgw-v1",
+                "scientific_status": "deterministic_categorical_conformance_law_not_inference",
+                "sampling_unit": {
+                    "software_state_unit": "one freshly initialized fusion-engine episode",
+                    "statistical_independence_claim": "none; the eight repetitions per law cell add no stochastic precision",
+                    "row_count": 64,
+                    "factorial_cells": 8,
+                    "episodes_per_cell": DRONE_MGW_EPISODES_PER_CELL
+                },
+                "time_contract": {
+                    "prior_timestamp_ms": DRONE_MGW_PRIOR_TIMESTAMP_MS,
+                    "observation_timestamp_ms": DRONE_MGW_OBSERVATION_TIMESTAMP_MS,
+                    "all_three_sources_synchronized": true,
+                    "one_observation_window_per_episode": true
+                },
+                "source_order": [
+                    "visual_north_plane_crossed",
+                    "radar_east_plane_crossed",
+                    "acoustic_up_plane_crossed"
+                ],
+                "source_origin": "ordered pre-fusion sensor measurements; no fused verdict, PID atom, or target-derived feature",
+                "target_origin": "externally generated fixture truth in canonical ENU before sensor projection and before fusion",
+                "primary_question": {
+                    "functional_id": "functional.shared-exclusions.mgw-categorical",
+                    "route": "pid_core::stable::categorical::discrete_sxpid2",
+                    "sources": [
+                        "visual_north_plane_crossed",
+                        "radar_east_plane_crossed"
+                    ],
+                    "target": "horizontal_incursion",
+                    "source_count": 2,
+                    "status": "primary deterministic categorical decomposition"
+                },
+                "exploratory_question": {
+                    "functional_id": "functional.shared-exclusions.mgw-categorical",
+                    "route": "pid_core::stable::categorical::discrete_sxpid3",
+                    "sources": [
+                        "visual_north_plane_crossed",
+                        "radar_east_plane_crossed",
+                        "acoustic_up_plane_crossed"
+                    ],
+                    "target": "volumetric_incursion",
+                    "source_count": 3,
+                    "status": "exploratory; does not close the separate 108-coordinate assurance program"
+                },
+                "consumer_backend": {
+                    "repository": "https://github.com/sepahead/pid-rs",
+                    "revision": DRONE_MGW_PID_RS_REVISION,
+                    "mutation_policy": "read_only"
+                },
+                "method_exclusions": {
+                    "continuous_ehrlich_pid": "not_applicable: repeated atomic categorical law",
+                    "pairwise_ksg_mi": "not_applicable: repeated atomic categorical law",
+                    "williams_beer_imin": "not_requested; distinct comparator, never fallback",
+                    "broja": "not_requested; distinct comparator, never fallback",
+                    "co_information_o_information": "not requested as PID atoms",
+                    "nis_and_correlation": "separate operational association diagnostics"
+                },
+                "uncertainty": {
+                    "resampling": "none",
+                    "p_values": "none",
+                    "confidence_intervals": "none",
+                    "reason": "designed exact empirical law; repeated rows are not independent observations"
+                },
+                "stopping_rule": "generate exactly eight fresh-engine episodes for each ordered three-bit source cell",
+                "accepted_outputs": "signed informative, misinformative, and net MGW coordinates with reconstruction checks",
+                "authority_boundary": "advisory research evidence only; cannot grant, revoke, or exercise Haldir control authority",
+                "primary_references": [
+                    "https://doi.org/10.1103/PhysRevE.103.032149",
+                    "https://doi.org/10.1098/rspa.2021.0110"
+                ]
+            })
+        }
+
+        fn drone_mgw_measurement(
+            sensor_id: &str,
+            modality: SensorModality,
+            timestamp_ms: u64,
+            position: [f64; 3],
+            covariance: [f64; 3],
+        ) -> SensorMeasurement {
+            SensorMeasurement {
+                sensor_id: sensor_id.to_string(),
+                modality,
+                timestamp_ms,
+                source_frame_id: Some("map_enu".to_string()),
+                position,
+                velocity: None,
+                covariance,
+                confidence: 0.99,
+                class_label: "drone".to_string(),
+                metadata: HashMap::new(),
+            }
+        }
+
+        fn drone_mgw_fixture_value() -> Result<serde_json::Value, String> {
+            let registry = drone_mgw_registry();
+            let analysis_manifest = drone_mgw_analysis_manifest();
+            let analysis_manifest_sha256 = canonical_json_sha256(&analysis_manifest);
+            let mut rows = Vec::with_capacity(64);
+
+            for cell_index in 0_u8..8 {
+                let visual_cell = (cell_index >> 2) & 1;
+                let radar_cell = (cell_index >> 1) & 1;
+                let acoustic_cell = cell_index & 1;
+                let east_m = if radar_cell == 1 { 49.0 } else { 51.0 };
+                let north_m = if visual_cell == 1 { 0.0 } else { 2.0 };
+                let up_m = if acoustic_cell == 1 { 0.0 } else { 2.0 };
+
+                for replicate_index in 0_u8..DRONE_MGW_EPISODES_PER_CELL {
+                    let episode_id =
+                        format!("crebain-drone-mgw-v1-c{cell_index:02}-r{replicate_index:02}");
+                    let mut fusion = MultiSensorFusion::new(FusionConfig::default());
+                    let birth = fusion.process_frame(
+                        vec![drone_mgw_measurement(
+                            "visual-prior",
+                            SensorModality::Visual,
+                            DRONE_MGW_PRIOR_TIMESTAMP_MS,
+                            [50.0, 1.0, 1.0],
+                            [0.25, 0.25, 0.25],
+                        )],
+                        DRONE_MGW_PRIOR_TIMESTAMP_MS,
+                        &registry,
+                        7,
+                        11,
+                        1,
+                    )?;
+                    if birth.tracks.len() != 1 {
+                        return Err(format!(
+                            "{episode_id}: prior frame produced {} tracks",
+                            birth.tracks.len()
+                        ));
+                    }
+
+                    // These are three ordered pre-fusion observations. The
+                    // Cartesian modalities expose one designated ENU axis while
+                    // holding the other axes on the registered reference line;
+                    // radar reports its designated east coordinate as a
+                    // boresight range. This is an engineered conformance law,
+                    // not a calibrated field-sensor error model.
+                    let visual = drone_mgw_measurement(
+                        "visual-north",
+                        SensorModality::Visual,
+                        DRONE_MGW_OBSERVATION_TIMESTAMP_MS,
+                        [50.0, north_m, 1.0],
+                        [1.0, 0.25, 1.0],
+                    );
+                    let radar = drone_mgw_measurement(
+                        "radar-east",
+                        SensorModality::Radar,
+                        DRONE_MGW_OBSERVATION_TIMESTAMP_MS,
+                        [east_m, 0.0, 0.0],
+                        [0.25, 0.001, 0.001],
+                    );
+                    let acoustic = drone_mgw_measurement(
+                        "acoustic-up",
+                        SensorModality::Acoustic,
+                        DRONE_MGW_OBSERVATION_TIMESTAMP_MS,
+                        [50.0, 1.0, up_m],
+                        [1.0, 1.0, 0.25],
+                    );
+
+                    let sources = [
+                        u8::from(visual.position[1] <= DRONE_MGW_NORTH_PLANE_M),
+                        u8::from(radar.position[0] <= DRONE_MGW_EAST_PLANE_M),
+                        u8::from(acoustic.position[2] <= DRONE_MGW_UP_PLANE_M),
+                    ];
+                    let horizontal_incursion = u8::from(
+                        east_m <= DRONE_MGW_EAST_PLANE_M && north_m <= DRONE_MGW_NORTH_PLANE_M,
+                    );
+                    let volumetric_incursion =
+                        u8::from(horizontal_incursion == 1 && up_m <= DRONE_MGW_UP_PLANE_M);
+                    if sources != [visual_cell, radar_cell, acoustic_cell] {
+                        return Err(format!(
+                            "{episode_id}: source predicates do not reproduce factorial cell"
+                        ));
+                    }
+
+                    let evidence = fusion.process_frame(
+                        vec![visual.clone(), radar.clone(), acoustic.clone()],
+                        DRONE_MGW_OBSERVATION_TIMESTAMP_MS,
+                        &registry,
+                        7,
+                        11,
+                        2,
+                    )?;
+                    let projection_prior_ids: std::collections::BTreeSet<u64> = evidence
+                        .pid_observations
+                        .iter()
+                        .filter_map(|observation| {
+                            observation
+                                .consistency_projection
+                                .map(|projection| projection.prior_id)
+                        })
+                        .collect();
+                    if evidence.frame_summary.input_count != 3
+                        || evidence.frame_summary.v1_expected_count != 3
+                        || evidence.pid_observations.len() != 3
+                        || projection_prior_ids != std::collections::BTreeSet::from([2])
+                        || evidence.frame_summary.degraded
+                        || evidence.frame_summary.truncated
+                    {
+                        return Err(format!(
+                            "{episode_id}: fusion evidence did not preserve the three-source frozen-prior contract"
+                        ));
+                    }
+
+                    rows.push(serde_json::json!({
+                        "episode_id": episode_id,
+                        "cell_index": cell_index,
+                        "replicate_index": replicate_index,
+                        "prior_timestamp_ms": DRONE_MGW_PRIOR_TIMESTAMP_MS,
+                        "observation_timestamp_ms": DRONE_MGW_OBSERVATION_TIMESTAMP_MS,
+                        "truth_enu_m": [east_m, north_m, up_m],
+                        "pre_fusion_observations": {
+                            "visual_cartesian_enu_m": visual.position,
+                            "radar_polar_range_azimuth_elevation": radar.position,
+                            "acoustic_cartesian_enu_m": acoustic.position
+                        },
+                        "sources": sources,
+                        "horizontal_incursion": horizontal_incursion,
+                        "volumetric_incursion": volumetric_incursion,
+                        "fusion_receipt": {
+                            "input_count": evidence.frame_summary.input_count,
+                            "v1_expected_count": evidence.frame_summary.v1_expected_count,
+                            "projection_count": evidence.pid_observations.len(),
+                            "common_projection_prior_id": 2,
+                            "degraded": evidence.frame_summary.degraded,
+                            "truncated": evidence.frame_summary.truncated
+                        }
+                    }));
+                }
+            }
+
+            Ok(serde_json::json!({
+                "schema_version": DRONE_MGW_FIXTURE_SCHEMA,
+                "analysis_manifest_canonicalization": "recursive lexicographic UTF-8 object keys; serde_json scalar encoding; no whitespace; v1",
+                "analysis_manifest_sha256": analysis_manifest_sha256,
+                "analysis_manifest": analysis_manifest,
+                "geometry": {
+                    "canonical_frame": "map_enu",
+                    "axis_order": ["east", "north", "up"],
+                    "prior_reference_enu_m": [50.0, 1.0, 1.0],
+                    "entry_planes_m": {
+                        "east_at_or_below": DRONE_MGW_EAST_PLANE_M,
+                        "north_at_or_below": DRONE_MGW_NORTH_PLANE_M,
+                        "up_at_or_below": DRONE_MGW_UP_PLANE_M
+                    },
+                    "target_definitions": {
+                        "horizontal_incursion": "truth east and north are at or below their registered entry planes",
+                        "volumetric_incursion": "horizontal_incursion and truth up is at or below its registered entry plane"
+                    }
+                },
+                "rows": rows
+            }))
+        }
+
+        fn drone_mgw_fixture_bytes() -> Result<Vec<u8>, String> {
+            let value = drone_mgw_fixture_value()?;
+            let mut bytes = serde_json::to_vec_pretty(&value).map_err(|error| error.to_string())?;
+            bytes.push(b'\n');
+            Ok(bytes)
+        }
+
+        #[test]
+        fn drone_mgw_fixture_is_source_derived_complete_and_current() {
+            let bytes = drone_mgw_fixture_bytes().expect("drone fixture generates");
+            let fixture_path =
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(DRONE_MGW_FIXTURE_PATH);
+            let checked_bytes = std::fs::read(&fixture_path).unwrap_or_else(|error| {
+                panic!(
+                    "read checked drone fixture {}: {error}",
+                    fixture_path.display()
+                )
+            });
+            assert_eq!(
+                bytes.as_slice(),
+                checked_bytes.as_slice(),
+                "regenerate the checked fixture with generate_crebain_drone_mgw_fixture"
+            );
+
+            let fixture: serde_json::Value =
+                serde_json::from_slice(&bytes).expect("fixture parses");
+            let manifest = &fixture["analysis_manifest"];
+            assert_eq!(
+                fixture["analysis_manifest_sha256"],
+                canonical_json_sha256(manifest)
+            );
+            let mut reordered_manifest = manifest.clone();
+            reordered_manifest["source_order"] = serde_json::json!([
+                "radar_east_plane_crossed",
+                "visual_north_plane_crossed",
+                "acoustic_up_plane_crossed"
+            ]);
+            assert_ne!(
+                fixture["analysis_manifest_sha256"],
+                canonical_json_sha256(&reordered_manifest),
+                "source order is part of the preregistered estimand"
+            );
+            let mut target_leakage_manifest = manifest.clone();
+            target_leakage_manifest["target_origin"] = serde_json::json!("accepted fused verdict");
+            assert_ne!(
+                fixture["analysis_manifest_sha256"],
+                canonical_json_sha256(&target_leakage_manifest),
+                "external target provenance is part of the preregistered estimand"
+            );
+            assert_eq!(manifest["uncertainty"]["resampling"], "none");
+            assert_eq!(
+                manifest["method_exclusions"]["continuous_ehrlich_pid"],
+                "not_applicable: repeated atomic categorical law"
+            );
+            assert_eq!(
+                manifest["method_exclusions"]["pairwise_ksg_mi"],
+                "not_applicable: repeated atomic categorical law"
+            );
+            let rows = fixture["rows"].as_array().expect("rows are an array");
+            assert_eq!(rows.len(), 64);
+            let episode_ids: std::collections::BTreeSet<&str> = rows
+                .iter()
+                .map(|row| row["episode_id"].as_str().expect("episode id is text"))
+                .collect();
+            assert_eq!(episode_ids.len(), 64);
+            for cell_index in 0_u64..8 {
+                assert_eq!(
+                    rows.iter()
+                        .filter(|row| row["cell_index"].as_u64() == Some(cell_index))
+                        .count(),
+                    DRONE_MGW_EPISODES_PER_CELL as usize
+                );
+            }
+            for row in rows {
+                let cell_index = row["cell_index"].as_u64().expect("cell index");
+                let expected_sources =
+                    [(cell_index >> 2) & 1, (cell_index >> 1) & 1, cell_index & 1];
+                let sources = row["sources"].as_array().expect("source array");
+                assert_eq!(
+                    sources
+                        .iter()
+                        .map(|value| value.as_u64().expect("binary source"))
+                        .collect::<Vec<_>>(),
+                    expected_sources
+                );
+
+                let truth = row["truth_enu_m"].as_array().expect("ENU truth");
+                let east_m = truth[0].as_f64().expect("east truth");
+                let north_m = truth[1].as_f64().expect("north truth");
+                let up_m = truth[2].as_f64().expect("up truth");
+                let horizontal = u64::from(
+                    east_m <= DRONE_MGW_EAST_PLANE_M && north_m <= DRONE_MGW_NORTH_PLANE_M,
+                );
+                let volumetric = u64::from(horizontal == 1 && up_m <= DRONE_MGW_UP_PLANE_M);
+                assert_eq!(row["horizontal_incursion"].as_u64(), Some(horizontal));
+                assert_eq!(row["volumetric_incursion"].as_u64(), Some(volumetric));
+                assert_eq!(row["fusion_receipt"]["input_count"], 3);
+                assert_eq!(row["fusion_receipt"]["v1_expected_count"], 3);
+                assert_eq!(row["fusion_receipt"]["projection_count"], 3);
+                assert_eq!(row["fusion_receipt"]["common_projection_prior_id"], 2);
+                assert_eq!(row["fusion_receipt"]["degraded"], false);
+                assert_eq!(row["fusion_receipt"]["truncated"], false);
+            }
+        }
+
+        /// Regenerate only an explicitly named temporary output. The checked
+        /// fixture is never overwritten implicitly.
+        #[test]
+        #[ignore = "fixture generator; set CREBAIN_DRONE_MGW_FIXTURE_PATH to an explicit path"]
+        fn generate_crebain_drone_mgw_fixture() {
+            let path = std::env::var_os("CREBAIN_DRONE_MGW_FIXTURE_PATH")
+                .expect("CREBAIN_DRONE_MGW_FIXTURE_PATH must name an explicit output");
+            let bytes = drone_mgw_fixture_bytes().expect("drone fixture generates");
+            std::fs::write(&path, &bytes).expect("write explicit drone fixture output");
+            eprintln!("wrote {} bytes to {path:?}", bytes.len());
+        }
+
         fn measurement(
             modality: SensorModality,
             timestamp_ms: u64,

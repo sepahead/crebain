@@ -191,8 +191,27 @@ and independently attested FCU failsafe behavior.
 
 - **Primary outcome:** Combined-load deadline evidence beyond component complexity tests
 
+#### Next step 16
+
+- **Next step:** Complete the cross-repository drone PID checklist in
+  [DRONE_MGW_PID_STUDY.md](DRONE_MGW_PID_STUDY.md). Import the exact fixture
+  into Galadriel. Evaluate categorical MGW PID2 and exploratory PID3. Retain
+  signed atoms, reconstruction checks, typed abstentions, and a versioned
+  advisory artifact. Update Haldir without adding authority.
+
+- **Primary outcome:** A grounded, reproducible information-decomposition study
+  whose physical row, functional identity, evidence maturity, and control
+  boundary remain explicit
+
 ## Recently completed
 
+- Deterministic three-sensor drone PID producer fixture: all eight declared
+  source cells generate eight fresh fusion-engine episodes. Each row binds
+  external ENU truth, ordered pre-fusion sensor symbols, synchronized times,
+  and one complete nondegraded frozen-prior receipt. Exact fixture and
+  preregistration regeneration are tested. The repetitions prove state
+  isolation, not physical-sample precision. The fixture adds no live route,
+  receiver, runtime detector, PID evaluation, or authority.
 - Unwired single-reference-instant apply-check observation candidate: one
   generation-checked coherent health snapshot is loaded before one private
   plant-monotonic reference instant is minted. Health ages and then command age

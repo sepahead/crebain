@@ -11,6 +11,15 @@ README and treated as unverified until measured on target hardware.
 
 ### Added
 
+- Added a deterministic three-sensor drone study fixture for offline Galadriel
+  research. It binds external ENU truth, ordered pre-fusion visual, radar, and
+  acoustic symbols, fresh fusion-engine episodes, and complete frozen-prior
+  receipts. The checked manifest selects categorical MGW shared-exclusions
+  PID2 as primary and PID3 as exploratory. It requires continuous KSG/Ehrlich
+  abstention, makes no inferential claim from repeated rows, and cannot grant
+  Haldir or plant authority. Two accessible publication diagrams, a
+  twenty-lens review, method comparison, evidence ladder, and cross-repository
+  checklist document the boundary.
 - Added the feature-gated `crebain-ncp-headless` perception runner. `self-check`
   reads no runner configuration and opens no Zenoh session. `validate` checks
   the bounded strict client configuration and opens no Zenoh session. The explicit

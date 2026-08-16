@@ -48,6 +48,7 @@ multi-camera estimator has separate state and output.
 - [Configuration and tuning](#configuration-and-tuning)
 - [Validation and metrics](#validation-and-metrics)
 - [Known limitations and roadmap](#known-limitations-and-roadmap)
+- [Deterministic drone PID fixture](#deterministic-drone-pid-fixture)
 - [Galadriel-oriented innovation JSONL (emit_innovations)](#galadriel-oriented-innovation-jsonl-emit_innovations)
 - [References](#references)
 
@@ -636,6 +637,7 @@ status and preserves the remaining scientific and deployment gaps.
 | 10 | Deployed Galadriel receiver/assembler, heartbeat deadline, loss/reorder/restart/saturation evidence | ⬜ **Open** — producer queues/codecs are component-tested only |
 | 11 | Wire-visible numeric upstream/track-cap loss accounting | ⬜ **Open** — producer logs the count and latches degraded/truncated, but the frozen frame-summary schema carries flags rather than the loss count |
 | 12 | Target combined-load bounds for maximum sparse/dense association | ⬜ **Open** — component tests bound and short-circuit the 512×1,024 mechanics; deployed latency/deadline evidence is absent |
+| 13 | Deterministic three-sensor drone PID fixture | ✅ Implemented — source-derived categorical law and fusion receipts; Galadriel consumer evidence remains separate |
 
 ### Remaining work
 
@@ -664,6 +666,37 @@ and must not be used as an implementation plan. Two items are deliberately defer
 > old algebraic-distance/no-cheirality caveat no longer applies.
 
 ---
+
+## Deterministic drone PID fixture
+
+The `ncp` test surface generates one checked, source-derived fixture:
+
+[`crebain_drone_mgw_v1.json`](../src-tauri/tests/fixtures/crebain_drone_mgw_v1.json)
+
+<p align="center">
+  <img alt="Drone truth-to-PID evidence chain with a Haldir control-authority firewall" src="../assets/diagrams/drone-mgw-study.svg" width="1000">
+</p>
+
+Text alternative: External ENU truth creates horizontal and volumetric
+incursion targets. Visual, radar, and acoustic observations create three
+ordered binary sources. Each row uses a fresh fusion engine. The row retains
+three frozen-prior projections with no degradation. Galadriel can decompose the
+categorical law offline. No PID result can authorize Haldir or the plant.
+
+The fixture is a conformance law. It checks that the physical row, source
+order, target provenance, timestamps, and fusion receipt remain coherent. It
+does not validate a sensor-error model or field performance. Eight repeated
+episodes per source cell test state isolation. They do not add independent
+statistical evidence.
+
+The primary downstream question is categorical MGW PID2 for visual/radar
+information about horizontal incursion. The exploratory question is categorical
+MGW PID3 for visual/radar/acoustic information about volumetric incursion.
+Continuous KSG and Ehrlich routes are ineligible for these repeated atomic
+rows.
+
+See [DRONE_MGW_PID_STUDY.md](DRONE_MGW_PID_STUDY.md) for the exact equations,
+method comparison, twenty-lens review, and future episode-level study contract.
 
 ## Galadriel-oriented innovation JSONL (`emit_innovations`)
 

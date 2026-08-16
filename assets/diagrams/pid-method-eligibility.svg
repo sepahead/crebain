@@ -1,0 +1,171 @@
+<svg xmlns="http://www.w3.org/2000/svg" xml:lang="en" viewBox="0 0 1400 940" width="1400" height="940" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="pid-eligibility-title pid-eligibility-desc">
+  <title id="pid-eligibility-title">Method eligibility for the CREBAIN drone information study</title>
+  <desc id="pid-eligibility-desc">The diagram starts from the fixed question and the observed data topology. A balanced categorical empirical law with repeated atomic rows makes categorical Makkeh-Gutknecht-Wibral shared-exclusions PID eligible. Williams-Beer I-min and BROJA are separate comparators, not fallbacks. KSG mutual information and continuous Ehrlich PID abstain because their continuous-support conditions do not hold. Co-information and O-information are diagnostics, while NIS and signed correlation remain operational association evidence. Every output remains advisory.</desc>
+  <style>
+    * { vector-effect: non-scaling-stroke; }
+    .canvas { fill: #f8fafc; }
+    text { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; fill: #172033; font-size: 14px; text-anchor: middle; }
+    .title { font-size: 20px; font-weight: 700; letter-spacing: 1.8px; text-anchor: start; }
+    .subtitle { font-size: 13px; fill: #526070; text-anchor: start; }
+    .section { font-size: 13px; font-weight: 700; letter-spacing: 1.2px; text-anchor: start; }
+    .label { font-size: 15px; font-weight: 700; }
+    .small { font-size: 12.5px; fill: #526070; }
+    .tiny { font-size: 11.5px; fill: #526070; }
+    .left { text-anchor: start; }
+    .question-text { fill: #075985; }
+    .eligible-text { fill: #047857; }
+    .comparator-text { fill: #92400e; }
+    .abstain-text { fill: #b91c1c; }
+    .diagnostic-text { fill: #6d28d9; }
+    .question-box { fill: #ffffff; stroke: #075985; stroke-width: 1.8; }
+    .eligible-box { fill: #ecfdf5; stroke: #047857; stroke-width: 2; }
+    .comparator-box { fill: #fffbeb; stroke: #92400e; stroke-width: 1.5; }
+    .abstain-box { fill: #fef2f2; stroke: #b91c1c; stroke-width: 1.5; }
+    .diagnostic-box { fill: #f5f3ff; stroke: #6d28d9; stroke-width: 1.5; }
+    .boundary-box { fill: #ffffff; stroke: #64748b; stroke-width: 1.4; }
+    .flow { fill: none; stroke: #52643f; stroke-width: 1.8; marker-end: url(#eligibility-arrow); }
+    .branch { fill: none; stroke: #64748b; stroke-width: 1.3; marker-end: url(#branch-arrow); }
+    .eligible-flow { fill: none; stroke: #047857; stroke-width: 1.9; marker-end: url(#eligible-arrow); }
+    .divider { stroke: #94a3b8; stroke-width: 1.1; stroke-dasharray: 4 5; }
+    .corner { fill: none; stroke: #52643f; stroke-width: 1.8; }
+    .arrow { fill: #52643f; }
+    .branch-arrow { fill: #64748b; }
+    .eligible-arrow { fill: #047857; }
+    @media (prefers-color-scheme: dark) {
+      .canvas { fill: #0d1117; }
+      text { fill: #d6dde5; }
+      .subtitle, .small, .tiny { fill: #9aa7b4; }
+      .question-text { fill: #38bdf8; }
+      .eligible-text { fill: #34d399; }
+      .comparator-text { fill: #fbbf24; }
+      .abstain-text { fill: #f87171; }
+      .diagnostic-text { fill: #c4b5fd; }
+      .question-box, .boundary-box { fill: #111820; }
+      .question-box { stroke: #38bdf8; }
+      .eligible-box { fill: #10241d; stroke: #34d399; }
+      .comparator-box { fill: #2a2112; stroke: #fbbf24; }
+      .abstain-box { fill: #281518; stroke: #f87171; }
+      .diagnostic-box { fill: #211a32; stroke: #c4b5fd; }
+      .divider { stroke: #64748b; }
+      .flow, .corner { stroke: #87967a; }
+      .branch { stroke: #7d8996; }
+      .eligible-flow { stroke: #34d399; }
+      .arrow { fill: #87967a; }
+      .branch-arrow { fill: #7d8996; }
+      .eligible-arrow { fill: #34d399; }
+    }
+  </style>
+  <defs>
+    <marker id="eligibility-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path class="arrow" d="M0 0 L8 4 L0 8 Z"/>
+    </marker>
+    <marker id="branch-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path class="branch-arrow" d="M0 0 L8 4 L0 8 Z"/>
+    </marker>
+    <marker id="eligible-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path class="eligible-arrow" d="M0 0 L8 4 L0 8 Z"/>
+    </marker>
+  </defs>
+
+  <rect class="canvas" x="0" y="0" width="1400" height="940"/>
+  <path class="corner" d="M18 42 V18 H42 M1358 18 H1382 V42 M18 898 V922 H42 M1382 898 V922 H1358"/>
+  <text class="title" x="44" y="43">METHOD ELIGIBILITY · ONE DATASET DOES NOT MAKE METHODS INTERCHANGEABLE</text>
+  <text class="subtitle" x="44" y="69">CREBAIN DRONE CONFORMANCE LAW · FIXED ESTIMAND · EXPLICIT ABSTENTION · SEPARATE COMPARATOR ROLES</text>
+
+  <text class="section question-text" x="42" y="112">A · FIX THE QUESTION</text>
+  <rect class="question-box" x="30" y="128" width="410" height="172" rx="8"/>
+  <text class="label question-text" x="235" y="159">What information structure is present?</text>
+  <text class="small" x="235" y="185">ordered pre-fusion sensor symbols</text>
+  <text class="small" x="235" y="204">→ external incursion truth</text>
+  <text class="question-text" x="235" y="231">(S_V,S_R) → T_H · primary</text>
+  <text class="question-text" x="235" y="254">(S_V,S_R,S_A) → T_V · exploratory</text>
+  <text class="tiny" x="235" y="274">No fused verdict or control output enters either side.</text>
+  <text class="tiny" x="235" y="291">No PID atom becomes a source or target.</text>
+
+  <path class="flow" d="M440 214 H486"/>
+  <text class="section question-text" x="486" y="112">B · CLASSIFY THE ROWS</text>
+  <rect class="question-box" x="486" y="128" width="410" height="172" rx="8"/>
+  <text class="label question-text" x="691" y="159">Declared categorical empirical law</text>
+  <text class="question-text" x="691" y="190">64 rows · 8 support cells · count 8 each</text>
+  <text class="small" x="691" y="219">binary physical symbols · repeated atomic support</text>
+  <text class="small" x="691" y="245">one fresh software episode per row</text>
+  <text class="tiny abstain-text" x="691" y="276">No continuous-population or frame-independence claim.</text>
+
+  <path class="eligible-flow" d="M896 214 H942"/>
+  <text class="section eligible-text" x="942" y="112">C · SELECT BY DEFINITION</text>
+  <rect class="eligible-box" x="942" y="128" width="428" height="172" rx="8"/>
+  <text class="label eligible-text" x="1156" y="159">Categorical MGW shared exclusions</text>
+  <text class="eligible-text" x="1156" y="190">ELIGIBLE · PRIMARY FUNCTIONAL</text>
+  <text class="small" x="1156" y="219">direct empirical-PMF evaluation</text>
+  <text class="small" x="1156" y="244">pointwise exclusions → Möbius atoms</text>
+  <text class="tiny" x="1156" y="268">signed Π⁺, Π⁻, and net Π in nats</text>
+  <text class="tiny" x="1156" y="286">negative net atoms are valid</text>
+
+  <path class="branch" d="M691 300 V346 H218 V376"/>
+  <path class="branch" d="M691 346 H542 V376"/>
+  <path class="branch" d="M691 346 H866 V376"/>
+  <path class="branch" d="M691 346 H1190 V376"/>
+
+  <rect class="comparator-box" x="30" y="376" width="376" height="170" rx="8"/>
+  <text class="label comparator-text" x="218" y="407">Williams–Beer I_min</text>
+  <text class="comparator-text" x="218" y="435">DISTINCT PID · COMPARATOR ONLY</text>
+  <text class="small" x="218" y="463">specific-information minimum</text>
+  <text class="tiny" x="218" y="491">Different redundancy functional.</text>
+  <text class="tiny abstain-text" x="218" y="516">Never an MGW alias or fallback.</text>
+
+  <rect class="abstain-box" x="424" y="376" width="236" height="170" rx="8"/>
+  <text class="label abstain-text" x="542" y="407">KSG MI</text>
+  <text class="abstain-text" x="542" y="435">ABSTAIN NOW</text>
+  <text class="small" x="542" y="463">pairwise continuous MI</text>
+  <text class="tiny" x="542" y="491">Repeated categorical atoms</text>
+  <text class="tiny" x="542" y="511">violate the submitted</text>
+  <text class="tiny" x="542" y="531">continuous row model.</text>
+
+  <rect class="abstain-box" x="678" y="376" width="376" height="170" rx="8"/>
+  <text class="label abstain-text" x="866" y="407">Continuous Ehrlich PID</text>
+  <text class="abstain-text" x="866" y="435">ABSTAIN NOW</text>
+  <text class="small" x="866" y="463">related continuous construction + kNN estimator</text>
+  <text class="tiny" x="866" y="491">Requires a separately declared continuous law,</text>
+  <text class="tiny" x="866" y="511">support, gauge, and estimator-valid row contract.</text>
+  <text class="tiny abstain-text" x="866" y="531">Quantized MGW is not continuous PID.</text>
+
+  <rect class="comparator-box" x="1072" y="376" width="298" height="170" rx="8"/>
+  <text class="label comparator-text" x="1221" y="407">BROJA</text>
+  <text class="comparator-text" x="1221" y="435">EXTERNAL COMPARATOR</text>
+  <text class="small" x="1221" y="463">maximum-entropy optimization</text>
+  <text class="tiny" x="1221" y="491">Separate provenance, solver,</text>
+  <text class="tiny" x="1221" y="511">feasibility, and residuals.</text>
+  <text class="tiny abstain-text" x="1221" y="531">Never an MGW fallback.</text>
+
+  <path class="branch" d="M691 546 V590 H228 V620"/>
+  <path class="branch" d="M691 590 H700 V620"/>
+  <path class="branch" d="M691 590 H1172 V620"/>
+
+  <rect class="diagnostic-box" x="30" y="620" width="396" height="166" rx="8"/>
+  <text class="label diagnostic-text" x="228" y="651">Co-information · O-information</text>
+  <text class="diagnostic-text" x="228" y="679">DIAGNOSTICS / INVARIANTS</text>
+  <text class="small" x="228" y="707">useful high-order summaries</text>
+  <text class="tiny" x="228" y="735">They do not allocate MGW atoms.</text>
+  <text class="tiny" x="228" y="759">A matching scalar does not establish</text>
+  <text class="tiny" x="228" y="778">functional equivalence.</text>
+
+  <rect class="diagnostic-box" x="444" y="620" width="512" height="166" rx="8"/>
+  <text class="label diagnostic-text" x="700" y="651">NIS · signed correlation · MI consensus</text>
+  <text class="diagnostic-text" x="700" y="679">SEPARATE OPERATIONAL / ASSOCIATION EVIDENCE</text>
+  <text class="small" x="700" y="707">calibration, direction, and dependence diagnostics</text>
+  <text class="tiny" x="700" y="735">These answer different questions from PID.</text>
+  <text class="tiny" x="700" y="759">They remain valid when PID abstains and do not</text>
+  <text class="tiny" x="700" y="778">become PID because they share a data source.</text>
+
+  <rect class="boundary-box" x="974" y="620" width="396" height="166" rx="8"/>
+  <text class="label" x="1172" y="651">Future field study</text>
+  <text x="1172" y="679">NEW ROW CONTRACT REQUIRED</text>
+  <text class="small" x="1172" y="707">episode IDs · synchronized windows</text>
+  <text class="small" x="1172" y="729">held-out categorizer · episode splits</text>
+  <text class="small" x="1172" y="751">preregistered exclusions + abstentions</text>
+  <text class="tiny abstain-text" x="1172" y="778">Simulation success cannot inherit field validity.</text>
+
+  <rect class="boundary-box" x="30" y="830" width="1340" height="72" rx="8"/>
+  <text class="label" x="700" y="859">UNIVERSAL OUTPUT BOUNDARY</text>
+  <text class="small" x="700" y="885">Every method reports its own estimand, assumptions, units, status, and abstention. Every result remains advisory.</text>
+</svg>

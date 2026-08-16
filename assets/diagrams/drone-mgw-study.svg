@@ -1,0 +1,218 @@
+<svg xmlns="http://www.w3.org/2000/svg" xml:lang="en" viewBox="0 0 1400 980" width="1400" height="980" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="drone-mgw-title drone-mgw-desc">
+  <title id="drone-mgw-title">CREBAIN drone shared-exclusions PID study boundary</title>
+  <desc id="drone-mgw-desc">A five-stage evidence chain begins with external drone truth in an east-north-up frame. Visual, radar, and acoustic measurements become three ordered pre-fusion categorical sources. Each row comes from one fresh fusion episode and retains a frozen-prior receipt. Galadriel evaluates a primary two-source horizontal-incursion shared-exclusions PID and an exploratory three-source volumetric-incursion PID. Results are signed advisory research evidence and are separated by a control-authority firewall from Haldir and the plant.</desc>
+  <style>
+    * { vector-effect: non-scaling-stroke; }
+    .canvas { fill: #f8fafc; }
+    text { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; fill: #172033; font-size: 14px; text-anchor: middle; }
+    .title { font-size: 20px; font-weight: 700; letter-spacing: 1.8px; text-anchor: start; }
+    .subtitle { font-size: 13px; fill: #526070; text-anchor: start; }
+    .stage { font-size: 13px; font-weight: 700; letter-spacing: 1.2px; text-anchor: start; }
+    .label { font-size: 15px; font-weight: 700; }
+    .small { font-size: 12.5px; fill: #526070; }
+    .tiny { font-size: 11.5px; fill: #526070; }
+    .left { text-anchor: start; }
+    .right { text-anchor: end; }
+    .truth-text { fill: #075985; }
+    .sensor-text { fill: #1d4ed8; }
+    .receipt-text { fill: #6d28d9; }
+    .pid-text { fill: #047857; }
+    .boundary-text { fill: #b91c1c; }
+    .truth-box { fill: #ffffff; stroke: #075985; stroke-width: 1.7; }
+    .sensor-box { fill: #ffffff; stroke: #1d4ed8; stroke-width: 1.4; }
+    .receipt-box { fill: #ffffff; stroke: #6d28d9; stroke-width: 1.6; }
+    .pid-box { fill: #ffffff; stroke: #047857; stroke-width: 1.8; }
+    .advisory-box { fill: #ecfdf5; stroke: #047857; stroke-width: 1.8; }
+    .note-box { fill: #ffffff; stroke: #64748b; stroke-width: 1.3; }
+    .firewall-box { fill: #fef2f2; stroke: #b91c1c; stroke-width: 2; }
+    .stage-band { fill: #eef2ff; stroke: #94a3b8; stroke-width: 1; }
+    .flow { fill: none; stroke: #52643f; stroke-width: 1.8; marker-end: url(#drone-arrow); }
+    .truth-flow { fill: none; stroke: #075985; stroke-width: 1.6; marker-end: url(#truth-arrow); }
+    .pid-flow { fill: none; stroke: #047857; stroke-width: 1.8; marker-end: url(#pid-arrow); }
+    .blocked-flow { fill: none; stroke: #b91c1c; stroke-width: 2; stroke-dasharray: 8 5; marker-end: url(#blocked-arrow); }
+    .divider { stroke: #94a3b8; stroke-width: 1.1; stroke-dasharray: 4 5; }
+    .corner { fill: none; stroke: #52643f; stroke-width: 1.8; }
+    .arrow { fill: #52643f; }
+    .truth-arrow { fill: #075985; }
+    .pid-arrow { fill: #047857; }
+    .blocked-arrow { fill: #b91c1c; }
+    @media (prefers-color-scheme: dark) {
+      .canvas { fill: #0d1117; }
+      text { fill: #d6dde5; }
+      .subtitle, .small, .tiny { fill: #9aa7b4; }
+      .truth-text { fill: #38bdf8; }
+      .sensor-text { fill: #60a5fa; }
+      .receipt-text { fill: #c4b5fd; }
+      .pid-text { fill: #34d399; }
+      .boundary-text { fill: #f87171; }
+      .truth-box, .sensor-box, .receipt-box, .pid-box, .note-box { fill: #111820; }
+      .truth-box { stroke: #38bdf8; }
+      .sensor-box { stroke: #60a5fa; }
+      .receipt-box { stroke: #c4b5fd; }
+      .pid-box, .advisory-box { stroke: #34d399; }
+      .advisory-box { fill: #10241d; }
+      .firewall-box { fill: #281518; stroke: #f87171; }
+      .stage-band { fill: #151a2b; stroke: #6b7280; }
+      .divider { stroke: #64748b; }
+      .flow, .corner { stroke: #87967a; }
+      .truth-flow { stroke: #38bdf8; }
+      .pid-flow { stroke: #34d399; }
+      .blocked-flow { stroke: #f87171; }
+      .arrow { fill: #87967a; }
+      .truth-arrow { fill: #38bdf8; }
+      .pid-arrow { fill: #34d399; }
+      .blocked-arrow { fill: #f87171; }
+    }
+  </style>
+  <defs>
+    <marker id="drone-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path class="arrow" d="M0 0 L8 4 L0 8 Z"/>
+    </marker>
+    <marker id="truth-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path class="truth-arrow" d="M0 0 L8 4 L0 8 Z"/>
+    </marker>
+    <marker id="pid-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path class="pid-arrow" d="M0 0 L8 4 L0 8 Z"/>
+    </marker>
+    <marker id="blocked-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path class="blocked-arrow" d="M0 0 L8 4 L0 8 Z"/>
+    </marker>
+  </defs>
+
+  <rect class="canvas" x="0" y="0" width="1400" height="980"/>
+  <path class="corner" d="M18 42 V18 H42 M1358 18 H1382 V42 M18 938 V962 H42 M1382 938 V962 H1358"/>
+  <text class="title" x="44" y="43">CREBAIN · DRONE MGW SHARED-EXCLUSIONS STUDY</text>
+  <text class="subtitle" x="44" y="69">FIX THE PHYSICAL QUESTION FIRST · PRESERVE ROW LINEAGE · DECOMPOSE INFORMATION · NEVER AUTHORIZE CONTROL</text>
+
+  <rect class="stage-band" x="30" y="96" width="230" height="34"/>
+  <text class="stage truth-text" x="44" y="118">01 · EXTERNAL TRUTH</text>
+  <rect class="stage-band" x="282" y="96" width="260" height="34"/>
+  <text class="stage sensor-text" x="296" y="118">02 · PRE-FUSION SOURCES</text>
+  <rect class="stage-band" x="564" y="96" width="250" height="34"/>
+  <text class="stage receipt-text" x="578" y="118">03 · ROW RECEIPT</text>
+  <rect class="stage-band" x="836" y="96" width="310" height="34"/>
+  <text class="stage pid-text" x="850" y="118">04 · GALADRIEL OFFLINE PID</text>
+  <rect class="stage-band" x="1168" y="96" width="202" height="34"/>
+  <text class="stage pid-text" x="1182" y="118">05 · INTERPRET</text>
+
+  <rect class="truth-box" x="30" y="148" width="230" height="424" rx="8"/>
+  <text class="label truth-text" x="145" y="181">Drone truth in ENU</text>
+  <text class="small" x="145" y="207">E = east · N = north · U = up</text>
+  <path class="divider" d="M50 226 H240"/>
+  <text class="small left" x="52" y="252">Entry planes</text>
+  <text class="truth-text left" x="52" y="279">E ≤ 50 m</text>
+  <text class="truth-text left" x="52" y="304">N ≤ 1 m</text>
+  <text class="truth-text left" x="52" y="329">U ≤ 1 m</text>
+  <path class="divider" d="M50 350 H240"/>
+  <text class="small left" x="52" y="376">Targets are generated here</text>
+  <text class="truth-text left" x="52" y="406">T_H = 𝟙[E≤50 ∧ N≤1]</text>
+  <text class="truth-text left" x="52" y="435">T_V = 𝟙[E≤50 ∧ N≤1 ∧ U≤1]</text>
+  <text class="tiny left" x="52" y="467">Truth exists before projection,</text>
+  <text class="tiny left" x="52" y="486">fusion, verdicts, and PID.</text>
+  <rect class="note-box" x="52" y="510" width="186" height="42" rx="5"/>
+  <text class="tiny boundary-text" x="145" y="528">NO TARGET FROM</text>
+  <text class="tiny boundary-text" x="145" y="545">A FUSED VERDICT</text>
+
+  <path class="truth-flow" d="M260 216 H282"/>
+  <path class="truth-flow" d="M260 348 H282"/>
+  <path class="truth-flow" d="M260 480 H282"/>
+  <rect class="sensor-box" x="282" y="148" width="260" height="124" rx="8"/>
+  <text class="label sensor-text" x="412" y="178">Visual north gate</text>
+  <text class="small" x="412" y="204">Cartesian ENU observation</text>
+  <text class="sensor-text" x="412" y="232">S_V = 𝟙[N_obs ≤ 1 m]</text>
+  <text class="tiny" x="412" y="254">ordered source 0</text>
+  <rect class="sensor-box" x="282" y="290" width="260" height="124" rx="8"/>
+  <text class="label sensor-text" x="412" y="320">Radar east gate</text>
+  <text class="small" x="412" y="346">boresight range observation</text>
+  <text class="sensor-text" x="412" y="374">S_R = 𝟙[r_obs ≤ 50 m]</text>
+  <text class="tiny" x="412" y="396">ordered source 1</text>
+  <rect class="sensor-box" x="282" y="432" width="260" height="124" rx="8"/>
+  <text class="label sensor-text" x="412" y="462">Acoustic altitude gate</text>
+  <text class="small" x="412" y="488">Cartesian ENU observation</text>
+  <text class="sensor-text" x="412" y="516">S_A = 𝟙[U_obs ≤ 1 m]</text>
+  <text class="tiny" x="412" y="538">ordered source 2</text>
+
+  <path class="flow" d="M542 210 H564"/>
+  <path class="flow" d="M542 352 H564"/>
+  <path class="flow" d="M542 494 H564"/>
+  <rect class="receipt-box" x="564" y="148" width="250" height="424" rx="8"/>
+  <text class="label receipt-text" x="689" y="181">One row = one episode</text>
+  <text class="small" x="689" y="207">fresh fusion engine</text>
+  <path class="divider" d="M584 226 H794"/>
+  <text class="receipt-text" x="689" y="254">prior at 1000 ms</text>
+  <text class="receipt-text" x="689" y="280">3 sources at 1100 ms</text>
+  <text class="small" x="689" y="307">same frame · same context</text>
+  <text class="small" x="689" y="329">same observation window</text>
+  <path class="divider" d="M584 350 H794"/>
+  <text class="small" x="689" y="377">Required receipt</text>
+  <text class="receipt-text" x="689" y="404">3 inputs · 3 projections</text>
+  <text class="receipt-text" x="689" y="430">common prior ID = 2</text>
+  <text class="receipt-text" x="689" y="456">not degraded · not truncated</text>
+  <rect class="note-box" x="584" y="486" width="210" height="64" rx="5"/>
+  <text class="tiny" x="689" y="507">64 rows = 8 cells × 8 repeats</text>
+  <text class="tiny boundary-text" x="689" y="528">repeats prove state isolation,</text>
+  <text class="tiny boundary-text" x="689" y="545">not statistical precision</text>
+
+  <path class="pid-flow" d="M814 268 H836"/>
+  <path class="pid-flow" d="M814 464 H836"/>
+  <rect class="pid-box" x="836" y="148" width="310" height="190" rx="8"/>
+  <text class="label pid-text" x="991" y="180">Primary · categorical MGW PID2</text>
+  <text class="small" x="991" y="207">sources: (S_V, S_R)</text>
+  <text class="small" x="991" y="229">target: horizontal truth T_H</text>
+  <text class="pid-text" x="991" y="260">I(S_V,S_R;T_H) = R + U_V + U_R + Syn</text>
+  <text class="small" x="991" y="287">direct empirical categorical law</text>
+  <text class="tiny" x="991" y="311">pid-rs · discrete_sxpid2 · nats</text>
+  <rect class="pid-box" x="836" y="362" width="310" height="210" rx="8"/>
+  <text class="label pid-text" x="991" y="394">Exploratory · categorical MGW PID3</text>
+  <text class="small" x="991" y="421">sources: (S_V, S_R, S_A)</text>
+  <text class="small" x="991" y="443">target: volumetric truth T_V</text>
+  <text class="pid-text" x="991" y="474">18 antichain coordinates</text>
+  <text class="small" x="991" y="501">Möbius reconstruction + subset MI</text>
+  <text class="tiny" x="991" y="525">pid-rs · discrete_sxpid3 · nats</text>
+  <text class="tiny boundary-text" x="991" y="550">does not close the open 108-coordinate</text>
+  <text class="tiny boundary-text" x="991" y="565">assurance program</text>
+
+  <path class="pid-flow" d="M1146 244 H1168"/>
+  <path class="pid-flow" d="M1146 468 H1168"/>
+  <rect class="advisory-box" x="1168" y="148" width="202" height="424" rx="8"/>
+  <text class="label pid-text" x="1269" y="180">Signed evidence</text>
+  <text class="small" x="1269" y="210">for each atom α</text>
+  <text class="pid-text" x="1269" y="239">Π_α = Π⁺_α − Π⁻_α</text>
+  <text class="tiny" x="1269" y="264">informative</text>
+  <text class="tiny" x="1269" y="283">misinformative</text>
+  <text class="tiny" x="1269" y="302">net</text>
+  <path class="divider" d="M1188 324 H1350"/>
+  <text class="small" x="1269" y="352">What it can answer</text>
+  <text class="tiny" x="1269" y="376">shared vs source-specific</text>
+  <text class="tiny" x="1269" y="396">vs joint-only information</text>
+  <path class="divider" d="M1188 418 H1350"/>
+  <text class="small" x="1269" y="446">What it cannot answer</text>
+  <text class="tiny boundary-text" x="1269" y="470">causal sensor value</text>
+  <text class="tiny boundary-text" x="1269" y="490">field accuracy</text>
+  <text class="tiny boundary-text" x="1269" y="510">false-alarm control</text>
+  <text class="tiny boundary-text" x="1269" y="530">control authorization</text>
+
+  <rect class="note-box" x="30" y="606" width="654" height="210" rx="8"/>
+  <text class="stage truth-text" x="48" y="634">DESIGNED EMPIRICAL LAW</text>
+  <text class="left" x="50" y="666">For each (s_V,s_R,s_A) ∈ {0,1}³:</text>
+  <text class="truth-text left" x="50" y="698">p̂(s_V,s_R,s_A) = 8 / 64 = 1 / 8</text>
+  <text class="truth-text left" x="50" y="730">T_H = 𝟙[s_V=1 ∧ s_R=1]</text>
+  <text class="truth-text left" x="50" y="762">T_V = 𝟙[s_V=1 ∧ s_R=1 ∧ s_A=1]</text>
+  <text class="tiny left" x="50" y="787">Truth and sensors share the declared planes in this designed law.</text>
+  <text class="tiny boundary-text left" x="50" y="806">This is a conformance law, not a field estimate.</text>
+
+  <rect class="note-box" x="706" y="606" width="664" height="210" rx="8"/>
+  <text class="stage pid-text" x="724" y="634">SCIENTIFIC CLAIM BOUNDARY</text>
+  <text class="small left" x="726" y="666">Eligible now</text>
+  <text class="pid-text left" x="726" y="692">categorical MGW shared exclusions on declared symbols</text>
+  <text class="small left" x="726" y="724">Required abstentions</text>
+  <text class="boundary-text left" x="726" y="750">KSG MI and continuous Ehrlich PID: atomic repeated support</text>
+  <text class="tiny left" x="726" y="780">I_min and BROJA are distinct comparators. Co-/O-information are invariants.</text>
+  <text class="tiny left" x="726" y="800">NIS and signed correlation remain separate operational diagnostics.</text>
+
+  <path class="blocked-flow" d="M1090 816 V850"/>
+  <rect class="firewall-box" x="30" y="850" width="1340" height="88" rx="8"/>
+  <text class="label boundary-text" x="700" y="880">CONTROL-AUTHORITY FIREWALL</text>
+  <text class="boundary-text" x="700" y="907">PID evidence is advisory. It cannot grant, revoke, schedule, or exercise Haldir or plant authority.</text>
+  <text class="tiny" x="700" y="929">Advancing simulation → SITL → HIL → replay → field claims requires separate evidence at every rung.</text>
+</svg>

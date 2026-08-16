@@ -335,6 +335,28 @@ identities, ACLs, or delivery. See
 [docs/NCP_BRIDGE_HANDOFF.md](docs/NCP_BRIDGE_HANDOFF.md) and
 [docs/GALADRIEL_PRODUCER.md](docs/GALADRIEL_PRODUCER.md).
 
+### Drone information-decomposition fixture
+
+CREBAIN also generates a deterministic research fixture for an offline
+Galadriel study. It is not emitted by the live producer. The fixture binds
+external drone truth, ordered pre-fusion visual/radar/acoustic symbols, one
+fresh fusion episode per row, and a complete frozen-prior receipt.
+
+<p align="center">
+  <img alt="Drone truth-to-PID evidence chain with a Haldir control-authority firewall" src="assets/diagrams/drone-mgw-study.svg" width="1000">
+</p>
+
+Text alternative: External ENU truth defines horizontal and volumetric
+incursion targets before fusion. Three ordered sensor symbols enter a
+source-derived row with an exact receipt. Galadriel can evaluate categorical
+MGW shared-exclusions PID2 and PID3 offline. KSG and continuous Ehrlich PID must
+abstain on this repeated atomic law. Every result remains advisory and cannot
+authorize Haldir or the plant.
+
+See the full equations, method-eligibility matrix, twenty-lens review, hostile
+controls, and evidence ladder in
+[docs/DRONE_MGW_PID_STUDY.md](docs/DRONE_MGW_PID_STUDY.md).
+
 ### Engram restricted embedding
 
 Engram can embed the Vite interface as a restricted local web tab. The host
@@ -538,6 +560,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 - [x] Release acceptance matrix, model contracts, security threat model, and manual smoke checklist
 - [x] Executable negative guard tests for native detection, model path, scene path, and transport topic boundaries, including TensorRT build inputs, fusion, Zenoh CDR, and transport payloads
 - [x] Component-tested Galadriel producer mechanics: exact opt-in/off-by-default behavior, immutable registry and actual config/executable pins, readiness-only active initialization, frozen envelope routes/codecs, deterministic exact-time fusion ledger, bounded measurement/track domains, upstream/capacity loss degradation, sparse assignment, heartbeat generation, and finite owned-task shutdown
+- [x] Deterministic three-sensor drone PID fixture: external targets, ordered pre-fusion categorical sources, fresh-episode rows, exact manifest/fixture regeneration, and an explicit advisory-only boundary
 
 Planned capability work:
 
@@ -546,6 +569,7 @@ Planned capability work:
 - [ ] Multi-drone coordination
 - [ ] Deployed Zenoh TLS/mTLS identities, certificate policy, exact-route ACLs, and negative topology evidence (secure-mode config loading alone is insufficient)
 - [ ] Live Galadriel receiver tap/assembler, registry agreement, payload-size limits, heartbeat-deadline enforcement, restart/loss/reorder/saturation/clock campaigns, wire-visible upstream-loss detail, and receiver-side correlation evidence
+- [ ] Galadriel offline evaluation of the exact drone fixture with primary categorical MGW PID2, exploratory PID3, reconstruction checks, and a versioned evidence artifact
 - [ ] PID JSONL regular-file enforcement, active archive saturation/drop health, and blocked-writer cleanup beyond the current two-second exit wait
 - [ ] Edge deployment (Jetson, Apple Silicon Mac Mini)
 - [ ] Recorded flight replay

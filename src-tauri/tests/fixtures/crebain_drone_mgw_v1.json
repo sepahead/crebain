@@ -1,0 +1,2918 @@
+{
+  "analysis_manifest": {
+    "accepted_outputs": "signed informative, misinformative, and net MGW coordinates with reconstruction checks",
+    "authority_boundary": "advisory research evidence only; cannot grant, revoke, or exercise Haldir control authority",
+    "consumer_backend": {
+      "mutation_policy": "read_only",
+      "repository": "https://github.com/sepahead/pid-rs",
+      "revision": "1cd2424f7967e1752dcc8e53859e8fdad3566f51"
+    },
+    "exploratory_question": {
+      "functional_id": "functional.shared-exclusions.mgw-categorical",
+      "route": "pid_core::stable::categorical::discrete_sxpid3",
+      "source_count": 3,
+      "sources": [
+        "visual_north_plane_crossed",
+        "radar_east_plane_crossed",
+        "acoustic_up_plane_crossed"
+      ],
+      "status": "exploratory; does not close the separate 108-coordinate assurance program",
+      "target": "volumetric_incursion"
+    },
+    "method_exclusions": {
+      "broja": "not_requested; distinct comparator, never fallback",
+      "co_information_o_information": "not requested as PID atoms",
+      "continuous_ehrlich_pid": "not_applicable: repeated atomic categorical law",
+      "nis_and_correlation": "separate operational association diagnostics",
+      "pairwise_ksg_mi": "not_applicable: repeated atomic categorical law",
+      "williams_beer_imin": "not_requested; distinct comparator, never fallback"
+    },
+    "primary_question": {
+      "functional_id": "functional.shared-exclusions.mgw-categorical",
+      "route": "pid_core::stable::categorical::discrete_sxpid2",
+      "source_count": 2,
+      "sources": [
+        "visual_north_plane_crossed",
+        "radar_east_plane_crossed"
+      ],
+      "status": "primary deterministic categorical decomposition",
+      "target": "horizontal_incursion"
+    },
+    "primary_references": [
+      "https://doi.org/10.1103/PhysRevE.103.032149",
+      "https://doi.org/10.1098/rspa.2021.0110"
+    ],
+    "sampling_unit": {
+      "episodes_per_cell": 8,
+      "factorial_cells": 8,
+      "row_count": 64,
+      "software_state_unit": "one freshly initialized fusion-engine episode",
+      "statistical_independence_claim": "none; the eight repetitions per law cell add no stochastic precision"
+    },
+    "scientific_status": "deterministic_categorical_conformance_law_not_inference",
+    "source_order": [
+      "visual_north_plane_crossed",
+      "radar_east_plane_crossed",
+      "acoustic_up_plane_crossed"
+    ],
+    "source_origin": "ordered pre-fusion sensor measurements; no fused verdict, PID atom, or target-derived feature",
+    "stopping_rule": "generate exactly eight fresh-engine episodes for each ordered three-bit source cell",
+    "study_id": "crebain-drone-mgw-v1",
+    "target_origin": "externally generated fixture truth in canonical ENU before sensor projection and before fusion",
+    "time_contract": {
+      "all_three_sources_synchronized": true,
+      "observation_timestamp_ms": 1100,
+      "one_observation_window_per_episode": true,
+      "prior_timestamp_ms": 1000
+    },
+    "uncertainty": {
+      "confidence_intervals": "none",
+      "p_values": "none",
+      "reason": "designed exact empirical law; repeated rows are not independent observations",
+      "resampling": "none"
+    }
+  },
+  "analysis_manifest_canonicalization": "recursive lexicographic UTF-8 object keys; serde_json scalar encoding; no whitespace; v1",
+  "analysis_manifest_sha256": "4b0381beee855e7d624066ab04cfdc07920c6182951315b65ba48d99c1e86f90",
+  "geometry": {
+    "axis_order": [
+      "east",
+      "north",
+      "up"
+    ],
+    "canonical_frame": "map_enu",
+    "entry_planes_m": {
+      "east_at_or_below": 50.0,
+      "north_at_or_below": 1.0,
+      "up_at_or_below": 1.0
+    },
+    "prior_reference_enu_m": [
+      50.0,
+      1.0,
+      1.0
+    ],
+    "target_definitions": {
+      "horizontal_incursion": "truth east and north are at or below their registered entry planes",
+      "volumetric_incursion": "horizontal_incursion and truth up is at or below its registered entry plane"
+    }
+  },
+  "rows": [
+    {
+      "cell_index": 0,
+      "episode_id": "crebain-drone-mgw-v1-c00-r00",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          2.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          51.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          2.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 0,
+      "sources": [
+        0,
+        0,
+        0
+      ],
+      "truth_enu_m": [
+        51.0,
+        2.0,
+        2.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 0,
+      "episode_id": "crebain-drone-mgw-v1-c00-r01",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          2.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          51.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          2.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 1,
+      "sources": [
+        0,
+        0,
+        0
+      ],
+      "truth_enu_m": [
+        51.0,
+        2.0,
+        2.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 0,
+      "episode_id": "crebain-drone-mgw-v1-c00-r02",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          2.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          51.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          2.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 2,
+      "sources": [
+        0,
+        0,
+        0
+      ],
+      "truth_enu_m": [
+        51.0,
+        2.0,
+        2.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 0,
+      "episode_id": "crebain-drone-mgw-v1-c00-r03",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          2.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          51.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          2.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 3,
+      "sources": [
+        0,
+        0,
+        0
+      ],
+      "truth_enu_m": [
+        51.0,
+        2.0,
+        2.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 0,
+      "episode_id": "crebain-drone-mgw-v1-c00-r04",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          2.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          51.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          2.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 4,
+      "sources": [
+        0,
+        0,
+        0
+      ],
+      "truth_enu_m": [
+        51.0,
+        2.0,
+        2.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 0,
+      "episode_id": "crebain-drone-mgw-v1-c00-r05",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          2.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          51.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          2.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 5,
+      "sources": [
+        0,
+        0,
+        0
+      ],
+      "truth_enu_m": [
+        51.0,
+        2.0,
+        2.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 0,
+      "episode_id": "crebain-drone-mgw-v1-c00-r06",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          2.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          51.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          2.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 6,
+      "sources": [
+        0,
+        0,
+        0
+      ],
+      "truth_enu_m": [
+        51.0,
+        2.0,
+        2.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 0,
+      "episode_id": "crebain-drone-mgw-v1-c00-r07",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          2.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          51.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          2.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 7,
+      "sources": [
+        0,
+        0,
+        0
+      ],
+      "truth_enu_m": [
+        51.0,
+        2.0,
+        2.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 1,
+      "episode_id": "crebain-drone-mgw-v1-c01-r00",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          0.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          51.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          2.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 0,
+      "sources": [
+        0,
+        0,
+        1
+      ],
+      "truth_enu_m": [
+        51.0,
+        2.0,
+        0.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 1,
+      "episode_id": "crebain-drone-mgw-v1-c01-r01",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          0.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          51.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          2.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 1,
+      "sources": [
+        0,
+        0,
+        1
+      ],
+      "truth_enu_m": [
+        51.0,
+        2.0,
+        0.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 1,
+      "episode_id": "crebain-drone-mgw-v1-c01-r02",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          0.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          51.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          2.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 2,
+      "sources": [
+        0,
+        0,
+        1
+      ],
+      "truth_enu_m": [
+        51.0,
+        2.0,
+        0.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 1,
+      "episode_id": "crebain-drone-mgw-v1-c01-r03",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          0.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          51.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          2.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 3,
+      "sources": [
+        0,
+        0,
+        1
+      ],
+      "truth_enu_m": [
+        51.0,
+        2.0,
+        0.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 1,
+      "episode_id": "crebain-drone-mgw-v1-c01-r04",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          0.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          51.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          2.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 4,
+      "sources": [
+        0,
+        0,
+        1
+      ],
+      "truth_enu_m": [
+        51.0,
+        2.0,
+        0.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 1,
+      "episode_id": "crebain-drone-mgw-v1-c01-r05",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          0.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          51.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          2.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 5,
+      "sources": [
+        0,
+        0,
+        1
+      ],
+      "truth_enu_m": [
+        51.0,
+        2.0,
+        0.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 1,
+      "episode_id": "crebain-drone-mgw-v1-c01-r06",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          0.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          51.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          2.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 6,
+      "sources": [
+        0,
+        0,
+        1
+      ],
+      "truth_enu_m": [
+        51.0,
+        2.0,
+        0.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 1,
+      "episode_id": "crebain-drone-mgw-v1-c01-r07",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          0.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          51.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          2.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 7,
+      "sources": [
+        0,
+        0,
+        1
+      ],
+      "truth_enu_m": [
+        51.0,
+        2.0,
+        0.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 2,
+      "episode_id": "crebain-drone-mgw-v1-c02-r00",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          2.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          49.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          2.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 0,
+      "sources": [
+        0,
+        1,
+        0
+      ],
+      "truth_enu_m": [
+        49.0,
+        2.0,
+        2.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 2,
+      "episode_id": "crebain-drone-mgw-v1-c02-r01",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          2.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          49.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          2.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 1,
+      "sources": [
+        0,
+        1,
+        0
+      ],
+      "truth_enu_m": [
+        49.0,
+        2.0,
+        2.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 2,
+      "episode_id": "crebain-drone-mgw-v1-c02-r02",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          2.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          49.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          2.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 2,
+      "sources": [
+        0,
+        1,
+        0
+      ],
+      "truth_enu_m": [
+        49.0,
+        2.0,
+        2.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 2,
+      "episode_id": "crebain-drone-mgw-v1-c02-r03",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          2.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          49.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          2.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 3,
+      "sources": [
+        0,
+        1,
+        0
+      ],
+      "truth_enu_m": [
+        49.0,
+        2.0,
+        2.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 2,
+      "episode_id": "crebain-drone-mgw-v1-c02-r04",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          2.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          49.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          2.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 4,
+      "sources": [
+        0,
+        1,
+        0
+      ],
+      "truth_enu_m": [
+        49.0,
+        2.0,
+        2.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 2,
+      "episode_id": "crebain-drone-mgw-v1-c02-r05",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          2.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          49.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          2.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 5,
+      "sources": [
+        0,
+        1,
+        0
+      ],
+      "truth_enu_m": [
+        49.0,
+        2.0,
+        2.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 2,
+      "episode_id": "crebain-drone-mgw-v1-c02-r06",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          2.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          49.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          2.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 6,
+      "sources": [
+        0,
+        1,
+        0
+      ],
+      "truth_enu_m": [
+        49.0,
+        2.0,
+        2.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 2,
+      "episode_id": "crebain-drone-mgw-v1-c02-r07",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          2.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          49.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          2.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 7,
+      "sources": [
+        0,
+        1,
+        0
+      ],
+      "truth_enu_m": [
+        49.0,
+        2.0,
+        2.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 3,
+      "episode_id": "crebain-drone-mgw-v1-c03-r00",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          0.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          49.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          2.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 0,
+      "sources": [
+        0,
+        1,
+        1
+      ],
+      "truth_enu_m": [
+        49.0,
+        2.0,
+        0.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 3,
+      "episode_id": "crebain-drone-mgw-v1-c03-r01",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          0.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          49.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          2.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 1,
+      "sources": [
+        0,
+        1,
+        1
+      ],
+      "truth_enu_m": [
+        49.0,
+        2.0,
+        0.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 3,
+      "episode_id": "crebain-drone-mgw-v1-c03-r02",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          0.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          49.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          2.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 2,
+      "sources": [
+        0,
+        1,
+        1
+      ],
+      "truth_enu_m": [
+        49.0,
+        2.0,
+        0.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 3,
+      "episode_id": "crebain-drone-mgw-v1-c03-r03",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          0.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          49.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          2.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 3,
+      "sources": [
+        0,
+        1,
+        1
+      ],
+      "truth_enu_m": [
+        49.0,
+        2.0,
+        0.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 3,
+      "episode_id": "crebain-drone-mgw-v1-c03-r04",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          0.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          49.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          2.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 4,
+      "sources": [
+        0,
+        1,
+        1
+      ],
+      "truth_enu_m": [
+        49.0,
+        2.0,
+        0.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 3,
+      "episode_id": "crebain-drone-mgw-v1-c03-r05",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          0.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          49.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          2.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 5,
+      "sources": [
+        0,
+        1,
+        1
+      ],
+      "truth_enu_m": [
+        49.0,
+        2.0,
+        0.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 3,
+      "episode_id": "crebain-drone-mgw-v1-c03-r06",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          0.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          49.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          2.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 6,
+      "sources": [
+        0,
+        1,
+        1
+      ],
+      "truth_enu_m": [
+        49.0,
+        2.0,
+        0.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 3,
+      "episode_id": "crebain-drone-mgw-v1-c03-r07",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          0.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          49.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          2.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 7,
+      "sources": [
+        0,
+        1,
+        1
+      ],
+      "truth_enu_m": [
+        49.0,
+        2.0,
+        0.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 4,
+      "episode_id": "crebain-drone-mgw-v1-c04-r00",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          2.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          51.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          0.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 0,
+      "sources": [
+        1,
+        0,
+        0
+      ],
+      "truth_enu_m": [
+        51.0,
+        0.0,
+        2.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 4,
+      "episode_id": "crebain-drone-mgw-v1-c04-r01",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          2.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          51.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          0.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 1,
+      "sources": [
+        1,
+        0,
+        0
+      ],
+      "truth_enu_m": [
+        51.0,
+        0.0,
+        2.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 4,
+      "episode_id": "crebain-drone-mgw-v1-c04-r02",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          2.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          51.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          0.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 2,
+      "sources": [
+        1,
+        0,
+        0
+      ],
+      "truth_enu_m": [
+        51.0,
+        0.0,
+        2.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 4,
+      "episode_id": "crebain-drone-mgw-v1-c04-r03",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          2.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          51.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          0.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 3,
+      "sources": [
+        1,
+        0,
+        0
+      ],
+      "truth_enu_m": [
+        51.0,
+        0.0,
+        2.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 4,
+      "episode_id": "crebain-drone-mgw-v1-c04-r04",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          2.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          51.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          0.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 4,
+      "sources": [
+        1,
+        0,
+        0
+      ],
+      "truth_enu_m": [
+        51.0,
+        0.0,
+        2.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 4,
+      "episode_id": "crebain-drone-mgw-v1-c04-r05",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          2.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          51.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          0.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 5,
+      "sources": [
+        1,
+        0,
+        0
+      ],
+      "truth_enu_m": [
+        51.0,
+        0.0,
+        2.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 4,
+      "episode_id": "crebain-drone-mgw-v1-c04-r06",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          2.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          51.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          0.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 6,
+      "sources": [
+        1,
+        0,
+        0
+      ],
+      "truth_enu_m": [
+        51.0,
+        0.0,
+        2.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 4,
+      "episode_id": "crebain-drone-mgw-v1-c04-r07",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          2.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          51.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          0.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 7,
+      "sources": [
+        1,
+        0,
+        0
+      ],
+      "truth_enu_m": [
+        51.0,
+        0.0,
+        2.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 5,
+      "episode_id": "crebain-drone-mgw-v1-c05-r00",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          0.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          51.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          0.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 0,
+      "sources": [
+        1,
+        0,
+        1
+      ],
+      "truth_enu_m": [
+        51.0,
+        0.0,
+        0.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 5,
+      "episode_id": "crebain-drone-mgw-v1-c05-r01",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          0.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          51.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          0.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 1,
+      "sources": [
+        1,
+        0,
+        1
+      ],
+      "truth_enu_m": [
+        51.0,
+        0.0,
+        0.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 5,
+      "episode_id": "crebain-drone-mgw-v1-c05-r02",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          0.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          51.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          0.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 2,
+      "sources": [
+        1,
+        0,
+        1
+      ],
+      "truth_enu_m": [
+        51.0,
+        0.0,
+        0.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 5,
+      "episode_id": "crebain-drone-mgw-v1-c05-r03",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          0.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          51.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          0.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 3,
+      "sources": [
+        1,
+        0,
+        1
+      ],
+      "truth_enu_m": [
+        51.0,
+        0.0,
+        0.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 5,
+      "episode_id": "crebain-drone-mgw-v1-c05-r04",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          0.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          51.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          0.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 4,
+      "sources": [
+        1,
+        0,
+        1
+      ],
+      "truth_enu_m": [
+        51.0,
+        0.0,
+        0.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 5,
+      "episode_id": "crebain-drone-mgw-v1-c05-r05",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          0.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          51.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          0.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 5,
+      "sources": [
+        1,
+        0,
+        1
+      ],
+      "truth_enu_m": [
+        51.0,
+        0.0,
+        0.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 5,
+      "episode_id": "crebain-drone-mgw-v1-c05-r06",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          0.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          51.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          0.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 6,
+      "sources": [
+        1,
+        0,
+        1
+      ],
+      "truth_enu_m": [
+        51.0,
+        0.0,
+        0.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 5,
+      "episode_id": "crebain-drone-mgw-v1-c05-r07",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 0,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          0.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          51.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          0.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 7,
+      "sources": [
+        1,
+        0,
+        1
+      ],
+      "truth_enu_m": [
+        51.0,
+        0.0,
+        0.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 6,
+      "episode_id": "crebain-drone-mgw-v1-c06-r00",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 1,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          2.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          49.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          0.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 0,
+      "sources": [
+        1,
+        1,
+        0
+      ],
+      "truth_enu_m": [
+        49.0,
+        0.0,
+        2.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 6,
+      "episode_id": "crebain-drone-mgw-v1-c06-r01",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 1,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          2.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          49.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          0.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 1,
+      "sources": [
+        1,
+        1,
+        0
+      ],
+      "truth_enu_m": [
+        49.0,
+        0.0,
+        2.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 6,
+      "episode_id": "crebain-drone-mgw-v1-c06-r02",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 1,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          2.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          49.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          0.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 2,
+      "sources": [
+        1,
+        1,
+        0
+      ],
+      "truth_enu_m": [
+        49.0,
+        0.0,
+        2.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 6,
+      "episode_id": "crebain-drone-mgw-v1-c06-r03",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 1,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          2.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          49.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          0.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 3,
+      "sources": [
+        1,
+        1,
+        0
+      ],
+      "truth_enu_m": [
+        49.0,
+        0.0,
+        2.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 6,
+      "episode_id": "crebain-drone-mgw-v1-c06-r04",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 1,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          2.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          49.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          0.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 4,
+      "sources": [
+        1,
+        1,
+        0
+      ],
+      "truth_enu_m": [
+        49.0,
+        0.0,
+        2.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 6,
+      "episode_id": "crebain-drone-mgw-v1-c06-r05",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 1,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          2.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          49.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          0.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 5,
+      "sources": [
+        1,
+        1,
+        0
+      ],
+      "truth_enu_m": [
+        49.0,
+        0.0,
+        2.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 6,
+      "episode_id": "crebain-drone-mgw-v1-c06-r06",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 1,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          2.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          49.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          0.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 6,
+      "sources": [
+        1,
+        1,
+        0
+      ],
+      "truth_enu_m": [
+        49.0,
+        0.0,
+        2.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 6,
+      "episode_id": "crebain-drone-mgw-v1-c06-r07",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 1,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          2.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          49.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          0.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 7,
+      "sources": [
+        1,
+        1,
+        0
+      ],
+      "truth_enu_m": [
+        49.0,
+        0.0,
+        2.0
+      ],
+      "volumetric_incursion": 0
+    },
+    {
+      "cell_index": 7,
+      "episode_id": "crebain-drone-mgw-v1-c07-r00",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 1,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          0.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          49.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          0.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 0,
+      "sources": [
+        1,
+        1,
+        1
+      ],
+      "truth_enu_m": [
+        49.0,
+        0.0,
+        0.0
+      ],
+      "volumetric_incursion": 1
+    },
+    {
+      "cell_index": 7,
+      "episode_id": "crebain-drone-mgw-v1-c07-r01",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 1,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          0.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          49.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          0.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 1,
+      "sources": [
+        1,
+        1,
+        1
+      ],
+      "truth_enu_m": [
+        49.0,
+        0.0,
+        0.0
+      ],
+      "volumetric_incursion": 1
+    },
+    {
+      "cell_index": 7,
+      "episode_id": "crebain-drone-mgw-v1-c07-r02",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 1,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          0.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          49.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          0.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 2,
+      "sources": [
+        1,
+        1,
+        1
+      ],
+      "truth_enu_m": [
+        49.0,
+        0.0,
+        0.0
+      ],
+      "volumetric_incursion": 1
+    },
+    {
+      "cell_index": 7,
+      "episode_id": "crebain-drone-mgw-v1-c07-r03",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 1,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          0.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          49.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          0.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 3,
+      "sources": [
+        1,
+        1,
+        1
+      ],
+      "truth_enu_m": [
+        49.0,
+        0.0,
+        0.0
+      ],
+      "volumetric_incursion": 1
+    },
+    {
+      "cell_index": 7,
+      "episode_id": "crebain-drone-mgw-v1-c07-r04",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 1,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          0.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          49.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          0.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 4,
+      "sources": [
+        1,
+        1,
+        1
+      ],
+      "truth_enu_m": [
+        49.0,
+        0.0,
+        0.0
+      ],
+      "volumetric_incursion": 1
+    },
+    {
+      "cell_index": 7,
+      "episode_id": "crebain-drone-mgw-v1-c07-r05",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 1,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          0.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          49.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          0.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 5,
+      "sources": [
+        1,
+        1,
+        1
+      ],
+      "truth_enu_m": [
+        49.0,
+        0.0,
+        0.0
+      ],
+      "volumetric_incursion": 1
+    },
+    {
+      "cell_index": 7,
+      "episode_id": "crebain-drone-mgw-v1-c07-r06",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 1,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          0.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          49.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          0.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 6,
+      "sources": [
+        1,
+        1,
+        1
+      ],
+      "truth_enu_m": [
+        49.0,
+        0.0,
+        0.0
+      ],
+      "volumetric_incursion": 1
+    },
+    {
+      "cell_index": 7,
+      "episode_id": "crebain-drone-mgw-v1-c07-r07",
+      "fusion_receipt": {
+        "common_projection_prior_id": 2,
+        "degraded": false,
+        "input_count": 3,
+        "projection_count": 3,
+        "truncated": false,
+        "v1_expected_count": 3
+      },
+      "horizontal_incursion": 1,
+      "observation_timestamp_ms": 1100,
+      "pre_fusion_observations": {
+        "acoustic_cartesian_enu_m": [
+          50.0,
+          1.0,
+          0.0
+        ],
+        "radar_polar_range_azimuth_elevation": [
+          49.0,
+          0.0,
+          0.0
+        ],
+        "visual_cartesian_enu_m": [
+          50.0,
+          0.0,
+          1.0
+        ]
+      },
+      "prior_timestamp_ms": 1000,
+      "replicate_index": 7,
+      "sources": [
+        1,
+        1,
+        1
+      ],
+      "truth_enu_m": [
+        49.0,
+        0.0,
+        0.0
+      ],
+      "volumetric_incursion": 1
+    }
+  ],
+  "schema_version": "crebain.drone-mgw-study/1.0.0"
+}
