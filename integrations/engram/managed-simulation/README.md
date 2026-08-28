@@ -272,6 +272,9 @@ The receipt-lock timeout accepts 1 through 300,000 milliseconds.
 
 Every request uses canonical, sorted-key JSON before hashing.
 Each digest uses a separate domain string.
+Operational evidence retains the Host API 2 binary64 number spelling.
+The JavaScript verifier preserves each number lexeme during semantic parsing.
+It rejects alternate spellings and integer-like float collapse.
 
 The state digest joins the run digest, prior state digest, and complete frame.
 The receipt digest joins the request, result, state, and frame.

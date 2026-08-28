@@ -24,7 +24,9 @@ import {
   assertContractProvenance,
   assertDifferentialArtifacts,
   assertEvidenceSchemas,
+  assertManagedRuntimeCanonicalObject,
   assertManifestBoundary,
+  managedRuntimeFloatText,
   assertOperationalEvidence,
   assertOperationalPublicationState,
   assertStandardFaultCodeSchemaBoundary,
@@ -153,6 +155,74 @@ function expectFailure(name, action, expected) {
     message = error instanceof Error ? error.message : String(error)
   }
   if (!message.includes(expected)) throw new Error(`${name}: expected ${expected}; got ${message}`)
+}
+
+{
+  const corpus = JSON.parse(
+    DIFFERENTIAL_ARTIFACTS.get('engram.managed-runtime-finite-float.v1.json')
+  )
+  for (const row of corpus.cases) {
+    const value = Buffer.from(row.binary64_be_hex, 'hex').readDoubleBE(0)
+    if (row.portable) {
+      if (managedRuntimeFloatText(value) !== row.canonical_json) {
+        throw new Error(`managed-runtime-float-${row.id}: canonical spelling drifted`)
+      }
+    } else {
+      expectFailure(
+        `managed-runtime-float-${row.id}`,
+        () => managedRuntimeFloatText(value),
+        'portable finite range'
+      )
+    }
+  }
+  const randomized = corpus.randomized
+  const mask = (1n << 64n) - 1n
+  let state = BigInt(`0x${randomized.seed_hex}`)
+  let accepted = 0
+  const transcript = createHash('sha256')
+  for (let index = 0; index < randomized.sample_count; index += 1) {
+    state = (state + 0x9e3779b97f4a7c15n) & mask
+    let bits = state
+    bits = ((bits ^ (bits >> 30n)) * 0xbf58476d1ce4e5b9n) & mask
+    bits = ((bits ^ (bits >> 27n)) * 0x94d049bb133111ebn) & mask
+    bits = (bits ^ (bits >> 31n)) & mask
+    const bytes = Buffer.alloc(8)
+    bytes.writeBigUInt64BE(bits)
+    let rendered = 'rejected'
+    try {
+      rendered = managedRuntimeFloatText(bytes.readDoubleBE(0))
+      accepted += 1
+    } catch {
+      // The frozen transcript records every value outside the portable domain.
+    }
+    transcript.update(`${bits.toString(16).padStart(16, '0')}:${rendered}\n`)
+  }
+  if (
+    accepted !== randomized.accepted_count ||
+    transcript.digest('hex') !== randomized.transcript_sha256
+  ) {
+    throw new Error('managed-runtime randomized finite-float transcript drifted')
+  }
+}
+
+{
+  const positive = Buffer.from('{"float":100.0,"integer":100,"small":1e-6}\n')
+  const document = assertManagedRuntimeCanonicalObject(
+    positive,
+    'managed-runtime numeric positive control'
+  )
+  if (document.float !== 100 || document.integer !== 100 || document.small !== 1e-6) {
+    throw new Error('managed-runtime numeric positive control changed semantic values')
+  }
+  expectFailure(
+    'managed-runtime-noncanonical-float',
+    () =>
+      assertManagedRuntimeCanonicalObject(
+        Buffer.from('{"float":100.00,"integer":100,"small":1e-6}\n'),
+        'managed-runtime numeric negative control'
+      ),
+    'exact canonical JSON bytes'
+  )
 }
 
 function publicationState() {

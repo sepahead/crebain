@@ -439,6 +439,8 @@ function sha256(payload) {
   return createHash('sha256').update(payload).digest('hex')
 }
 
+const MANAGED_RUNTIME_NUMBER_LEXEMES = Symbol('managed-runtime-number-lexemes')
+
 function canonical(value) {
   if (value === null || typeof value === 'boolean' || typeof value === 'number') {
     return JSON.stringify(value)
@@ -452,6 +454,102 @@ function canonical(value) {
       .join(',')}}`
   }
   fail('fixture contains a non-JSON value')
+}
+
+function compareUnicodeCodePoints(left, right) {
+  const leftPoints = [...left].map((character) => character.codePointAt(0))
+  const rightPoints = [...right].map((character) => character.codePointAt(0))
+  const commonLength = Math.min(leftPoints.length, rightPoints.length)
+  for (let index = 0; index < commonLength; index += 1) {
+    if (leftPoints[index] !== rightPoints[index]) return leftPoints[index] - rightPoints[index]
+  }
+  return leftPoints.length - rightPoints.length
+}
+
+export function managedRuntimeFloatText(value) {
+  if (
+    typeof value !== 'number' ||
+    !Number.isFinite(value) ||
+    Math.abs(value) > 1e300 ||
+    Object.is(value, -0)
+  ) {
+    fail('managed-runtime float exceeds the portable finite range')
+  }
+  const negative = value < 0
+  const source = Math.abs(value).toString().toLowerCase()
+  let digits
+  let decimalPoint
+  if (source.includes('e')) {
+    const [mantissa, exponentText] = source.split('e')
+    const exponent = Number.parseInt(exponentText, 10)
+    digits = mantissa.replace('.', '').replace(/^0+/u, '').replace(/0+$/u, '') || '0'
+    decimalPoint = exponent + 1
+  } else {
+    const [integer, fraction = ''] = source.split('.')
+    const combined = `${integer}${fraction}`
+    const first = [...combined].findIndex((character) => character !== '0')
+    if (first === -1) return '0.0'
+    decimalPoint = integer.length - first
+    digits = combined.slice(first).replace(/0+$/u, '')
+  }
+  const trailingZeroCount = decimalPoint - digits.length
+  let rendered
+  if (trailingZeroCount >= 0 && decimalPoint <= 16) {
+    rendered = `${digits}${'0'.repeat(trailingZeroCount)}.0`
+  } else if (decimalPoint > 0 && decimalPoint <= 16) {
+    rendered = `${digits.slice(0, decimalPoint)}.${digits.slice(decimalPoint)}`
+  } else if (decimalPoint > -5 && decimalPoint <= 0) {
+    rendered = `0.${'0'.repeat(-decimalPoint)}${digits}`
+  } else {
+    const exponent = decimalPoint - 1
+    const exponentText = exponent >= 0 ? `+${exponent}` : `${exponent}`
+    rendered =
+      digits.length === 1
+        ? `${digits}e${exponentText}`
+        : `${digits[0]}.${digits.slice(1)}e${exponentText}`
+  }
+  return negative ? `-${rendered}` : rendered
+}
+
+function managedRuntimeNumberText(value, sourceLexeme) {
+  if (typeof sourceLexeme !== 'string') return JSON.stringify(value)
+  if (!Number.isFinite(value)) fail('managed-runtime JSON contains a non-finite number')
+  if (!/[.eE]/u.test(sourceLexeme)) {
+    if (!Number.isSafeInteger(value)) {
+      fail('managed-runtime JSON integer exceeds the exact range')
+    }
+    return `${value}`
+  }
+  return managedRuntimeFloatText(value)
+}
+
+export function managedRuntimeCanonical(
+  value,
+  parent = undefined,
+  key = undefined,
+  omit = undefined
+) {
+  if (value === null || typeof value === 'boolean') return JSON.stringify(value)
+  if (typeof value === 'number') {
+    return managedRuntimeNumberText(value, parent?.[MANAGED_RUNTIME_NUMBER_LEXEMES]?.get(`${key}`))
+  }
+  if (typeof value === 'string') return JSON.stringify(value)
+  if (Array.isArray(value)) {
+    return `[${value
+      .map((child, index) => managedRuntimeCanonical(child, value, index, undefined))
+      .join(',')}]`
+  }
+  if (typeof value === 'object') {
+    return `{${Object.keys(value)
+      .filter((member) => member !== omit)
+      .sort(compareUnicodeCodePoints)
+      .map(
+        (member) =>
+          `${JSON.stringify(member)}:${managedRuntimeCanonical(value[member], value, member, undefined)}`
+      )
+      .join(',')}}`
+  }
+  fail('managed-runtime document contains a non-JSON value')
 }
 
 function compareCodePoint(left, right) {
@@ -1010,12 +1108,36 @@ function strictJsonObject(payload, label) {
   if (end !== source.length) fail(`${label} contains trailing JSON text`)
   let document
   try {
-    document = JSON.parse(source)
+    document = JSON.parse(source, function retainManagedRuntimeNumberLexeme(key, value, context) {
+      if (typeof value === 'number') {
+        if (typeof context?.source !== 'string') {
+          throw new Error('JSON parser did not expose the number source')
+        }
+        if (!Object.hasOwn(this, MANAGED_RUNTIME_NUMBER_LEXEMES)) {
+          Object.defineProperty(this, MANAGED_RUNTIME_NUMBER_LEXEMES, {
+            configurable: false,
+            enumerable: false,
+            value: new Map(),
+            writable: false,
+          })
+        }
+        this[MANAGED_RUNTIME_NUMBER_LEXEMES].set(`${key}`, context.source)
+      }
+      return value
+    })
   } catch {
     fail(`${label} contains malformed JSON text`)
   }
   if (document === null || typeof document !== 'object' || Array.isArray(document)) {
     fail(`${label} is not one JSON object`)
+  }
+  return document
+}
+
+export function assertManagedRuntimeCanonicalObject(payload, label) {
+  const document = strictJsonObject(payload, label)
+  if (!Buffer.from(`${managedRuntimeCanonical(document)}\n`).equals(payload)) {
+    fail(`${label} is not exact canonical JSON bytes under the managed-runtime profile`)
   }
   return document
 }
@@ -1064,8 +1186,9 @@ function safeRelative(value, label, suffix = undefined) {
 function canonicalDigest(document, field, label) {
   const reported = document?.[field]
   if (!isSha256(reported)) fail(`${label} lacks ${field}`)
-  const material = Object.fromEntries(Object.entries(document).filter(([key]) => key !== field))
-  if (sha256(canonical(material)) !== reported) fail(`${label} canonical digest differs`)
+  if (sha256(managedRuntimeCanonical(document, undefined, undefined, field)) !== reported) {
+    fail(`${label} canonical digest differs`)
+  }
   return reported
 }
 
@@ -1687,7 +1810,7 @@ function assertBuildReceipt(receipt) {
   if (source.files.some((row) => row.git_blob.length !== objectLength)) {
     fail('observed-build source blob differs from the Git object format')
   }
-  if (source.roster_sha256 !== sha256(canonical(source.files))) {
+  if (source.roster_sha256 !== sha256(managedRuntimeCanonical(source.files))) {
     fail('observed-build source roster digest differs')
   }
   const generator = exactKeys(
@@ -1707,7 +1830,7 @@ function assertBuildReceipt(receipt) {
   if (generator.files.map((row) => row.relative_path).join(',') !== expectedGenerator.join(',')) {
     fail('observed-build generator roster differs')
   }
-  if (generator.roster_sha256 !== sha256(canonical(generator.files))) {
+  if (generator.roster_sha256 !== sha256(managedRuntimeCanonical(generator.files))) {
     fail('observed-build generator roster digest differs')
   }
   const cargo = exactKeys(
@@ -1805,7 +1928,7 @@ function assertBuildReceipt(receipt) {
     generator_roster_sha256: generator.roster_sha256,
     cargo,
   }
-  if (receipt.input_identity_sha256 !== sha256(canonical(identity))) {
+  if (receipt.input_identity_sha256 !== sha256(managedRuntimeCanonical(identity))) {
     fail('observed-build input identity differs')
   }
   if (
@@ -1919,7 +2042,7 @@ function assertStageReceipt(receipt, buildReceipt) {
     fail('package-stage executable inventory differs')
   }
   if (
-    receipt.package_inventory_sha256 !== sha256(canonical(inventory)) ||
+    receipt.package_inventory_sha256 !== sha256(managedRuntimeCanonical(inventory)) ||
     canonical(receipt.authority) !== canonical(BUILD_NO_AUTHORITY) ||
     typeof receipt.disclosure !== 'string' ||
     receipt.disclosure.length === 0
@@ -2222,7 +2345,7 @@ function assertNestedSourceClosure(capture, index, proof) {
   const stableRosterSha256 = sha256(
     Buffer.concat([
       Buffer.from('crebain.engram-source-roster.v1\0'),
-      Buffer.from(canonical(source.sources)),
+      Buffer.from(managedRuntimeCanonical(source.sources)),
     ])
   )
   if (source.source_roster_sha256 !== stableRosterSha256) {
@@ -2300,12 +2423,8 @@ function assertReceiptStoreClosure(store, terminal, evidence) {
   const receiptPath = `receipts/${terminal.receipt_sha256.slice(0, 2)}/${terminal.receipt_sha256}.json`
   const evidencePath = `evidence/${evidence.bundle_sha256.slice(0, 2)}/${evidence.bundle_sha256}.json`
   const byPath = new Map(store.files.map((row) => [row.relative_path, row]))
-  const storedReceipt = Object.fromEntries(
-    Object.entries(terminal).filter(([key]) => key !== 'receipt_sha256')
-  )
-  const storedEvidence = Object.fromEntries(
-    Object.entries(evidence).filter(([key]) => key !== 'bundle_sha256')
-  )
+  const storedReceipt = managedRuntimeCanonical(terminal, undefined, undefined, 'receipt_sha256')
+  const storedEvidence = managedRuntimeCanonical(evidence, undefined, undefined, 'bundle_sha256')
   const receiptRow = byPath.get(receiptPath)
   const evidenceRow = byPath.get(evidencePath)
   if (
@@ -2323,9 +2442,9 @@ function assertReceiptStoreClosure(store, terminal, evidence) {
     store.receipt_artifact_path !== receiptPath ||
     store.evidence_artifact_path !== evidencePath ||
     receiptRow?.sha256 !== terminal.receipt_sha256 ||
-    receiptRow?.size_bytes !== Buffer.byteLength(canonical(storedReceipt)) ||
+    receiptRow?.size_bytes !== Buffer.byteLength(storedReceipt) ||
     evidenceRow?.sha256 !== evidence.bundle_sha256 ||
-    evidenceRow?.size_bytes !== Buffer.byteLength(canonical(storedEvidence)) ||
+    evidenceRow?.size_bytes !== Buffer.byteLength(storedEvidence) ||
     !byPath.has('store.json') ||
     !byPath.has('writer.lock') ||
     store.receipt_sha256 !== terminal.receipt_sha256 ||
@@ -2388,7 +2507,7 @@ function assertWorkerGuardianClosure(guardian, evidence, source) {
   )
   const identityDigest = canonicalDigest(identity, 'receipt_sha256', 'NEST worker runtime identity')
   const sessionDigest = canonicalDigest(session, 'receipt_sha256', 'NEST session readback')
-  const attemptsDigest = sha256(canonical(attempts))
+  const attemptsDigest = sha256(managedRuntimeCanonical(attempts))
   if (
     canonical(lifecycle.termination_attempts) !== canonical(attempts) ||
     lifecycle.session_binding_receipt_sha256 !== bindingDigest ||
@@ -2547,12 +2666,12 @@ function assertPopulationTopology(capture, evidence, neuralSteps, count) {
     canonical(connectionRows.map((row) => [row.population_name, row.direction])) !==
       canonical(expectedConnections) ||
     connectionRows.some((row) => row.connection_count !== capture.nest_config.population_size) ||
-    session.connection_readback_sha256 !== sha256(canonical(connectionRows)) ||
+    session.connection_readback_sha256 !== sha256(managedRuntimeCanonical(connectionRows)) ||
     session.observed_population_neuron_count !== topology.population_neuron_count ||
     session.observed_device_node_count !== topology.device_node_count ||
     session.observed_total_connection_count !== topology.connection_count ||
     canonical(session.population_roster) !== canonical(expected.populationRoster) ||
-    session.population_roster_sha256 !== sha256(canonical(session.population_roster))
+    session.population_roster_sha256 !== sha256(managedRuntimeCanonical(session.population_roster))
   ) {
     fail(`${count}-drone v2 capture NEST topology readback differs`)
   }
@@ -2688,10 +2807,10 @@ function assertCaptureV2(capturePayload, row, index, context) {
   if (sha256(capturePayload) !== row.capture_sha256) {
     fail(`v2 capture digest differs: ${row.path}`)
   }
-  const capture = strictJsonObject(capturePayload, `${row.drone_count}-drone v2 capture`)
-  if (!Buffer.from(`${canonical(capture)}\n`).equals(capturePayload)) {
-    fail(`${row.drone_count}-drone v2 capture is not exact canonical JSON bytes`)
-  }
+  const capture = assertManagedRuntimeCanonicalObject(
+    capturePayload,
+    `${row.drone_count}-drone v2 capture`
+  )
   exactKeys(capture, CAPTURE_V2_KEYS, `${row.drone_count}-drone v2 capture`)
   const count = row.drone_count
   const plan = context.plans.get(count)
@@ -2898,10 +3017,7 @@ function assertCaptureV2(capturePayload, row, index, context) {
 }
 
 function assertOperationalEvidenceV2(indexPayload, capturePayloads, context) {
-  const index = strictJsonObject(indexPayload, 'real-NEST v2 evidence index')
-  if (!Buffer.from(`${canonical(index)}\n`).equals(indexPayload)) {
-    fail('real-NEST v2 evidence index is not exact canonical JSON bytes')
-  }
+  const index = assertManagedRuntimeCanonicalObject(indexPayload, 'real-NEST v2 evidence index')
   exactKeys(
     index,
     new Set([
@@ -3135,11 +3251,12 @@ function assertOperationalEvidenceV2(indexPayload, capturePayloads, context) {
     new Set(index.captures.map((row) => row.engram_source_closure_sha256)).size !== 3 ||
     new Set(index.captures.map((row) => row.engram_source_roster_sha256)).size !== 1 ||
     new Set(index.captures.map((row) => row.observed_build_receipt_exact_sha256)).size !== 1 ||
-    new Set(proofs.map((proof) => canonical(proof))).size !== 1 ||
+    new Set(proofs.map((proof) => managedRuntimeCanonical(proof))).size !== 1 ||
     buildSourceRepositories.some(
       (repository) => canonical(repository) !== canonical(crebainSource)
     ) ||
-    index.installed_package_proof_exact_sha256 !== sha256(Buffer.from(`${canonical(proofs[0])}\n`))
+    index.installed_package_proof_exact_sha256 !==
+      sha256(Buffer.from(`${managedRuntimeCanonical(proofs[0])}\n`))
   ) {
     fail('real-NEST v2 captures reuse run identities or differ in common lineage')
   }

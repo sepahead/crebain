@@ -80,7 +80,9 @@ Current evidence uses `operational-evidence/real-nest-3.9-v2/`.
 Commit only the four evidence JSON files as direct child C1 of clean source revision C0.
 Push C1 before operational verification.
 Pass both exact revisions to `bun run check:managed-simulation-operational-v2 --`.
-The operational verifier requires the tracked input context and rejects every INDEX v1 root.
+  The operational verifier requires the tracked input context and rejects every INDEX v1 root.
+  It preserves Host API 2 number lexemes before it verifies canonical digests.
+  It rejects alternate float spellings and cross-language type collapse.
 
 ### Supply chain and static analysis
 
