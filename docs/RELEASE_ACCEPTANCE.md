@@ -45,6 +45,41 @@ or field tests provide separate facts.
 
 - **Blocking conditions:** Feature-gated code does not compile or NCP tests are skipped
 
+### Managed simulation bootstrap and operational gates
+
+- **Acceptance evidence:** CI uses exact Rust 1.91.1.
+  The managed gate uses an Apple Silicon macOS 15 runner.
+  It runs the boundary, input, release-contract, format, check, test, Clippy, and rustdoc gates.
+  Push-main CI also creates one clean-main observed build and stage receipt.
+  Contract provenance v2 binds each copied Engram schema to one Git blob from clean `origin/main`.
+  The build receipt binds the CREBAIN Git identity, source blobs, Cargo inputs, tools, target, and Mach-O arm64 bytes.
+  Fresh Cargo dep-info must match the compile-input roster.
+  The stage receipt joins those bytes to the exact package inventory.
+  The pack receipt binds clean Engram `origin/main` and the exact extension-tool Git blob.
+  Installed proof v3 joins build, stage, pack, store, bundle, seal, executable, configuration, and schemas.
+  Bootstrap CI does not open historical or operational captures.
+  Its provider-free test accepts synthetic v2 evidence and rejects an exact v1 root.
+
+- **Blocking conditions:** A copied contract lacks Git provenance.
+  A build input, Cargo dep-info row, or receipt join drifts.
+  A source include escapes scanning.
+  A source executable lacks owner-execute mode.
+  A source executable lacks valid thin Mach-O arm64 load commands.
+  The pack tool, Engram commit, bundle generation, or receipt lineage drifts.
+  A nested roster is unsafe, unsorted, duplicated, stale, or open.
+  The runtime gains NCP, MUSIC, network, Tauri, artifact, plant, physical, scientific, or restart authority.
+
+The observed-build receipt is not a signature or reproducibility proof.
+It does not attest external dependency bytes or the complete build environment.
+
+The target-environment gate runs one reviewed runtime and one NEST session for each suite member.
+Each run must prove the exact 6N population topology and complete receipt-store closure.
+The suite must publish distinct receipt and evidence identities from one immutable Engram commit.
+Capture v2 and INDEX v2 bind the exact one-, two-, and three-drone suite.
+Current evidence uses `operational-evidence/real-nest-3.9-v2/`.
+Run `bun run check:managed-simulation-operational-v2` only after tracking that complete suite.
+The operational verifier requires the tracked input context and rejects every INDEX v1 root.
+
 ### Supply chain and static analysis
 
 - **Acceptance evidence:** cargo-deny, `bun audit`, pinned-action policy, and CodeQL workflows pass for the candidate/dependency change; the fresh local Cargo audit reports no vulnerability advisories and documents the unpatched transitive `glib` 0.18 and `rand` 0.7.3 unsoundness warnings plus legacy unmaintained warnings; build and sealing jobs retain read-only repository access, package provenance attestation is isolated, and only the final artifact-only publisher receives `contents: write`

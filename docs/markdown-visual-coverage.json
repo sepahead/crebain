@@ -299,6 +299,14 @@
       "visuals": ["assets/diagrams/engram-ncp-boundary.svg"]
     },
     {
+      "path": "integrations/engram/managed-simulation/README.md",
+      "classification": "active-technical",
+      "exemption": {
+        "kind": "protocol-package-readme",
+        "reason": "The document defines exact wire fields, limits, packaging, and authority boundaries. The parent Engram integration document carries the relevant boundary visual."
+      }
+    },
+    {
       "path": "public/models/README.md",
       "classification": "active-technical",
       "visuals": ["assets/diagrams/evidence-claim-chain.svg"]

@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://engram.local/schemas/engram.closed-loop-simulator.finish-response.v2.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "reason",
+    "terminal",
+    "study_run_id",
+    "final_step_index",
+    "final_snapshot_sha256",
+    "tic_unit",
+    "causality_policy",
+    "step_duration_tics",
+    "final_simulation_time_tics",
+    "run_state_cleared"
+  ],
+  "properties": {
+    "schema_version": {"const": "engram.closed-loop-simulator.finish-response.v2"},
+    "status": {"enum": ["succeeded", "failed", "rejected"]},
+    "reason": {"type": "string", "minLength": 1, "maxLength": 128},
+    "terminal": {"type": "boolean"},
+    "study_run_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "final_step_index": {"type": "integer", "minimum": 1, "maximum": 1024},
+    "final_snapshot_sha256": {"type": "string", "minLength": 64, "maxLength": 64},
+    "tic_unit": {"const": "microsecond"},
+    "causality_policy": {"const": "sample-runtime-run-controller-apply-zoh-v1"},
+    "step_duration_tics": {"type": "integer", "minimum": 1, "maximum": 10000000},
+    "final_simulation_time_tics": {"type": "integer", "minimum": 1, "maximum": 10240000000},
+    "run_state_cleared": {"type": "boolean"}
+  }
+}

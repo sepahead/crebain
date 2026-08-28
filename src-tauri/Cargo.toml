@@ -9,7 +9,12 @@ edition = "2021"
 rust-version = "1.89.0"
 
 [workspace]
-members = [".", "crates/ncp-headless", "crates/plant-authority"]
+members = [
+    ".",
+    "crates/managed-simulation",
+    "crates/ncp-headless",
+    "crates/plant-authority",
+]
 default-members = ["."]
 resolver = "2"
 

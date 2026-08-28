@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://engram.local/schemas/engram.closed-loop-simulator.finish-response.v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "reason",
+    "terminal",
+    "study_run_id",
+    "final_step_index",
+    "final_snapshot_sha256",
+    "run_state_cleared"
+  ],
+  "properties": {
+    "schema_version": {"const": "engram.closed-loop-simulator.finish-response.v1"},
+    "status": {"enum": ["succeeded", "failed", "rejected"]},
+    "reason": {"type": "string", "minLength": 1, "maxLength": 128},
+    "terminal": {"type": "boolean"},
+    "study_run_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "final_step_index": {"type": "integer", "minimum": 1, "maximum": 1024},
+    "final_snapshot_sha256": {"type": "string", "minLength": 64, "maxLength": 64},
+    "run_state_cleared": {"type": "boolean"}
+  }
+}

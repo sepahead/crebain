@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://engram.local/schemas/crebain.managed-simulation.finish-response.v1.schema.json",
+  "title": "CREBAIN simulation finish response v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "outcome",
+    "reason",
+    "authority",
+    "run_id",
+    "tick_index",
+    "terminal",
+    "drone_ids",
+    "run_digest",
+    "state_digest",
+    "request_digest",
+    "receipt_digest",
+    "transcript_digest",
+    "step_count",
+    "cleaned_up"
+  ],
+  "properties": {
+    "schema_version": { "const": "crebain.simulation.finish-response.v1" },
+    "outcome": { "enum": ["succeeded", "rejected", "failed"] },
+    "reason": {
+      "enum": [
+        "finished",
+        "no-active-run",
+        "run-id-mismatch",
+        "tick-out-of-order",
+        "invalid-input",
+        "internal-panic-contained"
+      ]
+    },
+    "authority": { "const": "simulator-only" },
+    "run_id": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "tick_index": { "type": "integer", "minimum": 0, "maximum": 1024 },
+    "terminal": { "type": "boolean" },
+    "drone_ids": {
+      "type": "array",
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 64 }
+    },
+    "run_digest": { "$ref": "#/$defs/digest" },
+    "state_digest": { "$ref": "#/$defs/digest" },
+    "request_digest": { "$ref": "#/$defs/digest" },
+    "receipt_digest": { "$ref": "#/$defs/digest" },
+    "transcript_digest": { "$ref": "#/$defs/digest" },
+    "step_count": { "type": "integer", "minimum": 0, "maximum": 1024 },
+    "cleaned_up": { "type": "boolean" }
+  },
+  "$defs": {
+    "digest": { "type": "string", "minLength": 64, "maxLength": 64 }
+  }
+}

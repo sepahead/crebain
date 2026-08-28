@@ -243,6 +243,70 @@ jobs:
             echo "\`\`\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
+  managed-simulation:
+    name: Managed simulation bootstrap gate
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install exact Rust toolchain
+        uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
+        with:
+          toolchain: 1.91.1
+          components: clippy, rustfmt
+          targets: aarch64-apple-darwin
+      - name: Assert exact Rust toolchain
+        run: |
+          test "$(uname -m)" = "arm64"
+          test "$(rustc --version)" = "rustc 1.91.1 (ed61e7d7e 2025-11-07)"
+          test "$(cargo --version)" = "cargo 1.91.1 (ea2d97820 2025-10-10)"
+      - name: Cache managed-simulation Cargo artifacts
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: src-tauri
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.3.14
+      - name: Observe clean immutable main build and stage exact bytes
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          set -o pipefail
+          python3 scripts/build-managed-simulation-bootstrap.py --commit "$GITHUB_SHA" 2>&1 | tee managed-bootstrap.log
+          python3 scripts/stage-managed-simulation-package.py 2>&1 | tee managed-stage.log
+      - name: Verify provider-free boundary, copied contracts, packaging tools, and tracked inputs
+        run: |
+          set -o pipefail
+          bun run check:managed-simulation-boundary 2>&1 | tee managed-boundary.log
+          bun run check:managed-simulation-inputs 2>&1 | tee managed-inputs.log
+      - name: Build and replay private-pipe contracts
+        run: |
+          set -o pipefail
+          bun run check:managed-simulation-contract 2>&1 | tee managed-contract.log
+      - name: Format, test, and lint the isolated runtime
+        run: |
+          set -o pipefail
+          bun run fmt:managed-simulation:check 2>&1 | tee managed-format.log
+          bun run check:managed-simulation-rust 2>&1 | tee managed-check.log
+          bun run test:managed-simulation 2>&1 | tee managed-test.log
+          bun run clippy:managed-simulation 2>&1 | tee managed-clippy.log
+          bun run doc:managed-simulation 2>&1 | tee managed-rustdoc.log
+      - name: Record managed-simulation validation summary
+        if: always()
+        run: |
+          {
+            echo "### Managed simulation bootstrap gate"
+            echo ""
+            echo "- Rust: exact 1.91.1"
+            echo "- Scope: simulator-only Host API 2.0; NCP and MUSIC remain outside this runtime"
+            echo ""
+            echo "\`\`\`"
+            grep -E "test result:|Finished|error:|OK:|status.*verified" managed-*.log || true
+            echo "\`\`\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   backend-features:
     name: Backend feature gates (Linux)
     runs-on: ubuntu-latest

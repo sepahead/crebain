@@ -1,0 +1,503 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://crebain.local/schemas/crebain.managed-simulation-observed-build-receipt.v1.schema.json",
+  "title": "CREBAIN managed simulation observed-build receipt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "repository",
+    "source",
+    "generator",
+    "cargo",
+    "output",
+    "input_identity_sha256",
+    "claims",
+    "authority",
+    "disclosure",
+    "receipt_sha256"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "crebain.managed-simulation-observed-build-receipt.v1"
+    },
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["origin", "commit", "tree", "origin_main", "object_format", "clean"],
+      "properties": {
+        "origin": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "commit": { "$ref": "#/$defs/gitObject" },
+        "tree": { "$ref": "#/$defs/gitObject" },
+        "origin_main": { "$ref": "#/$defs/gitObject" },
+        "object_format": { "enum": ["sha1", "sha256"] },
+        "clean": { "const": true }
+      },
+      "allOf": [{ "$ref": "#/$defs/gitObjectFormatJoin" }]
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy", "files", "roster_sha256"],
+      "properties": {
+        "policy": {
+          "const": "clean-origin-main-git-blob-and-rustc-dep-info-build-inputs.v1"
+        },
+        "files": { "$ref": "#/$defs/buildSourceRoster" },
+        "roster_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "generator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["files", "roster_sha256"],
+      "properties": {
+        "files": { "$ref": "#/$defs/sourceRoster" },
+        "roster_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "cargo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workspace_manifest_path",
+        "workspace_manifest_exact_sha256",
+        "package_manifest_path",
+        "package_manifest_exact_sha256",
+        "lock_path",
+        "lock_exact_sha256",
+        "toolchain_path",
+        "toolchain_exact_sha256",
+        "rust_toolchain",
+        "rustc_version",
+        "cargo_version",
+        "argv",
+        "profile",
+        "target",
+        "target_directory_policy",
+        "environment_policy"
+      ],
+      "properties": {
+        "workspace_manifest_path": { "const": "src-tauri/Cargo.toml" },
+        "workspace_manifest_exact_sha256": { "$ref": "#/$defs/sha256" },
+        "package_manifest_path": {
+          "const": "src-tauri/crates/managed-simulation/Cargo.toml"
+        },
+        "package_manifest_exact_sha256": { "$ref": "#/$defs/sha256" },
+        "lock_path": { "const": "src-tauri/Cargo.lock" },
+        "lock_exact_sha256": { "$ref": "#/$defs/sha256" },
+        "toolchain_path": { "const": "rust-toolchain.toml" },
+        "toolchain_exact_sha256": { "$ref": "#/$defs/sha256" },
+        "rust_toolchain": { "const": "1.91.1" },
+        "rustc_version": { "const": "rustc 1.91.1 (ed61e7d7e 2025-11-07)" },
+        "cargo_version": { "const": "cargo 1.91.1 (ea2d97820 2025-10-10)" },
+        "argv": {
+          "const": [
+            "rustup",
+            "run",
+            "1.91.1",
+            "cargo",
+            "build",
+            "--locked",
+            "--release",
+            "--manifest-path",
+            "src-tauri/Cargo.toml",
+            "-p",
+            "crebain-managed-simulation",
+            "--target",
+            "aarch64-apple-darwin",
+            "--target-dir",
+            "src-tauri/target/managed-simulation-bootstrap/observed-build-target"
+          ]
+        },
+        "profile": { "const": "release" },
+        "target": { "$ref": "#/$defs/target" },
+        "target_directory_policy": {
+          "const": "fresh-fixed-owner-private-removed-after-copy.v1"
+        },
+        "environment_policy": {
+          "const": "reject-build-override-environment-and-record-output-bytes.v1"
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "file_name",
+        "byte_length",
+        "sha256",
+        "source_mode",
+        "format",
+        "architecture",
+        "file_type"
+      ],
+      "properties": {
+        "file_name": { "const": "crebain-managed-simulation" },
+        "byte_length": { "type": "integer", "minimum": 1, "maximum": 67108864 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "source_mode": { "enum": [320, 365, 448, 493] },
+        "format": { "const": "mach-o-64" },
+        "architecture": { "const": "arm64" },
+        "file_type": { "const": "executable" }
+      }
+    },
+    "input_identity_sha256": { "$ref": "#/$defs/sha256" },
+    "claims": {
+      "const": {
+        "observed_local_build": true,
+        "reproducible_build": false,
+        "signature": false,
+        "external_dependency_bytes_attested": false,
+        "complete_environment_attested": false
+      }
+    },
+    "authority": { "$ref": "#/$defs/noAuthority" },
+    "disclosure": { "type": "string", "minLength": 1, "maxLength": 4096 },
+    "receipt_sha256": { "$ref": "#/$defs/sha256" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "gitObject": { "type": "string", "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$" },
+    "gitObjectFormatJoin": {
+      "if": {
+        "properties": { "object_format": { "const": "sha1" } },
+        "required": ["object_format"]
+      },
+      "then": {
+        "properties": {
+          "commit": { "pattern": "^[a-f0-9]{40}$" },
+          "tree": { "pattern": "^[a-f0-9]{40}$" },
+          "origin_main": { "pattern": "^[a-f0-9]{40}$" }
+        }
+      },
+      "else": {
+        "properties": {
+          "commit": { "pattern": "^[a-f0-9]{64}$" },
+          "tree": { "pattern": "^[a-f0-9]{64}$" },
+          "origin_main": { "pattern": "^[a-f0-9]{64}$" }
+        }
+      }
+    },
+    "safePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*//)(?!.*\\\\)[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "sourceRoster": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["relative_path", "size_bytes", "sha256", "git_mode", "git_blob"],
+        "properties": {
+          "relative_path": { "$ref": "#/$defs/safePath" },
+          "size_bytes": { "type": "integer", "minimum": 1, "maximum": 16777216 },
+          "sha256": { "$ref": "#/$defs/sha256" },
+          "git_mode": { "enum": ["100644", "100755"] },
+          "git_blob": { "$ref": "#/$defs/gitObject" }
+        }
+      }
+    },
+    "buildSourceRoster": {
+      "allOf": [
+        { "$ref": "#/$defs/sourceRoster" },
+        {
+          "items": {
+            "properties": {
+              "relative_path": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "integrations/engram/managed-simulation/contracts/configuration.schema.json",
+                      "integrations/engram/managed-simulation/contracts/finish-request.schema.json",
+                      "integrations/engram/managed-simulation/contracts/finish-response.schema.json",
+                      "integrations/engram/managed-simulation/contracts/managed-runtime-ipc.schema.json",
+                      "integrations/engram/managed-simulation/contracts/prepare-request.schema.json",
+                      "integrations/engram/managed-simulation/contracts/prepare-response.schema.json",
+                      "integrations/engram/managed-simulation/contracts/standard-v3-finish-request.schema.json",
+                      "integrations/engram/managed-simulation/contracts/standard-v3-finish-response.schema.json",
+                      "integrations/engram/managed-simulation/contracts/standard-v3-prepare-request.schema.json",
+                      "integrations/engram/managed-simulation/contracts/standard-v3-prepare-response.schema.json",
+                      "integrations/engram/managed-simulation/contracts/standard-v3-step-request.schema.json",
+                      "integrations/engram/managed-simulation/contracts/standard-v3-step-response.schema.json",
+                      "integrations/engram/managed-simulation/contracts/step-request.schema.json",
+                      "integrations/engram/managed-simulation/contracts/step-response.schema.json",
+                      "rust-toolchain.toml",
+                      "src-tauri/Cargo.lock",
+                      "src-tauri/Cargo.toml",
+                      "src-tauri/src/pid_observation.rs",
+                      "src-tauri/src/sensor_fusion.rs"
+                    ]
+                  },
+                  {
+                    "pattern": "^src-tauri/crates/managed-simulation/(?:Cargo\\.toml|src/(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_-]+\\.rs)$"
+                  }
+                ]
+              }
+            }
+          },
+          "allOf": [
+            { "$ref": "#/$defs/containsConfigurationSchema" },
+            { "$ref": "#/$defs/containsFinishRequestSchema" },
+            { "$ref": "#/$defs/containsFinishResponseSchema" },
+            { "$ref": "#/$defs/containsIpcSchema" },
+            { "$ref": "#/$defs/containsPrepareRequestSchema" },
+            { "$ref": "#/$defs/containsPrepareResponseSchema" },
+            { "$ref": "#/$defs/containsStandardFinishRequestSchema" },
+            { "$ref": "#/$defs/containsStandardFinishResponseSchema" },
+            { "$ref": "#/$defs/containsStandardPrepareRequestSchema" },
+            { "$ref": "#/$defs/containsStandardPrepareResponseSchema" },
+            { "$ref": "#/$defs/containsStandardStepRequestSchema" },
+            { "$ref": "#/$defs/containsStandardStepResponseSchema" },
+            { "$ref": "#/$defs/containsStepRequestSchema" },
+            { "$ref": "#/$defs/containsStepResponseSchema" },
+            { "$ref": "#/$defs/containsRustToolchain" },
+            { "$ref": "#/$defs/containsCargoLock" },
+            { "$ref": "#/$defs/containsWorkspaceManifest" },
+            { "$ref": "#/$defs/containsPackageManifest" },
+            { "$ref": "#/$defs/containsManagedLibrary" },
+            { "$ref": "#/$defs/containsManagedBinary" },
+            { "$ref": "#/$defs/containsPidObservation" },
+            { "$ref": "#/$defs/containsSensorFusion" }
+          ]
+        }
+      ]
+    },
+    "containsConfigurationSchema": {
+      "minContains": 1,
+      "maxContains": 1,
+      "contains": {
+        "properties": {
+          "relative_path": {
+            "const": "integrations/engram/managed-simulation/contracts/configuration.schema.json"
+          }
+        }
+      }
+    },
+    "containsFinishRequestSchema": {
+      "minContains": 1,
+      "maxContains": 1,
+      "contains": {
+        "properties": {
+          "relative_path": {
+            "const": "integrations/engram/managed-simulation/contracts/finish-request.schema.json"
+          }
+        }
+      }
+    },
+    "containsFinishResponseSchema": {
+      "minContains": 1,
+      "maxContains": 1,
+      "contains": {
+        "properties": {
+          "relative_path": {
+            "const": "integrations/engram/managed-simulation/contracts/finish-response.schema.json"
+          }
+        }
+      }
+    },
+    "containsIpcSchema": {
+      "minContains": 1,
+      "maxContains": 1,
+      "contains": {
+        "properties": {
+          "relative_path": {
+            "const": "integrations/engram/managed-simulation/contracts/managed-runtime-ipc.schema.json"
+          }
+        }
+      }
+    },
+    "containsPrepareRequestSchema": {
+      "minContains": 1,
+      "maxContains": 1,
+      "contains": {
+        "properties": {
+          "relative_path": {
+            "const": "integrations/engram/managed-simulation/contracts/prepare-request.schema.json"
+          }
+        }
+      }
+    },
+    "containsPrepareResponseSchema": {
+      "minContains": 1,
+      "maxContains": 1,
+      "contains": {
+        "properties": {
+          "relative_path": {
+            "const": "integrations/engram/managed-simulation/contracts/prepare-response.schema.json"
+          }
+        }
+      }
+    },
+    "containsStandardFinishRequestSchema": {
+      "minContains": 1,
+      "maxContains": 1,
+      "contains": {
+        "properties": {
+          "relative_path": {
+            "const": "integrations/engram/managed-simulation/contracts/standard-v3-finish-request.schema.json"
+          }
+        }
+      }
+    },
+    "containsStandardFinishResponseSchema": {
+      "minContains": 1,
+      "maxContains": 1,
+      "contains": {
+        "properties": {
+          "relative_path": {
+            "const": "integrations/engram/managed-simulation/contracts/standard-v3-finish-response.schema.json"
+          }
+        }
+      }
+    },
+    "containsStandardPrepareRequestSchema": {
+      "minContains": 1,
+      "maxContains": 1,
+      "contains": {
+        "properties": {
+          "relative_path": {
+            "const": "integrations/engram/managed-simulation/contracts/standard-v3-prepare-request.schema.json"
+          }
+        }
+      }
+    },
+    "containsStandardPrepareResponseSchema": {
+      "minContains": 1,
+      "maxContains": 1,
+      "contains": {
+        "properties": {
+          "relative_path": {
+            "const": "integrations/engram/managed-simulation/contracts/standard-v3-prepare-response.schema.json"
+          }
+        }
+      }
+    },
+    "containsStandardStepRequestSchema": {
+      "minContains": 1,
+      "maxContains": 1,
+      "contains": {
+        "properties": {
+          "relative_path": {
+            "const": "integrations/engram/managed-simulation/contracts/standard-v3-step-request.schema.json"
+          }
+        }
+      }
+    },
+    "containsStandardStepResponseSchema": {
+      "minContains": 1,
+      "maxContains": 1,
+      "contains": {
+        "properties": {
+          "relative_path": {
+            "const": "integrations/engram/managed-simulation/contracts/standard-v3-step-response.schema.json"
+          }
+        }
+      }
+    },
+    "containsStepRequestSchema": {
+      "minContains": 1,
+      "maxContains": 1,
+      "contains": {
+        "properties": {
+          "relative_path": {
+            "const": "integrations/engram/managed-simulation/contracts/step-request.schema.json"
+          }
+        }
+      }
+    },
+    "containsStepResponseSchema": {
+      "minContains": 1,
+      "maxContains": 1,
+      "contains": {
+        "properties": {
+          "relative_path": {
+            "const": "integrations/engram/managed-simulation/contracts/step-response.schema.json"
+          }
+        }
+      }
+    },
+    "containsRustToolchain": {
+      "minContains": 1,
+      "maxContains": 1,
+      "contains": { "properties": { "relative_path": { "const": "rust-toolchain.toml" } } }
+    },
+    "containsCargoLock": {
+      "minContains": 1,
+      "maxContains": 1,
+      "contains": { "properties": { "relative_path": { "const": "src-tauri/Cargo.lock" } } }
+    },
+    "containsWorkspaceManifest": {
+      "minContains": 1,
+      "maxContains": 1,
+      "contains": { "properties": { "relative_path": { "const": "src-tauri/Cargo.toml" } } }
+    },
+    "containsPackageManifest": {
+      "minContains": 1,
+      "maxContains": 1,
+      "contains": {
+        "properties": {
+          "relative_path": { "const": "src-tauri/crates/managed-simulation/Cargo.toml" }
+        }
+      }
+    },
+    "containsManagedLibrary": {
+      "minContains": 1,
+      "maxContains": 1,
+      "contains": {
+        "properties": {
+          "relative_path": { "const": "src-tauri/crates/managed-simulation/src/lib.rs" }
+        }
+      }
+    },
+    "containsManagedBinary": {
+      "minContains": 1,
+      "maxContains": 1,
+      "contains": {
+        "properties": {
+          "relative_path": { "const": "src-tauri/crates/managed-simulation/src/main.rs" }
+        }
+      }
+    },
+    "containsPidObservation": {
+      "minContains": 1,
+      "maxContains": 1,
+      "contains": {
+        "properties": {
+          "relative_path": { "const": "src-tauri/src/pid_observation.rs" }
+        }
+      }
+    },
+    "containsSensorFusion": {
+      "minContains": 1,
+      "maxContains": 1,
+      "contains": {
+        "properties": { "relative_path": { "const": "src-tauri/src/sensor_fusion.rs" } }
+      }
+    },
+    "target": {
+      "const": {
+        "target_id": "macos-aarch64-darwin",
+        "operating_system": "macos",
+        "architecture": "aarch64",
+        "abi": "darwin",
+        "rust_target_triple": "aarch64-apple-darwin"
+      }
+    },
+    "noAuthority": {
+      "const": {
+        "execution": false,
+        "installation": false,
+        "ncp": false,
+        "physical": false,
+        "plant": false,
+        "scientific": false
+      }
+    }
+  }
+}

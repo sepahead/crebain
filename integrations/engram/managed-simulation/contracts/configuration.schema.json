@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://engram.local/schemas/crebain.managed-simulation.configuration.v1.schema.json",
+  "title": "CREBAIN managed simulation configuration v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "max_drones",
+    "max_ticks",
+    "max_tick_ms",
+    "max_acceleration_mps2",
+    "max_speed_mps",
+    "max_position_abs_m",
+    "max_sensor_offset_abs_m",
+    "max_sensor_variance_m2",
+    "standard_simulator_profile"
+  ],
+  "properties": {
+    "schema_version": { "const": "crebain.simulation.configuration.v1" },
+    "max_drones": { "const": 3 },
+    "max_ticks": { "const": 1024 },
+    "max_tick_ms": { "const": 1000 },
+    "max_acceleration_mps2": { "const": 50 },
+    "max_speed_mps": { "const": 100 },
+    "max_position_abs_m": { "const": 100000 },
+    "max_sensor_offset_abs_m": { "const": 50 },
+    "max_sensor_variance_m2": { "const": 1000000 },
+    "standard_simulator_profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "tick_ms",
+        "tic_unit",
+        "step_duration_tics",
+        "causality_policy",
+        "roster_rule",
+        "vector_flattening_rule",
+        "internal_drone_id_prefix",
+        "internal_drone_id_start",
+        "internal_drone_id_decimal_width",
+        "initial_position_origin_m",
+        "initial_position_stride_m",
+        "initial_velocity_mps",
+        "sensor_variance_m2",
+        "safe_hold_output_acceleration_mps2",
+        "recoverable_fault_schedule",
+        "subject_kind",
+        "observation_space_id",
+        "action_space_id",
+        "observation_width",
+        "action_width",
+        "observation_component_ids",
+        "observation_unit_ids",
+        "action_component_ids",
+        "action_unit_ids",
+        "simulator_only"
+      ],
+      "properties": {
+        "schema_version": { "const": "crebain.standard-simulator-profile.v3" },
+        "tick_ms": { "const": 20 },
+        "tic_unit": { "const": "microsecond" },
+        "step_duration_tics": { "const": 20000 },
+        "causality_policy": { "const": "sample-runtime-run-controller-apply-zoh-v1" },
+        "roster_rule": { "const": "sorted-channel-order-to-contiguous-internal-drone-ids.v1" },
+        "vector_flattening_rule": { "const": "channel-roster-order-then-declared-component-order.v1" },
+        "internal_drone_id_prefix": { "const": "drone-" },
+        "internal_drone_id_start": { "const": 1 },
+        "internal_drone_id_decimal_width": { "const": 2 },
+        "initial_position_origin_m": { "const": [0, 0, 100] },
+        "initial_position_stride_m": { "const": [500, 0, 0] },
+        "initial_velocity_mps": { "const": [0, 0, 0] },
+        "sensor_variance_m2": { "const": [1, 1, 1] },
+        "safe_hold_output_acceleration_mps2": { "const": [0, 0, 0] },
+        "recoverable_fault_schedule": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["step_index", "channel_ordinal", "fault_disposition"],
+            "properties": {
+              "step_index": { "type": "integer", "minimum": 1, "maximum": 1024 },
+              "channel_ordinal": { "type": "integer", "minimum": 1, "maximum": 3 },
+              "fault_disposition": { "const": "sensor-unavailable" }
+            }
+          }
+        },
+        "subject_kind": { "const": "simulated.drone" },
+        "observation_space_id": { "const": "kinematics.position-velocity-enu-si" },
+        "action_space_id": { "const": "kinematics.acceleration-enu-si" },
+        "observation_width": { "const": 6 },
+        "action_width": { "const": 3 },
+        "observation_component_ids": {
+          "const": [
+            "position.east",
+            "position.north",
+            "position.up",
+            "velocity.east",
+            "velocity.north",
+            "velocity.up"
+          ]
+        },
+        "observation_unit_ids": {
+          "const": [
+            "si.metre",
+            "si.metre",
+            "si.metre",
+            "si.metre-per-second",
+            "si.metre-per-second",
+            "si.metre-per-second"
+          ]
+        },
+        "action_component_ids": {
+          "const": ["acceleration.east", "acceleration.north", "acceleration.up"]
+        },
+        "action_unit_ids": {
+          "const": [
+            "si.metre-per-second-squared",
+            "si.metre-per-second-squared",
+            "si.metre-per-second-squared"
+          ]
+        },
+        "simulator_only": { "const": true }
+      }
+    }
+  }
+}

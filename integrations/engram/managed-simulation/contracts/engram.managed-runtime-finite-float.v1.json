@@ -1,0 +1,39 @@
+{
+  "schema_version": "engram.managed-runtime-finite-float.v1",
+  "canonicalizer": "engram.managed-runtime-json.v1",
+  "cases": [
+    {"id": "positive-zero", "binary64_be_hex": "0000000000000000", "portable": true, "canonical_json": "0.0"},
+    {"id": "negative-zero", "binary64_be_hex": "8000000000000000", "portable": false, "canonical_json": null},
+    {"id": "least-positive-subnormal", "binary64_be_hex": "0000000000000001", "portable": true, "canonical_json": "5e-324"},
+    {"id": "least-negative-subnormal", "binary64_be_hex": "8000000000000001", "portable": true, "canonical_json": "-5e-324"},
+    {"id": "least-positive-normal", "binary64_be_hex": "0010000000000000", "portable": true, "canonical_json": "2.2250738585072014e-308"},
+    {"id": "least-negative-normal", "binary64_be_hex": "8010000000000000", "portable": true, "canonical_json": "-2.2250738585072014e-308"},
+    {"id": "fixed-lower-threshold", "binary64_be_hex": "3ee4f8b588e368f1", "portable": true, "canonical_json": "0.00001"},
+    {"id": "exponent-lower-threshold", "binary64_be_hex": "3eb0c6f7a0b5ed8d", "portable": true, "canonical_json": "1e-6"},
+    {"id": "decimal-tenth", "binary64_be_hex": "3fb999999999999a", "portable": true, "canonical_json": "0.1"},
+    {"id": "negative-decimal-tenth", "binary64_be_hex": "bfb999999999999a", "portable": true, "canonical_json": "-0.1"},
+    {"id": "roundtrip-tail", "binary64_be_hex": "3fd3333333333334", "portable": true, "canonical_json": "0.30000000000000004"},
+    {"id": "pi", "binary64_be_hex": "400921fb54442d18", "portable": true, "canonical_json": "3.141592653589793"},
+    {"id": "negative-pi", "binary64_be_hex": "c00921fb54442d18", "portable": true, "canonical_json": "-3.141592653589793"},
+    {"id": "positive-one", "binary64_be_hex": "3ff0000000000000", "portable": true, "canonical_json": "1.0"},
+    {"id": "negative-one", "binary64_be_hex": "bff0000000000000", "portable": true, "canonical_json": "-1.0"},
+    {"id": "max-safe-integer-shaped-float", "binary64_be_hex": "433fffffffffffff", "portable": true, "canonical_json": "9007199254740991.0"},
+    {"id": "first-unsafe-integer-shaped-float", "binary64_be_hex": "4340000000000000", "portable": true, "canonical_json": "9007199254740992.0"},
+    {"id": "fixed-upper-threshold", "binary64_be_hex": "430c6bf526340000", "portable": true, "canonical_json": "1000000000000000.0"},
+    {"id": "exponent-upper-threshold", "binary64_be_hex": "4341c37937e08000", "portable": true, "canonical_json": "1e+16"},
+    {"id": "positive-portable-bound", "binary64_be_hex": "7e37e43c8800759c", "portable": true, "canonical_json": "1e+300"},
+    {"id": "negative-portable-bound", "binary64_be_hex": "fe37e43c8800759c", "portable": true, "canonical_json": "-1e+300"},
+    {"id": "above-positive-portable-bound", "binary64_be_hex": "7e37e43c8800759d", "portable": false, "canonical_json": null},
+    {"id": "below-negative-portable-bound", "binary64_be_hex": "fe37e43c8800759d", "portable": false, "canonical_json": null},
+    {"id": "largest-positive-finite", "binary64_be_hex": "7fefffffffffffff", "portable": false, "canonical_json": null},
+    {"id": "largest-negative-finite", "binary64_be_hex": "ffefffffffffffff", "portable": false, "canonical_json": null}
+  ],
+  "randomized": {
+    "algorithm": "splitmix64-v1",
+    "seed_hex": "656e6772616d7631",
+    "sample_count": 4096,
+    "accepted_count": 4030,
+    "transcript": "lowercase-binary64-hex:canonical-json-or-rejected\\n",
+    "transcript_sha256": "4199b76e20a650518c52c7ead69bfc28c7333c73be0a607bc3a39d1a7994599c"
+  }
+}

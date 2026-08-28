@@ -1,0 +1,189 @@
+{
+  "schema_version": "crebain.contract-provenance.v2",
+  "source": {
+    "repository": "https://github.com/sepahead/Paper2Brain.git",
+    "commit": "078c4fb1330682acde3ea3ea83610159f7c985f2",
+    "tree": "0674048d8062adae6044a09f8c40efa0935ec381",
+    "origin_main": "078c4fb1330682acde3ea3ea83610159f7c985f2",
+    "object_format": "sha1",
+    "clean": true
+  },
+  "copies": [
+    {
+      "schema_id": "engram.managed-runtime-ipc.v1",
+      "source_path": "integrations/contracts/engram.managed-runtime-ipc.v1.schema.json",
+      "destination_path": "integrations/engram/managed-simulation/contracts/managed-runtime-ipc.schema.json",
+      "sha256": "e6950a2b3d1913ebacb82823afe648538ec789fe845ed3894b2122dd9864cfc1",
+      "git_mode": "100644",
+      "git_blob": "4e6d657cb302ef16c7725f5b0599c97771b5a4c8",
+      "runtime_role": "runnable"
+    },
+    {
+      "schema_id": "engram.closed-loop-simulator.finish-request.v1",
+      "source_path": "integrations/contracts/engram.closed-loop-simulator.finish-request.v1.schema.json",
+      "destination_path": "integrations/engram/managed-simulation/contracts/audit-standard-v1-finish-request.schema.json",
+      "sha256": "a011368a61d81337be087e1d84550662a6ee0154873740797fe7ffe079eac275",
+      "git_mode": "100644",
+      "git_blob": "bedf9dae84ce4c389881d4494e8aab00d5d2070a",
+      "runtime_role": "audit-only"
+    },
+    {
+      "schema_id": "engram.closed-loop-simulator.finish-response.v1",
+      "source_path": "integrations/contracts/engram.closed-loop-simulator.finish-response.v1.schema.json",
+      "destination_path": "integrations/engram/managed-simulation/contracts/audit-standard-v1-finish-response.schema.json",
+      "sha256": "ce76959e62d7f36fc7e4a9e412190b7f7b68d135d1180656f4035ced77a52a08",
+      "git_mode": "100644",
+      "git_blob": "7717684b06d61f473a5875f6b8d4949fb73e5bae",
+      "runtime_role": "audit-only"
+    },
+    {
+      "schema_id": "engram.closed-loop-simulator.prepare-request.v1",
+      "source_path": "integrations/contracts/engram.closed-loop-simulator.prepare-request.v1.schema.json",
+      "destination_path": "integrations/engram/managed-simulation/contracts/audit-standard-v1-prepare-request.schema.json",
+      "sha256": "9dd97ed67aa19b250a87f0b55c217f7049df14509e60c8eb7119e3363ef69805",
+      "git_mode": "100644",
+      "git_blob": "69f8b4894702496f9897e29903caa67280344dc4",
+      "runtime_role": "audit-only"
+    },
+    {
+      "schema_id": "engram.closed-loop-simulator.prepare-response.v1",
+      "source_path": "integrations/contracts/engram.closed-loop-simulator.prepare-response.v1.schema.json",
+      "destination_path": "integrations/engram/managed-simulation/contracts/audit-standard-v1-prepare-response.schema.json",
+      "sha256": "536a8471c353f3e2b00147ffddc3b3ba179f1b9b4d70fe96c1718e13bb800024",
+      "git_mode": "100644",
+      "git_blob": "ebb510c660bbe26f11a5886a28d444c6b4467690",
+      "runtime_role": "audit-only"
+    },
+    {
+      "schema_id": "engram.closed-loop-simulator.step-request.v1",
+      "source_path": "integrations/contracts/engram.closed-loop-simulator.step-request.v1.schema.json",
+      "destination_path": "integrations/engram/managed-simulation/contracts/audit-standard-v1-step-request.schema.json",
+      "sha256": "9e23d6d8176d4f01bc0a18de04fdcc23a05828111212752bf47fa72f21308d08",
+      "git_mode": "100644",
+      "git_blob": "c95315e8f125d3312a314a79c213c1c8af2a836a",
+      "runtime_role": "audit-only"
+    },
+    {
+      "schema_id": "engram.closed-loop-simulator.step-response.v1",
+      "source_path": "integrations/contracts/engram.closed-loop-simulator.step-response.v1.schema.json",
+      "destination_path": "integrations/engram/managed-simulation/contracts/audit-standard-v1-step-response.schema.json",
+      "sha256": "56a3aa3f652096bd8fb4386815d98f8b521a68efa96ea230ee59a2d9e68e29bd",
+      "git_mode": "100644",
+      "git_blob": "ca4a6b841fa4b85036d220e91226c2cf514fb279",
+      "runtime_role": "audit-only"
+    },
+    {
+      "schema_id": "engram.closed-loop-simulator.finish-request.v2",
+      "source_path": "integrations/contracts/engram.closed-loop-simulator.finish-request.v2.schema.json",
+      "destination_path": "integrations/engram/managed-simulation/contracts/audit-standard-v2-finish-request.schema.json",
+      "sha256": "580e6dc92a71ab13f0757c524d537cf55598ec1b9d39eef0038d258f4d54f070",
+      "git_mode": "100644",
+      "git_blob": "4e7430411816099bde70bc4a6c509259a9fa994d",
+      "runtime_role": "audit-only"
+    },
+    {
+      "schema_id": "engram.closed-loop-simulator.finish-response.v2",
+      "source_path": "integrations/contracts/engram.closed-loop-simulator.finish-response.v2.schema.json",
+      "destination_path": "integrations/engram/managed-simulation/contracts/audit-standard-v2-finish-response.schema.json",
+      "sha256": "30e0297c95ef6aa0de3be99464336f34f2386023b660e4c9aa65ce33e5c280ee",
+      "git_mode": "100644",
+      "git_blob": "e99429792552c3c4dd5c529e7c0b04a51e9a67f6",
+      "runtime_role": "audit-only"
+    },
+    {
+      "schema_id": "engram.closed-loop-simulator.prepare-request.v2",
+      "source_path": "integrations/contracts/engram.closed-loop-simulator.prepare-request.v2.schema.json",
+      "destination_path": "integrations/engram/managed-simulation/contracts/audit-standard-v2-prepare-request.schema.json",
+      "sha256": "c667636779dc157d636569cff364da379a923e4286fc6d54b57552f25c5b76b8",
+      "git_mode": "100644",
+      "git_blob": "25cb41d1a26dc84a5582fe853cb7f2188bdf7e08",
+      "runtime_role": "audit-only"
+    },
+    {
+      "schema_id": "engram.closed-loop-simulator.prepare-response.v2",
+      "source_path": "integrations/contracts/engram.closed-loop-simulator.prepare-response.v2.schema.json",
+      "destination_path": "integrations/engram/managed-simulation/contracts/audit-standard-v2-prepare-response.schema.json",
+      "sha256": "8e540cceb669fac3657a9cf0227693a0258e59eb785a6d1a06321caf14cc18f2",
+      "git_mode": "100644",
+      "git_blob": "b58df06c848b08d2641357769f1c44c8d0aa2ef8",
+      "runtime_role": "audit-only"
+    },
+    {
+      "schema_id": "engram.closed-loop-simulator.step-request.v2",
+      "source_path": "integrations/contracts/engram.closed-loop-simulator.step-request.v2.schema.json",
+      "destination_path": "integrations/engram/managed-simulation/contracts/audit-standard-v2-step-request.schema.json",
+      "sha256": "a435cb8f079343ad53f0271315b84a7e2651b8ab9c89e7301a90608912a67b50",
+      "git_mode": "100644",
+      "git_blob": "eac5f5afeda58a0aa7a790c28461e98d8d98b740",
+      "runtime_role": "audit-only"
+    },
+    {
+      "schema_id": "engram.closed-loop-simulator.step-response.v2",
+      "source_path": "integrations/contracts/engram.closed-loop-simulator.step-response.v2.schema.json",
+      "destination_path": "integrations/engram/managed-simulation/contracts/audit-standard-v2-step-response.schema.json",
+      "sha256": "64827ec1243d5d122870ece8930e9593d4933f104630fc95d4ca26d35c6e4112",
+      "git_mode": "100644",
+      "git_blob": "12d409398c394ffb271fc1201b880f34d3b16b8b",
+      "runtime_role": "audit-only"
+    },
+    {
+      "schema_id": "engram.closed-loop-simulator.finish-request.v3",
+      "source_path": "integrations/contracts/engram.closed-loop-simulator.finish-request.v3.schema.json",
+      "destination_path": "integrations/engram/managed-simulation/contracts/standard-v3-finish-request.schema.json",
+      "sha256": "486d0b94e229000b03eec04b0c6e05e6b01c9be1df1090d1c58c27bf14b09880",
+      "git_mode": "100644",
+      "git_blob": "6ed3c9d9c51db755d08d4a6c07c31cb27f650272",
+      "runtime_role": "runnable"
+    },
+    {
+      "schema_id": "engram.closed-loop-simulator.finish-response.v3",
+      "source_path": "integrations/contracts/engram.closed-loop-simulator.finish-response.v3.schema.json",
+      "destination_path": "integrations/engram/managed-simulation/contracts/standard-v3-finish-response.schema.json",
+      "sha256": "abf670d295150b6f20d088aa88365e98f73fa4d0042859f7aa5d7a2403a45d9e",
+      "git_mode": "100644",
+      "git_blob": "7d6f1b29a72d98ddf753b3dfba1f5c92361ca1a3",
+      "runtime_role": "runnable"
+    },
+    {
+      "schema_id": "engram.closed-loop-simulator.prepare-request.v3",
+      "source_path": "integrations/contracts/engram.closed-loop-simulator.prepare-request.v3.schema.json",
+      "destination_path": "integrations/engram/managed-simulation/contracts/standard-v3-prepare-request.schema.json",
+      "sha256": "a5376511d1ba2edeef1b144074423bafc9fd88562893e3f2a4bba9718fc67e34",
+      "git_mode": "100644",
+      "git_blob": "bfc186b48284036398ca5e22207097a97f71a65a",
+      "runtime_role": "runnable"
+    },
+    {
+      "schema_id": "engram.closed-loop-simulator.prepare-response.v3",
+      "source_path": "integrations/contracts/engram.closed-loop-simulator.prepare-response.v3.schema.json",
+      "destination_path": "integrations/engram/managed-simulation/contracts/standard-v3-prepare-response.schema.json",
+      "sha256": "06fd034822ae82e164d2c14be034e0286b4f02d1345be076affebdd84fa5348a",
+      "git_mode": "100644",
+      "git_blob": "d71387828454861fe5eca27606fb1685791369b6",
+      "runtime_role": "runnable"
+    },
+    {
+      "schema_id": "engram.closed-loop-simulator.step-request.v3",
+      "source_path": "integrations/contracts/engram.closed-loop-simulator.step-request.v3.schema.json",
+      "destination_path": "integrations/engram/managed-simulation/contracts/standard-v3-step-request.schema.json",
+      "sha256": "aafb7c6574e83ba386acb4c10b81e5f9f4c1669e6b79208d86701b06fa473bb2",
+      "git_mode": "100644",
+      "git_blob": "ac09077dcdc6a6dc5f3eada7251df8570a8f4e9d",
+      "runtime_role": "runnable"
+    },
+    {
+      "schema_id": "engram.closed-loop-simulator.step-response.v3",
+      "source_path": "integrations/contracts/engram.closed-loop-simulator.step-response.v3.schema.json",
+      "destination_path": "integrations/engram/managed-simulation/contracts/standard-v3-step-response.schema.json",
+      "sha256": "bac8b67dcd19fbd7addbf825cb1f3b1bf796fe28f638a84380bf906b32fcdb39",
+      "git_mode": "100644",
+      "git_blob": "398b0354d8c0d3cd9e7a796ee196c4a1d4cef539",
+      "runtime_role": "runnable"
+    }
+  ],
+  "generation": {
+    "policy": "clean-head-equals-local-origin-main-git-blob-copy.v1",
+    "copy_count": 19
+  },
+  "authority": "compatibility-copy-only"
+}

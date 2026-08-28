@@ -1,0 +1,75 @@
+{
+  "schema_version": "1.0",
+  "manifest_template": "manifest.template.json",
+  "package_root": "package",
+  "configuration_path": "configuration.json",
+  "target": {
+    "target_id": "macos-aarch64-darwin",
+    "operating_system": "macos",
+    "architecture": "aarch64",
+    "abi": "darwin"
+  },
+  "executable": {
+    "package_relative_path": "bin/crebain-managed-simulation",
+    "launch_abi": "engram.managed-runtime-stdio.v1"
+  },
+  "schemas": [
+    {
+      "schema_id": "crebain.simulation.configuration.v1",
+      "package_relative_path": "contracts/configuration.schema.json"
+    },
+    {
+      "schema_id": "crebain.simulation.finish-request.v1",
+      "package_relative_path": "contracts/finish-request.schema.json"
+    },
+    {
+      "schema_id": "crebain.simulation.finish-response.v1",
+      "package_relative_path": "contracts/finish-response.schema.json"
+    },
+    {
+      "schema_id": "crebain.simulation.prepare-request.v1",
+      "package_relative_path": "contracts/prepare-request.schema.json"
+    },
+    {
+      "schema_id": "crebain.simulation.prepare-response.v1",
+      "package_relative_path": "contracts/prepare-response.schema.json"
+    },
+    {
+      "schema_id": "crebain.simulation.step-request.v1",
+      "package_relative_path": "contracts/step-request.schema.json"
+    },
+    {
+      "schema_id": "crebain.simulation.step-response.v1",
+      "package_relative_path": "contracts/step-response.schema.json"
+    },
+    {
+      "schema_id": "engram.closed-loop-simulator.finish-request.v3",
+      "package_relative_path": "contracts/standard-v3-finish-request.schema.json"
+    },
+    {
+      "schema_id": "engram.closed-loop-simulator.finish-response.v3",
+      "package_relative_path": "contracts/standard-v3-finish-response.schema.json"
+    },
+    {
+      "schema_id": "engram.closed-loop-simulator.prepare-request.v3",
+      "package_relative_path": "contracts/standard-v3-prepare-request.schema.json"
+    },
+    {
+      "schema_id": "engram.closed-loop-simulator.prepare-response.v3",
+      "package_relative_path": "contracts/standard-v3-prepare-response.schema.json"
+    },
+    {
+      "schema_id": "engram.closed-loop-simulator.step-request.v3",
+      "package_relative_path": "contracts/standard-v3-step-request.schema.json"
+    },
+    {
+      "schema_id": "engram.closed-loop-simulator.step-response.v3",
+      "package_relative_path": "contracts/standard-v3-step-response.schema.json"
+    },
+    {
+      "schema_id": "engram.managed-runtime-ipc.v1",
+      "package_relative_path": "contracts/managed-runtime-ipc.schema.json"
+    }
+  ],
+  "output_directory": "sealed/macos-aarch64-darwin"
+}

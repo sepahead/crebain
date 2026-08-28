@@ -1,0 +1,25 @@
+{
+  "schema_version": "crebain.finite-float-differential-provenance.v1",
+  "source_repository": "git@github.com:sepahead/Paper2Brain.git",
+  "source_worktree_base_revision": "70e2ece35c7b02d43b528c893ba01ac0deade3e1",
+  "copied_corpus": {
+    "source_path": "integrations/contracts/engram.managed-runtime-finite-float.v1.json",
+    "destination_path": "integrations/engram/managed-simulation/contracts/engram.managed-runtime-finite-float.v1.json",
+    "sha256": "245274905d9ac3cf8567bfdde5e2e8e3bd59be474c228b0cd7146d17feaa8a9b"
+  },
+  "engram_python_sources": [
+    {
+      "role": "host-canonical-f64-rendering",
+      "path": "backend/integrations/managed_runtime_json.py",
+      "symbol": "managed_runtime_float_text",
+      "symbol_source_sha256": "84fd64fedc3eb1ffe0ea0436cbb6112c22aa1fd8d7bd2e9ac9463273c5df2113"
+    },
+    {
+      "role": "child-canonical-f64-rendering",
+      "path": "integrations/sdk/python/engram_managed_runtime/runtime.py",
+      "symbol": "_canonical_float_text",
+      "symbol_source_sha256": "409062b0c6a4d900546d9cefe421570c0ee52288a9a48c81a84c9ecc2c76f700"
+    }
+  ],
+  "authority": "compatibility-copy-only"
+}

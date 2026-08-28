@@ -23,6 +23,7 @@ Tauri desktop application:
 - runs machine learning (ML) object detection through native backends
 - fuses multi-modal sensor measurements into persistent 3D tracks
 - connects to ROS and Gazebo for drone simulation
+- exposes a bounded simulator-only managed runtime for one to three drones
 
 An off-by-default native Neuro-Cybernetic Protocol (NCP) feature can emit
 narrowly scoped, Galadriel-oriented advisory evidence. CREBAIN uses Tauri 2,
@@ -68,6 +69,7 @@ React 19, SparkJS, Three.js, and Rust.
 | **Headless NCP Perception** | Separate opt-in wire-0.8 perception process. It requires a compatible responder. Current Engram 1.0 is incompatible. | Component-tested |
 | **Galadriel Evidence** | Exact-opt-in producer for two bounded advisory evidence routes. Receiver and deployment-security evidence remains pending. | Component-tested |
 | **Plant Authority** | Dependency-free inert component foundation. It has no authority path or FCU adapter. | L0 Foundation |
+| **Engram Managed Simulation** | Deterministic Host API 2.0 sidecar for one to three simulator-only drone channels. | Component-tested |
 | **Cross-Platform** | macOS on Apple Silicon and Linux/Nix. The default Linux package uses ONNX Runtime and can fall back to the CPU. NVIDIA execution providers are optional. | In Progress |
 
 ---
@@ -250,8 +252,9 @@ crebain/
 │                      #   state, neuro, lib)
 ├── src-tauri/         # Rust backend (inference, transport, sensor fusion,
 │                      #   native CoreML/ONNX, NCP bridge + Galadriel producer)
-│   ├── crates/ncp-headless/     # Opt-in wire-0.8 perception runner
-│   └── crates/plant-authority/  # Inert plant foundation (unwired)
+│   ├── crates/managed-simulation/ # Host API 2.0 simulator-only runtime
+│   ├── crates/ncp-headless/       # Opt-in wire-0.8 perception runner
+│   └── crates/plant-authority/    # Inert plant foundation (unwired)
 ├── ros/               # ROS 1 reference package (crebain_msgs + launch files)
 ├── docs/              # Design docs, contracts, release gates
 ├── scripts/           # Version-coherence, bundle-size, perf-smoke checks
@@ -326,8 +329,9 @@ secure-client configuration posture and requires `NCP_ZENOH_CONFIG` plus a
 compatible NCP wire-0.8 responder. This posture does not attest TLS, an ACL, or
 peer identity. The
 default `engram/ncp` realm is only a routing default. It does not make the
-current Engram native wire-1.0 candidate compatible. No translator or live
-CREBAIN↔current-Engram loop exists.
+current Engram native wire-1.0 candidate compatible.
+No NCP translator or NCP action loop exists.
+The separate managed simulation runtime does not use NCP.
 
 The same feature contains the separately gated Galadriel evidence producer. Its
 component wiring does not prove a deployed Galadriel receiver, TLS/mTLS
@@ -356,6 +360,45 @@ authorize Haldir or the plant.
 See the full equations, method-eligibility matrix, twenty-lens review, hostile
 controls, and evidence ladder in
 [docs/DRONE_MGW_PID_STUDY.md](docs/DRONE_MGW_PID_STUDY.md).
+
+### Engram managed simulation
+
+Engram Host API 2.0 can launch `crebain-managed-simulation` through inherited private pipes.
+The runtime supports one to three sorted drone identifiers.
+
+The package retains the native CREBAIN v1 operations.
+It also binds the exact standard v3 schema pairs to project-owned CREBAIN v3 operations.
+Engram discovers each standard role from its schema pair.
+The standard surface needs no CREBAIN-specific host adapter.
+
+Each tick accepts per-drone acceleration intents, sensor offsets, and deterministic fault codes.
+It returns simulator state, fused observations, bounded actuator output, and exact digest receipts.
+
+The standard surface returns fused ENU position and velocity at width six.
+It accepts ENU acceleration at width three.
+Its sealed profile fixes the clock, causality, vector components, units, and lane mapping.
+The host owns references, gains, damping, and neural control axes.
+Its declared `step_count` is an exact completion plan.
+
+Tracked operational inputs cover one, two, and three drones.
+Each drone maps to six signed NEST populations across three acceleration axes.
+The release proof joins the installed bundle, seal, package generation, and store observation.
+It also joins one clean-main observed build and its package-stage receipt.
+The build receipt binds exact Git inputs, Rust tools, arguments, target, and output bytes.
+Fresh Rust dep-info must match its embedded-source roster.
+It is not a signature or reproducibility claim.
+
+The sealed profile emits one recoverable sensor-unavailable event.
+It affects sorted channel ordinal one at logical step three.
+
+A standard safe hold admits the exact configured zero action.
+It does not create a simulator fault or latch the next step.
+
+Every actuator label is simulator-only.
+The runtime has no Tauri, network, artifact, NCP, or plant dependency.
+It does not qualify any NCP 1.0 role.
+
+See [`integrations/engram/managed-simulation/README.md`](integrations/engram/managed-simulation/README.md) for the exact contract and gates.
 
 ### Engram restricted embedding
 
@@ -561,6 +604,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 - [x] Executable negative guard tests for native detection, model path, scene path, and transport topic boundaries, including TensorRT build inputs, fusion, Zenoh CDR, and transport payloads
 - [x] Component-tested Galadriel producer mechanics: exact opt-in/off-by-default behavior, immutable registry and actual config/executable pins, readiness-only active initialization, frozen envelope routes/codecs, deterministic exact-time fusion ledger, bounded measurement/track domains, upstream/capacity loss degradation, sparse assignment, heartbeat generation, and finite owned-task shutdown
 - [x] Deterministic three-sensor drone PID fixture: external targets, ordered pre-fusion categorical sources, fresh-episode rows, exact manifest/fixture regeneration, and an explicit advisory-only boundary
+- [x] Deterministic one-to-three-drone managed simulation: private-pipe Host API 2.0, isolated fusion lanes, replay controls, exact receipts, and simulator-only authority
 
 Planned capability work:
 

@@ -1,0 +1,67 @@
+{
+  "schema_version": "crebain.simulation.configuration.v1",
+  "max_drones": 3,
+  "max_ticks": 1024,
+  "max_tick_ms": 1000,
+  "max_acceleration_mps2": 50,
+  "max_speed_mps": 100,
+  "max_position_abs_m": 100000,
+  "max_sensor_offset_abs_m": 50,
+  "max_sensor_variance_m2": 1000000,
+  "standard_simulator_profile": {
+    "schema_version": "crebain.standard-simulator-profile.v3",
+    "tick_ms": 20,
+    "tic_unit": "microsecond",
+    "step_duration_tics": 20000,
+    "causality_policy": "sample-runtime-run-controller-apply-zoh-v1",
+    "roster_rule": "sorted-channel-order-to-contiguous-internal-drone-ids.v1",
+    "vector_flattening_rule": "channel-roster-order-then-declared-component-order.v1",
+    "internal_drone_id_prefix": "drone-",
+    "internal_drone_id_start": 1,
+    "internal_drone_id_decimal_width": 2,
+    "initial_position_origin_m": [0, 0, 100],
+    "initial_position_stride_m": [500, 0, 0],
+    "initial_velocity_mps": [0, 0, 0],
+    "sensor_variance_m2": [1, 1, 1],
+    "safe_hold_output_acceleration_mps2": [0, 0, 0],
+    "recoverable_fault_schedule": [
+      {
+        "step_index": 3,
+        "channel_ordinal": 1,
+        "fault_disposition": "sensor-unavailable"
+      }
+    ],
+    "subject_kind": "simulated.drone",
+    "observation_space_id": "kinematics.position-velocity-enu-si",
+    "action_space_id": "kinematics.acceleration-enu-si",
+    "observation_width": 6,
+    "action_width": 3,
+    "observation_component_ids": [
+      "position.east",
+      "position.north",
+      "position.up",
+      "velocity.east",
+      "velocity.north",
+      "velocity.up"
+    ],
+    "observation_unit_ids": [
+      "si.metre",
+      "si.metre",
+      "si.metre",
+      "si.metre-per-second",
+      "si.metre-per-second",
+      "si.metre-per-second"
+    ],
+    "action_component_ids": [
+      "acceleration.east",
+      "acceleration.north",
+      "acceleration.up"
+    ],
+    "action_unit_ids": [
+      "si.metre-per-second-squared",
+      "si.metre-per-second-squared",
+      "si.metre-per-second-squared"
+    ],
+    "simulator_only": true
+  }
+}

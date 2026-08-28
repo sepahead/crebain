@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://crebain.local/schemas/crebain.standard-v3-installed-binary-proof.v3.schema.json",
+  "title": "CREBAIN standard-v3 installed-binary proof v3",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "observed_build_receipt_exact_sha256",
+    "observed_build_receipt_sha256",
+    "observed_build_receipt",
+    "package_stage_receipt_exact_sha256",
+    "package_stage_receipt_sha256",
+    "package_stage_receipt",
+    "engram_pack_receipt_exact_sha256",
+    "engram_pack_receipt_sha256",
+    "engram_pack_receipt",
+    "crebain_commit",
+    "crebain_tree",
+    "crebain_origin_main",
+    "engram_commit",
+    "engram_tree",
+    "engram_origin_main",
+    "engram_extension_tool_sha256",
+    "engram_extension_tool_git_blob",
+    "build_source_roster_sha256",
+    "build_input_identity_sha256",
+    "executable_format",
+    "executable_architecture",
+    "store_id",
+    "package_generation_id",
+    "installation_id",
+    "generation_core_sha256",
+    "bundle_receipt_exact_sha256",
+    "seal_receipt_exact_sha256",
+    "install_observation_exact_sha256",
+    "manifest_exact_sha256",
+    "package_lock_exact_sha256",
+    "configuration_exact_sha256",
+    "package_sha256",
+    "executable_sha256",
+    "configuration_canonical_sha256",
+    "operation_roster_sha256",
+    "operation_ids",
+    "standard_schema_sha256",
+    "drone_counts",
+    "step_count",
+    "fault_step",
+    "fault",
+    "host_policy",
+    "recovery_controls_sha256",
+    "baseline_three_controls_sha256",
+    "replay_exact",
+    "unaffected_lane_observations_exact",
+    "negative_clock_gate",
+    "signal_cancellation_gate",
+    "installed_artifacts_reverified_after_execution",
+    "generation_seal_package_bundle_store_lineage_verified",
+    "build_stage_seal_install_lineage_verified",
+    "build_stage_seal_pack_install_lineage_verified",
+    "authority",
+    "disclosure",
+    "receipt_sha256"
+  ],
+  "properties": {
+    "schema_version": { "const": "crebain.standard-v3-installed-binary-proof.v3" },
+    "observed_build_receipt_exact_sha256": { "$ref": "#/$defs/sha256" },
+    "observed_build_receipt_sha256": { "$ref": "#/$defs/sha256" },
+    "observed_build_receipt": {
+      "$ref": "https://crebain.local/schemas/crebain.managed-simulation-observed-build-receipt.v1.schema.json"
+    },
+    "package_stage_receipt_exact_sha256": { "$ref": "#/$defs/sha256" },
+    "package_stage_receipt_sha256": { "$ref": "#/$defs/sha256" },
+    "package_stage_receipt": {
+      "$ref": "https://crebain.local/schemas/crebain.managed-simulation-package-stage-receipt.v1.schema.json"
+    },
+    "engram_pack_receipt_exact_sha256": { "$ref": "#/$defs/sha256" },
+    "engram_pack_receipt_sha256": { "$ref": "#/$defs/sha256" },
+    "engram_pack_receipt": {
+      "$ref": "https://crebain.local/schemas/crebain.managed-simulation-engram-pack-receipt.v1.schema.json"
+    },
+    "crebain_commit": { "$ref": "#/$defs/gitObject" },
+    "crebain_tree": { "$ref": "#/$defs/gitObject" },
+    "crebain_origin_main": { "$ref": "#/$defs/gitObject" },
+    "engram_commit": { "$ref": "#/$defs/gitObject" },
+    "engram_tree": { "$ref": "#/$defs/gitObject" },
+    "engram_origin_main": { "$ref": "#/$defs/gitObject" },
+    "engram_extension_tool_sha256": { "$ref": "#/$defs/sha256" },
+    "engram_extension_tool_git_blob": { "$ref": "#/$defs/gitObject" },
+    "build_source_roster_sha256": { "$ref": "#/$defs/sha256" },
+    "build_input_identity_sha256": { "$ref": "#/$defs/sha256" },
+    "executable_format": { "const": "mach-o-64" },
+    "executable_architecture": { "const": "arm64" },
+    "store_id": { "type": "string", "pattern": "^extstore_[a-f0-9]{64}$" },
+    "package_generation_id": { "type": "string", "pattern": "^pkggen_[a-f0-9]{64}$" },
+    "installation_id": { "type": "string", "pattern": "^inst_[a-f0-9]{64}$" },
+    "generation_core_sha256": { "$ref": "#/$defs/sha256" },
+    "bundle_receipt_exact_sha256": { "$ref": "#/$defs/sha256" },
+    "seal_receipt_exact_sha256": { "$ref": "#/$defs/sha256" },
+    "install_observation_exact_sha256": { "$ref": "#/$defs/sha256" },
+    "manifest_exact_sha256": { "$ref": "#/$defs/sha256" },
+    "package_lock_exact_sha256": { "$ref": "#/$defs/sha256" },
+    "configuration_exact_sha256": { "$ref": "#/$defs/sha256" },
+    "package_sha256": { "$ref": "#/$defs/sha256" },
+    "executable_sha256": { "$ref": "#/$defs/sha256" },
+    "configuration_canonical_sha256": { "$ref": "#/$defs/sha256" },
+    "operation_roster_sha256": { "$ref": "#/$defs/sha256" },
+    "operation_ids": {
+      "const": [
+        "crebain.simulation.finish.v1",
+        "crebain.simulation.finish.v3",
+        "crebain.simulation.prepare.v1",
+        "crebain.simulation.prepare.v3",
+        "crebain.simulation.step.v1",
+        "crebain.simulation.step.v3"
+      ]
+    },
+    "standard_schema_sha256": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "engram.closed-loop-simulator.finish-request.v3",
+        "engram.closed-loop-simulator.finish-response.v3",
+        "engram.closed-loop-simulator.prepare-request.v3",
+        "engram.closed-loop-simulator.prepare-response.v3",
+        "engram.closed-loop-simulator.step-request.v3",
+        "engram.closed-loop-simulator.step-response.v3"
+      ],
+      "properties": {
+        "engram.closed-loop-simulator.finish-request.v3": { "$ref": "#/$defs/sha256" },
+        "engram.closed-loop-simulator.finish-response.v3": { "$ref": "#/$defs/sha256" },
+        "engram.closed-loop-simulator.prepare-request.v3": { "$ref": "#/$defs/sha256" },
+        "engram.closed-loop-simulator.prepare-response.v3": { "$ref": "#/$defs/sha256" },
+        "engram.closed-loop-simulator.step-request.v3": { "$ref": "#/$defs/sha256" },
+        "engram.closed-loop-simulator.step-response.v3": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "drone_counts": { "const": [1, 2, 3] },
+    "step_count": { "const": 6 },
+    "fault_step": { "const": 3 },
+    "fault": { "const": "sensor-unavailable" },
+    "host_policy": {
+      "const": ["fault-observed", "safe-hold", "bounded-zero-washout", "bounded-nonzero-resume"]
+    },
+    "recovery_controls_sha256": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["1", "2", "3"],
+      "properties": {
+        "1": { "$ref": "#/$defs/sha256" },
+        "2": { "$ref": "#/$defs/sha256" },
+        "3": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "baseline_three_controls_sha256": { "$ref": "#/$defs/sha256" },
+    "replay_exact": { "const": true },
+    "unaffected_lane_observations_exact": { "const": true },
+    "negative_clock_gate": { "const": "standard.clock-mismatch" },
+    "signal_cancellation_gate": {
+      "const": "active-SIGTERM-then-fresh-generation-prepared"
+    },
+    "installed_artifacts_reverified_after_execution": { "const": true },
+    "generation_seal_package_bundle_store_lineage_verified": { "const": true },
+    "build_stage_seal_install_lineage_verified": { "const": true },
+    "build_stage_seal_pack_install_lineage_verified": { "const": true },
+    "authority": { "$ref": "#/$defs/simulatorAuthority" },
+    "disclosure": { "type": "string", "minLength": 1, "maxLength": 4096 },
+    "receipt_sha256": { "$ref": "#/$defs/sha256" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "gitObject": { "type": "string", "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$" },
+    "simulatorAuthority": {
+      "const": {
+        "simulator_only": true,
+        "ncp_qualified": false,
+        "physical_actuation": false,
+        "plant_control": false,
+        "scientific_authority": false
+      }
+    }
+  }
+}

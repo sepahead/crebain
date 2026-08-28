@@ -557,7 +557,7 @@ impl InnovationStats {
 }
 
 /// Standard Kalman Filter for linear systems
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct KalmanFilter {
     /// Process noise covariance
     q: Matrix6<f64>,
@@ -707,7 +707,7 @@ impl KalmanFilter {
 /// position update is delegated verbatim to an embedded [`KalmanFilter`] (the
 /// measurement model H = [I_3 | 0_3] is unchanged), so the Joseph-stabilized
 /// update math is never duplicated.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CoordinatedTurnFilter {
     /// Process noise covariance.
     q: Matrix6<f64>,
@@ -806,7 +806,7 @@ impl CoordinatedTurnFilter {
 
 /// Extended Kalman Filter for non-linear measurement models
 /// Used when sensors provide polar coordinates (range, azimuth, elevation)
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ExtendedKalmanFilter {
     kf: KalmanFilter,
 }
@@ -923,7 +923,7 @@ impl ExtendedKalmanFilter {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// Unscented Kalman Filter - better for highly non-linear systems
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct UnscentedKalmanFilter {
     /// State dimension
     n: usize,
@@ -1168,7 +1168,7 @@ struct Particle {
 }
 
 /// Particle Filter for non-Gaussian, multi-modal distributions
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ParticleFilter {
     particles: Vec<Particle>,
     num_particles: usize,
@@ -1386,7 +1386,7 @@ pub enum MotionModel {
 }
 
 /// IMM Filter for maneuvering target tracking
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct IMMFilter {
     /// Constant-velocity model (mode 0).
     kf_cv: KalmanFilter,
@@ -2015,6 +2015,7 @@ pub fn validate_sensor_measurements(measurements: &[SensorMeasurement]) -> Resul
 }
 
 /// Multi-sensor fusion engine
+#[derive(Clone)]
 pub struct MultiSensorFusion {
     config: FusionConfig,
     tracks: HashMap<String, TrackState>,
@@ -3280,12 +3281,12 @@ impl MultiSensorFusion {
         // target's cluster is gated out of all tracks (e.g. the track drifted), the
         // non-representative members are dropped for that frame rather than seeding —
         // an accepted v1 trade-off (no over-spawning) revisited with adaptive gating.
-        let cluster_representative = |cl: &[usize]| -> usize {
+        let cluster_representative = |cl: &[usize]| -> Option<usize> {
             // Unit-correct "lowest noise": the CARTESIAN R trace, not the raw
             // covariance triple (radar's [m², rad², rad²] summed against
             // Cartesian [m², m², m²] made radar look near-noiseless and win
             // birth-representative slots over genuinely tighter sensors).
-            *cl.iter()
+            cl.iter()
                 .min_by(|&&a, &&b| {
                     let ta = r_carts[a].trace();
                     let tb = r_carts[b].trace();
@@ -3293,7 +3294,7 @@ impl MultiSensorFusion {
                         .unwrap_or(std::cmp::Ordering::Equal)
                         .then(a.cmp(&b))
                 })
-                .expect("clusters are non-empty")
+                .copied()
         };
 
         // A co-located cluster may contain several slightly different records
@@ -3349,7 +3350,9 @@ impl MultiSensorFusion {
 
         if track_ids.is_empty() {
             for cl in &clusters {
-                unassociated.push(cluster_representative(cl));
+                if let Some(representative) = cluster_representative(cl) {
+                    unassociated.push(representative);
+                }
             }
             return AssociationPlan {
                 gate_decisions,
@@ -3413,7 +3416,9 @@ impl MultiSensorFusion {
                         .filter(|&measurement_index| gate_decisions[r][measurement_index].accepted)
                         .collect();
                     if members.is_empty() {
-                        members.push(cluster_representative(&clusters[c]));
+                        if let Some(representative) = cluster_representative(&clusters[c]) {
+                            members.push(representative);
+                        }
                     }
                     let members = one_effective_return_per_correlation_identity(members);
                     associations.push((track_ids[r].clone(), members));
@@ -3425,7 +3430,9 @@ impl MultiSensorFusion {
         let mut unassociated_clusters = Vec::new();
         for (c, cl) in clusters.iter().enumerate() {
             if !cluster_used[c] {
-                unassociated.push(cluster_representative(cl));
+                if let Some(representative) = cluster_representative(cl) {
+                    unassociated.push(representative);
+                }
                 #[cfg(feature = "ncp")]
                 unassociated_clusters.push(cl.clone());
             }

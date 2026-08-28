@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://engram.local/schemas/crebain.managed-simulation.finish-request.v1.schema.json",
+  "title": "CREBAIN simulation finish request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "run_id", "tick_index", "reason"],
+  "properties": {
+    "schema_version": { "const": "crebain.simulation.finish-request.v1" },
+    "run_id": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "tick_index": { "type": "integer", "minimum": 0, "maximum": 1024 },
+    "reason": { "const": "completed" }
+  }
+}

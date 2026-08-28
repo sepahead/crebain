@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://engram.local/schemas/engram.closed-loop-simulator.step-response.v3.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "status", "reason", "terminal", "study_run_id",
+    "step_index", "step_id", "source_snapshot_sha256", "runtime_request_sha256",
+    "tic_unit", "causality_policy", "step_duration_tics", "simulation_time_tics",
+    "channel_ids", "subject_ids", "observation_widths", "observation_present",
+    "observation_values", "fault_dispositions", "fault_codes", "run_state_active"
+  ],
+  "properties": {
+    "schema_version": {"const": "engram.closed-loop-simulator.step-response.v3"},
+    "status": {"enum": ["succeeded", "failed", "rejected", "cancelled"]},
+    "reason": {"type": "string", "minLength": 1, "maxLength": 128},
+    "terminal": {"type": "boolean"},
+    "study_run_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "step_index": {"type": "integer", "minimum": 1, "maximum": 1024},
+    "step_id": {"type": "string", "minLength": 37, "maxLength": 37},
+    "source_snapshot_sha256": {"type": "string", "minLength": 64, "maxLength": 64},
+    "runtime_request_sha256": {"type": "string", "minLength": 64, "maxLength": 64},
+    "tic_unit": {"const": "microsecond"},
+    "causality_policy": {"const": "sample-runtime-run-controller-apply-zoh-v1"},
+    "step_duration_tics": {"type": "integer", "minimum": 1, "maximum": 10000000},
+    "simulation_time_tics": {"type": "integer", "minimum": 1, "maximum": 10240000000},
+    "channel_ids": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"type": "string", "minLength": 1, "maxLength": 128}},
+    "subject_ids": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"type": "string", "minLength": 1, "maxLength": 128}},
+    "observation_widths": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"type": "integer", "minimum": 1, "maximum": 16}},
+    "observation_present": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"type": "boolean"}},
+    "observation_values": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"type": "number"}},
+    "fault_dispositions": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"enum": ["none", "sensor-unavailable", "actuator-hold", "overload", "fatal"]}},
+    "fault_codes": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"type": "string", "minLength": 1, "maxLength": 128}},
+    "run_state_active": {"type": "boolean"}
+  }
+}

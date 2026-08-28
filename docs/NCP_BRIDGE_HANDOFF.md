@@ -17,7 +17,7 @@ strict-client-config NCP wire 0.8 without Tauri, inference, image, or plant depe
 It bounds open, 1–4,096 steps, and close against a compatible external responder.
 Self-check and validation do not cross the transport boundary. The separate
 Engram UI host is read-only and has no NCP path. Current Engram wire 1.0 is
-incompatible, and no translator or live loop exists. A successful, validated
+incompatible, and no NCP translator or NCP action loop exists. A validated
 RPC reply shows that one compatible responder replied. It does not prove
 receiver identity, end-to-end effect, TLS, ACL, scientific validity, or
 deployment readiness.
@@ -36,7 +36,8 @@ standalone. NCP is not on the default runtime path:
 | TypeScript `src/neuro` | Thin guarded re-export of `@sepahead/ncp`; imported by no product component/hook |
 | Vite-dev `window.__ncpDrone` | Manual in-browser wire-shaped command injection. It opens no NCP transport or session. It is absent from production builds and Engram embedded mode. |
 | Engram restricted UI host | Read-only `engram.host.v1` readiness, status, bounded context, heartbeat, and native-IPC accessibility messages. Embedded mode disables the CREBAIN native backend, local simulation, scene mutation, external telemetry, artifact exchange, and all NCP command ingress. |
-| Live CREBAIN↔Engram action/control loop | Not implemented or enabled |
+| Engram managed simulation runtime | Separate Host API 2.0 private-pipe process for one to three simulator-only drone channels. It has no NCP dependency or physical authority. |
+| Live NCP CREBAIN↔Engram action/control loop | Not implemented or enabled |
 | Live CREBAIN→Galadriel deployed correlation | Producer component is integrated; compatible receiver, security/topology, and end-to-end evidence remain unproved |
 
 No Engram process or sibling checkout is required to run the CREBAIN application.
@@ -64,7 +65,8 @@ compatibility as false. The source repository and Engram share a digest-locked
 The restricted Engram UI host has no NCP path. The headless runner does not use
 the host protocol. Its `engram/ncp` default is only an NCP realm string. Current
 Engram/Paper2Brain native wire 1.0 is incompatible with CREBAIN's wire 0.8 pin.
-No translator or live CREBAIN↔current-Engram loop exists.
+No NCP translator or NCP action loop exists.
+The separate managed simulation loop does not use NCP.
 
 ## Current dependency contract
 

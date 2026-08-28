@@ -238,8 +238,27 @@ Generation checks prevent stale cleanup.
   That local posture does not prove transport security. It requires a compatible NCP
   wire-0.8 responder. The default `engram/ncp` realm does not establish current
   Engram compatibility. Current Engram native wire 1.0 is incompatible, and no
-  translator or live loop exists. The package has no command subscription,
+  NCP translator or NCP action loop exists. The package has no command subscription,
   sensor put, action callback, Tauri registration, or plant dependency.
+- **Managed simulation runtime (separate package, optional)** — the
+  dependency-isolated `crebain-managed-simulation` package implements Engram
+  Host API 2.0 through inherited private pipes. It supports one to three stable
+  drone channels. Each channel has an independent fusion lane. The package
+  retains the native CREBAIN v1 operations. It binds the exact standard v3
+  schema pairs to project-owned CREBAIN v3 operations. Standard observations
+  contain fused ENU position and velocity. Standard actions contain ENU
+  acceleration. The sealed profile fixes the clock, causality, components,
+  units, lane mapping, and one recoverable fault schedule. Engram owns
+  controller references and gains. Tracked operational inputs map each drone
+  to six signed NEST populations across three acceleration axes. Release proof
+  joins the installed bundle, seal, package generation, store observation,
+  guardians, and complete receipt stores. It also joins one clean-main
+  observed build through staging, sealing, and installation. The receipt binds
+  exact Git inputs, fresh Rust dep-info, tools, target, and Mach-O arm64 output bytes. It makes
+  no signature or reproducibility claim. Engram discovers standard roles
+  without project code. The runtime has no NCP,
+  network, Tauri, artifact, or plant capability. Every actuator value remains
+  simulator-only.
 - **Galadriel evidence producer (native NCP, optional)** — absent from default
   binaries and disabled unless an `ncp` build also receives exact runtime opt-in
   plus valid registry/config/executable pins. It can put frozen evidence only to
@@ -468,8 +487,15 @@ src-tauri/src/
 └── ncp/                  # Dormant NCP action/control adapter
 ```
 
+### Isolated backend crates (`src-tauri/crates/`)
+
+- `managed-simulation/` implements the simulator-only Engram Host API 2.0 runtime.
+- `ncp-headless/` implements the optional NCP wire-0.8 perception runner.
+- `plant-authority/` contains the inert and unwired plant foundation.
+
 ```text
 src-tauri/crates/
+├── managed-simulation/  # Private-pipe Host API 2.0 simulator runtime
 ├── ncp-headless/         # Dependency-isolated opt-in wire-0.8 perception runner
 └── plant-authority/      # Inert headless plant foundation
 ```

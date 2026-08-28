@@ -799,6 +799,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "crebain-managed-simulation"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "nalgebra",
+ "rand 0.10.2",
+ "rand_distr 0.6.0",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "crebain-ncp-headless"
 version = "0.1.0"
 dependencies = [

@@ -1,0 +1,11 @@
+{
+  "baseline_rate_hz": 100.0,
+  "input_span_hz": 5000.0,
+  "input_weight_mv": 5.0,
+  "output_rate_scale_hz": 100.0,
+  "population_size": 8,
+  "resolution_ms": 0.1,
+  "rng_seed": 20260826,
+  "schema_version": "engram.nest-population-controller-config.v2",
+  "step_duration_ms": 20.0
+}

@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://crebain.local/schemas/crebain.managed-simulation-package-stage-receipt.v1.schema.json",
+  "title": "CREBAIN managed simulation package-stage receipt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "observed_build_receipt_exact_sha256",
+    "observed_build_receipt_sha256",
+    "crebain_commit",
+    "crebain_tree",
+    "origin_main",
+    "target",
+    "recipe_exact_sha256",
+    "configuration_exact_sha256",
+    "source_executable",
+    "staged_executable",
+    "package_inventory",
+    "package_inventory_sha256",
+    "authority",
+    "disclosure",
+    "receipt_sha256"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "crebain.managed-simulation-package-stage-receipt.v1"
+    },
+    "observed_build_receipt_exact_sha256": { "$ref": "#/$defs/sha256" },
+    "observed_build_receipt_sha256": { "$ref": "#/$defs/sha256" },
+    "crebain_commit": { "$ref": "#/$defs/gitObject" },
+    "crebain_tree": { "$ref": "#/$defs/gitObject" },
+    "origin_main": { "$ref": "#/$defs/gitObject" },
+    "target": {
+      "const": {
+        "target_id": "macos-aarch64-darwin",
+        "operating_system": "macos",
+        "architecture": "aarch64",
+        "abi": "darwin",
+        "rust_target_triple": "aarch64-apple-darwin"
+      }
+    },
+    "recipe_exact_sha256": { "$ref": "#/$defs/sha256" },
+    "configuration_exact_sha256": { "$ref": "#/$defs/sha256" },
+    "source_executable": { "$ref": "#/$defs/executable" },
+    "staged_executable": { "$ref": "#/$defs/executable" },
+    "package_inventory": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 128,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/inventoryRow" }
+    },
+    "package_inventory_sha256": { "$ref": "#/$defs/sha256" },
+    "authority": {
+      "const": {
+        "execution": false,
+        "installation": false,
+        "ncp": false,
+        "physical": false,
+        "plant": false,
+        "scientific": false
+      }
+    },
+    "disclosure": { "type": "string", "minLength": 1, "maxLength": 4096 },
+    "receipt_sha256": { "$ref": "#/$defs/sha256" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "gitObject": { "type": "string", "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$" },
+    "safePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*//)(?!.*\\\\)[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "executable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["byte_length", "sha256", "mode", "format", "architecture", "file_type"],
+      "properties": {
+        "byte_length": { "type": "integer", "minimum": 1, "maximum": 67108864 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "mode": { "enum": [320, 365, 448, 493] },
+        "format": { "const": "mach-o-64" },
+        "architecture": { "const": "arm64" },
+        "file_type": { "const": "executable" }
+      }
+    },
+    "inventoryRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["relative_path", "byte_length", "sha256", "mode", "role"],
+      "properties": {
+        "relative_path": { "$ref": "#/$defs/safePath" },
+        "byte_length": { "type": "integer", "minimum": 1, "maximum": 67108864 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "mode": { "enum": [384, 448] },
+        "role": { "enum": ["contract", "executable"] }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "role": { "const": "contract" } } },
+          "then": { "properties": { "mode": { "const": 384 } } }
+        },
+        {
+          "if": { "properties": { "role": { "const": "executable" } } },
+          "then": { "properties": { "mode": { "const": 448 } } }
+        }
+      ]
+    }
+  }
+}

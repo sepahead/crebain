@@ -31,6 +31,7 @@ has no vehicle-authority path.
 
 - [GALADRIEL_PRODUCER.md](GALADRIEL_PRODUCER.md) — Optional live evidence routes, deployment pins, bounds, and claim limits
 - [NCP_BRIDGE_HANDOFF.md](NCP_BRIDGE_HANDOFF.md) — Dormant action adapter, dependency-isolated headless perception runner, advisory producer, and Engram compatibility boundaries
+- [CREBAIN managed simulation](../integrations/engram/managed-simulation/README.md) — Host API 2.0 schemas, tick order, receipts, packaging, and simulator-only boundaries
 
 ## Plant foundation (inactive/unwired candidates)
 

@@ -1,0 +1,335 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://crebain.local/schemas/crebain.real-nest-closed-loop-evidence-index.v2.schema.json",
+  "title": "CREBAIN real-NEST closed-loop evidence index v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "profile",
+    "input_suite",
+    "tool_source_closure",
+    "engram",
+    "package",
+    "installed_package_proof_exact_sha256",
+    "captures",
+    "assertions",
+    "authority",
+    "disclosure"
+  ],
+  "properties": {
+    "schema_version": { "const": "crebain.real-nest-closed-loop-evidence-index.v2" },
+    "profile": { "const": "installed-crebain-standard-v3-real-nest-3.9" },
+    "input_suite": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "exact_sha256",
+        "suite_definition_sha256",
+        "nest_config_exact_sha256"
+      ],
+      "properties": {
+        "schema_version": { "const": "crebain.real-nest-operational-input-suite.v1" },
+        "exact_sha256": { "$ref": "#/$defs/sha256" },
+        "suite_definition_sha256": { "$ref": "#/$defs/sha256" },
+        "nest_config_exact_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "tool_source_closure": { "$ref": "#/$defs/toolSourceClosure" },
+    "engram": { "$ref": "#/$defs/gitIdentity" },
+    "package": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "store_id",
+        "package_generation_id",
+        "installation_id",
+        "generation_core_sha256",
+        "bundle_receipt_exact_sha256",
+        "seal_receipt_exact_sha256",
+        "install_observation_exact_sha256",
+        "package_sha256",
+        "executable_sha256",
+        "configuration_canonical_sha256",
+        "operation_roster_sha256",
+        "receipt_sha256",
+        "observed_build_receipt_exact_sha256",
+        "observed_build_receipt_sha256",
+        "package_stage_receipt_exact_sha256",
+        "package_stage_receipt_sha256",
+        "engram_pack_receipt_exact_sha256",
+        "engram_pack_receipt_sha256",
+        "crebain_commit",
+        "crebain_tree",
+        "crebain_origin_main",
+        "engram_commit",
+        "engram_tree",
+        "engram_origin_main",
+        "engram_extension_tool_sha256",
+        "engram_extension_tool_git_blob",
+        "build_source_roster_sha256",
+        "build_input_identity_sha256",
+        "executable_format",
+        "executable_architecture",
+        "build_stage_seal_pack_install_lineage_verified"
+      ],
+      "properties": {
+        "store_id": { "type": "string", "pattern": "^extstore_[a-f0-9]{64}$" },
+        "package_generation_id": {
+          "type": "string",
+          "pattern": "^pkggen_[a-f0-9]{64}$"
+        },
+        "installation_id": { "type": "string", "pattern": "^inst_[a-f0-9]{64}$" },
+        "generation_core_sha256": { "$ref": "#/$defs/sha256" },
+        "bundle_receipt_exact_sha256": { "$ref": "#/$defs/sha256" },
+        "seal_receipt_exact_sha256": { "$ref": "#/$defs/sha256" },
+        "install_observation_exact_sha256": { "$ref": "#/$defs/sha256" },
+        "package_sha256": { "$ref": "#/$defs/sha256" },
+        "executable_sha256": { "$ref": "#/$defs/sha256" },
+        "configuration_canonical_sha256": { "$ref": "#/$defs/sha256" },
+        "operation_roster_sha256": { "$ref": "#/$defs/sha256" },
+        "receipt_sha256": { "$ref": "#/$defs/sha256" },
+        "observed_build_receipt_exact_sha256": { "$ref": "#/$defs/sha256" },
+        "observed_build_receipt_sha256": { "$ref": "#/$defs/sha256" },
+        "package_stage_receipt_exact_sha256": { "$ref": "#/$defs/sha256" },
+        "package_stage_receipt_sha256": { "$ref": "#/$defs/sha256" },
+        "engram_pack_receipt_exact_sha256": { "$ref": "#/$defs/sha256" },
+        "engram_pack_receipt_sha256": { "$ref": "#/$defs/sha256" },
+        "crebain_commit": { "$ref": "#/$defs/gitObject" },
+        "crebain_tree": { "$ref": "#/$defs/gitObject" },
+        "crebain_origin_main": { "$ref": "#/$defs/gitObject" },
+        "engram_commit": { "$ref": "#/$defs/gitObject" },
+        "engram_tree": { "$ref": "#/$defs/gitObject" },
+        "engram_origin_main": { "$ref": "#/$defs/gitObject" },
+        "engram_extension_tool_sha256": { "$ref": "#/$defs/sha256" },
+        "engram_extension_tool_git_blob": { "$ref": "#/$defs/gitObject" },
+        "build_source_roster_sha256": { "$ref": "#/$defs/sha256" },
+        "build_input_identity_sha256": { "$ref": "#/$defs/sha256" },
+        "executable_format": { "const": "mach-o-64" },
+        "executable_architecture": { "const": "arm64" },
+        "build_stage_seal_pack_install_lineage_verified": { "const": true }
+      }
+    },
+    "installed_package_proof_exact_sha256": { "$ref": "#/$defs/sha256" },
+    "captures": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "prefixItems": [
+        { "$ref": "#/$defs/captureOne" },
+        { "$ref": "#/$defs/captureTwo" },
+        { "$ref": "#/$defs/captureThree" }
+      ],
+      "items": false
+    },
+    "assertions": {
+      "const": {
+        "tracked_inputs_exact": true,
+        "one_session_per_run": true,
+        "exact_6n_population_topology": true,
+        "one_two_three_drone_roster": true,
+        "distinct_receipt_and_evidence_identities": true,
+        "distinct_closed_receipt_stores": true,
+        "common_clean_engram_source_closure": true,
+        "installed_package_lineage_common": true,
+        "observed_build_stage_seal_install_lineage_common": true,
+        "engram_pack_source_lineage_common": true,
+        "observed_build_stage_seal_pack_install_lineage_common": true
+      }
+    },
+    "authority": { "$ref": "#/$defs/simulatorAuthority" },
+    "disclosure": { "type": "string", "minLength": 1, "maxLength": 4096 }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "gitObject": { "type": "string", "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$" },
+    "safePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*//)(?!.*\\\\)[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "toolSourceClosure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "files", "roster_sha256"],
+      "properties": {
+        "schema_version": { "const": "crebain.real-nest-tool-source-closure.v1" },
+        "files": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "prefixItems": [
+            {
+              "$ref": "#/$defs/toolSourceRow",
+              "properties": {
+                "role": { "const": "atomic-authoring-io" },
+                "path": {
+                  "const": "scripts/managed_simulation_authoring_files.py"
+                }
+              }
+            },
+            {
+              "$ref": "#/$defs/toolSourceRow",
+              "properties": {
+                "role": { "const": "receipt-validator" },
+                "path": {
+                  "const": "scripts/managed_simulation_build_provenance.py"
+                }
+              }
+            },
+            {
+              "$ref": "#/$defs/toolSourceRow",
+              "properties": {
+                "role": { "const": "capture-runner" },
+                "path": {
+                  "const": "scripts/run-managed-simulation-real-nest-proof.py"
+                }
+              }
+            },
+            {
+              "$ref": "#/$defs/toolSourceRow",
+              "properties": {
+                "role": { "const": "suite-runner" },
+                "path": {
+                  "const": "scripts/run-managed-simulation-real-nest-suite.py"
+                }
+              }
+            }
+          ],
+          "items": false
+        },
+        "roster_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "toolSourceRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "path", "exact_sha256"],
+      "properties": {
+        "role": {
+          "enum": ["atomic-authoring-io", "receipt-validator", "capture-runner", "suite-runner"]
+        },
+        "path": { "$ref": "#/$defs/safePath" },
+        "exact_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "gitIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "commit", "tree", "origin_main", "object_format", "clean"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "commit": { "$ref": "#/$defs/gitObject" },
+        "tree": { "$ref": "#/$defs/gitObject" },
+        "origin_main": { "$ref": "#/$defs/gitObject" },
+        "object_format": { "enum": ["sha1", "sha256"] },
+        "clean": { "const": true }
+      },
+      "allOf": [{ "$ref": "#/$defs/gitObjectFormatJoin" }]
+    },
+    "gitObjectFormatJoin": {
+      "if": {
+        "properties": { "object_format": { "const": "sha1" } },
+        "required": ["object_format"]
+      },
+      "then": {
+        "properties": {
+          "commit": { "pattern": "^[a-f0-9]{40}$" },
+          "tree": { "pattern": "^[a-f0-9]{40}$" },
+          "origin_main": { "pattern": "^[a-f0-9]{40}$" }
+        }
+      },
+      "else": {
+        "properties": {
+          "commit": { "pattern": "^[a-f0-9]{64}$" },
+          "tree": { "pattern": "^[a-f0-9]{64}$" },
+          "origin_main": { "pattern": "^[a-f0-9]{64}$" }
+        }
+      }
+    },
+    "captureRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "drone_count",
+        "path",
+        "capture_sha256",
+        "plan_exact_sha256",
+        "receipt_sha256",
+        "evidence_bundle_sha256",
+        "receipt_store_id",
+        "receipt_store_closure_sha256",
+        "engram_source_closure_sha256",
+        "observed_build_receipt_exact_sha256",
+        "population_count",
+        "population_neuron_count",
+        "device_node_count",
+        "connection_count",
+        "session_count"
+      ],
+      "properties": {
+        "drone_count": { "type": "integer", "minimum": 1, "maximum": 3 },
+        "path": { "$ref": "#/$defs/safePath" },
+        "capture_sha256": { "$ref": "#/$defs/sha256" },
+        "plan_exact_sha256": { "$ref": "#/$defs/sha256" },
+        "receipt_sha256": { "$ref": "#/$defs/sha256" },
+        "evidence_bundle_sha256": { "$ref": "#/$defs/sha256" },
+        "receipt_store_id": { "type": "string", "pattern": "^clrs_[a-f0-9]{64}$" },
+        "receipt_store_closure_sha256": { "$ref": "#/$defs/sha256" },
+        "engram_source_closure_sha256": { "$ref": "#/$defs/sha256" },
+        "observed_build_receipt_exact_sha256": { "$ref": "#/$defs/sha256" },
+        "population_count": { "type": "integer", "minimum": 6, "maximum": 18 },
+        "population_neuron_count": { "type": "integer", "minimum": 1 },
+        "device_node_count": { "type": "integer", "minimum": 12, "maximum": 36 },
+        "connection_count": { "type": "integer", "minimum": 1 },
+        "session_count": { "const": 1 }
+      }
+    },
+    "captureOne": {
+      "allOf": [
+        { "$ref": "#/$defs/captureRow" },
+        {
+          "properties": {
+            "drone_count": { "const": 1 },
+            "path": { "const": "capture-1-drone.json" }
+          }
+        }
+      ]
+    },
+    "captureTwo": {
+      "allOf": [
+        { "$ref": "#/$defs/captureRow" },
+        {
+          "properties": {
+            "drone_count": { "const": 2 },
+            "path": { "const": "capture-2-drones.json" }
+          }
+        }
+      ]
+    },
+    "captureThree": {
+      "allOf": [
+        { "$ref": "#/$defs/captureRow" },
+        {
+          "properties": {
+            "drone_count": { "const": 3 },
+            "path": { "const": "capture-3-drones.json" }
+          }
+        }
+      ]
+    },
+    "simulatorAuthority": {
+      "const": {
+        "simulator_only": true,
+        "ncp_qualified": false,
+        "physical_actuation": false,
+        "plant_control": false,
+        "scientific_authority": false
+      }
+    }
+  }
+}

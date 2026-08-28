@@ -1,8 +1,8 @@
 # Engram host integration
 
-CREBAIN remains a standalone browser and Tauri application. Engram host API 1.0
-adds an optional restricted browser surface. The manifest version tracks the
-CREBAIN release, not the date this embedding was introduced.
+CREBAIN remains a standalone browser and Tauri application.
+Engram Host API 1.0 adds an optional restricted browser surface.
+Engram Host API 2.0 adds a separate managed simulation runtime.
 
 <p align="center">
   <img alt="CREBAIN headless NCP and Engram host boundaries" src="../../assets/diagrams/engram-ncp-boundary.svg" width="900">
@@ -13,7 +13,7 @@ strict-client-config NCP wire 0.8 without Tauri, inference, image, or plant depe
 It bounds open, 1–4,096 steps, and close against a compatible external responder.
 Self-check and validation do not cross the transport boundary. The separate
 Engram UI host is read-only and has no NCP path. Current Engram wire 1.0 is
-incompatible, and no translator or live loop exists. A successful, validated
+incompatible, and no NCP translator or NCP action loop exists. A validated
 RPC reply shows that one compatible responder replied. It does not prove
 receiver identity, end-to-end effect, TLS, ACL, scientific validity, or
 deployment readiness.
@@ -29,6 +29,47 @@ bun run dev
 The development server uses `http://127.0.0.1:5173`.
 Engram starts no CREBAIN process.
 Engram does not stop the process when it closes the view.
+
+## Managed simulation runtime
+
+The `crebain-managed-simulation` binary is independent from the browser host.
+Engram launches it through reviewed inherited private pipes.
+
+The runtime supports one to three declared drone channels.
+It advances every channel in stable identifier order.
+Each channel owns an independent fusion lane.
+
+The package retains the CREBAIN-specific operation surface.
+It also implements the six exact `engram.closed-loop-simulator.*.v3` schemas.
+Project-owned `crebain.simulation.*.v3` operation IDs bind those schemas.
+Engram discovers the generic operation roles from the schema pairs.
+No project-specific host adapter is required.
+
+The runtime accepts per-drone acceleration intents and sensor offsets.
+It returns simulator state, fused observations, bounded actuator output, and exact digests.
+
+The standard surface fixes fused ENU position and velocity observations at width six.
+It fixes ENU acceleration actions at width three.
+Its sealed profile owns the clock, vector components, units, initial state, variance, and roster mapping.
+The host owns target references, gains, damping, and neural control axes.
+
+Tracked operational inputs cover one, two, and three drones.
+Each drone maps to six signed NEST populations across three acceleration axes.
+The release proof joins the installed bundle, seal, package generation, and store observation.
+It joins one clean-main observed build through staging and an immutable Engram pack receipt.
+The observed-build receipt is not a signature or reproducibility claim.
+
+The sealed profile schedules one recoverable sensor-unavailable event.
+It affects sorted channel ordinal one at logical step three.
+The selected observation is absent for that step only.
+
+Standard safe hold is a zero-action disposition.
+It does not create an actuator fault or latch another held step.
+
+All output has `authority=simulator-only`.
+The runtime has no NCP, artifact, network, Tauri, or plant capability.
+
+See [`managed-simulation/README.md`](managed-simulation/README.md) for schemas, faults, packaging, and validation.
 
 ## Embedded boundary
 
@@ -93,8 +134,11 @@ They do not authenticate or attest the process, repository revision, or build.
 The loopback port can be occupied by another local process.
 Do not send secrets or authority through the host protocol.
 
-The protocol accepts no host command.
-It does not enable NCP, a closed loop, artifact exchange, or plant authority.
+The browser protocol accepts no host command.
+It does not enable NCP, simulation, artifact exchange, or plant authority.
+
+The separate Host API 2.0 runtime enables a bounded simulator-only closed loop.
+It does not use the browser protocol.
 
 The dependency-isolated `crebain-ncp-headless` process is not part of this host
 protocol. Engram does not start, configure, or control it. Its networked mode
@@ -105,8 +149,9 @@ CREBAIN pins the latest immutable NCP release, `v0.8.0` (wire `0.8`). The NCP
 `1.0.0-rc.1` candidate uses wire `1.0` and compact proto contract hash
 `163acc57d8a62b66`. It is unreleased, release-blocked, and incompatible with
 wire `0.8`. No native-1.0 role is certified. Engram's native-1.0 migration
-worktree is neither an installed artifact nor a live certification result. No
-translator or live CREBAIN↔current-Engram loop exists.
+worktree is neither an installed artifact nor a live certification result.
+No NCP translator or NCP action loop exists.
+The managed simulator loop does not use NCP.
 
 ## Validation
 
@@ -117,6 +162,13 @@ bun run typecheck
 bun run test:run -- src/integrations/__tests__/engramHost.test.ts
 bun run lint
 bun run format:check
+bun run check:managed-simulation-inputs
+bun run check:managed-simulation-boundary
+bun run check:managed-simulation-contract
+bun run check:managed-simulation-rust
+bun run test:managed-simulation
+bun run clippy:managed-simulation
+bun run doc:managed-simulation
 ```
 
 The cross-repository decisions and acceptance evidence are in Engram's

@@ -1,0 +1,322 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://crebain.local/schemas/crebain.real-nest-closed-loop-capture.v2.schema.json",
+  "title": "CREBAIN real-NEST closed-loop capture v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "engram_source_sha256",
+    "engram_source_closure",
+    "package_generation_id",
+    "installed_package_proof_exact_sha256",
+    "installed_package_proof",
+    "plan_exact_sha256",
+    "nest_config_exact_sha256",
+    "receipt_lock_timeout_ms",
+    "run_plan",
+    "nest_config",
+    "summary",
+    "terminal_receipt",
+    "reviewed_native_runtime",
+    "nest_worker_guardian_closure",
+    "receipt_store_closure",
+    "population_topology",
+    "nest_evidence_bundle",
+    "neural_steps",
+    "assertions",
+    "authority",
+    "disclosure"
+  ],
+  "properties": {
+    "schema_version": { "const": "crebain.real-nest-closed-loop-capture.v2" },
+    "engram_source_sha256": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 1024,
+      "propertyNames": { "$ref": "#/$defs/safePath" },
+      "additionalProperties": { "$ref": "#/$defs/sha256" }
+    },
+    "engram_source_closure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "discovery_policy",
+        "git",
+        "host_modules",
+        "worker_project_modules",
+        "worker_project_source_roster_sha256",
+        "reviewed_runtime_handshake_receipt_sha256",
+        "reviewed_runtime_guardian_source_sha256",
+        "exercised_entrypoints",
+        "sources",
+        "closure_sha256"
+      ],
+      "properties": {
+        "schema_version": { "const": "crebain.engram-python-source-closure.v1" },
+        "discovery_policy": {
+          "const": "loaded-host-modules-plus-worker-runtime-identity-and-entrypoints.v1"
+        },
+        "git": { "$ref": "#/$defs/gitIdentity" },
+        "host_modules": { "$ref": "#/$defs/moduleRoster" },
+        "worker_project_modules": { "$ref": "#/$defs/moduleRoster" },
+        "worker_project_source_roster_sha256": { "$ref": "#/$defs/sha256" },
+        "reviewed_runtime_handshake_receipt_sha256": { "$ref": "#/$defs/sha256" },
+        "reviewed_runtime_guardian_source_sha256": { "$ref": "#/$defs/sha256" },
+        "exercised_entrypoints": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1024,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["role", "relative_path"],
+            "properties": {
+              "role": { "type": "string", "minLength": 1, "maxLength": 128 },
+              "relative_path": { "$ref": "#/$defs/pythonPath" }
+            }
+          }
+        },
+        "sources": { "$ref": "#/$defs/sourceRoster" },
+        "closure_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "package_generation_id": {
+      "type": "string",
+      "pattern": "^pkggen_[a-f0-9]{64}$"
+    },
+    "installed_package_proof_exact_sha256": { "$ref": "#/$defs/sha256" },
+    "installed_package_proof": {
+      "$ref": "https://crebain.local/schemas/crebain.standard-v3-installed-binary-proof.v3.schema.json"
+    },
+    "plan_exact_sha256": { "$ref": "#/$defs/sha256" },
+    "nest_config_exact_sha256": { "$ref": "#/$defs/sha256" },
+    "receipt_lock_timeout_ms": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 300000
+    },
+    "run_plan": { "type": "object", "minProperties": 1 },
+    "nest_config": { "type": "object", "minProperties": 1 },
+    "summary": { "type": "object", "minProperties": 1 },
+    "terminal_receipt": { "type": "object", "minProperties": 1 },
+    "reviewed_native_runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "handshake_receipt",
+        "termination_receipt",
+        "lifecycle_binding_sha256",
+        "guardian_closure_verified",
+        "package_store_lineage_verified"
+      ],
+      "properties": {
+        "handshake_receipt": { "type": "object", "minProperties": 1 },
+        "termination_receipt": { "type": "object", "minProperties": 1 },
+        "lifecycle_binding_sha256": { "$ref": "#/$defs/sha256" },
+        "guardian_closure_verified": { "const": true },
+        "package_store_lineage_verified": { "const": true }
+      }
+    },
+    "nest_worker_guardian_closure": { "type": "object", "minProperties": 1 },
+    "receipt_store_closure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "store_id",
+        "receipt_sha256",
+        "receipt_artifact_path",
+        "evidence_bundle_sha256",
+        "evidence_artifact_path",
+        "file_count",
+        "total_bytes",
+        "files",
+        "closure_sha256"
+      ],
+      "properties": {
+        "schema_version": { "const": "crebain.closed-loop-receipt-store-closure.v1" },
+        "store_id": { "type": "string", "pattern": "^clrs_[a-f0-9]{64}$" },
+        "receipt_sha256": { "$ref": "#/$defs/sha256" },
+        "receipt_artifact_path": { "$ref": "#/$defs/safePath" },
+        "evidence_bundle_sha256": { "$ref": "#/$defs/sha256" },
+        "evidence_artifact_path": { "$ref": "#/$defs/safePath" },
+        "file_count": { "type": "integer", "minimum": 1, "maximum": 1024 },
+        "total_bytes": { "type": "integer", "minimum": 1, "maximum": 134217728 },
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1024,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["relative_path", "size_bytes", "sha256"],
+            "properties": {
+              "relative_path": { "$ref": "#/$defs/safePath" },
+              "size_bytes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 16777216
+              },
+              "sha256": { "$ref": "#/$defs/sha256" }
+            }
+          }
+        },
+        "closure_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "population_topology": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_count",
+        "drone_count",
+        "action_axis_count",
+        "population_count",
+        "population_neuron_count",
+        "device_node_count",
+        "connection_count",
+        "population_names",
+        "derived_population_roster_sha256"
+      ],
+      "properties": {
+        "session_count": { "const": 1 },
+        "drone_count": { "type": "integer", "minimum": 1, "maximum": 3 },
+        "action_axis_count": { "type": "integer", "minimum": 3, "maximum": 9 },
+        "population_count": { "type": "integer", "minimum": 6, "maximum": 18 },
+        "population_neuron_count": { "type": "integer", "minimum": 1 },
+        "device_node_count": { "type": "integer", "minimum": 12, "maximum": 36 },
+        "connection_count": { "type": "integer", "minimum": 1 },
+        "population_names": {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 18,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 256 }
+        },
+        "derived_population_roster_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "nest_evidence_bundle": { "type": "object", "minProperties": 1 },
+    "neural_steps": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": { "type": "object", "minProperties": 1 }
+    },
+    "assertions": {
+      "const": {
+        "fault_then_next_step_hold": true,
+        "nest_hold_washout_and_reset_verified": true,
+        "nest_recovery_washout_and_reset_verified": true,
+        "resumed_nest_proposal_nonzero": true,
+        "other_channels_never_entered_safety_mode": true,
+        "terminal_receipt_and_neural_result_lineage_verified": true,
+        "engram_host_and_worker_source_closure_verified": true,
+        "reviewed_runtime_guardian_lineage_verified": true,
+        "engram_commit_equals_local_origin_main": true,
+        "private_frozen_run_inputs_used": true,
+        "one_nest_session_exact_6n_population_topology_verified": true,
+        "nest_worker_guardian_terminal_closure_verified": true,
+        "receipt_store_artifact_closure_verified": true,
+        "installed_generation_seal_package_bundle_store_lineage_verified": true
+      }
+    },
+    "authority": { "$ref": "#/$defs/simulatorAuthority" },
+    "disclosure": { "type": "string", "minLength": 1, "maxLength": 4096 }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "gitObject": { "type": "string", "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$" },
+    "safePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*//)(?!.*\\\\)[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "pythonPath": {
+      "allOf": [{ "$ref": "#/$defs/safePath" }, { "pattern": "\\.py$" }]
+    },
+    "gitIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "commit", "tree", "origin_main", "object_format", "clean"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "commit": { "$ref": "#/$defs/gitObject" },
+        "tree": { "$ref": "#/$defs/gitObject" },
+        "origin_main": { "$ref": "#/$defs/gitObject" },
+        "object_format": { "enum": ["sha1", "sha256"] },
+        "clean": { "const": true }
+      },
+      "allOf": [{ "$ref": "#/$defs/gitObjectFormatJoin" }]
+    },
+    "gitObjectFormatJoin": {
+      "if": {
+        "properties": { "object_format": { "const": "sha1" } },
+        "required": ["object_format"]
+      },
+      "then": {
+        "properties": {
+          "commit": { "pattern": "^[a-f0-9]{40}$" },
+          "tree": { "pattern": "^[a-f0-9]{40}$" },
+          "origin_main": { "pattern": "^[a-f0-9]{40}$" }
+        }
+      },
+      "else": {
+        "properties": {
+          "commit": { "pattern": "^[a-f0-9]{64}$" },
+          "tree": { "pattern": "^[a-f0-9]{64}$" },
+          "origin_main": { "pattern": "^[a-f0-9]{64}$" }
+        }
+      }
+    },
+    "moduleRoster": {
+      "type": "array",
+      "maxItems": 1024,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["module_name", "relative_path"],
+        "properties": {
+          "module_name": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*$"
+          },
+          "relative_path": { "$ref": "#/$defs/pythonPath" }
+        }
+      }
+    },
+    "sourceRoster": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1024,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["relative_path", "size_bytes", "sha256", "git_mode", "git_blob"],
+        "properties": {
+          "relative_path": { "$ref": "#/$defs/pythonPath" },
+          "size_bytes": { "type": "integer", "minimum": 0, "maximum": 16777216 },
+          "sha256": { "$ref": "#/$defs/sha256" },
+          "git_mode": { "enum": ["100644", "100755"] },
+          "git_blob": { "$ref": "#/$defs/gitObject" }
+        }
+      }
+    },
+    "simulatorAuthority": {
+      "const": {
+        "simulator_only": true,
+        "ncp_qualified": false,
+        "physical_actuation": false,
+        "plant_control": false,
+        "scientific_authority": false
+      }
+    }
+  }
+}

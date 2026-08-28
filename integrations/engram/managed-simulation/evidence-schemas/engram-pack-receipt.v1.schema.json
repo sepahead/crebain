@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://crebain.local/schemas/crebain.managed-simulation-engram-pack-receipt.v1.schema.json",
+  "title": "CREBAIN managed-simulation Engram pack receipt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "engram_repository",
+    "engram_tool",
+    "verification_policy",
+    "operations",
+    "observed_build_receipt_exact_sha256",
+    "observed_build_receipt_sha256",
+    "package_stage_receipt_exact_sha256",
+    "package_stage_receipt_sha256",
+    "seal_receipt_exact_sha256",
+    "bundle_receipt_exact_sha256",
+    "package_generation_id",
+    "claims",
+    "authority",
+    "disclosure",
+    "receipt_sha256"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "crebain.managed-simulation-engram-pack-receipt.v1"
+    },
+    "engram_repository": { "$ref": "#/$defs/repository" },
+    "engram_tool": { "$ref": "#/$defs/sourceFile" },
+    "verification_policy": {
+      "const": "clean-head-origin-main-committed-tool-before-and-after-each-operation.v1"
+    },
+    "operations": {
+      "const": [
+        { "operation": "pack", "exit_code": 0, "source_reverified": true },
+        { "operation": "check", "exit_code": 0, "source_reverified": true }
+      ]
+    },
+    "observed_build_receipt_exact_sha256": { "$ref": "#/$defs/sha256" },
+    "observed_build_receipt_sha256": { "$ref": "#/$defs/sha256" },
+    "package_stage_receipt_exact_sha256": { "$ref": "#/$defs/sha256" },
+    "package_stage_receipt_sha256": { "$ref": "#/$defs/sha256" },
+    "seal_receipt_exact_sha256": { "$ref": "#/$defs/sha256" },
+    "bundle_receipt_exact_sha256": { "$ref": "#/$defs/sha256" },
+    "package_generation_id": {
+      "type": "string",
+      "pattern": "^pkggen_[a-f0-9]{64}$"
+    },
+    "claims": {
+      "const": {
+        "local_pack_observed": true,
+        "local_check_observed": true,
+        "publisher_authenticated": false,
+        "signature": false,
+        "reproducible": false,
+        "executed_tool_loaded_bytes_attested": false,
+        "complete_python_environment_attested": false
+      }
+    },
+    "authority": { "$ref": "#/$defs/noAuthority" },
+    "disclosure": { "type": "string", "minLength": 1, "maxLength": 4096 },
+    "receipt_sha256": { "$ref": "#/$defs/sha256" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "safePath": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*//)(?!.*\\\\)[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "gitObject": {
+      "type": "string",
+      "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$"
+    },
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["origin", "commit", "tree", "origin_main", "object_format", "clean"],
+      "properties": {
+        "origin": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "commit": { "$ref": "#/$defs/gitObject" },
+        "tree": { "$ref": "#/$defs/gitObject" },
+        "origin_main": { "$ref": "#/$defs/gitObject" },
+        "object_format": { "enum": ["sha1", "sha256"] },
+        "clean": { "const": true }
+      }
+    },
+    "sourceFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["relative_path", "size_bytes", "sha256", "git_mode", "git_blob"],
+      "properties": {
+        "relative_path": { "const": "scripts/engram_extension.py" },
+        "size_bytes": { "type": "integer", "minimum": 1, "maximum": 1048576 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "git_mode": { "enum": ["100644", "100755"] },
+        "git_blob": { "$ref": "#/$defs/gitObject" }
+      }
+    },
+    "noAuthority": {
+      "const": {
+        "execution": false,
+        "installation": false,
+        "ncp": false,
+        "physical": false,
+        "plant": false,
+        "scientific": false
+      }
+    }
+  }
+}

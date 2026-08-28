@@ -1,0 +1,61 @@
+{
+  "schema_version": "crebain.real-nest-operational-input-suite.v1",
+  "profile": "installed-crebain-standard-v3-real-nest-3.9",
+  "capture_schema_version": "crebain.real-nest-closed-loop-capture.v2",
+  "nest_config": {
+    "path": "nest-config.json",
+    "exact_sha256": "98f8458d496eed4e57a28a537c746f2f0ea7d54521e8b525e15c7b66e26613b3"
+  },
+  "runs": [
+    {
+      "drone_count": 1,
+      "plan_path": "run-plan-1-drone.json",
+      "plan_exact_sha256": "79097c06394fb981a4a8fd6ea6e6a53036cdbc30e7649073e77ee8929b916780",
+      "expected_channel_ids": ["channel-01"],
+      "expected_population_count": 6,
+      "expected_population_neuron_count": 48,
+      "expected_device_node_count": 12,
+      "expected_connection_count": 96,
+      "expected_step_count": 6
+    },
+    {
+      "drone_count": 2,
+      "plan_path": "run-plan-2-drones.json",
+      "plan_exact_sha256": "62fd541b63945bc32fb8ec2753841bf7c60536dd79a2e1436937adc176da46c9",
+      "expected_channel_ids": ["channel-01", "channel-02"],
+      "expected_population_count": 12,
+      "expected_population_neuron_count": 96,
+      "expected_device_node_count": 24,
+      "expected_connection_count": 192,
+      "expected_step_count": 6
+    },
+    {
+      "drone_count": 3,
+      "plan_path": "run-plan-3-drones.json",
+      "plan_exact_sha256": "2cdce11a1c35147bbe8d755d67fd82a813132eb08bf21914ae871d2dd8fef357",
+      "expected_channel_ids": ["channel-01", "channel-02", "channel-03"],
+      "expected_population_count": 18,
+      "expected_population_neuron_count": 144,
+      "expected_device_node_count": 36,
+      "expected_connection_count": 288,
+      "expected_step_count": 6
+    }
+  ],
+  "constraints": {
+    "session_count_per_run": 1,
+    "action_axes_per_drone": 3,
+    "signed_populations_per_action_axis": 2,
+    "population_size": 8,
+    "ncp_transport_used": false,
+    "music_transport_used": false,
+    "simulator_only": true
+  },
+  "authority": {
+    "simulator_only": true,
+    "ncp_qualified": false,
+    "physical_actuation": false,
+    "plant_control": false,
+    "scientific_authority": false
+  },
+  "suite_definition_sha256": "b0c5710c737dd7b979de853e833342801f2767bf36769fe679c5e125e252007f"
+}

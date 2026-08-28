@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://engram.local/schemas/crebain.managed-simulation.step-response.v1.schema.json",
+  "title": "CREBAIN simulation step response v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "outcome",
+    "reason",
+    "authority",
+    "run_id",
+    "tick_index",
+    "terminal",
+    "drone_ids",
+    "run_digest",
+    "prior_state_digest",
+    "state_digest",
+    "request_digest",
+    "receipt_digest",
+    "transcript_digest",
+    "simulated_position_m",
+    "simulated_velocity_mps",
+    "sensor_input_admitted",
+    "sensor_input_position_m",
+    "fused_estimate_available",
+    "fused_track_ids",
+    "fused_position_m",
+    "fused_velocity_mps",
+    "actuator_intent_acceleration_mps2",
+    "actuator_output_acceleration_mps2",
+    "actuator_saturated",
+    "fault_codes"
+  ],
+  "properties": {
+    "schema_version": { "const": "crebain.simulation.step-response.v1" },
+    "outcome": { "enum": ["succeeded", "rejected", "failed"] },
+    "reason": {
+      "enum": [
+        "stepped",
+        "no-active-run",
+        "run-id-mismatch",
+        "tick-out-of-order",
+        "tick-budget-exhausted",
+        "roster-mismatch",
+        "invalid-input",
+        "overload-injected",
+        "simulation-boundary",
+        "fusion-failed",
+        "internal-panic-contained"
+      ]
+    },
+    "authority": { "const": "simulator-only" },
+    "run_id": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "tick_index": { "type": "integer", "minimum": 0, "maximum": 1024 },
+    "terminal": { "type": "boolean" },
+    "drone_ids": { "$ref": "#/$defs/droneIds" },
+    "run_digest": { "$ref": "#/$defs/digest" },
+    "prior_state_digest": { "$ref": "#/$defs/digest" },
+    "state_digest": { "$ref": "#/$defs/digest" },
+    "request_digest": { "$ref": "#/$defs/digest" },
+    "receipt_digest": { "$ref": "#/$defs/digest" },
+    "transcript_digest": { "$ref": "#/$defs/digest" },
+    "simulated_position_m": { "$ref": "#/$defs/positions" },
+    "simulated_velocity_mps": { "$ref": "#/$defs/velocities" },
+    "sensor_input_admitted": { "$ref": "#/$defs/flags" },
+    "sensor_input_position_m": { "$ref": "#/$defs/positions" },
+    "fused_estimate_available": { "$ref": "#/$defs/flags" },
+    "fused_track_ids": { "$ref": "#/$defs/trackIds" },
+    "fused_position_m": { "$ref": "#/$defs/positions" },
+    "fused_velocity_mps": { "$ref": "#/$defs/velocities" },
+    "actuator_intent_acceleration_mps2": { "$ref": "#/$defs/accelerations" },
+    "actuator_output_acceleration_mps2": { "$ref": "#/$defs/accelerations" },
+    "actuator_saturated": { "$ref": "#/$defs/flags" },
+    "fault_codes": { "$ref": "#/$defs/faultCodes" }
+  },
+  "$defs": {
+    "digest": { "type": "string", "minLength": 64, "maxLength": 64 },
+    "droneIds": {
+      "type": "array",
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 64 }
+    },
+    "trackIds": {
+      "type": "array",
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 64 }
+    },
+    "flags": { "type": "array", "maxItems": 3, "items": { "type": "boolean" } },
+    "positions": {
+      "type": "array",
+      "maxItems": 9,
+      "items": { "type": "number", "minimum": -100000, "maximum": 100000 }
+    },
+    "velocities": {
+      "type": "array",
+      "maxItems": 9,
+      "items": { "type": "number", "minimum": -100, "maximum": 100 }
+    },
+    "accelerations": {
+      "type": "array",
+      "maxItems": 9,
+      "items": { "type": "number", "minimum": -50, "maximum": 50 }
+    },
+    "faultCodes": {
+      "type": "array",
+      "maxItems": 3,
+      "items": {
+        "enum": ["none", "sensor-dropout", "actuator-hold", "combined", "overload"]
+      }
+    }
+  }
+}

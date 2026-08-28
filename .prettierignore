@@ -5,11 +5,21 @@ coverage/
 target/
 src-tauri/target/
 src-tauri/gen/
+.mypy_cache/
+.ruff_cache/
+**/__pycache__/
 
 # Generated lockfiles and schemas
 bun.lock
 src-tauri/Cargo.lock
 flake.lock
+
+# Byte-exact managed-runtime contracts, receipts, and authoring inputs
+integrations/engram/managed-simulation/*.json
+integrations/engram/managed-simulation/contracts/
+integrations/engram/managed-simulation/operational-evidence/**/*.json
+integrations/engram/managed-simulation/package/
+integrations/engram/managed-simulation/sealed/
 
 # Rust, Swift, and ROS sources are formatted by their own toolchains
 src-tauri/

@@ -1,0 +1,35 @@
+[package]
+name = "crebain-managed-simulation"
+version = "0.1.0"
+description = "Deterministic simulator-only CREBAIN managed runtime"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/sepahead/crebain"
+edition = "2021"
+rust-version = "1.89.0"
+
+[lib]
+name = "crebain_managed_simulation"
+path = "src/lib.rs"
+
+[[bin]]
+name = "crebain-managed-simulation"
+path = "src/main.rs"
+
+[dependencies]
+log = "0.4"
+nalgebra = "0.35"
+rand = "0.10"
+rand_distr = "0.6"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.11"
+thiserror = "2.0"
+
+[lints.rust]
+unsafe_code = "forbid"
+# The shared fusion source has optional Galadriel blocks under CREBAIN's root
+# `ncp` feature. This crate deliberately has no such feature or dependency.
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("ncp"))'] }
+
+[lints.clippy]
+undocumented_unsafe_blocks = "warn"

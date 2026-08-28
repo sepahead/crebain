@@ -31,14 +31,22 @@ bun run check:release-tools # Verify version/tag and digest-manifest tooling
 bun run check:vendor-compat # Verify exact crates.io overlay provenance
 bun run check:production-vendors # Verify pinned Spark/Rapier/Three transforms and local-byte runtimes
 bun run check:production-boundary # Production vendors + authority-boundary checks
+bun run check:managed-simulation-boundary # Verify the simulator-only Host API 2.0 crate, manifest, schemas, and transcript
+bun run check:managed-simulation-inputs # Verify tracked one-, two-, and three-drone real-NEST inputs
+bun run check:managed-simulation-contract # Build and test the private-pipe and installed-package contracts
+bun run check:managed-simulation-rust # Check the release-profile managed simulation crate
 bun run check:ros-defs    # Validate ROS definitions and package XML
 bun run check:nix-deps    # Verify bun.nix is exactly generated from bun.lock
 bun run check:plant-boundary # Verify the inert plant package/process dependency boundary
 bun run check:plant-frames # Verify the digest-bound JS/Rust frame-convention corpus
 bun run check:plant      # Check the headless plant-authority package
 bun run test:plant       # Test command/health/captured-age/safe-action/deadline-monitor/apply-observation contracts plus frame/lifecycle/channel/passive-expiry/headless foundations
+bun run test:managed-simulation # Test the release-profile one-to-three-drone core and managed private-pipe adapter
 bun run clippy:plant     # Strict Clippy for all plant targets
+bun run clippy:managed-simulation # Strict release-profile Clippy for the managed simulation crate
+bun run doc:managed-simulation # Build managed simulation Rust documentation with warnings denied
 bun run fmt:plant:check  # Rustfmt check scoped to the plant package
+bun run fmt:managed-simulation:check # Rustfmt check scoped to the managed simulation crate
 bun run self-check:plant # Run crebain-plantd in inert self-check mode
 bun run validate         # contracts/provenance + typecheck/lint/format/frontend tests
 bun run validate:all     # NCP + frontend + inert plant + Rust default/NCP gates
@@ -116,6 +124,11 @@ cargo build --locked --manifest-path src-tauri/Cargo.toml
   claim. Current Engram native wire 1.0 is incompatible, and no translator or
   live loop exists. An RPC reply does not identify the responder as the
   intended deployment receiver or prove an end-to-end effect.
+- `crates/managed-simulation/` - Separate dependency-isolated Host API 2.0 package.
+  It supports one to three simulator-only drone channels and independent fusion lanes.
+  It has no NCP, Tauri, network, artifact, or plant dependency.
+  Operational packaging must bind clean Engram `origin/main` and the exact
+  `scripts/engram_extension.py` Git blob. Installed proof must embed that pack receipt.
 - `ncp/` - Dormant NCP Engram action/control adapter behind the off-by-default
   `ncp` feature. Its Tauri commands remain unregistered. The feature also
   compiles the separately gated Galadriel evidence path. Do not describe secure

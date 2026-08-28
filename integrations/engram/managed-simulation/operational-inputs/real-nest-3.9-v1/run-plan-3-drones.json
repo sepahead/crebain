@@ -1,0 +1,351 @@
+{
+  "advisory_proposal_sha256": null,
+  "agent_action_authority": false,
+  "calibrated_posterior": false,
+  "channels": [
+    {
+      "action_components": [
+        {
+          "component_id": "acceleration.east",
+          "unit_id": "si.metre-per-second-squared"
+        },
+        {
+          "component_id": "acceleration.north",
+          "unit_id": "si.metre-per-second-squared"
+        },
+        {
+          "component_id": "acceleration.up",
+          "unit_id": "si.metre-per-second-squared"
+        }
+      ],
+      "action_max": [10.0, 10.0, 10.0],
+      "action_min": [-10.0, -10.0, -10.0],
+      "action_space_id": "kinematics.acceleration-enu-si",
+      "action_width": 3,
+      "channel_id": "channel-01",
+      "neural_control_axes": [
+        {
+          "action_index": 0,
+          "decoded_action_gain": 0.5,
+          "encoder": "affine-sum-clamped-v1",
+          "terms": [
+            {
+              "gain_per_observation_unit": -0.02,
+              "observation_index": 0,
+              "reference_value": 10.0
+            },
+            {
+              "gain_per_observation_unit": -0.1,
+              "observation_index": 3,
+              "reference_value": 0.0
+            }
+          ]
+        },
+        {
+          "action_index": 1,
+          "decoded_action_gain": 0.5,
+          "encoder": "affine-sum-clamped-v1",
+          "terms": [
+            {
+              "gain_per_observation_unit": -0.02,
+              "observation_index": 1,
+              "reference_value": 0.0
+            },
+            {
+              "gain_per_observation_unit": -0.1,
+              "observation_index": 4,
+              "reference_value": 0.0
+            }
+          ]
+        },
+        {
+          "action_index": 2,
+          "decoded_action_gain": 0.5,
+          "encoder": "affine-sum-clamped-v1",
+          "terms": [
+            {
+              "gain_per_observation_unit": -0.02,
+              "observation_index": 2,
+              "reference_value": 100.0
+            },
+            {
+              "gain_per_observation_unit": -0.1,
+              "observation_index": 5,
+              "reference_value": 0.0
+            }
+          ]
+        }
+      ],
+      "neural_population_prefix": "fleet.channel-01",
+      "observation_components": [
+        {
+          "component_id": "position.east",
+          "unit_id": "si.metre"
+        },
+        {
+          "component_id": "position.north",
+          "unit_id": "si.metre"
+        },
+        {
+          "component_id": "position.up",
+          "unit_id": "si.metre"
+        },
+        {
+          "component_id": "velocity.east",
+          "unit_id": "si.metre-per-second"
+        },
+        {
+          "component_id": "velocity.north",
+          "unit_id": "si.metre-per-second"
+        },
+        {
+          "component_id": "velocity.up",
+          "unit_id": "si.metre-per-second"
+        }
+      ],
+      "observation_space_id": "kinematics.position-velocity-enu-si",
+      "observation_width": 6,
+      "safe_action": [0.0, 0.0, 0.0],
+      "subject_id": "subject-01",
+      "subject_kind": "simulated.drone"
+    },
+    {
+      "action_components": [
+        {
+          "component_id": "acceleration.east",
+          "unit_id": "si.metre-per-second-squared"
+        },
+        {
+          "component_id": "acceleration.north",
+          "unit_id": "si.metre-per-second-squared"
+        },
+        {
+          "component_id": "acceleration.up",
+          "unit_id": "si.metre-per-second-squared"
+        }
+      ],
+      "action_max": [10.0, 10.0, 10.0],
+      "action_min": [-10.0, -10.0, -10.0],
+      "action_space_id": "kinematics.acceleration-enu-si",
+      "action_width": 3,
+      "channel_id": "channel-02",
+      "neural_control_axes": [
+        {
+          "action_index": 0,
+          "decoded_action_gain": 0.5,
+          "encoder": "affine-sum-clamped-v1",
+          "terms": [
+            {
+              "gain_per_observation_unit": -0.02,
+              "observation_index": 0,
+              "reference_value": 510.0
+            },
+            {
+              "gain_per_observation_unit": -0.1,
+              "observation_index": 3,
+              "reference_value": 0.0
+            }
+          ]
+        },
+        {
+          "action_index": 1,
+          "decoded_action_gain": 0.5,
+          "encoder": "affine-sum-clamped-v1",
+          "terms": [
+            {
+              "gain_per_observation_unit": -0.02,
+              "observation_index": 1,
+              "reference_value": 0.0
+            },
+            {
+              "gain_per_observation_unit": -0.1,
+              "observation_index": 4,
+              "reference_value": 0.0
+            }
+          ]
+        },
+        {
+          "action_index": 2,
+          "decoded_action_gain": 0.5,
+          "encoder": "affine-sum-clamped-v1",
+          "terms": [
+            {
+              "gain_per_observation_unit": -0.02,
+              "observation_index": 2,
+              "reference_value": 100.0
+            },
+            {
+              "gain_per_observation_unit": -0.1,
+              "observation_index": 5,
+              "reference_value": 0.0
+            }
+          ]
+        }
+      ],
+      "neural_population_prefix": "fleet.channel-02",
+      "observation_components": [
+        {
+          "component_id": "position.east",
+          "unit_id": "si.metre"
+        },
+        {
+          "component_id": "position.north",
+          "unit_id": "si.metre"
+        },
+        {
+          "component_id": "position.up",
+          "unit_id": "si.metre"
+        },
+        {
+          "component_id": "velocity.east",
+          "unit_id": "si.metre-per-second"
+        },
+        {
+          "component_id": "velocity.north",
+          "unit_id": "si.metre-per-second"
+        },
+        {
+          "component_id": "velocity.up",
+          "unit_id": "si.metre-per-second"
+        }
+      ],
+      "observation_space_id": "kinematics.position-velocity-enu-si",
+      "observation_width": 6,
+      "safe_action": [0.0, 0.0, 0.0],
+      "subject_id": "subject-02",
+      "subject_kind": "simulated.drone"
+    },
+    {
+      "action_components": [
+        {
+          "component_id": "acceleration.east",
+          "unit_id": "si.metre-per-second-squared"
+        },
+        {
+          "component_id": "acceleration.north",
+          "unit_id": "si.metre-per-second-squared"
+        },
+        {
+          "component_id": "acceleration.up",
+          "unit_id": "si.metre-per-second-squared"
+        }
+      ],
+      "action_max": [10.0, 10.0, 10.0],
+      "action_min": [-10.0, -10.0, -10.0],
+      "action_space_id": "kinematics.acceleration-enu-si",
+      "action_width": 3,
+      "channel_id": "channel-03",
+      "neural_control_axes": [
+        {
+          "action_index": 0,
+          "decoded_action_gain": 0.5,
+          "encoder": "affine-sum-clamped-v1",
+          "terms": [
+            {
+              "gain_per_observation_unit": -0.02,
+              "observation_index": 0,
+              "reference_value": 1010.0
+            },
+            {
+              "gain_per_observation_unit": -0.1,
+              "observation_index": 3,
+              "reference_value": 0.0
+            }
+          ]
+        },
+        {
+          "action_index": 1,
+          "decoded_action_gain": 0.5,
+          "encoder": "affine-sum-clamped-v1",
+          "terms": [
+            {
+              "gain_per_observation_unit": -0.02,
+              "observation_index": 1,
+              "reference_value": 0.0
+            },
+            {
+              "gain_per_observation_unit": -0.1,
+              "observation_index": 4,
+              "reference_value": 0.0
+            }
+          ]
+        },
+        {
+          "action_index": 2,
+          "decoded_action_gain": 0.5,
+          "encoder": "affine-sum-clamped-v1",
+          "terms": [
+            {
+              "gain_per_observation_unit": -0.02,
+              "observation_index": 2,
+              "reference_value": 100.0
+            },
+            {
+              "gain_per_observation_unit": -0.1,
+              "observation_index": 5,
+              "reference_value": 0.0
+            }
+          ]
+        }
+      ],
+      "neural_population_prefix": "fleet.channel-03",
+      "observation_components": [
+        {
+          "component_id": "position.east",
+          "unit_id": "si.metre"
+        },
+        {
+          "component_id": "position.north",
+          "unit_id": "si.metre"
+        },
+        {
+          "component_id": "position.up",
+          "unit_id": "si.metre"
+        },
+        {
+          "component_id": "velocity.east",
+          "unit_id": "si.metre-per-second"
+        },
+        {
+          "component_id": "velocity.north",
+          "unit_id": "si.metre-per-second"
+        },
+        {
+          "component_id": "velocity.up",
+          "unit_id": "si.metre-per-second"
+        }
+      ],
+      "observation_space_id": "kinematics.position-velocity-enu-si",
+      "observation_width": 6,
+      "safe_action": [0.0, 0.0, 0.0],
+      "subject_id": "subject-03",
+      "subject_kind": "simulated.drone"
+    }
+  ],
+  "cleanup_timeout_ms": 5000,
+  "is_paper_local_evidence": false,
+  "max_transcript_bytes": 1048576,
+  "music_transport_used": false,
+  "ncp_transport_used": false,
+  "neural_step_timeout_ms": 10000,
+  "physical_actuation": false,
+  "schema_version": "engram.extension-closed-loop-run-plan.v1",
+  "scientific_authority": false,
+  "simulator_only": true,
+  "step_count": 6,
+  "study_definition_sha256": "f49e3f1bd89d0e0f79a5fe0923917db85bf1f402e887da814e5ae1b233900058",
+  "study_run_id": "crebain-standard-v3-real-nest-3",
+  "timebase": {
+    "action_application": "after-controller-completion-zoh-over-runtime-interval",
+    "causality_policy": "sample-runtime-run-controller-apply-zoh-v1",
+    "clock_relation": "independent-controller-and-runtime-logical-clocks",
+    "coupling": "one-controller-epoch-per-runtime-interval",
+    "dispatch_order": "observe-controller-action-runtime",
+    "neural_step_duration_tics": 20000,
+    "observation_sample_phase": "runtime-interval-start",
+    "runtime_step_duration_tics": 20000,
+    "schema_version": "engram.extension-closed-loop-timebase.v1",
+    "tic_unit": "microsecond"
+  },
+  "total_deadline_ms": 180000
+}

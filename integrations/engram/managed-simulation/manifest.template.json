@@ -1,0 +1,231 @@
+{
+  "schema_version": "2.0",
+  "id": "sepahead.crebain.simulation",
+  "name": "CREBAIN deterministic simulation",
+  "version": "0.1.0",
+  "description": "A bounded simulator-only multi-drone runtime for reviewed Engram closed loops.",
+  "host_api": {
+    "minimum": "2.0",
+    "maximum": "2.0"
+  },
+  "presentation": {
+    "mode": "none"
+  },
+  "runtime": {
+    "mode": "managed-headless",
+    "profile": "engram.reviewed-native-development.v1",
+    "reviewed_package": {
+      "lock_schema": "engram.extension-package-lock.v1",
+      "target_id": "macos-aarch64-darwin",
+      "lock_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "package_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "executable_catalog_id": "sepahead.crebain.simulation.runtime.v1"
+    },
+    "configuration": {
+      "catalog_id": "sepahead.crebain.simulation.configuration.v1",
+      "schema": {
+        "schema_id": "crebain.simulation.configuration.v1",
+        "schema_sha256": "425195af335d2131744f65d14b4713b1b2fcc6e55ea44f885e720172acdb7551"
+      },
+      "max_bytes": 4096
+    },
+    "transport": {
+      "kind": "inherited-private-pipes",
+      "framing": "uint32-be-length-prefixed-json",
+      "contract": {
+        "schema_id": "engram.managed-runtime-ipc.v1",
+        "schema_sha256": "e6950a2b3d1913ebacb82823afe648538ec789fe845ed3894b2122dd9864cfc1"
+      },
+      "host_to_runtime": "inherited-read-pipe",
+      "runtime_to_host": "inherited-write-pipe",
+      "diagnostics": "bounded-inherited-write-pipe",
+      "descriptor_inheritance": "explicit-private-only"
+    },
+    "lifecycle": {
+      "control_plane": "host-manager-only",
+      "readiness_authority": "host-manager-only",
+      "ipc_lifecycle_messages_enabled": false,
+      "startup_timeout_ms": 10000,
+      "handshake_timeout_ms": 5000,
+      "shutdown_timeout_ms": 3000,
+      "kill_timeout_ms": 1000,
+      "max_generation_lifetime_ms": 7200000
+    },
+    "restart_policy": {
+      "mode": "bounded",
+      "max_restarts": 0,
+      "window_ms": 60000,
+      "backoff_ms": 1000,
+      "healthy_reset_ms": 120000,
+      "on_exhaustion": "stop"
+    },
+    "resources": {
+      "max_frame_bytes": 65536,
+      "max_inflight_operations": 1,
+      "max_operations_per_generation": 1026,
+      "max_operation_timeout_ms": 5000,
+      "max_memory_bytes": 268435456,
+      "max_cpu_time_ms": 600000,
+      "max_diagnostic_bytes": 1048576,
+      "max_artifact_bytes": 0,
+      "max_processes": 1
+    },
+    "operations": [
+      {
+        "operation_id": "crebain.simulation.finish.v1",
+        "class": "simulation",
+        "effect": "none",
+        "artifact_access": {
+          "read": "none",
+          "write": "none"
+        },
+        "request_schema": {
+          "schema_id": "crebain.simulation.finish-request.v1",
+          "schema_sha256": "f3f75a568edb56fdc1407ad7054307e86e6db6cac2e1de21b3a688a20c70779e"
+        },
+        "response_schema": {
+          "schema_id": "crebain.simulation.finish-response.v1",
+          "schema_sha256": "b2974cbbcff36925d809633ecaaaff458de93604e23c121d55c8e79df075a0eb"
+        },
+        "compute_grant": "host-one-shot",
+        "timeout_ms": 5000,
+        "max_cpu_time_ms": 100,
+        "max_request_bytes": 4096,
+        "max_response_bytes": 8192
+      },
+      {
+        "operation_id": "crebain.simulation.finish.v3",
+        "class": "simulation",
+        "effect": "none",
+        "artifact_access": {
+          "read": "none",
+          "write": "none"
+        },
+        "request_schema": {
+          "schema_id": "engram.closed-loop-simulator.finish-request.v3",
+          "schema_sha256": "486d0b94e229000b03eec04b0c6e05e6b01c9be1df1090d1c58c27bf14b09880"
+        },
+        "response_schema": {
+          "schema_id": "engram.closed-loop-simulator.finish-response.v3",
+          "schema_sha256": "abf670d295150b6f20d088aa88365e98f73fa4d0042859f7aa5d7a2403a45d9e"
+        },
+        "compute_grant": "host-one-shot",
+        "timeout_ms": 5000,
+        "max_cpu_time_ms": 100,
+        "max_request_bytes": 4096,
+        "max_response_bytes": 8192
+      },
+      {
+        "operation_id": "crebain.simulation.prepare.v1",
+        "class": "simulation",
+        "effect": "none",
+        "artifact_access": {
+          "read": "none",
+          "write": "none"
+        },
+        "request_schema": {
+          "schema_id": "crebain.simulation.prepare-request.v1",
+          "schema_sha256": "75c90fa40cf5e3b82d6b95485df5a6fb8acd5ba7bca5a7d4ddb71c164d79fea8"
+        },
+        "response_schema": {
+          "schema_id": "crebain.simulation.prepare-response.v1",
+          "schema_sha256": "0fe1cdf62b6dcd0179c54d386b904458c7dce49629d5a60605a7a1e4052ae136"
+        },
+        "compute_grant": "host-one-shot",
+        "timeout_ms": 5000,
+        "max_cpu_time_ms": 5000,
+        "max_request_bytes": 16384,
+        "max_response_bytes": 32768
+      },
+      {
+        "operation_id": "crebain.simulation.prepare.v3",
+        "class": "simulation",
+        "effect": "none",
+        "artifact_access": {
+          "read": "none",
+          "write": "none"
+        },
+        "request_schema": {
+          "schema_id": "engram.closed-loop-simulator.prepare-request.v3",
+          "schema_sha256": "a5376511d1ba2edeef1b144074423bafc9fd88562893e3f2a4bba9718fc67e34"
+        },
+        "response_schema": {
+          "schema_id": "engram.closed-loop-simulator.prepare-response.v3",
+          "schema_sha256": "06fd034822ae82e164d2c14be034e0286b4f02d1345be076affebdd84fa5348a"
+        },
+        "compute_grant": "host-one-shot",
+        "timeout_ms": 5000,
+        "max_cpu_time_ms": 5000,
+        "max_request_bytes": 16384,
+        "max_response_bytes": 32768
+      },
+      {
+        "operation_id": "crebain.simulation.step.v1",
+        "class": "simulation",
+        "effect": "none",
+        "artifact_access": {
+          "read": "none",
+          "write": "none"
+        },
+        "request_schema": {
+          "schema_id": "crebain.simulation.step-request.v1",
+          "schema_sha256": "f676c372f36e850c4d2315434740f10356d17c02aba690ef83665d96f5aa5120"
+        },
+        "response_schema": {
+          "schema_id": "crebain.simulation.step-response.v1",
+          "schema_sha256": "dc086ee3a1406abf5396112ac7880bdc8c64a63163f630a25f22239f9af8a5da"
+        },
+        "compute_grant": "host-one-shot",
+        "timeout_ms": 5000,
+        "max_cpu_time_ms": 500,
+        "max_request_bytes": 16384,
+        "max_response_bytes": 32768
+      },
+      {
+        "operation_id": "crebain.simulation.step.v3",
+        "class": "simulation",
+        "effect": "none",
+        "artifact_access": {
+          "read": "none",
+          "write": "none"
+        },
+        "request_schema": {
+          "schema_id": "engram.closed-loop-simulator.step-request.v3",
+          "schema_sha256": "aafb7c6574e83ba386acb4c10b81e5f9f4c1669e6b79208d86701b06fa473bb2"
+        },
+        "response_schema": {
+          "schema_id": "engram.closed-loop-simulator.step-response.v3",
+          "schema_sha256": "bac8b67dcd19fbd7addbf825cb1f3b1bf796fe28f638a84380bf906b32fcdb39"
+        },
+        "compute_grant": "host-one-shot",
+        "timeout_ms": 5000,
+        "max_cpu_time_ms": 500,
+        "max_request_bytes": 16384,
+        "max_response_bytes": 32768
+      }
+    ]
+  },
+  "capabilities": [
+    "compute.one-shot",
+    "operations.simulation",
+    "runtime.managed-headless"
+  ],
+  "authority": {
+    "physical_actuation": false,
+    "plant_control": false,
+    "agent_direct_execution": false,
+    "scientific_authority": false,
+    "is_paper_local_evidence": false,
+    "calibrated_posterior": false
+  },
+  "ncp": {
+    "mode": "none",
+    "activation_enabled": false,
+    "host_compatible": false
+  },
+  "boundaries": [
+    "Engram owns process lifecycle, readiness, compute grants, cancellation, and termination.",
+    "CREBAIN owns only deterministic simulator state and locally observed simulation receipts.",
+    "This runtime grants no NCP, physical, plant, agent-execution, or scientific authority."
+  ]
+}
