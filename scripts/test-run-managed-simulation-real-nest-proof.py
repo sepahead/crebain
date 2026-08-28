@@ -382,6 +382,35 @@ class RealNestProofRunnerTests(unittest.TestCase):
             30_000,
         )
 
+    def test_receipt_store_requires_one_fresh_private_canonical_child(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="crebain-fresh-receipt-store-") as raw:
+            root = Path(raw).resolve()
+            os.chmod(root, 0o700)
+            fresh = root / "fresh-store"
+            self.assertEqual(PROOF.fresh_receipt_store_path(fresh), fresh)
+
+            fresh.mkdir(mode=0o700)
+            with self.assertRaisesRegex(RuntimeError, "must not exist"):
+                PROOF.fresh_receipt_store_path(fresh)
+            fresh.rmdir()
+
+            target = root / "target"
+            target.mkdir(mode=0o700)
+            linked_leaf = root / "linked-store"
+            linked_leaf.symlink_to(target, target_is_directory=True)
+            with self.assertRaisesRegex(RuntimeError, "must not exist"):
+                PROOF.fresh_receipt_store_path(linked_leaf)
+
+            linked_parent = root / "linked-parent"
+            linked_parent.symlink_to(target, target_is_directory=True)
+            with self.assertRaisesRegex(RuntimeError, "canonical directory"):
+                PROOF.fresh_receipt_store_path(linked_parent / "store")
+
+            os.chmod(root, 0o770)
+            with self.assertRaisesRegex(RuntimeError, "owner-controlled"):
+                PROOF.fresh_receipt_store_path(root / "unsafe-parent-store")
+            os.chmod(root, 0o700)
+
     def test_strict_json_positive_and_hostile_controls(self) -> None:
         self.assertEqual(PROOF.decode_json_object(b'{"ok":true}', "test"), {"ok": True})
         for payload, expected in (

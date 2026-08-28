@@ -201,6 +201,8 @@ This command requires tracked capture v2 files and an INDEX v2 root.
 It rejoins them to the tracked operational input context.
 
 Each run creates exactly one reviewed runtime session and one NEST controller.
+The suite gives Engram an absent receipt-store path.
+Engram publishes the complete store and writer lock atomically.
 The population topology contains exactly six signed populations for each drone.
 The suite requires 6N populations, 48N neurons, 12N devices, and 96N connections.
 Each run records nonzero NEST proposals before the fault and after recovery.

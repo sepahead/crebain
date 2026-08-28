@@ -719,7 +719,6 @@ def run_suite(arguments: argparse.Namespace) -> None:
             receipt_store = (
                 staging / f"receipt-store-{count}-drone{'s' if count > 1 else ''}"
             )
-            receipt_store.mkdir(mode=0o700)
             capture_name = f"capture-{count}-drone{'s' if count > 1 else ''}.json"
             capture_path = staging / capture_name
             command = [

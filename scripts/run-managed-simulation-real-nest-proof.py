@@ -266,6 +266,25 @@ def absolute_without_resolving_leaf(path: Path) -> Path:
     return Path(os.path.abspath(path))
 
 
+def fresh_receipt_store_path(path: Path) -> Path:
+    candidate = absolute_without_resolving_leaf(path)
+    if candidate.exists() or candidate.is_symlink():
+        fail("receipt store path must not exist before Engram initializes it")
+    try:
+        parent = candidate.parent.resolve(strict=True)
+        observed_parent = parent.lstat()
+    except OSError as error:
+        fail(f"receipt store parent cannot be inspected: {error}")
+    if (
+        parent != candidate.parent
+        or not stat.S_ISDIR(observed_parent.st_mode)
+        or observed_parent.st_uid != os.geteuid()
+        or observed_parent.st_mode & 0o022
+    ):
+        fail("receipt store parent is not one owner-controlled canonical directory")
+    return candidate
+
+
 def canonical_reported_absolute_path(value: Any, *, label: str) -> Path:
     if (
         not isinstance(value, str)
@@ -1573,7 +1592,7 @@ def main() -> None:
     plan_path = absolute_without_resolving_leaf(arguments.plan)
     config_path = absolute_without_resolving_leaf(arguments.nest_config)
     store_path = arguments.store.resolve(strict=True)
-    receipt_store_path = arguments.receipt_store.resolve(strict=True)
+    receipt_store_path = fresh_receipt_store_path(arguments.receipt_store)
     capture_path = absolute_without_resolving_leaf(arguments.capture)
     installed_proof_path = absolute_without_resolving_leaf(arguments.installed_proof)
     if capture_path.exists() or capture_path.is_symlink():
