@@ -386,6 +386,8 @@ python3 scripts/check-installed-managed-simulation-v3.py \
 
 The gate reopens the store observation, bundle receipt, seal receipt, and complete package inventory.
 It recomputes the package generation ID from the exact generation core.
+The generation core excludes the display name and static-admission flag, as Engram specifies.
+The gate validates both excluded fields independently.
 It joins the bundle, seal, installation, package lock, configuration, and schema rosters.
 It reopens the sealed executable and configuration by digest.
 It exercises one, two, and three drones through canonical private-pipe frames.

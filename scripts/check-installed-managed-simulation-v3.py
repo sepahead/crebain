@@ -78,10 +78,36 @@ SEAL_AUTHORITY = {
 INSTALL_AUTHORITY = {
     "store_installation": True,
     "execution": False,
-    "ncp": False,
-    "physical": False,
-    "scientific": False,
+    "readiness": False,
+    "ncp_control": False,
+    "physical_actuation": False,
+    "plant_control": False,
+    "agent_direct_execution": False,
+    "scientific_authority": False,
+    "is_paper_local_evidence": False,
+    "calibrated_posterior": False,
 }
+BUNDLE_AUTHORITY = {
+    "bundle_byte_integrity": True,
+    "store_installation": False,
+    "execution": False,
+    "readiness": False,
+    "ncp_control": False,
+    "physical_actuation": False,
+    "plant_control": False,
+    "agent_direct_execution": False,
+    "scientific_authority": False,
+    "is_paper_local_evidence": False,
+    "calibrated_posterior": False,
+}
+BUNDLE_DISCLOSURE = (
+    "The receipt observes local bytes. The publisher is unattested. "
+    "No runtime, NCP, physical, or scientific authority is granted."
+)
+INSTALL_DISCLOSURE = (
+    "This local observation confirms durable storage only. "
+    "It grants no runtime, NCP, physical, or scientific authority."
+)
 RUNTIME_CONFIGURATION = {
     "catalog_id": "sepahead.crebain.simulation.configuration.v1",
     "schema": {
@@ -180,6 +206,14 @@ def canonical_receipt(document: dict[str, Any], field: str = "receipt_sha256") -
     if sha256(canonical(material)) != reported:
         fail(f"installed receipt {field} differs from its canonical content")
     return reported
+
+
+def require_exact_members(
+    value: Any, expected: set[str], *, label: str
+) -> dict[str, Any]:
+    if not isinstance(value, dict) or set(value) != expected:
+        fail(f"{label} members differ")
+    return value
 
 
 def same_file_observation(before: os.stat_result, after: os.stat_result) -> bool:
@@ -372,6 +406,92 @@ class InstalledCandidate:
             fail("installed bundle or seal receipt schema differs")
         if self.seal_receipt.get("authority") != SEAL_AUTHORITY:
             fail("installed seal receipt grants authority")
+        require_exact_members(
+            self.bundle_receipt,
+            {
+                "schema_version",
+                "generation_id",
+                "store_policy",
+                "publisher_authentication",
+                "extension",
+                "runtime",
+                "manifest",
+                "package_lock",
+                "configuration",
+                "package",
+                "authority",
+                "disclosure",
+            },
+            label="installed bundle receipt",
+        )
+        bundle_extension = require_exact_members(
+            self.bundle_receipt.get("extension"),
+            {"id", "version", "name"},
+            label="installed bundle extension",
+        )
+        bundle_runtime = require_exact_members(
+            self.bundle_receipt.get("runtime"),
+            {
+                "profile",
+                "target_id",
+                "lock_schema",
+                "runtime_unit_kind",
+                "runtime_unit_sha256",
+                "static_component_admission_observed",
+            },
+            label="installed bundle runtime",
+        )
+        for identity_name in ("manifest", "package_lock", "configuration"):
+            require_exact_members(
+                self.bundle_receipt.get(identity_name),
+                {"exact_sha256", "canonical_sha256", "byte_length"},
+                label=f"installed bundle {identity_name} identity",
+            )
+        bundle_package = require_exact_members(
+            self.bundle_receipt.get("package"),
+            {"package_sha256", "inventory_sha256", "byte_length", "file_count"},
+            label="installed bundle package",
+        )
+        package_runtime = self.manifest.get("runtime", {})
+        package_lock_package = self.package_lock.get("package", {})
+        expected_bundle_extension = {
+            "id": self.manifest.get("id"),
+            "version": self.manifest.get("version"),
+            "name": self.manifest.get("name"),
+        }
+        expected_bundle_runtime = {
+            "profile": package_runtime.get("profile"),
+            "target_id": self.package_lock.get("target", {}).get("target_id"),
+            "lock_schema": package_runtime.get("reviewed_package", {}).get(
+                "lock_schema"
+            ),
+            "runtime_unit_kind": "native-executable",
+            "runtime_unit_sha256": self.package_lock.get("executable", {}).get(
+                "sha256"
+            ),
+            "static_component_admission_observed": False,
+        }
+        expected_bundle_package = {
+            field: package_lock_package.get(field)
+            for field in (
+                "package_sha256",
+                "inventory_sha256",
+                "byte_length",
+                "file_count",
+            )
+        }
+        if (
+            self.bundle_receipt.get("store_policy")
+            != "engram.extension-package-store-policy.v1"
+            or self.bundle_receipt.get("publisher_authentication")
+            != "publisher-unattested"
+            or bundle_extension != expected_bundle_extension
+            or bundle_runtime != expected_bundle_runtime
+            or bundle_package != expected_bundle_package
+            or self.bundle_receipt.get("authority") != BUNDLE_AUTHORITY
+            or self.bundle_receipt.get("disclosure") != BUNDLE_DISCLOSURE
+        ):
+            fail("installed bundle receipt boundary differs")
         expected_target = {
             "target_id": "macos-aarch64-darwin",
             "operating_system": "macos",
@@ -413,20 +533,27 @@ class InstalledCandidate:
         self.install_observation, install_observation_bytes = load_object(
             self.install_observation_path
         )
-        generation_fields = (
-            "store_policy",
-            "publisher_authentication",
-            "extension",
-            "runtime",
-            "manifest",
-            "package_lock",
-            "configuration",
-            "package",
-        )
-        if any(field not in self.bundle_receipt for field in generation_fields):
-            fail("installed bundle receipt lacks its complete generation core")
         generation_core = {
-            field: self.bundle_receipt[field] for field in generation_fields
+            "store_policy": self.bundle_receipt["store_policy"],
+            "publisher_authentication": self.bundle_receipt["publisher_authentication"],
+            "extension": {
+                "id": bundle_extension["id"],
+                "version": bundle_extension["version"],
+            },
+            "runtime": {
+                field: bundle_runtime[field]
+                for field in (
+                    "profile",
+                    "target_id",
+                    "lock_schema",
+                    "runtime_unit_kind",
+                    "runtime_unit_sha256",
+                )
+            },
+            "manifest": self.bundle_receipt["manifest"],
+            "package_lock": self.bundle_receipt["package_lock"],
+            "configuration": self.bundle_receipt["configuration"],
+            "package": bundle_package,
         }
         expected_generation_id = "pkggen_" + sha256(
             GENERATION_DOMAIN + canonical(generation_core)
@@ -455,52 +582,47 @@ class InstalledCandidate:
             )
         if (
             self.install_observation.get("schema_version")
-            != "engram.extension-package-install-observation.v1"
+            != "engram.extension-package-store-installation.v1"
             or self.install_observation.get("generation_id") != generation_id
             or self.install_observation.get("bundle_receipt_sha256")
             != bundle_receipt_sha256
-            or self.install_observation.get("state") != "published-verified"
-            or any(
-                field in self.install_observation
-                for field in ("status", "installation_state")
-            )
+            or self.install_observation.get("publication_state") != "published-verified"
+            or self.install_observation.get("publisher_authentication")
+            != "publisher-unattested"
             or self.install_observation.get("authority") != INSTALL_AUTHORITY
+            or self.install_observation.get("disclosure") != INSTALL_DISCLOSURE
+            or install_observation_bytes != canonical(self.install_observation)
         ):
             fail("installed store observation does not authorize this exact generation")
+        require_exact_members(
+            self.install_observation,
+            {
+                "schema_version",
+                "store_id",
+                "generation_id",
+                "bundle_receipt_sha256",
+                "publication_state",
+                "publisher_authentication",
+                "authority",
+                "disclosure",
+            },
+            label="installed store observation",
+        )
         self.store_id = self.install_observation.get("store_id")
         if not isinstance(self.store_id, str) or not self.store_id.startswith(
             "extstore_"
         ):
             fail("installed store observation lacks its store identity")
-        reported_store_ids = {
-            value
-            for value in (
-                self.bundle_receipt.get("store_id"),
-                self.bundle_receipt.get("store_policy", {}).get("store_id"),
-            )
-            if value is not None
-        }
-        if reported_store_ids and reported_store_ids != {self.store_id}:
-            fail("installed bundle and store observation identities differ")
-        for field in (
-            "extension",
-            "manifest",
-            "package_lock",
-            "configuration",
-            "package",
-        ):
+        for field in ("manifest", "package_lock", "configuration"):
             if self.bundle_receipt.get(field) != self.seal_receipt.get(field):
                 fail(f"installed bundle and seal {field} lineage differs")
-        bundle_runtime = self.bundle_receipt.get("runtime")
-        if not isinstance(bundle_runtime, dict) or bundle_runtime != {
-            "installation_id": self.seal_receipt.get("installation_id"),
-            "launch_abi": self.seal_receipt.get("launch_abi"),
-            "operation_roster_sha256": self.seal_receipt.get("operation_roster_sha256"),
-            "profile": self.seal_receipt.get("profile"),
-            "schema_registry_sha256": self.seal_receipt.get("schema_registry_sha256"),
-            "target": self.seal_receipt.get("target"),
-        }:
-            fail("installed bundle and seal runtime lineage differs")
+        if {
+            "id": bundle_extension["id"],
+            "version": bundle_extension["version"],
+        } != self.seal_receipt.get("extension") or bundle_package[
+            "package_sha256"
+        ] != self.seal_receipt.get("package", {}).get("package_sha256"):
+            fail("installed bundle and seal extension or package lineage differs")
         executable_relative = self.package_lock.get("executable", {}).get(
             "inventory_path"
         )

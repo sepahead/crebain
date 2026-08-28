@@ -155,14 +155,17 @@ def make_candidate(root: Path) -> tuple[Path, Path, Path, Path, Path]:
         "manifest": {
             "exact_sha256": sha256(manifest_bytes),
             "canonical_sha256": sha256(canonical(manifest)),
+            "byte_length": len(manifest_bytes),
         },
         "package_lock": {
             "exact_sha256": sha256(package_lock_bytes),
             "canonical_sha256": sha256(canonical(package_lock)),
+            "byte_length": len(package_lock_bytes),
         },
         "configuration": {
             "exact_sha256": sha256(configuration_bytes),
             "canonical_sha256": sha256(canonical(configuration)),
+            "byte_length": len(configuration_bytes),
         },
         "package": {
             "package_sha256": package_sha256,
@@ -188,27 +191,33 @@ def make_candidate(root: Path) -> tuple[Path, Path, Path, Path, Path]:
             "scientific": False,
         },
     }
+    store_id = "extstore_" + "2" * 64
     generation_core = {
-        "store_policy": {"store_id": "extstore_" + "2" * 64},
-        "publisher_authentication": {"authenticated": False},
-        "extension": seal["extension"]
-        if "extension" in seal
-        else {
+        "store_policy": "engram.extension-package-store-policy.v1",
+        "publisher_authentication": "publisher-unattested",
+        "extension": {
             "id": manifest["id"],
             "version": manifest["version"],
         },
         "runtime": {
-            "installation_id": seal["installation_id"],
-            "launch_abi": seal["launch_abi"],
-            "operation_roster_sha256": seal["operation_roster_sha256"],
-            "profile": seal["profile"],
-            "schema_registry_sha256": seal["schema_registry_sha256"],
-            "target": seal["target"],
+            "profile": manifest["runtime"]["profile"],
+            "target_id": package_lock["target"]["target_id"],
+            "lock_schema": manifest["runtime"]["reviewed_package"]["lock_schema"],
+            "runtime_unit_kind": "native-executable",
+            "runtime_unit_sha256": package_lock["executable"]["sha256"],
         },
         "manifest": seal["manifest"],
         "package_lock": seal["package_lock"],
         "configuration": seal["configuration"],
-        "package": seal["package"],
+        "package": {
+            field: package_lock["package"][field]
+            for field in (
+                "package_sha256",
+                "inventory_sha256",
+                "byte_length",
+                "file_count",
+            )
+        },
     }
     seal["extension"] = generation_core["extension"]
     generation_id = "pkggen_" + sha256(
@@ -239,7 +248,37 @@ def make_candidate(root: Path) -> tuple[Path, Path, Path, Path, Path]:
     bundle_receipt = {
         "schema_version": "engram.extension-package-bundle-receipt.v1",
         "generation_id": generation_id,
-        **generation_core,
+        "store_policy": generation_core["store_policy"],
+        "publisher_authentication": generation_core["publisher_authentication"],
+        "extension": {
+            **generation_core["extension"],
+            "name": manifest["name"],
+        },
+        "runtime": {
+            **generation_core["runtime"],
+            "static_component_admission_observed": False,
+        },
+        "manifest": generation_core["manifest"],
+        "package_lock": generation_core["package_lock"],
+        "configuration": generation_core["configuration"],
+        "package": generation_core["package"],
+        "authority": {
+            "bundle_byte_integrity": True,
+            "store_installation": False,
+            "execution": False,
+            "readiness": False,
+            "ncp_control": False,
+            "physical_actuation": False,
+            "plant_control": False,
+            "agent_direct_execution": False,
+            "scientific_authority": False,
+            "is_paper_local_evidence": False,
+            "calibrated_posterior": False,
+        },
+        "disclosure": (
+            "The receipt observes local bytes. The publisher is unattested. "
+            "No runtime, NCP, physical, or scientific authority is granted."
+        ),
     }
     (generation / "manifest.json").write_bytes(manifest_bytes)
     (generation / "package-lock.json").write_bytes(package_lock_bytes)
@@ -255,23 +294,36 @@ def make_candidate(root: Path) -> tuple[Path, Path, Path, Path, Path]:
         os.chmod(path, 0o600)
     observations = store / "observations"
     observations.mkdir(mode=0o700)
-    write_json(
-        observations / f"{generation_id}.json",
-        {
-            "schema_version": "engram.extension-package-install-observation.v1",
-            "store_id": generation_core["store_policy"]["store_id"],
-            "generation_id": generation_id,
-            "bundle_receipt_sha256": sha256(bundle_bytes),
-            "state": "published-verified",
-            "authority": {
-                "store_installation": True,
-                "execution": False,
-                "ncp": False,
-                "physical": False,
-                "scientific": False,
-            },
-        },
+    observation_path = observations / f"{generation_id}.json"
+    observation_path.write_bytes(
+        canonical(
+            {
+                "schema_version": "engram.extension-package-store-installation.v1",
+                "store_id": store_id,
+                "generation_id": generation_id,
+                "bundle_receipt_sha256": sha256(bundle_bytes),
+                "publication_state": "published-verified",
+                "publisher_authentication": "publisher-unattested",
+                "authority": {
+                    "store_installation": True,
+                    "execution": False,
+                    "readiness": False,
+                    "ncp_control": False,
+                    "physical_actuation": False,
+                    "plant_control": False,
+                    "agent_direct_execution": False,
+                    "scientific_authority": False,
+                    "is_paper_local_evidence": False,
+                    "calibrated_posterior": False,
+                },
+                "disclosure": (
+                    "This local observation confirms durable storage only. "
+                    "It grants no runtime, NCP, physical, or scientific authority."
+                ),
+            }
+        )
     )
+    os.chmod(observation_path, 0o600)
     seal_path = root / "seal-receipt.json"
     seal_bytes = write_json(seal_path, seal)
     build = build_receipt(
@@ -408,7 +460,7 @@ def main() -> None:
         observation = generation.parents[2] / "observations" / f"{generation.name}.json"
         observation_bytes = observation.read_bytes()
         changed_observation = json.loads(observation_bytes)
-        changed_observation["state"] = "pending"
+        changed_observation["publication_state"] = "pending"
         write_json(observation, changed_observation)
         rejected_observation = invoke(
             generation,
@@ -421,6 +473,64 @@ def main() -> None:
         assert rejected_observation.returncode != 0
         assert "store observation" in rejected_observation.stderr
         observation.write_bytes(observation_bytes)
+
+        changed_observation = json.loads(observation_bytes)
+        changed_observation["legacy_state"] = "published-verified"
+        observation.write_bytes(canonical(changed_observation))
+        open_observation = invoke(
+            generation,
+            seal,
+            build,
+            stage,
+            pack,
+            root / "open-observation-proof.json",
+        )
+        assert open_observation.returncode != 0
+        assert "observation members differ" in open_observation.stderr
+        observation.write_bytes(observation_bytes)
+
+        bundle_path = generation / "bundle-receipt.json"
+        bundle_bytes = bundle_path.read_bytes()
+        for label, mutate, expected in (
+            (
+                "open-root",
+                lambda document: document.__setitem__("legacy", True),
+                "receipt members differ",
+            ),
+            (
+                "name-drift",
+                lambda document: document["extension"].__setitem__(
+                    "name", "Foreign runtime"
+                ),
+                "receipt boundary differs",
+            ),
+            (
+                "static-authority",
+                lambda document: document["runtime"].__setitem__(
+                    "static_component_admission_observed", True
+                ),
+                "receipt boundary differs",
+            ),
+            (
+                "authority-promotion",
+                lambda document: document["authority"].__setitem__("execution", True),
+                "receipt boundary differs",
+            ),
+        ):
+            document = json.loads(bundle_bytes)
+            mutate(document)
+            bundle_path.write_bytes(canonical(document))
+            rejected_bundle = invoke(
+                generation,
+                seal,
+                build,
+                stage,
+                pack,
+                root / f"changed-bundle-{label}.json",
+            )
+            assert rejected_bundle.returncode != 0
+            assert expected in rejected_bundle.stderr
+            bundle_path.write_bytes(bundle_bytes)
 
         contract = generation / "package" / "contracts" / "configuration.schema.json"
         contract_bytes = contract.read_bytes()
