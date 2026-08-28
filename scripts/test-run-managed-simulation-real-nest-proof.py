@@ -166,12 +166,30 @@ class FakeModel:
         self.document = document
 
     def model_dump(self, *, mode: str) -> dict[str, Any]:
-        if mode != "python":
+        if mode != "json":
             raise AssertionError("unexpected serialization mode")
-        return copy.deepcopy(self.document)
+        return json.loads(json.dumps(self.document))
 
 
 class RealNestProofRunnerTests(unittest.TestCase):
+    def test_model_document_normalizes_python_tuples_to_json_arrays(self) -> None:
+        document = PROOF.model_document(FakeModel({"rows": ({"value": 1},)}))
+        self.assertEqual(document, {"rows": [{"value": 1}]})
+
+    def test_model_document_rejects_a_non_object(self) -> None:
+        class NonObjectModel:
+            def model_dump(self, *, mode: str) -> list[str]:
+                self.assert_json_mode(mode)
+                return ["not-an-object"]
+
+            @staticmethod
+            def assert_json_mode(mode: str) -> None:
+                if mode != "json":
+                    raise AssertionError("unexpected serialization mode")
+
+        with self.assertRaisesRegex(RuntimeError, "one JSON object"):
+            PROOF.model_document(NonObjectModel())
+
     def test_installed_proof_v3_build_stage_join_and_stale_controls(self) -> None:
         binary = macho_arm64()
         build = build_receipt(binary)

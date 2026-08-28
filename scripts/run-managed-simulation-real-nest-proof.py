@@ -301,7 +301,7 @@ def canonical_reported_absolute_path(value: Any, *, label: str) -> Path:
 
 
 def model_document(value: Any) -> dict[str, Any]:
-    document = value.model_dump(mode="python")
+    document = value.model_dump(mode="json")
     if not isinstance(document, dict):
         fail("Engram model did not serialize to one JSON object")
     return document
