@@ -4,10 +4,12 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 import hashlib
 import importlib.util
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -39,6 +41,14 @@ TOOL_SOURCE_ROLES = {
 }
 MAX_DOCUMENT_BYTES = 16 * 1024 * 1024
 MAX_SUBPROCESS_OUTPUT_BYTES = 1024 * 1024
+MAX_GIT_OUTPUT_BYTES = 16 * 1024 * 1024
+GIT_OBJECT_PATTERN = re.compile(r"(?:[a-f0-9]{40}|[a-f0-9]{64})")
+PUBLICATION_FILES = (
+    "INDEX.json",
+    "capture-1-drone.json",
+    "capture-2-drones.json",
+    "capture-3-drones.json",
+)
 SIMULATOR_ONLY_AUTHORITY = {
     "simulator_only": True,
     "ncp_qualified": False,
@@ -90,6 +100,7 @@ SOURCE_CLOSURE_KEYS = {
     "schema_version",
     "discovery_policy",
     "git",
+    "source_roster_sha256",
     "host_modules",
     "worker_project_modules",
     "worker_project_source_roster_sha256",
@@ -121,6 +132,7 @@ CAPTURE_ROW_KEYS = {
     "receipt_store_id",
     "receipt_store_closure_sha256",
     "engram_source_closure_sha256",
+    "engram_source_roster_sha256",
     "observed_build_receipt_exact_sha256",
     "population_count",
     "population_neuron_count",
@@ -172,6 +184,222 @@ def canonical(value: Any) -> bytes:
 
 def sha256(payload: bytes) -> str:
     return hashlib.sha256(payload).hexdigest()
+
+
+def git_output(repository: Path, *arguments: str) -> bytes:
+    environment = os.environ.copy()
+    for name in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"):
+        environment.pop(name, None)
+    environment.update(
+        {
+            "GIT_NO_REPLACE_OBJECTS": "1",
+            "GIT_OPTIONAL_LOCKS": "0",
+            "GIT_TERMINAL_PROMPT": "0",
+            "LC_ALL": "C",
+        }
+    )
+    try:
+        completed = run_bounded_process(
+            [
+                "git",
+                "--no-replace-objects",
+                "-c",
+                "core.fsmonitor=false",
+                "-c",
+                "core.untrackedCache=false",
+                *arguments,
+            ],
+            cwd=repository,
+            env=environment,
+            input_bytes=None,
+            timeout_seconds=30,
+            max_input_bytes=0,
+            max_stdout_bytes=MAX_GIT_OUTPUT_BYTES,
+            max_stderr_bytes=64 * 1024,
+            label="CREBAIN Git verification",
+        )
+    except ManagedSimulationSubprocessError as error:
+        diagnostic = error.stderr[:4096].decode("utf-8", errors="replace")
+        fail(f"CREBAIN Git verification failed: {error}: {diagnostic.strip()}")
+    if completed.returncode != 0:
+        diagnostic = completed.stderr[:4096].decode("utf-8", errors="replace")
+        fail(f"CREBAIN Git verification failed: {diagnostic.strip()}")
+    return completed.stdout
+
+
+def verify_immutable_crebain_checkout(
+    repository: Path,
+    expected_commit: str,
+    *,
+    allowed_untracked_paths: tuple[str, ...] = (),
+) -> dict[str, Any]:
+    """Capture one clean CREBAIN source revision before evidence publication."""
+
+    if not GIT_OBJECT_PATTERN.fullmatch(expected_commit):
+        fail("expected CREBAIN source revision is not one lowercase Git object ID")
+    repository = Path(os.path.abspath(repository))
+    if repository.resolve(strict=True) != repository:
+        fail("CREBAIN source repository must be one canonical directory")
+    worktree_root = (
+        git_output(repository, "rev-parse", "--show-toplevel").decode().strip()
+    )
+    if (
+        Path(os.path.abspath(worktree_root)).resolve(strict=True) != repository
+        or git_output(repository, "rev-parse", "--is-bare-repository") != b"false\n"
+        or git_output(repository, "rev-parse", "--is-inside-work-tree") != b"true\n"
+    ):
+        fail("CREBAIN Git worktree root or repository mode differs")
+    index_rows = git_output(repository, "ls-files", "-v", "-z", "--")
+    if (
+        not index_rows
+        or not index_rows.endswith(b"\0")
+        or any(not row.startswith(b"H ") for row in index_rows[:-1].split(b"\0"))
+    ):
+        fail("CREBAIN tracked index contains non-normal file flags")
+    head = (
+        git_output(repository, "rev-parse", "--verify", "HEAD^{commit}")
+        .decode()
+        .strip()
+    )
+    origin_main = (
+        git_output(
+            repository,
+            "rev-parse",
+            "--verify",
+            "refs/remotes/origin/main^{commit}",
+        )
+        .decode()
+        .strip()
+    )
+    if head != expected_commit or origin_main != expected_commit:
+        fail(
+            "CREBAIN HEAD and local origin/main do not equal the package source revision"
+        )
+    if git_output(repository, "cat-file", "-t", expected_commit) != b"commit\n":
+        fail("required CREBAIN source object is not a commit")
+    if tuple(sorted(set(allowed_untracked_paths))) != allowed_untracked_paths or any(
+        not path
+        or path.startswith("/")
+        or "\\" in path
+        or PurePosixPath(path).as_posix() != path
+        or any(part in {"", ".", ".."} for part in PurePosixPath(path).parts)
+        for path in allowed_untracked_paths
+    ):
+        fail("allowed CREBAIN untracked path roster is not canonical")
+    status = git_output(
+        repository,
+        "status",
+        "--porcelain=v1",
+        "-z",
+        "--untracked-files=all",
+    )
+    expected_status = b"".join(
+        b"?? " + os.fsencode(path) + b"\0" for path in allowed_untracked_paths
+    )
+    if status != expected_status:
+        fail("CREBAIN source checkout has unexpected tracked or untracked state")
+    object_format = (
+        git_output(repository, "rev-parse", "--show-object-format").decode().strip()
+    )
+    object_length = 40 if object_format == "sha1" else 64
+    tree = (
+        git_output(repository, "rev-parse", "--verify", f"{expected_commit}^{{tree}}")
+        .decode()
+        .strip()
+    )
+    origin = git_output(repository, "remote", "get-url", "origin").decode().strip()
+    if (
+        object_format not in {"sha1", "sha256"}
+        or len(expected_commit) != object_length
+        or not GIT_OBJECT_PATTERN.fullmatch(tree)
+        or len(tree) != object_length
+        or not origin
+        or "\n" in origin
+    ):
+        fail("CREBAIN source repository identity is malformed")
+    return {
+        "repository": origin,
+        "commit": expected_commit,
+        "tree": tree,
+        "origin_main_at_capture": origin_main,
+        "object_format": object_format,
+        "clean_at_capture": True,
+    }
+
+
+def verify_crebain_source_lineage(
+    installed_proof: Mapping[str, Any],
+    source_identity: Mapping[str, Any],
+) -> None:
+    build = installed_proof.get("observed_build_receipt")
+    repository = build.get("repository") if isinstance(build, dict) else None
+    expected = (
+        {
+            "repository": repository.get("origin"),
+            "commit": repository.get("commit"),
+            "tree": repository.get("tree"),
+            "origin_main_at_capture": repository.get("origin_main"),
+            "object_format": repository.get("object_format"),
+            "clean_at_capture": repository.get("clean"),
+        }
+        if isinstance(repository, dict)
+        else None
+    )
+    if (
+        dict(source_identity) != expected
+        or installed_proof.get("crebain_commit") != source_identity.get("commit")
+        or installed_proof.get("crebain_tree") != source_identity.get("tree")
+        or installed_proof.get("crebain_origin_main")
+        != source_identity.get("origin_main_at_capture")
+    ):
+        fail("installed package proof differs from the clean CREBAIN source revision")
+
+
+def verify_publication_roster(
+    root: Path,
+    expected_payloads: Mapping[str, bytes],
+) -> None:
+    if tuple(sorted(expected_payloads)) != PUBLICATION_FILES:
+        fail("operational publication payload roster differs")
+    with os.scandir(root) as entries:
+        observed = sorted(entries, key=lambda entry: entry.name)
+    if [entry.name for entry in observed] != list(PUBLICATION_FILES) or any(
+        not entry.is_file(follow_symlinks=False) for entry in observed
+    ):
+        fail("operational publication directory is not the exact four-file roster")
+    for name in PUBLICATION_FILES:
+        if (
+            PROOF.read_regular(root / name, MAX_DOCUMENT_BYTES)
+            != expected_payloads[name]
+        ):
+            fail(f"operational publication file changed: {name}")
+
+
+def install_publication_atomically(
+    staging: Path,
+    output: Path,
+    expected_payloads: Mapping[str, bytes],
+    post_install_check: Callable[[], None],
+) -> None:
+    """Install one publication and restore staging after a failed final check."""
+
+    os.replace(staging, output)
+    try:
+        verify_publication_roster(output, expected_payloads)
+        post_install_check()
+    except BaseException:
+        if output.exists() or output.is_symlink():
+            os.replace(output, staging)
+        raise
+
+
+def remove_failed_staging(path: Path) -> None:
+    """Remove only the suite-owned staging leaf after a failed publication."""
+
+    if path.is_symlink() or (path.exists() and not path.is_dir()):
+        path.unlink()
+    elif path.is_dir():
+        shutil.rmtree(path)
 
 
 def safe_local_name(value: Any, *, label: str) -> str:
@@ -386,6 +614,11 @@ def validate_capture(
         keys=SOURCE_ROW_KEYS,
         sort_fields=("relative_path",),
     )
+    source_roster_sha256 = sha256(
+        b"crebain.engram-source-roster.v1\0" + canonical(sources)
+    )
+    if source.get("source_roster_sha256") != source_roster_sha256:
+        fail(f"{count}-drone capture Engram source roster digest differs")
     PROOF.verify_pack_source_lineage(installed_proof, source_git, sources)
     host_modules = validate_module_roster(
         host_modules, label="Engram host module roster"
@@ -456,12 +689,29 @@ def validate_capture(
         fail(f"{count}-drone capture worker guardian closure differs")
     store = capture.get("receipt_store_closure")
     store_files = store.get("files") if isinstance(store, dict) else None
+    store_by_path = (
+        {
+            item.get("relative_path"): item
+            for item in store_files
+            if isinstance(item, dict)
+        }
+        if isinstance(store_files, list)
+        else {}
+    )
+    expected_receipt_path = f"receipts/{receipt_sha256[:2]}/{receipt_sha256}.json"
+    expected_evidence_path = f"evidence/{evidence_sha256[:2]}/{evidence_sha256}.json"
+    stored_receipt = {
+        key: value for key, value in terminal.items() if key != "receipt_sha256"
+    }
+    stored_evidence = {
+        key: value for key, value in evidence.items() if key != "bundle_sha256"
+    }
     if (
         not isinstance(store, dict)
         or set(store) != RECEIPT_STORE_CLOSURE_KEYS
         or store.get("schema_version") != "crebain.closed-loop-receipt-store-closure.v1"
         or not isinstance(store_files, list)
-        or not store_files
+        or len(store_files) < 4
         or any(
             not isinstance(item, dict)
             or set(item) != {"relative_path", "size_bytes", "sha256"}
@@ -474,10 +724,17 @@ def validate_capture(
         != sorted({item["relative_path"] for item in store_files})
         or store.get("file_count") != len(store_files)
         or store.get("total_bytes") != sum(item["size_bytes"] for item in store_files)
-        or store.get("receipt_artifact_path")
-        not in {item["relative_path"] for item in store_files}
-        or store.get("evidence_artifact_path")
-        not in {item["relative_path"] for item in store_files}
+        or store.get("receipt_artifact_path") != expected_receipt_path
+        or store.get("evidence_artifact_path") != expected_evidence_path
+        or store_by_path.get(expected_receipt_path, {}).get("sha256") != receipt_sha256
+        or store_by_path.get(expected_receipt_path, {}).get("size_bytes")
+        != len(canonical(stored_receipt))
+        or store_by_path.get(expected_evidence_path, {}).get("sha256")
+        != evidence_sha256
+        or store_by_path.get(expected_evidence_path, {}).get("size_bytes")
+        != len(canonical(stored_evidence))
+        or "store.json" not in store_by_path
+        or "writer.lock" not in store_by_path
         or PROOF.assert_canonical_digest(
             store,
             field="closure_sha256",
@@ -532,6 +789,7 @@ def validate_capture(
         "receipt_store_id": store["store_id"],
         "receipt_store_closure_sha256": store["closure_sha256"],
         "engram_source_closure_sha256": source["closure_sha256"],
+        "engram_source_roster_sha256": source_roster_sha256,
         "observed_build_receipt_exact_sha256": installed_proof[
             "observed_build_receipt_exact_sha256"
         ],
@@ -550,6 +808,7 @@ def build_index(
     config_bytes: bytes,
     installed_proof: Mapping[str, Any],
     installed_proof_bytes: bytes,
+    crebain_source_identity: Mapping[str, Any],
     engram_identity: Mapping[str, Any],
     capture_rows: list[dict[str, Any]],
     tool_source_bytes: Mapping[str, bytes],
@@ -557,6 +816,7 @@ def build_index(
     if [row.get("drone_count") for row in capture_rows] != [1, 2, 3]:
         fail("operational capture index requires the exact 1/2/3-drone roster")
     PROOF.verify_pack_source_lineage(installed_proof, engram_identity)
+    verify_crebain_source_lineage(installed_proof, crebain_source_identity)
     if (
         installed_proof.get("build_stage_seal_install_lineage_verified") is not True
         or installed_proof.get("build_stage_seal_pack_install_lineage_verified")
@@ -565,7 +825,7 @@ def build_index(
         fail("operational package proof lacks build-through-install lineage")
     if any(set(row) != CAPTURE_ROW_KEYS for row in capture_rows):
         fail(
-            "operational capture row member roster differs from the exact 15-key contract"
+            "operational capture row member roster differs from the exact 16-key contract"
         )
     expected_capture_paths = [
         "capture-1-drone.json",
@@ -581,7 +841,8 @@ def build_index(
         or len({row["capture_sha256"] for row in capture_rows}) != 3
         or len({row["evidence_bundle_sha256"] for row in capture_rows}) != 3
         or len({row["receipt_store_id"] for row in capture_rows}) != 3
-        or len({row["engram_source_closure_sha256"] for row in capture_rows}) != 1
+        or len({row["engram_source_closure_sha256"] for row in capture_rows}) != 3
+        or len({row["engram_source_roster_sha256"] for row in capture_rows}) != 1
         or len({row["observed_build_receipt_exact_sha256"] for row in capture_rows})
         != 1
         or next(
@@ -619,6 +880,7 @@ def build_index(
             "files": tool_source_rows,
             "roster_sha256": sha256(canonical(tool_source_rows)),
         },
+        "crebain_source_repository": dict(crebain_source_identity),
         "engram": dict(engram_identity),
         "package": {
             key: installed_proof[key]
@@ -665,7 +927,9 @@ def build_index(
             "one_two_three_drone_roster": True,
             "distinct_receipt_and_evidence_identities": True,
             "distinct_closed_receipt_stores": True,
-            "common_clean_engram_source_closure": True,
+            "common_clean_engram_source_roster": True,
+            "distinct_engram_runtime_source_closures": True,
+            "crebain_source_lineage_common": True,
             "installed_package_lineage_common": True,
             "observed_build_stage_seal_install_lineage_common": True,
             "engram_pack_source_lineage_common": True,
@@ -693,6 +957,11 @@ def run_suite(arguments: argparse.Namespace) -> None:
     )
     installed_path = Path(os.path.abspath(arguments.installed_proof))
     installed_proof, installed_bytes = PROOF.load_installed_proof(installed_path)
+    crebain_source_identity = verify_immutable_crebain_checkout(
+        ROOT,
+        installed_proof["crebain_commit"],
+    )
+    verify_crebain_source_lineage(installed_proof, crebain_source_identity)
     engram_root = arguments.engram_root.resolve(strict=True)
     engram_identity = PROOF.verify_immutable_engram_checkout(
         engram_root,
@@ -705,15 +974,30 @@ def run_suite(arguments: argparse.Namespace) -> None:
     parent = output.parent.resolve(strict=True)
     if output.parent != parent:
         fail("operational suite output parent must not use a symlink")
+    try:
+        output_relative = output.relative_to(ROOT).as_posix()
+    except ValueError:
+        fail("operational suite output must remain inside the CREBAIN repository")
     tool_source_bytes = {
         relative: PROOF.read_regular(ROOT / relative, MAX_DOCUMENT_BYTES)
         for relative in sorted(TOOL_SOURCE_ROLES)
     }
     staging = Path(tempfile.mkdtemp(prefix=".crebain-real-nest-suite-", dir=parent))
     os.chmod(staging, 0o700)
+    try:
+        staging_relative = staging.relative_to(ROOT).as_posix()
+    except ValueError:
+        fail("operational suite staging must remain inside the CREBAIN repository")
+    allowed_untracked_paths = tuple(
+        sorted(f"{staging_relative}/{name}" for name in PUBLICATION_FILES)
+    )
+    published_untracked_paths = tuple(
+        sorted(f"{output_relative}/{name}" for name in PUBLICATION_FILES)
+    )
     published = False
     try:
         capture_rows: list[dict[str, Any]] = []
+        capture_payloads: dict[str, bytes] = {}
         for row in suite["runs"]:
             count = row["drone_count"]
             receipt_store = (
@@ -769,6 +1053,7 @@ def run_suite(arguments: argparse.Namespace) -> None:
                 capture_path,
                 f"{count}-drone real-NEST capture",
             )
+            capture_payloads[capture_name] = capture_bytes
             capture_rows.append(
                 validate_capture(
                     capture,
@@ -781,12 +1066,16 @@ def run_suite(arguments: argparse.Namespace) -> None:
                     engram_commit=arguments.engram_commit,
                 )
             )
+            if receipt_store.is_symlink() or not receipt_store.is_dir():
+                fail(f"{count}-drone receipt store is not one private directory")
+            shutil.rmtree(receipt_store)
         index = build_index(
             suite=suite,
             suite_bytes=suite_bytes,
             config_bytes=config_bytes,
             installed_proof=installed_proof,
             installed_proof_bytes=installed_bytes,
+            crebain_source_identity=crebain_source_identity,
             engram_identity=engram_identity,
             capture_rows=capture_rows,
             tool_source_bytes=tool_source_bytes,
@@ -798,6 +1087,8 @@ def run_suite(arguments: argparse.Namespace) -> None:
             label="real-NEST evidence index",
             fail=fail,
         )
+        publication_payloads = {"INDEX.json": index_bytes, **capture_payloads}
+        verify_publication_roster(staging, publication_payloads)
         if (
             any(
                 PROOF.read_regular(ROOT / relative, MAX_DOCUMENT_BYTES) != payload
@@ -810,9 +1101,37 @@ def run_suite(arguments: argparse.Namespace) -> None:
             != engram_identity
         ):
             fail(
-                "suite code, package proof, or Engram checkout changed before publication"
+                "suite code, package proof, or source checkout changed before publication"
             )
-        os.replace(staging, output)
+        verify_publication_roster(staging, publication_payloads)
+        final_source_identity = verify_immutable_crebain_checkout(
+            ROOT,
+            installed_proof["crebain_commit"],
+            allowed_untracked_paths=allowed_untracked_paths,
+        )
+        if final_source_identity != crebain_source_identity:
+            fail("CREBAIN source identity changed before publication")
+        verify_crebain_source_lineage(installed_proof, final_source_identity)
+
+        def verify_installed_publication() -> None:
+            published_source_identity = verify_immutable_crebain_checkout(
+                ROOT,
+                installed_proof["crebain_commit"],
+                allowed_untracked_paths=published_untracked_paths,
+            )
+            if published_source_identity != crebain_source_identity:
+                fail("CREBAIN source identity changed after evidence publication")
+            verify_crebain_source_lineage(
+                installed_proof,
+                published_source_identity,
+            )
+
+        install_publication_atomically(
+            staging,
+            output,
+            publication_payloads,
+            verify_installed_publication,
+        )
         published = True
         print(
             canonical(
@@ -827,8 +1146,8 @@ def run_suite(arguments: argparse.Namespace) -> None:
             ).decode("utf-8")
         )
     finally:
-        if not published and staging.exists():
-            shutil.rmtree(staging)
+        if not published:
+            remove_failed_staging(staging)
 
 
 def main() -> None:

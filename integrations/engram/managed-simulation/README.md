@@ -183,7 +183,7 @@ It does not claim identical stochastic output from Engram or NEST.
 
 The release tree does not retain INDEX v1 or capture v1 evidence.
 A current operational publication uses capture v2 and INDEX v2 only.
-Each INDEX capture row has exactly 15 members.
+Each INDEX capture row has exactly 16 members.
 The release verifier rejects every INDEX v1 root.
 Its provider-free self-test includes an exact INDEX v1 negative control.
 The default bootstrap boundary does not open tracked capture files.
@@ -191,14 +191,23 @@ A release capture uses the tracked `operational-inputs/real-nest-3.9-v1/` suite.
 The suite contains exact plans for one, two, and three drones.
 It also contains one shared NEST 3.9 configuration.
 
-After capture v2 publication, verify the tracked operational evidence:
+After capture v2 publication, verify the two-revision evidence:
 
 ```bash
-bun run check:managed-simulation-operational-v2
+bun run check:managed-simulation-operational-v2 -- \
+  --expected-crebain-source-revision <C0> \
+  --expected-crebain-publication-revision <C1>
 ```
 
 This command requires tracked capture v2 files and an INDEX v2 root.
 It rejoins them to the tracked operational input context.
+Revision C0 is the clean source and bootstrap commit.
+Revision C1 must be the sole direct child of C0.
+The C0-to-C1 diff must add only the four evidence JSON files.
+Each added Git entry must be a regular `100644` blob.
+The verifier reads the raw C1 commit parent header.
+It does not use revision-walk parent overrides.
+The verifier repeats all Git, directory, blob, and worktree checks after semantic validation.
 
 Each run creates exactly one reviewed runtime session and one NEST controller.
 The suite gives Engram an absent receipt-store path.
@@ -224,11 +233,17 @@ Create the complete replacement suite with this command:
 Fetch and review Engram before this command.
 The command does not fetch or choose a commit.
 It requires clean Engram `HEAD` and local `origin/main` at the supplied object ID.
+Run the suite from clean CREBAIN revision C0.
+CREBAIN `HEAD` and local `origin/main` must both equal C0.
+The installed proof must bind the same C0 repository identity.
 
 The suite runner verifies all tracked inputs before execution.
 It creates a separate private receipt store for each run.
 It sends frozen plan and configuration copies to Engram.
-It checks every input and tool again before atomic publication.
+It removes each transient receipt-store directory after closure validation.
+It publishes exactly `INDEX.json` and three capture JSON files.
+It checks every input and tool again before publication.
+It repeats the source and byte checks after the directory rename.
 
 Each capture contains its complete plan, configuration, receipts, and neural results.
 It records every loaded host-side Engram Python module.
@@ -241,7 +256,13 @@ Every source path must resolve to one tracked Git blob with identical raw bytes.
 
 The suite index binds all captures to one installed package and Engram commit.
 It requires distinct receipt, evidence, and receipt-store identities.
-The output retains the three closed receipt stores for independent review.
+Each capture embeds its terminal receipt and evidence document.
+Each capture also records the complete bounded store file roster and digests.
+The four-file publication does not retain the transient receipt-store directories.
+
+Commit the four evidence files as revision C1 after the suite succeeds.
+Do not include another path in C1.
+Push C1 to `origin/main` before operational verification.
 
 The command fails on source drift, dirty Git state, untracked source, or lineage drift.
 It also fails if nonzero recovery, lane isolation, washout, or reset checks fail.

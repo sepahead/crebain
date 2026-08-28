@@ -1,8 +1,20 @@
 #!/usr/bin/env node
 
 import { createHash } from 'node:crypto'
-import { readFileSync, readdirSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
+import { spawnSync } from 'node:child_process'
+import {
+  closeSync,
+  constants as fsConstants,
+  existsSync,
+  fstatSync,
+  lstatSync,
+  openSync,
+  readFileSync,
+  readdirSync,
+  readSync,
+  realpathSync,
+} from 'node:fs'
+import { dirname, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -10,8 +22,21 @@ const CRATE = resolve(ROOT, 'src-tauri/crates/managed-simulation')
 const INTEGRATION = resolve(ROOT, 'integrations/engram/managed-simulation')
 const CONTRACTS = resolve(INTEGRATION, 'contracts')
 const EVIDENCE_SCHEMAS = resolve(INTEGRATION, 'evidence-schemas')
-const OPERATIONAL_EVIDENCE = resolve(INTEGRATION, 'operational-evidence/real-nest-3.9-v2')
+const OPERATIONAL_EVIDENCE_RELATIVE =
+  'integrations/engram/managed-simulation/operational-evidence/real-nest-3.9-v2'
+const OPERATIONAL_EVIDENCE = resolve(ROOT, OPERATIONAL_EVIDENCE_RELATIVE)
 const OPERATIONAL_INPUTS = resolve(INTEGRATION, 'operational-inputs/real-nest-3.9-v1')
+const OPERATIONAL_PUBLICATION_NAMES = [
+  'INDEX.json',
+  'capture-1-drone.json',
+  'capture-2-drones.json',
+  'capture-3-drones.json',
+]
+const OPERATIONAL_PUBLICATION_PATHS = OPERATIONAL_PUBLICATION_NAMES.map(
+  (name) => `${OPERATIONAL_EVIDENCE_RELATIVE}/${name}`
+)
+const MAX_OPERATIONAL_EVIDENCE_BYTES = 16 * 1024 * 1024
+const MAX_GIT_OUTPUT_BYTES = 16 * 1024 * 1024
 const EXPECTED_CONTRACT_GATE = [
   'cargo build --locked --release --manifest-path src-tauri/Cargo.toml -p crebain-managed-simulation',
   'python3 scripts/generate-managed-simulation-transcript.py --binary src-tauri/target/release/crebain-managed-simulation --verify integrations/engram/managed-simulation/sample-transcript.json',
@@ -101,6 +126,7 @@ const CAPTURE_ROW_V2_KEYS = new Set([
   'receipt_store_id',
   'receipt_store_closure_sha256',
   'engram_source_closure_sha256',
+  'engram_source_roster_sha256',
   'observed_build_receipt_exact_sha256',
   'population_count',
   'population_neuron_count',
@@ -401,9 +427,9 @@ const EXPECTED_EVIDENCE_SCHEMA_HASHES = {
   'package-stage-receipt.v1.schema.json':
     'c0c6d3d9615d87b320da4220c3e0da5d3a355889d1aacd8e1751dc75a596cfed',
   'real-nest-capture.v2.schema.json':
-    'a57a029a14db0dee40dc5d9b3a0394ec53bb569cedf9ae67ca477ade73b2b4b8',
+    '29c92c15d2e3cc930bfd11f56661a604d1ae3036dd04ac3acea9555acf89fc2f',
   'real-nest-evidence-index.v2.schema.json':
-    '0bac92adbc5fa0e53852b5aca8219ecb28ca44e1bde25e3a5bdeded138d43234',
+    '6bb49f74559dbacc6b41a30541e470bd320adf6da455186569275a17e829f478',
 }
 function fail(message) {
   throw new Error(`Managed simulation boundary check failed: ${message}`)
@@ -426,6 +452,478 @@ function canonical(value) {
       .join(',')}}`
   }
   fail('fixture contains a non-JSON value')
+}
+
+function compareCodePoint(left, right) {
+  return left < right ? -1 : left > right ? 1 : 0
+}
+
+function gitOutput(repositoryRoot, arguments_, maxBytes = MAX_GIT_OUTPUT_BYTES) {
+  const environment = {
+    ...process.env,
+    GIT_NO_REPLACE_OBJECTS: '1',
+    GIT_OPTIONAL_LOCKS: '0',
+    GIT_TERMINAL_PROMPT: '0',
+    LC_ALL: 'C',
+  }
+  delete environment.GIT_DIR
+  delete environment.GIT_WORK_TREE
+  delete environment.GIT_INDEX_FILE
+  const result = spawnSync(
+    'git',
+    [
+      '--no-replace-objects',
+      '-c',
+      'core.fsmonitor=false',
+      '-c',
+      'core.untrackedCache=false',
+      ...arguments_,
+    ],
+    {
+      cwd: repositoryRoot,
+      env: environment,
+      encoding: null,
+      maxBuffer: maxBytes,
+      timeout: 30_000,
+      windowsHide: true,
+    }
+  )
+  if (result.error !== undefined) {
+    fail(`Git ${arguments_[0]} failed: ${result.error.message}`)
+  }
+  if (result.status !== 0) {
+    const diagnostic = Buffer.from(result.stderr ?? Buffer.alloc(0))
+      .subarray(0, 4096)
+      .toString('utf8')
+      .trim()
+    fail(`Git ${arguments_[0]} failed: ${diagnostic}`)
+  }
+  return Buffer.from(result.stdout ?? Buffer.alloc(0))
+}
+
+function oneGitLine(repositoryRoot, arguments_, label) {
+  const output = gitOutput(repositoryRoot, arguments_, 64 * 1024)
+  if (!output.toString('utf8').endsWith('\n')) fail(`${label} lacks one terminal newline`)
+  const value = output.toString('utf8').slice(0, -1)
+  if (value.length === 0 || value.includes('\n') || value.includes('\r')) {
+    fail(`${label} is not one line`)
+  }
+  return value
+}
+
+function nulFields(payload, label) {
+  if (payload.length === 0 || payload[payload.length - 1] !== 0) {
+    fail(`${label} is not NUL terminated`)
+  }
+  return payload
+    .subarray(0, payload.length - 1)
+    .toString('utf8')
+    .split('\0')
+}
+
+function parseRawDiff(payload, objectLength) {
+  const fields = nulFields(payload, 'publication diff')
+  if (fields.length % 2 !== 0) fail('publication diff field count differs')
+  const objectPattern = `[a-f0-9]{${objectLength}}`
+  const headerPattern = new RegExp(
+    `^:([0-7]{6}) ([0-7]{6}) (${objectPattern}) (${objectPattern}) ([A-Z])$`,
+    'u'
+  )
+  const rows = []
+  for (let index = 0; index < fields.length; index += 2) {
+    const match = fields[index].match(headerPattern)
+    if (match === null) fail('publication diff row is malformed')
+    rows.push({
+      old_mode: match[1],
+      new_mode: match[2],
+      old_oid: match[3],
+      new_oid: match[4],
+      status: match[5],
+      path: fields[index + 1],
+    })
+  }
+  return rows
+}
+
+function parseTree(payload, objectLength) {
+  const fields = nulFields(payload, 'publication tree')
+  const objectPattern = `[a-f0-9]{${objectLength}}`
+  const rowPattern = new RegExp(`^([0-7]{6}) ([a-z]+) (${objectPattern})\t(.+)$`, 'u')
+  return fields.map((field) => {
+    const match = field.match(rowPattern)
+    if (match === null) fail('publication tree row is malformed')
+    return { mode: match[1], type: match[2], oid: match[3], path: match[4] }
+  })
+}
+
+function parseCommitParents(payload, objectLength) {
+  const headerEnd = payload.indexOf(Buffer.from('\n\n'))
+  if (headerEnd < 1 || headerEnd > 64 * 1024 || payload.length > 1024 * 1024) {
+    fail('publication commit lacks one bounded complete header')
+  }
+  const header = payload.subarray(0, headerEnd).toString('utf8')
+  if (header.includes('\r') || header.includes('\0')) fail('publication commit header is malformed')
+  const objectPattern = new RegExp(`^[a-f0-9]{${objectLength}}$`, 'u')
+  const lines = header.split('\n')
+  const treeMatch = lines[0]?.match(/^tree ([a-f0-9]+)$/u)
+  if (treeMatch === null || !objectPattern.test(treeMatch[1])) {
+    fail('publication commit tree header is malformed')
+  }
+  const parents = []
+  let parentHeadersEnded = false
+  for (const line of lines.slice(1)) {
+    if (line.startsWith(' ')) continue
+    if (/^parent(?: |$)/u.test(line)) {
+      const parent = line.slice('parent '.length)
+      if (parentHeadersEnded || !objectPattern.test(parent)) {
+        fail('publication commit parent is malformed')
+      }
+      parents.push(parent)
+      continue
+    }
+    if (line.startsWith('tree ') || !/^[A-Za-z][A-Za-z0-9-]* .+$/u.test(line)) {
+      fail('publication commit header is malformed')
+    }
+    parentHeadersEnded = true
+  }
+  return { tree: treeMatch[1], parents }
+}
+
+function normalIndexDigest(payload) {
+  const rows = nulFields(payload, 'tracked Git index')
+  if (rows.length === 0 || rows.some((row) => !row.startsWith('H '))) {
+    fail('CREBAIN tracked index contains non-normal file flags')
+  }
+  return sha256(payload)
+}
+
+function readRegularNoFollow(path, maxBytes) {
+  if (!Number.isInteger(fsConstants.O_NOFOLLOW) || fsConstants.O_NOFOLLOW === 0) {
+    fail('this platform lacks no-follow file admission')
+  }
+  const before = lstatSync(path, { bigint: true })
+  const expectedUid = typeof process.geteuid === 'function' ? BigInt(process.geteuid()) : before.uid
+  if (
+    !before.isFile() ||
+    before.isSymbolicLink() ||
+    before.uid !== expectedUid ||
+    before.nlink !== 1n ||
+    (before.mode & 0o111n) !== 0n ||
+    before.size < 1n ||
+    before.size > BigInt(maxBytes)
+  ) {
+    fail(`operational evidence is not one bounded no-follow regular file: ${path}`)
+  }
+  const descriptor = openSync(path, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW)
+  try {
+    const opened = fstatSync(descriptor, { bigint: true })
+    if (
+      !opened.isFile() ||
+      opened.dev !== before.dev ||
+      opened.ino !== before.ino ||
+      opened.size !== before.size ||
+      opened.mode !== before.mode ||
+      opened.uid !== before.uid ||
+      opened.nlink !== before.nlink
+    ) {
+      fail(`operational evidence identity changed during open: ${path}`)
+    }
+    const payload = Buffer.alloc(Number(opened.size))
+    let offset = 0
+    while (offset < payload.length) {
+      const count = readSync(descriptor, payload, offset, payload.length - offset, offset)
+      if (count <= 0) fail(`operational evidence read stopped early: ${path}`)
+      offset += count
+    }
+    const after = lstatSync(path, { bigint: true })
+    if (
+      after.dev !== opened.dev ||
+      after.ino !== opened.ino ||
+      after.size !== opened.size ||
+      after.mode !== opened.mode ||
+      after.uid !== opened.uid ||
+      after.nlink !== opened.nlink ||
+      after.mtimeNs !== opened.mtimeNs ||
+      after.ctimeNs !== opened.ctimeNs
+    ) {
+      fail(`operational evidence identity changed during read: ${path}`)
+    }
+    return payload
+  } finally {
+    closeSync(descriptor)
+  }
+}
+
+export function assertOperationalPublicationState(
+  state,
+  expectedSourceRevision,
+  expectedPublicationRevision
+) {
+  const objectLength = state.object_format === 'sha1' ? 40 : 64
+  const objectPattern = new RegExp(`^[a-f0-9]{${objectLength}}$`, 'u')
+  if (
+    !['sha1', 'sha256'].includes(state.object_format) ||
+    !objectPattern.test(expectedSourceRevision) ||
+    !objectPattern.test(expectedPublicationRevision) ||
+    expectedSourceRevision === expectedPublicationRevision ||
+    state.head !== expectedPublicationRevision ||
+    state.origin_main !== expectedPublicationRevision ||
+    state.status_hex !== '' ||
+    state.worktree_root !== state.repository_root ||
+    state.is_bare_repository !== 'false' ||
+    state.is_inside_work_tree !== 'true' ||
+    state.grafts_absent !== true ||
+    !isSha256(state.index_flags_sha256) ||
+    state.source_type !== 'commit' ||
+    state.publication_type !== 'commit' ||
+    !objectPattern.test(state.source_tree) ||
+    !objectPattern.test(state.publication_tree) ||
+    canonical(state.parents) !== canonical([expectedSourceRevision]) ||
+    typeof state.repository !== 'string' ||
+    state.repository.length === 0 ||
+    state.repository.includes('\n')
+  ) {
+    fail('operational publication repository identity or direct-parent lineage differs')
+  }
+  const diffRows = [...state.diff_rows].sort((left, right) =>
+    compareCodePoint(left.path, right.path)
+  )
+  const treeRows = [...state.tree_rows].sort((left, right) =>
+    compareCodePoint(left.path, right.path)
+  )
+  if (
+    canonical(diffRows.map((row) => row.path)) !== canonical(OPERATIONAL_PUBLICATION_PATHS) ||
+    canonical(treeRows.map((row) => row.path)) !== canonical(OPERATIONAL_PUBLICATION_PATHS) ||
+    canonical(state.directory_names) !== canonical(OPERATIONAL_PUBLICATION_NAMES) ||
+    diffRows.some(
+      (row) =>
+        row.old_mode !== '000000' ||
+        row.new_mode !== '100644' ||
+        row.old_oid !== '0'.repeat(objectLength) ||
+        row.status !== 'A' ||
+        !objectPattern.test(row.new_oid)
+    ) ||
+    treeRows.some(
+      (row) => row.mode !== '100644' || row.type !== 'blob' || !objectPattern.test(row.oid)
+    ) ||
+    diffRows.some((row, index) => row.new_oid !== treeRows[index].oid) ||
+    canonical(state.worktree_rows.map((row) => row.path)) !==
+      canonical(OPERATIONAL_PUBLICATION_PATHS) ||
+    state.worktree_rows.some(
+      (row, index) =>
+        row.sha256 !== row.blob_sha256 ||
+        row.oid !== treeRows[index].oid ||
+        !Number.isInteger(row.size_bytes) ||
+        row.size_bytes < 1 ||
+        row.size_bytes > MAX_OPERATIONAL_EVIDENCE_BYTES
+    )
+  ) {
+    fail('operational publication is not exactly four added 100644 Git blobs')
+  }
+  return {
+    repository: state.repository,
+    commit: expectedSourceRevision,
+    tree: state.source_tree,
+    origin_main_at_capture: expectedSourceRevision,
+    object_format: state.object_format,
+    clean_at_capture: true,
+  }
+}
+
+export function verifyOperationalPublicationRepository(
+  repositoryRoot,
+  expectedSourceRevision,
+  expectedPublicationRevision
+) {
+  const root = resolve(repositoryRoot)
+  const expectedUid = typeof process.geteuid === 'function' ? BigInt(process.geteuid()) : undefined
+  const rootStatus = lstatSync(root, { bigint: true })
+  if (
+    !rootStatus.isDirectory() ||
+    rootStatus.isSymbolicLink() ||
+    (expectedUid !== undefined && rootStatus.uid !== expectedUid) ||
+    (rootStatus.mode & 0o022n) !== 0n ||
+    realpathSync(root) !== root
+  ) {
+    fail('CREBAIN publication root must be one canonical directory')
+  }
+  const evidenceRoot = resolve(root, OPERATIONAL_EVIDENCE_RELATIVE)
+  const relativeEvidence = relative(root, evidenceRoot)
+  if (
+    relativeEvidence === '' ||
+    relativeEvidence === '..' ||
+    relativeEvidence.startsWith(`..${sep}`)
+  ) {
+    fail('operational evidence directory escapes CREBAIN')
+  }
+  let directory = root
+  for (const part of OPERATIONAL_EVIDENCE_RELATIVE.split('/')) {
+    directory = resolve(directory, part)
+    const status = lstatSync(directory, { bigint: true })
+    if (
+      !status.isDirectory() ||
+      status.isSymbolicLink() ||
+      (expectedUid !== undefined && status.uid !== expectedUid) ||
+      (status.mode & 0o022n) !== 0n ||
+      realpathSync(directory) !== directory
+    ) {
+      fail('operational evidence directory is not one owner-controlled canonical directory')
+    }
+  }
+  const directoryEntries = readdirSync(evidenceRoot, { withFileTypes: true }).sort((left, right) =>
+    compareCodePoint(left.name, right.name)
+  )
+  if (directoryEntries.some((entry) => !entry.isFile() || entry.isSymbolicLink())) {
+    fail('operational evidence directory contains a non-regular entry')
+  }
+  const objectFormat = oneGitLine(root, ['rev-parse', '--show-object-format'], 'Git object format')
+  if (!['sha1', 'sha256'].includes(objectFormat)) fail('Git object format differs')
+  const objectLength = objectFormat === 'sha1' ? 40 : 64
+  const objectPattern = new RegExp(`^[a-f0-9]{${objectLength}}$`, 'u')
+  if (
+    !objectPattern.test(expectedSourceRevision) ||
+    !objectPattern.test(expectedPublicationRevision) ||
+    expectedSourceRevision === expectedPublicationRevision
+  ) {
+    fail('expected CREBAIN source or publication revision is invalid')
+  }
+  const worktreeRoot = oneGitLine(root, ['rev-parse', '--show-toplevel'], 'Git worktree root')
+  const isBareRepository = oneGitLine(
+    root,
+    ['rev-parse', '--is-bare-repository'],
+    'Git bare-repository state'
+  )
+  const isInsideWorkTree = oneGitLine(
+    root,
+    ['rev-parse', '--is-inside-work-tree'],
+    'Git worktree state'
+  )
+  if (
+    resolve(worktreeRoot) !== root ||
+    realpathSync(worktreeRoot) !== root ||
+    isBareRepository !== 'false' ||
+    isInsideWorkTree !== 'true'
+  ) {
+    fail('CREBAIN Git worktree root or repository mode differs')
+  }
+  const indexFlagsSha256 = normalIndexDigest(gitOutput(root, ['ls-files', '-v', '-z', '--']))
+  const graftPath = oneGitLine(root, ['rev-parse', '--git-path', 'info/grafts'], 'Git graft path')
+  if (existsSync(resolve(root, graftPath))) fail('CREBAIN Git graft override is present')
+  const head = oneGitLine(root, ['rev-parse', '--verify', 'HEAD^{commit}'], 'CREBAIN HEAD')
+  const originMain = oneGitLine(
+    root,
+    ['rev-parse', '--verify', 'refs/remotes/origin/main^{commit}'],
+    'CREBAIN origin/main'
+  )
+  const sourceType = oneGitLine(
+    root,
+    ['cat-file', '-t', expectedSourceRevision],
+    'CREBAIN source object type'
+  )
+  const publicationType = oneGitLine(
+    root,
+    ['cat-file', '-t', expectedPublicationRevision],
+    'CREBAIN publication object type'
+  )
+  const sourceTree = oneGitLine(
+    root,
+    ['rev-parse', '--verify', `${expectedSourceRevision}^{tree}`],
+    'CREBAIN source tree'
+  )
+  const publicationCommit = parseCommitParents(
+    gitOutput(root, ['cat-file', 'commit', expectedPublicationRevision], 1024 * 1024),
+    objectLength
+  )
+  const diffRows = parseRawDiff(
+    gitOutput(root, [
+      'diff-tree',
+      '--raw',
+      '-r',
+      '-z',
+      '--no-renames',
+      '--no-commit-id',
+      '--no-abbrev',
+      expectedSourceRevision,
+      expectedPublicationRevision,
+      '--',
+    ]),
+    objectLength
+  )
+  const treeRows = parseTree(
+    gitOutput(root, [
+      'ls-tree',
+      '-r',
+      '-z',
+      '--full-tree',
+      expectedPublicationRevision,
+      '--',
+      OPERATIONAL_EVIDENCE_RELATIVE,
+    ]),
+    objectLength
+  ).sort((left, right) => compareCodePoint(left.path, right.path))
+  const payloads = new Map()
+  const worktreeRows = []
+  for (const row of treeRows) {
+    const localName = row.path.slice(`${OPERATIONAL_EVIDENCE_RELATIVE}/`.length)
+    const payload = readRegularNoFollow(
+      resolve(evidenceRoot, localName),
+      MAX_OPERATIONAL_EVIDENCE_BYTES
+    )
+    const blob = gitOutput(root, ['cat-file', 'blob', row.oid], MAX_OPERATIONAL_EVIDENCE_BYTES + 1)
+    payloads.set(localName, payload)
+    worktreeRows.push({
+      path: row.path,
+      oid: row.oid,
+      size_bytes: payload.length,
+      sha256: sha256(payload),
+      blob_sha256: sha256(blob),
+    })
+    if (!payload.equals(blob)) fail(`operational evidence differs from its Git blob: ${row.path}`)
+  }
+  const state = {
+    object_format: objectFormat,
+    repository: oneGitLine(root, ['remote', 'get-url', 'origin'], 'CREBAIN origin'),
+    repository_root: root,
+    worktree_root: worktreeRoot,
+    is_bare_repository: isBareRepository,
+    is_inside_work_tree: isInsideWorkTree,
+    grafts_absent: true,
+    index_flags_sha256: indexFlagsSha256,
+    head,
+    origin_main: originMain,
+    status_hex: gitOutput(root, [
+      'status',
+      '--porcelain=v1',
+      '-z',
+      '--untracked-files=all',
+    ]).toString('hex'),
+    source_type: sourceType,
+    publication_type: publicationType,
+    source_tree: sourceTree,
+    publication_tree: publicationCommit.tree,
+    parents: publicationCommit.parents,
+    diff_rows: diffRows,
+    tree_rows: treeRows,
+    directory_names: directoryEntries.map((entry) => entry.name),
+    worktree_rows: worktreeRows,
+  }
+  const sourceRepository = assertOperationalPublicationState(
+    state,
+    expectedSourceRevision,
+    expectedPublicationRevision
+  )
+  return {
+    state,
+    state_sha256: sha256(Buffer.from(canonical(state))),
+    sourceRepository,
+    indexPayload: payloads.get('INDEX.json'),
+    capturePayloads: new Map(
+      OPERATIONAL_PUBLICATION_NAMES.filter((name) => name !== 'INDEX.json').map((name) => [
+        name,
+        payloads.get(name),
+      ])
+    ),
+  }
 }
 
 function strictJsonObject(payload, label) {
@@ -1085,6 +1583,7 @@ export function assertEvidenceSchemas(payloads) {
         'profile',
         'input_suite',
         'tool_source_closure',
+        'crebain_source_repository',
         'engram',
         'package',
         'installed_package_proof_exact_sha256',
@@ -1134,7 +1633,7 @@ export function assertEvidenceSchemas(payloads) {
         row.properties === null ||
         typeof row.properties !== 'object'
       ) {
-        fail('real-NEST v2 capture-row schema is not the exact 15-key closure')
+        fail('real-NEST v2 capture-row schema is not the exact 16-key closure')
       }
       compareSets(
         new Set(row.required),
@@ -1638,7 +2137,7 @@ function assertInstalledProofV3(proof) {
   return proof
 }
 
-function operationalInputContext() {
+function operationalInputContext(crebainSourceRepository) {
   const suiteBytes = readFileSync(resolve(OPERATIONAL_INPUTS, 'SUITE.json'))
   const suite = JSON.parse(suiteBytes)
   const configRow = suite.nest_config
@@ -1661,6 +2160,7 @@ function operationalInputContext() {
       [...TOOL_SOURCE_ROLES].map(([path]) => [path, readFileSync(resolve(ROOT, path))])
     ),
     plans,
+    crebainSourceRepository,
   }
 }
 
@@ -1671,6 +2171,7 @@ function assertNestedSourceClosure(capture, index, proof) {
       'schema_version',
       'discovery_policy',
       'git',
+      'source_roster_sha256',
       'host_modules',
       'worker_project_modules',
       'worker_project_source_roster_sha256',
@@ -1710,6 +2211,7 @@ function assertNestedSourceClosure(capture, index, proof) {
     git.commit.length !== objectLength ||
     git.tree.length !== objectLength ||
     git.clean !== true ||
+    !isSha256(source.source_roster_sha256) ||
     !isSha256(source.worker_project_source_roster_sha256) ||
     !isSha256(source.reviewed_runtime_handshake_receipt_sha256) ||
     !isSha256(source.reviewed_runtime_guardian_source_sha256)
@@ -1717,6 +2219,15 @@ function assertNestedSourceClosure(capture, index, proof) {
     fail('Engram source closure identity differs')
   }
   assertSourceRows(source.sources, 'Engram source closure roster', false, 0, 1024)
+  const stableRosterSha256 = sha256(
+    Buffer.concat([
+      Buffer.from('crebain.engram-source-roster.v1\0'),
+      Buffer.from(canonical(source.sources)),
+    ])
+  )
+  if (source.source_roster_sha256 !== stableRosterSha256) {
+    fail('Engram source roster digest differs')
+  }
   if (source.sources.some((row) => row.git_blob.length !== objectLength)) {
     fail('Engram source closure Git object format differs')
   }
@@ -1786,8 +2297,20 @@ function assertReceiptStoreClosure(store, terminal, evidence) {
     new Set(['relative_path', 'size_bytes', 'sha256']),
     'closed-loop receipt-store file roster'
   )
+  const receiptPath = `receipts/${terminal.receipt_sha256.slice(0, 2)}/${terminal.receipt_sha256}.json`
+  const evidencePath = `evidence/${evidence.bundle_sha256.slice(0, 2)}/${evidence.bundle_sha256}.json`
+  const byPath = new Map(store.files.map((row) => [row.relative_path, row]))
+  const storedReceipt = Object.fromEntries(
+    Object.entries(terminal).filter(([key]) => key !== 'receipt_sha256')
+  )
+  const storedEvidence = Object.fromEntries(
+    Object.entries(evidence).filter(([key]) => key !== 'bundle_sha256')
+  )
+  const receiptRow = byPath.get(receiptPath)
+  const evidenceRow = byPath.get(evidencePath)
   if (
     !/^clrs_[a-f0-9]{64}$/u.test(store.store_id) ||
+    store.files.length < 4 ||
     store.files.some(
       (row) =>
         !Number.isInteger(row.size_bytes) ||
@@ -1797,8 +2320,14 @@ function assertReceiptStoreClosure(store, terminal, evidence) {
     ) ||
     store.file_count !== store.files.length ||
     store.total_bytes !== store.files.reduce((sum, row) => sum + row.size_bytes, 0) ||
-    !store.files.some((row) => row.relative_path === store.receipt_artifact_path) ||
-    !store.files.some((row) => row.relative_path === store.evidence_artifact_path) ||
+    store.receipt_artifact_path !== receiptPath ||
+    store.evidence_artifact_path !== evidencePath ||
+    receiptRow?.sha256 !== terminal.receipt_sha256 ||
+    receiptRow?.size_bytes !== Buffer.byteLength(canonical(storedReceipt)) ||
+    evidenceRow?.sha256 !== evidence.bundle_sha256 ||
+    evidenceRow?.size_bytes !== Buffer.byteLength(canonical(storedEvidence)) ||
+    !byPath.has('store.json') ||
+    !byPath.has('writer.lock') ||
     store.receipt_sha256 !== terminal.receipt_sha256 ||
     store.evidence_bundle_sha256 !== evidence.bundle_sha256
   ) {
@@ -1938,6 +2467,8 @@ function expectedPopulationTopology(capture) {
   }
   const channelIds = []
   const populationNames = []
+  const populationBindings = new Map()
+  const axisRoster = []
   const prefixes = new Set()
   for (const channel of channels) {
     if (
@@ -1963,24 +2494,108 @@ function expectedPopulationTopology(capture) {
     }
     channelIds.push(channel.channel_id)
     prefixes.add(channel.neural_population_prefix)
+    const channelPopulations = []
     for (let axis = 0; axis < 3; axis += 1) {
-      populationNames.push(
+      axisRoster.push([channel.channel_id, axis])
+      channelPopulations.push(
         `${channel.neural_population_prefix}.d${axis.toString().padStart(2, '0')}.negative`,
         `${channel.neural_population_prefix}.d${axis.toString().padStart(2, '0')}.positive`
       )
     }
+    channelPopulations.sort(compareCodePoint)
+    populationBindings.set(channel.channel_id, channelPopulations)
+    populationNames.push(...channelPopulations)
   }
+  populationNames.sort(compareCodePoint)
+  const populationRoster = channelIds.map((channelId) => ({
+    channel_id: channelId,
+    population_names: populationBindings.get(channelId),
+  }))
   return {
-    session_count: 1,
-    drone_count: channelIds.length,
-    action_axis_count: channelIds.length * 3,
-    population_count: channelIds.length * 6,
-    population_neuron_count: channelIds.length * 6 * populationSize,
-    device_node_count: channelIds.length * 12,
-    connection_count: channelIds.length * 12 * populationSize,
-    population_names: populationNames,
-    derived_population_roster_sha256: sha256(canonical(populationNames)),
+    topology: {
+      session_count: 1,
+      drone_count: channelIds.length,
+      action_axis_count: channelIds.length * 3,
+      population_count: channelIds.length * 6,
+      population_neuron_count: channelIds.length * 6 * populationSize,
+      device_node_count: channelIds.length * 12,
+      connection_count: channelIds.length * 12 * populationSize,
+      population_names: populationNames,
+      derived_population_roster_sha256: sha256(canonical(populationNames)),
+    },
+    channelIds,
+    populationBindings,
+    populationRoster,
+    axisRoster,
   }
+}
+
+function assertPopulationTopology(capture, evidence, neuralSteps, count) {
+  const expected = expectedPopulationTopology(capture)
+  const topology = expected.topology
+  if (canonical(capture.population_topology) !== canonical(topology)) {
+    fail(`${count}-drone v2 capture exact 6N topology summary differs`)
+  }
+  const session = evidence.nest_session_readback
+  const connectionRows = session.connection_readbacks
+  const expectedConnections = topology.population_names.flatMap((populationName) =>
+    ['input', 'recorder'].map((direction) => [populationName, direction])
+  )
+  if (
+    !Array.isArray(connectionRows) ||
+    connectionRows.some((row) => row === null || typeof row !== 'object' || Array.isArray(row)) ||
+    canonical(connectionRows.map((row) => [row.population_name, row.direction])) !==
+      canonical(expectedConnections) ||
+    connectionRows.some((row) => row.connection_count !== capture.nest_config.population_size) ||
+    session.connection_readback_sha256 !== sha256(canonical(connectionRows)) ||
+    session.observed_population_neuron_count !== topology.population_neuron_count ||
+    session.observed_device_node_count !== topology.device_node_count ||
+    session.observed_total_connection_count !== topology.connection_count ||
+    canonical(session.population_roster) !== canonical(expected.populationRoster) ||
+    session.population_roster_sha256 !== sha256(canonical(session.population_roster))
+  ) {
+    fail(`${count}-drone v2 capture NEST topology readback differs`)
+  }
+  for (const [stepIndex, [execution, neuralStep]] of evidence.step_execution_receipts
+    .map((execution, index) => [execution, neuralSteps[index]])
+    .entries()) {
+    for (const key of [
+      'generator_schedule_readbacks',
+      'input_weight_readbacks',
+      'completed_window_readbacks',
+      'population_event_deltas',
+    ]) {
+      if (
+        !Array.isArray(execution[key]) ||
+        canonical(execution[key].map((row) => row?.population_name)) !==
+          canonical(topology.population_names)
+      ) {
+        fail(`${count}-drone v2 capture step ${stepIndex + 1} population readback differs`)
+      }
+    }
+    if (
+      canonical(execution.channel_safety_readbacks?.map((row) => row?.channel_id)) !==
+        canonical(expected.channelIds) ||
+      canonical(
+        execution.encoded_control_inputs?.map((row) => [row?.channel_id, row?.action_index])
+      ) !== canonical(expected.axisRoster) ||
+      canonical(neuralStep.request?.channels?.map((row) => row?.channel_id)) !==
+        canonical(expected.channelIds) ||
+      canonical(neuralStep.result?.proposals?.map((row) => row?.channel_id)) !==
+        canonical(expected.channelIds)
+    ) {
+      fail(`${count}-drone v2 capture step ${stepIndex + 1} channel topology differs`)
+    }
+    for (const proposal of neuralStep.result.proposals) {
+      if (
+        canonical(proposal.source_populations) !==
+        canonical(expected.populationBindings.get(proposal.channel_id))
+      ) {
+        fail(`${count}-drone v2 capture step ${stepIndex + 1} proposal population binding differs`)
+      }
+    }
+  }
+  return topology
 }
 
 function assertCaptureBehaviorV2(capture, count) {
@@ -2144,20 +2759,9 @@ function assertCaptureV2(capturePayload, row, index, context) {
   }
   const source = assertNestedSourceClosure(capture, index, proof)
   const { terminal, evidence } = assertCaptureBehaviorV2(capture, count)
+  const expectedTopology = assertPopulationTopology(capture, evidence, capture.neural_steps, count)
   assertWorkerGuardianClosure(capture.nest_worker_guardian_closure, evidence, source)
   const store = assertReceiptStoreClosure(capture.receipt_store_closure, terminal, evidence)
-  const expectedTopology = expectedPopulationTopology(capture)
-  if (canonical(capture.population_topology) !== canonical(expectedTopology)) {
-    fail(`${count}-drone v2 capture exact 6N topology summary differs`)
-  }
-  const session = evidence.nest_session_readback
-  if (
-    session.observed_population_neuron_count !== expectedTopology.population_neuron_count ||
-    session.observed_device_node_count !== expectedTopology.device_node_count ||
-    session.observed_total_connection_count !== expectedTopology.connection_count
-  ) {
-    fail(`${count}-drone v2 capture NEST topology readback differs`)
-  }
   const summary = capture.summary
   if (
     summary?.run_status !== 'completed' ||
@@ -2279,6 +2883,7 @@ function assertCaptureV2(capturePayload, row, index, context) {
     receipt_store_id: store.store_id,
     receipt_store_closure_sha256: store.closure_sha256,
     engram_source_closure_sha256: source.closure_sha256,
+    engram_source_roster_sha256: source.source_roster_sha256,
     observed_build_receipt_exact_sha256: proof.observed_build_receipt_exact_sha256,
     population_count: expectedTopology.population_count,
     population_neuron_count: expectedTopology.population_neuron_count,
@@ -2287,7 +2892,7 @@ function assertCaptureV2(capturePayload, row, index, context) {
     session_count: expectedTopology.session_count,
   }
   if (canonical(row) !== canonical(expectedRow)) {
-    fail(`${count}-drone v2 capture row differs from its exact 15-key closure`)
+    fail(`${count}-drone v2 capture row differs from its exact 16-key closure`)
   }
   return { capture, proof, source, store }
 }
@@ -2304,6 +2909,7 @@ function assertOperationalEvidenceV2(indexPayload, capturePayloads, context) {
       'profile',
       'input_suite',
       'tool_source_closure',
+      'crebain_source_repository',
       'engram',
       'package',
       'installed_package_proof_exact_sha256',
@@ -2367,6 +2973,34 @@ function assertOperationalEvidenceV2(indexPayload, capturePayloads, context) {
   ) {
     fail('real-NEST v2 tool source binding differs')
   }
+  const crebainSource = exactKeys(
+    index.crebain_source_repository,
+    new Set([
+      'repository',
+      'commit',
+      'tree',
+      'origin_main_at_capture',
+      'object_format',
+      'clean_at_capture',
+    ]),
+    'real-NEST v2 CREBAIN source repository'
+  )
+  const crebainObjectLength = crebainSource.object_format === 'sha1' ? 40 : 64
+  if (
+    canonical(crebainSource) !== canonical(context.crebainSourceRepository) ||
+    typeof crebainSource.repository !== 'string' ||
+    crebainSource.repository.length === 0 ||
+    crebainSource.repository.includes('\n') ||
+    !isGitObject(crebainSource.commit) ||
+    !isGitObject(crebainSource.tree) ||
+    crebainSource.origin_main_at_capture !== crebainSource.commit ||
+    !['sha1', 'sha256'].includes(crebainSource.object_format) ||
+    crebainSource.commit.length !== crebainObjectLength ||
+    crebainSource.tree.length !== crebainObjectLength ||
+    crebainSource.clean_at_capture !== true
+  ) {
+    fail('real-NEST v2 CREBAIN source repository identity differs')
+  }
   exactKeys(
     index.engram,
     new Set(['repository', 'commit', 'tree', 'origin_main', 'object_format', 'clean']),
@@ -2426,6 +3060,9 @@ function assertOperationalEvidenceV2(indexPayload, capturePayloads, context) {
     !/^pkggen_[a-f0-9]{64}$/u.test(index.package.package_generation_id) ||
     !/^inst_[a-f0-9]{64}$/u.test(index.package.installation_id) ||
     index.package.crebain_origin_main !== index.package.crebain_commit ||
+    index.package.crebain_commit !== crebainSource.commit ||
+    index.package.crebain_tree !== crebainSource.tree ||
+    index.package.crebain_origin_main !== crebainSource.origin_main_at_capture ||
     index.package.engram_commit !== index.engram.commit ||
     index.package.engram_tree !== index.engram.tree ||
     index.package.engram_origin_main !== index.engram.origin_main ||
@@ -2479,14 +3116,29 @@ function assertOperationalEvidenceV2(indexPayload, capturePayloads, context) {
     'real-NEST v2 capture file roster'
   )
   const proofs = observed.map((row) => row.proof)
+  const buildSourceRepositories = proofs.map((proof) => {
+    const repository = proof.observed_build_receipt.repository
+    return {
+      repository: repository.origin,
+      commit: repository.commit,
+      tree: repository.tree,
+      origin_main_at_capture: repository.origin_main,
+      object_format: repository.object_format,
+      clean_at_capture: repository.clean,
+    }
+  })
   if (
     new Set(index.captures.map((row) => row.receipt_sha256)).size !== 3 ||
     new Set(index.captures.map((row) => row.capture_sha256)).size !== 3 ||
     new Set(index.captures.map((row) => row.evidence_bundle_sha256)).size !== 3 ||
     new Set(index.captures.map((row) => row.receipt_store_id)).size !== 3 ||
-    new Set(index.captures.map((row) => row.engram_source_closure_sha256)).size !== 1 ||
+    new Set(index.captures.map((row) => row.engram_source_closure_sha256)).size !== 3 ||
+    new Set(index.captures.map((row) => row.engram_source_roster_sha256)).size !== 1 ||
     new Set(index.captures.map((row) => row.observed_build_receipt_exact_sha256)).size !== 1 ||
     new Set(proofs.map((proof) => canonical(proof))).size !== 1 ||
+    buildSourceRepositories.some(
+      (repository) => canonical(repository) !== canonical(crebainSource)
+    ) ||
     index.installed_package_proof_exact_sha256 !== sha256(Buffer.from(`${canonical(proofs[0])}\n`))
   ) {
     fail('real-NEST v2 captures reuse run identities or differ in common lineage')
@@ -2498,7 +3150,9 @@ function assertOperationalEvidenceV2(indexPayload, capturePayloads, context) {
     'one_two_three_drone_roster',
     'distinct_receipt_and_evidence_identities',
     'distinct_closed_receipt_stores',
-    'common_clean_engram_source_closure',
+    'common_clean_engram_source_roster',
+    'distinct_engram_runtime_source_closures',
+    'crebain_source_lineage_common',
     'installed_package_lineage_common',
     'engram_pack_source_lineage_common',
     'observed_build_stage_seal_install_lineage_common',
@@ -2525,8 +3179,8 @@ export function assertOperationalEvidence(indexPayload, capturePayloads, context
   assertOperationalEvidenceV2(indexPayload, capturePayloads, context)
 }
 
-function assertTrackedOperationalEvidenceV2() {
-  const evidenceIndex = readFileSync(resolve(OPERATIONAL_EVIDENCE, 'INDEX.json'))
+function assertTrackedOperationalEvidenceV2(publication) {
+  const evidenceIndex = publication.indexPayload
   const evidenceIndexDocument = strictJsonObject(evidenceIndex, 'tracked real-NEST evidence index')
   if (evidenceIndexDocument.schema_version !== 'crebain.real-nest-closed-loop-evidence-index.v2') {
     fail('operational-v2 mode requires tracked real-NEST INDEX v2')
@@ -2534,19 +3188,41 @@ function assertTrackedOperationalEvidenceV2() {
   if (!Array.isArray(evidenceIndexDocument.captures)) {
     fail('operational-v2 mode requires the tracked capture-v2 roster')
   }
-  const captures = new Map(
-    evidenceIndexDocument.captures.map((row) => {
-      const path = safeRelative(row?.path, 'tracked real-NEST capture path', '.json')
-      return [path, readFileSync(resolve(OPERATIONAL_EVIDENCE, path))]
-    })
+  for (const row of evidenceIndexDocument.captures) {
+    safeRelative(row?.path, 'tracked real-NEST capture path', '.json')
+  }
+  assertOperationalEvidence(
+    evidenceIndex,
+    publication.capturePayloads,
+    operationalInputContext(publication.sourceRepository)
   )
-  assertOperationalEvidence(evidenceIndex, captures, operationalInputContext())
+}
+
+function parseArguments(argv) {
+  if (argv.length === 0) return undefined
+  if (
+    argv.length !== 5 ||
+    argv[0] !== '--operational-v2' ||
+    argv[1] !== '--expected-crebain-source-revision' ||
+    argv[3] !== '--expected-crebain-publication-revision'
+  ) {
+    fail(
+      'usage: check-managed-simulation-boundary.mjs [--operational-v2 --expected-crebain-source-revision C0 --expected-crebain-publication-revision C1]'
+    )
+  }
+  return { expectedSourceRevision: argv[2], expectedPublicationRevision: argv[4] }
 }
 
 function main(argv = process.argv.slice(2)) {
-  if (argv.length > 1 || (argv.length === 1 && argv[0] !== '--operational-v2')) {
-    fail('usage: check-managed-simulation-boundary.mjs [--operational-v2]')
-  }
+  const operational = parseArguments(argv)
+  const initialPublication =
+    operational === undefined
+      ? undefined
+      : verifyOperationalPublicationRepository(
+          ROOT,
+          operational.expectedSourceRevision,
+          operational.expectedPublicationRevision
+        )
   const manifestSource = readFileSync(resolve(CRATE, 'Cargo.toml'), 'utf8')
   const sourceRoot = resolve(CRATE, 'src')
   const sourceNames = readdirSync(sourceRoot)
@@ -2588,10 +3264,18 @@ function main(argv = process.argv.slice(2)) {
   assertEvidenceSchemas(evidenceSchemaPayloads)
   assertManifestBoundary(JSON.parse(readFileSync(resolve(INTEGRATION, 'manifest.template.json'))))
   assertTranscriptBoundary(JSON.parse(readFileSync(resolve(INTEGRATION, 'sample-transcript.json'))))
-  if (argv[0] === '--operational-v2') {
-    assertTrackedOperationalEvidenceV2()
+  if (operational !== undefined) {
+    assertTrackedOperationalEvidenceV2(initialPublication)
+    const finalPublication = verifyOperationalPublicationRepository(
+      ROOT,
+      operational.expectedSourceRevision,
+      operational.expectedPublicationRevision
+    )
+    if (finalPublication.state_sha256 !== initialPublication.state_sha256) {
+      fail('operational publication repository changed during verification')
+    }
     console.log(
-      'OK: managed simulation bootstrap boundary and tracked real-NEST v2 evidence are exact'
+      'OK: managed simulation bootstrap boundary and two-revision real-NEST v2 publication are exact'
     )
     return
   }

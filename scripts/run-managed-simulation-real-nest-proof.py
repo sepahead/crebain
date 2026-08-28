@@ -633,10 +633,25 @@ def git_output(engram_root: Path, *arguments: str) -> bytes:
     environment = os.environ.copy()
     for name in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"):
         environment.pop(name, None)
-    environment.update({"GIT_OPTIONAL_LOCKS": "0", "LC_ALL": "C"})
+    environment.update(
+        {
+            "GIT_NO_REPLACE_OBJECTS": "1",
+            "GIT_OPTIONAL_LOCKS": "0",
+            "GIT_TERMINAL_PROMPT": "0",
+            "LC_ALL": "C",
+        }
+    )
     try:
         completed = run_bounded_process(
-            ["git", *arguments],
+            [
+                "git",
+                "--no-replace-objects",
+                "-c",
+                "core.fsmonitor=false",
+                "-c",
+                "core.untrackedCache=false",
+                *arguments,
+            ],
             cwd=engram_root,
             env=environment,
             input_bytes=None,
@@ -661,9 +676,35 @@ def verify_immutable_engram_checkout(
 ) -> dict[str, Any]:
     if not GIT_COMMIT_PATTERN.fullmatch(expected_commit):
         fail("expected Engram commit is not one lowercase Git object ID")
-    head = git_output(engram_root, "rev-parse", "--verify", "HEAD").decode().strip()
+    engram_root = absolute_without_resolving_leaf(engram_root)
+    if engram_root.resolve(strict=True) != engram_root:
+        fail("Engram checkout root must be one canonical directory")
+    top_level = git_output(engram_root, "rev-parse", "--show-toplevel").decode().strip()
+    if (
+        top_level != str(engram_root)
+        or git_output(engram_root, "rev-parse", "--is-inside-work-tree") != b"true\n"
+        or git_output(engram_root, "rev-parse", "--is-bare-repository") != b"false\n"
+    ):
+        fail("Engram Git worktree identity differs from the canonical checkout")
+    index_rows = git_output(engram_root, "ls-files", "-v", "-z", "--")
+    if (
+        not index_rows
+        or not index_rows.endswith(b"\0")
+        or any(not row.startswith(b"H ") for row in index_rows[:-1].split(b"\0"))
+    ):
+        fail("Engram tracked index contains non-normal file flags")
+    head = (
+        git_output(engram_root, "rev-parse", "--verify", "HEAD^{commit}")
+        .decode()
+        .strip()
+    )
     remote_main = (
-        git_output(engram_root, "rev-parse", "--verify", "refs/remotes/origin/main")
+        git_output(
+            engram_root,
+            "rev-parse",
+            "--verify",
+            "refs/remotes/origin/main^{commit}",
+        )
         .decode()
         .strip()
     )
@@ -680,7 +721,12 @@ def verify_immutable_engram_checkout(
     if status:
         fail("Engram checkout is not clean")
     tree = (
-        git_output(engram_root, "rev-parse", f"{expected_commit}^{{tree}}")
+        git_output(
+            engram_root,
+            "rev-parse",
+            "--verify",
+            f"{expected_commit}^{{tree}}",
+        )
         .decode()
         .strip()
     )
@@ -1063,7 +1109,22 @@ def expected_population_topology(
                     f"{prefix}.d{action_index:02}.positive",
                 )
             )
-    return channel_ids, population_names, axis_roster
+    return channel_ids, sorted(population_names), axis_roster
+
+
+def expected_population_bindings(
+    plan_document: Mapping[str, Any],
+) -> dict[str, list[str]]:
+    bindings: dict[str, list[str]] = {}
+    for channel in plan_document["channels"]:
+        channel_id = channel["channel_id"]
+        prefix = channel["neural_population_prefix"]
+        bindings[channel_id] = sorted(
+            f"{prefix}.d{action_index:02}.{sign}"
+            for action_index in range(3)
+            for sign in ("negative", "positive")
+        )
+    return bindings
 
 
 def exact_named_rows(
@@ -1128,16 +1189,19 @@ def assert_population_topology(
         != expected_population_count * population_size * 2
     ):
         fail("NEST node or connection totals differ from the exact 6N topology")
+    population_bindings = expected_population_bindings(plan_document)
     reported_roster = session.get("population_roster")
-    if reported_roster is not None:
-        if not isinstance(reported_roster, list):
-            fail("NEST population roster is not an array")
-        names = [
-            row.get("population_name") if isinstance(row, dict) else row
-            for row in reported_roster
-        ]
-        if names != population_names:
-            fail("NEST population roster differs from the exact 6N topology")
+    expected_roster = [
+        {
+            "channel_id": channel_id,
+            "population_names": population_bindings[channel_id],
+        }
+        for channel_id in channel_ids
+    ]
+    if reported_roster != expected_roster:
+        fail("NEST population roster differs from the exact 6N topology")
+    if session.get("population_roster_sha256") != sha256(canonical(reported_roster)):
+        fail("NEST population roster digest differs")
 
     executions = evidence_document.get("step_execution_receipts")
     if (
@@ -1195,10 +1259,8 @@ def assert_population_topology(
             != channel_ids
         ):
             fail(f"step {step_index} neural proposal channel roster differs")
-        for channel_ordinal, proposal in enumerate(proposals):
-            expected_sources = population_names[
-                channel_ordinal * 6 : (channel_ordinal + 1) * 6
-            ]
+        for proposal in proposals:
+            expected_sources = population_bindings[proposal["channel_id"]]
             if proposal.get("source_populations") != expected_sources:
                 fail(f"step {step_index} neural proposal population roster differs")
     return {
@@ -1326,6 +1388,19 @@ def collect_receipt_store_closure(
     receipt_document: Mapping[str, Any],
     evidence_document: Mapping[str, Any],
 ) -> dict[str, Any]:
+    receipt_artifact = dict(receipt_document)
+    evidence_artifact = dict(evidence_document)
+    receipt_digest = receipt_artifact.pop("receipt_sha256", None)
+    evidence_digest = evidence_artifact.pop("bundle_sha256", None)
+    if (
+        not isinstance(receipt_digest, str)
+        or not SHA256_PATTERN.fullmatch(receipt_digest)
+        or sha256(canonical(receipt_artifact)) != receipt_digest
+        or not isinstance(evidence_digest, str)
+        or not SHA256_PATTERN.fullmatch(evidence_digest)
+        or sha256(canonical(evidence_artifact)) != evidence_digest
+    ):
+        fail("receipt store artifact digests differ from their canonical material")
     observed_root = root.lstat()
     if (
         not stat.S_ISDIR(observed_root.st_mode)
@@ -1378,9 +1453,11 @@ def collect_receipt_store_closure(
             )
             if path.suffix == ".json":
                 document = decode_json_object(payload, f"receipt store {relative}")
-                if document == receipt_document:
+                if payload != canonical(document):
+                    fail("receipt store JSON artifact is not canonical")
+                if document == receipt_artifact:
                     receipt_paths.append(relative)
-                if document == evidence_document:
+                if document == evidence_artifact:
                     evidence_paths.append(relative)
             if (
                 len(rows) > MAX_RECEIPT_STORE_FILES
@@ -1388,21 +1465,50 @@ def collect_receipt_store_closure(
             ):
                 fail("receipt store closure exceeds its file or byte bound")
     rows.sort(key=lambda row: row["relative_path"])
-    if len(receipt_paths) != 1 or len(evidence_paths) != 1:
+    expected_receipt_path = f"receipts/{receipt_digest[:2]}/{receipt_digest}.json"
+    expected_evidence_path = f"evidence/{evidence_digest[:2]}/{evidence_digest}.json"
+    by_path = {row["relative_path"]: row for row in rows}
+    if (
+        receipt_paths != [expected_receipt_path]
+        or evidence_paths != [expected_evidence_path]
+        or by_path.get(expected_receipt_path, {}).get("sha256") != receipt_digest
+        or by_path.get(expected_evidence_path, {}).get("sha256") != evidence_digest
+        or "store.json" not in by_path
+        or "writer.lock" not in by_path
+    ):
         fail("receipt store does not contain one exact receipt and evidence artifact")
     closure: dict[str, Any] = {
         "schema_version": "crebain.closed-loop-receipt-store-closure.v1",
         "store_id": store_id,
-        "receipt_sha256": receipt_document.get("receipt_sha256"),
-        "receipt_artifact_path": receipt_paths[0],
-        "evidence_bundle_sha256": evidence_document.get("bundle_sha256"),
-        "evidence_artifact_path": evidence_paths[0],
+        "receipt_sha256": receipt_digest,
+        "receipt_artifact_path": expected_receipt_path,
+        "evidence_bundle_sha256": evidence_digest,
+        "evidence_artifact_path": expected_evidence_path,
         "file_count": len(rows),
         "total_bytes": total_bytes,
         "files": rows,
     }
     closure["closure_sha256"] = sha256(canonical(closure))
     return closure
+
+
+def assert_receipt_store_reopen(
+    store: Any,
+    *,
+    store_id: str,
+    receipt_sha256: str,
+    receipt_document: Mapping[str, Any],
+    evidence_document: Mapping[str, Any],
+) -> None:
+    reopened_receipt = store.open(receipt_sha256)
+    reopened_evidence = store.open_evidence(receipt_sha256)
+    if (
+        receipt_store_identity(store) != store_id
+        or reopened_evidence is None
+        or model_document(reopened_receipt) != receipt_document
+        or model_document(reopened_evidence) != evidence_document
+    ):
+        fail("receipt store semantic reopen differs before capture publication")
 
 
 def build_closed_loop_namespace(
@@ -1823,6 +1929,9 @@ def main() -> None:
             key=lambda row: (row["role"], row["relative_path"]),
         ),
         "sources": git_sources,
+        "source_roster_sha256": sha256(
+            b"crebain.engram-source-roster.v1\0" + canonical(git_sources)
+        ),
     }
     source_closure["closure_sha256"] = sha256(canonical(source_closure))
     source_sha256 = {
@@ -1830,6 +1939,17 @@ def main() -> None:
     }
 
     verify_source_inventory(engram_root, after_inventory)
+    reopened_store = cli.ClosedLoopReceiptStore(
+        receipt_store_path,
+        lock_timeout_ms=arguments.receipt_lock_timeout_ms,
+    )
+    assert_receipt_store_reopen(
+        reopened_store,
+        store_id=store_id,
+        receipt_sha256=receipt_document["receipt_sha256"],
+        receipt_document=receipt_document,
+        evidence_document=evidence_document,
+    )
     if (
         collect_receipt_store_closure(
             receipt_store_path,

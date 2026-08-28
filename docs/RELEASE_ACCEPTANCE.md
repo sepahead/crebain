@@ -77,7 +77,9 @@ Each run must prove the exact 6N population topology and complete receipt-store 
 The suite must publish distinct receipt and evidence identities from one immutable Engram commit.
 Capture v2 and INDEX v2 bind the exact one-, two-, and three-drone suite.
 Current evidence uses `operational-evidence/real-nest-3.9-v2/`.
-Run `bun run check:managed-simulation-operational-v2` only after tracking that complete suite.
+Commit only the four evidence JSON files as direct child C1 of clean source revision C0.
+Push C1 before operational verification.
+Pass both exact revisions to `bun run check:managed-simulation-operational-v2 --`.
 The operational verifier requires the tracked input context and rejects every INDEX v1 root.
 
 ### Supply chain and static analysis

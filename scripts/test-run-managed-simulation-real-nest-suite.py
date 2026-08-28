@@ -8,6 +8,7 @@ import importlib.util
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -42,6 +43,14 @@ def minimal_installed_proof() -> dict[str, object]:
         "git_mode": "100755",
         "git_blob": "1" * 40,
     }
+    crebain_repository = {
+        "origin": "git@example.invalid:crebain.git",
+        "commit": "a" * 40,
+        "tree": "b" * 40,
+        "origin_main": "a" * 40,
+        "object_format": "sha1",
+        "clean": True,
+    }
     fields = {
         "store_id": "extstore_" + "1" * 64,
         "package_generation_id": "pkggen_" + "2" * 64,
@@ -49,6 +58,7 @@ def minimal_installed_proof() -> dict[str, object]:
         "crebain_commit": "a" * 40,
         "crebain_tree": "b" * 40,
         "crebain_origin_main": "a" * 40,
+        "observed_build_receipt": {"repository": crebain_repository},
         "engram_commit": "d" * 40,
         "engram_tree": "e" * 40,
         "engram_origin_main": "d" * 40,
@@ -94,6 +104,20 @@ def minimal_installed_proof() -> dict[str, object]:
     ):
         fields[field] = f"{index:x}"[-1] * 64
     return fields
+
+
+def minimal_crebain_source_identity(
+    proof: dict[str, object],
+) -> dict[str, object]:
+    repository = proof["observed_build_receipt"]["repository"]
+    return {
+        "repository": repository["origin"],
+        "commit": repository["commit"],
+        "tree": repository["tree"],
+        "origin_main_at_capture": repository["origin_main"],
+        "object_format": repository["object_format"],
+        "clean_at_capture": repository["clean"],
+    }
 
 
 def write_json(path: Path, value: object) -> bytes:
@@ -287,6 +311,7 @@ class RealNestSuiteTests(unittest.TestCase):
             SUITE.verify_suite_inputs()
         )
         proof = minimal_installed_proof()
+        crebain_source_identity = minimal_crebain_source_identity(proof)
         tool_source_bytes = {
             path: f"fixture {path}\n".encode() for path in SUITE.TOOL_SOURCE_ROLES
         }
@@ -300,7 +325,8 @@ class RealNestSuiteTests(unittest.TestCase):
                 "evidence_bundle_sha256": "def"[count - 1] * 64,
                 "receipt_store_id": "clrs_" + str(count) * 64,
                 "receipt_store_closure_sha256": str(count + 3) * 64,
-                "engram_source_closure_sha256": "f" * 64,
+                "engram_source_closure_sha256": "789"[count - 1] * 64,
+                "engram_source_roster_sha256": "f" * 64,
                 "observed_build_receipt_exact_sha256": proof[
                     "observed_build_receipt_exact_sha256"
                 ],
@@ -318,6 +344,7 @@ class RealNestSuiteTests(unittest.TestCase):
             config_bytes=config_bytes,
             installed_proof=proof,
             installed_proof_bytes=b"proof\n",
+            crebain_source_identity=crebain_source_identity,
             engram_identity={
                 "repository": "git@example.invalid:engram.git",
                 "commit": "d" * 40,
@@ -335,10 +362,34 @@ class RealNestSuiteTests(unittest.TestCase):
         )
         self.assertEqual(index["package"]["engram_commit"], "d" * 40)
         self.assertEqual(index["package"]["engram_extension_tool_git_blob"], "1" * 40)
+        self.assertEqual(index["crebain_source_repository"], crebain_source_identity)
+        self.assertTrue(index["assertions"]["crebain_source_lineage_common"])
         self.assertTrue(index["assertions"]["engram_pack_source_lineage_common"])
         self.assertTrue(
             index["assertions"]["observed_build_stage_seal_pack_install_lineage_common"]
         )
+
+        wrong_crebain = copy.deepcopy(crebain_source_identity)
+        wrong_crebain["commit"] = "9" * 40
+        with self.assertRaisesRegex(RuntimeError, "package proof differs"):
+            SUITE.build_index(
+                suite=suite,
+                suite_bytes=suite_bytes,
+                config_bytes=config_bytes,
+                installed_proof=proof,
+                installed_proof_bytes=b"proof\n",
+                crebain_source_identity=wrong_crebain,
+                engram_identity={
+                    "repository": "git@example.invalid:engram.git",
+                    "commit": "d" * 40,
+                    "tree": "e" * 40,
+                    "origin_main": "d" * 40,
+                    "object_format": "sha1",
+                    "clean": True,
+                },
+                capture_rows=rows,
+                tool_source_bytes=tool_source_bytes,
+            )
 
         wrong_engram = copy.deepcopy(proof)
         wrong_engram["engram_pack_receipt"]["engram_repository"]["commit"] = "9" * 40
@@ -354,6 +405,7 @@ class RealNestSuiteTests(unittest.TestCase):
                 config_bytes=config_bytes,
                 installed_proof=wrong_engram,
                 installed_proof_bytes=b"proof\n",
+                crebain_source_identity=crebain_source_identity,
                 engram_identity={
                     "repository": "git@example.invalid:engram.git",
                     "commit": "d" * 40,
@@ -375,6 +427,7 @@ class RealNestSuiteTests(unittest.TestCase):
                 config_bytes=config_bytes,
                 installed_proof=incomplete_lineage,
                 installed_proof_bytes=b"proof\n",
+                crebain_source_identity=crebain_source_identity,
                 engram_identity={
                     "repository": "git@example.invalid:engram.git",
                     "commit": "d" * 40,
@@ -395,6 +448,7 @@ class RealNestSuiteTests(unittest.TestCase):
                 config_bytes=config_bytes,
                 installed_proof=proof,
                 installed_proof_bytes=b"proof\n",
+                crebain_source_identity=crebain_source_identity,
                 engram_identity={
                     "repository": "git@example.invalid:engram.git",
                     "commit": "d" * 40,
@@ -406,19 +460,64 @@ class RealNestSuiteTests(unittest.TestCase):
                 capture_rows=hostile,
                 tool_source_bytes=tool_source_bytes,
             )
+        reused_runtime_closure = copy.deepcopy(rows)
+        reused_runtime_closure[2]["engram_source_closure_sha256"] = (
+            reused_runtime_closure[1]["engram_source_closure_sha256"]
+        )
+        with self.assertRaisesRegex(RuntimeError, "source closure"):
+            SUITE.build_index(
+                suite=suite,
+                suite_bytes=suite_bytes,
+                config_bytes=config_bytes,
+                installed_proof=proof,
+                installed_proof_bytes=b"proof\n",
+                crebain_source_identity=crebain_source_identity,
+                engram_identity={
+                    "repository": "git@example.invalid:engram.git",
+                    "commit": "d" * 40,
+                    "tree": "e" * 40,
+                    "origin_main": "d" * 40,
+                    "object_format": "sha1",
+                    "clean": True,
+                },
+                capture_rows=reused_runtime_closure,
+                tool_source_bytes=tool_source_bytes,
+            )
+        changed_source_roster = copy.deepcopy(rows)
+        changed_source_roster[2]["engram_source_roster_sha256"] = "0" * 64
+        with self.assertRaisesRegex(RuntimeError, "source closure"):
+            SUITE.build_index(
+                suite=suite,
+                suite_bytes=suite_bytes,
+                config_bytes=config_bytes,
+                installed_proof=proof,
+                installed_proof_bytes=b"proof\n",
+                crebain_source_identity=crebain_source_identity,
+                engram_identity={
+                    "repository": "git@example.invalid:engram.git",
+                    "commit": "d" * 40,
+                    "tree": "e" * 40,
+                    "origin_main": "d" * 40,
+                    "object_format": "sha1",
+                    "clean": True,
+                },
+                capture_rows=changed_source_roster,
+                tool_source_bytes=tool_source_bytes,
+            )
         for roster_drift in ("missing", "extra"):
             malformed = copy.deepcopy(rows)
             if roster_drift == "missing":
                 del malformed[0]["session_count"]
             else:
                 malformed[0]["unexpected"] = True
-            with self.assertRaisesRegex(RuntimeError, "exact 15-key contract"):
+            with self.assertRaisesRegex(RuntimeError, "exact 16-key contract"):
                 SUITE.build_index(
                     suite=suite,
                     suite_bytes=suite_bytes,
                     config_bytes=config_bytes,
                     installed_proof=proof,
                     installed_proof_bytes=b"proof\n",
+                    crebain_source_identity=crebain_source_identity,
                     engram_identity={
                         "repository": "git@example.invalid:engram.git",
                         "commit": "d" * 40,
@@ -430,6 +529,181 @@ class RealNestSuiteTests(unittest.TestCase):
                     capture_rows=malformed,
                     tool_source_bytes=tool_source_bytes,
                 )
+
+    def test_crebain_source_revision_is_clean_and_joins_installed_proof(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="crebain-source-revision-") as raw:
+            repository = Path(raw).resolve()
+
+            def git(*arguments: str) -> str:
+                completed = subprocess.run(
+                    ["git", *arguments],
+                    cwd=repository,
+                    check=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+                return completed.stdout.strip()
+
+            git("init", "--quiet")
+            git("config", "user.name", "CREBAIN test")
+            git("config", "user.email", "crebain-test@example.invalid")
+            source = repository / "source.txt"
+            source.write_text("source\n", encoding="utf-8")
+            git("add", "--", "source.txt")
+            git("commit", "--quiet", "-m", "source")
+            commit = git("rev-parse", "HEAD^{commit}")
+            tree = git("rev-parse", "HEAD^{tree}")
+            object_format = git("rev-parse", "--show-object-format")
+            origin = "https://example.invalid/crebain.git"
+            git("remote", "add", "origin", origin)
+            git("update-ref", "refs/remotes/origin/main", commit)
+
+            identity = SUITE.verify_immutable_crebain_checkout(repository, commit)
+            self.assertEqual(
+                identity,
+                {
+                    "repository": origin,
+                    "commit": commit,
+                    "tree": tree,
+                    "origin_main_at_capture": commit,
+                    "object_format": object_format,
+                    "clean_at_capture": True,
+                },
+            )
+            proof = minimal_installed_proof()
+            proof["crebain_commit"] = commit
+            proof["crebain_tree"] = tree
+            proof["crebain_origin_main"] = commit
+            proof["observed_build_receipt"]["repository"] = {
+                "origin": origin,
+                "commit": commit,
+                "tree": tree,
+                "origin_main": commit,
+                "object_format": object_format,
+                "clean": True,
+            }
+            SUITE.verify_crebain_source_lineage(proof, identity)
+
+            staging = repository / "staging"
+            staging.mkdir()
+            allowed = tuple(
+                sorted(f"staging/{name}" for name in SUITE.PUBLICATION_FILES)
+            )
+            for name in SUITE.PUBLICATION_FILES:
+                (staging / name).write_text(f"{name}\n", encoding="utf-8")
+            self.assertEqual(
+                SUITE.verify_immutable_crebain_checkout(
+                    repository,
+                    commit,
+                    allowed_untracked_paths=allowed,
+                ),
+                identity,
+            )
+
+            (staging / "unexpected.json").write_text("{}\n", encoding="utf-8")
+            with self.assertRaisesRegex(
+                RuntimeError, "unexpected tracked or untracked"
+            ):
+                SUITE.verify_immutable_crebain_checkout(
+                    repository,
+                    commit,
+                    allowed_untracked_paths=allowed,
+                )
+            (staging / "unexpected.json").unlink()
+
+            moved = staging / "capture-replaced.json"
+            (staging / "capture-1-drone.json").rename(moved)
+            with self.assertRaisesRegex(
+                RuntimeError, "unexpected tracked or untracked"
+            ):
+                SUITE.verify_immutable_crebain_checkout(
+                    repository,
+                    commit,
+                    allowed_untracked_paths=allowed,
+                )
+            moved.rename(staging / "capture-1-drone.json")
+
+            shutil.rmtree(staging)
+            git("update-index", "--assume-unchanged", "--", "source.txt")
+            with self.assertRaisesRegex(RuntimeError, "non-normal file flags"):
+                SUITE.verify_immutable_crebain_checkout(repository, commit)
+            git("update-index", "--no-assume-unchanged", "--", "source.txt")
+
+            git("update-index", "--skip-worktree", "--", "source.txt")
+            with self.assertRaisesRegex(RuntimeError, "non-normal file flags"):
+                SUITE.verify_immutable_crebain_checkout(repository, commit)
+            git("update-index", "--no-skip-worktree", "--", "source.txt")
+
+            with tempfile.TemporaryDirectory(
+                prefix="crebain-redirected-worktree-"
+            ) as redirected:
+                git("config", "core.worktree", redirected)
+                with self.assertRaisesRegex(RuntimeError, "worktree root"):
+                    SUITE.verify_immutable_crebain_checkout(repository, commit)
+                git(
+                    "--git-dir",
+                    str(repository / ".git"),
+                    "config",
+                    "--unset",
+                    "core.worktree",
+                )
+
+            source.write_text("dirty\n", encoding="utf-8")
+            with self.assertRaisesRegex(
+                RuntimeError, "unexpected tracked or untracked"
+            ):
+                SUITE.verify_immutable_crebain_checkout(repository, commit)
+
+    def test_publication_roster_is_exact_regular_and_byte_stable(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="crebain-publication-roster-") as raw:
+            root = Path(raw).resolve()
+            payloads = {
+                name: f"{name}\n".encode("utf-8") for name in SUITE.PUBLICATION_FILES
+            }
+            for name, payload in payloads.items():
+                (root / name).write_bytes(payload)
+            SUITE.verify_publication_roster(root, payloads)
+
+            (root / "unexpected.json").write_text("{}\n", encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "exact four-file roster"):
+                SUITE.verify_publication_roster(root, payloads)
+            (root / "unexpected.json").unlink()
+
+            target = root / "capture-1-drone.json"
+            saved = root / "saved-capture.json"
+            target.rename(saved)
+            target.symlink_to(saved)
+            with self.assertRaisesRegex(RuntimeError, "exact four-file roster"):
+                SUITE.verify_publication_roster(root, payloads)
+
+    def test_post_install_failure_restores_staging_and_leaves_no_output(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="crebain-publication-install-") as raw:
+            parent = Path(raw).resolve()
+            staging = parent / "staging"
+            output = parent / "output"
+            staging.mkdir(mode=0o700)
+            payloads = {
+                name: f"{name}\n".encode("utf-8") for name in SUITE.PUBLICATION_FILES
+            }
+            for name, payload in payloads.items():
+                (staging / name).write_bytes(payload)
+
+            def injected_failure() -> None:
+                raise RuntimeError("injected post-install failure")
+
+            with self.assertRaisesRegex(RuntimeError, "injected post-install failure"):
+                SUITE.install_publication_atomically(
+                    staging,
+                    output,
+                    payloads,
+                    injected_failure,
+                )
+            self.assertFalse(output.exists())
+            self.assertFalse(output.is_symlink())
+            SUITE.verify_publication_roster(staging, payloads)
+            SUITE.remove_failed_staging(staging)
+            self.assertFalse(staging.exists())
 
     def test_capture_v2_exact_closures_and_hostile_plan_drift(self) -> None:
         suite, _suite_bytes, plans, _config_path, config_bytes = (
@@ -507,6 +781,10 @@ class RealNestSuiteTests(unittest.TestCase):
                 "object_format": "sha1",
                 "clean": True,
             },
+            "source_roster_sha256": SUITE.sha256(
+                b"crebain.engram-source-roster.v1\0"
+                + SUITE.canonical([source_row, tool_source_row])
+            ),
             "host_modules": [
                 {
                     "module_name": "scripts.engram_extension",
@@ -523,27 +801,54 @@ class RealNestSuiteTests(unittest.TestCase):
             "sources": [source_row, tool_source_row],
         }
         source_closure["closure_sha256"] = SUITE.sha256(SUITE.canonical(source_closure))
+        receipt_path = (
+            f"receipts/{terminal['receipt_sha256'][:2]}/"
+            f"{terminal['receipt_sha256']}.json"
+        )
+        evidence_path = (
+            f"evidence/{evidence['bundle_sha256'][:2]}/{evidence['bundle_sha256']}.json"
+        )
+        stored_receipt = {
+            key: value for key, value in terminal.items() if key != "receipt_sha256"
+        }
+        stored_evidence = {
+            key: value for key, value in evidence.items() if key != "bundle_sha256"
+        }
+        store_files = sorted(
+            [
+                {
+                    "relative_path": evidence_path,
+                    "size_bytes": len(SUITE.canonical(stored_evidence)),
+                    "sha256": evidence["bundle_sha256"],
+                },
+                {
+                    "relative_path": receipt_path,
+                    "size_bytes": len(SUITE.canonical(stored_receipt)),
+                    "sha256": terminal["receipt_sha256"],
+                },
+                {
+                    "relative_path": "store.json",
+                    "size_bytes": 2,
+                    "sha256": SUITE.sha256(b"{}"),
+                },
+                {
+                    "relative_path": "writer.lock",
+                    "size_bytes": 0,
+                    "sha256": SUITE.sha256(b""),
+                },
+            ],
+            key=lambda item: item["relative_path"],
+        )
         store_closure = {
             "schema_version": "crebain.closed-loop-receipt-store-closure.v1",
             "store_id": receipt_store_id,
             "receipt_sha256": terminal["receipt_sha256"],
-            "receipt_artifact_path": "receipts/receipt.json",
+            "receipt_artifact_path": receipt_path,
             "evidence_bundle_sha256": evidence["bundle_sha256"],
-            "evidence_artifact_path": "evidence/evidence.json",
-            "file_count": 2,
-            "total_bytes": 2,
-            "files": [
-                {
-                    "relative_path": "evidence/evidence.json",
-                    "size_bytes": 1,
-                    "sha256": "2" * 64,
-                },
-                {
-                    "relative_path": "receipts/receipt.json",
-                    "size_bytes": 1,
-                    "sha256": "3" * 64,
-                },
-            ],
+            "evidence_artifact_path": evidence_path,
+            "file_count": len(store_files),
+            "total_bytes": sum(item["size_bytes"] for item in store_files),
+            "files": store_files,
         }
         store_closure["closure_sha256"] = SUITE.sha256(SUITE.canonical(store_closure))
         topology = SUITE.PROOF.assert_population_topology(

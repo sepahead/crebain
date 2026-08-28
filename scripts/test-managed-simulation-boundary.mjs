@@ -1,7 +1,21 @@
 #!/usr/bin/env node
 
 import { createHash } from 'node:crypto'
-import { readFileSync, readdirSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import {
+  chmodSync,
+  mkdirSync,
+  linkSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -12,8 +26,10 @@ import {
   assertEvidenceSchemas,
   assertManifestBoundary,
   assertOperationalEvidence,
+  assertOperationalPublicationState,
   assertStandardFaultCodeSchemaBoundary,
   assertTranscriptBoundary,
+  verifyOperationalPublicationRepository,
 } from './check-managed-simulation-boundary.mjs'
 import {
   canonical,
@@ -76,6 +92,17 @@ const PROVENANCE_PREFIX = 'integrations/engram/managed-simulation/contracts/'
 const HISTORICAL_V1_INDEX = Buffer.from(
   '{"schema_version":"crebain.real-nest-closed-loop-evidence-index.v1"}\n'
 )
+const OPERATIONAL_PUBLICATION_NAMES = [
+  'INDEX.json',
+  'capture-1-drone.json',
+  'capture-2-drones.json',
+  'capture-3-drones.json',
+]
+const OPERATIONAL_EVIDENCE_RELATIVE =
+  'integrations/engram/managed-simulation/operational-evidence/real-nest-3.9-v2'
+const OPERATIONAL_PUBLICATION_PATHS = OPERATIONAL_PUBLICATION_NAMES.map(
+  (name) => `${OPERATIONAL_EVIDENCE_RELATIVE}/${name}`
+)
 
 function contractProvenance() {
   const copies = [...CONTRACT_PAYLOADS].map(([name, payload]) => {
@@ -126,6 +153,225 @@ function expectFailure(name, action, expected) {
     message = error instanceof Error ? error.message : String(error)
   }
   if (!message.includes(expected)) throw new Error(`${name}: expected ${expected}; got ${message}`)
+}
+
+function publicationState() {
+  const source = 'a'.repeat(40)
+  const publication = 'b'.repeat(40)
+  const treeRows = OPERATIONAL_PUBLICATION_PATHS.map((path, index) => ({
+    mode: '100644',
+    type: 'blob',
+    oid: String(index + 1).repeat(40),
+    path,
+  }))
+  return {
+    source,
+    publication,
+    state: {
+      object_format: 'sha1',
+      repository: 'https://example.invalid/crebain.git',
+      repository_root: '/canonical/crebain',
+      worktree_root: '/canonical/crebain',
+      is_bare_repository: 'false',
+      is_inside_work_tree: 'true',
+      grafts_absent: true,
+      index_flags_sha256: 'd'.repeat(64),
+      head: publication,
+      origin_main: publication,
+      status_hex: '',
+      source_type: 'commit',
+      publication_type: 'commit',
+      source_tree: 'c'.repeat(40),
+      publication_tree: 'e'.repeat(40),
+      parents: [source],
+      diff_rows: treeRows.map((row) => ({
+        old_mode: '000000',
+        new_mode: '100644',
+        old_oid: '0'.repeat(40),
+        new_oid: row.oid,
+        status: 'A',
+        path: row.path,
+      })),
+      tree_rows: treeRows,
+      directory_names: OPERATIONAL_PUBLICATION_NAMES,
+      worktree_rows: treeRows.map((row, index) => ({
+        path: row.path,
+        oid: row.oid,
+        size_bytes: index + 1,
+        sha256: String(index + 5).repeat(64),
+        blob_sha256: String(index + 5).repeat(64),
+      })),
+    },
+  }
+}
+
+{
+  const fixture = publicationState()
+  const sourceRepository = assertOperationalPublicationState(
+    fixture.state,
+    fixture.source,
+    fixture.publication
+  )
+  if (
+    sourceRepository.commit !== fixture.source ||
+    sourceRepository.origin_main_at_capture !== fixture.source ||
+    sourceRepository.clean_at_capture !== true
+  ) {
+    throw new Error('two-revision-publication-positive: source projection differs')
+  }
+}
+
+for (const [name, mutate] of [
+  [
+    'two-revision-wrong-parent',
+    (state) => {
+      state.parents = ['d'.repeat(40)]
+    },
+  ],
+  [
+    'two-revision-dirty-publication',
+    (state) => {
+      state.status_hex = '3f3f20'
+    },
+  ],
+  [
+    'two-revision-executable-evidence',
+    (state) => {
+      state.diff_rows[0].new_mode = '100755'
+    },
+  ],
+  [
+    'two-revision-extra-diff-row',
+    (state) => {
+      state.diff_rows.push({
+        ...state.diff_rows[0],
+        new_oid: '9'.repeat(40),
+        path: 'unexpected.txt',
+      })
+    },
+  ],
+  [
+    'two-revision-worktree-blob-drift',
+    (state) => {
+      state.worktree_rows[0].blob_sha256 = 'f'.repeat(64)
+    },
+  ],
+]) {
+  const fixture = publicationState()
+  mutate(fixture.state)
+  expectFailure(
+    name,
+    () => assertOperationalPublicationState(fixture.state, fixture.source, fixture.publication),
+    name === 'two-revision-wrong-parent' || name === 'two-revision-dirty-publication'
+      ? 'repository identity or direct-parent lineage differs'
+      : 'exactly four added 100644 Git blobs'
+  )
+}
+
+{
+  const repository = realpathSync(mkdtempSync(resolve(tmpdir(), 'crebain-publication-git-')))
+  const git = (...arguments_) =>
+    execFileSync('git', arguments_, { cwd: repository, encoding: 'utf8' }).trim()
+  try {
+    git('init', '--quiet')
+    git('config', 'user.name', 'CREBAIN publication test')
+    git('config', 'user.email', 'crebain-publication@example.invalid')
+    writeFileSync(resolve(repository, 'source.txt'), 'source\n')
+    git('add', '--', 'source.txt')
+    git('commit', '--quiet', '-m', 'source C0')
+    const source = git('rev-parse', 'HEAD^{commit}')
+    const evidenceRoot = resolve(repository, OPERATIONAL_EVIDENCE_RELATIVE)
+    mkdirSync(evidenceRoot, { recursive: true })
+    for (const name of OPERATIONAL_PUBLICATION_NAMES) {
+      writeFileSync(resolve(evidenceRoot, name), `{"fixture":"${name}"}\n`)
+    }
+    git('add', '--', OPERATIONAL_EVIDENCE_RELATIVE)
+    git('commit', '--quiet', '-m', 'evidence C1')
+    const publication = git('rev-parse', 'HEAD^{commit}')
+    git('remote', 'add', 'origin', 'https://example.invalid/crebain.git')
+    git('update-ref', 'refs/remotes/origin/main', publication)
+
+    const verified = verifyOperationalPublicationRepository(repository, source, publication)
+    if (verified.sourceRepository.commit !== source) {
+      throw new Error('two-revision-git-positive: source commit differs')
+    }
+
+    chmodSync(evidenceRoot, 0o777)
+    expectFailure(
+      'two-revision-git-writable-directory',
+      () => verifyOperationalPublicationRepository(repository, source, publication),
+      'owner-controlled canonical directory'
+    )
+    chmodSync(evidenceRoot, 0o755)
+
+    const capturePath = resolve(evidenceRoot, 'capture-1-drone.json')
+    const captureBytes = readFileSync(capturePath)
+    writeFileSync(capturePath, '{"dirty":true}\n')
+    expectFailure(
+      'two-revision-git-dirty-worktree',
+      () => verifyOperationalPublicationRepository(repository, source, publication),
+      'differs from its Git blob'
+    )
+    writeFileSync(capturePath, captureBytes)
+
+    unlinkSync(capturePath)
+    linkSync(resolve(evidenceRoot, 'INDEX.json'), capturePath)
+    expectFailure(
+      'two-revision-git-hard-link',
+      () => verifyOperationalPublicationRepository(repository, source, publication),
+      'bounded no-follow regular file'
+    )
+    unlinkSync(capturePath)
+    writeFileSync(capturePath, captureBytes)
+
+    const graftPath = resolve(repository, '.git/info/grafts')
+    writeFileSync(graftPath, `${publication} ${'f'.repeat(40)}\n`)
+    expectFailure(
+      'two-revision-git-graft-override',
+      () => verifyOperationalPublicationRepository(repository, source, publication),
+      'graft override is present'
+    )
+    unlinkSync(graftPath)
+
+    git('update-index', '--assume-unchanged', '--', 'source.txt')
+    expectFailure(
+      'two-revision-git-assume-unchanged',
+      () => verifyOperationalPublicationRepository(repository, source, publication),
+      'non-normal file flags'
+    )
+    git('update-index', '--no-assume-unchanged', '--', 'source.txt')
+
+    git('update-index', '--skip-worktree', '--', 'source.txt')
+    expectFailure(
+      'two-revision-git-skip-worktree',
+      () => verifyOperationalPublicationRepository(repository, source, publication),
+      'non-normal file flags'
+    )
+    git('update-index', '--no-skip-worktree', '--', 'source.txt')
+
+    const redirected = realpathSync(mkdtempSync(resolve(tmpdir(), 'crebain-redirected-git-')))
+    try {
+      git('config', 'core.worktree', redirected)
+      expectFailure(
+        'two-revision-git-redirected-worktree',
+        () => verifyOperationalPublicationRepository(repository, source, publication),
+        'worktree root or repository mode differs'
+      )
+      git('--git-dir', resolve(repository, '.git'), 'config', '--unset', 'core.worktree')
+    } finally {
+      rmSync(redirected, { recursive: true, force: true })
+    }
+
+    unlinkSync(capturePath)
+    symlinkSync('INDEX.json', capturePath)
+    expectFailure(
+      'two-revision-git-symlink',
+      () => verifyOperationalPublicationRepository(repository, source, publication),
+      'non-regular entry'
+    )
+  } finally {
+    rmSync(repository, { recursive: true, force: true })
+  }
 }
 
 assertContractGateBoundary(PACKAGE)
@@ -296,6 +542,17 @@ expectFailure(
 
 {
   const fixture = makeV2EvidenceFixture(ROOT)
+  fixture.index.crebain_source_repository.commit = 'e'.repeat(40)
+  fixture.indexBytes = exactBytes(fixture.index)
+  expectFailure(
+    'v2-crebain-source-revision-drift',
+    () => assertV2Fixture(fixture),
+    'CREBAIN source repository identity differs'
+  )
+}
+
+{
+  const fixture = makeV2EvidenceFixture(ROOT)
   const changedCapture = Buffer.from(fixture.captures.get('capture-3-drones.json'))
   changedCapture[changedCapture.length - 2] ^= 1
   fixture.captures.set('capture-3-drones.json', changedCapture)
@@ -326,6 +583,31 @@ expectFailure(
 )
 
 assertV2Fixture(makeV2EvidenceFixture(ROOT))
+assertV2Fixture(makeV2EvidenceFixture(ROOT, { independentPopulationPrefixOrder: true }))
+
+{
+  const fixture = mutateV2Capture(2, (capture) => {
+    capture.neural_steps[0].result.proposals[0].channel_id =
+      capture.neural_steps[0].result.proposals[1].channel_id
+  })
+  expectFailure(
+    'v2-proposal-wrong-channel-binding',
+    () => assertV2Fixture(fixture),
+    'step 1 channel topology differs'
+  )
+}
+
+{
+  const fixture = mutateV2Capture(2, (capture) => {
+    capture.nest_evidence_bundle.nest_session_readback.population_roster_sha256 = 'e'.repeat(64)
+    reseal(capture.nest_evidence_bundle, 'bundle_sha256')
+  })
+  expectFailure(
+    'v2-population-roster-digest-drift',
+    () => assertV2Fixture(fixture),
+    'NEST topology readback differs'
+  )
+}
 
 for (const [name, mutate, expected] of [
   [
@@ -364,6 +646,12 @@ for (const [name, mutate, expected] of [
     )
     row.sha256 = 'e'.repeat(64)
     capture.engram_source_sha256['scripts/engram_extension.py'] = row.sha256
+    source.source_roster_sha256 = sha256(
+      Buffer.concat([
+        Buffer.from('crebain.engram-source-roster.v1\0'),
+        Buffer.from(canonical(source.sources)),
+      ])
+    )
     reseal(source, 'closure_sha256')
   })
   expectFailure(
@@ -483,6 +771,14 @@ for (const [name, mutate, expected] of [
     'sorted and unique',
   ],
   [
+    'v2-source-roster-digest-drift',
+    (capture) => {
+      capture.engram_source_closure.source_roster_sha256 = 'e'.repeat(64)
+      reseal(capture.engram_source_closure, 'closure_sha256')
+    },
+    'Engram source roster digest differs',
+  ],
+  [
     'v2-nested-module-escape',
     (capture) => {
       capture.engram_source_closure.host_modules[0].relative_path = 'backend/absent.py'
@@ -542,6 +838,35 @@ for (const [name, mutate, expected] of [
       capture.receipt_store_closure.files.reverse()
     },
     'sorted and unique',
+  ],
+  [
+    'v2-receipt-store-content-address-path-drift',
+    (capture) => {
+      capture.receipt_store_closure.receipt_artifact_path = `receipts/00/${capture.terminal_receipt.receipt_sha256}.json`
+      reseal(capture.receipt_store_closure, 'closure_sha256')
+    },
+    'receipt-store closure identity differs',
+  ],
+  [
+    'v2-receipt-store-receipt-row-digest-drift',
+    (capture) => {
+      const store = capture.receipt_store_closure
+      store.files.find((row) => row.relative_path === store.receipt_artifact_path).sha256 =
+        'e'.repeat(64)
+      reseal(store, 'closure_sha256')
+    },
+    'receipt-store closure identity differs',
+  ],
+  [
+    'v2-receipt-store-writer-lock-omitted',
+    (capture) => {
+      const store = capture.receipt_store_closure
+      store.files = store.files.filter((row) => row.relative_path !== 'writer.lock')
+      store.file_count = store.files.length
+      store.total_bytes = store.files.reduce((sum, row) => sum + row.size_bytes, 0)
+      reseal(store, 'closure_sha256')
+    },
+    'receipt-store closure identity differs',
   ],
   [
     'v2-worker-guardian-swap',

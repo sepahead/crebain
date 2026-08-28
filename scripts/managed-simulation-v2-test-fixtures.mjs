@@ -375,6 +375,12 @@ function sourceClosure(engram, handshake, guardianSourceSha256) {
     schema_version: 'crebain.engram-python-source-closure.v1',
     discovery_policy: 'loaded-host-modules-plus-worker-runtime-identity-and-entrypoints.v1',
     git: engram,
+    source_roster_sha256: sha256(
+      Buffer.concat([
+        Buffer.from('crebain.engram-source-roster.v1\0'),
+        Buffer.from(canonical(sources)),
+      ])
+    ),
     host_modules: [
       { module_name: 'backend.example', relative_path: 'backend/example.py' },
       {
@@ -400,6 +406,7 @@ function topology(plan, config) {
       `${channel.neural_population_prefix}.d${String(axis).padStart(2, '0')}.positive`,
     ])
   )
+  populationNames.sort((left, right) => (left < right ? -1 : left > right ? 1 : 0))
   const count = plan.channels.length
   return {
     session_count: 1,
@@ -418,6 +425,18 @@ function captureFixture(count, planBytes, configBytes, proof, source, handshake)
   const plan = JSON.parse(planBytes)
   const config = JSON.parse(configBytes)
   const expectedTopology = topology(plan, config)
+  const channelIds = plan.channels.map((channel) => channel.channel_id)
+  const populationBindings = new Map(
+    plan.channels.map((channel) => [
+      channel.channel_id,
+      [0, 1, 2]
+        .flatMap((axis) => [
+          `${channel.neural_population_prefix}.d${String(axis).padStart(2, '0')}.negative`,
+          `${channel.neural_population_prefix}.d${String(axis).padStart(2, '0')}.positive`,
+        ])
+        .sort((left, right) => (left < right ? -1 : left > right ? 1 : 0)),
+    ])
+  )
   const normalFaults = Array.from({ length: count }, () => 'none')
   const scheduledFaults = [...normalFaults]
   scheduledFaults[0] = 'sensor-unavailable'
@@ -431,6 +450,7 @@ function captureFixture(count, planBytes, configBytes, proof, source, handshake)
       request: {
         request_sha256: requestSha,
         channels: Array.from({ length: count }, (_, channel) => ({
+          channel_id: channelIds[channel],
           hold_required: index === 3 && channel === 0,
         })),
       },
@@ -439,7 +459,11 @@ function captureFixture(count, planBytes, configBytes, proof, source, handshake)
         result_sha256: digest(`${count}-drone neural result ${index + 1}`),
         provider_execution_scope: 'nest-exact-step-readback',
         provider_execution_sha256: executionSha,
-        proposals,
+        proposals: proposals.map((proposal, channel) => ({
+          channel_id: channelIds[channel],
+          source_populations: populationBindings.get(channelIds[channel]),
+          ...proposal,
+        })),
       },
     }
   })
@@ -489,12 +513,27 @@ function captureFixture(count, planBytes, configBytes, proof, source, handshake)
   const workerSourceSha256 = digest('NEST worker source')
   const workerCommandSha256 = digest(`${count}-drone NEST worker command`)
   const adapterSourceSha256 = digest('NEST adapter source')
+  const connectionRows = expectedTopology.population_names.flatMap((populationName) =>
+    ['input', 'recorder'].map((direction) => ({
+      population_name: populationName,
+      direction,
+      connection_count: config.population_size,
+    }))
+  )
+  const populationRoster = channelIds.map((channelId) => ({
+    channel_id: channelId,
+    population_names: populationBindings.get(channelId),
+  }))
   const nestSession = reseal({
     reported_version: '3.9.0',
     one_session: true,
+    connection_readbacks: connectionRows,
+    connection_readback_sha256: sha256(Buffer.from(canonical(connectionRows))),
     observed_population_neuron_count: expectedTopology.population_neuron_count,
     observed_device_node_count: expectedTopology.device_node_count,
     observed_total_connection_count: expectedTopology.connection_count,
+    population_roster: populationRoster,
+    population_roster_sha256: sha256(Buffer.from(canonical(populationRoster))),
   })
   const workerIdentity = reseal({
     project_source_roster_sha256: source.worker_project_source_roster_sha256,
@@ -562,6 +601,22 @@ function captureFixture(count, planBytes, configBytes, proof, source, handshake)
     nest_session_readback: nestSession,
     step_execution_receipts: neuralSteps.map((step) => ({
       receipt_sha256: step.result.provider_execution_sha256,
+      generator_schedule_readbacks: expectedTopology.population_names.map((populationName) => ({
+        population_name: populationName,
+      })),
+      input_weight_readbacks: expectedTopology.population_names.map((populationName) => ({
+        population_name: populationName,
+      })),
+      completed_window_readbacks: expectedTopology.population_names.map((populationName) => ({
+        population_name: populationName,
+      })),
+      population_event_deltas: expectedTopology.population_names.map((populationName) => ({
+        population_name: populationName,
+      })),
+      channel_safety_readbacks: channelIds.map((channelId) => ({ channel_id: channelId })),
+      encoded_control_inputs: channelIds.flatMap((channelId) =>
+        [0, 1, 2].map((actionIndex) => ({ channel_id: channelId, action_index: actionIndex }))
+      ),
     })),
     worker_terminal_disposition: 'confirmed-lifecycle',
     worker_session_binding: workerBinding,
@@ -570,17 +625,47 @@ function captureFixture(count, planBytes, configBytes, proof, source, handshake)
     worker_runtime_identity: workerIdentity,
   }
   evidence.bundle_sha256 = sha256(Buffer.from(canonical(evidence)))
+  const storedTerminal = Object.fromEntries(
+    Object.entries(terminal).filter(([key]) => key !== 'receipt_sha256')
+  )
+  const storedEvidence = Object.fromEntries(
+    Object.entries(evidence).filter(([key]) => key !== 'bundle_sha256')
+  )
+  const receiptPath = `receipts/${terminal.receipt_sha256.slice(0, 2)}/${terminal.receipt_sha256}.json`
+  const evidencePath = `evidence/${evidence.bundle_sha256.slice(0, 2)}/${evidence.bundle_sha256}.json`
+  const storeManifestBytes = Buffer.from('{"schema_version":"engram.closed-loop-receipt-store.v5"}')
+  const writerLockBytes = Buffer.alloc(0)
   const files = [
-    { relative_path: 'evidence.json', size_bytes: 16, sha256: evidence.bundle_sha256 },
-    { relative_path: 'receipt.json', size_bytes: 16, sha256: terminal.receipt_sha256 },
-  ]
+    {
+      relative_path: evidencePath,
+      size_bytes: Buffer.byteLength(canonical(storedEvidence)),
+      sha256: evidence.bundle_sha256,
+    },
+    {
+      relative_path: receiptPath,
+      size_bytes: Buffer.byteLength(canonical(storedTerminal)),
+      sha256: terminal.receipt_sha256,
+    },
+    {
+      relative_path: 'store.json',
+      size_bytes: storeManifestBytes.length,
+      sha256: sha256(storeManifestBytes),
+    },
+    {
+      relative_path: 'writer.lock',
+      size_bytes: writerLockBytes.length,
+      sha256: sha256(writerLockBytes),
+    },
+  ].sort((left, right) =>
+    left.relative_path < right.relative_path ? -1 : left.relative_path > right.relative_path ? 1 : 0
+  )
   const store = {
     schema_version: 'crebain.closed-loop-receipt-store-closure.v1',
     store_id: `clrs_${digest(`${count}-drone receipt store`)}`,
     receipt_sha256: terminal.receipt_sha256,
-    receipt_artifact_path: 'receipt.json',
+    receipt_artifact_path: receiptPath,
     evidence_bundle_sha256: evidence.bundle_sha256,
-    evidence_artifact_path: 'evidence.json',
+    evidence_artifact_path: evidencePath,
     file_count: files.length,
     total_bytes: files.reduce((sum, row) => sum + row.size_bytes, 0),
     files,
@@ -641,12 +726,12 @@ function captureFixture(count, planBytes, configBytes, proof, source, handshake)
   }
 }
 
-export function makeV2EvidenceFixture(root) {
+export function makeV2EvidenceFixture(root, { independentPopulationPrefixOrder = false } = {}) {
   const inputRoot = resolve(
     root,
     'integrations/engram/managed-simulation/operational-inputs/real-nest-3.9-v1'
   )
-  const suiteBytes = readFileSync(resolve(inputRoot, 'SUITE.json'))
+  let suiteBytes = readFileSync(resolve(inputRoot, 'SUITE.json'))
   const suite = JSON.parse(suiteBytes)
   const configBytes = readFileSync(resolve(inputRoot, suite.nest_config.path))
   const plans = new Map(
@@ -655,6 +740,23 @@ export function makeV2EvidenceFixture(root) {
       return [row.drone_count, { row, path: row.plan_path, bytes }]
     })
   )
+  if (independentPopulationPrefixOrder) {
+    const plan = plans.get(3)
+    const document = JSON.parse(plan.bytes)
+    for (const [channel, prefix] of document.channels.map((channel, index) => [
+      channel,
+      ['zeta', 'alpha', 'mu'][index],
+    ])) {
+      channel.neural_population_prefix = prefix
+    }
+    plan.bytes = exactBytes(document)
+    suite.runs.find((row) => row.drone_count === 3).plan_exact_sha256 = sha256(plan.bytes)
+    const suiteDefinition = Object.fromEntries(
+      Object.entries(suite).filter(([key]) => key !== 'suite_definition_sha256')
+    )
+    suite.suite_definition_sha256 = sha256(Buffer.from(canonical(suiteDefinition)))
+    suiteBytes = exactBytes(suite)
+  }
   const context = {
     suite,
     suiteBytes,
@@ -673,17 +775,27 @@ export function makeV2EvidenceFixture(root) {
     clean: true,
   }
   const proof = installedProof(engram)
-  const guardianSourceSha256 = digest('reviewed runtime guardian source')
-  const handshake = reseal({
-    guardian_source_sha256: guardianSourceSha256,
-    launch_source: 'package-store-lease',
-    store_id: proof.store_id,
-    package_generation_id: proof.package_generation_id,
-  })
-  const source = sourceClosure(engram, handshake, guardianSourceSha256)
+  const buildRepository = proof.observed_build_receipt.repository
+  const crebainSourceRepository = {
+    repository: buildRepository.origin,
+    commit: buildRepository.commit,
+    tree: buildRepository.tree,
+    origin_main_at_capture: buildRepository.origin_main,
+    object_format: buildRepository.object_format,
+    clean_at_capture: buildRepository.clean,
+  }
+  context.crebainSourceRepository = crebainSourceRepository
   const captures = new Map()
   const rows = []
   for (const count of [1, 2, 3]) {
+    const guardianSourceSha256 = digest(`${count}-drone reviewed runtime guardian source`)
+    const handshake = reseal({
+      guardian_source_sha256: guardianSourceSha256,
+      launch_source: 'package-store-lease',
+      store_id: proof.store_id,
+      package_generation_id: proof.package_generation_id,
+    })
+    const source = sourceClosure(engram, handshake, guardianSourceSha256)
     const plan = plans.get(count)
     const capture = captureFixture(count, plan.bytes, configBytes, proof, source, handshake)
     const bytes = exactBytes(capture)
@@ -699,6 +811,7 @@ export function makeV2EvidenceFixture(root) {
       receipt_store_id: capture.receipt_store_closure.store_id,
       receipt_store_closure_sha256: capture.receipt_store_closure.closure_sha256,
       engram_source_closure_sha256: source.closure_sha256,
+      engram_source_roster_sha256: source.source_roster_sha256,
       observed_build_receipt_exact_sha256: proof.observed_build_receipt_exact_sha256,
       population_count: capture.population_topology.population_count,
       population_neuron_count: capture.population_topology.population_neuron_count,
@@ -762,6 +875,7 @@ export function makeV2EvidenceFixture(root) {
       files: toolSourceRows,
       roster_sha256: sha256(Buffer.from(canonical(toolSourceRows))),
     },
+    crebain_source_repository: crebainSourceRepository,
     engram,
     package: Object.fromEntries(packageFields.map((key) => [key, proof[key]])),
     installed_package_proof_exact_sha256: sha256(exactBytes(proof)),
@@ -773,7 +887,9 @@ export function makeV2EvidenceFixture(root) {
       one_two_three_drone_roster: true,
       distinct_receipt_and_evidence_identities: true,
       distinct_closed_receipt_stores: true,
-      common_clean_engram_source_closure: true,
+      common_clean_engram_source_roster: true,
+      distinct_engram_runtime_source_closures: true,
+      crebain_source_lineage_common: true,
       installed_package_lineage_common: true,
       engram_pack_source_lineage_common: true,
       observed_build_stage_seal_install_lineage_common: true,

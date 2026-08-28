@@ -708,6 +708,35 @@ class RealNestProofRunnerTests(unittest.TestCase):
 
         capture = captures[3]
 
+        reordered_prefix_plan = copy.deepcopy(captures[2]["run_plan"])
+        reordered_prefix_plan["channels"][0]["neural_population_prefix"] = (
+            "zeta.channel"
+        )
+        reordered_prefix_plan["channels"][1]["neural_population_prefix"] = (
+            "alpha.channel"
+        )
+        reordered_evidence, reordered_steps = real_nest_validation_fixture(
+            reordered_prefix_plan,
+            config,
+        )
+        reordered_topology = PROOF.assert_population_topology(
+            reordered_prefix_plan,
+            config,
+            reordered_evidence,
+            reordered_steps,
+        )
+        self.assertTrue(reordered_topology["population_names"][0].startswith("alpha."))
+        self.assertTrue(
+            reordered_evidence["nest_session_readback"]["population_roster"][0][
+                "population_names"
+            ][0].startswith("zeta.")
+        )
+        self.assertTrue(
+            reordered_steps[0]["result"]["proposals"][0]["source_populations"][
+                0
+            ].startswith("zeta.")
+        )
+
         hostile_cases = []
         second_session = copy.deepcopy(capture)
         second_session["nest_evidence_bundle"]["nest_session_readback"][
@@ -719,6 +748,22 @@ class RealNestProofRunnerTests(unittest.TestCase):
             "connection_readbacks"
         ].pop()
         hostile_cases.append((missing_population, "connection topology"))
+        wrong_population_channel = copy.deepcopy(capture)
+        wrong_population_session = wrong_population_channel["nest_evidence_bundle"][
+            "nest_session_readback"
+        ]
+        wrong_population_session["population_roster"][0]["channel_id"] = (
+            "hostile-channel"
+        )
+        wrong_population_session["population_roster_sha256"] = PROOF.sha256(
+            PROOF.canonical(wrong_population_session["population_roster"])
+        )
+        hostile_cases.append((wrong_population_channel, "population roster differs"))
+        wrong_population_digest = copy.deepcopy(capture)
+        wrong_population_digest["nest_evidence_bundle"]["nest_session_readback"][
+            "population_roster_sha256"
+        ] = "0" * 64
+        hostile_cases.append((wrong_population_digest, "population roster digest"))
         wrong_count = copy.deepcopy(capture)
         wrong_count["nest_evidence_bundle"]["nest_session_readback"][
             "observed_population_neuron_count"
@@ -785,20 +830,32 @@ class RealNestProofRunnerTests(unittest.TestCase):
             os.chmod(root, 0o700)
             receipts = root / "receipts"
             evidence = root / "evidence"
-            receipts.mkdir(mode=0o700)
-            evidence.mkdir(mode=0o700)
-            receipt_document = {"receipt_sha256": "1" * 64, "status": "completed"}
-            evidence_document = {
-                "bundle_sha256": "2" * 64,
-                "run_receipt_sha256": "1" * 64,
+            receipt_artifact = {"status": "completed"}
+            receipt_digest = PROOF.sha256(PROOF.canonical(receipt_artifact))
+            receipt_document = {
+                **receipt_artifact,
+                "receipt_sha256": receipt_digest,
             }
-            (receipts / "receipt.json").write_bytes(
-                PROOF.canonical(receipt_document) + b"\n"
-            )
-            (evidence / "evidence.json").write_bytes(
-                PROOF.canonical(evidence_document) + b"\n"
-            )
-            for path in (receipts / "receipt.json", evidence / "evidence.json"):
+            evidence_artifact = {"run_receipt_sha256": receipt_digest}
+            evidence_digest = PROOF.sha256(PROOF.canonical(evidence_artifact))
+            evidence_document = {
+                **evidence_artifact,
+                "bundle_sha256": evidence_digest,
+            }
+            receipt_path = receipts / receipt_digest[:2] / f"{receipt_digest}.json"
+            evidence_path = evidence / evidence_digest[:2] / f"{evidence_digest}.json"
+            receipt_path.parent.mkdir(parents=True, mode=0o700)
+            evidence_path.parent.mkdir(parents=True, mode=0o700)
+            receipt_path.write_bytes(PROOF.canonical(receipt_artifact))
+            evidence_path.write_bytes(PROOF.canonical(evidence_artifact))
+            (root / "store.json").write_bytes(b"{}")
+            (root / "writer.lock").write_bytes(b"lock\n")
+            for path in (
+                receipt_path,
+                evidence_path,
+                root / "store.json",
+                root / "writer.lock",
+            ):
                 os.chmod(path, 0o600)
             store_id = "clrs_" + "3" * 64
             store_closure = PROOF.collect_receipt_store_closure(
@@ -807,13 +864,46 @@ class RealNestProofRunnerTests(unittest.TestCase):
                 receipt_document=receipt_document,
                 evidence_document=evidence_document,
             )
-            self.assertEqual(store_closure["file_count"], 2)
+            self.assertEqual(store_closure["file_count"], 4)
+            self.assertEqual(
+                store_closure["receipt_artifact_path"],
+                receipt_path.relative_to(root).as_posix(),
+            )
+            self.assertEqual(
+                store_closure["evidence_artifact_path"],
+                evidence_path.relative_to(root).as_posix(),
+            )
             self.assertEqual(
                 PROOF.receipt_store_identity(SimpleNamespace(store_id=store_id)),
                 store_id,
             )
+            semantic_store = SimpleNamespace(
+                store_id=store_id,
+                open=lambda _digest: FakeModel(receipt_document),
+                open_evidence=lambda _digest: FakeModel(evidence_document),
+            )
+            PROOF.assert_receipt_store_reopen(
+                semantic_store,
+                store_id=store_id,
+                receipt_sha256=receipt_digest,
+                receipt_document=receipt_document,
+                evidence_document=evidence_document,
+            )
+            hostile_store = SimpleNamespace(
+                store_id=store_id,
+                open=lambda _digest: FakeModel(receipt_document),
+                open_evidence=lambda _digest: FakeModel(receipt_document),
+            )
+            with self.assertRaisesRegex(RuntimeError, "semantic reopen differs"):
+                PROOF.assert_receipt_store_reopen(
+                    hostile_store,
+                    store_id=store_id,
+                    receipt_sha256=receipt_digest,
+                    receipt_document=receipt_document,
+                    evidence_document=evidence_document,
+                )
             duplicate = evidence / "duplicate.json"
-            duplicate.write_bytes(PROOF.canonical(receipt_document) + b"\n")
+            duplicate.write_bytes(PROOF.canonical(receipt_artifact))
             os.chmod(duplicate, 0o600)
             with self.assertRaisesRegex(RuntimeError, "one exact receipt"):
                 PROOF.collect_receipt_store_closure(
@@ -823,8 +913,25 @@ class RealNestProofRunnerTests(unittest.TestCase):
                     evidence_document=evidence_document,
                 )
             duplicate.unlink()
+            (root / "store.json").write_bytes(b"{ }")
+            with self.assertRaisesRegex(RuntimeError, "not canonical"):
+                PROOF.collect_receipt_store_closure(
+                    root,
+                    store_id=store_id,
+                    receipt_document=receipt_document,
+                    evidence_document=evidence_document,
+                )
+            (root / "store.json").write_bytes(b"{}")
+            forged_receipt = {**receipt_document, "receipt_sha256": "0" * 64}
+            with self.assertRaisesRegex(RuntimeError, "artifact digests differ"):
+                PROOF.collect_receipt_store_closure(
+                    root,
+                    store_id=store_id,
+                    receipt_document=forged_receipt,
+                    evidence_document=evidence_document,
+                )
             linked = evidence / "linked.json"
-            linked.symlink_to(evidence / "evidence.json")
+            linked.symlink_to(evidence_path)
             with self.assertRaisesRegex(RuntimeError, "link or unbounded"):
                 PROOF.collect_receipt_store_closure(
                     root,
@@ -873,6 +980,51 @@ class RealNestProofRunnerTests(unittest.TestCase):
                 PROOF.verify_immutable_engram_checkout(repository, "a" * 41)
             with self.assertRaisesRegex(RuntimeError, "required commit"):
                 PROOF.verify_immutable_engram_checkout(repository, "a" * 40)
+
+            redirected = repository / "redirected-worktree"
+            redirected.mkdir()
+            self.run_git(
+                repository,
+                "config",
+                "core.worktree",
+                str(redirected),
+            )
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "Git worktree identity|Git verification failed",
+            ):
+                PROOF.verify_immutable_engram_checkout(repository, commit)
+            self.run_git(repository, "config", "--unset", "core.worktree")
+            redirected.rmdir()
+
+            self.run_git(
+                repository,
+                "update-index",
+                "--assume-unchanged",
+                "backend/source.py",
+            )
+            with self.assertRaisesRegex(RuntimeError, "non-normal file flags"):
+                PROOF.verify_immutable_engram_checkout(repository, commit)
+            self.run_git(
+                repository,
+                "update-index",
+                "--no-assume-unchanged",
+                "backend/source.py",
+            )
+            self.run_git(
+                repository,
+                "update-index",
+                "--skip-worktree",
+                "backend/source.py",
+            )
+            with self.assertRaisesRegex(RuntimeError, "non-normal file flags"):
+                PROOF.verify_immutable_engram_checkout(repository, commit)
+            self.run_git(
+                repository,
+                "update-index",
+                "--no-skip-worktree",
+                "backend/source.py",
+            )
 
             untracked = write_source(repository, Path("backend/untracked.py"), b"new\n")
             with self.assertRaisesRegex(RuntimeError, "not clean"):

@@ -9,6 +9,7 @@
     "profile",
     "input_suite",
     "tool_source_closure",
+    "crebain_source_repository",
     "engram",
     "package",
     "installed_package_proof_exact_sha256",
@@ -37,6 +38,7 @@
       }
     },
     "tool_source_closure": { "$ref": "#/$defs/toolSourceClosure" },
+    "crebain_source_repository": { "$ref": "#/$defs/crebainSourceRepository" },
     "engram": { "$ref": "#/$defs/gitIdentity" },
     "package": {
       "type": "object",
@@ -132,7 +134,9 @@
         "one_two_three_drone_roster": true,
         "distinct_receipt_and_evidence_identities": true,
         "distinct_closed_receipt_stores": true,
-        "common_clean_engram_source_closure": true,
+        "common_clean_engram_source_roster": true,
+        "distinct_engram_runtime_source_closures": true,
+        "crebain_source_lineage_common": true,
         "installed_package_lineage_common": true,
         "observed_build_stage_seal_install_lineage_common": true,
         "engram_pack_source_lineage_common": true,
@@ -231,6 +235,48 @@
       },
       "allOf": [{ "$ref": "#/$defs/gitObjectFormatJoin" }]
     },
+    "crebainSourceRepository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "commit",
+        "tree",
+        "origin_main_at_capture",
+        "object_format",
+        "clean_at_capture"
+      ],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "commit": { "$ref": "#/$defs/gitObject" },
+        "tree": { "$ref": "#/$defs/gitObject" },
+        "origin_main_at_capture": { "$ref": "#/$defs/gitObject" },
+        "object_format": { "enum": ["sha1", "sha256"] },
+        "clean_at_capture": { "const": true }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "object_format": { "const": "sha1" } },
+            "required": ["object_format"]
+          },
+          "then": {
+            "properties": {
+              "commit": { "pattern": "^[a-f0-9]{40}$" },
+              "tree": { "pattern": "^[a-f0-9]{40}$" },
+              "origin_main_at_capture": { "pattern": "^[a-f0-9]{40}$" }
+            }
+          },
+          "else": {
+            "properties": {
+              "commit": { "pattern": "^[a-f0-9]{64}$" },
+              "tree": { "pattern": "^[a-f0-9]{64}$" },
+              "origin_main_at_capture": { "pattern": "^[a-f0-9]{64}$" }
+            }
+          }
+        }
+      ]
+    },
     "gitObjectFormatJoin": {
       "if": {
         "properties": { "object_format": { "const": "sha1" } },
@@ -264,6 +310,7 @@
         "receipt_store_id",
         "receipt_store_closure_sha256",
         "engram_source_closure_sha256",
+        "engram_source_roster_sha256",
         "observed_build_receipt_exact_sha256",
         "population_count",
         "population_neuron_count",
@@ -281,6 +328,7 @@
         "receipt_store_id": { "type": "string", "pattern": "^clrs_[a-f0-9]{64}$" },
         "receipt_store_closure_sha256": { "$ref": "#/$defs/sha256" },
         "engram_source_closure_sha256": { "$ref": "#/$defs/sha256" },
+        "engram_source_roster_sha256": { "$ref": "#/$defs/sha256" },
         "observed_build_receipt_exact_sha256": { "$ref": "#/$defs/sha256" },
         "population_count": { "type": "integer", "minimum": 6, "maximum": 18 },
         "population_neuron_count": { "type": "integer", "minimum": 1 },

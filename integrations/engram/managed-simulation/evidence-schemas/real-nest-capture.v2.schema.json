@@ -44,6 +44,7 @@
         "schema_version",
         "discovery_policy",
         "git",
+        "source_roster_sha256",
         "host_modules",
         "worker_project_modules",
         "worker_project_source_roster_sha256",
@@ -59,6 +60,7 @@
           "const": "loaded-host-modules-plus-worker-runtime-identity-and-entrypoints.v1"
         },
         "git": { "$ref": "#/$defs/gitIdentity" },
+        "source_roster_sha256": { "$ref": "#/$defs/sha256" },
         "host_modules": { "$ref": "#/$defs/moduleRoster" },
         "worker_project_modules": { "$ref": "#/$defs/moduleRoster" },
         "worker_project_source_roster_sha256": { "$ref": "#/$defs/sha256" },
@@ -140,14 +142,20 @@
         "schema_version": { "const": "crebain.closed-loop-receipt-store-closure.v1" },
         "store_id": { "type": "string", "pattern": "^clrs_[a-f0-9]{64}$" },
         "receipt_sha256": { "$ref": "#/$defs/sha256" },
-        "receipt_artifact_path": { "$ref": "#/$defs/safePath" },
+        "receipt_artifact_path": {
+          "type": "string",
+          "pattern": "^receipts/[a-f0-9]{2}/[a-f0-9]{64}\\.json$"
+        },
         "evidence_bundle_sha256": { "$ref": "#/$defs/sha256" },
-        "evidence_artifact_path": { "$ref": "#/$defs/safePath" },
+        "evidence_artifact_path": {
+          "type": "string",
+          "pattern": "^evidence/[a-f0-9]{2}/[a-f0-9]{64}\\.json$"
+        },
         "file_count": { "type": "integer", "minimum": 1, "maximum": 1024 },
         "total_bytes": { "type": "integer", "minimum": 1, "maximum": 134217728 },
         "files": {
           "type": "array",
-          "minItems": 1,
+          "minItems": 4,
           "maxItems": 1024,
           "uniqueItems": true,
           "items": {
@@ -163,7 +171,27 @@
               },
               "sha256": { "$ref": "#/$defs/sha256" }
             }
-          }
+          },
+          "allOf": [
+            {
+              "contains": {
+                "type": "object",
+                "required": ["relative_path"],
+                "properties": { "relative_path": { "const": "store.json" } }
+              },
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {
+                "type": "object",
+                "required": ["relative_path"],
+                "properties": { "relative_path": { "const": "writer.lock" } }
+              },
+              "minContains": 1,
+              "maxContains": 1
+            }
+          ]
         },
         "closure_sha256": { "$ref": "#/$defs/sha256" }
       }

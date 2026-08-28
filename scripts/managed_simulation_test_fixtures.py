@@ -372,15 +372,22 @@ def real_nest_validation_fixture(
     config: dict[str, Any],
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     channel_ids = [channel["channel_id"] for channel in plan["channels"]]
-    population_names = [
-        population_name
-        for channel in plan["channels"]
-        for action_index in range(3)
-        for population_name in (
-            f"{channel['neural_population_prefix']}.d{action_index:02}.negative",
-            f"{channel['neural_population_prefix']}.d{action_index:02}.positive",
+    population_bindings = {
+        channel["channel_id"]: sorted(
+            population_name
+            for action_index in range(3)
+            for population_name in (
+                f"{channel['neural_population_prefix']}.d{action_index:02}.negative",
+                f"{channel['neural_population_prefix']}.d{action_index:02}.positive",
+            )
         )
-    ]
+        for channel in plan["channels"]
+    }
+    population_names = sorted(
+        population_name
+        for names in population_bindings.values()
+        for population_name in names
+    )
     population_size = config["population_size"]
     connection_rows = [
         {
@@ -391,6 +398,13 @@ def real_nest_validation_fixture(
         for population_name in population_names
         for direction in ("input", "recorder")
     ]
+    population_roster = [
+        {
+            "channel_id": channel["channel_id"],
+            "population_names": list(population_bindings[channel["channel_id"]]),
+        }
+        for channel in plan["channels"]
+    ]
     session = {
         "one_session": True,
         "connection_readbacks": connection_rows,
@@ -398,9 +412,8 @@ def real_nest_validation_fixture(
         "observed_population_neuron_count": len(population_names) * population_size,
         "observed_device_node_count": len(population_names) * 2,
         "observed_total_connection_count": len(population_names) * population_size * 2,
-        "population_roster": [
-            {"population_name": population_name} for population_name in population_names
-        ],
+        "population_roster": population_roster,
+        "population_roster_sha256": sha256(canonical(population_roster)),
         "receipt_sha256": "1" * 64,
     }
     executions: list[dict[str, Any]] = []
@@ -441,11 +454,9 @@ def real_nest_validation_fixture(
                     "proposals": [
                         {
                             "channel_id": channel_id,
-                            "source_populations": population_names[
-                                ordinal * 6 : (ordinal + 1) * 6
-                            ],
+                            "source_populations": list(population_bindings[channel_id]),
                         }
-                        for ordinal, channel_id in enumerate(channel_ids)
+                        for channel_id in channel_ids
                     ]
                 },
             }
