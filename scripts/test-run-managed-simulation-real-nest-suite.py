@@ -16,7 +16,12 @@ import unittest
 from pathlib import Path
 from types import ModuleType
 
-from managed_simulation_test_fixtures import real_nest_validation_fixture
+from managed_simulation_test_fixtures import (
+    closed_loop_store_fixture,
+    engram_source_closure_fixture,
+    real_nest_closed_loop_fixture,
+    reviewed_runtime_fixture,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -713,32 +718,9 @@ class RealNestSuiteTests(unittest.TestCase):
         nest_config = SUITE.PROOF.decode_json_object(
             config_bytes, "tracked NEST configuration"
         )
-        evidence, neural_steps = real_nest_validation_fixture(run_plan, nest_config)
         package_store_id = "extstore_" + "1" * 64
         package_generation_id = "pkggen_" + "2" * 64
-        lifecycle = {
-            "store_id": package_store_id,
-            "package_generation_id": package_generation_id,
-            "binding_sha256": "7" * 64,
-        }
-        terminal = {"runtime_lifecycle": lifecycle}
-        terminal["receipt_sha256"] = SUITE.sha256(SUITE.canonical(terminal))
-        evidence["run_receipt_sha256"] = terminal["receipt_sha256"]
-        evidence["bundle_sha256"] = SUITE.sha256(SUITE.canonical(evidence))
         receipt_store_id = "clrs_" + "8" * 64
-        summary = {
-            "run_status": "completed",
-            "receipt_sha256": terminal["receipt_sha256"],
-            "evidence_bundle_sha256": evidence["bundle_sha256"],
-            "store_id": receipt_store_id,
-        }
-        source_row = {
-            "relative_path": "backend/example.py",
-            "size_bytes": 7,
-            "sha256": "a" * 64,
-            "git_mode": "100644",
-            "git_blob": "b" * 40,
-        }
         tool_source_row = {
             "relative_path": "scripts/engram_extension.py",
             "size_bytes": 11,
@@ -749,7 +731,12 @@ class RealNestSuiteTests(unittest.TestCase):
         installed_proof = {
             "store_id": package_store_id,
             "package_generation_id": package_generation_id,
+            "installation_id": "inst_" + "3" * 64,
+            "executable_sha256": "6" * 64,
             "observed_build_receipt_exact_sha256": "9" * 64,
+            "observed_build_receipt": {
+                "cargo": {"target": {"target_id": "macos-aarch64-darwin"}}
+            },
             "engram_commit": "c" * 40,
             "engram_tree": "d" * 40,
             "engram_origin_main": "c" * 40,
@@ -768,89 +755,79 @@ class RealNestSuiteTests(unittest.TestCase):
             },
         }
         installed_bytes = SUITE.canonical(installed_proof) + b"\n"
-        source_closure = {
-            "schema_version": "crebain.engram-python-source-closure.v1",
-            "discovery_policy": (
-                "loaded-host-modules-plus-worker-runtime-identity-and-entrypoints.v1"
-            ),
-            "git": {
-                "repository": "git@example.invalid:engram.git",
-                "commit": "c" * 40,
-                "tree": "d" * 40,
-                "origin_main": "c" * 40,
-                "object_format": "sha1",
-                "clean": True,
-            },
-            "source_roster_sha256": SUITE.sha256(
-                b"crebain.engram-source-roster.v1\0"
-                + SUITE.canonical([source_row, tool_source_row])
-            ),
-            "host_modules": [
-                {
-                    "module_name": "scripts.engram_extension",
-                    "relative_path": "scripts/engram_extension.py",
-                }
-            ],
-            "worker_project_modules": [],
-            "worker_project_source_roster_sha256": "e" * 64,
-            "reviewed_runtime_handshake_receipt_sha256": "f" * 64,
-            "reviewed_runtime_guardian_source_sha256": "1" * 64,
-            "exercised_entrypoints": [
-                {"role": "test-entrypoint", "relative_path": "backend/example.py"}
-            ],
-            "sources": [source_row, tool_source_row],
-        }
-        source_closure["closure_sha256"] = SUITE.sha256(SUITE.canonical(source_closure))
-        receipt_path = (
-            f"receipts/{terminal['receipt_sha256'][:2]}/"
-            f"{terminal['receipt_sha256']}.json"
+        guardian_path = "backend/integrations/reviewed_native_process_guardian.py"
+        exec_gate_path = "backend/integrations/contained_exec_gate.py"
+        guardian_sha256 = SUITE.sha256(
+            f"# synthetic Engram b6 source: {guardian_path}\n".encode()
         )
-        evidence_path = (
-            f"evidence/{evidence['bundle_sha256'][:2]}/{evidence['bundle_sha256']}.json"
+        exec_gate_sha256 = SUITE.sha256(
+            f"# synthetic Engram b6 source: {exec_gate_path}\n".encode()
         )
-        stored_receipt = {
-            key: value for key, value in terminal.items() if key != "receipt_sha256"
-        }
-        stored_evidence = {
-            key: value for key, value in evidence.items() if key != "bundle_sha256"
-        }
-        store_files = sorted(
-            [
-                {
-                    "relative_path": evidence_path,
-                    "size_bytes": len(SUITE.canonical(stored_evidence)),
-                    "sha256": evidence["bundle_sha256"],
-                },
-                {
-                    "relative_path": receipt_path,
-                    "size_bytes": len(SUITE.canonical(stored_receipt)),
-                    "sha256": terminal["receipt_sha256"],
-                },
-                {
-                    "relative_path": "store.json",
-                    "size_bytes": 2,
-                    "sha256": SUITE.sha256(b"{}"),
-                },
-                {
-                    "relative_path": "writer.lock",
-                    "size_bytes": 0,
-                    "sha256": SUITE.sha256(b""),
-                },
+        python_executable_sha256 = SUITE.sha256(
+            b"CREBAIN synthetic Engram b6 fixture: Python executable"
+        )
+        reviewed, lifecycle = reviewed_runtime_fixture(
+            installed=installed_proof,
+            guardian_source_sha256=guardian_sha256,
+            exec_gate_source_sha256=exec_gate_sha256,
+            python_executable_sha256=python_executable_sha256,
+        )
+        terminal, evidence, neural_steps = real_nest_closed_loop_fixture(
+            run_plan,
+            nest_config,
+            runtime_lifecycle=lifecycle,
+        )
+        source_closure, source_by_path = engram_source_closure_fixture(
+            installed=installed_proof,
+            reviewed_handshake_sha256=reviewed["handshake_receipt"]["receipt_sha256"],
+            reviewed_exec_gate_command_sha256=reviewed["exec_gate_command_binding"][
+                "exec_gate_command_sha256"
             ],
-            key=lambda item: item["relative_path"],
+            worker_project_source_roster_sha256=evidence["worker_runtime_identity"][
+                "project_source_roster_sha256"
+            ],
         )
-        store_closure = {
-            "schema_version": "crebain.closed-loop-receipt-store-closure.v1",
-            "store_id": receipt_store_id,
-            "receipt_sha256": terminal["receipt_sha256"],
-            "receipt_artifact_path": receipt_path,
+        source_rows = source_closure["sources"]
+        self.assertEqual(
+            source_by_path[guardian_path]["sha256"],
+            guardian_sha256,
+        )
+        self.assertEqual(
+            source_by_path[exec_gate_path]["sha256"],
+            exec_gate_sha256,
+        )
+        handshake = reviewed["handshake_receipt"]
+        store_closure, store_sidecars, _store_material = closed_loop_store_fixture(
+            terminal=terminal,
+            evidence=evidence,
+            run_plan=run_plan,
+            nest_config=nest_config,
+            package_generation_id=package_generation_id,
+            reviewed_handshake=handshake,
+            store_id=receipt_store_id,
+        )
+        reservation_id = store_sidecars["finalized_reservation"]["reservation"][
+            "reservation_id"
+        ]
+        summary = {
+            "authority": False,
+            "calibrated_posterior": False,
+            "channel_count": 1,
+            "completed_step_count": 6,
             "evidence_bundle_sha256": evidence["bundle_sha256"],
-            "evidence_artifact_path": evidence_path,
-            "file_count": len(store_files),
-            "total_bytes": sum(item["size_bytes"] for item in store_files),
-            "files": store_files,
+            "ncp_qualified": False,
+            "physical_actuation": False,
+            "planned_step_count": 6,
+            "receipt_sha256": terminal["receipt_sha256"],
+            "reservation_id": reservation_id,
+            "run_status": "completed",
+            "scientific_authority": False,
+            "simulator_only": True,
+            "status": "recorded",
+            "store_id": receipt_store_id,
+            "study_run_id": terminal["study_run_id"],
+            "terminal_reason_code": terminal["terminal_reason_code"],
         }
-        store_closure["closure_sha256"] = SUITE.sha256(SUITE.canonical(store_closure))
         topology = SUITE.PROOF.assert_population_topology(
             run_plan,
             nest_config,
@@ -861,8 +838,7 @@ class RealNestSuiteTests(unittest.TestCase):
         capture = {
             "schema_version": "crebain.real-nest-closed-loop-capture.v2",
             "engram_source_sha256": {
-                source_row["relative_path"]: source_row["sha256"],
-                tool_source_row["relative_path"]: tool_source_row["sha256"],
+                item["relative_path"]: item["sha256"] for item in source_rows
             },
             "engram_source_closure": source_closure,
             "package_generation_id": installed_proof["package_generation_id"],
@@ -875,15 +851,10 @@ class RealNestSuiteTests(unittest.TestCase):
             "nest_config": nest_config,
             "summary": summary,
             "terminal_receipt": terminal,
-            "reviewed_native_runtime": {
-                "handshake_receipt": {},
-                "termination_receipt": {},
-                "lifecycle_binding_sha256": lifecycle["binding_sha256"],
-                "guardian_closure_verified": True,
-                "package_store_lineage_verified": True,
-            },
+            "reviewed_native_runtime": reviewed,
             "nest_worker_guardian_closure": guardian,
             "receipt_store_closure": store_closure,
+            "receipt_store_sidecars": store_sidecars,
             "population_topology": topology,
             "nest_evidence_bundle": evidence,
             "neural_steps": neural_steps,
@@ -891,7 +862,7 @@ class RealNestSuiteTests(unittest.TestCase):
             "authority": SUITE.SIMULATOR_ONLY_AUTHORITY,
             "disclosure": "provider-free validator fixture",
         }
-        capture_bytes = SUITE.canonical(capture) + b"\n"
+        capture_bytes = SUITE.PROOF.managed_runtime_canonical(capture) + b"\n"
         row = SUITE.validate_capture(
             capture,
             capture_bytes=capture_bytes,
@@ -956,7 +927,8 @@ class RealNestSuiteTests(unittest.TestCase):
             "../backend/example.py"
         )
         path_spoof["engram_source_sha256"] = {
-            "../backend/example.py": source_row["sha256"]
+            item["relative_path"]: item["sha256"]
+            for item in path_spoof["engram_source_closure"]["sources"]
         }
         source_material = {
             key: value
@@ -966,7 +938,7 @@ class RealNestSuiteTests(unittest.TestCase):
         path_spoof["engram_source_closure"]["closure_sha256"] = SUITE.sha256(
             SUITE.canonical(source_material)
         )
-        with self.assertRaisesRegex(RuntimeError, "source closure differs"):
+        with self.assertRaisesRegex(RuntimeError, "source roster path is unsafe"):
             SUITE.validate_capture(
                 path_spoof,
                 capture_bytes=SUITE.canonical(path_spoof) + b"\n",
@@ -1012,7 +984,7 @@ class RealNestSuiteTests(unittest.TestCase):
         nested_escape["engram_source_closure"]["closure_sha256"] = SUITE.sha256(
             SUITE.canonical(source_material)
         )
-        with self.assertRaisesRegex(RuntimeError, "nested source roster escapes"):
+        with self.assertRaisesRegex(RuntimeError, "nested source closure differs"):
             SUITE.validate_capture(
                 nested_escape,
                 capture_bytes=SUITE.canonical(nested_escape) + b"\n",
@@ -1072,7 +1044,7 @@ class RealNestSuiteTests(unittest.TestCase):
         entrypoint_path_alias["engram_source_closure"]["closure_sha256"] = SUITE.sha256(
             SUITE.canonical(source_material)
         )
-        with self.assertRaisesRegex(RuntimeError, "paths are not unique"):
+        with self.assertRaisesRegex(RuntimeError, "nested source closure differs"):
             SUITE.validate_capture(
                 entrypoint_path_alias,
                 capture_bytes=SUITE.canonical(entrypoint_path_alias) + b"\n",

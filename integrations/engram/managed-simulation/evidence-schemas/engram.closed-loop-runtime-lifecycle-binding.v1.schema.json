@@ -1,0 +1,168 @@
+{
+  "$id": "https://engram.local/schemas/engram.closed-loop-runtime-lifecycle-binding.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Rejoin one reviewed launch with its observed process termination.",
+  "properties": {
+    "binding_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Binding Sha256",
+      "type": "string"
+    },
+    "child_reaped": {
+      "title": "Child Reaped",
+      "type": "boolean"
+    },
+    "containment_empty": {
+      "title": "Containment Empty",
+      "type": "boolean"
+    },
+    "diagnostic_stream_complete": {
+      "title": "Diagnostic Stream Complete",
+      "type": "boolean"
+    },
+    "durable_process_launch_authority": {
+      "const": false,
+      "default": false,
+      "title": "Durable Process Launch Authority",
+      "type": "boolean"
+    },
+    "generation_directory_identity_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Generation Directory Identity Sha256"
+    },
+    "generation_id": {
+      "pattern": "^gen_[0-9a-f]{64}$",
+      "title": "Generation Id",
+      "type": "string"
+    },
+    "handshake_receipt_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Handshake Receipt Sha256",
+      "type": "string"
+    },
+    "launch_source": {
+      "enum": [
+        "packed-bundle-path",
+        "package-store-lease"
+      ],
+      "title": "Launch Source",
+      "type": "string"
+    },
+    "ncp_authority": {
+      "const": false,
+      "default": false,
+      "title": "Ncp Authority",
+      "type": "boolean"
+    },
+    "package_generation_id": {
+      "pattern": "^pkggen_[0-9a-f]{64}$",
+      "title": "Package Generation Id",
+      "type": "string"
+    },
+    "package_generation_lease_released": {
+      "title": "Package Generation Lease Released",
+      "type": "boolean"
+    },
+    "package_generation_lease_retained_at_launch": {
+      "title": "Package Generation Lease Retained At Launch",
+      "type": "boolean"
+    },
+    "physical_authority": {
+      "const": false,
+      "default": false,
+      "title": "Physical Authority",
+      "type": "boolean"
+    },
+    "private_work_directory_removed": {
+      "title": "Private Work Directory Removed",
+      "type": "boolean"
+    },
+    "profile": {
+      "const": "engram.reviewed-native-development.v1",
+      "title": "Profile",
+      "type": "string"
+    },
+    "publisher_authenticated": {
+      "const": false,
+      "default": false,
+      "title": "Publisher Authenticated",
+      "type": "boolean"
+    },
+    "schema_version": {
+      "const": "engram.closed-loop-runtime-lifecycle-binding.v1",
+      "default": "engram.closed-loop-runtime-lifecycle-binding.v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "scientific_authority": {
+      "const": false,
+      "default": false,
+      "title": "Scientific Authority",
+      "type": "boolean"
+    },
+    "store_id": {
+      "anyOf": [
+        {
+          "pattern": "^extstore_[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Store Id"
+    },
+    "termination_disposition": {
+      "enum": [
+        "clean-exit",
+        "terminated",
+        "killed",
+        "unconfirmed"
+      ],
+      "title": "Termination Disposition",
+      "type": "string"
+    },
+    "termination_receipt_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Termination Receipt Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "binding_sha256",
+    "child_reaped",
+    "containment_empty",
+    "diagnostic_stream_complete",
+    "durable_process_launch_authority",
+    "generation_directory_identity_sha256",
+    "generation_id",
+    "handshake_receipt_sha256",
+    "launch_source",
+    "ncp_authority",
+    "package_generation_id",
+    "package_generation_lease_released",
+    "package_generation_lease_retained_at_launch",
+    "physical_authority",
+    "private_work_directory_removed",
+    "profile",
+    "publisher_authenticated",
+    "schema_version",
+    "scientific_authority",
+    "store_id",
+    "termination_disposition",
+    "termination_receipt_sha256"
+  ],
+  "title": "RuntimeLifecycleReceiptBindingV1",
+  "type": "object"
+}

@@ -2,9 +2,9 @@
   "schema_version": "crebain.contract-provenance.v2",
   "source": {
     "repository": "https://github.com/sepahead/Paper2Brain.git",
-    "commit": "078c4fb1330682acde3ea3ea83610159f7c985f2",
-    "tree": "0674048d8062adae6044a09f8c40efa0935ec381",
-    "origin_main": "078c4fb1330682acde3ea3ea83610159f7c985f2",
+    "commit": "b6dcbd1ae853e23ce99309198050b8bd06e40829",
+    "tree": "aa848d795bea9145983ea8320a10d5e3d8f621e5",
+    "origin_main": "b6dcbd1ae853e23ce99309198050b8bd06e40829",
     "object_format": "sha1",
     "clean": true
   },

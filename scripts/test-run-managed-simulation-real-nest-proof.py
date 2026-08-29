@@ -19,10 +19,13 @@ from typing import Any
 from managed_simulation_build_provenance import canonical as provenance_canonical
 from managed_simulation_test_fixtures import (
     build_receipt,
+    closed_loop_store_fixture,
     installed_proof,
     macho_arm64,
     pack_receipt,
+    real_nest_closed_loop_fixture,
     real_nest_validation_fixture,
+    reviewed_runtime_fixture,
     stage_receipt,
 )
 
@@ -92,7 +95,7 @@ def runtime_file_row(
 
 def make_worker_evidence(source_root: Path, runtime_root: Path) -> dict[str, Any]:
     project_rows = []
-    for name in sorted((*PROOF.REQUIRED_WORKER_MODULES, "backend.core.units")):
+    for name in sorted(PROOF.REQUIRED_WORKER_MODULES):
         relative = Path(*name.split(".")).with_suffix(".py")
         project_rows.append(
             runtime_file_row(
@@ -464,7 +467,7 @@ class RealNestProofRunnerTests(unittest.TestCase):
             make_source_tree(root)
             modules = make_host_modules(root)
             modules.pop("backend.integrations.extension_package_store")
-            with self.assertRaisesRegex(RuntimeError, "missing required modules"):
+            with self.assertRaisesRegex(RuntimeError, "exact module roster"):
                 PROOF.collect_loaded_engram_sources(root, modules)
 
             modules = make_host_modules(root)
@@ -596,67 +599,45 @@ class RealNestProofRunnerTests(unittest.TestCase):
                 PROOF.verify_source_inventory(root, inventory)
 
     def test_reviewed_guardian_lifecycle_join(self) -> None:
-        guardian = {"sha256": "1" * 64}
-        handshake = {
-            "guardian_source_sha256": guardian["sha256"],
-            "launch_source": "package-store-lease",
+        installed = {
             "store_id": "extstore_" + "2" * 64,
             "package_generation_id": "pkggen_" + "3" * 64,
+            "installation_id": "inst_" + "4" * 64,
+            "executable_sha256": "5" * 64,
+            "observed_build_receipt": {
+                "cargo": {"target": {"target_id": "macos-aarch64-darwin"}}
+            },
         }
-        handshake["receipt_sha256"] = PROOF.sha256(PROOF.canonical(handshake))
-        termination = {
-            "handshake_receipt_sha256": handshake["receipt_sha256"],
-            "child_reaped": True,
-            "containment_empty": True,
-            "diagnostic_stream_complete": True,
-            "private_work_directory_removed": True,
-            "package_generation_lease_released": True,
-        }
-        termination["receipt_sha256"] = PROOF.sha256(PROOF.canonical(termination))
-        lifecycle = {
-            "handshake_receipt_sha256": handshake["receipt_sha256"],
-            "termination_receipt_sha256": termination["receipt_sha256"],
-            "launch_source": "package-store-lease",
-            "store_id": handshake["store_id"],
-            "package_generation_id": handshake["package_generation_id"],
-            "package_generation_lease_retained_at_launch": True,
-            "package_generation_lease_released": True,
-            "child_reaped": True,
-            "containment_empty": True,
-            "diagnostic_stream_complete": True,
-            "private_work_directory_removed": True,
-            "termination_disposition": "clean-exit",
-            "durable_process_launch_authority": False,
-            "ncp_authority": False,
-            "physical_authority": False,
-            "scientific_authority": False,
-        }
-        lifecycle["binding_sha256"] = PROOF.sha256(PROOF.canonical(lifecycle))
-        terminal = {
-            "runtime_lifecycle": lifecycle,
-        }
-        installed = {
-            "store_id": handshake["store_id"],
-            "package_generation_id": handshake["package_generation_id"],
-        }
+        guardian = {"sha256": "1" * 64}
+        exec_gate = {"sha256": "6" * 64}
+        python_executable_sha256 = "7" * 64
+        reviewed, lifecycle = reviewed_runtime_fixture(
+            installed=installed,
+            guardian_source_sha256=guardian["sha256"],
+            exec_gate_source_sha256=exec_gate["sha256"],
+            python_executable_sha256=python_executable_sha256,
+        )
+        terminal = {"runtime_lifecycle": lifecycle}
         session = SimpleNamespace(
-            handshake_receipt=FakeModel(handshake),
-            termination_receipt=FakeModel(termination),
+            exec_gate_command_binding=FakeModel(reviewed["exec_gate_command_binding"]),
+            handshake_receipt=FakeModel(reviewed["handshake_receipt"]),
+            termination_receipt=FakeModel(reviewed["termination_receipt"]),
         )
         self.assertEqual(
-            PROOF.reviewed_runtime_lineage(session, terminal, guardian, installed),
-            {
-                "handshake_receipt": handshake,
-                "termination_receipt": termination,
-                "lifecycle_binding_sha256": lifecycle["binding_sha256"],
-                "guardian_closure_verified": True,
-                "package_store_lineage_verified": True,
-            },
+            PROOF.reviewed_runtime_lineage(
+                session,
+                terminal,
+                guardian,
+                exec_gate,
+                python_executable_sha256,
+                installed,
+            ),
+            reviewed,
         )
         hostile = copy.deepcopy(terminal)
         hostile["runtime_lifecycle"]["termination_receipt_sha256"] = "4" * 64
         hostile["runtime_lifecycle"]["binding_sha256"] = PROOF.sha256(
-            PROOF.canonical(
+            PROOF.managed_runtime_canonical(
                 {
                     key: value
                     for key, value in hostile["runtime_lifecycle"].items()
@@ -669,6 +650,35 @@ class RealNestProofRunnerTests(unittest.TestCase):
                 session,
                 hostile,
                 guardian,
+                exec_gate,
+                python_executable_sha256,
+                installed,
+            )
+
+        missing_command_field = copy.deepcopy(reviewed["exec_gate_command_binding"])
+        missing_command_field.pop("argument_shape")
+        with self.assertRaisesRegex(RuntimeError, "field roster differs"):
+            PROOF.assert_reviewed_runtime_closure(
+                missing_command_field,
+                reviewed["handshake_receipt"],
+                reviewed["termination_receipt"],
+                lifecycle,
+                guardian["sha256"],
+                exec_gate["sha256"],
+                python_executable_sha256,
+                installed,
+            )
+        extra_authority_field = copy.deepcopy(reviewed["handshake_receipt"])
+        extra_authority_field["execution_authority"] = False
+        with self.assertRaisesRegex(RuntimeError, "field roster differs"):
+            PROOF.assert_reviewed_runtime_closure(
+                reviewed["exec_gate_command_binding"],
+                extra_authority_field,
+                reviewed["termination_receipt"],
+                lifecycle,
+                guardian["sha256"],
+                exec_gate["sha256"],
+                python_executable_sha256,
                 installed,
             )
 
@@ -802,7 +812,118 @@ class RealNestProofRunnerTests(unittest.TestCase):
         )
         plan = json.loads((input_root / "run-plan-1-drone.json").read_text())
         config = json.loads((input_root / "nest-config.json").read_text())
-        evidence, _neural_steps = real_nest_validation_fixture(plan, config)
+        runtime_installed = {
+            "store_id": "extstore_" + "2" * 64,
+            "package_generation_id": "pkggen_" + "4" * 64,
+            "installation_id": "inst_" + "5" * 64,
+            "executable_sha256": "6" * 64,
+            "observed_build_receipt": {
+                "cargo": {"target": {"target_id": "macos-aarch64-darwin"}}
+            },
+        }
+        reviewed, runtime_lifecycle = reviewed_runtime_fixture(
+            installed=runtime_installed,
+            guardian_source_sha256="7" * 64,
+            exec_gate_source_sha256="8" * 64,
+            python_executable_sha256="9" * 64,
+        )
+        terminal, evidence, neural_steps = real_nest_closed_loop_fixture(
+            plan,
+            config,
+            runtime_lifecycle=runtime_lifecycle,
+        )
+        PROOF.assert_nest_evidence_closure(terminal, evidence, expected_step_count=6)
+        PROOF.assert_neural_steps_closure(
+            plan,
+            terminal,
+            evidence,
+            neural_steps,
+            expected_step_count=6,
+        )
+        observation_zero = neural_steps[0]["request"]["channels"][0][
+            "observation_values"
+        ][0]
+        proposal_zero = neural_steps[0]["result"]["proposals"][0]["values"][0]
+        self.assertIs(type(observation_zero), float)
+        self.assertIs(type(proposal_zero), float)
+        self.assertIn(
+            b'"observation_values":[0.0',
+            PROOF.managed_runtime_canonical(neural_steps[0]["request"]),
+        )
+        missing_evidence_field = copy.deepcopy(evidence)
+        missing_evidence_field.pop("profile")
+        with self.assertRaisesRegex(RuntimeError, "field roster differs"):
+            PROOF.assert_nest_evidence_closure(
+                terminal,
+                missing_evidence_field,
+                expected_step_count=6,
+            )
+        extra_terminal_field = copy.deepcopy(terminal)
+        extra_terminal_field["authority"] = False
+        with self.assertRaisesRegex(RuntimeError, "field roster differs"):
+            PROOF.assert_nest_evidence_closure(
+                extra_terminal_field,
+                evidence,
+                expected_step_count=6,
+            )
+        missing_neural_field = copy.deepcopy(neural_steps)
+        missing_neural_field[0]["request"].pop("source_snapshot_sha256")
+        with self.assertRaisesRegex(RuntimeError, "field roster differs"):
+            PROOF.assert_neural_steps_closure(
+                plan,
+                terminal,
+                evidence,
+                missing_neural_field,
+                expected_step_count=6,
+            )
+        authority_like_neural_field = copy.deepcopy(neural_steps)
+        authority_like_neural_field[0]["result"]["scientific_authority"] = False
+        with self.assertRaisesRegex(RuntimeError, "field roster differs"):
+            PROOF.assert_neural_steps_closure(
+                plan,
+                terminal,
+                evidence,
+                authority_like_neural_field,
+                expected_step_count=6,
+            )
+        integer_zero_steps = copy.deepcopy(neural_steps)
+        integer_zero_terminal = copy.deepcopy(terminal)
+        integer_zero_request = integer_zero_steps[0]["request"]
+        integer_zero_request["channels"][0]["observation_values"][0] = 0
+        integer_zero_request["request_sha256"] = PROOF.sha256(
+            PROOF.managed_runtime_canonical(
+                {
+                    key: value
+                    for key, value in integer_zero_request.items()
+                    if key != "request_sha256"
+                }
+            )
+        )
+        integer_zero_result = integer_zero_steps[0]["result"]
+        integer_zero_result["request_sha256"] = integer_zero_request["request_sha256"]
+        integer_zero_result["result_sha256"] = PROOF.sha256(
+            PROOF.managed_runtime_canonical(
+                {
+                    key: value
+                    for key, value in integer_zero_result.items()
+                    if key != "result_sha256"
+                }
+            )
+        )
+        for binding in (
+            integer_zero_terminal["steps"][0],
+            integer_zero_terminal["neural_executions"][0],
+        ):
+            binding["neural_request_sha256"] = integer_zero_request["request_sha256"]
+            binding["neural_result_sha256"] = integer_zero_result["result_sha256"]
+        with self.assertRaisesRegex(RuntimeError, "non-float JSON value"):
+            PROOF.assert_neural_steps_closure(
+                plan,
+                integer_zero_terminal,
+                evidence,
+                integer_zero_steps,
+                expected_step_count=6,
+            )
         closure = PROOF.assert_worker_guardian_closure(evidence)
         self.assertTrue(closure["child_reaped"])
         self.assertEqual(closure["termination_attempt_count"], 1)
@@ -828,89 +949,125 @@ class RealNestProofRunnerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="crebain-receipt-store-") as raw:
             root = Path(raw).resolve()
             os.chmod(root, 0o700)
-            receipts = root / "receipts"
-            evidence = root / "evidence"
-            receipt_artifact = {"status": "completed"}
-            receipt_digest = PROOF.sha256(PROOF.canonical(receipt_artifact))
-            receipt_document = {
-                **receipt_artifact,
-                "receipt_sha256": receipt_digest,
-            }
-            evidence_artifact = {"run_receipt_sha256": receipt_digest}
-            evidence_digest = PROOF.sha256(PROOF.canonical(evidence_artifact))
-            evidence_document = {
-                **evidence_artifact,
-                "bundle_sha256": evidence_digest,
-            }
-            receipt_path = receipts / receipt_digest[:2] / f"{receipt_digest}.json"
-            evidence_path = evidence / evidence_digest[:2] / f"{evidence_digest}.json"
-            receipt_path.parent.mkdir(parents=True, mode=0o700)
-            evidence_path.parent.mkdir(parents=True, mode=0o700)
-            receipt_path.write_bytes(PROOF.canonical(receipt_artifact))
-            evidence_path.write_bytes(PROOF.canonical(evidence_artifact))
-            (root / "store.json").write_bytes(b"{}")
-            (root / "writer.lock").write_bytes(b"lock\n")
-            for path in (
-                receipt_path,
-                evidence_path,
-                root / "store.json",
-                root / "writer.lock",
-            ):
-                os.chmod(path, 0o600)
             store_id = "clrs_" + "3" * 64
-            store_closure = PROOF.collect_receipt_store_closure(
+            handshake = reviewed["handshake_receipt"]
+            expected_closure, expected_sidecars, material = closed_loop_store_fixture(
+                terminal=terminal,
+                evidence=evidence,
+                run_plan=plan,
+                nest_config=config,
+                package_generation_id=runtime_installed["package_generation_id"],
+                reviewed_handshake=handshake,
+                store_id=store_id,
+            )
+            for relative_path, payload in material.items():
+                path = root / relative_path
+                path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+                path.write_bytes(payload)
+                os.chmod(path, 0o600)
+            store_closure, sidecars = PROOF.collect_receipt_store_material(
                 root,
                 store_id=store_id,
-                receipt_document=receipt_document,
-                evidence_document=evidence_document,
+                receipt_document=terminal,
+                evidence_document=evidence,
             )
-            self.assertEqual(store_closure["file_count"], 4)
-            self.assertEqual(
-                store_closure["receipt_artifact_path"],
-                receipt_path.relative_to(root).as_posix(),
+            self.assertEqual(store_closure, expected_closure)
+            self.assertEqual(sidecars, expected_sidecars)
+            PROOF.assert_receipt_store_sidecars(
+                sidecars,
+                store_id=store_id,
+                receipt_document=terminal,
+                evidence_document=evidence,
+                run_plan_document=plan,
+                nest_config_document=config,
+                package_generation_id=runtime_installed["package_generation_id"],
+                reviewed_handshake=handshake,
             )
-            self.assertEqual(
-                store_closure["evidence_artifact_path"],
-                evidence_path.relative_to(root).as_posix(),
+            summary = {
+                "authority": False,
+                "calibrated_posterior": False,
+                "channel_count": 1,
+                "completed_step_count": 6,
+                "evidence_bundle_sha256": evidence["bundle_sha256"],
+                "ncp_qualified": False,
+                "physical_actuation": False,
+                "planned_step_count": 6,
+                "receipt_sha256": terminal["receipt_sha256"],
+                "reservation_id": sidecars["finalized_reservation"]["reservation"][
+                    "reservation_id"
+                ],
+                "run_status": "completed",
+                "scientific_authority": False,
+                "simulator_only": True,
+                "status": "recorded",
+                "store_id": store_id,
+                "study_run_id": terminal["study_run_id"],
+                "terminal_reason_code": terminal["terminal_reason_code"],
+            }
+            PROOF.assert_run_summary(
+                summary,
+                channel_count=1,
+                store_id=store_id,
+                reservation_id=summary["reservation_id"],
+                receipt_document=terminal,
+                evidence_document=evidence,
             )
+            hostile_summary = {**summary, "authority": True}
+            with self.assertRaisesRegex(RuntimeError, "authority"):
+                PROOF.assert_run_summary(
+                    hostile_summary,
+                    channel_count=1,
+                    store_id=store_id,
+                    reservation_id=summary["reservation_id"],
+                    receipt_document=terminal,
+                    evidence_document=evidence,
+                )
             self.assertEqual(
                 PROOF.receipt_store_identity(SimpleNamespace(store_id=store_id)),
                 store_id,
             )
             semantic_store = SimpleNamespace(
                 store_id=store_id,
-                open=lambda _digest: FakeModel(receipt_document),
-                open_evidence=lambda _digest: FakeModel(evidence_document),
+                open=lambda _digest: FakeModel(terminal),
+                open_evidence=lambda _digest: FakeModel(evidence),
             )
             PROOF.assert_receipt_store_reopen(
                 semantic_store,
                 store_id=store_id,
-                receipt_sha256=receipt_digest,
-                receipt_document=receipt_document,
-                evidence_document=evidence_document,
+                receipt_sha256=terminal["receipt_sha256"],
+                receipt_document=terminal,
+                evidence_document=evidence,
             )
             hostile_store = SimpleNamespace(
                 store_id=store_id,
-                open=lambda _digest: FakeModel(receipt_document),
-                open_evidence=lambda _digest: FakeModel(receipt_document),
+                open=lambda _digest: FakeModel(terminal),
+                open_evidence=lambda _digest: FakeModel(terminal),
             )
             with self.assertRaisesRegex(RuntimeError, "semantic reopen differs"):
                 PROOF.assert_receipt_store_reopen(
                     hostile_store,
                     store_id=store_id,
-                    receipt_sha256=receipt_digest,
-                    receipt_document=receipt_document,
-                    evidence_document=evidence_document,
+                    receipt_sha256=terminal["receipt_sha256"],
+                    receipt_document=terminal,
+                    evidence_document=evidence,
                 )
-            duplicate = evidence / "duplicate.json"
-            duplicate.write_bytes(PROOF.canonical(receipt_artifact))
+            duplicate = root / "evidence/duplicate.json"
+            duplicate.write_bytes(
+                PROOF.managed_runtime_canonical(
+                    {
+                        key: value
+                        for key, value in terminal.items()
+                        if key != "receipt_sha256"
+                    }
+                )
+            )
             os.chmod(duplicate, 0o600)
-            with self.assertRaisesRegex(RuntimeError, "one exact receipt"):
+            with self.assertRaisesRegex(RuntimeError, "exact eight-file"):
                 PROOF.collect_receipt_store_closure(
                     root,
                     store_id=store_id,
-                    receipt_document=receipt_document,
-                    evidence_document=evidence_document,
+                    receipt_document=terminal,
+                    evidence_document=evidence,
                 )
             duplicate.unlink()
             (root / "store.json").write_bytes(b"{ }")
@@ -918,26 +1075,53 @@ class RealNestProofRunnerTests(unittest.TestCase):
                 PROOF.collect_receipt_store_closure(
                     root,
                     store_id=store_id,
-                    receipt_document=receipt_document,
-                    evidence_document=evidence_document,
+                    receipt_document=terminal,
+                    evidence_document=evidence,
                 )
-            (root / "store.json").write_bytes(b"{}")
-            forged_receipt = {**receipt_document, "receipt_sha256": "0" * 64}
+            (root / "store.json").write_bytes(material["store.json"])
+            forged_receipt = {**terminal, "receipt_sha256": "0" * 64}
             with self.assertRaisesRegex(RuntimeError, "artifact digests differ"):
                 PROOF.collect_receipt_store_closure(
                     root,
                     store_id=store_id,
                     receipt_document=forged_receipt,
-                    evidence_document=evidence_document,
+                    evidence_document=evidence,
                 )
-            linked = evidence / "linked.json"
-            linked.symlink_to(evidence_path)
+            linked = root / "evidence/linked.json"
+            linked.symlink_to(root / expected_closure["evidence_artifact_path"])
             with self.assertRaisesRegex(RuntimeError, "link or unbounded"):
                 PROOF.collect_receipt_store_closure(
                     root,
                     store_id=store_id,
-                    receipt_document=receipt_document,
-                    evidence_document=evidence_document,
+                    receipt_document=terminal,
+                    evidence_document=evidence,
+                )
+            hostile_sidecars = copy.deepcopy(sidecars)
+            hostile_sidecars["observation"]["execution_authority"] = True
+            hostile_sidecars["observation"]["record_sha256"] = PROOF.sha256(
+                PROOF.managed_runtime_canonical(
+                    {
+                        key: value
+                        for key, value in hostile_sidecars["observation"].items()
+                        if key != "record_sha256"
+                    }
+                )
+            )
+            hostile_sidecars["closure_sha256"] = PROOF.sha256(
+                PROOF.canonical(
+                    {
+                        key: value
+                        for key, value in hostile_sidecars.items()
+                        if key != "closure_sha256"
+                    }
+                )
+            )
+            with self.assertRaisesRegex(RuntimeError, "non-simulator authority"):
+                PROOF.assert_receipt_store_sidecars(
+                    hostile_sidecars,
+                    store_id=store_id,
+                    receipt_document=terminal,
+                    evidence_document=evidence,
                 )
 
     def test_immutable_git_binding_positive_and_dirty_controls(self) -> None:

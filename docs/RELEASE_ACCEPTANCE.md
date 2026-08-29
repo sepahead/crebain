@@ -59,6 +59,8 @@ or field tests provide separate facts.
   Installed proof v3 joins build, stage, pack, store, bundle, seal, executable, configuration, and schemas.
   Bootstrap CI does not open historical or operational captures.
   Its provider-free test accepts synthetic v2 evidence and rejects an exact v1 root.
+  The cross-repository oracle validates three plans and six receipt roots against immutable Engram models.
+  It also validates each terminal run against its complete NEST evidence bundle.
 
 - **Blocking conditions:** A copied contract lacks Git provenance.
   A build input, Cargo dep-info row, or receipt join drifts.
@@ -67,22 +69,33 @@ or field tests provide separate facts.
   A source executable lacks valid thin Mach-O arm64 load commands.
   The pack tool, Engram commit, bundle generation, or receipt lineage drifts.
   A nested roster is unsafe, unsorted, duplicated, stale, or open.
+  Exact arithmetic, numeric kinds, recorder state, controller encoding, or decoded proposals drift.
   The runtime gains NCP, MUSIC, network, Tauri, artifact, plant, physical, scientific, or restart authority.
 
 The observed-build receipt is not a signature or reproducibility proof.
 It does not attest external dependency bytes or the complete build environment.
 
 The target-environment gate runs one reviewed runtime and one NEST session for each suite member.
-Each run must prove the exact 6N population topology and complete receipt-store closure.
+Each run must prove the exact 6N population topology.
+Each run must bind the exact eight-file receipt-store closure.
+The capture must embed all five retained JSON sidecars as canonical objects.
+It must close and rehash every mirrored neural request and result.
+The verifier must derive every store path, size, and hash from those objects.
+The verifier must rejoin the reservation, dispatches, WAL, anchor, authority, and catalog record.
+The run summary must contain exactly 17 fields.
+It must deny execution, NCP, physical, and scientific authority.
 The suite must publish distinct receipt and evidence identities from one immutable Engram commit.
 Capture v2 and INDEX v2 bind the exact one-, two-, and three-drone suite.
 Current evidence uses `operational-evidence/real-nest-3.9-v2/`.
 Commit only the four evidence JSON files as direct child C1 of clean source revision C0.
 Push C1 before operational verification.
 Pass both exact revisions to `bun run check:managed-simulation-operational-v2 --`.
-  The operational verifier requires the tracked input context and rejects every INDEX v1 root.
-  It preserves Host API 2 number lexemes before it verifies canonical digests.
-  It rejects alternate float spellings and cross-language type collapse.
+The operational verifier requires the tracked input context.
+It rejects every INDEX v1 root.
+It preserves Host API 2 number lexemes before digest verification.
+It rejects alternate float spellings and cross-language type collapse.
+It keeps managed-runtime and ledger digest profiles separate.
+The retained bytes are local observations, not signatures or external attestations.
 
 ### Supply chain and static analysis
 

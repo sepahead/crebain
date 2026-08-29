@@ -1,0 +1,204 @@
+{
+  "$id": "https://engram.local/schemas/engram.reviewed-native-development-termination.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Terminal local observation for one retained child process.",
+  "properties": {
+    "child_reaped": {
+      "title": "Child Reaped",
+      "type": "boolean"
+    },
+    "containment_empty": {
+      "title": "Containment Empty",
+      "type": "boolean"
+    },
+    "containment_seal_signal": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Containment Seal Signal"
+    },
+    "containment_signal_scope": {
+      "enum": [
+        "process-group",
+        "direct-child",
+        "none"
+      ],
+      "title": "Containment Signal Scope",
+      "type": "string"
+    },
+    "diagnostic_stream_complete": {
+      "title": "Diagnostic Stream Complete",
+      "type": "boolean"
+    },
+    "direct_child_signal_while_unreaped": {
+      "title": "Direct Child Signal While Unreaped",
+      "type": "boolean"
+    },
+    "disposition": {
+      "enum": [
+        "clean-exit",
+        "terminated",
+        "killed",
+        "unconfirmed"
+      ],
+      "title": "Disposition",
+      "type": "string"
+    },
+    "durable_process_launch_authority": {
+      "const": false,
+      "default": false,
+      "title": "Durable Process Launch Authority",
+      "type": "boolean"
+    },
+    "exit_code": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Exit Code"
+    },
+    "generation_id": {
+      "pattern": "^gen_[0-9a-f]{64}$",
+      "title": "Generation Id",
+      "type": "string"
+    },
+    "group_signal_while_guardian_unreaped": {
+      "title": "Group Signal While Guardian Unreaped",
+      "type": "boolean"
+    },
+    "guardian_generation_lease_held_until_containment": {
+      "title": "Guardian Generation Lease Held Until Containment",
+      "type": "boolean"
+    },
+    "guardian_pid": {
+      "minimum": 1,
+      "title": "Guardian Pid",
+      "type": "integer"
+    },
+    "guardian_reaped": {
+      "title": "Guardian Reaped",
+      "type": "boolean"
+    },
+    "handshake_receipt_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Handshake Receipt Sha256",
+      "type": "string"
+    },
+    "ncp_authority": {
+      "const": false,
+      "default": false,
+      "title": "Ncp Authority",
+      "type": "boolean"
+    },
+    "package_generation_lease_released": {
+      "title": "Package Generation Lease Released",
+      "type": "boolean"
+    },
+    "physical_authority": {
+      "const": false,
+      "default": false,
+      "title": "Physical Authority",
+      "type": "boolean"
+    },
+    "private_work_directory_removed": {
+      "title": "Private Work Directory Removed",
+      "type": "boolean"
+    },
+    "process_group_id": {
+      "minimum": 1,
+      "title": "Process Group Id",
+      "type": "integer"
+    },
+    "reason_code": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Reason Code",
+      "type": "string"
+    },
+    "receipt_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Receipt Sha256",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "engram.reviewed-native-development-termination.v1",
+      "default": "engram.reviewed-native-development-termination.v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "scientific_authority": {
+      "const": false,
+      "default": false,
+      "title": "Scientific Authority",
+      "type": "boolean"
+    },
+    "stderr_retained_bytes": {
+      "maximum": 1048576,
+      "minimum": 0,
+      "title": "Stderr Retained Bytes",
+      "type": "integer"
+    },
+    "stderr_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Stderr Sha256",
+      "type": "string"
+    },
+    "stderr_truncated": {
+      "title": "Stderr Truncated",
+      "type": "boolean"
+    },
+    "termination_signal": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Termination Signal"
+    }
+  },
+  "required": [
+    "child_reaped",
+    "containment_empty",
+    "containment_seal_signal",
+    "containment_signal_scope",
+    "diagnostic_stream_complete",
+    "direct_child_signal_while_unreaped",
+    "disposition",
+    "durable_process_launch_authority",
+    "exit_code",
+    "generation_id",
+    "group_signal_while_guardian_unreaped",
+    "guardian_generation_lease_held_until_containment",
+    "guardian_pid",
+    "guardian_reaped",
+    "handshake_receipt_sha256",
+    "ncp_authority",
+    "package_generation_lease_released",
+    "physical_authority",
+    "private_work_directory_removed",
+    "process_group_id",
+    "reason_code",
+    "receipt_sha256",
+    "schema_version",
+    "scientific_authority",
+    "stderr_retained_bytes",
+    "stderr_sha256",
+    "stderr_truncated",
+    "termination_signal"
+  ],
+  "title": "ReviewedNativeDevelopmentTerminationReceiptV1",
+  "type": "object"
+}

@@ -23,6 +23,12 @@ from managed_simulation_authoring_files import (
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT_ROOT = ROOT / "integrations" / "engram" / "managed-simulation" / "contracts"
 PROVENANCE_PATH = CONTRACT_ROOT / "PROVENANCE.json"
+EVIDENCE_SCHEMA_ROOT = (
+    ROOT / "integrations" / "engram" / "managed-simulation" / "evidence-schemas"
+)
+RUNTIME_RECEIPT_PROVENANCE_PATH = (
+    EVIDENCE_SCHEMA_ROOT / "ENGRAM_RUNTIME_RECEIPT_PROVENANCE.json"
+)
 MAX_CONTRACT_BYTES = 1024 * 1024
 MAX_GIT_OUTPUT_BYTES = 16 * 1024 * 1024
 OBJECT_ID = re.compile(r"(?:[a-f0-9]{40}|[a-f0-9]{64})")
@@ -60,6 +66,24 @@ CONTRACT_SPECS = (
         for operation in ("finish", "prepare", "step")
         for direction in ("request", "response")
     ),
+)
+
+RUNTIME_RECEIPT_SCHEMA_NAMES = (
+    "engram.closed-loop-runtime-lifecycle-binding.v1.schema.json",
+    "engram.contained-exec-command.v1.schema.json",
+    "engram.extension-closed-loop-run-receipt.v2.schema.json",
+    "engram.nest-closed-loop-evidence-bundle.v2.schema.json",
+    "engram.reviewed-native-development-handshake.v1.schema.json",
+    "engram.reviewed-native-development-termination.v1.schema.json",
+)
+RUNTIME_RECEIPT_SCHEMA_SPECS = tuple(
+    ContractSpec(
+        schema_id=name.removesuffix(".schema.json"),
+        source_path=f"integrations/contracts/{name}",
+        destination_name=name,
+        runtime_role="evidence-validation",
+    )
+    for name in RUNTIME_RECEIPT_SCHEMA_NAMES
 )
 
 
@@ -242,6 +266,11 @@ def build_sync(
     source_root: Path,
     expected_commit: str,
     specs: Iterable[ContractSpec] = CONTRACT_SPECS,
+    *,
+    destination_path_prefix: str = (
+        "integrations/engram/managed-simulation/contracts/"
+    ),
+    include_size_bytes: bool = False,
 ) -> tuple[dict[str, Any], dict[str, bytes]]:
     specs = tuple(specs)
     if len({spec.schema_id for spec in specs}) != len(specs):
@@ -271,20 +300,18 @@ def build_sync(
                 f"Engram contract bytes differ from the committed blob: {spec.source_path}"
             )
         payloads[spec.destination_name] = payload
-        copies.append(
-            {
-                "schema_id": spec.schema_id,
-                "source_path": spec.source_path,
-                "destination_path": (
-                    "integrations/engram/managed-simulation/contracts/"
-                    + spec.destination_name
-                ),
-                "sha256": sha256(payload),
-                "git_mode": mode,
-                "git_blob": committed_blob,
-                "runtime_role": spec.runtime_role,
-            }
-        )
+        copy = {
+            "schema_id": spec.schema_id,
+            "source_path": spec.source_path,
+            "destination_path": destination_path_prefix + spec.destination_name,
+            "sha256": sha256(payload),
+            "git_mode": mode,
+            "git_blob": committed_blob,
+            "runtime_role": spec.runtime_role,
+        }
+        if include_size_bytes:
+            copy["size_bytes"] = len(payload)
+        copies.append(copy)
     if verify_checkout(source_root, expected_commit) != source_identity:
         fail("Engram checkout changed during contract synchronization")
     provenance = {
@@ -298,6 +325,21 @@ def build_sync(
         "authority": "compatibility-copy-only",
     }
     return provenance, payloads
+
+
+def build_runtime_receipt_sync(
+    source_root: Path,
+    expected_commit: str,
+) -> tuple[dict[str, Any], dict[str, bytes]]:
+    return build_sync(
+        source_root,
+        expected_commit,
+        RUNTIME_RECEIPT_SCHEMA_SPECS,
+        destination_path_prefix=(
+            "integrations/engram/managed-simulation/evidence-schemas/"
+        ),
+        include_size_bytes=True,
+    )
 
 
 def expected_provenance_bytes(provenance: dict[str, Any]) -> bytes:
@@ -361,20 +403,36 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--engram-root", type=Path, required=True)
     parser.add_argument("--engram-commit", required=True)
+    parser.add_argument(
+        "--surface",
+        choices=("wire", "runtime-receipts"),
+        default="wire",
+        help="select the immutable Engram contract surface",
+    )
     action = parser.add_mutually_exclusive_group(required=True)
     action.add_argument("--check", action="store_true")
     action.add_argument("--write", action="store_true")
     arguments = parser.parse_args()
     source_root = arguments.engram_root.resolve(strict=True)
-    provenance, payloads = build_sync(source_root, arguments.engram_commit)
+    if arguments.surface == "wire":
+        provenance, payloads = build_sync(source_root, arguments.engram_commit)
+        output_root = CONTRACT_ROOT
+        provenance_path = PROVENANCE_PATH
+    else:
+        provenance, payloads = build_runtime_receipt_sync(
+            source_root, arguments.engram_commit
+        )
+        output_root = EVIDENCE_SCHEMA_ROOT
+        provenance_path = RUNTIME_RECEIPT_PROVENANCE_PATH
     if arguments.write:
-        replace_outputs(CONTRACT_ROOT, PROVENANCE_PATH, provenance, payloads)
-    check_local(CONTRACT_ROOT, PROVENANCE_PATH, provenance, payloads)
+        replace_outputs(output_root, provenance_path, provenance, payloads)
+    check_local(output_root, provenance_path, provenance, payloads)
     print(
         canonical(
             {
                 "status": "verified",
                 "engram_commit": arguments.engram_commit,
+                "surface": arguments.surface,
                 "contract_count": len(payloads),
                 "provenance_sha256": sha256(expected_provenance_bytes(provenance)),
             }

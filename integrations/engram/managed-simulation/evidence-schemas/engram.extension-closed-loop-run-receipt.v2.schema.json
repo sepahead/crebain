@@ -1,0 +1,828 @@
+{
+  "$defs": {
+    "ClosedLoopStepReceiptV2": {
+      "additionalProperties": false,
+      "properties": {
+        "admitted_action_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Admitted Action Sha256",
+          "type": "string"
+        },
+        "fault_codes": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Fault Codes",
+          "type": "array"
+        },
+        "input_snapshot_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Input Snapshot Sha256",
+          "type": "string"
+        },
+        "neural_request_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Neural Request Sha256",
+          "type": "string"
+        },
+        "neural_result_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Neural Result Sha256",
+          "type": "string"
+        },
+        "output_snapshot_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Output Snapshot Sha256",
+          "type": "string"
+        },
+        "provider_execution_scope": {
+          "enum": [
+            "decoded-proposal-only",
+            "nest-exact-step-readback"
+          ],
+          "title": "Provider Execution Scope",
+          "type": "string"
+        },
+        "provider_execution_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Provider Execution Sha256",
+          "type": "string"
+        },
+        "receipt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Receipt Sha256",
+          "type": "string"
+        },
+        "runtime_request_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Runtime Request Sha256",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "engram.extension-closed-loop-step-receipt.v2",
+          "default": "engram.extension-closed-loop-step-receipt.v2",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "step_id": {
+          "pattern": "^step_[0-9a-f]{32}$",
+          "title": "Step Id",
+          "type": "string"
+        },
+        "step_index": {
+          "maximum": 1024,
+          "minimum": 1,
+          "title": "Step Index",
+          "type": "integer"
+        },
+        "study_run_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Study Run Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "admitted_action_sha256",
+        "fault_codes",
+        "input_snapshot_sha256",
+        "neural_request_sha256",
+        "neural_result_sha256",
+        "output_snapshot_sha256",
+        "provider_execution_scope",
+        "provider_execution_sha256",
+        "receipt_sha256",
+        "runtime_request_sha256",
+        "schema_version",
+        "step_id",
+        "step_index",
+        "study_run_id"
+      ],
+      "title": "ClosedLoopStepReceiptV2",
+      "type": "object"
+    },
+    "ClosedLoopTimebaseV1": {
+      "additionalProperties": false,
+      "description": "Two explicit logical clocks and one causal dispatch schedule.",
+      "properties": {
+        "action_application": {
+          "const": "after-controller-completion-zoh-over-runtime-interval",
+          "default": "after-controller-completion-zoh-over-runtime-interval",
+          "title": "Action Application",
+          "type": "string"
+        },
+        "causality_policy": {
+          "const": "sample-runtime-run-controller-apply-zoh-v1",
+          "default": "sample-runtime-run-controller-apply-zoh-v1",
+          "title": "Causality Policy",
+          "type": "string"
+        },
+        "clock_relation": {
+          "const": "independent-controller-and-runtime-logical-clocks",
+          "default": "independent-controller-and-runtime-logical-clocks",
+          "title": "Clock Relation",
+          "type": "string"
+        },
+        "coupling": {
+          "const": "one-controller-epoch-per-runtime-interval",
+          "default": "one-controller-epoch-per-runtime-interval",
+          "title": "Coupling",
+          "type": "string"
+        },
+        "dispatch_order": {
+          "const": "observe-controller-action-runtime",
+          "default": "observe-controller-action-runtime",
+          "title": "Dispatch Order",
+          "type": "string"
+        },
+        "neural_step_duration_tics": {
+          "maximum": 10000000,
+          "minimum": 1,
+          "title": "Neural Step Duration Tics",
+          "type": "integer"
+        },
+        "observation_sample_phase": {
+          "const": "runtime-interval-start",
+          "default": "runtime-interval-start",
+          "title": "Observation Sample Phase",
+          "type": "string"
+        },
+        "runtime_step_duration_tics": {
+          "maximum": 10000000,
+          "minimum": 1,
+          "title": "Runtime Step Duration Tics",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": "engram.extension-closed-loop-timebase.v1",
+          "default": "engram.extension-closed-loop-timebase.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "tic_unit": {
+          "const": "microsecond",
+          "default": "microsecond",
+          "title": "Tic Unit",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action_application",
+        "causality_policy",
+        "clock_relation",
+        "coupling",
+        "dispatch_order",
+        "neural_step_duration_tics",
+        "observation_sample_phase",
+        "runtime_step_duration_tics",
+        "schema_version",
+        "tic_unit"
+      ],
+      "title": "ClosedLoopTimebaseV1",
+      "type": "object"
+    },
+    "ComponentCleanupReceiptV2": {
+      "additionalProperties": false,
+      "properties": {
+        "attempted": {
+          "const": true,
+          "title": "Attempted",
+          "type": "boolean"
+        },
+        "component": {
+          "enum": [
+            "runtime",
+            "neural"
+          ],
+          "title": "Component",
+          "type": "string"
+        },
+        "confirmed": {
+          "title": "Confirmed",
+          "type": "boolean"
+        },
+        "containment_empty": {
+          "title": "Containment Empty",
+          "type": "boolean"
+        },
+        "mode": {
+          "enum": [
+            "finish",
+            "generation-kill",
+            "close"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "owner_identity_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Owner Identity Sha256",
+          "type": "string"
+        },
+        "provider_lifecycle_receipt_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Lifecycle Receipt Sha256"
+        },
+        "provider_terminal_receipt_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Terminal Receipt Sha256"
+        },
+        "reason_code": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Reason Code",
+          "type": "string"
+        },
+        "receipt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Receipt Sha256",
+          "type": "string"
+        },
+        "runtime_lifecycle": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RuntimeLifecycleReceiptBindingV1"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "schema_version": {
+          "const": "engram.closed-loop-cleanup.v2",
+          "default": "engram.closed-loop-cleanup.v2",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "attempted",
+        "component",
+        "confirmed",
+        "containment_empty",
+        "mode",
+        "owner_identity_sha256",
+        "provider_lifecycle_receipt_sha256",
+        "provider_terminal_receipt_sha256",
+        "reason_code",
+        "receipt_sha256",
+        "runtime_lifecycle",
+        "schema_version"
+      ],
+      "title": "ComponentCleanupReceiptV2",
+      "type": "object"
+    },
+    "NeuralExecutionReceiptBindingV1": {
+      "additionalProperties": false,
+      "description": "Terminal-run binding for every neural result accepted by the host.",
+      "properties": {
+        "binding_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Binding Sha256",
+          "type": "string"
+        },
+        "neural_request_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Neural Request Sha256",
+          "type": "string"
+        },
+        "neural_result_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Neural Result Sha256",
+          "type": "string"
+        },
+        "provider_execution_scope": {
+          "enum": [
+            "decoded-proposal-only",
+            "nest-exact-step-readback"
+          ],
+          "title": "Provider Execution Scope",
+          "type": "string"
+        },
+        "provider_execution_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Provider Execution Sha256",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "engram.closed-loop-neural-execution-binding.v1",
+          "default": "engram.closed-loop-neural-execution-binding.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "step_id": {
+          "pattern": "^step_[0-9a-f]{32}$",
+          "title": "Step Id",
+          "type": "string"
+        },
+        "step_index": {
+          "maximum": 1024,
+          "minimum": 1,
+          "title": "Step Index",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "binding_sha256",
+        "neural_request_sha256",
+        "neural_result_sha256",
+        "provider_execution_scope",
+        "provider_execution_sha256",
+        "schema_version",
+        "step_id",
+        "step_index"
+      ],
+      "title": "NeuralExecutionReceiptBindingV1",
+      "type": "object"
+    },
+    "RuntimeLifecycleReceiptBindingV1": {
+      "additionalProperties": false,
+      "description": "Rejoin one reviewed launch with its observed process termination.",
+      "properties": {
+        "binding_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Binding Sha256",
+          "type": "string"
+        },
+        "child_reaped": {
+          "title": "Child Reaped",
+          "type": "boolean"
+        },
+        "containment_empty": {
+          "title": "Containment Empty",
+          "type": "boolean"
+        },
+        "diagnostic_stream_complete": {
+          "title": "Diagnostic Stream Complete",
+          "type": "boolean"
+        },
+        "durable_process_launch_authority": {
+          "const": false,
+          "default": false,
+          "title": "Durable Process Launch Authority",
+          "type": "boolean"
+        },
+        "generation_directory_identity_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Generation Directory Identity Sha256"
+        },
+        "generation_id": {
+          "pattern": "^gen_[0-9a-f]{64}$",
+          "title": "Generation Id",
+          "type": "string"
+        },
+        "handshake_receipt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Handshake Receipt Sha256",
+          "type": "string"
+        },
+        "launch_source": {
+          "enum": [
+            "packed-bundle-path",
+            "package-store-lease"
+          ],
+          "title": "Launch Source",
+          "type": "string"
+        },
+        "ncp_authority": {
+          "const": false,
+          "default": false,
+          "title": "Ncp Authority",
+          "type": "boolean"
+        },
+        "package_generation_id": {
+          "pattern": "^pkggen_[0-9a-f]{64}$",
+          "title": "Package Generation Id",
+          "type": "string"
+        },
+        "package_generation_lease_released": {
+          "title": "Package Generation Lease Released",
+          "type": "boolean"
+        },
+        "package_generation_lease_retained_at_launch": {
+          "title": "Package Generation Lease Retained At Launch",
+          "type": "boolean"
+        },
+        "physical_authority": {
+          "const": false,
+          "default": false,
+          "title": "Physical Authority",
+          "type": "boolean"
+        },
+        "private_work_directory_removed": {
+          "title": "Private Work Directory Removed",
+          "type": "boolean"
+        },
+        "profile": {
+          "const": "engram.reviewed-native-development.v1",
+          "title": "Profile",
+          "type": "string"
+        },
+        "publisher_authenticated": {
+          "const": false,
+          "default": false,
+          "title": "Publisher Authenticated",
+          "type": "boolean"
+        },
+        "schema_version": {
+          "const": "engram.closed-loop-runtime-lifecycle-binding.v1",
+          "default": "engram.closed-loop-runtime-lifecycle-binding.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "scientific_authority": {
+          "const": false,
+          "default": false,
+          "title": "Scientific Authority",
+          "type": "boolean"
+        },
+        "store_id": {
+          "anyOf": [
+            {
+              "pattern": "^extstore_[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Store Id"
+        },
+        "termination_disposition": {
+          "enum": [
+            "clean-exit",
+            "terminated",
+            "killed",
+            "unconfirmed"
+          ],
+          "title": "Termination Disposition",
+          "type": "string"
+        },
+        "termination_receipt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Termination Receipt Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "binding_sha256",
+        "child_reaped",
+        "containment_empty",
+        "diagnostic_stream_complete",
+        "durable_process_launch_authority",
+        "generation_directory_identity_sha256",
+        "generation_id",
+        "handshake_receipt_sha256",
+        "launch_source",
+        "ncp_authority",
+        "package_generation_id",
+        "package_generation_lease_released",
+        "package_generation_lease_retained_at_launch",
+        "physical_authority",
+        "private_work_directory_removed",
+        "profile",
+        "publisher_authenticated",
+        "schema_version",
+        "scientific_authority",
+        "store_id",
+        "termination_disposition",
+        "termination_receipt_sha256"
+      ],
+      "title": "RuntimeLifecycleReceiptBindingV1",
+      "type": "object"
+    }
+  },
+  "$id": "https://engram.local/schemas/engram.extension-closed-loop-run-receipt.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Canonical terminal output.  It is a local receipt, not an attestation.",
+  "properties": {
+    "calibrated_posterior": {
+      "const": false,
+      "default": false,
+      "title": "Calibrated Posterior",
+      "type": "boolean"
+    },
+    "cleanup": {
+      "items": {
+        "$ref": "#/$defs/ComponentCleanupReceiptV2"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "title": "Cleanup",
+      "type": "array"
+    },
+    "cleanup_complete": {
+      "title": "Cleanup Complete",
+      "type": "boolean"
+    },
+    "closed_loop_definition_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Closed Loop Definition Sha256",
+      "type": "string"
+    },
+    "digest_canonicalization": {
+      "const": "engram.managed-runtime-json.v1",
+      "default": "engram.managed-runtime-json.v1",
+      "title": "Digest Canonicalization",
+      "type": "string"
+    },
+    "initial_snapshot_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Initial Snapshot Sha256"
+    },
+    "is_paper_local_evidence": {
+      "const": false,
+      "default": false,
+      "title": "Is Paper Local Evidence",
+      "type": "boolean"
+    },
+    "last_verified_simulation_time_tics": {
+      "anyOf": [
+        {
+          "maximum": 10240000000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Last Verified Simulation Time Tics"
+    },
+    "ncp_qualified": {
+      "const": false,
+      "default": false,
+      "title": "Ncp Qualified",
+      "type": "boolean"
+    },
+    "neural_deadline_enforcement": {
+      "enum": [
+        "host-generation-kill",
+        "cooperative-observed",
+        "deterministic-test"
+      ],
+      "title": "Neural Deadline Enforcement",
+      "type": "string"
+    },
+    "neural_durable_evidence_profile": {
+      "enum": [
+        "none",
+        "engram.nest-closed-loop-evidence-bundle.v2"
+      ],
+      "title": "Neural Durable Evidence Profile",
+      "type": "string"
+    },
+    "neural_executions": {
+      "items": {
+        "$ref": "#/$defs/NeuralExecutionReceiptBindingV1"
+      },
+      "maxItems": 1024,
+      "title": "Neural Executions",
+      "type": "array"
+    },
+    "neural_preparation_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Neural Preparation Sha256"
+    },
+    "neural_provider_identity_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Neural Provider Identity Sha256",
+      "type": "string"
+    },
+    "neural_session_receipt_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Neural Session Receipt Sha256"
+    },
+    "physical_actuation": {
+      "const": false,
+      "default": false,
+      "title": "Physical Actuation",
+      "type": "boolean"
+    },
+    "planned_step_count": {
+      "maximum": 1024,
+      "minimum": 1,
+      "title": "Planned Step Count",
+      "type": "integer"
+    },
+    "primary_reason_code": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Primary Reason Code",
+      "type": "string"
+    },
+    "receipt_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Receipt Sha256",
+      "type": "string"
+    },
+    "runtime_adapter_configuration_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Runtime Adapter Configuration Sha256",
+      "type": "string"
+    },
+    "runtime_binding_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Runtime Binding Sha256",
+      "type": "string"
+    },
+    "runtime_deadline_enforcement": {
+      "enum": [
+        "host-generation-kill",
+        "cooperative-observed",
+        "deterministic-test"
+      ],
+      "title": "Runtime Deadline Enforcement",
+      "type": "string"
+    },
+    "runtime_finish_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Runtime Finish Sha256"
+    },
+    "runtime_lifecycle": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RuntimeLifecycleReceiptBindingV1"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "runtime_progress_disposition": {
+      "enum": [
+        "not-started",
+        "last-host-verified",
+        "finished-and-host-verified",
+        "unknown-after-dispatch",
+        "unknown-after-operation-attempt"
+      ],
+      "title": "Runtime Progress Disposition",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "engram.extension-closed-loop-run-receipt.v2",
+      "default": "engram.extension-closed-loop-run-receipt.v2",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "scientific_authority": {
+      "const": false,
+      "default": false,
+      "title": "Scientific Authority",
+      "type": "boolean"
+    },
+    "simulator_only": {
+      "const": true,
+      "default": true,
+      "title": "Simulator Only",
+      "type": "boolean"
+    },
+    "status": {
+      "enum": [
+        "completed",
+        "cancelled",
+        "overloaded",
+        "failed"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "steps": {
+      "items": {
+        "$ref": "#/$defs/ClosedLoopStepReceiptV2"
+      },
+      "maxItems": 1024,
+      "title": "Steps",
+      "type": "array"
+    },
+    "study_definition_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Study Definition Sha256",
+      "type": "string"
+    },
+    "study_run_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Study Run Id",
+      "type": "string"
+    },
+    "terminal_reason_code": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Terminal Reason Code",
+      "type": "string"
+    },
+    "timebase": {
+      "$ref": "#/$defs/ClosedLoopTimebaseV1"
+    },
+    "transcript_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Transcript Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "calibrated_posterior",
+    "cleanup",
+    "cleanup_complete",
+    "closed_loop_definition_sha256",
+    "digest_canonicalization",
+    "initial_snapshot_sha256",
+    "is_paper_local_evidence",
+    "last_verified_simulation_time_tics",
+    "ncp_qualified",
+    "neural_deadline_enforcement",
+    "neural_durable_evidence_profile",
+    "neural_executions",
+    "neural_preparation_sha256",
+    "neural_provider_identity_sha256",
+    "neural_session_receipt_sha256",
+    "physical_actuation",
+    "planned_step_count",
+    "primary_reason_code",
+    "receipt_sha256",
+    "runtime_adapter_configuration_sha256",
+    "runtime_binding_sha256",
+    "runtime_deadline_enforcement",
+    "runtime_finish_sha256",
+    "runtime_lifecycle",
+    "runtime_progress_disposition",
+    "schema_version",
+    "scientific_authority",
+    "simulator_only",
+    "status",
+    "steps",
+    "study_definition_sha256",
+    "study_run_id",
+    "terminal_reason_code",
+    "timebase",
+    "transcript_sha256"
+  ],
+  "title": "ClosedLoopRunReceiptV2",
+  "type": "object"
+}

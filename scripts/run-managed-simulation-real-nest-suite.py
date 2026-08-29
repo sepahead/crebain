@@ -73,6 +73,7 @@ CAPTURE_KEYS = {
     "reviewed_native_runtime",
     "nest_worker_guardian_closure",
     "receipt_store_closure",
+    "receipt_store_sidecars",
     "population_topology",
     "nest_evidence_bundle",
     "neural_steps",
@@ -106,6 +107,8 @@ SOURCE_CLOSURE_KEYS = {
     "worker_project_source_roster_sha256",
     "reviewed_runtime_handshake_receipt_sha256",
     "reviewed_runtime_guardian_source_sha256",
+    "reviewed_runtime_exec_gate_source_sha256",
+    "reviewed_runtime_exec_gate_command_sha256",
     "exercised_entrypoints",
     "sources",
     "closure_sha256",
@@ -529,7 +532,7 @@ def validate_capture(
     engram_commit: str,
 ) -> dict[str, Any]:
     count = row.get("drone_count")
-    if capture_bytes != canonical(capture) + b"\n":
+    if capture_bytes != PROOF.managed_runtime_canonical(capture) + b"\n":
         fail(f"{count}-drone capture is not exact canonical JSON")
     expected_plan = PROOF.decode_json_object(plan_bytes, f"tracked {count}-drone plan")
     expected_config = PROOF.decode_json_object(
@@ -633,12 +636,42 @@ def validate_capture(
         sort_fields=("role", "relative_path"),
     )
     source_paths = {item["relative_path"] for item in sources}
+    nested_source_paths = {
+        item["relative_path"] for item in [*host_modules, *worker_modules, *entrypoints]
+    }
+    reviewed_guardian_rows = [
+        item
+        for item in sources
+        if item["relative_path"]
+        == "backend/integrations/reviewed_native_process_guardian.py"
+    ]
+    reviewed_exec_gate_rows = [
+        item
+        for item in sources
+        if item["relative_path"] == "backend/integrations/contained_exec_gate.py"
+    ]
     if (
-        any(item["relative_path"] not in source_paths for item in host_modules)
-        or any(item["relative_path"] not in source_paths for item in worker_modules)
-        or any(item["relative_path"] not in source_paths for item in entrypoints)
+        source_paths != nested_source_paths
+        or {item["module_name"] for item in host_modules} != PROOF.REQUIRED_HOST_MODULES
+        or {item["module_name"] for item in worker_modules}
+        != PROOF.REQUIRED_WORKER_MODULES
+        or any(
+            not PROOF._expected_module_path(item["module_name"], item["relative_path"])
+            for item in [*host_modules, *worker_modules]
+        )
+        or entrypoints
+        != [
+            {"role": role, "relative_path": relative_path}
+            for role, relative_path in sorted(PROOF.EXERCISED_ENTRYPOINTS)
+        ]
+        or len(reviewed_guardian_rows) != 1
+        or reviewed_guardian_rows[0]["sha256"]
+        != source.get("reviewed_runtime_guardian_source_sha256")
+        or len(reviewed_exec_gate_rows) != 1
+        or reviewed_exec_gate_rows[0]["sha256"]
+        != source.get("reviewed_runtime_exec_gate_source_sha256")
     ):
-        fail(f"{count}-drone capture nested source roster escapes its source closure")
+        fail(f"{count}-drone capture nested source closure differs")
     terminal = capture.get("terminal_receipt")
     evidence = capture.get("nest_evidence_bundle")
     neural_steps = capture.get("neural_steps")
@@ -648,26 +681,30 @@ def validate_capture(
         or not isinstance(neural_steps, list)
     ):
         fail(f"{count}-drone capture lacks terminal NEST evidence")
-    receipt_sha256 = PROOF.assert_canonical_digest(
+    receipt_sha256 = PROOF.assert_managed_runtime_digest(
         terminal,
         field="receipt_sha256",
         label="terminal closed-loop receipt",
     )
-    evidence_sha256 = PROOF.assert_canonical_digest(
+    evidence_sha256 = PROOF.assert_managed_runtime_digest(
         evidence,
         field="bundle_sha256",
         label="NEST evidence bundle",
     )
     if evidence.get("run_receipt_sha256") != receipt_sha256:
         fail(f"{count}-drone terminal receipt and evidence bundle differ")
-    summary = capture.get("summary")
-    if (
-        not isinstance(summary, dict)
-        or summary.get("run_status") != "completed"
-        or summary.get("receipt_sha256") != receipt_sha256
-        or summary.get("evidence_bundle_sha256") != evidence_sha256
-    ):
-        fail(f"{count}-drone capture summary and terminal evidence differ")
+    nest_evidence_closure = PROOF.assert_nest_evidence_closure(
+        terminal,
+        evidence,
+        expected_step_count=6,
+    )
+    PROOF.assert_neural_steps_closure(
+        capture.get("run_plan", {}),
+        terminal,
+        evidence,
+        neural_steps,
+        expected_step_count=6,
+    )
     topology = PROOF.assert_population_topology(
         capture.get("run_plan", {}),
         capture.get("nest_config", {}),
@@ -684,34 +721,46 @@ def validate_capture(
         or topology.get("connection_count") != row.get("expected_connection_count")
     ):
         fail(f"{count}-drone capture exact 6N topology differs")
-    guardian = PROOF.assert_worker_guardian_closure(evidence)
+    guardian = nest_evidence_closure["worker_guardian_closure"]
     if guardian != capture.get("nest_worker_guardian_closure"):
         fail(f"{count}-drone capture worker guardian closure differs")
     store = capture.get("receipt_store_closure")
+    sidecars = capture.get("receipt_store_sidecars")
     store_files = store.get("files") if isinstance(store, dict) else None
-    store_by_path = (
-        {
-            item.get("relative_path"): item
-            for item in store_files
-            if isinstance(item, dict)
-        }
-        if isinstance(store_files, list)
-        else {}
-    )
     expected_receipt_path = f"receipts/{receipt_sha256[:2]}/{receipt_sha256}.json"
     expected_evidence_path = f"evidence/{evidence_sha256[:2]}/{evidence_sha256}.json"
-    stored_receipt = {
-        key: value for key, value in terminal.items() if key != "receipt_sha256"
-    }
-    stored_evidence = {
-        key: value for key, value in evidence.items() if key != "bundle_sha256"
-    }
+    reviewed_value = capture.get("reviewed_native_runtime")
+    reviewed_handshake = (
+        reviewed_value.get("handshake_receipt")
+        if isinstance(reviewed_value, dict)
+        else None
+    )
+    expected_store_material = PROOF.assert_receipt_store_sidecars(
+        sidecars,
+        store_id=store.get("store_id") if isinstance(store, dict) else "",
+        receipt_document=terminal,
+        evidence_document=evidence,
+        run_plan_document=capture["run_plan"],
+        nest_config_document=capture["nest_config"],
+        package_generation_id=capture["package_generation_id"],
+        reviewed_handshake=(
+            reviewed_handshake if isinstance(reviewed_handshake, dict) else None
+        ),
+    )
+    expected_store_files = [
+        {
+            "relative_path": relative_path,
+            "size_bytes": len(payload),
+            "sha256": sha256(payload),
+        }
+        for relative_path, payload in sorted(expected_store_material.items())
+    ]
     if (
         not isinstance(store, dict)
         or set(store) != RECEIPT_STORE_CLOSURE_KEYS
         or store.get("schema_version") != "crebain.closed-loop-receipt-store-closure.v1"
         or not isinstance(store_files, list)
-        or len(store_files) < 4
+        or len(store_files) != 8
         or any(
             not isinstance(item, dict)
             or set(item) != {"relative_path", "size_bytes", "sha256"}
@@ -726,15 +775,7 @@ def validate_capture(
         or store.get("total_bytes") != sum(item["size_bytes"] for item in store_files)
         or store.get("receipt_artifact_path") != expected_receipt_path
         or store.get("evidence_artifact_path") != expected_evidence_path
-        or store_by_path.get(expected_receipt_path, {}).get("sha256") != receipt_sha256
-        or store_by_path.get(expected_receipt_path, {}).get("size_bytes")
-        != len(canonical(stored_receipt))
-        or store_by_path.get(expected_evidence_path, {}).get("sha256")
-        != evidence_sha256
-        or store_by_path.get(expected_evidence_path, {}).get("size_bytes")
-        != len(canonical(stored_evidence))
-        or "store.json" not in store_by_path
-        or "writer.lock" not in store_by_path
+        or store_files != expected_store_files
         or PROOF.assert_canonical_digest(
             store,
             field="closure_sha256",
@@ -751,19 +792,50 @@ def validate_capture(
         keys={"relative_path", "size_bytes", "sha256"},
         sort_fields=("relative_path",),
     )
+    reservation_id = sidecars["finalized_reservation"]["reservation"]["reservation_id"]
+    PROOF.assert_run_summary(
+        capture.get("summary"),
+        channel_count=count,
+        store_id=store["store_id"],
+        reservation_id=reservation_id,
+        receipt_document=terminal,
+        evidence_document=evidence,
+    )
     reviewed = capture.get("reviewed_native_runtime")
     lifecycle = terminal.get("runtime_lifecycle")
+    command_binding = (
+        reviewed.get("exec_gate_command_binding")
+        if isinstance(reviewed, dict)
+        else None
+    )
+    handshake = (
+        reviewed.get("handshake_receipt") if isinstance(reviewed, dict) else None
+    )
+    termination = (
+        reviewed.get("termination_receipt") if isinstance(reviewed, dict) else None
+    )
+    worker_files = evidence.get("worker_runtime_identity", {}).get("files", [])
+    worker_python_rows = [
+        item
+        for item in worker_files
+        if isinstance(item, dict) and item.get("role") == "python-executable"
+    ]
     if (
         not isinstance(reviewed, dict)
         or set(reviewed)
         != {
+            "exec_gate_command_binding",
             "handshake_receipt",
             "termination_receipt",
             "lifecycle_binding_sha256",
             "guardian_closure_verified",
             "package_store_lineage_verified",
         }
+        or not isinstance(command_binding, dict)
+        or not isinstance(handshake, dict)
+        or not isinstance(termination, dict)
         or not isinstance(lifecycle, dict)
+        or len(worker_python_rows) != 1
         or reviewed.get("guardian_closure_verified") is not True
         or reviewed.get("package_store_lineage_verified") is not True
         or lifecycle.get("store_id") != installed_proof.get("store_id")
@@ -771,6 +843,20 @@ def validate_capture(
         != installed_proof.get("package_generation_id")
     ):
         fail(f"{count}-drone reviewed runtime package-store closure differs")
+    expected_reviewed = PROOF.assert_reviewed_runtime_closure(
+        command_binding,
+        handshake,
+        termination,
+        lifecycle,
+        source["reviewed_runtime_guardian_source_sha256"],
+        source["reviewed_runtime_exec_gate_source_sha256"],
+        worker_python_rows[0]["sha256"],
+        installed_proof,
+    )
+    if expected_reviewed != reviewed or source.get(
+        "reviewed_runtime_exec_gate_command_sha256"
+    ) != command_binding.get("exec_gate_command_sha256"):
+        fail(f"{count}-drone reviewed runtime contained-command closure differs")
     assertions = capture.get("assertions")
     if (
         not isinstance(assertions, dict)
@@ -779,6 +865,7 @@ def validate_capture(
     ):
         fail(f"{count}-drone capture has an incomplete assertion roster")
     assert_closed_authority(capture, f"{count}-drone capture")
+    PROOF.assert_no_authority_escalation(capture, f"{count}-drone capture")
     return {
         "drone_count": count,
         "path": f"capture-{count}-drone{'s' if count > 1 else ''}.json",
@@ -1080,7 +1167,7 @@ def run_suite(arguments: argparse.Namespace) -> None:
             capture_rows=capture_rows,
             tool_source_bytes=tool_source_bytes,
         )
-        index_bytes = canonical(index) + b"\n"
+        index_bytes = PROOF.managed_runtime_canonical(index) + b"\n"
         write_new_regular(
             staging / "INDEX.json",
             index_bytes,

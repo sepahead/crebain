@@ -51,6 +51,7 @@
     "check:production-vendors": "node scripts/test-production-vendor-boundary.mjs",
     "check:production-boundary": "bun run check:production-vendors && node scripts/check-production-authority-boundary.mjs && node scripts/test-production-authority-boundary.mjs",
     "check:managed-simulation-boundary": "node scripts/check-managed-simulation-boundary.mjs && node scripts/test-managed-simulation-boundary.mjs && python3 scripts/test-build-managed-simulation-bootstrap.py && python3 scripts/test-stage-managed-simulation-package.py && python3 scripts/test-pack-managed-simulation-package.py && python3 scripts/test-sync-managed-simulation-engram-contracts.py",
+    "check:managed-simulation-engram-model-oracle": "node scripts/verify-managed-simulation-engram-model-oracle.mjs",
     "check:managed-simulation-operational-v2": "node scripts/check-managed-simulation-boundary.mjs --operational-v2",
     "check:managed-simulation-inputs": "python3 scripts/run-managed-simulation-real-nest-suite.py --verify-inputs && python3 scripts/test-run-managed-simulation-real-nest-suite.py",
     "check:managed-simulation-contract": "cargo build --locked --release --manifest-path src-tauri/Cargo.toml -p crebain-managed-simulation && python3 scripts/generate-managed-simulation-transcript.py --binary src-tauri/target/release/crebain-managed-simulation --verify integrations/engram/managed-simulation/sample-transcript.json && python3 scripts/test-check-installed-managed-simulation-v3.py && python3 scripts/test-run-managed-simulation-real-nest-proof.py",

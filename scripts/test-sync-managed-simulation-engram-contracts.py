@@ -67,6 +67,67 @@ class ContractSyncTests(unittest.TestCase):
             ],
         )
 
+    def test_runtime_receipt_roster_is_the_exact_exported_schema_set(self) -> None:
+        expected = [
+            "engram.closed-loop-runtime-lifecycle-binding.v1.schema.json",
+            "engram.contained-exec-command.v1.schema.json",
+            "engram.extension-closed-loop-run-receipt.v2.schema.json",
+            "engram.nest-closed-loop-evidence-bundle.v2.schema.json",
+            "engram.reviewed-native-development-handshake.v1.schema.json",
+            "engram.reviewed-native-development-termination.v1.schema.json",
+        ]
+        self.assertEqual(list(SYNC.RUNTIME_RECEIPT_SCHEMA_NAMES), expected)
+        self.assertEqual(
+            [spec.destination_name for spec in SYNC.RUNTIME_RECEIPT_SCHEMA_SPECS],
+            expected,
+        )
+        self.assertEqual(
+            [spec.source_path for spec in SYNC.RUNTIME_RECEIPT_SCHEMA_SPECS],
+            [f"integrations/contracts/{name}" for name in expected],
+        )
+        self.assertTrue(
+            all(
+                spec.runtime_role == "evidence-validation"
+                for spec in SYNC.RUNTIME_RECEIPT_SCHEMA_SPECS
+            )
+        )
+
+    def test_checked_in_runtime_receipt_provenance_closes_local_bytes(self) -> None:
+        provenance = SYNC.strict_json_object(
+            SYNC.read_regular(SYNC.RUNTIME_RECEIPT_PROVENANCE_PATH),
+            "runtime-receipt provenance",
+        )
+        self.assertEqual(provenance["schema_version"], "crebain.contract-provenance.v2")
+        self.assertEqual(
+            provenance["source"],
+            {
+                "repository": "https://github.com/sepahead/Paper2Brain.git",
+                "commit": "b6dcbd1ae853e23ce99309198050b8bd06e40829",
+                "tree": "aa848d795bea9145983ea8320a10d5e3d8f621e5",
+                "origin_main": "b6dcbd1ae853e23ce99309198050b8bd06e40829",
+                "object_format": "sha1",
+                "clean": True,
+            },
+        )
+        self.assertEqual(provenance["authority"], "compatibility-copy-only")
+        self.assertEqual(provenance["generation"]["copy_count"], 6)
+        rows = provenance["copies"]
+        self.assertEqual(
+            [row["destination_path"].rsplit("/", 1)[-1] for row in rows],
+            list(SYNC.RUNTIME_RECEIPT_SCHEMA_NAMES),
+        )
+        for row in rows:
+            name = row["destination_path"].rsplit("/", 1)[-1]
+            payload = SYNC.read_regular(SYNC.EVIDENCE_SCHEMA_ROOT / name)
+            self.assertEqual(
+                row["sha256"],
+                SYNC.sha256(payload),
+            )
+            self.assertEqual(row["size_bytes"], len(payload))
+            self.assertTrue(SYNC.OBJECT_ID.fullmatch(row["git_blob"]))
+            self.assertEqual(row["git_mode"], "100644")
+            self.assertEqual(row["runtime_role"], "evidence-validation")
+
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory(prefix="crebain-contract-sync-")
         self.root = Path(self.temporary.name).resolve()
@@ -135,6 +196,34 @@ class ContractSyncTests(unittest.TestCase):
                 for row in provenance["copies"]
             )
         )
+
+    def test_destination_prefix_is_explicit_and_closed(self) -> None:
+        prefix = "integrations/engram/managed-simulation/evidence-schemas/"
+        provenance, _ = SYNC.build_sync(
+            self.source,
+            self.commit,
+            self.specs,
+            destination_path_prefix=prefix,
+        )
+        self.assertEqual(
+            [row["destination_path"] for row in provenance["copies"]],
+            [prefix + spec.destination_name for spec in self.specs],
+        )
+        self.assertTrue(all("size_bytes" not in row for row in provenance["copies"]))
+
+    def test_runtime_receipt_sync_binds_exact_byte_sizes(self) -> None:
+        provenance, payloads = SYNC.build_sync(
+            self.source,
+            self.commit,
+            self.specs,
+            destination_path_prefix=(
+                "integrations/engram/managed-simulation/evidence-schemas/"
+            ),
+            include_size_bytes=True,
+        )
+        for row in provenance["copies"]:
+            name = row["destination_path"].rsplit("/", 1)[-1]
+            self.assertEqual(row["size_bytes"], len(payloads[name]))
 
     def test_dirty_checkout_and_origin_drift_fail_closed(self) -> None:
         untracked = self.source / "untracked"

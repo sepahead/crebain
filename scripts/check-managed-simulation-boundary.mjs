@@ -109,6 +109,7 @@ const CAPTURE_V2_KEYS = new Set([
   'reviewed_native_runtime',
   'nest_worker_guardian_closure',
   'receipt_store_closure',
+  'receipt_store_sidecars',
   'population_topology',
   'nest_evidence_bundle',
   'neural_steps',
@@ -116,6 +117,376 @@ const CAPTURE_V2_KEYS = new Set([
   'authority',
   'disclosure',
 ])
+const SUMMARY_KEYS = new Set([
+  'authority',
+  'calibrated_posterior',
+  'channel_count',
+  'completed_step_count',
+  'evidence_bundle_sha256',
+  'ncp_qualified',
+  'physical_actuation',
+  'planned_step_count',
+  'receipt_sha256',
+  'reservation_id',
+  'run_status',
+  'scientific_authority',
+  'simulator_only',
+  'status',
+  'store_id',
+  'study_run_id',
+  'terminal_reason_code',
+])
+const NON_AUTHORITY_FALSE_FIELDS = new Set([
+  'agent_action_authority',
+  'calibrated_posterior',
+  'durable_process_launch_authority',
+  'execution_authority',
+  'is_paper_local_evidence',
+  'music_transport_used',
+  'ncp_authority',
+  'ncp_control',
+  'ncp_qualified',
+  'ncp_transport',
+  'ncp_transport_used',
+  'physical_actuation',
+  'physical_authority',
+  'plant_control',
+  'replayable_live_launch_authority',
+  'scientific_authority',
+])
+const RECEIPT_STORE_LOCK_PAYLOAD = Buffer.from(
+  'engram-extension-closed-loop-receipt-store-lock-v1\n'
+)
+const REQUIRED_HOST_MODULES = [
+  'backend.core',
+  'backend.core.errors',
+  'backend.core.units',
+  'backend.integrations',
+  'backend.integrations.contained_exec_gate',
+  'backend.integrations.extension_package_store',
+  'backend.integrations.extension_package_v2_contract',
+  'backend.integrations.managed_runtime_authoring',
+  'backend.integrations.managed_runtime_contract',
+  'backend.integrations.managed_runtime_json',
+  'backend.integrations.managed_runtime_manager_contract',
+  'backend.integrations.reviewed_native_development_session',
+  'backend.integrations.reviewed_native_process_guardian',
+  'backend.integrations.standard_closed_loop_simulator',
+  'backend.neurocontrol',
+  'backend.neurocontrol.backends',
+  'backend.neurocontrol.bus',
+  'backend.neurocontrol.codec',
+  'backend.neurocontrol.loop',
+  'backend.neurocontrol.profiles',
+  'backend.neurocontrol.protocol',
+  'backend.neurocontrol.service',
+  'backend.neurocontrol.session',
+  'backend.neurocontrol.transport',
+  'backend.optimization',
+  'backend.optimization.extension_closed_loop',
+  'backend.optimization.extension_closed_loop_limits',
+  'backend.optimization.extension_closed_loop_nest',
+  'backend.optimization.extension_closed_loop_nest_evidence',
+  'backend.optimization.extension_closed_loop_nest_process',
+  'backend.optimization.extension_closed_loop_receipt_store',
+  'backend.optimization.simulator_study_ledger',
+  'backend.schemas',
+  'backend.schemas.evidence',
+  'backend.schemas.runtime',
+  'backend.schemas.simulator_study',
+  'scripts',
+  'scripts.engram_extension',
+]
+const REQUIRED_WORKER_MODULES = [
+  'backend.core',
+  'backend.core.errors',
+  'backend.core.units',
+  'backend.integrations',
+  'backend.integrations.contained_exec_gate',
+  'backend.integrations.managed_runtime_contract',
+  'backend.integrations.managed_runtime_json',
+  'backend.integrations.managed_runtime_manager_contract',
+  'backend.neurocontrol',
+  'backend.neurocontrol.backends',
+  'backend.neurocontrol.bus',
+  'backend.neurocontrol.codec',
+  'backend.neurocontrol.loop',
+  'backend.neurocontrol.profiles',
+  'backend.neurocontrol.protocol',
+  'backend.neurocontrol.service',
+  'backend.neurocontrol.session',
+  'backend.neurocontrol.transport',
+  'backend.optimization',
+  'backend.optimization.extension_closed_loop',
+  'backend.optimization.extension_closed_loop_limits',
+  'backend.optimization.extension_closed_loop_nest',
+  'backend.optimization.extension_closed_loop_nest_process',
+  'backend.optimization.simulator_study_ledger',
+  'backend.schemas',
+  'backend.schemas.evidence',
+  'backend.schemas.runtime',
+  'backend.schemas.simulator_study',
+]
+const NEST_TIC_MS = 0.001
+const NEST_REFRACTORY_TICS = 2000
+const NEST_MAX_RECORDER_EVENTS = 65536
+const NEST_MODEL_ROSTER = ['iaf_psc_delta', 'inhomogeneous_poisson_generator', 'spike_recorder']
+const NEST_WORK_LIMITS = {
+  max_total_nodes: 65536,
+  max_total_connections: 100000,
+  max_neuron_tic_work_units: 10000000000,
+  max_input_event_work_units: 100000000,
+  max_step_response_bytes: 3145728,
+  max_evidence_bundle_bytes: 251658240,
+  max_step_response_nodes: 32768,
+  max_evidence_bundle_nodes: 131072,
+}
+const NEST_SANDBOX_EXECUTABLE = '/usr/bin/sandbox-exec'
+const NEST_DARWIN_SANDBOX_PROFILE =
+  '(version 1)(allow default)(deny process-fork)(deny signal)' +
+  '(deny process-info-pidinfo (target others))' +
+  '(deny process-info-dirtycontrol (target others))'
+const NEST_EVIDENCE_KEYS = new Set([
+  'schema_version',
+  'digest_canonicalization',
+  'profile',
+  'run_receipt_sha256',
+  'study_run_id',
+  'neural_provider_identity_sha256',
+  'neural_preparation_sha256',
+  'runtime_launch_expectation',
+  'worker_launch_attempt',
+  'preparation_attempt',
+  'child_capabilities',
+  'worker_runtime_identity',
+  'child_preparation_receipt',
+  'provider_preparation_receipt',
+  'worker_session_binding',
+  'nest_session_readback',
+  'step_execution_receipts',
+  'step_attempt_receipts',
+  'tail_disposition_receipt',
+  'worker_termination_attempt_receipts',
+  'worker_lifecycle_receipt',
+  'worker_terminal_disposition',
+  'execution_authority',
+  'ncp_control',
+  'physical_actuation',
+  'scientific_authority',
+  'is_paper_local_evidence',
+  'calibrated_posterior',
+  'bundle_sha256',
+])
+const TERMINAL_RECEIPT_KEYS = new Set([
+  'calibrated_posterior',
+  'cleanup',
+  'cleanup_complete',
+  'closed_loop_definition_sha256',
+  'digest_canonicalization',
+  'initial_snapshot_sha256',
+  'is_paper_local_evidence',
+  'last_verified_simulation_time_tics',
+  'ncp_qualified',
+  'neural_deadline_enforcement',
+  'neural_durable_evidence_profile',
+  'neural_executions',
+  'neural_preparation_sha256',
+  'neural_provider_identity_sha256',
+  'neural_session_receipt_sha256',
+  'physical_actuation',
+  'planned_step_count',
+  'primary_reason_code',
+  'receipt_sha256',
+  'runtime_adapter_configuration_sha256',
+  'runtime_binding_sha256',
+  'runtime_deadline_enforcement',
+  'runtime_finish_sha256',
+  'runtime_lifecycle',
+  'runtime_progress_disposition',
+  'schema_version',
+  'scientific_authority',
+  'simulator_only',
+  'status',
+  'steps',
+  'study_definition_sha256',
+  'study_run_id',
+  'terminal_reason_code',
+  'timebase',
+  'transcript_sha256',
+])
+const NEURAL_STEP_KEYS = new Set(['request', 'result'])
+const NEURAL_STEP_REQUEST_KEYS = new Set([
+  'channels',
+  'controller_end_time_tics',
+  'controller_interval_tics',
+  'controller_start_time_tics',
+  'neural_preparation_sha256',
+  'observation_runtime_time_tics',
+  'request_sha256',
+  'runtime_interval_end_time_tics',
+  'runtime_interval_tics',
+  'schema_version',
+  'source_snapshot_sha256',
+  'step_id',
+  'step_index',
+  'study_run_id',
+])
+const NEURAL_INPUT_CHANNEL_KEYS = new Set([
+  'channel_id',
+  'fault_code',
+  'hold_required',
+  'observation_values',
+  'subject_id',
+])
+const NEURAL_STEP_RESULT_KEYS = new Set([
+  'controller_end_time_tics',
+  'controller_start_time_tics',
+  'proposals',
+  'provider_execution_scope',
+  'provider_execution_sha256',
+  'request_sha256',
+  'result_sha256',
+  'schema_version',
+  'step_id',
+  'step_index',
+  'study_run_id',
+])
+const NEURAL_ACTION_PROPOSAL_KEYS = new Set(['channel_id', 'source_populations', 'values'])
+const REVIEWED_COMMAND_BINDING_KEYS = new Set([
+  'argument_shape',
+  'exec_gate_command_sha256',
+  'exec_gate_source_sha256',
+  'python_executable_sha256',
+  'schema_version',
+  'target_command_sha256',
+])
+const REVIEWED_HANDSHAKE_KEYS = new Set([
+  'automatic_restart',
+  'child_ready_claim',
+  'descendant_creation_denied',
+  'durable_process_launch_authority',
+  'exec_gate_command_sha256',
+  'exec_gate_source_sha256',
+  'executable_sha256',
+  'explicit_absolute_path_spawn',
+  'extension_id',
+  'extension_version',
+  'external_dependency_closure_attested',
+  'filesystem_isolation_enforced',
+  'generation_directory_identity_sha256',
+  'generation_id',
+  'generation_ordinal',
+  'guardian_command_sha256',
+  'guardian_generation_lease_retained',
+  'guardian_group_member',
+  'guardian_owner_loss_seal',
+  'guardian_pid',
+  'guardian_ready_frame_sha256',
+  'guardian_source_sha256',
+  'guardian_uncertainty_record_prepared',
+  'handshake_transcript_accepted',
+  'host_handshake_frame_sha256',
+  'host_local_admission',
+  'installation_id',
+  'launch_source',
+  'ncp_authority',
+  'network_isolation_enforced',
+  'os_sandbox_enforced',
+  'package_generation_id',
+  'package_generation_lease_retained',
+  'package_path_reopened_for_spawn',
+  'path_lookup_at_spawn',
+  'physical_authority',
+  'process_group_containment',
+  'process_group_id',
+  'process_launch_performed',
+  'process_pid',
+  'profile',
+  'publisher_authenticated',
+  'receipt_sha256',
+  'replayable_live_launch_authority',
+  'runtime_handshake_frame_sha256',
+  'runtime_process_group_leader',
+  'sandbox_launcher_sha256',
+  'sandbox_profile_sha256',
+  'schema_version',
+  'scientific_authority',
+  'session_id',
+  'staged_executable_owner_private',
+  'staged_executable_user_immutable',
+  'store_id',
+  'target_id',
+  'validator_set_sha256',
+  'verified_executable_staged',
+])
+const REVIEWED_TERMINATION_KEYS = new Set([
+  'child_reaped',
+  'containment_empty',
+  'containment_seal_signal',
+  'containment_signal_scope',
+  'diagnostic_stream_complete',
+  'direct_child_signal_while_unreaped',
+  'disposition',
+  'durable_process_launch_authority',
+  'exit_code',
+  'generation_id',
+  'group_signal_while_guardian_unreaped',
+  'guardian_generation_lease_held_until_containment',
+  'guardian_pid',
+  'guardian_reaped',
+  'handshake_receipt_sha256',
+  'ncp_authority',
+  'package_generation_lease_released',
+  'physical_authority',
+  'private_work_directory_removed',
+  'process_group_id',
+  'reason_code',
+  'receipt_sha256',
+  'schema_version',
+  'scientific_authority',
+  'stderr_retained_bytes',
+  'stderr_sha256',
+  'stderr_truncated',
+  'termination_signal',
+])
+const RUNTIME_LIFECYCLE_KEYS = new Set([
+  'binding_sha256',
+  'child_reaped',
+  'containment_empty',
+  'diagnostic_stream_complete',
+  'durable_process_launch_authority',
+  'generation_directory_identity_sha256',
+  'generation_id',
+  'handshake_receipt_sha256',
+  'launch_source',
+  'ncp_authority',
+  'package_generation_id',
+  'package_generation_lease_released',
+  'package_generation_lease_retained_at_launch',
+  'physical_authority',
+  'private_work_directory_removed',
+  'profile',
+  'publisher_authenticated',
+  'schema_version',
+  'scientific_authority',
+  'store_id',
+  'termination_disposition',
+  'termination_receipt_sha256',
+])
+const EXERCISED_ENTRYPOINTS = [
+  {
+    role: 'nest-guardian',
+    relative_path: 'backend/optimization/extension_closed_loop_nest_guardian.py',
+  },
+  {
+    role: 'nest-worker',
+    relative_path: 'backend/optimization/extension_closed_loop_nest_worker.py',
+  },
+  {
+    role: 'reviewed-runtime-guardian',
+    relative_path: 'backend/integrations/reviewed_native_process_guardian.py',
+  },
+]
 const CAPTURE_ROW_V2_KEYS = new Set([
   'drone_count',
   'path',
@@ -417,7 +788,72 @@ const EXPECTED_DIFFERENTIAL_HASHES = {
     '02b75cc275ac2b8dd9eb53667d6c6f3826f30591627cffb484601ec7d4db9b29',
 }
 const EXPECTED_SAFE_PATH_PATTERN = String.raw`^(?!/)(?!.*(?:^|/)\.\.?(?:/|$))(?!.*//)(?!.*\\)[^\u0000-\u001f\u007f]+$`
+const ENGRAM_CONTRACT_SOURCE = Object.freeze({
+  repository: 'https://github.com/sepahead/Paper2Brain.git',
+  commit: 'b6dcbd1ae853e23ce99309198050b8bd06e40829',
+  tree: 'aa848d795bea9145983ea8320a10d5e3d8f621e5',
+  origin_main: 'b6dcbd1ae853e23ce99309198050b8bd06e40829',
+  object_format: 'sha1',
+  clean: true,
+})
+const EXPECTED_CONTRACT_PROVENANCE_SHA256 =
+  '7d1781de1351d68ecd37b1aa57bfcd86c6cd8d95cd0656327c769ceed8f36d33'
+const ENGRAM_RUNTIME_RECEIPT_SCHEMAS = new Map([
+  [
+    'engram.closed-loop-runtime-lifecycle-binding.v1.schema.json',
+    {
+      sha256: 'ae3efa655bde0852cf388e9a029cfa63c2013c6ea75e0285952c95f8ac5b74f5',
+      gitBlob: 'd393ac9bcb6d21147edf59d6848914a2dd179bb5',
+      sizeBytes: 4399,
+    },
+  ],
+  [
+    'engram.contained-exec-command.v1.schema.json',
+    {
+      sha256: 'e47a78f158166b2a36517195049bc2563da9211740e4e97308178df43c09edd0',
+      gitBlob: '0d26ec153e83f470ec39e5bdc543e2298310cd69',
+      sizeBytes: 2465,
+    },
+  ],
+  [
+    'engram.extension-closed-loop-run-receipt.v2.schema.json',
+    {
+      sha256: '5bc14fd70ad6daac3479bcd65354812ddca35b172de1147ad56521dbe1d63341',
+      gitBlob: 'bf8de46b865a49eec674290b12713fe9f44e546f',
+      sizeBytes: 22943,
+    },
+  ],
+  [
+    'engram.nest-closed-loop-evidence-bundle.v2.schema.json',
+    {
+      sha256: '2da4580e21fcc7ed1cabe740435b70ad594aa16c063fccc215bc4890072d1b34',
+      gitBlob: '76a4d89ea787e8f1a0dcd6a9dc3ff086f8554e3a',
+      sizeBytes: 106590,
+    },
+  ],
+  [
+    'engram.reviewed-native-development-handshake.v1.schema.json',
+    {
+      sha256: '1625cc287f5cf676e653f3c3641dee1a19372619c737255442cb142c1f251bd0',
+      gitBlob: 'a17dd33456ee4db09ecb256d8fc2d517d9ac87f2',
+      sizeBytes: 10512,
+    },
+  ],
+  [
+    'engram.reviewed-native-development-termination.v1.schema.json',
+    {
+      sha256: '442198a83546fe163f3098b9a9cf017bdcf4e5e8f2223f64ffaa3335e3164783',
+      gitBlob: 'c45b32bbf4cfcc38404174f630b6244747b77916',
+      sizeBytes: 5097,
+    },
+  ],
+])
+const EXPECTED_RUNTIME_RECEIPT_PROVENANCE_SHA256 =
+  '45c4bd2f1d64aa8552403056fbf5933c58ae764dada91e7da11f6f21c1bca5b1'
 const EXPECTED_EVIDENCE_SCHEMA_HASHES = {
+  ...Object.fromEntries(
+    [...ENGRAM_RUNTIME_RECEIPT_SCHEMAS].map(([name, identity]) => [name, identity.sha256])
+  ),
   'engram-pack-receipt.v1.schema.json':
     '6a2f7a72ae29033ca53d45f6345913bb7294ea89be2d9668882c60d65ee49500',
   'installed-binary-proof.v3.schema.json':
@@ -427,7 +863,7 @@ const EXPECTED_EVIDENCE_SCHEMA_HASHES = {
   'package-stage-receipt.v1.schema.json':
     'c0c6d3d9615d87b320da4220c3e0da5d3a355889d1aacd8e1751dc75a596cfed',
   'real-nest-capture.v2.schema.json':
-    '29c92c15d2e3cc930bfd11f56661a604d1ae3036dd04ac3acea9555acf89fc2f',
+    'ab93d8e2355a75fe5f77a72d0d431c8555831359195ab890f76567af59280675',
   'real-nest-evidence-index.v2.schema.json':
     '6bb49f74559dbacc6b41a30541e470bd320adf6da455186569275a17e829f478',
 }
@@ -511,6 +947,25 @@ export function managedRuntimeFloatText(value) {
   return negative ? `-${rendered}` : rendered
 }
 
+export function assertManagedRuntimeUnicode(value) {
+  if (typeof value !== 'string') fail('managed-runtime JSON text is not a string')
+  for (const character of value) {
+    const codePoint = character.codePointAt(0)
+    if (
+      (codePoint >= 0xd800 && codePoint <= 0xdfff) ||
+      codePoint === 0xfffd ||
+      (codePoint >= 0xfdd0 && codePoint <= 0xfdef) ||
+      (codePoint & 0xffff) === 0xfffe ||
+      (codePoint & 0xffff) === 0xffff ||
+      (codePoint < 0x20 && character !== '\t' && character !== '\n' && character !== '\r') ||
+      (codePoint >= 0x7f && codePoint <= 0x9f)
+    ) {
+      fail('managed-runtime JSON contains nonportable Unicode')
+    }
+  }
+  return value
+}
+
 function managedRuntimeNumberText(value, sourceLexeme) {
   if (typeof sourceLexeme !== 'string') return JSON.stringify(value)
   if (!Number.isFinite(value)) fail('managed-runtime JSON contains a non-finite number')
@@ -523,6 +978,81 @@ function managedRuntimeNumberText(value, sourceLexeme) {
   return managedRuntimeFloatText(value)
 }
 
+export function ledgerFloatText(value) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    fail('ledger float is not finite')
+  }
+  if (Object.is(value, -0)) return '-0.0'
+  const negative = value < 0
+  const source = Math.abs(value).toString().toLowerCase()
+  let digits
+  let decimalPoint
+  if (source.includes('e')) {
+    const [mantissa, exponentText] = source.split('e')
+    const exponent = Number.parseInt(exponentText, 10)
+    digits = mantissa.replace('.', '').replace(/^0+/u, '').replace(/0+$/u, '') || '0'
+    decimalPoint = exponent + 1
+  } else {
+    const [integer, fraction = ''] = source.split('.')
+    const combined = `${integer}${fraction}`
+    const first = [...combined].findIndex((character) => character !== '0')
+    if (first === -1) return '0.0'
+    decimalPoint = integer.length - first
+    digits = combined.slice(first).replace(/0+$/u, '')
+  }
+  const trailingZeroCount = decimalPoint - digits.length
+  let rendered
+  if (trailingZeroCount >= 0 && decimalPoint <= 16) {
+    rendered = `${digits}${'0'.repeat(trailingZeroCount)}.0`
+  } else if (decimalPoint > 0 && decimalPoint <= 16) {
+    rendered = `${digits.slice(0, decimalPoint)}.${digits.slice(decimalPoint)}`
+  } else if (decimalPoint > -4 && decimalPoint <= 0) {
+    rendered = `0.${'0'.repeat(-decimalPoint)}${digits}`
+  } else {
+    const exponent = decimalPoint - 1
+    const exponentDigits = `${Math.abs(exponent)}`.padStart(2, '0')
+    const exponentText = `${exponent >= 0 ? '+' : '-'}${exponentDigits}`
+    rendered =
+      digits.length === 1
+        ? `${digits}e${exponentText}`
+        : `${digits[0]}.${digits.slice(1)}e${exponentText}`
+  }
+  return negative ? `-${rendered}` : rendered
+}
+
+function ledgerNumberText(value, sourceLexeme) {
+  if (!Number.isFinite(value)) fail('ledger JSON contains a non-finite number')
+  if (typeof sourceLexeme === 'string' && !/[.eE]/u.test(sourceLexeme)) {
+    if (!Number.isSafeInteger(value)) fail('ledger JSON integer exceeds the exact range')
+    return `${value}`
+  }
+  return ledgerFloatText(value)
+}
+
+export function ledgerCanonical(value, parent = undefined, key = undefined, omit = undefined) {
+  if (value === null || typeof value === 'boolean') return JSON.stringify(value)
+  if (typeof value === 'number') {
+    return ledgerNumberText(value, parent?.[MANAGED_RUNTIME_NUMBER_LEXEMES]?.get(`${key}`))
+  }
+  if (typeof value === 'string') return JSON.stringify(value)
+  if (Array.isArray(value)) {
+    return `[${value
+      .map((child, index) => ledgerCanonical(child, value, index, undefined))
+      .join(',')}]`
+  }
+  if (typeof value === 'object') {
+    return `{${Object.keys(value)
+      .filter((member) => member !== omit)
+      .sort(compareUnicodeCodePoints)
+      .map(
+        (member) =>
+          `${JSON.stringify(member)}:${ledgerCanonical(value[member], value, member, undefined)}`
+      )
+      .join(',')}}`
+  }
+  fail('ledger document contains a non-JSON value')
+}
+
 export function managedRuntimeCanonical(
   value,
   parent = undefined,
@@ -533,7 +1063,7 @@ export function managedRuntimeCanonical(
   if (typeof value === 'number') {
     return managedRuntimeNumberText(value, parent?.[MANAGED_RUNTIME_NUMBER_LEXEMES]?.get(`${key}`))
   }
-  if (typeof value === 'string') return JSON.stringify(value)
+  if (typeof value === 'string') return JSON.stringify(assertManagedRuntimeUnicode(value))
   if (Array.isArray(value)) {
     return `[${value
       .map((child, index) => managedRuntimeCanonical(child, value, index, undefined))
@@ -545,7 +1075,7 @@ export function managedRuntimeCanonical(
       .sort(compareUnicodeCodePoints)
       .map(
         (member) =>
-          `${JSON.stringify(member)}:${managedRuntimeCanonical(value[member], value, member, undefined)}`
+          `${JSON.stringify(assertManagedRuntimeUnicode(member))}:${managedRuntimeCanonical(value[member], value, member, undefined)}`
       )
       .join(',')}}`
   }
@@ -1134,6 +1664,421 @@ function strictJsonObject(payload, label) {
   return document
 }
 
+const IMPORTED_RECEIPT_SCHEMA_FILES = new Map([
+  ['lifecycle', 'engram.closed-loop-runtime-lifecycle-binding.v1.schema.json'],
+  ['command', 'engram.contained-exec-command.v1.schema.json'],
+  ['terminal', 'engram.extension-closed-loop-run-receipt.v2.schema.json'],
+  ['nest', 'engram.nest-closed-loop-evidence-bundle.v2.schema.json'],
+  ['handshake', 'engram.reviewed-native-development-handshake.v1.schema.json'],
+  ['termination', 'engram.reviewed-native-development-termination.v1.schema.json'],
+])
+const importedReceiptSchemaCache = new Map()
+
+// Engram b6 does not publish this model as a standalone schema file.
+// This is the validation projection of ClosedLoopRunPlanV1.model_json_schema().
+const CLOSED_LOOP_RUN_PLAN_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    advisory_proposal_sha256: {
+      anyOf: [{ type: 'string', pattern: '^[0-9a-f]{64}$' }, { type: 'null' }],
+    },
+    agent_action_authority: { type: 'boolean', const: false },
+    calibrated_posterior: { type: 'boolean', const: false },
+    channels: {
+      type: 'array',
+      minItems: 1,
+      maxItems: 64,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          action_components: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 16,
+            items: { $ref: '#/$defs/ControlVectorComponentV1' },
+          },
+          action_max: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 16,
+            items: { type: 'number' },
+          },
+          action_min: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 16,
+            items: { type: 'number' },
+          },
+          action_space_id: {
+            type: 'string',
+            pattern: '^[a-z0-9]+(?:[._-][a-z0-9]+)+$',
+          },
+          action_width: { type: 'integer', minimum: 1, maximum: 16 },
+          channel_id: {
+            type: 'string',
+            pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$',
+          },
+          neural_control_axes: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 16,
+            items: { $ref: '#/$defs/NeuralControlAxisV1' },
+          },
+          neural_population_prefix: {
+            type: 'string',
+            pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$',
+          },
+          observation_components: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 16,
+            items: { $ref: '#/$defs/ControlVectorComponentV1' },
+          },
+          observation_space_id: {
+            type: 'string',
+            pattern: '^[a-z0-9]+(?:[._-][a-z0-9]+)+$',
+          },
+          observation_width: { type: 'integer', minimum: 1, maximum: 16 },
+          safe_action: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 16,
+            items: { type: 'number' },
+          },
+          subject_id: {
+            type: 'string',
+            pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$',
+          },
+          subject_kind: {
+            type: 'string',
+            pattern: '^[a-z0-9]+(?:[._-][a-z0-9]+)+$',
+          },
+        },
+        required: [
+          'channel_id',
+          'subject_kind',
+          'subject_id',
+          'observation_space_id',
+          'action_space_id',
+          'observation_width',
+          'action_width',
+          'observation_components',
+          'action_components',
+          'action_min',
+          'action_max',
+          'safe_action',
+          'neural_control_axes',
+          'neural_population_prefix',
+        ],
+      },
+    },
+    cleanup_timeout_ms: { type: 'integer', minimum: 1, maximum: 600000 },
+    is_paper_local_evidence: { type: 'boolean', const: false },
+    max_transcript_bytes: { type: 'integer', minimum: 1024, maximum: 268435456 },
+    music_transport_used: { type: 'boolean', const: false },
+    ncp_transport_used: { type: 'boolean', const: false },
+    neural_step_timeout_ms: { type: 'integer', minimum: 1, maximum: 600000 },
+    physical_actuation: { type: 'boolean', const: false },
+    schema_version: {
+      type: 'string',
+      const: 'engram.extension-closed-loop-run-plan.v1',
+    },
+    scientific_authority: { type: 'boolean', const: false },
+    simulator_only: { type: 'boolean', const: true },
+    step_count: { type: 'integer', minimum: 1, maximum: 1024 },
+    study_definition_sha256: { type: 'string', pattern: '^[0-9a-f]{64}$' },
+    study_run_id: {
+      type: 'string',
+      pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$',
+    },
+    timebase: { $ref: '#/$defs/ClosedLoopTimebaseV1' },
+    total_deadline_ms: { type: 'integer', minimum: 1, maximum: 86400000 },
+  },
+  required: [
+    'study_run_id',
+    'study_definition_sha256',
+    'timebase',
+    'channels',
+    'step_count',
+    'neural_step_timeout_ms',
+    'cleanup_timeout_ms',
+    'total_deadline_ms',
+    'max_transcript_bytes',
+  ],
+  $defs: {
+    ClosedLoopTimebaseV1: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        action_application: {
+          type: 'string',
+          const: 'after-controller-completion-zoh-over-runtime-interval',
+        },
+        causality_policy: {
+          type: 'string',
+          const: 'sample-runtime-run-controller-apply-zoh-v1',
+        },
+        clock_relation: {
+          type: 'string',
+          const: 'independent-controller-and-runtime-logical-clocks',
+        },
+        coupling: {
+          type: 'string',
+          const: 'one-controller-epoch-per-runtime-interval',
+        },
+        dispatch_order: {
+          type: 'string',
+          const: 'observe-controller-action-runtime',
+        },
+        neural_step_duration_tics: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 10000000,
+        },
+        observation_sample_phase: { type: 'string', const: 'runtime-interval-start' },
+        runtime_step_duration_tics: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 10000000,
+        },
+        schema_version: {
+          type: 'string',
+          const: 'engram.extension-closed-loop-timebase.v1',
+        },
+        tic_unit: { type: 'string', const: 'microsecond' },
+      },
+      required: ['runtime_step_duration_tics', 'neural_step_duration_tics'],
+    },
+    ControlVectorComponentV1: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        component_id: {
+          type: 'string',
+          pattern: '^[a-z0-9]+(?:[._-][a-z0-9]+)+$',
+        },
+        unit_id: {
+          type: 'string',
+          pattern: '^[a-z0-9]+(?:[._-][a-z0-9]+)+$',
+        },
+      },
+      required: ['component_id', 'unit_id'],
+    },
+    NeuralControlAxisV1: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        action_index: { type: 'integer', minimum: 0, exclusiveMaximum: 16 },
+        decoded_action_gain: { type: 'number', exclusiveMinimum: 0.0, maximum: 1.0 },
+        encoder: { type: 'string', const: 'affine-sum-clamped-v1' },
+        terms: {
+          type: 'array',
+          minItems: 1,
+          maxItems: 16,
+          items: { $ref: '#/$defs/NeuralControlTermV1' },
+        },
+      },
+      required: ['action_index', 'terms', 'decoded_action_gain'],
+    },
+    NeuralControlTermV1: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        gain_per_observation_unit: { type: 'number' },
+        observation_index: { type: 'integer', minimum: 0, exclusiveMaximum: 16 },
+        reference_value: { type: 'number' },
+      },
+      required: ['observation_index', 'reference_value', 'gain_per_observation_unit'],
+    },
+  },
+}
+
+function importedReceiptSchema(name) {
+  const filename = IMPORTED_RECEIPT_SCHEMA_FILES.get(name)
+  if (filename === undefined) fail(`unknown imported receipt schema: ${name}`)
+  if (!importedReceiptSchemaCache.has(name)) {
+    importedReceiptSchemaCache.set(
+      name,
+      JSON.parse(readFileSync(resolve(EVIDENCE_SCHEMAS, filename), 'utf8'))
+    )
+  }
+  return importedReceiptSchemaCache.get(name)
+}
+
+function schemaReference(root, reference, label) {
+  if (typeof reference !== 'string' || !reference.startsWith('#/')) {
+    fail(`${label} contains a nonlocal schema reference`)
+  }
+  let current = root
+  for (const token of reference
+    .slice(2)
+    .split('/')
+    .map((part) => part.replaceAll('~1', '/').replaceAll('~0', '~'))) {
+    current = current?.[token]
+  }
+  if (current === null || typeof current !== 'object' || Array.isArray(current)) {
+    fail(`${label} contains an unresolved schema reference`)
+  }
+  return current
+}
+
+function schemaTypeMatches(value, schema, root, label) {
+  if (schema === true) return true
+  if (schema === false) return false
+  if (schema?.$ref !== undefined) {
+    return schemaTypeMatches(value, schemaReference(root, schema.$ref, label), root, label)
+  }
+  if (Array.isArray(schema?.anyOf)) {
+    return schema.anyOf.some((candidate) => schemaTypeMatches(value, candidate, root, label))
+  }
+  if (schema?.type === 'null') return value === null
+  if (schema?.type === 'object')
+    return value !== null && typeof value === 'object' && !Array.isArray(value)
+  if (schema?.type === 'array') return Array.isArray(value)
+  if (schema?.type === 'number' || schema?.type === 'integer') return typeof value === 'number'
+  if (schema?.type === 'string') return typeof value === 'string'
+  if (schema?.type === 'boolean') return typeof value === 'boolean'
+  return true
+}
+
+function assertClosedSchemaValue(value, schema, root, label, parent = undefined, key = undefined) {
+  if (schema === true) return
+  if (schema === false) fail(`${label} is forbidden by its schema`)
+  if (schema?.$ref !== undefined) {
+    assertClosedSchemaValue(
+      value,
+      schemaReference(root, schema.$ref, label),
+      root,
+      label,
+      parent,
+      key
+    )
+    return
+  }
+  if (Array.isArray(schema?.anyOf)) {
+    const candidates = schema.anyOf.filter((candidate) =>
+      schemaTypeMatches(value, candidate, root, label)
+    )
+    if (candidates.length !== 1) fail(`${label} has no unambiguous schema branch`)
+    assertClosedSchemaValue(value, candidates[0], root, label, parent, key)
+    return
+  }
+
+  if (!schemaTypeMatches(value, schema, root, label)) {
+    fail(`${label} does not match schema type ${schema?.type ?? 'unknown'}`)
+  }
+  if (Object.hasOwn(schema, 'const') && canonical(value) !== canonical(schema.const)) {
+    fail(`${label} differs from its schema constant`)
+  }
+  if (
+    Array.isArray(schema?.enum) &&
+    !schema.enum.some((candidate) => canonical(value) === canonical(candidate))
+  ) {
+    fail(`${label} is outside its schema enumeration`)
+  }
+
+  if (schema?.type === 'number' || schema?.type === 'integer') {
+    const lexeme = parent?.[MANAGED_RUNTIME_NUMBER_LEXEMES]?.get(`${key}`)
+    const isFloat = typeof lexeme === 'string' && /[.eE]/u.test(lexeme)
+    if (
+      typeof value !== 'number' ||
+      !Number.isFinite(value) ||
+      typeof lexeme !== 'string' ||
+      (schema.type === 'number' ? !isFloat : isFloat || !Number.isSafeInteger(value))
+    ) {
+      fail(`${label} numeric kind differs at ${key}`)
+    }
+    if (typeof schema.minimum === 'number' && value < schema.minimum) {
+      fail(`${label} is below its schema minimum`)
+    }
+    if (typeof schema.maximum === 'number' && value > schema.maximum) {
+      fail(`${label} is above its schema maximum`)
+    }
+    if (typeof schema.exclusiveMinimum === 'number' && value <= schema.exclusiveMinimum) {
+      fail(`${label} is not above its exclusive schema minimum`)
+    }
+    if (typeof schema.exclusiveMaximum === 'number' && value >= schema.exclusiveMaximum) {
+      fail(`${label} is not below its exclusive schema maximum`)
+    }
+    return
+  }
+
+  if (schema?.type === 'string') {
+    const length = [...value].length
+    if (typeof schema.minLength === 'number' && length < schema.minLength) {
+      fail(`${label} is shorter than its schema minimum`)
+    }
+    if (typeof schema.maxLength === 'number' && length > schema.maxLength) {
+      fail(`${label} is longer than its schema maximum`)
+    }
+    if (typeof schema.pattern === 'string' && !new RegExp(schema.pattern, 'u').test(value)) {
+      fail(`${label} does not match its schema pattern`)
+    }
+    return
+  }
+
+  if (schema?.type === 'array') {
+    if (typeof schema.minItems === 'number' && value.length < schema.minItems) {
+      fail(`${label} has fewer items than its schema minimum`)
+    }
+    if (typeof schema.maxItems === 'number' && value.length > schema.maxItems) {
+      fail(`${label} has more items than its schema maximum`)
+    }
+    for (const [index, child] of value.entries()) {
+      const childSchema = Array.isArray(schema.prefixItems)
+        ? (schema.prefixItems[index] ?? schema.items)
+        : schema.items
+      if (childSchema === false) fail(`${label} has an unexpected item at index ${index}`)
+      if (childSchema !== undefined) {
+        assertClosedSchemaValue(child, childSchema, root, `${label}[${index}]`, value, index)
+      }
+    }
+    return
+  }
+
+  if (schema?.type === 'object') {
+    const members = Object.keys(value)
+    if (typeof schema.minProperties === 'number' && members.length < schema.minProperties) {
+      fail(`${label} has fewer members than its schema minimum`)
+    }
+    if (typeof schema.maxProperties === 'number' && members.length > schema.maxProperties) {
+      fail(`${label} has more members than its schema maximum`)
+    }
+    for (const required of schema.required ?? []) {
+      if (!Object.hasOwn(value, required)) {
+        fail(`${label} schema member roster lacks required member: ${required}`)
+      }
+    }
+    for (const [member, child] of Object.entries(value)) {
+      const childSchema = schema.properties?.[member]
+      if (childSchema !== undefined) {
+        assertClosedSchemaValue(child, childSchema, root, `${label}.${member}`, value, member)
+      } else if (schema.additionalProperties === false) {
+        fail(`${label} schema member roster has an unexpected member: ${member}`)
+      } else if (
+        schema.additionalProperties !== undefined &&
+        typeof schema.additionalProperties === 'object'
+      ) {
+        assertClosedSchemaValue(
+          child,
+          schema.additionalProperties,
+          root,
+          `${label}.${member}`,
+          value,
+          member
+        )
+      }
+    }
+  }
+}
+
+export function assertImportedReceiptSchema(value, name, label) {
+  const schema = importedReceiptSchema(name)
+  assertClosedSchemaValue(value, schema, schema, label)
+}
+
 export function assertManagedRuntimeCanonicalObject(payload, label) {
   const document = strictJsonObject(payload, label)
   if (!Buffer.from(`${managedRuntimeCanonical(document)}\n`).equals(payload)) {
@@ -1183,11 +2128,20 @@ function safeRelative(value, label, suffix = undefined) {
   return value
 }
 
-function canonicalDigest(document, field, label) {
+function ledgerDigest(document, field, label) {
+  const reported = document?.[field]
+  if (!isSha256(reported)) fail(`${label} lacks ${field}`)
+  if (sha256(ledgerCanonical(document, undefined, undefined, field)) !== reported) {
+    fail(`${label} ledger digest differs`)
+  }
+  return reported
+}
+
+function managedRuntimeDigest(document, field, label) {
   const reported = document?.[field]
   if (!isSha256(reported)) fail(`${label} lacks ${field}`)
   if (sha256(managedRuntimeCanonical(document, undefined, undefined, field)) !== reported) {
-    fail(`${label} canonical digest differs`)
+    fail(`${label} managed-runtime digest differs`)
   }
   return reported
 }
@@ -1313,6 +2267,45 @@ function assertClosedAuthority(authority, label) {
   if (canonical(authority) !== canonical(SIMULATOR_ONLY_AUTHORITY)) {
     fail(`${label} grants or implies non-simulator authority`)
   }
+}
+
+function assertNoAuthorityEscalation(value, label) {
+  const pending = [value]
+  let observedNodes = 0
+  while (pending.length > 0) {
+    const current = pending.pop()
+    observedNodes += 1
+    if (observedNodes > 1_000_000) fail(`${label} exceeds the authority-audit node bound`)
+    if (Array.isArray(current)) {
+      pending.push(...current)
+      continue
+    }
+    if (current === null || typeof current !== 'object') continue
+    for (const [key, child] of Object.entries(current)) {
+      if (NON_AUTHORITY_FALSE_FIELDS.has(key) && child !== false) {
+        fail(`${label} grants or implies non-simulator authority`)
+      }
+      if (key === 'simulator_only' && child !== true) {
+        fail(`${label} contradicts simulator-only scope`)
+      }
+      if (key === 'authority' && typeof child === 'boolean' && child !== false) {
+        fail(`${label} grants generic execution authority`)
+      }
+      pending.push(child)
+    }
+  }
+}
+
+function expectedModulePath(moduleName, relativePath) {
+  let expected
+  if (relativePath.endsWith('/__init__.py')) {
+    expected = relativePath.slice(0, -'/__init__.py'.length).replaceAll('/', '.')
+  } else if (relativePath.endsWith('.py')) {
+    expected = relativePath.slice(0, -'.py'.length).replaceAll('/', '.')
+  } else {
+    return false
+  }
+  return moduleName === expected
 }
 
 function dependencyKeys(manifest) {
@@ -1605,6 +2598,7 @@ export function assertContractProvenance(provenance, payloads) {
   if (
     provenance?.schema_version !== 'crebain.contract-provenance.v2' ||
     provenance?.authority !== 'compatibility-copy-only' ||
+    canonical(source) !== canonical(ENGRAM_CONTRACT_SOURCE) ||
     source?.clean !== true ||
     typeof source.repository !== 'string' ||
     source.repository.length === 0 ||
@@ -1652,6 +2646,20 @@ export function assertContractProvenance(provenance, payloads) {
   compareSets(observedNames, new Set(ENGRAM_CONTRACT_SCHEMA_IDS.keys()), 'Engram contract copies')
 }
 
+export function assertContractProvenanceBytes(payload, contractPayloads) {
+  if (sha256(payload) !== EXPECTED_CONTRACT_PROVENANCE_SHA256) {
+    fail('Engram wire-contract provenance digest drifted')
+  }
+  let provenance
+  try {
+    provenance = JSON.parse(payload)
+  } catch {
+    fail('Engram wire-contract provenance is not strict JSON')
+  }
+  assertContractProvenance(provenance, contractPayloads)
+  return provenance
+}
+
 export function assertStandardFaultCodeSchemaBoundary(payloads) {
   for (const name of [
     'standard-v3-prepare-response.schema.json',
@@ -1684,6 +2692,120 @@ export function assertDifferentialArtifacts(payloads) {
     if (sha256(payloads.get(name)) !== expected) {
       fail(`${name} digest drifted`)
     }
+  }
+}
+
+export function assertRuntimeReceiptProvenance(provenance, payloads) {
+  exactKeys(
+    provenance,
+    new Set(['schema_version', 'source', 'copies', 'generation', 'authority']),
+    'Engram runtime-receipt provenance'
+  )
+  const source = exactKeys(
+    provenance.source,
+    new Set(['repository', 'commit', 'tree', 'origin_main', 'object_format', 'clean']),
+    'Engram runtime-receipt provenance source'
+  )
+  const generation = exactKeys(
+    provenance.generation,
+    new Set(['policy', 'copy_count']),
+    'Engram runtime-receipt provenance generation'
+  )
+  if (
+    provenance.schema_version !== 'crebain.contract-provenance.v2' ||
+    provenance.authority !== 'compatibility-copy-only' ||
+    canonical(source) !== canonical(ENGRAM_CONTRACT_SOURCE) ||
+    generation.policy !== 'clean-head-equals-local-origin-main-git-blob-copy.v1' ||
+    generation.copy_count !== ENGRAM_RUNTIME_RECEIPT_SCHEMAS.size ||
+    !Array.isArray(provenance.copies) ||
+    provenance.copies.length !== ENGRAM_RUNTIME_RECEIPT_SCHEMAS.size
+  ) {
+    fail('Engram runtime-receipt provenance identity or immutable source differs')
+  }
+  compareSets(
+    new Set(payloads.keys()),
+    new Set(ENGRAM_RUNTIME_RECEIPT_SCHEMAS.keys()),
+    'Engram runtime-receipt payload roster'
+  )
+  const sourcePrefix = 'integrations/contracts/'
+  const destinationPrefix = 'integrations/engram/managed-simulation/evidence-schemas/'
+  const observedNames = new Set()
+  for (const [index, [name, identity]] of [...ENGRAM_RUNTIME_RECEIPT_SCHEMAS].entries()) {
+    const row = exactKeys(
+      provenance.copies[index],
+      new Set([
+        'schema_id',
+        'source_path',
+        'destination_path',
+        'sha256',
+        'git_mode',
+        'git_blob',
+        'runtime_role',
+        'size_bytes',
+      ]),
+      `Engram runtime-receipt provenance copy ${index + 1}`
+    )
+    const schemaId = name.slice(0, -'.schema.json'.length)
+    const payload = payloads.get(name) ?? Buffer.alloc(0)
+    if (
+      row.schema_id !== schemaId ||
+      row.source_path !== `${sourcePrefix}${name}` ||
+      row.destination_path !== `${destinationPrefix}${name}` ||
+      row.sha256 !== identity.sha256 ||
+      row.sha256 !== sha256(payload) ||
+      row.git_mode !== '100644' ||
+      row.git_blob !== identity.gitBlob ||
+      row.runtime_role !== 'evidence-validation' ||
+      row.size_bytes !== identity.sizeBytes ||
+      row.size_bytes !== payload.length ||
+      observedNames.has(name)
+    ) {
+      fail(`Engram runtime-receipt provenance copy differs: ${name}`)
+    }
+    observedNames.add(name)
+  }
+  compareSets(
+    observedNames,
+    new Set(ENGRAM_RUNTIME_RECEIPT_SCHEMAS.keys()),
+    'Engram runtime-receipt provenance copies'
+  )
+}
+
+export function assertRuntimeReceiptProvenanceBytes(payload, schemaPayloads) {
+  if (sha256(payload) !== EXPECTED_RUNTIME_RECEIPT_PROVENANCE_SHA256) {
+    fail('Engram runtime-receipt provenance digest drifted')
+  }
+  let provenance
+  try {
+    provenance = JSON.parse(payload)
+  } catch {
+    fail('Engram runtime-receipt provenance is not strict JSON')
+  }
+  assertRuntimeReceiptProvenance(provenance, schemaPayloads)
+  return provenance
+}
+
+export function assertCommonEngramContractSource(wireProvenance, runtimeProvenance) {
+  const sourceMembers = new Set([
+    'repository',
+    'commit',
+    'tree',
+    'origin_main',
+    'object_format',
+    'clean',
+  ])
+  const wireSource = exactKeys(
+    wireProvenance?.source,
+    sourceMembers,
+    'Engram wire-contract provenance source'
+  )
+  const runtimeSource = exactKeys(
+    runtimeProvenance?.source,
+    sourceMembers,
+    'Engram runtime-receipt provenance source'
+  )
+  if (canonical(wireSource) !== canonical(runtimeSource)) {
+    fail('Engram wire-contract and runtime-receipt provenance sources differ')
   }
 }
 
@@ -1726,11 +2848,17 @@ export function assertEvidenceSchemas(payloads) {
     } catch {
       fail(`${name} is not strict JSON`)
     }
+    const runtimeReceiptIdentity = ENGRAM_RUNTIME_RECEIPT_SCHEMAS.get(name)
     const required = requiredByName.get(name)
+    const expectedSchemaId = runtimeReceiptIdentity
+      ? `https://engram.local/schemas/${name}`
+      : undefined
     if (
       schema?.$schema !== 'https://json-schema.org/draft/2020-12/schema' ||
       typeof schema?.$id !== 'string' ||
-      !schema.$id.startsWith('https://crebain.local/schemas/') ||
+      (expectedSchemaId === undefined
+        ? !schema.$id.startsWith('https://crebain.local/schemas/')
+        : schema.$id !== expectedSchemaId) ||
       schema.type !== 'object' ||
       schema.additionalProperties !== false ||
       !Array.isArray(schema.required) ||
@@ -1739,9 +2867,18 @@ export function assertEvidenceSchemas(payloads) {
     ) {
       fail(`${name} root closure differs`)
     }
-    compareSets(new Set(schema.required), required, `${name} required roster`)
-    compareSets(new Set(Object.keys(schema.properties)), required, `${name} property roster`)
+    if (runtimeReceiptIdentity === undefined) {
+      compareSets(new Set(schema.required), required, `${name} required roster`)
+      compareSets(new Set(Object.keys(schema.properties)), required, `${name} property roster`)
+    } else {
+      compareSets(
+        new Set(schema.required),
+        new Set(Object.keys(schema.properties)),
+        `${name} exported root closure`
+      )
+    }
     if (
+      runtimeReceiptIdentity === undefined &&
       name !== 'installed-binary-proof.v3.schema.json' &&
       (schema.$defs?.safePath?.type !== 'string' ||
         schema.$defs.safePath.pattern !== EXPECTED_SAFE_PATH_PATTERN)
@@ -1810,7 +2947,7 @@ function assertBuildReceipt(receipt) {
   if (source.files.some((row) => row.git_blob.length !== objectLength)) {
     fail('observed-build source blob differs from the Git object format')
   }
-  if (source.roster_sha256 !== sha256(managedRuntimeCanonical(source.files))) {
+  if (source.roster_sha256 !== sha256(ledgerCanonical(source.files))) {
     fail('observed-build source roster digest differs')
   }
   const generator = exactKeys(
@@ -1830,7 +2967,7 @@ function assertBuildReceipt(receipt) {
   if (generator.files.map((row) => row.relative_path).join(',') !== expectedGenerator.join(',')) {
     fail('observed-build generator roster differs')
   }
-  if (generator.roster_sha256 !== sha256(managedRuntimeCanonical(generator.files))) {
+  if (generator.roster_sha256 !== sha256(ledgerCanonical(generator.files))) {
     fail('observed-build generator roster digest differs')
   }
   const cargo = exactKeys(
@@ -1928,7 +3065,7 @@ function assertBuildReceipt(receipt) {
     generator_roster_sha256: generator.roster_sha256,
     cargo,
   }
-  if (receipt.input_identity_sha256 !== sha256(managedRuntimeCanonical(identity))) {
+  if (receipt.input_identity_sha256 !== sha256(ledgerCanonical(identity))) {
     fail('observed-build input identity differs')
   }
   if (
@@ -1946,7 +3083,7 @@ function assertBuildReceipt(receipt) {
   ) {
     fail('observed-build claim or authority boundary differs')
   }
-  canonicalDigest(receipt, 'receipt_sha256', 'observed-build receipt')
+  ledgerDigest(receipt, 'receipt_sha256', 'observed-build receipt')
   return receipt
 }
 
@@ -2042,14 +3179,14 @@ function assertStageReceipt(receipt, buildReceipt) {
     fail('package-stage executable inventory differs')
   }
   if (
-    receipt.package_inventory_sha256 !== sha256(managedRuntimeCanonical(inventory)) ||
+    receipt.package_inventory_sha256 !== sha256(ledgerCanonical(inventory)) ||
     canonical(receipt.authority) !== canonical(BUILD_NO_AUTHORITY) ||
     typeof receipt.disclosure !== 'string' ||
     receipt.disclosure.length === 0
   ) {
     fail('package-stage inventory digest or authority differs')
   }
-  canonicalDigest(receipt, 'receipt_sha256', 'package-stage receipt')
+  ledgerDigest(receipt, 'receipt_sha256', 'package-stage receipt')
   return receipt
 }
 
@@ -2120,7 +3257,7 @@ function assertPackReceipt(receipt, build, stage) {
   ) {
     fail('Engram pack source, operation, lineage, claim, or authority differs')
   }
-  canonicalDigest(receipt, 'receipt_sha256', 'Engram pack receipt')
+  ledgerDigest(receipt, 'receipt_sha256', 'Engram pack receipt')
   return receipt
 }
 
@@ -2256,7 +3393,7 @@ function assertInstalledProofV3(proof) {
   ) {
     fail('installed-binary proof recovery digest roster differs')
   }
-  canonicalDigest(proof, 'receipt_sha256', 'installed-binary proof v3')
+  ledgerDigest(proof, 'receipt_sha256', 'installed-binary proof v3')
   return proof
 }
 
@@ -2300,6 +3437,8 @@ function assertNestedSourceClosure(capture, index, proof) {
       'worker_project_source_roster_sha256',
       'reviewed_runtime_handshake_receipt_sha256',
       'reviewed_runtime_guardian_source_sha256',
+      'reviewed_runtime_exec_gate_source_sha256',
+      'reviewed_runtime_exec_gate_command_sha256',
       'exercised_entrypoints',
       'sources',
       'closure_sha256',
@@ -2337,7 +3476,9 @@ function assertNestedSourceClosure(capture, index, proof) {
     !isSha256(source.source_roster_sha256) ||
     !isSha256(source.worker_project_source_roster_sha256) ||
     !isSha256(source.reviewed_runtime_handshake_receipt_sha256) ||
-    !isSha256(source.reviewed_runtime_guardian_source_sha256)
+    !isSha256(source.reviewed_runtime_guardian_source_sha256) ||
+    !isSha256(source.reviewed_runtime_exec_gate_source_sha256) ||
+    !isSha256(source.reviewed_runtime_exec_gate_command_sha256)
   ) {
     fail('Engram source closure identity differs')
   }
@@ -2345,7 +3486,7 @@ function assertNestedSourceClosure(capture, index, proof) {
   const stableRosterSha256 = sha256(
     Buffer.concat([
       Buffer.from('crebain.engram-source-roster.v1\0'),
-      Buffer.from(managedRuntimeCanonical(source.sources)),
+      Buffer.from(ledgerCanonical(source.sources)),
     ])
   )
   if (source.source_roster_sha256 !== stableRosterSha256) {
@@ -2363,15 +3504,33 @@ function assertNestedSourceClosure(capture, index, proof) {
     ['role', 'relative_path']
   )
   const paths = new Set(source.sources.map((row) => row.relative_path))
-  for (const row of [
+  const nestedRows = [
     ...source.host_modules,
     ...source.worker_project_modules,
     ...source.exercised_entrypoints,
-  ]) {
-    if (!paths.has(row.relative_path)) fail('nested Engram source roster escapes its closure')
+  ]
+  const nestedPaths = new Set(nestedRows.map((row) => row.relative_path))
+  if (
+    canonical([...paths].sort()) !== canonical([...nestedPaths].sort()) ||
+    canonical(source.host_modules.map((row) => row.module_name).sort()) !==
+      canonical(REQUIRED_HOST_MODULES) ||
+    canonical(source.worker_project_modules.map((row) => row.module_name).sort()) !==
+      canonical(REQUIRED_WORKER_MODULES) ||
+    [...source.host_modules, ...source.worker_project_modules].some(
+      (row) => !expectedModulePath(row.module_name, row.relative_path)
+    ) ||
+    canonical(source.exercised_entrypoints) !== canonical(EXERCISED_ENTRYPOINTS)
+  ) {
+    fail('nested Engram source closure differs')
   }
   const packRows = source.sources.filter(
     (row) => row.relative_path === 'scripts/engram_extension.py'
+  )
+  const reviewedGuardianRows = source.sources.filter(
+    (row) => row.relative_path === 'backend/integrations/reviewed_native_process_guardian.py'
+  )
+  const reviewedExecGateRows = source.sources.filter(
+    (row) => row.relative_path === 'backend/integrations/contained_exec_gate.py'
   )
   const packModules = source.host_modules.filter(
     (row) =>
@@ -2381,7 +3540,11 @@ function assertNestedSourceClosure(capture, index, proof) {
   if (
     packRows.length !== 1 ||
     canonical(packRows[0]) !== canonical(packTool) ||
-    packModules.length !== 1
+    packModules.length !== 1 ||
+    reviewedGuardianRows.length !== 1 ||
+    reviewedGuardianRows[0].sha256 !== source.reviewed_runtime_guardian_source_sha256 ||
+    reviewedExecGateRows.length !== 1 ||
+    reviewedExecGateRows[0].sha256 !== source.reviewed_runtime_exec_gate_source_sha256
   ) {
     fail('Engram pack tool differs from the loaded committed source closure')
   }
@@ -2391,11 +3554,397 @@ function assertNestedSourceClosure(capture, index, proof) {
   if (canonical(capture.engram_source_sha256) !== canonical(sourceDigestMap)) {
     fail('capture Engram source digest map differs')
   }
-  canonicalDigest(source, 'closure_sha256', 'Engram source closure')
+  ledgerDigest(source, 'closure_sha256', 'Engram source closure')
   return source
 }
 
-function assertReceiptStoreClosure(store, terminal, evidence) {
+function assertReceiptStoreSidecars(sidecars, storeId, terminal, evidence, capture) {
+  exactKeys(
+    sidecars,
+    new Set([
+      'schema_version',
+      'store_metadata',
+      'finalized_reservation',
+      'observation',
+      'publication_admission_anchor',
+      'publication_authority',
+      'closure_sha256',
+    ]),
+    'closed-loop receipt-store sidecars'
+  )
+  if (sidecars.schema_version !== 'crebain.closed-loop-receipt-store-sidecars.v1') {
+    fail('closed-loop receipt-store sidecar schema differs')
+  }
+  ledgerDigest(sidecars, 'closure_sha256', 'closed-loop receipt-store sidecars')
+  const metadata = exactKeys(
+    sidecars.store_metadata,
+    new Set([
+      'schema_version',
+      'store_id',
+      'policy',
+      'digest_canonicalization',
+      'execution_authority',
+      'ncp_control',
+      'physical_actuation',
+      'scientific_authority',
+      'is_paper_local_evidence',
+      'calibrated_posterior',
+    ]),
+    'closed-loop receipt-store metadata'
+  )
+  const finalization = exactKeys(
+    sidecars.finalized_reservation,
+    new Set([
+      'schema_version',
+      'store_id',
+      'reservation',
+      'pre_spawn_sha256',
+      'extension_dispatch_sha256',
+      'simulation_dispatch_sha256',
+      'terminal_receipt_sha256',
+      'evidence_bundle_sha256',
+      'nest_work_admission_rejoined',
+      'execution_authority',
+      'ncp_control',
+      'physical_actuation',
+      'scientific_authority',
+      'is_paper_local_evidence',
+      'calibrated_posterior',
+      'finalization_sha256',
+    ]),
+    'closed-loop finalized reservation'
+  )
+  const reservation = exactKeys(
+    finalization.reservation,
+    new Set([
+      'schema_version',
+      'store_id',
+      'reservation_id',
+      'study_run_id',
+      'closed_loop_definition_sha256',
+      'receipt_profile',
+      'evidence_profile',
+      'nest_work_admission_sha256',
+      'pre_spawn_sha256',
+      'run_plan_sha256',
+      'nest_configuration_sha256',
+      'expected_runtime_binding_sha256',
+      'reviewed_native_handshake_receipt_sha256',
+      'reviewed_native_handshake',
+      'package_generation_id',
+      'runtime_generation_id',
+      'reserved_record_count',
+      'reserved_artifact_bytes',
+      'reserved_evidence_bytes',
+      'reserved_record_bytes',
+      'execution_authority',
+      'ncp_control',
+      'physical_actuation',
+      'scientific_authority',
+      'is_paper_local_evidence',
+      'calibrated_posterior',
+      'reservation_sha256',
+    ]),
+    'closed-loop receipt reservation'
+  )
+  const observation = exactKeys(
+    sidecars.observation,
+    new Set([
+      'schema_version',
+      'store_id',
+      'artifact',
+      'study_run_id',
+      'run_status',
+      'terminal_reason_code',
+      'relative_artifact_path',
+      'artifact_byte_length',
+      'evidence_profile',
+      'evidence_bundle_sha256',
+      'relative_evidence_path',
+      'evidence_byte_length',
+      'admission_mode',
+      'publication_authority_sha256',
+      'reservation_id',
+      'reservation_sha256',
+      'reservation_finalization_sha256',
+      'nest_work_admission_sha256',
+      'nest_work_admission_rejoined',
+      'digest_canonicalization',
+      'execution_authority',
+      'ncp_control',
+      'physical_actuation',
+      'scientific_authority',
+      'is_paper_local_evidence',
+      'calibrated_posterior',
+      'record_sha256',
+    ]),
+    'closed-loop receipt observation'
+  )
+  const anchor = exactKeys(
+    sidecars.publication_admission_anchor,
+    new Set([
+      'schema_version',
+      'store_id',
+      'study_run_key_sha256',
+      'study_run_id',
+      'terminal_receipt_sha256',
+      'admission_mode',
+      'publication_wal_sha256',
+      'evidence_bundle_sha256',
+      'reservation_id',
+      'reservation_sha256',
+      'pre_spawn_sha256',
+      'extension_dispatch_sha256',
+      'simulation_dispatch_sha256',
+      'reservation_finalization_sha256',
+      'execution_authority',
+      'ncp_control',
+      'physical_actuation',
+      'scientific_authority',
+      'is_paper_local_evidence',
+      'calibrated_posterior',
+      'anchor_sha256',
+    ]),
+    'closed-loop publication admission anchor'
+  )
+  const authority = exactKeys(
+    sidecars.publication_authority,
+    new Set([
+      'schema_version',
+      'store_id',
+      'terminal_receipt_sha256',
+      'study_run_id',
+      'admission_mode',
+      'publication_admission_anchor_sha256',
+      'publication_wal_sha256',
+      'evidence_bundle_sha256',
+      'reservation_id',
+      'reservation_sha256',
+      'reservation_finalization_sha256',
+      'nest_work_admission_sha256',
+      'execution_authority',
+      'ncp_control',
+      'physical_actuation',
+      'scientific_authority',
+      'is_paper_local_evidence',
+      'calibrated_posterior',
+      'authority_sha256',
+    ]),
+    'closed-loop publication authority'
+  )
+  assertNoAuthorityEscalation(sidecars, 'closed-loop receipt-store sidecars')
+  for (const [document, field, label] of [
+    [reservation, 'reservation_sha256', 'closed-loop receipt reservation'],
+    [finalization, 'finalization_sha256', 'closed-loop finalized reservation'],
+    [observation, 'record_sha256', 'closed-loop receipt observation'],
+    [anchor, 'anchor_sha256', 'closed-loop publication admission anchor'],
+    [authority, 'authority_sha256', 'closed-loop publication authority'],
+  ]) {
+    managedRuntimeDigest(document, field, label)
+  }
+  const receiptBody = Buffer.from(
+    managedRuntimeCanonical(terminal, undefined, undefined, 'receipt_sha256')
+  )
+  const evidenceBody = Buffer.from(
+    managedRuntimeCanonical(evidence, undefined, undefined, 'bundle_sha256')
+  )
+  if (
+    sha256(receiptBody) !== terminal.receipt_sha256 ||
+    sha256(evidenceBody) !== evidence.bundle_sha256
+  ) {
+    fail('receipt-store artifact digests differ from canonical material')
+  }
+  const reservationId = reservation.reservation_id
+  const studyRunId = terminal.study_run_id
+  if (!/^clrr_[a-f0-9]{64}$/u.test(reservationId) || typeof studyRunId !== 'string') {
+    fail('closed-loop receipt-store run or reservation identity differs')
+  }
+  const workAdmission = evidence.nest_session_readback?.work_admission
+  if (workAdmission === null || typeof workAdmission !== 'object' || Array.isArray(workAdmission)) {
+    fail('closed-loop receipt-store evidence lacks NEST work admission')
+  }
+  const workAdmissionSha256 = ledgerDigest(workAdmission, 'receipt_sha256', 'NEST work admission')
+  const handshake = reservation.reviewed_native_handshake
+  exactKeys(handshake, REVIEWED_HANDSHAKE_KEYS, 'reserved reviewed-native handshake')
+  const handshakeSha256 = ledgerDigest(
+    handshake,
+    'receipt_sha256',
+    'reserved reviewed-native handshake'
+  )
+  const simulationDispatchSha256 = sha256(
+    Buffer.from(
+      managedRuntimeCanonical({
+        schema_version: 'engram.extension-closed-loop-dispatch-intent.v1',
+        store_id: storeId,
+        reservation_id: reservationId,
+        reservation_sha256: reservation.reservation_sha256,
+      })
+    )
+  )
+  const extensionDispatchSha256 = sha256(
+    Buffer.from(
+      managedRuntimeCanonical({
+        schema_version: 'engram.extension-closed-loop-extension-dispatch-intent.v1',
+        store_id: storeId,
+        reservation_id: reservationId,
+        pre_spawn_sha256: reservation.pre_spawn_sha256,
+      })
+    )
+  )
+  const publicationWalSha256 = sha256(
+    Buffer.from(
+      managedRuntimeCanonical({
+        domain: 'engram-extension-closed-loop-reserved-publication-wal-closure-v1',
+        store_id: storeId,
+        reservation_id: reservationId,
+        pre_spawn_sha256: reservation.pre_spawn_sha256,
+        extension_dispatch_sha256: extensionDispatchSha256,
+        reservation_sha256: reservation.reservation_sha256,
+        simulation_dispatch_sha256: simulationDispatchSha256,
+        terminal_receipt_sha256: terminal.receipt_sha256,
+      })
+    )
+  )
+  const studyRunKeySha256 = sha256(
+    Buffer.from(
+      managedRuntimeCanonical({
+        domain: 'engram-extension-closed-loop-publication-study-run-key-v1',
+        store_id: storeId,
+        study_run_id: studyRunId,
+      })
+    )
+  )
+  const receiptPath = `receipts/${terminal.receipt_sha256.slice(0, 2)}/${terminal.receipt_sha256}.json`
+  const evidencePath = `evidence/${evidence.bundle_sha256.slice(0, 2)}/${evidence.bundle_sha256}.json`
+  const finalizationPath = `finalized-reservations/${reservationId.slice(5, 7)}/${reservationId}.json`
+  const observationPath = `observations/${terminal.receipt_sha256.slice(0, 2)}/${terminal.receipt_sha256}.json`
+  const anchorPath = `publication-admission-anchors/${studyRunKeySha256}.json`
+  const authorityPath = `publication-authorities/${terminal.receipt_sha256.slice(0, 2)}/${terminal.receipt_sha256}.json`
+  const expectedArtifact = {
+    artifact_id: `art_${terminal.receipt_sha256.slice(0, 32)}`,
+    kind: 'closed_loop_receipt',
+    sha256: terminal.receipt_sha256,
+  }
+  if (
+    metadata.schema_version !== 'engram.extension-closed-loop-receipt-store.v5' ||
+    metadata.store_id !== storeId ||
+    metadata.policy !== 'engram.extension-closed-loop-receipt-store-policy.v5' ||
+    metadata.digest_canonicalization !== 'engram.managed-runtime-json.v1' ||
+    reservation.schema_version !== 'engram.extension-closed-loop-receipt-reservation.v1' ||
+    reservation.store_id !== storeId ||
+    reservation.study_run_id !== studyRunId ||
+    reservation.closed_loop_definition_sha256 !== terminal.closed_loop_definition_sha256 ||
+    workAdmission.closed_loop_definition_sha256 !== terminal.closed_loop_definition_sha256 ||
+    workAdmission.planned_step_count !== terminal.planned_step_count ||
+    evidence.study_run_id !== studyRunId ||
+    evidence.run_receipt_sha256 !== terminal.receipt_sha256 ||
+    reservation.receipt_profile !== 'engram.extension-closed-loop-run-receipt.v2' ||
+    ![
+      'engram.nest-closed-loop-evidence-bundle.v2',
+      'optional-engram.nest-closed-loop-evidence-bundle.v2',
+    ].includes(reservation.evidence_profile) ||
+    reservation.nest_work_admission_sha256 !== workAdmissionSha256 ||
+    reservation.nest_configuration_sha256 !== workAdmission.controller_configuration_sha256 ||
+    reservation.expected_runtime_binding_sha256 !== terminal.runtime_binding_sha256 ||
+    reservation.reviewed_native_handshake_receipt_sha256 !== handshakeSha256 ||
+    canonical(handshake) !== canonical(capture.reviewed_native_runtime?.handshake_receipt) ||
+    reservation.package_generation_id !== capture.package_generation_id ||
+    reservation.runtime_generation_id !== terminal.runtime_lifecycle?.generation_id ||
+    reservation.run_plan_sha256 !==
+      sha256(Buffer.from(managedRuntimeCanonical(capture.run_plan))) ||
+    reservation.nest_configuration_sha256 !==
+      sha256(Buffer.from(ledgerCanonical(capture.nest_config))) ||
+    !Number.isSafeInteger(reservation.reserved_record_count) ||
+    reservation.reserved_record_count !== 1 ||
+    reservation.reserved_record_bytes !== 4096 ||
+    reservation.reserved_artifact_bytes !== 16 * 1024 * 1024 ||
+    !Number.isSafeInteger(workAdmission.estimated_evidence_bundle_bytes) ||
+    workAdmission.estimated_evidence_bundle_bytes < 1 ||
+    !Number.isSafeInteger(reservation.reserved_evidence_bytes) ||
+    reservation.reserved_evidence_bytes !== workAdmission.estimated_evidence_bundle_bytes ||
+    !isSha256(reservation.pre_spawn_sha256) ||
+    finalization.schema_version !== 'engram.extension-closed-loop-finalized-reservation.v1' ||
+    finalization.store_id !== storeId ||
+    finalization.pre_spawn_sha256 !== reservation.pre_spawn_sha256 ||
+    finalization.extension_dispatch_sha256 !== extensionDispatchSha256 ||
+    finalization.simulation_dispatch_sha256 !== simulationDispatchSha256 ||
+    finalization.terminal_receipt_sha256 !== terminal.receipt_sha256 ||
+    finalization.evidence_bundle_sha256 !== evidence.bundle_sha256 ||
+    finalization.nest_work_admission_rejoined !== true
+  ) {
+    fail('closed-loop receipt-store reservation lineage differs')
+  }
+  exactKeys(observation.artifact, new Set(['artifact_id', 'kind', 'sha256']), 'stored artifact')
+  if (
+    canonical(observation.artifact) !== canonical(expectedArtifact) ||
+    observation.schema_version !== 'engram.extension-closed-loop-stored-receipt.v5' ||
+    observation.store_id !== storeId ||
+    observation.study_run_id !== studyRunId ||
+    observation.run_status !== terminal.status ||
+    observation.terminal_reason_code !== terminal.terminal_reason_code ||
+    observation.relative_artifact_path !== receiptPath ||
+    observation.artifact_byte_length !== receiptBody.length ||
+    observation.evidence_profile !== 'killable-nest-population-controller-v2' ||
+    observation.evidence_bundle_sha256 !== evidence.bundle_sha256 ||
+    observation.relative_evidence_path !== evidencePath ||
+    observation.evidence_byte_length !== evidenceBody.length ||
+    observation.admission_mode !== 'reserved' ||
+    observation.reservation_id !== reservationId ||
+    observation.reservation_sha256 !== reservation.reservation_sha256 ||
+    observation.reservation_finalization_sha256 !== finalization.finalization_sha256 ||
+    observation.nest_work_admission_sha256 !== workAdmissionSha256 ||
+    observation.nest_work_admission_rejoined !== true ||
+    observation.digest_canonicalization !== 'engram.managed-runtime-json.v1'
+  ) {
+    fail('closed-loop receipt-store observation lineage differs')
+  }
+  if (
+    anchor.schema_version !== 'engram.extension-closed-loop-publication-admission-anchor.v1' ||
+    anchor.store_id !== storeId ||
+    anchor.study_run_key_sha256 !== studyRunKeySha256 ||
+    anchor.study_run_id !== studyRunId ||
+    anchor.terminal_receipt_sha256 !== terminal.receipt_sha256 ||
+    anchor.admission_mode !== 'reserved' ||
+    anchor.publication_wal_sha256 !== publicationWalSha256 ||
+    anchor.evidence_bundle_sha256 !== evidence.bundle_sha256 ||
+    anchor.reservation_id !== reservationId ||
+    anchor.reservation_sha256 !== reservation.reservation_sha256 ||
+    anchor.pre_spawn_sha256 !== reservation.pre_spawn_sha256 ||
+    anchor.extension_dispatch_sha256 !== extensionDispatchSha256 ||
+    anchor.simulation_dispatch_sha256 !== simulationDispatchSha256 ||
+    anchor.reservation_finalization_sha256 !== finalization.finalization_sha256 ||
+    authority.schema_version !== 'engram.extension-closed-loop-publication-authority.v1' ||
+    authority.store_id !== storeId ||
+    authority.terminal_receipt_sha256 !== terminal.receipt_sha256 ||
+    authority.study_run_id !== studyRunId ||
+    authority.admission_mode !== 'reserved' ||
+    authority.publication_admission_anchor_sha256 !== anchor.anchor_sha256 ||
+    authority.publication_wal_sha256 !== publicationWalSha256 ||
+    authority.evidence_bundle_sha256 !== evidence.bundle_sha256 ||
+    authority.reservation_id !== reservationId ||
+    authority.reservation_sha256 !== reservation.reservation_sha256 ||
+    authority.reservation_finalization_sha256 !== finalization.finalization_sha256 ||
+    authority.nest_work_admission_sha256 !== workAdmissionSha256 ||
+    observation.publication_authority_sha256 !== authority.authority_sha256
+  ) {
+    fail('closed-loop receipt-store publication authority lineage differs')
+  }
+  return {
+    reservation,
+    material: new Map([
+      ['store.json', Buffer.from(managedRuntimeCanonical(metadata))],
+      ['writer.lock', RECEIPT_STORE_LOCK_PAYLOAD],
+      [receiptPath, receiptBody],
+      [evidencePath, evidenceBody],
+      [finalizationPath, Buffer.from(managedRuntimeCanonical(finalization))],
+      [observationPath, Buffer.from(managedRuntimeCanonical(observation))],
+      [anchorPath, Buffer.from(managedRuntimeCanonical(anchor))],
+      [authorityPath, Buffer.from(managedRuntimeCanonical(authority))],
+    ]),
+  }
+}
+
+function assertReceiptStoreClosure(store, sidecars, terminal, evidence, capture) {
   exactKeys(
     store,
     new Set([
@@ -2422,14 +3971,23 @@ function assertReceiptStoreClosure(store, terminal, evidence) {
   )
   const receiptPath = `receipts/${terminal.receipt_sha256.slice(0, 2)}/${terminal.receipt_sha256}.json`
   const evidencePath = `evidence/${evidence.bundle_sha256.slice(0, 2)}/${evidence.bundle_sha256}.json`
-  const byPath = new Map(store.files.map((row) => [row.relative_path, row]))
-  const storedReceipt = managedRuntimeCanonical(terminal, undefined, undefined, 'receipt_sha256')
-  const storedEvidence = managedRuntimeCanonical(evidence, undefined, undefined, 'bundle_sha256')
-  const receiptRow = byPath.get(receiptPath)
-  const evidenceRow = byPath.get(evidencePath)
+  const { material, reservation } = assertReceiptStoreSidecars(
+    sidecars,
+    store.store_id,
+    terminal,
+    evidence,
+    capture
+  )
+  const expectedFiles = [...material.entries()]
+    .map(([relative_path, payload]) => ({
+      relative_path,
+      size_bytes: payload.length,
+      sha256: sha256(payload),
+    }))
+    .sort((left, right) => left.relative_path.localeCompare(right.relative_path))
   if (
     !/^clrs_[a-f0-9]{64}$/u.test(store.store_id) ||
-    store.files.length < 4 ||
+    store.files.length !== 8 ||
     store.files.some(
       (row) =>
         !Number.isInteger(row.size_bytes) ||
@@ -2441,22 +3999,17 @@ function assertReceiptStoreClosure(store, terminal, evidence) {
     store.total_bytes !== store.files.reduce((sum, row) => sum + row.size_bytes, 0) ||
     store.receipt_artifact_path !== receiptPath ||
     store.evidence_artifact_path !== evidencePath ||
-    receiptRow?.sha256 !== terminal.receipt_sha256 ||
-    receiptRow?.size_bytes !== Buffer.byteLength(storedReceipt) ||
-    evidenceRow?.sha256 !== evidence.bundle_sha256 ||
-    evidenceRow?.size_bytes !== Buffer.byteLength(storedEvidence) ||
-    !byPath.has('store.json') ||
-    !byPath.has('writer.lock') ||
+    canonical(store.files) !== canonical(expectedFiles) ||
     store.receipt_sha256 !== terminal.receipt_sha256 ||
     store.evidence_bundle_sha256 !== evidence.bundle_sha256
   ) {
     fail('closed-loop receipt-store closure identity differs')
   }
-  canonicalDigest(store, 'closure_sha256', 'closed-loop receipt-store closure')
-  return store
+  ledgerDigest(store, 'closure_sha256', 'closed-loop receipt-store closure')
+  return { store, reservation }
 }
 
-function assertWorkerGuardianClosure(guardian, evidence, source) {
+export function assertWorkerGuardianClosure(guardian, evidence, source) {
   exactKeys(
     guardian,
     new Set([
@@ -2499,15 +4052,178 @@ function assertWorkerGuardianClosure(guardian, evidence, source) {
   ) {
     fail('NEST worker guardian lifecycle is incomplete')
   }
-  const bindingDigest = canonicalDigest(binding, 'receipt_sha256', 'NEST worker session binding')
-  const lifecycleDigest = canonicalDigest(
-    lifecycle,
+  const bindingDigest = ledgerDigest(binding, 'receipt_sha256', 'NEST worker session binding')
+  const lifecycleDigest = ledgerDigest(lifecycle, 'receipt_sha256', 'NEST worker lifecycle receipt')
+  const identityDigest = ledgerDigest(identity, 'receipt_sha256', 'NEST worker runtime identity')
+  const sessionDigest = ledgerDigest(session, 'receipt_sha256', 'NEST session readback')
+  const attemptsDigest = sha256(ledgerCanonical(attempts))
+  const runtimeFiles = identity.files
+  const requiredFiles = evidence.runtime_launch_expectation?.required_runtime_files
+  const projectRoles = REQUIRED_WORKER_MODULES.map((moduleName) => `project-module:${moduleName}`)
+  const identityExternalRoles = [
+    'nest-package-init',
+    'nest-pynestkernel-native',
+    'pydantic-core-native',
+    'pydantic-package-init',
+    'python-executable',
+    'worker-source',
+  ]
+  const expectationExternalRoles = [
+    'pydantic-core-native',
+    'pydantic-package-init',
+    'python-executable',
+    'worker-source',
+  ]
+  if (
+    !Array.isArray(runtimeFiles) ||
+    !Array.isArray(requiredFiles) ||
+    canonical(runtimeFiles.map((row) => row?.role)) !==
+      canonical([...projectRoles, ...identityExternalRoles]) ||
+    canonical(requiredFiles.map((row) => row?.role)) !==
+      canonical([...projectRoles, ...expectationExternalRoles]) ||
+    runtimeFiles.some(
+      (row) =>
+        row === null ||
+        typeof row !== 'object' ||
+        Array.isArray(row) ||
+        canonical(Object.keys(row).sort()) !==
+          canonical(['absolute_path', 'role', 'sha256', 'size_bytes']) ||
+        typeof row.absolute_path !== 'string' ||
+        !row.absolute_path.startsWith('/') ||
+        !Number.isSafeInteger(row.size_bytes) ||
+        row.size_bytes < 0 ||
+        row.size_bytes > 67108864 ||
+        !isSha256(row.sha256)
+    ) ||
+    identity.file_roster_sha256 !== sha256(ledgerCanonical(runtimeFiles)) ||
+    identity.project_source_roster_sha256 !==
+      sha256(ledgerCanonical(runtimeFiles.slice(0, projectRoles.length))) ||
+    identity.project_source_closure_verified !== true ||
+    identity.external_dependency_closure_attested !== false ||
+    identity.response_bound_loaded_bytes !== false ||
+    identity.loaded_bytes_attested !== false ||
+    evidence.runtime_launch_expectation.required_runtime_file_roster_sha256 !==
+      sha256(ledgerCanonical(requiredFiles)) ||
+    evidence.runtime_launch_expectation.required_project_source_roster_sha256 !==
+      sha256(ledgerCanonical(requiredFiles.slice(0, projectRoles.length)))
+  ) {
+    fail('NEST worker runtime file closure differs')
+  }
+  const identityByRole = new Map(runtimeFiles.map((row) => [row.role, row]))
+  if (requiredFiles.some((row) => canonical(identityByRole.get(row.role)) !== canonical(row))) {
+    fail('NEST launch required files differ from the worker observation')
+  }
+  const expectation = evidence.runtime_launch_expectation
+  const launch = evidence.worker_launch_attempt
+  const resourceLimits = identity.resource_limits
+  if (
+    resourceLimits === null ||
+    typeof resourceLimits !== 'object' ||
+    Array.isArray(resourceLimits)
+  ) {
+    fail('NEST worker resource-limit receipt is absent')
+  }
+  const resourceLimitDigest = ledgerDigest(
+    resourceLimits,
     'receipt_sha256',
-    'NEST worker lifecycle receipt'
+    'NEST worker resource limits'
   )
-  const identityDigest = canonicalDigest(identity, 'receipt_sha256', 'NEST worker runtime identity')
-  const sessionDigest = canonicalDigest(session, 'receipt_sha256', 'NEST session readback')
-  const attemptsDigest = sha256(managedRuntimeCanonical(attempts))
+  if (
+    canonical(identity.sys_path) !== canonical(expectation.sys_path) ||
+    canonical(identity.environment) !== canonical(expectation.environment) ||
+    resourceLimits.profile !== expectation.resource_limit_profile ||
+    resourceLimits.platform !== expectation.platform ||
+    resourceLimits.address_space_bytes !== expectation.address_space_bytes ||
+    resourceLimits.address_space_limit_enforced !== expectation.address_space_limit_enforced ||
+    resourceLimits.cpu_time_seconds !== expectation.cpu_time_seconds ||
+    resourceLimits.file_size_bytes !== expectation.file_size_bytes ||
+    resourceLimits.open_file_count !== expectation.open_file_count ||
+    resourceLimits.core_file_bytes !== expectation.core_file_bytes ||
+    lifecycle.resource_limit_receipt_sha256 !== resourceLimitDigest
+  ) {
+    fail('NEST worker launch environment or resource-limit lineage differs')
+  }
+  const sourceByPath = new Map(source.sources.map((row) => [row.relative_path, row]))
+  for (const moduleName of REQUIRED_WORKER_MODULES) {
+    const moduleRow = source.worker_project_modules.find((row) => row.module_name === moduleName)
+    const runtimeRow = identityByRole.get(`project-module:${moduleName}`)
+    const sourceRow =
+      moduleRow === undefined ? undefined : sourceByPath.get(moduleRow.relative_path)
+    if (
+      moduleRow === undefined ||
+      runtimeRow === undefined ||
+      sourceRow === undefined ||
+      runtimeRow.sha256 !== sourceRow.sha256 ||
+      runtimeRow.size_bytes !== sourceRow.size_bytes
+    ) {
+      fail('NEST worker runtime project source differs from the committed source closure')
+    }
+  }
+  const workerSource = identityByRole.get('worker-source')
+  const workerSourceRow = sourceByPath.get(
+    'backend/optimization/extension_closed_loop_nest_worker.py'
+  )
+  const guardianSource = evidence.runtime_launch_expectation?.guardian_source_file
+  const guardianSourceRow = sourceByPath.get(
+    'backend/optimization/extension_closed_loop_nest_guardian.py'
+  )
+  const execGateSource = evidence.runtime_launch_expectation?.exec_gate_source_file
+  const execGateSourceRow = sourceByPath.get('backend/integrations/contained_exec_gate.py')
+  const adapterSource = identityByRole.get(
+    'project-module:backend.optimization.extension_closed_loop_nest_process'
+  )
+  if (
+    workerSource === undefined ||
+    workerSourceRow === undefined ||
+    workerSource.sha256 !== workerSourceRow.sha256 ||
+    workerSource.size_bytes !== workerSourceRow.size_bytes ||
+    guardianSource?.role !== 'guardian-source' ||
+    guardianSourceRow === undefined ||
+    guardianSource.sha256 !== guardianSourceRow.sha256 ||
+    guardianSource.size_bytes !== guardianSourceRow.size_bytes ||
+    execGateSource?.role !== 'exec-gate-source' ||
+    execGateSourceRow === undefined ||
+    execGateSource.sha256 !== execGateSourceRow.sha256 ||
+    execGateSource.size_bytes !== execGateSourceRow.size_bytes ||
+    adapterSource === undefined ||
+    expectation.adapter_source_sha256 !== adapterSource.sha256 ||
+    evidence.runtime_launch_expectation.worker_source_sha256 !== workerSource.sha256 ||
+    evidence.runtime_launch_expectation.guardian_source_sha256 !== guardianSource.sha256 ||
+    evidence.runtime_launch_expectation.exec_gate_source_sha256 !== execGateSource.sha256 ||
+    binding.worker_source_sha256 !== workerSource.sha256 ||
+    binding.guardian_source_sha256 !== guardianSource.sha256 ||
+    binding.adapter_source_sha256 !== adapterSource.sha256
+  ) {
+    fail('NEST worker entrypoint or containment source closure differs')
+  }
+  const generationIdentity = [
+    expectation.receipt_sha256,
+    launch.receipt_sha256,
+    expectation.worker_source_sha256,
+    expectation.guardian_source_sha256,
+    expectation.adapter_source_sha256,
+    expectation.worker_command_sha256,
+    launch.worker_pid,
+    launch.guardian_pid,
+    launch.process_group_id,
+    launch.session_id,
+  ]
+  if (
+    canonical([
+      lifecycle.runtime_launch_expectation_sha256,
+      lifecycle.worker_launch_attempt_sha256,
+      lifecycle.worker_source_sha256,
+      lifecycle.guardian_source_sha256,
+      lifecycle.adapter_source_sha256,
+      lifecycle.worker_command_sha256,
+      lifecycle.worker_pid,
+      lifecycle.guardian_pid,
+      lifecycle.process_group_id,
+      lifecycle.session_id,
+    ]) !== canonical(generationIdentity)
+  ) {
+    fail('NEST worker lifecycle generation identity differs')
+  }
   if (
     canonical(lifecycle.termination_attempts) !== canonical(attempts) ||
     lifecycle.session_binding_receipt_sha256 !== bindingDigest ||
@@ -2531,17 +4247,44 @@ function assertWorkerGuardianClosure(guardian, evidence, source) {
   ) {
     fail('NEST worker guardian terminal closure differs')
   }
+  const checkedAttempts = []
   for (const [index, attempt] of attempts.entries()) {
     if (attempt === null || typeof attempt !== 'object' || Array.isArray(attempt)) {
       fail('NEST worker termination attempt is not an object')
     }
-    canonicalDigest(attempt, 'receipt_sha256', 'NEST worker termination attempt')
+    ledgerDigest(attempt, 'receipt_sha256', 'NEST worker termination attempt')
     if (
       attempt.attempt_index !== index + 1 ||
-      attempt.worker_pid !== lifecycle.worker_pid ||
-      attempt.worker_source_sha256 !== lifecycle.worker_source_sha256 ||
-      attempt.worker_command_sha256 !== lifecycle.worker_command_sha256 ||
-      attempt.adapter_source_sha256 !== lifecycle.adapter_source_sha256 ||
+      attempt.schema_version !== 'engram.nest-worker-termination-attempt.v1' ||
+      canonical([
+        attempt.runtime_launch_expectation_sha256,
+        attempt.worker_launch_attempt_sha256,
+        attempt.worker_source_sha256,
+        attempt.guardian_source_sha256,
+        attempt.adapter_source_sha256,
+        attempt.worker_command_sha256,
+        attempt.worker_pid,
+        attempt.guardian_pid,
+        attempt.process_group_id,
+        attempt.session_id,
+      ]) !== canonical(generationIdentity) ||
+      !Number.isInteger(attempt.request_count) ||
+      attempt.request_count < 0 ||
+      attempt.request_count > 4096 ||
+      !Number.isInteger(attempt.response_count) ||
+      attempt.response_count < 0 ||
+      attempt.response_count > attempt.request_count ||
+      attempt.process_group_id !== attempt.worker_pid ||
+      attempt.guardian_pid === attempt.process_group_id ||
+      attempt.group_signal_while_guardian_unreaped !==
+        (attempt.group_signal_basis === 'guardian-group-anchor-unreaped') ||
+      attempt.group_signal_attempted !==
+        (attempt.group_signal_basis !== 'none' && attempt.containment_seal_signal === 9) ||
+      (attempt.containment_empty === true && attempt.anchored_group_kill_delivered !== true) ||
+      (attempt.group_signal_basis === 'guardian-group-anchor-unreaped' &&
+        attempt.guardian_unexpected_exit_observed !== false) ||
+      (attempt.group_signal_basis === 'worker-group-leader-unreaped' &&
+        attempt.guardian_unexpected_exit_observed !== true) ||
       attempt.child_reaped !== true ||
       attempt.containment_empty !== true ||
       attempt.diagnostic_stream_complete !== true ||
@@ -2552,6 +4295,40 @@ function assertWorkerGuardianClosure(guardian, evidence, source) {
     ) {
       fail('NEST worker termination attempt lineage differs')
     }
+    checkedAttempts.push(attempt)
+  }
+  const finalAttempt = checkedAttempts.at(-1)
+  const finalProjectionFields = [
+    'disposition',
+    'reason_code',
+    'exit_code',
+    'termination_signal',
+    'guardian_unexpected_exit_observed',
+    'stderr_sha256',
+    'stderr_retained_bytes',
+    'stderr_truncated',
+    'request_count',
+    'response_count',
+  ]
+  if (
+    lifecycle.schema_version !== 'engram.nest-worker-lifecycle-receipt.v2' ||
+    !Number.isInteger(lifecycle.request_count) ||
+    lifecycle.request_count < 0 ||
+    lifecycle.request_count > 4096 ||
+    !Number.isInteger(lifecycle.response_count) ||
+    lifecycle.response_count < 0 ||
+    lifecycle.response_count > lifecycle.request_count ||
+    lifecycle.process_group_id !== lifecycle.worker_pid ||
+    lifecycle.guardian_pid === lifecycle.process_group_id ||
+    !checkedAttempts.some((attempt) => attempt.anchored_group_kill_delivered === true) ||
+    lifecycle.runtime_identity_receipt_sha256 == null ||
+    lifecycle.resource_limit_receipt_sha256 == null ||
+    finalProjectionFields.some((field) => finalAttempt[field] !== lifecycle[field]) ||
+    ['child_reaped', 'guardian_reaped', 'containment_empty', 'diagnostic_stream_complete'].some(
+      (field) => finalAttempt[field] !== true
+    )
+  ) {
+    fail('NEST worker lifecycle differs from its terminal attempt')
   }
   const expected = {
     worker_session_binding_receipt_sha256: bindingDigest,
@@ -2649,6 +4426,1676 @@ function expectedPopulationTopology(capture) {
   }
 }
 
+function exactManagedFloatVector(values, width, label) {
+  if (!Array.isArray(values) || values.length !== width) {
+    fail(`${label} width differs`)
+  }
+  for (const [index, value] of values.entries()) {
+    const sourceLexeme = values[MANAGED_RUNTIME_NUMBER_LEXEMES]?.get(`${index}`)
+    if (
+      typeof value !== 'number' ||
+      !Number.isFinite(value) ||
+      typeof sourceLexeme !== 'string' ||
+      !/[.eE]/u.test(sourceLexeme)
+    ) {
+      fail(`${label} contains a non-float JSON value`)
+    }
+    managedRuntimeFloatText(value)
+  }
+}
+
+export function assertNeuralStepsClosure(capture, terminal, evidence, count) {
+  const planChannels = capture.run_plan?.channels
+  const neuralSteps = capture.neural_steps
+  const terminalSteps = terminal.steps
+  const neuralExecutions = terminal.neural_executions
+  const nestExecutions = evidence.step_execution_receipts
+  const intervalTics = terminal.timebase?.runtime_step_duration_tics
+  if (
+    !Array.isArray(planChannels) ||
+    planChannels.length !== count ||
+    !Array.isArray(neuralSteps) ||
+    neuralSteps.length !== 6 ||
+    !Array.isArray(terminalSteps) ||
+    terminalSteps.length !== 6 ||
+    !Array.isArray(neuralExecutions) ||
+    neuralExecutions.length !== 6 ||
+    !Array.isArray(nestExecutions) ||
+    nestExecutions.length !== 6 ||
+    !Number.isSafeInteger(intervalTics) ||
+    intervalTics < 1 ||
+    terminal.timebase?.neural_step_duration_tics !== intervalTics ||
+    planChannels.some(
+      (row) =>
+        row === null ||
+        typeof row !== 'object' ||
+        Array.isArray(row) ||
+        typeof row.channel_id !== 'string' ||
+        typeof row.subject_id !== 'string' ||
+        !Number.isSafeInteger(row.observation_width) ||
+        row.observation_width < 1 ||
+        row.observation_width > 16 ||
+        !Number.isSafeInteger(row.action_width) ||
+        row.action_width < 1 ||
+        row.action_width > 16
+    ) ||
+    new Set(planChannels.map((row) => row.channel_id)).size !== planChannels.length
+  ) {
+    fail(`${count}-drone captured neural step transcript roster differs`)
+  }
+
+  for (const [offset, step] of neuralSteps.entries()) {
+    const index = offset + 1
+    exactKeys(step, NEURAL_STEP_KEYS, `captured neural step ${index}`)
+    const request = exactKeys(
+      step.request,
+      NEURAL_STEP_REQUEST_KEYS,
+      `captured neural step ${index} request`
+    )
+    const result = exactKeys(
+      step.result,
+      NEURAL_STEP_RESULT_KEYS,
+      `captured neural step ${index} result`
+    )
+    const requestDigest = managedRuntimeDigest(
+      request,
+      'request_sha256',
+      `captured neural step ${index} request`
+    )
+    const resultDigest = managedRuntimeDigest(
+      result,
+      'result_sha256',
+      `captured neural step ${index} result`
+    )
+    const terminalStep = terminalSteps[offset]
+    const executionBinding = neuralExecutions[offset]
+    const nestExecution = nestExecutions[offset]
+    const stepId = closedLoopStepId(terminal.study_run_id, index)
+    const startTics = offset * intervalTics
+    const endTics = index * intervalTics
+    if (
+      request.schema_version !== 'engram.closed-loop-neural-step-request.v1' ||
+      result.schema_version !== 'engram.closed-loop-neural-step-result.v1' ||
+      request.study_run_id !== terminal.study_run_id ||
+      result.study_run_id !== terminal.study_run_id ||
+      request.step_index !== index ||
+      result.step_index !== index ||
+      request.step_id !== stepId ||
+      result.step_id !== stepId ||
+      request.neural_preparation_sha256 !== terminal.neural_preparation_sha256 ||
+      request.source_snapshot_sha256 !== terminalStep.input_snapshot_sha256 ||
+      request.observation_runtime_time_tics !== startTics ||
+      request.runtime_interval_end_time_tics !== endTics ||
+      request.runtime_interval_tics !== intervalTics ||
+      request.controller_start_time_tics !== startTics ||
+      request.controller_end_time_tics !== endTics ||
+      request.controller_interval_tics !== intervalTics ||
+      result.controller_start_time_tics !== startTics ||
+      result.controller_end_time_tics !== endTics ||
+      result.request_sha256 !== requestDigest ||
+      result.provider_execution_scope !== 'nest-exact-step-readback' ||
+      result.provider_execution_sha256 !== nestExecution.receipt_sha256 ||
+      terminalStep.neural_request_sha256 !== requestDigest ||
+      terminalStep.neural_result_sha256 !== resultDigest ||
+      terminalStep.provider_execution_scope !== result.provider_execution_scope ||
+      terminalStep.provider_execution_sha256 !== result.provider_execution_sha256 ||
+      executionBinding.neural_request_sha256 !== requestDigest ||
+      executionBinding.neural_result_sha256 !== resultDigest ||
+      executionBinding.provider_execution_sha256 !== result.provider_execution_sha256
+    ) {
+      fail(`${count}-drone captured neural step ${index} lineage differs`)
+    }
+
+    if (!Array.isArray(request.channels) || request.channels.length !== planChannels.length) {
+      fail(`${count}-drone captured neural step ${index} request channel roster differs`)
+    }
+    for (const [channelIndex, channel] of request.channels.entries()) {
+      exactKeys(
+        channel,
+        NEURAL_INPUT_CHANNEL_KEYS,
+        `captured neural step ${index} input channel ${channelIndex + 1}`
+      )
+      const planChannel = planChannels[channelIndex]
+      if (
+        channel.channel_id !== planChannel.channel_id ||
+        channel.subject_id !== planChannel.subject_id ||
+        typeof channel.hold_required !== 'boolean' ||
+        typeof channel.fault_code !== 'string' ||
+        channel.fault_code.length === 0 ||
+        channel.fault_code !== channel.fault_code.trim() ||
+        Buffer.byteLength(channel.fault_code, 'utf8') > 256 ||
+        [...channel.fault_code].some((character) => {
+          const codePoint = character.codePointAt(0)
+          return codePoint < 33 || codePoint === 127
+        })
+      ) {
+        fail(`${count}-drone captured neural step ${index} input channel differs`)
+      }
+      exactManagedFloatVector(
+        channel.observation_values,
+        planChannel.observation_width,
+        `${count}-drone captured neural step ${index} observation`
+      )
+    }
+
+    if (!Array.isArray(result.proposals) || result.proposals.length !== planChannels.length) {
+      fail(`${count}-drone captured neural step ${index} proposal roster differs`)
+    }
+    for (const [channelIndex, proposal] of result.proposals.entries()) {
+      exactKeys(
+        proposal,
+        NEURAL_ACTION_PROPOSAL_KEYS,
+        `captured neural step ${index} proposal ${channelIndex + 1}`
+      )
+      const sources = proposal.source_populations
+      if (
+        proposal.channel_id !== planChannels[channelIndex].channel_id ||
+        !Array.isArray(sources) ||
+        sources.length < 1 ||
+        sources.length > 64 ||
+        canonical(sources) !== canonical([...sources].sort(compareUnicodeCodePoints)) ||
+        new Set(sources).size !== sources.length ||
+        sources.some((source) => typeof source !== 'string' || source.length === 0)
+      ) {
+        fail(`${count}-drone captured neural step ${index} proposal differs`)
+      }
+      exactManagedFloatVector(
+        proposal.values,
+        planChannels[channelIndex].action_width,
+        `${count}-drone captured neural step ${index} proposal`
+      )
+    }
+  }
+}
+
+function exactLedgerFloat(parent, key, label) {
+  const value = parent?.[key]
+  const sourceLexeme = parent?.[MANAGED_RUNTIME_NUMBER_LEXEMES]?.get(`${key}`)
+  if (
+    typeof value !== 'number' ||
+    !Number.isFinite(value) ||
+    typeof sourceLexeme !== 'string' ||
+    !/[.eE]/u.test(sourceLexeme)
+  ) {
+    fail(`${label} is not a float-typed finite JSON value`)
+  }
+  ledgerFloatText(value)
+  return { value, sourceLexeme }
+}
+
+function markLedgerIntegerMembers(value, members) {
+  const lexemes = new Map()
+  for (const member of members) {
+    const number = value[member]
+    if (!Number.isSafeInteger(number)) fail(`expected ledger integer differs: ${member}`)
+    lexemes.set(`${member}`, `${number}`)
+  }
+  Object.defineProperty(value, MANAGED_RUNTIME_NUMBER_LEXEMES, {
+    configurable: false,
+    enumerable: false,
+    value: lexemes,
+    writable: false,
+  })
+  return value
+}
+
+function decimalTics(sourceLexeme, label) {
+  const match = sourceLexeme.match(/^(-?)(0|[1-9][0-9]*)(?:\.([0-9]+))?(?:[eE]([+-]?[0-9]+))?$/u)
+  if (match === null || match[1] === '-') fail(`${label} is not a nonnegative decimal time`)
+  const fraction = match[3] ?? ''
+  const exponent = Number.parseInt(match[4] ?? '0', 10)
+  if (!Number.isSafeInteger(exponent) || Math.abs(exponent) > 1000) {
+    fail(`${label} exceeds the exact NEST tic range`)
+  }
+  const digits = BigInt(`${match[2]}${fraction}`)
+  const shift = exponent - fraction.length + 3
+  let tics
+  if (shift >= 0) {
+    tics = digits * 10n ** BigInt(shift)
+  } else {
+    const divisor = 10n ** BigInt(-shift)
+    if (digits % divisor !== 0n) fail(`${label} is not on the exact 0.001-ms NEST grid`)
+    tics = digits / divisor
+  }
+  if (tics > BigInt(Number.MAX_SAFE_INTEGER)) fail(`${label} exceeds the exact NEST tic range`)
+  return Number(tics)
+}
+
+function decimalFraction(sourceLexeme, label) {
+  const match = sourceLexeme.match(/^(-?)(0|[1-9][0-9]*)(?:\.([0-9]+))?(?:[eE]([+-]?[0-9]+))?$/u)
+  if (match === null) fail(`${label} is not an exact decimal value`)
+  const fraction = match[3] ?? ''
+  const exponent = Number.parseInt(match[4] ?? '0', 10)
+  if (!Number.isSafeInteger(exponent) || Math.abs(exponent) > 1000) {
+    fail(`${label} exceeds the exact decimal range`)
+  }
+  let numerator = BigInt(`${match[2]}${fraction}`)
+  if (match[1] === '-') numerator = -numerator
+  const shift = exponent - fraction.length
+  if (shift >= 0) {
+    return { numerator: numerator * 10n ** BigInt(shift), denominator: 1n }
+  }
+  return { numerator, denominator: 10n ** BigInt(-shift) }
+}
+
+function decimalProductCeiling(value, integerFactors, divisor, label) {
+  if (
+    typeof value !== 'number' ||
+    !Number.isFinite(value) ||
+    !integerFactors.every((factor) => Number.isSafeInteger(factor) && factor >= 0) ||
+    !Number.isSafeInteger(divisor) ||
+    divisor < 1
+  ) {
+    fail(`${label} exceeds the exact arithmetic domain`)
+  }
+  const decimal = decimalFraction(ledgerFloatText(value), label)
+  if (decimal.numerator < 0n) fail(`${label} is negative`)
+  const numerator = integerFactors.reduce(
+    (product, factor) => product * BigInt(factor),
+    decimal.numerator
+  )
+  const denominator = decimal.denominator * BigInt(divisor)
+  const result = (numerator + denominator - 1n) / denominator
+  if (result > BigInt(Number.MAX_SAFE_INTEGER)) fail(`${label} exceeds the exact integer range`)
+  return Number(result)
+}
+
+function decimalFloatSum(values, label) {
+  if (!Array.isArray(values) || values.length === 0) {
+    fail(`${label} has no decimal terms`)
+  }
+  const fractions = values.map((value) => {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      fail(`${label} contains a non-finite term`)
+    }
+    return decimalFraction(ledgerFloatText(value), label)
+  })
+  const denominator = fractions.reduce(
+    (largest, row) => (row.denominator > largest ? row.denominator : largest),
+    1n
+  )
+  const numerator = fractions.reduce((sum, row) => {
+    if (denominator % row.denominator !== 0n) {
+      fail(`${label} has an incompatible decimal denominator`)
+    }
+    return sum + row.numerator * (denominator / row.denominator)
+  }, 0n)
+  const denominatorText = denominator.toString()
+  if (!/^10*$/u.test(denominatorText)) {
+    fail(`${label} has a non-decimal denominator`)
+  }
+  const scale = denominatorText.length - 1
+  const negative = numerator < 0n
+  const digits = (negative ? -numerator : numerator).toString().padStart(scale + 1, '0')
+  const decimalText =
+    scale === 0
+      ? digits
+      : `${digits.slice(0, -scale)}.${digits.slice(-scale).replace(/0+$/u, '') || '0'}`
+  const result = Number(`${negative ? '-' : ''}${decimalText}`)
+  if (!Number.isFinite(result)) fail(`${label} exceeds the binary64 range`)
+  return result
+}
+
+function requestedNestTics(parent, key, label, allowZero = false) {
+  const { value, sourceLexeme } = exactLedgerFloat(parent, key, label)
+  const tics = decimalTics(sourceLexeme, label)
+  if ((!allowZero && tics < 1) || value < 0) fail(`${label} is not a positive NEST time`)
+  return tics
+}
+
+function effectiveNestTics(parent, key, label, allowZero = false) {
+  const { value } = exactLedgerFloat(parent, key, label)
+  if (value < 0 || (!allowZero && value === 0)) fail(`${label} is not a valid NEST readback`)
+  const scaled = value / NEST_TIC_MS
+  const candidate = Math.round(scaled)
+  if (
+    !Number.isSafeInteger(candidate) ||
+    candidate < 0 ||
+    (!allowZero && candidate === 0) ||
+    !Object.is(value, candidate * NEST_TIC_MS)
+  ) {
+    fail(`${label} is not an exact canonical NEST tic readback`)
+  }
+  return candidate
+}
+
+function assertNestControllerConfigSemantics(config) {
+  if (config?.schema_version !== 'engram.nest-population-controller-config.v2') {
+    fail('NEST controller configuration identity differs')
+  }
+  const resolutionTics = requestedNestTics(config, 'resolution_ms', 'NEST resolution')
+  const durationTics = requestedNestTics(config, 'step_duration_ms', 'NEST step duration')
+  const bounds = [
+    ['resolution_ms', 0.001, 10],
+    ['step_duration_ms', 1, 10000],
+    ['baseline_rate_hz', 0, 100000],
+    ['input_span_hz', Number.MIN_VALUE, 100000],
+    ['input_weight_mv', Number.MIN_VALUE, 1000],
+    ['output_rate_scale_hz', Number.MIN_VALUE, 1000000000],
+  ]
+  for (const [key, minimum, maximum] of bounds) {
+    const { value } = exactLedgerFloat(config, key, `NEST controller ${key}`)
+    if (value < minimum || value > maximum || (minimum === Number.MIN_VALUE && value <= 0)) {
+      fail(`NEST controller ${key} exceeds its bound`)
+    }
+  }
+  if (
+    !Number.isSafeInteger(config.population_size) ||
+    config.population_size < 2 ||
+    config.population_size > 512 ||
+    !Number.isSafeInteger(config.rng_seed) ||
+    config.rng_seed < 1 ||
+    config.rng_seed > 2147483647 ||
+    durationTics % resolutionTics !== 0 ||
+    durationTics <= resolutionTics ||
+    durationTics < Math.max(NEST_REFRACTORY_TICS + 2 * resolutionTics, 3 * resolutionTics)
+  ) {
+    fail('NEST controller timing or integer configuration differs')
+  }
+  return { resolutionTics, durationTics }
+}
+
+function assertNestLaunchExpectationSemantics(expectation) {
+  const { resolutionTics, durationTics } = assertNestControllerConfigSemantics(
+    expectation.controller_configuration
+  )
+  const files = expectation.required_runtime_files
+  const byRole = new Map(files.map((row) => [row.role, row]))
+  const python = byRole.get('python-executable')
+  const worker = byRole.get('worker-source')
+  const controller = byRole.get('project-module:backend.optimization.extension_closed_loop_nest')
+  if (python === undefined || worker === undefined || controller === undefined) {
+    fail('NEST launch lacks its required executable or controller source')
+  }
+  const expectedWorkerCommand = [
+    python.absolute_path,
+    '-I',
+    '-S',
+    '-B',
+    worker.absolute_path,
+    '--resource-limit-profile',
+    'portable-posix-rlimit-v1',
+    '--address-space-bytes',
+    `${expectation.address_space_bytes ?? 0}`,
+    '--cpu-time-seconds',
+    `${expectation.cpu_time_seconds}`,
+    '--file-size-bytes',
+    `${expectation.file_size_bytes}`,
+    '--open-file-count',
+    `${expectation.open_file_count}`,
+  ]
+  const guardianSource = expectation.guardian_command?.[5]
+  const expectedGuardianCommand = [python.absolute_path, '-I', '-S', '-B', '-c', guardianSource]
+  const expectedDispatch =
+    expectation.session_escape_prevention_profile === 'darwin-gated-group-leader-deny-fork-v1'
+      ? [NEST_SANDBOX_EXECUTABLE, '-p', NEST_DARWIN_SANDBOX_PROFILE, ...expectedWorkerCommand]
+      : expectedWorkerCommand
+  const expectedEnvironment = [
+    ['LANG', 'C'],
+    ['LC_ALL', 'C'],
+    ['PATH', '/usr/bin:/bin'],
+    ['TZ', 'UTC'],
+  ]
+  const roles = files.map((row) => row.role)
+  const projectFiles = files.filter((row) => row.role.startsWith('project-module:'))
+  const nonprojectRoles = roles.filter((role) => !role.startsWith('project-module:'))
+  const expectedNonprojectRoles = [
+    'pydantic-core-native',
+    'pydantic-package-init',
+    'python-executable',
+    'worker-source',
+  ]
+  const childResourceLimits = markLedgerIntegerMembers(
+    {
+      max_total_nodes: NEST_WORK_LIMITS.max_total_nodes,
+      max_total_connections: NEST_WORK_LIMITS.max_total_connections,
+      max_neuron_tic_work_units: NEST_WORK_LIMITS.max_neuron_tic_work_units,
+      max_input_event_work_units: NEST_WORK_LIMITS.max_input_event_work_units,
+    },
+    [
+      'max_total_nodes',
+      'max_total_connections',
+      'max_neuron_tic_work_units',
+      'max_input_event_work_units',
+    ]
+  )
+  const childIdentity = markLedgerIntegerMembers(
+    {
+      schema_version: 'engram.nest-population-controller-identity.v1',
+      provider: 'NEST',
+      semantic_policy: 'engram.nest-population-controller-policy.v4',
+      test_failure_phase: expectation.child_provider_test_failure_phase,
+      controller_source_sha256: controller.sha256,
+      reported_version: '3.9.0',
+      config: expectation.controller_configuration,
+      nest_tic_ms: '0.001',
+      local_num_threads: 1,
+      model_roster: NEST_MODEL_ROSTER,
+      resource_limits: childResourceLimits,
+      loaded_bytes_attested: false,
+      ncp_transport: false,
+    },
+    ['local_num_threads']
+  )
+  const expectedChildIdentity = sha256(Buffer.from(ledgerCanonical(childIdentity)))
+  const expectedCommandDigest = sha256(
+    Buffer.from(
+      ledgerCanonical({
+        guardian_command: expectation.guardian_command,
+        worker_command: expectation.worker_command,
+        worker_dispatch_command: expectation.worker_dispatch_command,
+        exec_gate_source_sha256: expectation.exec_gate_source_sha256,
+        session_escape_prevention_profile: expectation.session_escape_prevention_profile,
+        darwin_sandbox_profile_sha256: expectation.darwin_sandbox_profile_sha256,
+        darwin_sandbox_launcher_sha256: expectation.darwin_sandbox_launcher_sha256,
+      })
+    )
+  )
+  const darwin = expectation.platform === 'darwin'
+  if (
+    expectation.schema_version !== 'engram.nest-worker-launch-expectation.v4' ||
+    !Array.isArray(files) ||
+    files.length < REQUIRED_WORKER_MODULES.length + expectedNonprojectRoles.length ||
+    files.length > 68 ||
+    new Set(roles).size !== roles.length ||
+    canonical(projectFiles.map((row) => row.role)) !==
+      canonical([...projectFiles.map((row) => row.role)].sort(compareUnicodeCodePoints)) ||
+    REQUIRED_WORKER_MODULES.some((moduleName) => !roles.includes(`project-module:${moduleName}`)) ||
+    canonical(nonprojectRoles) !== canonical(expectedNonprojectRoles) ||
+    files.some(
+      (row) =>
+        row === null ||
+        typeof row !== 'object' ||
+        Array.isArray(row) ||
+        typeof row.absolute_path !== 'string' ||
+        !row.absolute_path.startsWith('/') ||
+        !Number.isSafeInteger(row.size_bytes) ||
+        row.size_bytes < 0 ||
+        row.size_bytes > 67108864 ||
+        !isSha256(row.sha256)
+    ) ||
+    expectation.required_runtime_file_roster_sha256 !==
+      sha256(Buffer.from(ledgerCanonical(files))) ||
+    expectation.required_project_source_roster_sha256 !==
+      sha256(Buffer.from(ledgerCanonical(projectFiles))) ||
+    canonical(expectation.worker_command) !== canonical(expectedWorkerCommand) ||
+    canonical(expectation.guardian_command) !== canonical(expectedGuardianCommand) ||
+    canonical(expectation.worker_dispatch_command) !== canonical(expectedDispatch) ||
+    canonical(expectation.environment) !== canonical(expectedEnvironment) ||
+    !Array.isArray(expectation.sys_path) ||
+    expectation.sys_path.length < 4 ||
+    expectation.sys_path.length > 8 ||
+    new Set(expectation.sys_path).size !== expectation.sys_path.length ||
+    expectation.sys_path.some((path) => typeof path !== 'string' || !path.startsWith('/')) ||
+    typeof guardianSource !== 'string' ||
+    Buffer.byteLength(guardianSource) !== expectation.guardian_source_file?.size_bytes ||
+    sha256(Buffer.from(guardianSource)) !== expectation.guardian_source_sha256 ||
+    expectation.guardian_source_sha256 !== expectation.guardian_source_file?.sha256 ||
+    expectation.exec_gate_source_sha256 !== expectation.exec_gate_source_file?.sha256 ||
+    !expectation.guardian_source_file?.absolute_path?.startsWith('/') ||
+    !expectation.exec_gate_source_file?.absolute_path?.startsWith('/') ||
+    expectation.python_executable_sha256 !== python.sha256 ||
+    expectation.worker_source_sha256 !== worker.sha256 ||
+    expectation.expected_child_provider_identity_sha256 !== expectedChildIdentity ||
+    expectation.worker_command_sha256 !== expectedCommandDigest ||
+    expectation.project_source_discovery_policy !== 'minimum-direct-worker-import-roster-v1' ||
+    expectation.resource_limit_profile !== 'portable-posix-rlimit-v1' ||
+    expectation.child_provider_test_failure_phase !== 'none' ||
+    expectation.address_space_limit_enforced !== (expectation.address_space_bytes !== null) ||
+    (expectation.platform === 'linux') !== expectation.address_space_limit_enforced ||
+    (expectation.platform === 'linux' && expectation.address_space_bytes !== 1073741824) ||
+    (expectation.platform === 'darwin' && expectation.address_space_bytes !== null) ||
+    expectation.cpu_time_seconds !== 300 ||
+    expectation.file_size_bytes !== 67108864 ||
+    expectation.open_file_count !== 256 ||
+    expectation.core_file_bytes !== 0 ||
+    expectation.network_namespace_isolation !== false ||
+    expectation.syscall_filter !== false ||
+    expectation.runtime_process_group_leader !== true ||
+    expectation.guardian_group_member !== true ||
+    expectation.production_isolation !== false ||
+    expectation.external_dependency_closure_attested !== false ||
+    expectation.loaded_bytes_attested !== false ||
+    (darwin &&
+      (expectation.session_escape_prevention_profile !== 'darwin-gated-group-leader-deny-fork-v1' ||
+        expectation.descendant_creation_denied !== true ||
+        expectation.darwin_sandbox_profile_sha256 !==
+          sha256(Buffer.from(NEST_DARWIN_SANDBOX_PROFILE)) ||
+        !isSha256(expectation.darwin_sandbox_launcher_sha256))) ||
+    (!darwin &&
+      (expectation.platform !== 'linux' ||
+        expectation.session_escape_prevention_profile !== 'linux-trusted-worker-source-v1' ||
+        expectation.descendant_creation_denied !== false ||
+        expectation.darwin_sandbox_profile_sha256 !== null ||
+        expectation.darwin_sandbox_launcher_sha256 !== null))
+  ) {
+    fail('NEST launch command, containment, or provider-identity semantics differ')
+  }
+  return { config: expectation.controller_configuration, resolutionTics, durationTics }
+}
+
+function assertNestWorkAdmissionSemantics(work, terminal, config, controlBindings, populations) {
+  const maximumInputRate = exactLedgerFloat(
+    work,
+    'maximum_input_rate_hz',
+    'NEST work maximum input rate'
+  ).value
+  const expectedSignedPopulations = work.action_dimension_count * 2
+  const expectedPopulationNeurons = expectedSignedPopulations * work.population_size
+  const expectedDevices = expectedSignedPopulations * 2
+  const expectedConnections = expectedPopulationNeurons * 2
+  const expectedRunTics = work.step_duration_tics * work.planned_step_count
+  const expectedNeuronWork = expectedPopulationNeurons * expectedRunTics
+  const expectedInputWork = decimalProductCeiling(
+    maximumInputRate,
+    [expectedRunTics, expectedPopulationNeurons],
+    1000000,
+    'NEST work maximum input rate'
+  )
+  const expectedStepBytes = 32768 + work.channel_count * 4096 + work.action_dimension_count * 8192
+  const expectedBundleBytes =
+    16777216 +
+    work.channel_count * 4096 +
+    work.action_dimension_count * 8192 +
+    expectedStepBytes * work.planned_step_count
+  const expectedStepNodes = 128 + work.channel_count * 42 + work.action_dimension_count * 160
+  const expectedBundleNodes =
+    32768 +
+    work.channel_count * 64 +
+    work.action_dimension_count * 192 +
+    work.planned_step_count * (128 + work.channel_count * 40 + work.action_dimension_count * 160)
+  if (
+    work.schema_version !== 'engram.nest-work-admission.v1' ||
+    work.channel_count !== controlBindings.length ||
+    work.channel_count !== populations.length ||
+    work.action_dimension_count < work.channel_count ||
+    work.planned_step_count !== terminal.planned_step_count ||
+    work.closed_loop_definition_sha256 !== terminal.closed_loop_definition_sha256 ||
+    work.controller_configuration_sha256 !== sha256(Buffer.from(ledgerCanonical(config))) ||
+    work.expected_control_binding_sha256 !==
+      sha256(Buffer.from(ledgerCanonical(controlBindings))) ||
+    work.expected_population_roster_sha256 !== sha256(Buffer.from(ledgerCanonical(populations))) ||
+    work.population_size !== config.population_size ||
+    maximumInputRate !==
+      decimalFloatSum(
+        [config.baseline_rate_hz, config.input_span_hz],
+        'NEST work maximum input rate'
+      ) ||
+    work.signed_population_count !== expectedSignedPopulations ||
+    work.population_neuron_count !== expectedPopulationNeurons ||
+    work.device_node_count !== expectedDevices ||
+    work.total_node_count !== expectedPopulationNeurons + expectedDevices ||
+    work.total_connection_count !== expectedConnections ||
+    work.total_run_tics !== expectedRunTics ||
+    work.neuron_tic_work_units !== expectedNeuronWork ||
+    work.input_event_work_units !== expectedInputWork ||
+    work.estimated_step_response_bytes !== expectedStepBytes ||
+    work.estimated_evidence_bundle_bytes !== expectedBundleBytes ||
+    work.estimated_step_response_nodes !== expectedStepNodes ||
+    work.estimated_evidence_bundle_nodes !== expectedBundleNodes ||
+    work.byte_estimate_policy !== 'closed-json-upper-bound-v1' ||
+    work.node_estimate_policy !== 'canonical-json-node-upper-bound-v1' ||
+    Object.entries(NEST_WORK_LIMITS).some(([key, value]) => work[key] !== value) ||
+    work.total_node_count > work.max_total_nodes ||
+    work.total_connection_count > work.max_total_connections ||
+    work.neuron_tic_work_units > work.max_neuron_tic_work_units ||
+    work.input_event_work_units > work.max_input_event_work_units ||
+    work.estimated_step_response_bytes > work.max_step_response_bytes ||
+    work.estimated_evidence_bundle_bytes > work.max_evidence_bundle_bytes ||
+    work.estimated_step_response_nodes > work.max_step_response_nodes ||
+    work.estimated_evidence_bundle_nodes > work.max_evidence_bundle_nodes ||
+    work.admitted !== true
+  ) {
+    fail('NEST work-admission arithmetic, budget, or lineage differs')
+  }
+  ledgerDigest(work, 'receipt_sha256', 'NEST work admission')
+}
+
+function assertNestSessionSemantics(session, terminal, config, timing) {
+  const work = session.work_admission
+  const requestedResolution = requestedNestTics(
+    session,
+    'requested_resolution_ms',
+    'NEST requested resolution'
+  )
+  const resolutionArgument = requestedNestTics(
+    session,
+    'resolution_api_argument_ms',
+    'NEST resolution API argument'
+  )
+  const effectiveResolution = effectiveNestTics(
+    session,
+    'effective_resolution_ms',
+    'NEST effective resolution'
+  )
+  const requestedDuration = requestedNestTics(
+    session,
+    'requested_step_duration_ms',
+    'NEST requested step duration'
+  )
+  const runArgument = requestedNestTics(session, 'run_api_argument_ms', 'NEST run API argument')
+  const delayArgument = requestedNestTics(
+    session,
+    'connection_delay_api_argument_ms',
+    'NEST connection delay API argument'
+  )
+  const requestedInputWeight = exactLedgerFloat(
+    session,
+    'requested_input_weight',
+    'NEST requested input weight'
+  ).value
+  const requestedRecorderWeight = exactLedgerFloat(
+    session,
+    'requested_recorder_weight',
+    'NEST requested recorder weight'
+  ).value
+  const connections = session.connection_readbacks
+  const controlBindings = session.control_bindings
+  const populations = session.population_roster
+  assertNestWorkAdmissionSemantics(work, terminal, config, controlBindings, populations)
+  const connectionKeys = connections.map((row) => [row.population_name, row.direction])
+  const sortedConnectionKeys = [...connectionKeys].sort(
+    (left, right) =>
+      compareUnicodeCodePoints(left[0], right[0]) || compareUnicodeCodePoints(left[1], right[1])
+  )
+  const grouped = new Map()
+  let connectionCount = 0
+  for (const row of connections) {
+    const requestedWeight = exactLedgerFloat(
+      row,
+      'requested_weight',
+      `NEST ${row.population_name} ${row.direction} requested weight`
+    ).value
+    const effectiveWeight = exactLedgerFloat(
+      row,
+      'effective_weight',
+      `NEST ${row.population_name} ${row.direction} effective weight`
+    ).value
+    const delayTics = requestedNestTics(
+      row,
+      'delay_api_argument_ms',
+      `NEST ${row.population_name} ${row.direction} delay API argument`
+    )
+    const effectiveDelay = effectiveNestTics(
+      row,
+      'effective_delay_ms',
+      `NEST ${row.population_name} ${row.direction} effective delay`
+    )
+    const expectedWeight =
+      row.direction === 'input' ? requestedInputWeight : requestedRecorderWeight
+    if (
+      !['input', 'recorder'].includes(row.direction) ||
+      row.synapse_model !== 'static_synapse' ||
+      requestedWeight !== expectedWeight ||
+      effectiveWeight !== requestedWeight ||
+      row.requested_delay_tics !== session.requested_connection_delay_tics ||
+      delayTics !== row.requested_delay_tics ||
+      row.effective_delay_tics !== row.requested_delay_tics ||
+      effectiveDelay !== row.effective_delay_tics ||
+      row.requested_receptor !== session.requested_receptor ||
+      row.effective_receptor !== row.requested_receptor ||
+      row.connection_count !== work.population_size
+    ) {
+      fail('NEST connection readback parameters differ from the session')
+    }
+    if (!grouped.has(row.population_name)) grouped.set(row.population_name, new Set())
+    grouped.get(row.population_name).add(row.direction)
+    connectionCount += row.connection_count
+  }
+  const controlIds = controlBindings.map((row) => row.channel_id)
+  const populationIds = populations.map((row) => row.channel_id)
+  const populationNames = populations.flatMap((row) => row.population_names)
+  const expectedModelReadback = markLedgerIntegerMembers(
+    {
+      effective_model_roster: session.effective_model_roster,
+      population_neuron_count: session.observed_population_neuron_count,
+      device_node_count: session.observed_device_node_count,
+    },
+    ['population_neuron_count', 'device_node_count']
+  )
+  if (
+    session.schema_version !== 'engram.nest-session-readback.v2' ||
+    session.reported_version !== '3.9.0' ||
+    requestedResolution !== timing.resolutionTics ||
+    resolutionArgument !== timing.resolutionTics ||
+    effectiveResolution !== timing.resolutionTics ||
+    session.requested_resolution_tics !== timing.resolutionTics ||
+    session.effective_resolution_tics !== timing.resolutionTics ||
+    requestedDuration !== timing.durationTics ||
+    runArgument !== timing.durationTics ||
+    session.requested_step_duration_tics !== timing.durationTics ||
+    session.requested_connection_delay_tics !== timing.resolutionTics ||
+    delayArgument !== timing.resolutionTics ||
+    session.requested_rng_seed !== config.rng_seed ||
+    session.effective_rng_seed !== config.rng_seed ||
+    session.requested_local_num_threads !== 1 ||
+    session.effective_local_num_threads !== 1 ||
+    session.effective_total_num_virtual_processes !== 1 ||
+    canonical(session.effective_model_roster) !== canonical(NEST_MODEL_ROSTER) ||
+    session.control_neuron_model !== 'iaf_psc_delta' ||
+    session.control_neuron_refractory_period_tics !== NEST_REFRACTORY_TICS ||
+    session.control_neuron_refractory_input !== false ||
+    session.channel_recovery_policy !== 'delta-current-zero-input-washout-dual-reset-v1' ||
+    requestedInputWeight !== config.input_weight_mv ||
+    requestedRecorderWeight !== 1 ||
+    session.requested_receptor !== 0 ||
+    session.observed_population_neuron_count !== work.population_neuron_count ||
+    session.observed_device_node_count !== work.device_node_count ||
+    session.observed_total_connection_count !== work.total_connection_count ||
+    work.step_duration_tics !== timing.durationTics ||
+    canonical(connectionKeys) !== canonical(sortedConnectionKeys) ||
+    new Set(connectionKeys.map((row) => `${row[0]}\0${row[1]}`)).size !== connectionKeys.length ||
+    grouped.size !== work.signed_population_count ||
+    [...grouped.values()].some(
+      (directions) =>
+        directions.size !== 2 || !directions.has('input') || !directions.has('recorder')
+    ) ||
+    connectionCount !== session.observed_total_connection_count ||
+    session.model_readback_sha256 !== sha256(Buffer.from(ledgerCanonical(expectedModelReadback))) ||
+    session.connection_readback_sha256 !== sha256(Buffer.from(ledgerCanonical(connections))) ||
+    canonical(controlIds) !== canonical([...controlIds].sort(compareUnicodeCodePoints)) ||
+    new Set(controlIds).size !== controlIds.length ||
+    canonical(populationIds) !== canonical(controlIds) ||
+    controlIds.length !== work.channel_count ||
+    controlBindings.reduce((sum, row) => sum + row.axis_binding_sha256s.length, 0) !==
+      work.action_dimension_count ||
+    populations.some(
+      (row, index) =>
+        row.population_names.length !== 2 * controlBindings[index].axis_binding_sha256s.length
+    ) ||
+    populationNames.length !== work.signed_population_count ||
+    new Set(populationNames).size !== populationNames.length ||
+    populationNames.some((name) => !grouped.has(name)) ||
+    session.control_binding_sha256 !== sha256(Buffer.from(ledgerCanonical(controlBindings))) ||
+    session.population_roster_sha256 !== sha256(Buffer.from(ledgerCanonical(populations))) ||
+    session.control_binding_sha256 !== work.expected_control_binding_sha256 ||
+    session.population_roster_sha256 !== work.expected_population_roster_sha256 ||
+    session.kernel_reset_at_admission !== true ||
+    session.one_session !== true ||
+    session.ncp_transport !== false ||
+    session.loaded_bytes_attested !== false
+  ) {
+    fail('NEST session timing, construction, model, or roster semantics differ')
+  }
+  ledgerDigest(session, 'receipt_sha256', 'NEST session readback')
+  return work
+}
+
+function assertNestStepExecutionSemantics(execution, session, priorState) {
+  const runTics = requestedNestTics(
+    execution,
+    'run_api_argument_ms',
+    `NEST step ${execution.step_index} run API argument`
+  )
+  if (
+    execution.after_biological_time_tics - execution.before_biological_time_tics !==
+      execution.requested_run_tics ||
+    runTics !== execution.requested_run_tics
+  ) {
+    fail(`NEST step ${execution.step_index} biological-time semantics differ`)
+  }
+  const eventRows = execution.population_event_deltas
+  const windows = execution.completed_window_readbacks
+  const schedules = execution.generator_schedule_readbacks
+  const weights = execution.input_weight_readbacks
+  const encodings = execution.encoded_control_inputs
+  const safetyRows = execution.channel_safety_readbacks
+  if (
+    execution.schema_version !== 'engram.nest-step-execution-readback.v3' ||
+    !Number.isSafeInteger(execution.step_index) ||
+    execution.step_index < 1 ||
+    !Number.isSafeInteger(execution.before_biological_time_tics) ||
+    !Number.isSafeInteger(execution.after_biological_time_tics) ||
+    !Number.isSafeInteger(execution.requested_run_tics) ||
+    !Array.isArray(eventRows) ||
+    !Array.isArray(windows) ||
+    !Array.isArray(schedules) ||
+    !Array.isArray(weights) ||
+    !Array.isArray(encodings) ||
+    !Array.isArray(safetyRows) ||
+    windows.length === 0
+  ) {
+    fail(`NEST step ${execution.step_index} shape or identity differs`)
+  }
+  const names = eventRows.map((row) => row.population_name)
+  if (
+    canonical(names) !== canonical([...names].sort(compareUnicodeCodePoints)) ||
+    new Set(names).size !== names.length ||
+    canonical(windows.map((row) => row.population_name)) !== canonical(names) ||
+    canonical(schedules.map((row) => row.population_name)) !== canonical(names) ||
+    canonical(weights.map((row) => row.population_name)) !== canonical(names)
+  ) {
+    fail(`NEST step ${execution.step_index} population roster semantics differ`)
+  }
+  for (const row of eventRows) {
+    const prior = priorState.get(row.population_name)
+    if (
+      prior === undefined ||
+      !Number.isSafeInteger(row.prior_event_count) ||
+      !Number.isSafeInteger(row.current_event_count) ||
+      !Number.isSafeInteger(row.event_count_delta) ||
+      row.prior_event_count < 0 ||
+      row.current_event_count < 0 ||
+      row.event_count_delta < 0 ||
+      row.current_event_count > NEST_MAX_RECORDER_EVENTS ||
+      row.event_count_delta > NEST_MAX_RECORDER_EVENTS ||
+      (row.prior_event_count !== 0 &&
+        (!prior.counterMayPersist || row.prior_event_count !== prior.lastEventCount)) ||
+      row.current_event_count - row.prior_event_count !== row.event_count_delta
+    ) {
+      fail(`NEST step ${execution.step_index} event-counter semantics differ`)
+    }
+  }
+  const expectedWatermark = Math.max(
+    0,
+    execution.after_biological_time_tics - windows[0].recorder_delivery_delay_tics
+  )
+  const eventByName = new Map(eventRows.map((row) => [row.population_name, row]))
+  const safetyByChannel = new Map(safetyRows.map((row) => [row.channel_id, row]))
+  const populationChannel = new Map(
+    session.population_roster.flatMap((row) =>
+      row.population_names.map((populationName) => [populationName, row.channel_id])
+    )
+  )
+  const emptyRosterDigest = sha256(Buffer.from(ledgerCanonical([])))
+  const safetyPriorPending = new Map()
+  for (const row of windows) {
+    const prior = priorState.get(row.population_name)
+    const event = eventByName.get(row.population_name)
+    const channelId = populationChannel.get(row.population_name)
+    const safety = safetyByChannel.get(channelId)
+    if (prior === undefined || event === undefined || safety === undefined) {
+      fail(`NEST step ${execution.step_index} completed-window lineage is partial`)
+    }
+    const safetyRequired = safety.hold_required || safety.recovery_from_hold
+    const expectedWindowStart = safetyRequired
+      ? execution.before_biological_time_tics
+      : prior.watermark
+    const counts = [
+      row.newly_delivered_event_count,
+      row.completed_event_count,
+      row.pending_event_count,
+      row.quarantined_event_count,
+    ]
+    const countDigests = [
+      [row.completed_event_count, row.completed_event_times_sha256],
+      [row.pending_event_count, row.pending_event_times_sha256],
+      [row.quarantined_event_count, row.quarantined_event_times_sha256],
+    ]
+    if (
+      counts.some(
+        (value) => !Number.isSafeInteger(value) || value < 0 || value > NEST_MAX_RECORDER_EVENTS
+      ) ||
+      row.completed_event_count + row.pending_event_count + row.quarantined_event_count >
+        NEST_MAX_RECORDER_EVENTS ||
+      countDigests.some(
+        ([count, digest]) =>
+          !isSha256(digest) ||
+          (count === 0 && digest !== emptyRosterDigest) ||
+          (count > 0 && digest === emptyRosterDigest)
+      ) ||
+      row.recorder_delivery_delay_tics !== session.requested_connection_delay_tics ||
+      row.previous_completed_watermark_tics !== prior.watermark ||
+      row.current_completed_watermark_tics !== expectedWatermark ||
+      row.decode_window_start_tics !== expectedWindowStart ||
+      row.current_completed_watermark_tics - row.decode_window_start_tics !==
+        row.completed_window_tics ||
+      row.newly_delivered_event_count !== event.event_count_delta ||
+      (!safetyRequired &&
+        (row.quarantined_event_count !== 0 ||
+          row.completed_event_count + row.pending_event_count !==
+            prior.pendingCount + row.newly_delivered_event_count)) ||
+      (safetyRequired &&
+        (event.event_count_delta !== 0 ||
+          row.newly_delivered_event_count !== 0 ||
+          row.completed_event_count !== 0 ||
+          row.pending_event_count !== 0 ||
+          row.quarantined_event_count !== 0)) ||
+      !(
+        row.previous_completed_watermark_tics <= row.decode_window_start_tics &&
+        row.decode_window_start_tics < row.current_completed_watermark_tics
+      )
+    ) {
+      fail(`NEST step ${execution.step_index} completed-window semantics differ`)
+    }
+    if (safetyRequired) {
+      safetyPriorPending.set(
+        channelId,
+        (safetyPriorPending.get(channelId) ?? 0) + prior.pendingCount
+      )
+    }
+    priorState.set(row.population_name, {
+      watermark: row.current_completed_watermark_tics,
+      pendingCount: row.pending_event_count,
+      pendingDigest: row.pending_event_times_sha256,
+      lastEventCount: event.current_event_count,
+      counterMayPersist: !safetyRequired,
+    })
+  }
+  for (const [index, row] of schedules.entries()) {
+    const requested = requestedNestTics(
+      row,
+      'schedule_api_argument_ms',
+      `NEST step ${execution.step_index} generator schedule`
+    )
+    const effective = effectiveNestTics(
+      row,
+      'effective_schedule_time_ms',
+      `NEST step ${execution.step_index} generator effective schedule`
+    )
+    const requestedRate = exactLedgerFloat(
+      row,
+      'requested_rate_hz',
+      `NEST step ${execution.step_index} generator requested rate`
+    ).value
+    const effectiveRate = exactLedgerFloat(
+      row,
+      'effective_rate_hz',
+      `NEST step ${execution.step_index} generator effective rate`
+    ).value
+    const weight = weights[index]
+    const carrier = exactLedgerFloat(
+      weight,
+      'constant_generator_rate_hz',
+      `NEST step ${execution.step_index} carrier rate`
+    ).value
+    const desired = exactLedgerFloat(
+      weight,
+      'desired_equivalent_rate_hz',
+      `NEST step ${execution.step_index} desired rate`
+    ).value
+    const fullScale = exactLedgerFloat(
+      weight,
+      'configured_full_scale_weight_mv',
+      `NEST step ${execution.step_index} full-scale weight`
+    ).value
+    const requestedWeight = exactLedgerFloat(
+      weight,
+      'requested_weight_mv',
+      `NEST step ${execution.step_index} requested carrier weight`
+    ).value
+    const effectiveWeight = exactLedgerFloat(
+      weight,
+      'effective_weight_mv',
+      `NEST step ${execution.step_index} effective carrier weight`
+    ).value
+    if (
+      row.generator_model !== 'inhomogeneous_poisson_generator' ||
+      row.requested_schedule_time_tics !==
+        execution.before_biological_time_tics + session.requested_resolution_tics ||
+      requested !== row.requested_schedule_time_tics ||
+      effective !== row.effective_schedule_time_tics ||
+      row.effective_schedule_time_tics !== row.requested_schedule_time_tics ||
+      requestedRate !== effectiveRate ||
+      requestedRate !== carrier ||
+      desired > carrier ||
+      requestedWeight !== (fullScale * desired) / carrier ||
+      effectiveWeight !== requestedWeight ||
+      weight.connection_count !== session.work_admission.population_size ||
+      (weight.input_disposition !== 'encoded-observation' &&
+        (desired !== 0 || requestedWeight !== 0))
+    ) {
+      fail(`NEST step ${execution.step_index} generator or carrier-weight semantics differ`)
+    }
+  }
+  const encodingKeys = encodings.map((row) => [row.channel_id, row.action_index])
+  const sortedEncodingKeys = [...encodingKeys].sort(
+    (left, right) => compareUnicodeCodePoints(left[0], right[0]) || left[1] - right[1]
+  )
+  for (const row of encodings) {
+    const raw = exactLedgerFloat(
+      row,
+      'raw_affine_sum',
+      `NEST step ${execution.step_index} raw encoded input`
+    ).value
+    const normalized = exactLedgerFloat(
+      row,
+      'normalized_input',
+      `NEST step ${execution.step_index} normalized input`
+    ).value
+    const expected = Math.max(-1, Math.min(1, raw))
+    if (
+      normalized !== expected ||
+      row.clamped !== (raw < -1 || raw > 1) ||
+      (row.input_disposition !== 'encoded-observation' &&
+        (raw !== 0 || normalized !== 0 || row.clamped))
+    ) {
+      fail(`NEST step ${execution.step_index} control-encoding semantics differ`)
+    }
+  }
+  for (const row of safetyRows) {
+    const expectedDisposition = row.hold_required
+      ? 'held-neutralized'
+      : row.recovery_from_hold
+        ? 'recovery-washout'
+        : 'encoded-observation'
+    const reset = row.hold_required || row.recovery_from_hold
+    const expectedResetDigest = sha256(
+      Buffer.from(
+        ledgerCanonical({
+          before: row.pre_interval_reset_readback_sha256,
+          after: row.post_interval_reset_readback_sha256,
+        })
+      )
+    )
+    const channelPopulationCount = session.population_roster.find(
+      (population) => population.channel_id === row.channel_id
+    )?.population_names.length
+    const priorPendingCount = safetyPriorPending.get(row.channel_id) ?? 0
+    const maximumDiscardedCount =
+      channelPopulationCount === undefined
+        ? -1
+        : priorPendingCount + 2 * NEST_MAX_RECORDER_EVENTS * channelPopulationCount
+    if (
+      row.input_disposition !== expectedDisposition ||
+      row.population_state_reset_performed !== reset ||
+      row.population_state_reset_verified !== reset ||
+      row.safety_washout_performed !== reset ||
+      row.resolution_tics !== session.requested_resolution_tics ||
+      row.minimum_refractory_flush_tics !== NEST_REFRACTORY_TICS ||
+      row.reset_readback_sha256 !== expectedResetDigest ||
+      !isSha256(row.recorder_quarantine_sha256) ||
+      !Number.isSafeInteger(row.discarded_pending_event_count) ||
+      row.discarded_pending_event_count < 0 ||
+      (reset && row.discarded_pending_event_count < priorPendingCount) ||
+      (reset && row.discarded_pending_event_count > maximumDiscardedCount) ||
+      (reset &&
+        (row.pre_interval_reset_readback_sha256 === emptyRosterDigest ||
+          row.post_interval_reset_readback_sha256 === emptyRosterDigest ||
+          row.recorder_quarantine_sha256 === expectedResetDigest ||
+          row.safety_interval_tics !== session.requested_step_duration_tics ||
+          row.post_delivery_quiescence_tics < row.minimum_refractory_flush_tics ||
+          row.post_delivery_quiescence_tics !==
+            row.safety_interval_tics - 2 * row.resolution_tics ||
+          row.recorder_delivery_flush_slack_tics !==
+            row.safety_interval_tics - 3 * row.resolution_tics)) ||
+      (!reset &&
+        (row.safety_interval_tics !== 0 ||
+          row.post_delivery_quiescence_tics !== 0 ||
+          row.recorder_delivery_flush_slack_tics !== 0 ||
+          row.discarded_pending_event_count !== 0 ||
+          row.pre_interval_reset_readback_sha256 !== emptyRosterDigest ||
+          row.post_interval_reset_readback_sha256 !== emptyRosterDigest ||
+          row.recorder_quarantine_sha256 !== expectedResetDigest))
+    ) {
+      fail(`NEST step ${execution.step_index} channel-safety semantics differ`)
+    }
+  }
+  const safetyIds = safetyRows.map((row) => row.channel_id)
+  const encodingIds = [...new Set(encodings.map((row) => row.channel_id))].sort(
+    compareUnicodeCodePoints
+  )
+  if (
+    canonical(encodingKeys) !== canonical(sortedEncodingKeys) ||
+    new Set(encodingKeys.map((row) => `${row[0]}\0${row[1]}`)).size !== encodingKeys.length ||
+    eventRows.length !== 2 * encodings.length ||
+    canonical(safetyIds) !== canonical(encodingIds) ||
+    execution.completed_window_readback_sha256 !== sha256(Buffer.from(ledgerCanonical(windows))) ||
+    execution.generator_schedule_readback_sha256 !==
+      sha256(Buffer.from(ledgerCanonical(schedules))) ||
+    execution.input_weight_readback_sha256 !== sha256(Buffer.from(ledgerCanonical(weights))) ||
+    execution.control_encoding_sha256 !== sha256(Buffer.from(ledgerCanonical(encodings))) ||
+    execution.channel_safety_readback_sha256 !== sha256(Buffer.from(ledgerCanonical(safetyRows))) ||
+    execution.input_encoding_policy !== 'constant-rate-variable-weight-v1' ||
+    execution.decoded_proposal_only !== true ||
+    execution.scientific_authority !== false
+  ) {
+    fail(`NEST step ${execution.step_index} roster or digest semantics differ`)
+  }
+  return ledgerDigest(execution, 'receipt_sha256', `NEST step ${execution.step_index} execution`)
+}
+
+function assertNestStepAttemptSemantics(attempt) {
+  const partial = markLedgerIntegerMembers(
+    {
+      before_biological_time_tics: attempt.before_biological_time_tics,
+      observed_after_biological_time_tics: attempt.observed_after_biological_time_tics,
+      simulation_dispatched: attempt.simulation_dispatched,
+      simulation_returned: attempt.simulation_returned,
+    },
+    [
+      'before_biological_time_tics',
+      ...(attempt.observed_after_biological_time_tics === null
+        ? []
+        : ['observed_after_biological_time_tics']),
+    ]
+  )
+  const parentOnly = attempt.observation_scope === 'parent-dispatch-only'
+  if (
+    attempt.schema_version !== 'engram.nest-step-attempt.v1' ||
+    !['child-reported', 'parent-dispatch-only'].includes(attempt.observation_scope) ||
+    !Number.isSafeInteger(attempt.attempt_index) ||
+    attempt.attempt_index < 1 ||
+    !Number.isSafeInteger(attempt.step_index) ||
+    attempt.step_index < 1 ||
+    !Number.isSafeInteger(attempt.before_biological_time_tics) ||
+    attempt.before_biological_time_tics < 0 ||
+    (attempt.observed_after_biological_time_tics !== null &&
+      (!Number.isSafeInteger(attempt.observed_after_biological_time_tics) ||
+        attempt.observed_after_biological_time_tics < attempt.before_biological_time_tics)) ||
+    !Number.isSafeInteger(attempt.requested_run_tics) ||
+    attempt.requested_run_tics < 1 ||
+    typeof attempt.simulation_dispatched !== 'boolean' ||
+    typeof attempt.simulation_returned !== 'boolean' ||
+    (attempt.simulation_returned && !attempt.simulation_dispatched) ||
+    !['succeeded', 'failed', 'unknown-after-worker-dispatch'].includes(attempt.outcome) ||
+    typeof attempt.reason_code !== 'string' ||
+    attempt.reason_code.length < 1 ||
+    Buffer.byteLength(attempt.reason_code, 'utf8') > 256 ||
+    attempt.partial_readback_sha256 !== sha256(Buffer.from(ledgerCanonical(partial))) ||
+    (parentOnly &&
+      (attempt.outcome !== 'unknown-after-worker-dispatch' ||
+        attempt.simulation_dispatched ||
+        attempt.simulation_returned ||
+        attempt.observed_after_biological_time_tics !== null ||
+        attempt.execution_receipt_sha256 !== null ||
+        attempt.decoded_proposal_produced)) ||
+    (!parentOnly && attempt.outcome === 'unknown-after-worker-dispatch') ||
+    (attempt.outcome === 'succeeded' &&
+      (!attempt.simulation_returned ||
+        !isSha256(attempt.execution_receipt_sha256) ||
+        attempt.decoded_proposal_produced !== true ||
+        attempt.reason_code !== 'neural.step-succeeded' ||
+        attempt.observed_after_biological_time_tics !==
+          attempt.before_biological_time_tics + attempt.requested_run_tics)) ||
+    (attempt.outcome !== 'succeeded' &&
+      (attempt.execution_receipt_sha256 !== null || attempt.decoded_proposal_produced)) ||
+    attempt.scientific_authority !== false
+  ) {
+    fail(`NEST step ${attempt.step_index} attempt semantics differ`)
+  }
+  return ledgerDigest(attempt, 'receipt_sha256', `NEST step ${attempt.step_index} attempt`)
+}
+
+function assertNestTailSemantics(tail, session, finalState) {
+  const names = tail.population_tails.map((row) => row.population_name)
+  const expectedNames = session.population_roster
+    .flatMap((row) => row.population_names)
+    .sort(compareUnicodeCodePoints)
+  const emptyRosterDigest = sha256(Buffer.from(ledgerCanonical([])))
+  if (
+    tail.schema_version !== 'engram.nest-tail-disposition-receipt.v1' ||
+    canonical(names) !== canonical([...names].sort(compareUnicodeCodePoints)) ||
+    new Set(names).size !== names.length ||
+    canonical(names) !== canonical(expectedNames) ||
+    tail.population_tails.some((row) => {
+      const final = finalState.get(row.population_name)
+      return (
+        final === undefined ||
+        !Number.isSafeInteger(row.pending_event_count) ||
+        row.pending_event_count < 0 ||
+        row.pending_event_count > NEST_MAX_RECORDER_EVENTS ||
+        !isSha256(row.pending_event_times_sha256) ||
+        (row.pending_event_count === 0 && row.pending_event_times_sha256 !== emptyRosterDigest) ||
+        (row.pending_event_count > 0 && row.pending_event_times_sha256 === emptyRosterDigest) ||
+        row.pending_event_count !== final.pendingCount ||
+        row.pending_event_times_sha256 !== final.pendingDigest
+      )
+    }) ||
+    tail.total_pending_event_count !==
+      tail.population_tails.reduce((sum, row) => sum + row.pending_event_count, 0) ||
+    tail.total_pending_event_count > NEST_MAX_RECORDER_EVENTS * tail.population_tails.length ||
+    tail.population_tail_roster_sha256 !==
+      sha256(Buffer.from(ledgerCanonical(tail.population_tails))) ||
+    tail.final_completed_watermark_tics !==
+      Math.max(0, tail.final_biological_time_tics - tail.recorder_delivery_delay_tics) ||
+    tail.recorder_delivery_delay_tics !== session.requested_connection_delay_tics ||
+    !['discarded-incomplete-recorder-delivery-tail', 'unresolved-after-controller-fault'].includes(
+      tail.accounting_disposition
+    ) ||
+    tail.proposals_used_completed_windows_only !== true ||
+    tail.decoded_proposal_only !== true ||
+    tail.scientific_authority !== false
+  ) {
+    fail('NEST tail disposition semantics differ')
+  }
+  return ledgerDigest(tail, 'receipt_sha256', 'NEST tail disposition')
+}
+
+function jsonNodeCount(value) {
+  if (Array.isArray(value)) {
+    return 1 + value.reduce((sum, child) => sum + jsonNodeCount(child), 0)
+  }
+  if (value !== null && typeof value === 'object') {
+    return 1 + Object.values(value).reduce((sum, child) => sum + 1 + jsonNodeCount(child), 0)
+  }
+  return 1
+}
+
+export function assertNestEvidenceBudget(evidence, work) {
+  const observedNodes = jsonNodeCount(evidence)
+  const observedBytes = Buffer.byteLength(managedRuntimeCanonical(evidence), 'utf8')
+  if (
+    observedNodes > NEST_WORK_LIMITS.max_evidence_bundle_nodes ||
+    observedBytes > NEST_WORK_LIMITS.max_evidence_bundle_bytes ||
+    observedNodes > work.estimated_evidence_bundle_nodes ||
+    observedBytes > work.estimated_evidence_bundle_bytes
+  ) {
+    fail('NEST evidence exceeds its admitted byte or node budget')
+  }
+  return { observedBytes, observedNodes }
+}
+
+export function assertNestReceiptSemantics(terminal, evidence) {
+  assertImportedReceiptSchema(evidence, 'nest', 'NEST evidence bundle')
+  const expectation = evidence.runtime_launch_expectation
+  const session = evidence.nest_session_readback
+  const identity = evidence.worker_runtime_identity
+  const tail = evidence.tail_disposition_receipt
+  const timing = assertNestLaunchExpectationSemantics(expectation)
+  ledgerDigest(expectation, 'receipt_sha256', 'NEST worker launch expectation')
+  if (
+    session === null ||
+    typeof session !== 'object' ||
+    Array.isArray(session) ||
+    identity === null ||
+    typeof identity !== 'object' ||
+    Array.isArray(identity) ||
+    tail === null ||
+    typeof tail !== 'object' ||
+    Array.isArray(tail)
+  ) {
+    fail('successful NEST receipt semantics are incomplete')
+  }
+  const resourceLimits = identity.resource_limits
+  if (
+    identity.schema_version !== 'engram.nest-worker-runtime-identity.v2' ||
+    identity.isolated_flag !== 1 ||
+    identity.no_site_flag !== 1 ||
+    identity.ignore_environment_flag !== 1 ||
+    identity.no_user_site_flag !== 1 ||
+    identity.reported_nest_version !== '3.9.0' ||
+    identity.project_source_closure_verified !== true ||
+    identity.external_dependency_closure_attested !== false ||
+    identity.response_bound_loaded_bytes !== false ||
+    identity.loaded_bytes_attested !== false ||
+    resourceLimits?.schema_version !== 'engram.nest-worker-resource-limits.v1' ||
+    resourceLimits.profile !== 'portable-posix-rlimit-v1' ||
+    resourceLimits.platform !== expectation.platform ||
+    resourceLimits.address_space_bytes !== expectation.address_space_bytes ||
+    resourceLimits.address_space_limit_enforced !== expectation.address_space_limit_enforced ||
+    resourceLimits.address_space_limit_enforced !== (resourceLimits.address_space_bytes !== null) ||
+    (resourceLimits.platform === 'linux') !== resourceLimits.address_space_limit_enforced ||
+    resourceLimits.cpu_time_seconds !== 300 ||
+    resourceLimits.file_size_bytes !== 67108864 ||
+    resourceLimits.open_file_count !== 256 ||
+    resourceLimits.core_file_bytes !== 0 ||
+    resourceLimits.applied_before_nest_import !== true ||
+    resourceLimits.network_namespace_isolation !== false ||
+    resourceLimits.syscall_filter !== false ||
+    resourceLimits.production_isolation !== false
+  ) {
+    fail('NEST runtime identity or resource-limit semantics differ')
+  }
+  ledgerDigest(resourceLimits, 'receipt_sha256', 'NEST worker resource limits')
+  ledgerDigest(identity, 'receipt_sha256', 'NEST worker runtime identity')
+  const work = assertNestSessionSemantics(session, terminal, timing.config, timing)
+  const priorState = new Map(
+    session.population_roster.flatMap((row) =>
+      row.population_names.map((populationName) => [
+        populationName,
+        {
+          watermark: 0,
+          pendingCount: 0,
+          pendingDigest: sha256(Buffer.from(ledgerCanonical([]))),
+          lastEventCount: 0,
+          counterMayPersist: false,
+        },
+      ])
+    )
+  )
+  const executions = evidence.step_execution_receipts
+  const attempts = evidence.step_attempt_receipts
+  if (!Array.isArray(executions) || !Array.isArray(attempts)) {
+    fail('NEST receipt step rosters are absent')
+  }
+  for (const [index, execution] of executions.entries()) {
+    const digest = assertNestStepExecutionSemantics(execution, session, priorState)
+    if (
+      execution.step_index !== index + 1 ||
+      execution.before_biological_time_tics !== index * timing.durationTics ||
+      execution.after_biological_time_tics !== (index + 1) * timing.durationTics ||
+      execution.requested_run_tics !== timing.durationTics ||
+      attempts[index]?.execution_receipt_sha256 !== digest
+    ) {
+      fail(`NEST step ${index + 1} execution sequence differs`)
+    }
+  }
+  for (const [index, attempt] of attempts.entries()) {
+    assertNestStepAttemptSemantics(attempt)
+    if (
+      attempt.attempt_index !== index + 1 ||
+      attempt.step_index !== index + 1 ||
+      attempt.before_biological_time_tics !== index * timing.durationTics
+    ) {
+      fail(`NEST step ${index + 1} attempt sequence differs`)
+    }
+  }
+  const successful = attempts.filter((row) => row.outcome === 'succeeded')
+  const unsuccessful = attempts.filter((row) => row.outcome !== 'succeeded')
+  if (
+    unsuccessful.length > 1 ||
+    (unsuccessful.length === 1 && attempts.at(-1) !== unsuccessful[0]) ||
+    canonical(successful.map((row) => row.execution_receipt_sha256)) !==
+      canonical(executions.map((row) => row.receipt_sha256))
+  ) {
+    fail('NEST attempt and execution rosters differ')
+  }
+  assertNestTailSemantics(tail, session, priorState)
+  assertNestEvidenceBudget(evidence, work)
+  return { session, work, finalState: priorState }
+}
+
+const MAX_CROSS_RUNTIME_TANH_ULPS = 2n
+
+function orderedFloatBits(value) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    fail('cross-runtime float comparison received a non-finite value')
+  }
+  const buffer = new ArrayBuffer(8)
+  const view = new DataView(buffer)
+  view.setFloat64(0, value, false)
+  const bits = view.getBigUint64(0, false)
+  return (bits & 0x8000000000000000n) !== 0n
+    ? ~bits & 0xffffffffffffffffn
+    : bits | 0x8000000000000000n
+}
+
+function withinFloatUlps(observed, expected, maximumUlps = MAX_CROSS_RUNTIME_TANH_ULPS) {
+  if (Object.is(observed, expected)) return true
+  const left = orderedFloatBits(observed)
+  const right = orderedFloatBits(expected)
+  const distance = left >= right ? left - right : right - left
+  return distance <= maximumUlps
+}
+
+function assertPlanNeuralControlSemantics(plan, session, count) {
+  assertClosedSchemaValue(
+    plan,
+    CLOSED_LOOP_RUN_PLAN_SCHEMA,
+    CLOSED_LOOP_RUN_PLAN_SCHEMA,
+    'run plan'
+  )
+  const channels = plan?.channels
+  if (
+    plan?.schema_version !== 'engram.extension-closed-loop-run-plan.v1' ||
+    !Array.isArray(channels) ||
+    channels.length !== count ||
+    canonical(channels.map((row) => row.channel_id)) !==
+      canonical([...channels.map((row) => row.channel_id)].sort(compareUnicodeCodePoints)) ||
+    new Set(channels.map((row) => row.channel_id)).size !== channels.length ||
+    session.control_bindings.length !== channels.length
+  ) {
+    fail(`${count}-drone run-plan neural control roster differs`)
+  }
+  for (const [channelIndex, channel] of channels.entries()) {
+    const binding = session.control_bindings[channelIndex]
+    exactManagedFloatVector(channel.action_min, channel.action_width, 'run-plan action minimum')
+    exactManagedFloatVector(channel.action_max, channel.action_width, 'run-plan action maximum')
+    exactManagedFloatVector(channel.safe_action, channel.action_width, 'run-plan safe action')
+    if (
+      !Number.isSafeInteger(channel.observation_width) ||
+      channel.observation_width < 1 ||
+      channel.observation_width > 16 ||
+      !Number.isSafeInteger(channel.action_width) ||
+      channel.action_width < 1 ||
+      channel.action_width > 16 ||
+      channel.observation_components?.length !== channel.observation_width ||
+      channel.action_components?.length !== channel.action_width ||
+      channel.neural_control_axes?.length !== channel.action_width ||
+      binding.channel_id !== channel.channel_id ||
+      binding.axis_binding_sha256s.length !== channel.action_width
+    ) {
+      fail(`${count}-drone run-plan channel dimensions differ`)
+    }
+    const codecMaterial = {
+      domain: 'engram-neural-control-codec-v1',
+      observation_space_id: channel.observation_space_id,
+      action_space_id: channel.action_space_id,
+      observation_components: channel.observation_components,
+      action_components: channel.action_components,
+      axes: channel.neural_control_axes,
+    }
+    if (
+      binding.neural_codec_sha256 !== sha256(Buffer.from(managedRuntimeCanonical(codecMaterial)))
+    ) {
+      fail(`${count}-drone run-plan neural codec digest differs`)
+    }
+    const consumed = new Set()
+    for (const [axisIndex, axis] of channel.neural_control_axes.entries()) {
+      const gain = exactLedgerFloat(
+        axis,
+        'decoded_action_gain',
+        `${count}-drone run-plan decoded action gain`
+      ).value
+      const indices = axis.terms?.map((term) => term.observation_index)
+      if (
+        axis.action_index !== axisIndex ||
+        axis.encoder !== 'affine-sum-clamped-v1' ||
+        !Array.isArray(indices) ||
+        indices.length < 1 ||
+        canonical(indices) !== canonical([...indices].sort((left, right) => left - right)) ||
+        new Set(indices).size !== indices.length ||
+        gain <= 0 ||
+        gain > 1 ||
+        binding.axis_binding_sha256s[axisIndex] !== sha256(Buffer.from(ledgerCanonical(axis)))
+      ) {
+        fail(`${count}-drone run-plan neural axis differs`)
+      }
+      for (const term of axis.terms) {
+        const reference = exactLedgerFloat(
+          term,
+          'reference_value',
+          `${count}-drone run-plan control reference`
+        ).value
+        const termGain = exactLedgerFloat(
+          term,
+          'gain_per_observation_unit',
+          `${count}-drone run-plan control gain`
+        ).value
+        if (
+          !Number.isSafeInteger(term.observation_index) ||
+          term.observation_index < 0 ||
+          term.observation_index >= channel.observation_width ||
+          !Number.isFinite(reference) ||
+          termGain === 0
+        ) {
+          fail(`${count}-drone run-plan control term differs`)
+        }
+        consumed.add(term.observation_index)
+      }
+      const minimum = channel.action_min[axisIndex]
+      const maximum = channel.action_max[axisIndex]
+      const safe = channel.safe_action[axisIndex]
+      if (!(minimum < maximum && minimum <= safe && safe <= maximum)) {
+        fail(`${count}-drone run-plan action bounds differ`)
+      }
+    }
+    if (
+      consumed.size !== channel.observation_width ||
+      [...consumed].some((index) => index < 0 || index >= channel.observation_width)
+    ) {
+      fail(`${count}-drone run-plan neural codec does not consume every observation`)
+    }
+  }
+  return channels
+}
+
+export function assertNestControllerChain(capture, evidence, count) {
+  const session = evidence.nest_session_readback
+  const config = capture.nest_config
+  const channels = assertPlanNeuralControlSemantics(capture.run_plan, session, count)
+  const bindingByChannel = new Map(
+    session.control_bindings.map((binding) => [binding.channel_id, binding])
+  )
+  const previousHold = new Map(channels.map((channel) => [channel.channel_id, false]))
+  const baseline = exactLedgerFloat(config, 'baseline_rate_hz', 'NEST baseline rate').value
+  const span = exactLedgerFloat(config, 'input_span_hz', 'NEST input span').value
+  const fullScaleWeight = exactLedgerFloat(
+    config,
+    'input_weight_mv',
+    'NEST full-scale input weight'
+  ).value
+  const outputScale = exactLedgerFloat(
+    config,
+    'output_rate_scale_hz',
+    'NEST output rate scale'
+  ).value
+  const carrier = baseline + span
+  if (
+    !/^3\.11\.[0-9]+(?:\s|$)/u.test(evidence.worker_runtime_identity?.python_version ?? '') ||
+    ledgerCanonical(config) !==
+      ledgerCanonical(evidence.runtime_launch_expectation.controller_configuration)
+  ) {
+    fail(`${count}-drone NEST configuration chain differs`)
+  }
+  for (const [stepOffset, neuralStep] of capture.neural_steps.entries()) {
+    const execution = evidence.step_execution_receipts[stepOffset]
+    const sourceFaultCodes =
+      stepOffset === 0
+        ? Array.from({ length: channels.length }, () => 'none')
+        : capture.terminal_receipt?.steps?.[stepOffset - 1]?.fault_codes
+    if (!Array.isArray(sourceFaultCodes) || sourceFaultCodes.length !== channels.length) {
+      fail(`${count}-drone step ${stepOffset + 1} source fault roster differs`)
+    }
+    const requestByChannel = new Map(
+      neuralStep.request.channels.map((row) => [row.channel_id, row])
+    )
+    const proposalByChannel = new Map(
+      neuralStep.result.proposals.map((row) => [row.channel_id, row])
+    )
+    const encodingByKey = new Map(
+      execution.encoded_control_inputs.map((row) => [`${row.channel_id}\0${row.action_index}`, row])
+    )
+    const safetyByChannel = new Map(
+      execution.channel_safety_readbacks.map((row) => [row.channel_id, row])
+    )
+    const weightByPopulation = new Map(
+      execution.input_weight_readbacks.map((row) => [row.population_name, row])
+    )
+    const scheduleByPopulation = new Map(
+      execution.generator_schedule_readbacks.map((row) => [row.population_name, row])
+    )
+    const windowByPopulation = new Map(
+      execution.completed_window_readbacks.map((row) => [row.population_name, row])
+    )
+    for (const [channelIndex, channel] of channels.entries()) {
+      const request = requestByChannel.get(channel.channel_id)
+      const proposal = proposalByChannel.get(channel.channel_id)
+      const safety = safetyByChannel.get(channel.channel_id)
+      const binding = bindingByChannel.get(channel.channel_id)
+      const sourceFaultCode = sourceFaultCodes[channelIndex]
+      const sourceRequiresHold = sourceFaultCode === 'sensor-unavailable'
+      const recovery = previousHold.get(channel.channel_id) && !request?.hold_required
+      const safetyRequired = request?.hold_required === true || recovery
+      const disposition = request?.hold_required
+        ? 'held-neutralized'
+        : recovery
+          ? 'recovery-washout'
+          : 'encoded-observation'
+      if (
+        request === undefined ||
+        proposal === undefined ||
+        safety === undefined ||
+        binding === undefined ||
+        request.subject_id !== channel.subject_id ||
+        request.observation_values.length !== channel.observation_width ||
+        request.fault_code !== sourceFaultCode ||
+        request.hold_required !== sourceRequiresHold ||
+        (sourceRequiresHold && request.observation_values.some((value) => !Object.is(value, 0))) ||
+        safety.hold_required !== request.hold_required ||
+        safety.recovery_from_hold !== recovery ||
+        safety.input_disposition !== disposition ||
+        proposal.values.length !== channel.action_width
+      ) {
+        fail(`${count}-drone step ${stepOffset + 1} controller safety chain differs`)
+      }
+      for (const axis of channel.neural_control_axes) {
+        const encoding = encodingByKey.get(`${channel.channel_id}\0${axis.action_index}`)
+        let raw = 0
+        if (!safetyRequired) {
+          for (const term of axis.terms) {
+            raw +=
+              (request.observation_values[term.observation_index] - term.reference_value) *
+              term.gain_per_observation_unit
+          }
+        }
+        const normalized = Math.max(-1, Math.min(1, raw))
+        const negativeName = `${channel.neural_population_prefix}.d${axis.action_index
+          .toString()
+          .padStart(2, '0')}.negative`
+        const positiveName = `${channel.neural_population_prefix}.d${axis.action_index
+          .toString()
+          .padStart(2, '0')}.positive`
+        if (
+          encoding === undefined ||
+          encoding.axis_binding_sha256 !== binding.axis_binding_sha256s[axis.action_index] ||
+          encoding.neural_codec_sha256 !== binding.neural_codec_sha256 ||
+          !Object.is(encoding.raw_affine_sum, raw) ||
+          !Object.is(encoding.normalized_input, normalized) ||
+          encoding.clamped !== (raw < -1 || raw > 1) ||
+          encoding.input_disposition !== disposition
+        ) {
+          fail(`${count}-drone step ${stepOffset + 1} affine controller encoding differs`)
+        }
+        for (const [sign, populationName, signedValue] of [
+          ['negative', negativeName, Math.max(-normalized, 0)],
+          ['positive', positiveName, Math.max(normalized, 0)],
+        ]) {
+          const weight = weightByPopulation.get(populationName)
+          const schedule = scheduleByPopulation.get(populationName)
+          const desired = safetyRequired ? 0 : baseline + span * signedValue
+          const requestedWeight = (fullScaleWeight * desired) / carrier
+          if (
+            weight === undefined ||
+            schedule === undefined ||
+            weight.input_disposition !== disposition ||
+            !Object.is(weight.constant_generator_rate_hz, carrier) ||
+            !Object.is(weight.desired_equivalent_rate_hz, desired) ||
+            !Object.is(weight.configured_full_scale_weight_mv, fullScaleWeight) ||
+            !Object.is(weight.requested_weight_mv, requestedWeight) ||
+            !Object.is(weight.effective_weight_mv, requestedWeight) ||
+            !Object.is(schedule.requested_rate_hz, carrier) ||
+            !Object.is(schedule.effective_rate_hz, carrier) ||
+            (safetyRequired && (desired !== 0 || requestedWeight !== 0)) ||
+            !['negative', 'positive'].includes(sign)
+          ) {
+            fail(`${count}-drone step ${stepOffset + 1} signed carrier encoding differs`)
+          }
+        }
+        const negativeWindow = windowByPopulation.get(negativeName)
+        const positiveWindow = windowByPopulation.get(positiveName)
+        if (
+          negativeWindow === undefined ||
+          positiveWindow === undefined ||
+          negativeWindow.completed_window_tics !== positiveWindow.completed_window_tics
+        ) {
+          fail(`${count}-drone step ${stepOffset + 1} decoded population window differs`)
+        }
+        const windowTics = positiveWindow.completed_window_tics
+        const denominator = config.population_size * (windowTics / 1000000)
+        const negativeRate = negativeWindow.completed_event_count / denominator
+        const positiveRate = positiveWindow.completed_event_count / denominator
+        const normalizedOutput = Math.tanh((positiveRate - negativeRate) / outputScale)
+        const limit =
+          normalizedOutput >= 0
+            ? channel.action_max[axis.action_index]
+            : Math.abs(channel.action_min[axis.action_index])
+        const proposalScale = limit * axis.decoded_action_gain
+        const expectedProposal = safetyRequired ? 0 : normalizedOutput * proposalScale
+        const observedProposal = proposal.values[axis.action_index]
+        if (
+          (safetyRequired && !Object.is(observedProposal, 0)) ||
+          (!safetyRequired && !withinFloatUlps(observedProposal, expectedProposal))
+        ) {
+          fail(`${count}-drone step ${stepOffset + 1} decoded proposal differs from spike counts`)
+        }
+      }
+      previousHold.set(channel.channel_id, request.hold_required)
+    }
+  }
+}
+
 function assertPopulationTopology(capture, evidence, neuralSteps, count) {
   const expected = expectedPopulationTopology(capture)
   const topology = expected.topology
@@ -2666,12 +6113,12 @@ function assertPopulationTopology(capture, evidence, neuralSteps, count) {
     canonical(connectionRows.map((row) => [row.population_name, row.direction])) !==
       canonical(expectedConnections) ||
     connectionRows.some((row) => row.connection_count !== capture.nest_config.population_size) ||
-    session.connection_readback_sha256 !== sha256(managedRuntimeCanonical(connectionRows)) ||
+    session.connection_readback_sha256 !== sha256(ledgerCanonical(connectionRows)) ||
     session.observed_population_neuron_count !== topology.population_neuron_count ||
     session.observed_device_node_count !== topology.device_node_count ||
     session.observed_total_connection_count !== topology.connection_count ||
     canonical(session.population_roster) !== canonical(expected.populationRoster) ||
-    session.population_roster_sha256 !== sha256(managedRuntimeCanonical(session.population_roster))
+    session.population_roster_sha256 !== sha256(ledgerCanonical(session.population_roster))
   ) {
     fail(`${count}-drone v2 capture NEST topology readback differs`)
   }
@@ -2717,6 +6164,406 @@ function assertPopulationTopology(capture, evidence, neuralSteps, count) {
   return topology
 }
 
+function assertNestEvidenceClosure(terminal, evidence, count) {
+  exactKeys(evidence, NEST_EVIDENCE_KEYS, 'NEST closed-loop evidence bundle')
+  if (
+    evidence.schema_version !== 'engram.nest-closed-loop-evidence-bundle.v2' ||
+    evidence.digest_canonicalization !== 'engram.managed-runtime-json.v1' ||
+    evidence.profile !== 'killable-nest-population-controller-v2' ||
+    evidence.worker_terminal_disposition !== 'confirmed-lifecycle' ||
+    evidence.execution_authority !== false ||
+    evidence.ncp_control !== false ||
+    evidence.physical_actuation !== false ||
+    evidence.scientific_authority !== false ||
+    evidence.is_paper_local_evidence !== false ||
+    evidence.calibrated_posterior !== false
+  ) {
+    fail(`${count}-drone NEST evidence identity or authority differs`)
+  }
+  const expectation = evidence.runtime_launch_expectation
+  const launch = evidence.worker_launch_attempt
+  const preparation = evidence.preparation_attempt
+  const capabilities = evidence.child_capabilities
+  const identity = evidence.worker_runtime_identity
+  const childPrepared = evidence.child_preparation_receipt
+  const providerPrepared = evidence.provider_preparation_receipt
+  const binding = evidence.worker_session_binding
+  const session = evidence.nest_session_readback
+  const tail = evidence.tail_disposition_receipt
+  const lifecycle = evidence.worker_lifecycle_receipt
+  if (
+    [
+      expectation,
+      launch,
+      preparation,
+      capabilities,
+      identity,
+      childPrepared,
+      providerPrepared,
+      binding,
+      session,
+      tail,
+      lifecycle,
+    ].some((value) => value === null || typeof value !== 'object' || Array.isArray(value)) ||
+    !Array.isArray(evidence.step_execution_receipts) ||
+    !Array.isArray(evidence.step_attempt_receipts) ||
+    !Array.isArray(evidence.worker_termination_attempt_receipts)
+  ) {
+    fail(`${count}-drone successful NEST evidence lacks a closed receipt roster`)
+  }
+  assertNestReceiptSemantics(terminal, evidence)
+  const expectationDigest = ledgerDigest(
+    expectation,
+    'receipt_sha256',
+    'NEST worker launch expectation'
+  )
+  const launchDigest = ledgerDigest(launch, 'receipt_sha256', 'NEST worker launch attempt')
+  const preparationDigest = ledgerDigest(
+    preparation,
+    'receipt_sha256',
+    'NEST worker preparation attempt'
+  )
+  const identityDigest = ledgerDigest(identity, 'receipt_sha256', 'NEST worker runtime identity')
+  const childPreparedDigest = managedRuntimeDigest(
+    childPrepared,
+    'receipt_sha256',
+    'NEST child preparation receipt'
+  )
+  const providerPreparedDigest = managedRuntimeDigest(
+    providerPrepared,
+    'receipt_sha256',
+    'NEST provider preparation receipt'
+  )
+  const bindingDigest = ledgerDigest(binding, 'receipt_sha256', 'NEST worker session binding')
+  const sessionDigest = ledgerDigest(session, 'receipt_sha256', 'NEST session readback')
+  const tailDigest = ledgerDigest(tail, 'receipt_sha256', 'NEST tail disposition')
+  const lifecycleDigest = ledgerDigest(lifecycle, 'receipt_sha256', 'NEST worker lifecycle receipt')
+  if (
+    evidence.run_receipt_sha256 !== terminal.receipt_sha256 ||
+    evidence.study_run_id !== terminal.study_run_id ||
+    evidence.neural_provider_identity_sha256 !== terminal.neural_provider_identity_sha256 ||
+    evidence.neural_preparation_sha256 !== terminal.neural_preparation_sha256 ||
+    terminal.neural_durable_evidence_profile !== 'engram.nest-closed-loop-evidence-bundle.v2' ||
+    preparation.study_run_id !== evidence.study_run_id ||
+    preparation.definition_sha256 !== terminal.closed_loop_definition_sha256 ||
+    preparation.outcome !== 'succeeded' ||
+    preparation.phase !== 'provider-prepare' ||
+    preparation.reason_code !== 'neural.prepare-succeeded' ||
+    preparation.worker_request_dispatched !== true ||
+    preparation.worker_response_observed !== true ||
+    preparation.runtime_launch_expectation_sha256 !== expectationDigest ||
+    preparation.worker_launch_attempt_sha256 !== launchDigest ||
+    preparation.runtime_identity_receipt_sha256 !== identityDigest ||
+    preparation.provider_preparation_receipt_sha256 !== providerPreparedDigest ||
+    preparation.session_binding_receipt_sha256 !== bindingDigest ||
+    launch.launch_expectation_sha256 !== expectationDigest ||
+    launch.outcome !== 'succeeded' ||
+    launch.phase !== 'worker-ready' ||
+    launch.reason_code !== 'neural.nest-worker-launch-succeeded' ||
+    launch.guardian_started !== true ||
+    launch.guardian_ready_observed !== true ||
+    launch.worker_started !== true ||
+    launch.stderr_drain_started !== true ||
+    launch.process_group_id !== launch.worker_pid ||
+    launch.guardian_pid === launch.process_group_id ||
+    launch.production_isolation !== false ||
+    launch.scientific_authority !== false ||
+    capabilities.schema_version !== 'engram.closed-loop-neural-capabilities.v1' ||
+    capabilities.provider !== 'engram.nest-population-controller' ||
+    capabilities.provider_identity_sha256 !== expectation.expected_child_provider_identity_sha256 ||
+    capabilities.deadline_enforcement !== 'cooperative-observed' ||
+    capabilities.session_model !== 'one-session-named-populations' ||
+    capabilities.max_channels !== 64 ||
+    capabilities.automatic_restart !== false ||
+    capabilities.physical_actuation !== false ||
+    capabilities.ncp_transport !== false ||
+    capabilities.loaded_bytes_attested !== false ||
+    capabilities.durable_evidence_profile !== 'none'
+  ) {
+    fail(`${count}-drone NEST launch or preparation lineage differs`)
+  }
+  if (
+    providerPrepared.study_run_id !== evidence.study_run_id ||
+    providerPrepared.definition_sha256 !== preparation.definition_sha256 ||
+    providerPrepared.provider_identity_sha256 !== evidence.neural_provider_identity_sha256 ||
+    providerPrepared.provider_session_receipt_sha256 !== bindingDigest ||
+    providerPrepared.receipt_sha256 !== evidence.neural_preparation_sha256 ||
+    childPrepared.study_run_id !== evidence.study_run_id ||
+    childPrepared.definition_sha256 !== preparation.definition_sha256 ||
+    childPrepared.provider_identity_sha256 !== capabilities.provider_identity_sha256 ||
+    childPrepared.provider_session_receipt_sha256 !== sessionDigest ||
+    canonical(childPrepared.populations) !== canonical(session.population_roster) ||
+    childPrepared.step_duration_tics !== session.requested_step_duration_tics ||
+    providerPrepared.step_duration_tics !== childPrepared.step_duration_tics ||
+    canonical(providerPrepared.populations) !== canonical(childPrepared.populations) ||
+    capabilities.declared_step_duration_tics !== session.requested_step_duration_tics ||
+    binding.study_run_id !== evidence.study_run_id ||
+    binding.parent_provider_identity_sha256 !== evidence.neural_provider_identity_sha256 ||
+    binding.runtime_launch_expectation_sha256 !== expectationDigest ||
+    binding.worker_launch_attempt_sha256 !== launchDigest ||
+    binding.worker_source_sha256 !== expectation.worker_source_sha256 ||
+    binding.guardian_source_sha256 !== expectation.guardian_source_sha256 ||
+    binding.adapter_source_sha256 !== expectation.adapter_source_sha256 ||
+    binding.worker_command_sha256 !== expectation.worker_command_sha256 ||
+    binding.worker_runtime_identity_sha256 !== identityDigest ||
+    binding.worker_project_source_roster_sha256 !== identity.project_source_roster_sha256 ||
+    binding.child_provider_identity_sha256 !== capabilities.provider_identity_sha256 ||
+    binding.child_capabilities_sha256 !== sha256(ledgerCanonical(capabilities)) ||
+    binding.child_prepared_receipt_sha256 !== childPreparedDigest ||
+    binding.child_session_receipt_sha256 !== sessionDigest ||
+    terminal.neural_session_receipt_sha256 !== bindingDigest ||
+    terminal.timebase?.neural_step_duration_tics !== session.requested_step_duration_tics
+  ) {
+    fail(`${count}-drone NEST prepared session lineage differs`)
+  }
+  const duration = session.requested_step_duration_tics
+  const executions = evidence.step_execution_receipts
+  const attempts = evidence.step_attempt_receipts
+  if (
+    !Number.isSafeInteger(duration) ||
+    duration < 1 ||
+    executions.length !== 6 ||
+    attempts.length !== executions.length ||
+    terminal.neural_executions?.length !== executions.length
+  ) {
+    fail(`${count}-drone NEST step evidence cardinality differs`)
+  }
+  for (let index = 0; index < executions.length; index += 1) {
+    const execution = executions[index]
+    const attempt = attempts[index]
+    const terminalExecution = terminal.neural_executions[index]
+    const executionDigest = ledgerDigest(
+      execution,
+      'receipt_sha256',
+      `NEST step ${index + 1} execution`
+    )
+    ledgerDigest(attempt, 'receipt_sha256', `NEST step ${index + 1} attempt`)
+    if (
+      execution.step_index !== index + 1 ||
+      execution.before_biological_time_tics !== index * duration ||
+      execution.after_biological_time_tics !== (index + 1) * duration ||
+      execution.requested_run_tics !== duration ||
+      execution.scientific_authority !== false ||
+      attempt.attempt_index !== index + 1 ||
+      attempt.step_index !== index + 1 ||
+      attempt.before_biological_time_tics !== index * duration ||
+      attempt.observed_after_biological_time_tics !== (index + 1) * duration ||
+      attempt.requested_run_tics !== duration ||
+      attempt.outcome !== 'succeeded' ||
+      attempt.reason_code !== 'neural.step-succeeded' ||
+      attempt.simulation_dispatched !== true ||
+      attempt.simulation_returned !== true ||
+      attempt.decoded_proposal_produced !== true ||
+      attempt.execution_receipt_sha256 !== executionDigest ||
+      attempt.scientific_authority !== false ||
+      terminalExecution?.provider_execution_scope !== 'nest-exact-step-readback' ||
+      terminalExecution?.step_index !== index + 1 ||
+      terminalExecution?.provider_execution_sha256 !== executionDigest ||
+      terminalExecution?.neural_request_sha256 !== attempt.request_sha256
+    ) {
+      fail(`${count}-drone NEST step attempt, execution, or terminal join differs`)
+    }
+  }
+  const expectedTailNames = session.population_roster
+    .flatMap((row) => row.population_names)
+    .sort(compareCodePoint)
+  const neuralCleanup = terminal.cleanup?.[1]
+  if (
+    tail.study_run_id !== evidence.study_run_id ||
+    tail.final_biological_time_tics !== executions.length * duration ||
+    tail.recorder_delivery_delay_tics !== session.requested_connection_delay_tics ||
+    canonical(tail.population_tails?.map((row) => row.population_name)) !==
+      canonical(expectedTailNames) ||
+    tail.accounting_disposition !== 'discarded-incomplete-recorder-delivery-tail' ||
+    tail.decoded_proposal_only !== true ||
+    tail.proposals_used_completed_windows_only !== true ||
+    tail.scientific_authority !== false ||
+    neuralCleanup?.component !== 'neural' ||
+    neuralCleanup?.confirmed !== true ||
+    neuralCleanup?.containment_empty !== true ||
+    neuralCleanup?.provider_lifecycle_receipt_sha256 !== lifecycleDigest ||
+    neuralCleanup?.provider_terminal_receipt_sha256 !== tailDigest ||
+    lifecycle.disposition !== 'clean-exit'
+  ) {
+    fail(`${count}-drone NEST tail or cleanup lineage differs`)
+  }
+  assertNoAuthorityEscalation(evidence, 'NEST closed-loop evidence bundle')
+  return {
+    expectationDigest,
+    launchDigest,
+    preparationDigest,
+    identityDigest,
+    bindingDigest,
+    sessionDigest,
+    tailDigest,
+    lifecycleDigest,
+  }
+}
+
+function closedLoopStepId(studyRunId, stepIndex) {
+  const digest = sha256(
+    managedRuntimeCanonical({
+      domain: 'engram-extension-closed-loop-step-v2',
+      run_id: studyRunId,
+      step_index: stepIndex,
+    })
+  )
+  return `step_${digest.slice(0, 32)}`
+}
+
+function assertTerminalReceiptClosure(terminal, expectedStepCount) {
+  assertImportedReceiptSchema(terminal, 'terminal', 'terminal closed-loop receipt')
+  exactKeys(terminal, TERMINAL_RECEIPT_KEYS, 'terminal closed-loop receipt')
+  const timebase = terminal.timebase
+  const steps = terminal.steps
+  const executions = terminal.neural_executions
+  const cleanup = terminal.cleanup
+  const lifecycle = terminal.runtime_lifecycle
+  exactKeys(lifecycle, RUNTIME_LIFECYCLE_KEYS, 'terminal runtime lifecycle')
+  if (
+    terminal.schema_version !== 'engram.extension-closed-loop-run-receipt.v2' ||
+    terminal.digest_canonicalization !== 'engram.managed-runtime-json.v1' ||
+    !Array.isArray(steps) ||
+    !Array.isArray(executions) ||
+    !Array.isArray(cleanup) ||
+    steps.length !== expectedStepCount ||
+    executions.length !== expectedStepCount ||
+    cleanup.length !== 2 ||
+    terminal.planned_step_count !== expectedStepCount ||
+    timebase?.schema_version !== 'engram.extension-closed-loop-timebase.v1' ||
+    timebase?.tic_unit !== 'microsecond' ||
+    timebase?.coupling !== 'one-controller-epoch-per-runtime-interval' ||
+    timebase?.clock_relation !== 'independent-controller-and-runtime-logical-clocks' ||
+    timebase?.causality_policy !== 'sample-runtime-run-controller-apply-zoh-v1' ||
+    timebase?.dispatch_order !== 'observe-controller-action-runtime' ||
+    timebase?.observation_sample_phase !== 'runtime-interval-start' ||
+    timebase?.action_application !== 'after-controller-completion-zoh-over-runtime-interval' ||
+    !Number.isSafeInteger(timebase?.runtime_step_duration_tics) ||
+    timebase.runtime_step_duration_tics < 1 ||
+    timebase.neural_step_duration_tics !== timebase.runtime_step_duration_tics
+  ) {
+    fail('terminal closed-loop root or timebase differs')
+  }
+  let previousSnapshot = terminal.initial_snapshot_sha256
+  if (!isSha256(previousSnapshot)) fail('terminal initial snapshot identity differs')
+  const stepDigests = []
+  const executionDigests = []
+  for (let offset = 0; offset < expectedStepCount; offset += 1) {
+    const index = offset + 1
+    const step = steps[offset]
+    const execution = executions[offset]
+    const stepDigest = managedRuntimeDigest(step, 'receipt_sha256', `terminal step ${index}`)
+    const executionDigest = managedRuntimeDigest(
+      execution,
+      'binding_sha256',
+      `terminal neural execution ${index}`
+    )
+    const stepId = closedLoopStepId(terminal.study_run_id, index)
+    if (
+      step.schema_version !== 'engram.extension-closed-loop-step-receipt.v2' ||
+      step.study_run_id !== terminal.study_run_id ||
+      step.step_index !== index ||
+      step.step_id !== stepId ||
+      step.input_snapshot_sha256 !== previousSnapshot ||
+      step.provider_execution_scope !== 'nest-exact-step-readback' ||
+      execution.schema_version !== 'engram.closed-loop-neural-execution-binding.v1' ||
+      execution.step_index !== index ||
+      execution.step_id !== stepId ||
+      execution.provider_execution_scope !== 'nest-exact-step-readback' ||
+      ['neural_request_sha256', 'neural_result_sha256', 'provider_execution_sha256'].some(
+        (field) => execution[field] !== step[field]
+      ) ||
+      [
+        'input_snapshot_sha256',
+        'neural_request_sha256',
+        'neural_result_sha256',
+        'provider_execution_sha256',
+        'admitted_action_sha256',
+        'runtime_request_sha256',
+        'output_snapshot_sha256',
+      ].some((field) => !isSha256(step[field]))
+    ) {
+      fail(`terminal step ${index} lineage differs`)
+    }
+    previousSnapshot = step.output_snapshot_sha256
+    stepDigests.push(stepDigest)
+    executionDigests.push(executionDigest)
+  }
+  const runtimeCleanup = cleanup[0]
+  const neuralCleanup = cleanup[1]
+  const cleanupDigests = [runtimeCleanup, neuralCleanup].map((row) =>
+    managedRuntimeDigest(row, 'receipt_sha256', `terminal ${row.component} cleanup`)
+  )
+  const lifecycleDigest = managedRuntimeDigest(
+    lifecycle,
+    'binding_sha256',
+    'terminal runtime lifecycle'
+  )
+  if (
+    runtimeCleanup.schema_version !== 'engram.closed-loop-cleanup.v2' ||
+    neuralCleanup.schema_version !== 'engram.closed-loop-cleanup.v2' ||
+    runtimeCleanup.component !== 'runtime' ||
+    runtimeCleanup.owner_identity_sha256 !== terminal.runtime_binding_sha256 ||
+    runtimeCleanup.mode !== 'finish' ||
+    canonical(runtimeCleanup.runtime_lifecycle) !== canonical(lifecycle) ||
+    runtimeCleanup.provider_terminal_receipt_sha256 !== null ||
+    runtimeCleanup.provider_lifecycle_receipt_sha256 !== null ||
+    neuralCleanup.component !== 'neural' ||
+    neuralCleanup.owner_identity_sha256 !== terminal.neural_provider_identity_sha256 ||
+    neuralCleanup.mode !== 'close' ||
+    neuralCleanup.runtime_lifecycle !== null ||
+    [runtimeCleanup, neuralCleanup].some(
+      (row) =>
+        row.attempted !== true ||
+        row.confirmed !== true ||
+        row.containment_empty !== true ||
+        row.reason_code !== 'loop.completed'
+    ) ||
+    terminal.neural_durable_evidence_profile !== 'engram.nest-closed-loop-evidence-bundle.v2' ||
+    terminal.last_verified_simulation_time_tics !==
+      expectedStepCount * timebase.runtime_step_duration_tics ||
+    terminal.runtime_progress_disposition !== 'finished-and-host-verified' ||
+    terminal.status !== 'completed' ||
+    terminal.primary_reason_code !== 'loop.completed' ||
+    terminal.terminal_reason_code !== 'loop.completed' ||
+    terminal.cleanup_complete !== true ||
+    terminal.simulator_only !== true ||
+    terminal.physical_actuation !== false ||
+    terminal.ncp_qualified !== false ||
+    terminal.scientific_authority !== false ||
+    terminal.is_paper_local_evidence !== false ||
+    terminal.calibrated_posterior !== false
+  ) {
+    fail('terminal completion, cleanup, or authority closure differs')
+  }
+  const transcript = sha256(
+    managedRuntimeCanonical({
+      domain: 'engram-extension-closed-loop-transcript-v5',
+      digest_canonicalization: terminal.digest_canonicalization,
+      planned_step_count: terminal.planned_step_count,
+      timebase,
+      neural_preparation_sha256: terminal.neural_preparation_sha256,
+      neural_session_receipt_sha256: terminal.neural_session_receipt_sha256,
+      neural_durable_evidence_profile: terminal.neural_durable_evidence_profile,
+      initial_snapshot_sha256: terminal.initial_snapshot_sha256,
+      last_verified_simulation_time_tics: terminal.last_verified_simulation_time_tics,
+      runtime_progress_disposition: terminal.runtime_progress_disposition,
+      step_receipts: stepDigests,
+      neural_execution_bindings: executionDigests,
+      runtime_finish_sha256: terminal.runtime_finish_sha256,
+      runtime_lifecycle_binding_sha256: lifecycleDigest,
+      cleanup_receipts: cleanupDigests,
+      status: terminal.status,
+      primary_reason_code: terminal.primary_reason_code,
+      terminal_reason_code: terminal.terminal_reason_code,
+    })
+  )
+  if (terminal.transcript_sha256 !== transcript) {
+    fail('terminal closed-loop transcript digest differs')
+  }
+  managedRuntimeDigest(terminal, 'receipt_sha256', 'terminal closed-loop receipt')
+}
+
 function assertCaptureBehaviorV2(capture, count) {
   const terminal = capture.terminal_receipt
   const evidence = capture.nest_evidence_bundle
@@ -2745,11 +6592,15 @@ function assertCaptureBehaviorV2(capture, count) {
   ) {
     fail(`${count}-drone v2 capture terminal or NEST evidence differs`)
   }
-  canonicalDigest(terminal, 'receipt_sha256', 'terminal closed-loop receipt')
-  canonicalDigest(evidence, 'bundle_sha256', 'NEST evidence bundle')
+  exactKeys(terminal, TERMINAL_RECEIPT_KEYS, 'terminal closed-loop receipt')
+  exactKeys(evidence, NEST_EVIDENCE_KEYS, 'NEST closed-loop evidence bundle')
+  assertTerminalReceiptClosure(terminal, 6)
+  managedRuntimeDigest(terminal, 'receipt_sha256', 'terminal closed-loop receipt')
+  managedRuntimeDigest(evidence, 'bundle_sha256', 'NEST evidence bundle')
   if (evidence.run_receipt_sha256 !== terminal.receipt_sha256) {
     fail(`${count}-drone v2 capture receipt and evidence differ`)
   }
+  assertNestEvidenceClosure(terminal, evidence, count)
   const expectedFaults = Array.from({ length: count }, () => 'none')
   const faulted = [...expectedFaults]
   faulted[0] = 'sensor-unavailable'
@@ -2763,6 +6614,8 @@ function assertCaptureBehaviorV2(capture, count) {
   ) {
     fail(`${count}-drone v2 capture fault sequence differs`)
   }
+  assertNeuralStepsClosure(capture, terminal, evidence, count)
+  assertNestControllerChain(capture, evidence, count)
   for (const [index, neuralStep] of neuralSteps.entries()) {
     const execution = evidence.step_execution_receipts[index]
     if (
@@ -2812,16 +6665,72 @@ function assertCaptureV2(capturePayload, row, index, context) {
     `${row.drone_count}-drone v2 capture`
   )
   exactKeys(capture, CAPTURE_V2_KEYS, `${row.drone_count}-drone v2 capture`)
+  const earlyReviewed = exactKeys(
+    capture.reviewed_native_runtime,
+    new Set([
+      'exec_gate_command_binding',
+      'handshake_receipt',
+      'termination_receipt',
+      'lifecycle_binding_sha256',
+      'guardian_closure_verified',
+      'package_store_lineage_verified',
+    ]),
+    'reviewed native runtime closure'
+  )
+  assertImportedReceiptSchema(
+    earlyReviewed.exec_gate_command_binding,
+    'command',
+    'reviewed runtime contained-command binding'
+  )
+  assertImportedReceiptSchema(
+    earlyReviewed.handshake_receipt,
+    'handshake',
+    'reviewed runtime handshake receipt'
+  )
+  assertImportedReceiptSchema(
+    earlyReviewed.termination_receipt,
+    'termination',
+    'reviewed runtime termination receipt'
+  )
+  assertImportedReceiptSchema(
+    capture.terminal_receipt?.runtime_lifecycle,
+    'lifecycle',
+    'reviewed runtime lifecycle binding'
+  )
+  exactKeys(
+    earlyReviewed.exec_gate_command_binding,
+    REVIEWED_COMMAND_BINDING_KEYS,
+    'reviewed runtime contained-command binding'
+  )
+  exactKeys(
+    earlyReviewed.handshake_receipt,
+    REVIEWED_HANDSHAKE_KEYS,
+    'reviewed runtime handshake receipt'
+  )
+  exactKeys(
+    earlyReviewed.termination_receipt,
+    REVIEWED_TERMINATION_KEYS,
+    'reviewed runtime termination receipt'
+  )
+  exactKeys(capture.terminal_receipt, TERMINAL_RECEIPT_KEYS, 'terminal closed-loop receipt')
+  exactKeys(
+    capture.terminal_receipt?.runtime_lifecycle,
+    RUNTIME_LIFECYCLE_KEYS,
+    'reviewed runtime lifecycle binding'
+  )
+  exactKeys(capture.nest_evidence_bundle, NEST_EVIDENCE_KEYS, 'NEST closed-loop evidence bundle')
   const count = row.drone_count
   const plan = context.plans.get(count)
+  if (plan === undefined) fail(`${count}-drone v2 capture lacks its tracked run plan`)
+  const trackedPlan = strictJsonObject(plan.bytes, `${count}-drone tracked run plan`)
+  const trackedConfig = strictJsonObject(context.configBytes, 'tracked NEST configuration')
   if (
     capture.schema_version !== 'crebain.real-nest-closed-loop-capture.v2' ||
-    plan === undefined ||
     capture.plan_exact_sha256 !== sha256(plan.bytes) ||
     capture.plan_exact_sha256 !== row.plan_exact_sha256 ||
-    canonical(capture.run_plan) !== canonical(JSON.parse(plan.bytes)) ||
+    managedRuntimeCanonical(capture.run_plan) !== managedRuntimeCanonical(trackedPlan) ||
     capture.nest_config_exact_sha256 !== sha256(context.configBytes) ||
-    canonical(capture.nest_config) !== canonical(JSON.parse(context.configBytes)) ||
+    ledgerCanonical(capture.nest_config) !== ledgerCanonical(trackedConfig) ||
     !Number.isInteger(capture.receipt_lock_timeout_ms) ||
     capture.receipt_lock_timeout_ms < 1 ||
     capture.receipt_lock_timeout_ms > 300000
@@ -2829,7 +6738,7 @@ function assertCaptureV2(capturePayload, row, index, context) {
     fail(`${count}-drone v2 capture tracked input lineage differs`)
   }
   const proof = assertInstalledProofV3(capture.installed_package_proof)
-  const proofBytes = Buffer.from(`${canonical(proof)}\n`)
+  const proofBytes = Buffer.from(`${ledgerCanonical(proof)}\n`)
   const expectedPackage = Object.fromEntries(
     [
       'store_id',
@@ -2880,14 +6789,36 @@ function assertCaptureV2(capturePayload, row, index, context) {
   const { terminal, evidence } = assertCaptureBehaviorV2(capture, count)
   const expectedTopology = assertPopulationTopology(capture, evidence, capture.neural_steps, count)
   assertWorkerGuardianClosure(capture.nest_worker_guardian_closure, evidence, source)
-  const store = assertReceiptStoreClosure(capture.receipt_store_closure, terminal, evidence)
-  const summary = capture.summary
+  const { store, reservation } = assertReceiptStoreClosure(
+    capture.receipt_store_closure,
+    capture.receipt_store_sidecars,
+    terminal,
+    evidence,
+    capture
+  )
+  const summary = exactKeys(capture.summary, SUMMARY_KEYS, 'closed-loop run summary')
+  assertNoAuthorityEscalation(summary, 'closed-loop run summary')
   if (
-    summary?.run_status !== 'completed' ||
-    summary?.channel_count !== count ||
-    summary?.receipt_sha256 !== terminal.receipt_sha256 ||
-    summary?.evidence_bundle_sha256 !== evidence.bundle_sha256 ||
-    summary?.store_id !== store.store_id
+    summary.authority !== false ||
+    summary.calibrated_posterior !== false ||
+    summary.run_status !== 'completed' ||
+    summary.status !== 'recorded' ||
+    !Number.isSafeInteger(summary.channel_count) ||
+    summary.channel_count !== count ||
+    !Number.isSafeInteger(summary.completed_step_count) ||
+    summary.completed_step_count !== terminal.steps.length ||
+    !Number.isSafeInteger(summary.planned_step_count) ||
+    summary.planned_step_count !== terminal.planned_step_count ||
+    summary.receipt_sha256 !== terminal.receipt_sha256 ||
+    summary.evidence_bundle_sha256 !== evidence.bundle_sha256 ||
+    summary.store_id !== store.store_id ||
+    summary.reservation_id !== reservation.reservation_id ||
+    summary.study_run_id !== terminal.study_run_id ||
+    summary.terminal_reason_code !== terminal.terminal_reason_code ||
+    summary.simulator_only !== true ||
+    summary.ncp_qualified !== false ||
+    summary.physical_actuation !== false ||
+    summary.scientific_authority !== false
   ) {
     fail(`${count}-drone v2 capture summary differs`)
   }
@@ -2896,6 +6827,7 @@ function assertCaptureV2(capturePayload, row, index, context) {
   exactKeys(
     reviewed,
     new Set([
+      'exec_gate_command_binding',
       'handshake_receipt',
       'termination_receipt',
       'lifecycle_binding_sha256',
@@ -2904,9 +6836,13 @@ function assertCaptureV2(capturePayload, row, index, context) {
     ]),
     'reviewed native runtime closure'
   )
+  const commandBinding = reviewed.exec_gate_command_binding
   const handshake = reviewed.handshake_receipt
   const termination = reviewed.termination_receipt
   if (
+    commandBinding === null ||
+    typeof commandBinding !== 'object' ||
+    Array.isArray(commandBinding) ||
     handshake === null ||
     typeof handshake !== 'object' ||
     Array.isArray(handshake) ||
@@ -2919,31 +6855,143 @@ function assertCaptureV2(capturePayload, row, index, context) {
   ) {
     fail(`${count}-drone v2 capture reviewed-runtime receipt shape differs`)
   }
-  const handshakeDigest = canonicalDigest(
+  exactKeys(
+    commandBinding,
+    REVIEWED_COMMAND_BINDING_KEYS,
+    'reviewed runtime contained-command binding'
+  )
+  exactKeys(handshake, REVIEWED_HANDSHAKE_KEYS, 'reviewed runtime handshake receipt')
+  exactKeys(termination, REVIEWED_TERMINATION_KEYS, 'reviewed runtime termination receipt')
+  exactKeys(lifecycle, RUNTIME_LIFECYCLE_KEYS, 'reviewed runtime lifecycle binding')
+  const commandDigest = ledgerDigest(
+    commandBinding,
+    'exec_gate_command_sha256',
+    'reviewed runtime contained-command binding'
+  )
+  const handshakeDigest = ledgerDigest(
     handshake,
     'receipt_sha256',
     'reviewed runtime handshake receipt'
   )
-  const terminationDigest = canonicalDigest(
+  const terminationDigest = ledgerDigest(
     termination,
     'receipt_sha256',
     'reviewed runtime termination receipt'
   )
-  const lifecycleDigest = canonicalDigest(
+  const lifecycleDigest = managedRuntimeDigest(
     lifecycle,
     'binding_sha256',
     'reviewed runtime lifecycle binding'
+  )
+  const expectedArgumentShape = [
+    'python',
+    '-I',
+    '-S',
+    '-c',
+    'frozen-exec-gate-source',
+    '--gate-fd',
+    'descriptor',
+    '--ready-fd',
+    'descriptor',
+    '--expected-session-id',
+    'supervisor-session-id',
+    'target-command',
+  ]
+  const workerPythonExecutable = evidence.worker_runtime_identity.files.find(
+    (row) => row.role === 'python-executable'
   )
   if (
     reviewed.guardian_closure_verified !== true ||
     reviewed.package_store_lineage_verified !== true ||
     reviewed.lifecycle_binding_sha256 !== lifecycleDigest ||
+    commandBinding.schema_version !== 'engram.contained-exec-command.v1' ||
+    canonical(commandBinding.argument_shape) !== canonical(expectedArgumentShape) ||
+    !isSha256(commandBinding.target_command_sha256) ||
+    commandBinding.python_executable_sha256 !== workerPythonExecutable?.sha256 ||
+    commandBinding.exec_gate_source_sha256 !== source.reviewed_runtime_exec_gate_source_sha256 ||
+    commandDigest !== source.reviewed_runtime_exec_gate_command_sha256 ||
+    handshake.exec_gate_source_sha256 !== commandBinding.exec_gate_source_sha256 ||
+    handshake.exec_gate_command_sha256 !== commandDigest ||
     source.reviewed_runtime_handshake_receipt_sha256 !== handshakeDigest ||
     source.reviewed_runtime_guardian_source_sha256 !== handshake.guardian_source_sha256 ||
+    handshake.schema_version !== 'engram.reviewed-native-development-handshake.v1' ||
+    handshake.profile !== 'engram.reviewed-native-development.v1' ||
+    handshake.extension_id !== 'sepahead.crebain.simulation' ||
+    handshake.extension_version !== '0.1.0' ||
+    handshake.target_id !== 'macos-aarch64-darwin' ||
+    handshake.target_id !== proof.observed_build_receipt?.cargo?.target?.target_id ||
+    handshake.installation_id !== proof.installation_id ||
+    handshake.executable_sha256 !== proof.executable_sha256 ||
+    handshake.process_pid !== handshake.process_group_id ||
+    handshake.guardian_pid === handshake.process_group_id ||
+    handshake.handshake_transcript_accepted !== true ||
+    handshake.child_ready_claim !== false ||
+    handshake.host_local_admission !== true ||
+    handshake.process_launch_performed !== true ||
+    handshake.explicit_absolute_path_spawn !== true ||
+    handshake.path_lookup_at_spawn !== true ||
+    handshake.package_path_reopened_for_spawn !== false ||
+    handshake.verified_executable_staged !== true ||
+    handshake.staged_executable_owner_private !== true ||
+    handshake.staged_executable_user_immutable !== true ||
+    handshake.process_group_containment !== true ||
+    handshake.runtime_process_group_leader !== true ||
+    handshake.guardian_group_member !== true ||
+    handshake.guardian_owner_loss_seal !== true ||
+    handshake.guardian_generation_lease_retained !== true ||
+    handshake.guardian_uncertainty_record_prepared !== true ||
+    handshake.descendant_creation_denied !== true ||
+    handshake.os_sandbox_enforced !== true ||
+    handshake.network_isolation_enforced !== true ||
+    handshake.filesystem_isolation_enforced !== false ||
+    handshake.external_dependency_closure_attested !== false ||
+    handshake.automatic_restart !== false ||
+    handshake.publisher_authenticated !== false ||
+    handshake.durable_process_launch_authority !== false ||
+    handshake.replayable_live_launch_authority !== false ||
+    handshake.ncp_authority !== false ||
+    handshake.physical_authority !== false ||
+    handshake.scientific_authority !== false ||
     termination.handshake_receipt_sha256 !== handshakeDigest ||
+    termination.schema_version !== 'engram.reviewed-native-development-termination.v1' ||
+    termination.generation_id !== handshake.generation_id ||
+    termination.guardian_pid !== handshake.guardian_pid ||
+    termination.process_group_id !== handshake.process_group_id ||
+    termination.disposition !== 'clean-exit' ||
+    termination.reason_code !== 'runtime.clean-exit' ||
+    termination.exit_code !== 0 ||
+    termination.termination_signal !== null ||
+    termination.guardian_reaped !== true ||
+    termination.group_signal_while_guardian_unreaped !== true ||
+    termination.direct_child_signal_while_unreaped !== false ||
+    termination.containment_signal_scope !== 'process-group' ||
+    termination.containment_seal_signal !== 9 ||
+    termination.guardian_generation_lease_held_until_containment !== true ||
+    termination.durable_process_launch_authority !== false ||
+    termination.ncp_authority !== false ||
+    termination.physical_authority !== false ||
+    termination.scientific_authority !== false ||
     lifecycle.handshake_receipt_sha256 !== handshakeDigest ||
     lifecycle.termination_receipt_sha256 !== terminationDigest ||
+    lifecycle.schema_version !== 'engram.closed-loop-runtime-lifecycle-binding.v1' ||
+    lifecycle.profile !== handshake.profile ||
+    lifecycle.generation_id !== handshake.generation_id ||
+    lifecycle.generation_directory_identity_sha256 !==
+      handshake.generation_directory_identity_sha256 ||
+    lifecycle.launch_source !== handshake.launch_source ||
+    lifecycle.store_id !== handshake.store_id ||
+    lifecycle.package_generation_id !== handshake.package_generation_id ||
+    lifecycle.package_generation_lease_retained_at_launch !==
+      handshake.package_generation_lease_retained ||
+    lifecycle.package_generation_lease_released !== termination.package_generation_lease_released ||
+    lifecycle.termination_disposition !== termination.disposition ||
+    lifecycle.child_reaped !== termination.child_reaped ||
+    lifecycle.containment_empty !== termination.containment_empty ||
+    lifecycle.diagnostic_stream_complete !== termination.diagnostic_stream_complete ||
+    lifecycle.private_work_directory_removed !== termination.private_work_directory_removed ||
     handshake.launch_source !== 'package-store-lease' ||
+    handshake.package_generation_lease_retained !== true ||
+    handshake.generation_directory_identity_sha256 === null ||
     lifecycle.launch_source !== 'package-store-lease' ||
     handshake.store_id !== proof.store_id ||
     handshake.package_generation_id !== proof.package_generation_id ||
@@ -2956,6 +7004,7 @@ function assertCaptureV2(capturePayload, row, index, context) {
     lifecycle?.package_generation_lease_released !== true ||
     lifecycle?.diagnostic_stream_complete !== true ||
     lifecycle?.termination_disposition !== 'clean-exit' ||
+    lifecycle?.publisher_authenticated !== false ||
     lifecycle?.durable_process_launch_authority !== false ||
     lifecycle?.ncp_authority !== false ||
     lifecycle?.physical_authority !== false ||
@@ -2968,6 +7017,7 @@ function assertCaptureV2(capturePayload, row, index, context) {
   ) {
     fail(`${count}-drone v2 capture reviewed-runtime lifecycle differs`)
   }
+  assertNoAuthorityEscalation(reviewed, 'reviewed native runtime closure')
   const expectedAssertions = new Set([
     'fault_then_next_step_hold',
     'nest_hold_washout_and_reset_verified',
@@ -2989,6 +7039,7 @@ function assertCaptureV2(capturePayload, row, index, context) {
     fail(`${count}-drone v2 capture assertion is not verified`)
   }
   assertClosedAuthority(capture.authority, `${count}-drone v2 capture`)
+  assertNoAuthorityEscalation(capture, `${count}-drone v2 capture`)
   if (typeof capture.disclosure !== 'string' || capture.disclosure.length === 0) {
     fail(`${count}-drone v2 capture lacks its disclosure`)
   }
@@ -3251,12 +7302,12 @@ function assertOperationalEvidenceV2(indexPayload, capturePayloads, context) {
     new Set(index.captures.map((row) => row.engram_source_closure_sha256)).size !== 3 ||
     new Set(index.captures.map((row) => row.engram_source_roster_sha256)).size !== 1 ||
     new Set(index.captures.map((row) => row.observed_build_receipt_exact_sha256)).size !== 1 ||
-    new Set(proofs.map((proof) => managedRuntimeCanonical(proof))).size !== 1 ||
+    new Set(proofs.map((proof) => ledgerCanonical(proof))).size !== 1 ||
     buildSourceRepositories.some(
       (repository) => canonical(repository) !== canonical(crebainSource)
     ) ||
     index.installed_package_proof_exact_sha256 !==
-      sha256(Buffer.from(`${managedRuntimeCanonical(proofs[0])}\n`))
+      sha256(Buffer.from(`${ledgerCanonical(proofs[0])}\n`))
   ) {
     fail('real-NEST v2 captures reuse run identities or differ in common lineage')
   }
@@ -3366,19 +7417,33 @@ function main(argv = process.argv.slice(2)) {
   const evidenceSchemaPayloads = new Map(
     Object.keys(EXPECTED_EVIDENCE_SCHEMA_HASHES).map((name) => [
       name,
-      readFileSync(resolve(EVIDENCE_SCHEMAS, name)),
+      readRegularNoFollow(resolve(EVIDENCE_SCHEMAS, name), MAX_OPERATIONAL_EVIDENCE_BYTES),
+    ])
+  )
+  const runtimeReceiptSchemaPayloads = new Map(
+    [...ENGRAM_RUNTIME_RECEIPT_SCHEMAS.keys()].map((name) => [
+      name,
+      evidenceSchemaPayloads.get(name),
     ])
   )
   assertCrateBoundary(manifestSource, sources, readdirSync(CRATE))
   assertContractGateBoundary(JSON.parse(readFileSync(resolve(ROOT, 'package.json'))))
   assertSchemaDigests(payloads)
-  assertContractProvenance(
-    JSON.parse(readFileSync(resolve(CONTRACTS, 'PROVENANCE.json'))),
+  const wireProvenance = assertContractProvenanceBytes(
+    readRegularNoFollow(resolve(CONTRACTS, 'PROVENANCE.json'), MAX_OPERATIONAL_EVIDENCE_BYTES),
     payloads
   )
   assertStandardFaultCodeSchemaBoundary(payloads)
   assertDifferentialArtifacts(differentialPayloads)
   assertEvidenceSchemas(evidenceSchemaPayloads)
+  const runtimeReceiptProvenance = assertRuntimeReceiptProvenanceBytes(
+    readRegularNoFollow(
+      resolve(EVIDENCE_SCHEMAS, 'ENGRAM_RUNTIME_RECEIPT_PROVENANCE.json'),
+      MAX_OPERATIONAL_EVIDENCE_BYTES
+    ),
+    runtimeReceiptSchemaPayloads
+  )
+  assertCommonEngramContractSource(wireProvenance, runtimeReceiptProvenance)
   assertManifestBoundary(JSON.parse(readFileSync(resolve(INTEGRATION, 'manifest.template.json'))))
   assertTranscriptBoundary(JSON.parse(readFileSync(resolve(INTEGRATION, 'sample-transcript.json'))))
   if (operational !== undefined) {

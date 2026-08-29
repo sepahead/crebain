@@ -1,0 +1,78 @@
+{
+  "schema_version": "crebain.contract-provenance.v2",
+  "source": {
+    "repository": "https://github.com/sepahead/Paper2Brain.git",
+    "commit": "b6dcbd1ae853e23ce99309198050b8bd06e40829",
+    "tree": "aa848d795bea9145983ea8320a10d5e3d8f621e5",
+    "origin_main": "b6dcbd1ae853e23ce99309198050b8bd06e40829",
+    "object_format": "sha1",
+    "clean": true
+  },
+  "copies": [
+    {
+      "schema_id": "engram.closed-loop-runtime-lifecycle-binding.v1",
+      "source_path": "integrations/contracts/engram.closed-loop-runtime-lifecycle-binding.v1.schema.json",
+      "destination_path": "integrations/engram/managed-simulation/evidence-schemas/engram.closed-loop-runtime-lifecycle-binding.v1.schema.json",
+      "sha256": "ae3efa655bde0852cf388e9a029cfa63c2013c6ea75e0285952c95f8ac5b74f5",
+      "git_mode": "100644",
+      "git_blob": "d393ac9bcb6d21147edf59d6848914a2dd179bb5",
+      "runtime_role": "evidence-validation",
+      "size_bytes": 4399
+    },
+    {
+      "schema_id": "engram.contained-exec-command.v1",
+      "source_path": "integrations/contracts/engram.contained-exec-command.v1.schema.json",
+      "destination_path": "integrations/engram/managed-simulation/evidence-schemas/engram.contained-exec-command.v1.schema.json",
+      "sha256": "e47a78f158166b2a36517195049bc2563da9211740e4e97308178df43c09edd0",
+      "git_mode": "100644",
+      "git_blob": "0d26ec153e83f470ec39e5bdc543e2298310cd69",
+      "runtime_role": "evidence-validation",
+      "size_bytes": 2465
+    },
+    {
+      "schema_id": "engram.extension-closed-loop-run-receipt.v2",
+      "source_path": "integrations/contracts/engram.extension-closed-loop-run-receipt.v2.schema.json",
+      "destination_path": "integrations/engram/managed-simulation/evidence-schemas/engram.extension-closed-loop-run-receipt.v2.schema.json",
+      "sha256": "5bc14fd70ad6daac3479bcd65354812ddca35b172de1147ad56521dbe1d63341",
+      "git_mode": "100644",
+      "git_blob": "bf8de46b865a49eec674290b12713fe9f44e546f",
+      "runtime_role": "evidence-validation",
+      "size_bytes": 22943
+    },
+    {
+      "schema_id": "engram.nest-closed-loop-evidence-bundle.v2",
+      "source_path": "integrations/contracts/engram.nest-closed-loop-evidence-bundle.v2.schema.json",
+      "destination_path": "integrations/engram/managed-simulation/evidence-schemas/engram.nest-closed-loop-evidence-bundle.v2.schema.json",
+      "sha256": "2da4580e21fcc7ed1cabe740435b70ad594aa16c063fccc215bc4890072d1b34",
+      "git_mode": "100644",
+      "git_blob": "76a4d89ea787e8f1a0dcd6a9dc3ff086f8554e3a",
+      "runtime_role": "evidence-validation",
+      "size_bytes": 106590
+    },
+    {
+      "schema_id": "engram.reviewed-native-development-handshake.v1",
+      "source_path": "integrations/contracts/engram.reviewed-native-development-handshake.v1.schema.json",
+      "destination_path": "integrations/engram/managed-simulation/evidence-schemas/engram.reviewed-native-development-handshake.v1.schema.json",
+      "sha256": "1625cc287f5cf676e653f3c3641dee1a19372619c737255442cb142c1f251bd0",
+      "git_mode": "100644",
+      "git_blob": "a17dd33456ee4db09ecb256d8fc2d517d9ac87f2",
+      "runtime_role": "evidence-validation",
+      "size_bytes": 10512
+    },
+    {
+      "schema_id": "engram.reviewed-native-development-termination.v1",
+      "source_path": "integrations/contracts/engram.reviewed-native-development-termination.v1.schema.json",
+      "destination_path": "integrations/engram/managed-simulation/evidence-schemas/engram.reviewed-native-development-termination.v1.schema.json",
+      "sha256": "442198a83546fe163f3098b9a9cf017bdcf4e5e8f2223f64ffaa3335e3164783",
+      "git_mode": "100644",
+      "git_blob": "c45b32bbf4cfcc38404174f630b6244747b77916",
+      "runtime_role": "evidence-validation",
+      "size_bytes": 5097
+    }
+  ],
+  "generation": {
+    "policy": "clean-head-equals-local-origin-main-git-blob-copy.v1",
+    "copy_count": 6
+  },
+  "authority": "compatibility-copy-only"
+}

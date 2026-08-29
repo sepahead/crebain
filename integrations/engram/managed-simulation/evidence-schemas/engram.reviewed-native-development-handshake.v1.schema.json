@@ -1,0 +1,398 @@
+{
+  "$id": "https://engram.local/schemas/engram.reviewed-native-development-handshake.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Content identity for one locally admitted handshake.",
+  "properties": {
+    "automatic_restart": {
+      "const": false,
+      "default": false,
+      "title": "Automatic Restart",
+      "type": "boolean"
+    },
+    "child_ready_claim": {
+      "const": false,
+      "default": false,
+      "title": "Child Ready Claim",
+      "type": "boolean"
+    },
+    "descendant_creation_denied": {
+      "const": true,
+      "default": true,
+      "title": "Descendant Creation Denied",
+      "type": "boolean"
+    },
+    "durable_process_launch_authority": {
+      "const": false,
+      "default": false,
+      "title": "Durable Process Launch Authority",
+      "type": "boolean"
+    },
+    "exec_gate_command_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Exec Gate Command Sha256",
+      "type": "string"
+    },
+    "exec_gate_source_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Exec Gate Source Sha256",
+      "type": "string"
+    },
+    "executable_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Executable Sha256",
+      "type": "string"
+    },
+    "explicit_absolute_path_spawn": {
+      "const": true,
+      "default": true,
+      "title": "Explicit Absolute Path Spawn",
+      "type": "boolean"
+    },
+    "extension_id": {
+      "maxLength": 128,
+      "minLength": 3,
+      "title": "Extension Id",
+      "type": "string"
+    },
+    "extension_version": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Extension Version",
+      "type": "string"
+    },
+    "external_dependency_closure_attested": {
+      "const": false,
+      "default": false,
+      "title": "External Dependency Closure Attested",
+      "type": "boolean"
+    },
+    "filesystem_isolation_enforced": {
+      "const": false,
+      "default": false,
+      "title": "Filesystem Isolation Enforced",
+      "type": "boolean"
+    },
+    "generation_directory_identity_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Generation Directory Identity Sha256"
+    },
+    "generation_id": {
+      "pattern": "^gen_[0-9a-f]{64}$",
+      "title": "Generation Id",
+      "type": "string"
+    },
+    "generation_ordinal": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Generation Ordinal",
+      "type": "integer"
+    },
+    "guardian_command_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Guardian Command Sha256",
+      "type": "string"
+    },
+    "guardian_generation_lease_retained": {
+      "title": "Guardian Generation Lease Retained",
+      "type": "boolean"
+    },
+    "guardian_group_member": {
+      "const": true,
+      "default": true,
+      "title": "Guardian Group Member",
+      "type": "boolean"
+    },
+    "guardian_owner_loss_seal": {
+      "const": true,
+      "default": true,
+      "title": "Guardian Owner Loss Seal",
+      "type": "boolean"
+    },
+    "guardian_pid": {
+      "minimum": 1,
+      "title": "Guardian Pid",
+      "type": "integer"
+    },
+    "guardian_ready_frame_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Guardian Ready Frame Sha256",
+      "type": "string"
+    },
+    "guardian_source_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Guardian Source Sha256",
+      "type": "string"
+    },
+    "guardian_uncertainty_record_prepared": {
+      "const": true,
+      "title": "Guardian Uncertainty Record Prepared",
+      "type": "boolean"
+    },
+    "handshake_transcript_accepted": {
+      "const": true,
+      "default": true,
+      "title": "Handshake Transcript Accepted",
+      "type": "boolean"
+    },
+    "host_handshake_frame_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Host Handshake Frame Sha256",
+      "type": "string"
+    },
+    "host_local_admission": {
+      "const": true,
+      "default": true,
+      "title": "Host Local Admission",
+      "type": "boolean"
+    },
+    "installation_id": {
+      "pattern": "^inst_[0-9a-f]{64}$",
+      "title": "Installation Id",
+      "type": "string"
+    },
+    "launch_source": {
+      "enum": [
+        "packed-bundle-path",
+        "package-store-lease"
+      ],
+      "title": "Launch Source",
+      "type": "string"
+    },
+    "ncp_authority": {
+      "const": false,
+      "default": false,
+      "title": "Ncp Authority",
+      "type": "boolean"
+    },
+    "network_isolation_enforced": {
+      "const": true,
+      "default": true,
+      "title": "Network Isolation Enforced",
+      "type": "boolean"
+    },
+    "os_sandbox_enforced": {
+      "const": true,
+      "default": true,
+      "title": "Os Sandbox Enforced",
+      "type": "boolean"
+    },
+    "package_generation_id": {
+      "pattern": "^pkggen_[0-9a-f]{64}$",
+      "title": "Package Generation Id",
+      "type": "string"
+    },
+    "package_generation_lease_retained": {
+      "title": "Package Generation Lease Retained",
+      "type": "boolean"
+    },
+    "package_path_reopened_for_spawn": {
+      "const": false,
+      "title": "Package Path Reopened For Spawn",
+      "type": "boolean"
+    },
+    "path_lookup_at_spawn": {
+      "const": true,
+      "default": true,
+      "title": "Path Lookup At Spawn",
+      "type": "boolean"
+    },
+    "physical_authority": {
+      "const": false,
+      "default": false,
+      "title": "Physical Authority",
+      "type": "boolean"
+    },
+    "process_group_containment": {
+      "const": true,
+      "default": true,
+      "title": "Process Group Containment",
+      "type": "boolean"
+    },
+    "process_group_id": {
+      "minimum": 1,
+      "title": "Process Group Id",
+      "type": "integer"
+    },
+    "process_launch_performed": {
+      "const": true,
+      "default": true,
+      "title": "Process Launch Performed",
+      "type": "boolean"
+    },
+    "process_pid": {
+      "minimum": 2,
+      "title": "Process Pid",
+      "type": "integer"
+    },
+    "profile": {
+      "const": "engram.reviewed-native-development.v1",
+      "title": "Profile",
+      "type": "string"
+    },
+    "publisher_authenticated": {
+      "const": false,
+      "default": false,
+      "title": "Publisher Authenticated",
+      "type": "boolean"
+    },
+    "receipt_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Receipt Sha256",
+      "type": "string"
+    },
+    "replayable_live_launch_authority": {
+      "const": false,
+      "default": false,
+      "title": "Replayable Live Launch Authority",
+      "type": "boolean"
+    },
+    "runtime_handshake_frame_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Runtime Handshake Frame Sha256",
+      "type": "string"
+    },
+    "runtime_process_group_leader": {
+      "const": true,
+      "default": true,
+      "title": "Runtime Process Group Leader",
+      "type": "boolean"
+    },
+    "sandbox_launcher_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Sandbox Launcher Sha256",
+      "type": "string"
+    },
+    "sandbox_profile_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Sandbox Profile Sha256",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "engram.reviewed-native-development-handshake.v1",
+      "default": "engram.reviewed-native-development-handshake.v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "scientific_authority": {
+      "const": false,
+      "default": false,
+      "title": "Scientific Authority",
+      "type": "boolean"
+    },
+    "session_id": {
+      "minimum": 2,
+      "title": "Session Id",
+      "type": "integer"
+    },
+    "staged_executable_owner_private": {
+      "const": true,
+      "title": "Staged Executable Owner Private",
+      "type": "boolean"
+    },
+    "staged_executable_user_immutable": {
+      "const": true,
+      "title": "Staged Executable User Immutable",
+      "type": "boolean"
+    },
+    "store_id": {
+      "anyOf": [
+        {
+          "pattern": "^extstore_[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Store Id"
+    },
+    "target_id": {
+      "maxLength": 128,
+      "minLength": 3,
+      "title": "Target Id",
+      "type": "string"
+    },
+    "validator_set_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Validator Set Sha256",
+      "type": "string"
+    },
+    "verified_executable_staged": {
+      "const": true,
+      "title": "Verified Executable Staged",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "automatic_restart",
+    "child_ready_claim",
+    "descendant_creation_denied",
+    "durable_process_launch_authority",
+    "exec_gate_command_sha256",
+    "exec_gate_source_sha256",
+    "executable_sha256",
+    "explicit_absolute_path_spawn",
+    "extension_id",
+    "extension_version",
+    "external_dependency_closure_attested",
+    "filesystem_isolation_enforced",
+    "generation_directory_identity_sha256",
+    "generation_id",
+    "generation_ordinal",
+    "guardian_command_sha256",
+    "guardian_generation_lease_retained",
+    "guardian_group_member",
+    "guardian_owner_loss_seal",
+    "guardian_pid",
+    "guardian_ready_frame_sha256",
+    "guardian_source_sha256",
+    "guardian_uncertainty_record_prepared",
+    "handshake_transcript_accepted",
+    "host_handshake_frame_sha256",
+    "host_local_admission",
+    "installation_id",
+    "launch_source",
+    "ncp_authority",
+    "network_isolation_enforced",
+    "os_sandbox_enforced",
+    "package_generation_id",
+    "package_generation_lease_retained",
+    "package_path_reopened_for_spawn",
+    "path_lookup_at_spawn",
+    "physical_authority",
+    "process_group_containment",
+    "process_group_id",
+    "process_launch_performed",
+    "process_pid",
+    "profile",
+    "publisher_authenticated",
+    "receipt_sha256",
+    "replayable_live_launch_authority",
+    "runtime_handshake_frame_sha256",
+    "runtime_process_group_leader",
+    "sandbox_launcher_sha256",
+    "sandbox_profile_sha256",
+    "schema_version",
+    "scientific_authority",
+    "session_id",
+    "staged_executable_owner_private",
+    "staged_executable_user_immutable",
+    "store_id",
+    "target_id",
+    "validator_set_sha256",
+    "verified_executable_staged"
+  ],
+  "title": "ReviewedNativeDevelopmentHandshakeReceiptV1",
+  "type": "object"
+}

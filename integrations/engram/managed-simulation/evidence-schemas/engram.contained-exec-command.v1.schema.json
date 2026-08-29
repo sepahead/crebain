@@ -1,0 +1,101 @@
+{
+  "$id": "https://engram.local/schemas/engram.contained-exec-command.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Path-free preimage for one contained execution command digest.",
+  "properties": {
+    "argument_shape": {
+      "items": false,
+      "maxItems": 12,
+      "minItems": 12,
+      "prefixItems": [
+        {
+          "const": "python",
+          "type": "string"
+        },
+        {
+          "const": "-I",
+          "type": "string"
+        },
+        {
+          "const": "-S",
+          "type": "string"
+        },
+        {
+          "const": "-c",
+          "type": "string"
+        },
+        {
+          "const": "frozen-exec-gate-source",
+          "type": "string"
+        },
+        {
+          "const": "--gate-fd",
+          "type": "string"
+        },
+        {
+          "const": "descriptor",
+          "type": "string"
+        },
+        {
+          "const": "--ready-fd",
+          "type": "string"
+        },
+        {
+          "const": "descriptor",
+          "type": "string"
+        },
+        {
+          "const": "--expected-session-id",
+          "type": "string"
+        },
+        {
+          "const": "supervisor-session-id",
+          "type": "string"
+        },
+        {
+          "const": "target-command",
+          "type": "string"
+        }
+      ],
+      "title": "Argument Shape",
+      "type": "array"
+    },
+    "exec_gate_command_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Exec Gate Command Sha256",
+      "type": "string"
+    },
+    "exec_gate_source_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Exec Gate Source Sha256",
+      "type": "string"
+    },
+    "python_executable_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Python Executable Sha256",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "engram.contained-exec-command.v1",
+      "default": "engram.contained-exec-command.v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "target_command_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Target Command Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "argument_shape",
+    "exec_gate_command_sha256",
+    "exec_gate_source_sha256",
+    "python_executable_sha256",
+    "schema_version",
+    "target_command_sha256"
+  ],
+  "title": "ReviewedNativeExecGateCommandBindingV1",
+  "type": "object"
+}

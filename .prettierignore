@@ -17,6 +17,7 @@ flake.lock
 # Byte-exact managed-runtime contracts, receipts, and authoring inputs
 integrations/engram/managed-simulation/*.json
 integrations/engram/managed-simulation/contracts/
+integrations/engram/managed-simulation/evidence-schemas/engram.*.schema.json
 integrations/engram/managed-simulation/operational-evidence/**/*.json
 integrations/engram/managed-simulation/package/
 integrations/engram/managed-simulation/sealed/

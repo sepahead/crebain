@@ -1,0 +1,3685 @@
+{
+  "$defs": {
+    "NestChannelSafetyReadbackV2": {
+      "additionalProperties": false,
+      "description": "Per-channel hold and recovery reset evidence for one controller epoch.",
+      "properties": {
+        "channel_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Channel Id",
+          "type": "string"
+        },
+        "discarded_pending_event_count": {
+          "minimum": 0,
+          "title": "Discarded Pending Event Count",
+          "type": "integer"
+        },
+        "hold_required": {
+          "title": "Hold Required",
+          "type": "boolean"
+        },
+        "input_disposition": {
+          "enum": [
+            "encoded-observation",
+            "held-neutralized",
+            "recovery-washout"
+          ],
+          "title": "Input Disposition",
+          "type": "string"
+        },
+        "minimum_refractory_flush_tics": {
+          "minimum": 1,
+          "title": "Minimum Refractory Flush Tics",
+          "type": "integer"
+        },
+        "population_state_reset_performed": {
+          "title": "Population State Reset Performed",
+          "type": "boolean"
+        },
+        "population_state_reset_verified": {
+          "title": "Population State Reset Verified",
+          "type": "boolean"
+        },
+        "post_delivery_quiescence_tics": {
+          "minimum": 0,
+          "title": "Post Delivery Quiescence Tics",
+          "type": "integer"
+        },
+        "post_interval_reset_readback_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Post Interval Reset Readback Sha256",
+          "type": "string"
+        },
+        "pre_interval_reset_readback_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Pre Interval Reset Readback Sha256",
+          "type": "string"
+        },
+        "recorder_delivery_flush_slack_tics": {
+          "minimum": 0,
+          "title": "Recorder Delivery Flush Slack Tics",
+          "type": "integer"
+        },
+        "recorder_quarantine_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Recorder Quarantine Sha256",
+          "type": "string"
+        },
+        "recovery_from_hold": {
+          "title": "Recovery From Hold",
+          "type": "boolean"
+        },
+        "reset_readback_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Reset Readback Sha256",
+          "type": "string"
+        },
+        "resolution_tics": {
+          "minimum": 1,
+          "title": "Resolution Tics",
+          "type": "integer"
+        },
+        "safety_interval_tics": {
+          "minimum": 0,
+          "title": "Safety Interval Tics",
+          "type": "integer"
+        },
+        "safety_washout_performed": {
+          "title": "Safety Washout Performed",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "channel_id",
+        "discarded_pending_event_count",
+        "hold_required",
+        "input_disposition",
+        "minimum_refractory_flush_tics",
+        "population_state_reset_performed",
+        "population_state_reset_verified",
+        "post_delivery_quiescence_tics",
+        "post_interval_reset_readback_sha256",
+        "pre_interval_reset_readback_sha256",
+        "recorder_delivery_flush_slack_tics",
+        "recorder_quarantine_sha256",
+        "recovery_from_hold",
+        "reset_readback_sha256",
+        "resolution_tics",
+        "safety_interval_tics",
+        "safety_washout_performed"
+      ],
+      "title": "NestChannelSafetyReadbackV2",
+      "type": "object"
+    },
+    "NestConnectionGroupReadbackV1": {
+      "additionalProperties": false,
+      "description": "Exact effective parameters for one homogeneous connection group.",
+      "properties": {
+        "connection_count": {
+          "maximum": 65536,
+          "minimum": 1,
+          "title": "Connection Count",
+          "type": "integer"
+        },
+        "delay_api_argument_ms": {
+          "title": "Delay Api Argument Ms",
+          "type": "number"
+        },
+        "direction": {
+          "enum": [
+            "input",
+            "recorder"
+          ],
+          "title": "Direction",
+          "type": "string"
+        },
+        "effective_delay_ms": {
+          "title": "Effective Delay Ms",
+          "type": "number"
+        },
+        "effective_delay_tics": {
+          "minimum": 1,
+          "title": "Effective Delay Tics",
+          "type": "integer"
+        },
+        "effective_receptor": {
+          "const": 0,
+          "default": 0,
+          "title": "Effective Receptor",
+          "type": "integer"
+        },
+        "effective_weight": {
+          "title": "Effective Weight",
+          "type": "number"
+        },
+        "population_name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Population Name",
+          "type": "string"
+        },
+        "requested_delay_tics": {
+          "minimum": 1,
+          "title": "Requested Delay Tics",
+          "type": "integer"
+        },
+        "requested_receptor": {
+          "const": 0,
+          "default": 0,
+          "title": "Requested Receptor",
+          "type": "integer"
+        },
+        "requested_weight": {
+          "title": "Requested Weight",
+          "type": "number"
+        },
+        "synapse_model": {
+          "const": "static_synapse",
+          "default": "static_synapse",
+          "title": "Synapse Model",
+          "type": "string"
+        }
+      },
+      "required": [
+        "connection_count",
+        "delay_api_argument_ms",
+        "direction",
+        "effective_delay_ms",
+        "effective_delay_tics",
+        "effective_receptor",
+        "effective_weight",
+        "population_name",
+        "requested_delay_tics",
+        "requested_receptor",
+        "requested_weight",
+        "synapse_model"
+      ],
+      "title": "NestConnectionGroupReadbackV1",
+      "type": "object"
+    },
+    "NestControlBindingV1": {
+      "additionalProperties": false,
+      "description": "One exact channel-to-codec input used to construct the NEST session.",
+      "properties": {
+        "axis_binding_sha256s": {
+          "items": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "title": "Axis Binding Sha256S",
+          "type": "array"
+        },
+        "channel_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Channel Id",
+          "type": "string"
+        },
+        "neural_codec_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Neural Codec Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "axis_binding_sha256s",
+        "channel_id",
+        "neural_codec_sha256"
+      ],
+      "title": "NestControlBindingV1",
+      "type": "object"
+    },
+    "NestEncodedControlInputV1": {
+      "additionalProperties": false,
+      "description": "One definition-bound affine input presented to signed populations.",
+      "properties": {
+        "action_index": {
+          "exclusiveMaximum": 16,
+          "minimum": 0,
+          "title": "Action Index",
+          "type": "integer"
+        },
+        "axis_binding_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Axis Binding Sha256",
+          "type": "string"
+        },
+        "channel_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Channel Id",
+          "type": "string"
+        },
+        "clamped": {
+          "title": "Clamped",
+          "type": "boolean"
+        },
+        "input_disposition": {
+          "enum": [
+            "encoded-observation",
+            "held-neutralized",
+            "recovery-washout"
+          ],
+          "title": "Input Disposition",
+          "type": "string"
+        },
+        "neural_codec_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Neural Codec Sha256",
+          "type": "string"
+        },
+        "normalized_input": {
+          "maximum": 1.0,
+          "minimum": -1.0,
+          "title": "Normalized Input",
+          "type": "number"
+        },
+        "raw_affine_sum": {
+          "title": "Raw Affine Sum",
+          "type": "number"
+        }
+      },
+      "required": [
+        "action_index",
+        "axis_binding_sha256",
+        "channel_id",
+        "clamped",
+        "input_disposition",
+        "neural_codec_sha256",
+        "normalized_input",
+        "raw_affine_sum"
+      ],
+      "title": "NestEncodedControlInputV1",
+      "type": "object"
+    },
+    "NestGeneratorScheduleReadbackV1": {
+      "additionalProperties": false,
+      "description": "One exact per-step generator schedule written and reopened from NEST.",
+      "properties": {
+        "effective_rate_hz": {
+          "maximum": 200000.0,
+          "minimum": 0.0,
+          "title": "Effective Rate Hz",
+          "type": "number"
+        },
+        "effective_schedule_time_ms": {
+          "title": "Effective Schedule Time Ms",
+          "type": "number"
+        },
+        "effective_schedule_time_tics": {
+          "minimum": 1,
+          "title": "Effective Schedule Time Tics",
+          "type": "integer"
+        },
+        "generator_model": {
+          "const": "inhomogeneous_poisson_generator",
+          "default": "inhomogeneous_poisson_generator",
+          "title": "Generator Model",
+          "type": "string"
+        },
+        "population_name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Population Name",
+          "type": "string"
+        },
+        "requested_rate_hz": {
+          "maximum": 200000.0,
+          "minimum": 0.0,
+          "title": "Requested Rate Hz",
+          "type": "number"
+        },
+        "requested_schedule_time_tics": {
+          "minimum": 1,
+          "title": "Requested Schedule Time Tics",
+          "type": "integer"
+        },
+        "schedule_api_argument_ms": {
+          "title": "Schedule Api Argument Ms",
+          "type": "number"
+        }
+      },
+      "required": [
+        "effective_rate_hz",
+        "effective_schedule_time_ms",
+        "effective_schedule_time_tics",
+        "generator_model",
+        "population_name",
+        "requested_rate_hz",
+        "requested_schedule_time_tics",
+        "schedule_api_argument_ms"
+      ],
+      "title": "NestGeneratorScheduleReadbackV1",
+      "type": "object"
+    },
+    "NestInputWeightReadbackV1": {
+      "additionalProperties": false,
+      "description": "One carrier-rate connection weight written and reopened from NEST.",
+      "properties": {
+        "configured_full_scale_weight_mv": {
+          "exclusiveMinimum": 0.0,
+          "maximum": 1000.0,
+          "title": "Configured Full Scale Weight Mv",
+          "type": "number"
+        },
+        "connection_count": {
+          "maximum": 512,
+          "minimum": 1,
+          "title": "Connection Count",
+          "type": "integer"
+        },
+        "constant_generator_rate_hz": {
+          "exclusiveMinimum": 0.0,
+          "maximum": 200000.0,
+          "title": "Constant Generator Rate Hz",
+          "type": "number"
+        },
+        "desired_equivalent_rate_hz": {
+          "maximum": 200000.0,
+          "minimum": 0.0,
+          "title": "Desired Equivalent Rate Hz",
+          "type": "number"
+        },
+        "effective_weight_mv": {
+          "maximum": 1000.0,
+          "minimum": 0.0,
+          "title": "Effective Weight Mv",
+          "type": "number"
+        },
+        "input_disposition": {
+          "enum": [
+            "encoded-observation",
+            "held-neutralized",
+            "recovery-washout"
+          ],
+          "title": "Input Disposition",
+          "type": "string"
+        },
+        "population_name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Population Name",
+          "type": "string"
+        },
+        "requested_weight_mv": {
+          "maximum": 1000.0,
+          "minimum": 0.0,
+          "title": "Requested Weight Mv",
+          "type": "number"
+        }
+      },
+      "required": [
+        "configured_full_scale_weight_mv",
+        "connection_count",
+        "constant_generator_rate_hz",
+        "desired_equivalent_rate_hz",
+        "effective_weight_mv",
+        "input_disposition",
+        "population_name",
+        "requested_weight_mv"
+      ],
+      "title": "NestInputWeightReadbackV1",
+      "type": "object"
+    },
+    "NestPopulationCompletedWindowV1": {
+      "additionalProperties": false,
+      "description": "One recorder population partitioned at its proven delivery watermark.",
+      "properties": {
+        "completed_event_count": {
+          "minimum": 0,
+          "title": "Completed Event Count",
+          "type": "integer"
+        },
+        "completed_event_times_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Completed Event Times Sha256",
+          "type": "string"
+        },
+        "completed_window_tics": {
+          "minimum": 1,
+          "title": "Completed Window Tics",
+          "type": "integer"
+        },
+        "current_completed_watermark_tics": {
+          "minimum": 1,
+          "title": "Current Completed Watermark Tics",
+          "type": "integer"
+        },
+        "decode_window_start_tics": {
+          "minimum": 0,
+          "title": "Decode Window Start Tics",
+          "type": "integer"
+        },
+        "newly_delivered_event_count": {
+          "minimum": 0,
+          "title": "Newly Delivered Event Count",
+          "type": "integer"
+        },
+        "pending_event_count": {
+          "minimum": 0,
+          "title": "Pending Event Count",
+          "type": "integer"
+        },
+        "pending_event_times_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Pending Event Times Sha256",
+          "type": "string"
+        },
+        "population_name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Population Name",
+          "type": "string"
+        },
+        "previous_completed_watermark_tics": {
+          "minimum": 0,
+          "title": "Previous Completed Watermark Tics",
+          "type": "integer"
+        },
+        "quarantined_event_count": {
+          "minimum": 0,
+          "title": "Quarantined Event Count",
+          "type": "integer"
+        },
+        "quarantined_event_times_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Quarantined Event Times Sha256",
+          "type": "string"
+        },
+        "recorder_delivery_delay_tics": {
+          "minimum": 1,
+          "title": "Recorder Delivery Delay Tics",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "completed_event_count",
+        "completed_event_times_sha256",
+        "completed_window_tics",
+        "current_completed_watermark_tics",
+        "decode_window_start_tics",
+        "newly_delivered_event_count",
+        "pending_event_count",
+        "pending_event_times_sha256",
+        "population_name",
+        "previous_completed_watermark_tics",
+        "quarantined_event_count",
+        "quarantined_event_times_sha256",
+        "recorder_delivery_delay_tics"
+      ],
+      "title": "NestPopulationCompletedWindowV1",
+      "type": "object"
+    },
+    "NestPopulationControllerConfigV2": {
+      "additionalProperties": false,
+      "properties": {
+        "baseline_rate_hz": {
+          "maximum": 100000.0,
+          "minimum": 0.0,
+          "title": "Baseline Rate Hz",
+          "type": "number"
+        },
+        "input_span_hz": {
+          "exclusiveMinimum": 0.0,
+          "maximum": 100000.0,
+          "title": "Input Span Hz",
+          "type": "number"
+        },
+        "input_weight_mv": {
+          "exclusiveMinimum": 0.0,
+          "maximum": 1000.0,
+          "title": "Input Weight Mv",
+          "type": "number"
+        },
+        "output_rate_scale_hz": {
+          "exclusiveMinimum": 0.0,
+          "maximum": 1000000000.0,
+          "title": "Output Rate Scale Hz",
+          "type": "number"
+        },
+        "population_size": {
+          "maximum": 512,
+          "minimum": 2,
+          "title": "Population Size",
+          "type": "integer"
+        },
+        "resolution_ms": {
+          "maximum": 10.0,
+          "minimum": 0.001,
+          "title": "Resolution Ms",
+          "type": "number"
+        },
+        "rng_seed": {
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Rng Seed",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": "engram.nest-population-controller-config.v2",
+          "default": "engram.nest-population-controller-config.v2",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "step_duration_ms": {
+          "maximum": 10000.0,
+          "minimum": 1.0,
+          "title": "Step Duration Ms",
+          "type": "number"
+        }
+      },
+      "required": [
+        "baseline_rate_hz",
+        "input_span_hz",
+        "input_weight_mv",
+        "output_rate_scale_hz",
+        "population_size",
+        "resolution_ms",
+        "rng_seed",
+        "schema_version",
+        "step_duration_ms"
+      ],
+      "title": "NestPopulationControllerConfigV2",
+      "type": "object"
+    },
+    "NestPopulationEventDeltaV1": {
+      "additionalProperties": false,
+      "properties": {
+        "current_event_count": {
+          "minimum": 0,
+          "title": "Current Event Count",
+          "type": "integer"
+        },
+        "event_count_delta": {
+          "minimum": 0,
+          "title": "Event Count Delta",
+          "type": "integer"
+        },
+        "population_name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Population Name",
+          "type": "string"
+        },
+        "prior_event_count": {
+          "minimum": 0,
+          "title": "Prior Event Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "current_event_count",
+        "event_count_delta",
+        "population_name",
+        "prior_event_count"
+      ],
+      "title": "NestPopulationEventDeltaV1",
+      "type": "object"
+    },
+    "NestPopulationTailV1": {
+      "additionalProperties": false,
+      "properties": {
+        "pending_event_count": {
+          "minimum": 0,
+          "title": "Pending Event Count",
+          "type": "integer"
+        },
+        "pending_event_times_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Pending Event Times Sha256",
+          "type": "string"
+        },
+        "population_name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Population Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "pending_event_count",
+        "pending_event_times_sha256",
+        "population_name"
+      ],
+      "title": "NestPopulationTailV1",
+      "type": "object"
+    },
+    "NestSessionReadbackV2": {
+      "additionalProperties": false,
+      "description": "Locally observed NEST identity and kernel admission readback.",
+      "properties": {
+        "channel_recovery_policy": {
+          "const": "delta-current-zero-input-washout-dual-reset-v1",
+          "default": "delta-current-zero-input-washout-dual-reset-v1",
+          "title": "Channel Recovery Policy",
+          "type": "string"
+        },
+        "connection_delay_api_argument_ms": {
+          "title": "Connection Delay Api Argument Ms",
+          "type": "number"
+        },
+        "connection_readback_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Connection Readback Sha256",
+          "type": "string"
+        },
+        "connection_readbacks": {
+          "items": {
+            "$ref": "#/$defs/NestConnectionGroupReadbackV1"
+          },
+          "maxItems": 4096,
+          "minItems": 4,
+          "title": "Connection Readbacks",
+          "type": "array"
+        },
+        "control_binding_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Control Binding Sha256",
+          "type": "string"
+        },
+        "control_bindings": {
+          "items": {
+            "$ref": "#/$defs/NestControlBindingV1"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Control Bindings",
+          "type": "array"
+        },
+        "control_neuron_model": {
+          "const": "iaf_psc_delta",
+          "default": "iaf_psc_delta",
+          "title": "Control Neuron Model",
+          "type": "string"
+        },
+        "control_neuron_refractory_input": {
+          "const": false,
+          "default": false,
+          "title": "Control Neuron Refractory Input",
+          "type": "boolean"
+        },
+        "control_neuron_refractory_period_tics": {
+          "const": 2000,
+          "default": 2000,
+          "title": "Control Neuron Refractory Period Tics",
+          "type": "integer"
+        },
+        "effective_local_num_threads": {
+          "const": 1,
+          "default": 1,
+          "title": "Effective Local Num Threads",
+          "type": "integer"
+        },
+        "effective_model_roster": {
+          "items": false,
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Effective Model Roster",
+          "type": "array"
+        },
+        "effective_resolution_ms": {
+          "title": "Effective Resolution Ms",
+          "type": "number"
+        },
+        "effective_resolution_tics": {
+          "minimum": 1,
+          "title": "Effective Resolution Tics",
+          "type": "integer"
+        },
+        "effective_rng_seed": {
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Effective Rng Seed",
+          "type": "integer"
+        },
+        "effective_total_num_virtual_processes": {
+          "const": 1,
+          "default": 1,
+          "title": "Effective Total Num Virtual Processes",
+          "type": "integer"
+        },
+        "kernel_reset_at_admission": {
+          "const": true,
+          "default": true,
+          "title": "Kernel Reset At Admission",
+          "type": "boolean"
+        },
+        "loaded_bytes_attested": {
+          "const": false,
+          "default": false,
+          "title": "Loaded Bytes Attested",
+          "type": "boolean"
+        },
+        "model_readback_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Model Readback Sha256",
+          "type": "string"
+        },
+        "ncp_transport": {
+          "const": false,
+          "default": false,
+          "title": "Ncp Transport",
+          "type": "boolean"
+        },
+        "observed_device_node_count": {
+          "minimum": 4,
+          "title": "Observed Device Node Count",
+          "type": "integer"
+        },
+        "observed_population_neuron_count": {
+          "minimum": 2,
+          "title": "Observed Population Neuron Count",
+          "type": "integer"
+        },
+        "observed_total_connection_count": {
+          "minimum": 4,
+          "title": "Observed Total Connection Count",
+          "type": "integer"
+        },
+        "one_session": {
+          "const": true,
+          "default": true,
+          "title": "One Session",
+          "type": "boolean"
+        },
+        "population_roster": {
+          "items": {
+            "$ref": "#/$defs/NeuralPopulationBindingV1"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Population Roster",
+          "type": "array"
+        },
+        "population_roster_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Population Roster Sha256",
+          "type": "string"
+        },
+        "receipt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Receipt Sha256",
+          "type": "string"
+        },
+        "reported_version": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Reported Version",
+          "type": "string"
+        },
+        "requested_connection_delay_tics": {
+          "minimum": 1,
+          "title": "Requested Connection Delay Tics",
+          "type": "integer"
+        },
+        "requested_input_weight": {
+          "title": "Requested Input Weight",
+          "type": "number"
+        },
+        "requested_local_num_threads": {
+          "const": 1,
+          "default": 1,
+          "title": "Requested Local Num Threads",
+          "type": "integer"
+        },
+        "requested_receptor": {
+          "const": 0,
+          "default": 0,
+          "title": "Requested Receptor",
+          "type": "integer"
+        },
+        "requested_recorder_weight": {
+          "const": 1.0,
+          "default": 1.0,
+          "title": "Requested Recorder Weight",
+          "type": "number"
+        },
+        "requested_resolution_ms": {
+          "title": "Requested Resolution Ms",
+          "type": "number"
+        },
+        "requested_resolution_tics": {
+          "minimum": 1,
+          "title": "Requested Resolution Tics",
+          "type": "integer"
+        },
+        "requested_rng_seed": {
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Requested Rng Seed",
+          "type": "integer"
+        },
+        "requested_step_duration_ms": {
+          "title": "Requested Step Duration Ms",
+          "type": "number"
+        },
+        "requested_step_duration_tics": {
+          "minimum": 1,
+          "title": "Requested Step Duration Tics",
+          "type": "integer"
+        },
+        "resolution_api_argument_ms": {
+          "title": "Resolution Api Argument Ms",
+          "type": "number"
+        },
+        "run_api_argument_ms": {
+          "title": "Run Api Argument Ms",
+          "type": "number"
+        },
+        "schema_version": {
+          "const": "engram.nest-session-readback.v2",
+          "default": "engram.nest-session-readback.v2",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "work_admission": {
+          "$ref": "#/$defs/NestWorkAdmissionV1"
+        }
+      },
+      "required": [
+        "channel_recovery_policy",
+        "connection_delay_api_argument_ms",
+        "connection_readback_sha256",
+        "connection_readbacks",
+        "control_binding_sha256",
+        "control_bindings",
+        "control_neuron_model",
+        "control_neuron_refractory_input",
+        "control_neuron_refractory_period_tics",
+        "effective_local_num_threads",
+        "effective_model_roster",
+        "effective_resolution_ms",
+        "effective_resolution_tics",
+        "effective_rng_seed",
+        "effective_total_num_virtual_processes",
+        "kernel_reset_at_admission",
+        "loaded_bytes_attested",
+        "model_readback_sha256",
+        "ncp_transport",
+        "observed_device_node_count",
+        "observed_population_neuron_count",
+        "observed_total_connection_count",
+        "one_session",
+        "population_roster",
+        "population_roster_sha256",
+        "receipt_sha256",
+        "reported_version",
+        "requested_connection_delay_tics",
+        "requested_input_weight",
+        "requested_local_num_threads",
+        "requested_receptor",
+        "requested_recorder_weight",
+        "requested_resolution_ms",
+        "requested_resolution_tics",
+        "requested_rng_seed",
+        "requested_step_duration_ms",
+        "requested_step_duration_tics",
+        "resolution_api_argument_ms",
+        "run_api_argument_ms",
+        "schema_version",
+        "work_admission"
+      ],
+      "title": "NestSessionReadbackV2",
+      "type": "object"
+    },
+    "NestStepAttemptReceiptV1": {
+      "additionalProperties": false,
+      "description": "One provider step attempt, including failures after NEST mutation.",
+      "properties": {
+        "attempt_index": {
+          "maximum": 1024,
+          "minimum": 1,
+          "title": "Attempt Index",
+          "type": "integer"
+        },
+        "before_biological_time_tics": {
+          "minimum": 0,
+          "title": "Before Biological Time Tics",
+          "type": "integer"
+        },
+        "decoded_proposal_produced": {
+          "title": "Decoded Proposal Produced",
+          "type": "boolean"
+        },
+        "execution_receipt_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Execution Receipt Sha256"
+        },
+        "observation_scope": {
+          "enum": [
+            "child-reported",
+            "parent-dispatch-only"
+          ],
+          "title": "Observation Scope",
+          "type": "string"
+        },
+        "observed_after_biological_time_tics": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Observed After Biological Time Tics"
+        },
+        "outcome": {
+          "enum": [
+            "succeeded",
+            "failed",
+            "unknown-after-worker-dispatch"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "partial_readback_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Partial Readback Sha256",
+          "type": "string"
+        },
+        "reason_code": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Reason Code",
+          "type": "string"
+        },
+        "receipt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Receipt Sha256",
+          "type": "string"
+        },
+        "request_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Request Sha256",
+          "type": "string"
+        },
+        "requested_run_tics": {
+          "minimum": 1,
+          "title": "Requested Run Tics",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": "engram.nest-step-attempt.v1",
+          "default": "engram.nest-step-attempt.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "scientific_authority": {
+          "const": false,
+          "default": false,
+          "title": "Scientific Authority",
+          "type": "boolean"
+        },
+        "simulation_dispatched": {
+          "title": "Simulation Dispatched",
+          "type": "boolean"
+        },
+        "simulation_returned": {
+          "title": "Simulation Returned",
+          "type": "boolean"
+        },
+        "step_index": {
+          "maximum": 1024,
+          "minimum": 1,
+          "title": "Step Index",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "attempt_index",
+        "before_biological_time_tics",
+        "decoded_proposal_produced",
+        "execution_receipt_sha256",
+        "observation_scope",
+        "observed_after_biological_time_tics",
+        "outcome",
+        "partial_readback_sha256",
+        "reason_code",
+        "receipt_sha256",
+        "request_sha256",
+        "requested_run_tics",
+        "schema_version",
+        "scientific_authority",
+        "simulation_dispatched",
+        "simulation_returned",
+        "step_index"
+      ],
+      "title": "NestStepAttemptReceiptV1",
+      "type": "object"
+    },
+    "NestStepExecutionReceiptV3": {
+      "additionalProperties": false,
+      "properties": {
+        "after_biological_time_tics": {
+          "minimum": 1,
+          "title": "After Biological Time Tics",
+          "type": "integer"
+        },
+        "before_biological_time_tics": {
+          "minimum": 0,
+          "title": "Before Biological Time Tics",
+          "type": "integer"
+        },
+        "channel_safety_readback_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Channel Safety Readback Sha256",
+          "type": "string"
+        },
+        "channel_safety_readbacks": {
+          "items": {
+            "$ref": "#/$defs/NestChannelSafetyReadbackV2"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Channel Safety Readbacks",
+          "type": "array"
+        },
+        "completed_window_readback_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Completed Window Readback Sha256",
+          "type": "string"
+        },
+        "completed_window_readbacks": {
+          "items": {
+            "$ref": "#/$defs/NestPopulationCompletedWindowV1"
+          },
+          "maxItems": 2048,
+          "minItems": 2,
+          "title": "Completed Window Readbacks",
+          "type": "array"
+        },
+        "control_encoding_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Control Encoding Sha256",
+          "type": "string"
+        },
+        "decoded_proposal_only": {
+          "const": true,
+          "default": true,
+          "title": "Decoded Proposal Only",
+          "type": "boolean"
+        },
+        "encoded_control_inputs": {
+          "items": {
+            "$ref": "#/$defs/NestEncodedControlInputV1"
+          },
+          "maxItems": 1024,
+          "minItems": 1,
+          "title": "Encoded Control Inputs",
+          "type": "array"
+        },
+        "generator_schedule_readback_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Generator Schedule Readback Sha256",
+          "type": "string"
+        },
+        "generator_schedule_readbacks": {
+          "items": {
+            "$ref": "#/$defs/NestGeneratorScheduleReadbackV1"
+          },
+          "maxItems": 2048,
+          "minItems": 2,
+          "title": "Generator Schedule Readbacks",
+          "type": "array"
+        },
+        "input_encoding_policy": {
+          "const": "constant-rate-variable-weight-v1",
+          "default": "constant-rate-variable-weight-v1",
+          "title": "Input Encoding Policy",
+          "type": "string"
+        },
+        "input_weight_readback_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Input Weight Readback Sha256",
+          "type": "string"
+        },
+        "input_weight_readbacks": {
+          "items": {
+            "$ref": "#/$defs/NestInputWeightReadbackV1"
+          },
+          "maxItems": 2048,
+          "minItems": 2,
+          "title": "Input Weight Readbacks",
+          "type": "array"
+        },
+        "population_event_deltas": {
+          "items": {
+            "$ref": "#/$defs/NestPopulationEventDeltaV1"
+          },
+          "maxItems": 2048,
+          "minItems": 2,
+          "title": "Population Event Deltas",
+          "type": "array"
+        },
+        "receipt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Receipt Sha256",
+          "type": "string"
+        },
+        "requested_run_tics": {
+          "minimum": 1,
+          "title": "Requested Run Tics",
+          "type": "integer"
+        },
+        "run_api_argument_ms": {
+          "title": "Run Api Argument Ms",
+          "type": "number"
+        },
+        "schema_version": {
+          "const": "engram.nest-step-execution-readback.v3",
+          "default": "engram.nest-step-execution-readback.v3",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "scientific_authority": {
+          "const": false,
+          "default": false,
+          "title": "Scientific Authority",
+          "type": "boolean"
+        },
+        "step_index": {
+          "maximum": 1024,
+          "minimum": 1,
+          "title": "Step Index",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "after_biological_time_tics",
+        "before_biological_time_tics",
+        "channel_safety_readback_sha256",
+        "channel_safety_readbacks",
+        "completed_window_readback_sha256",
+        "completed_window_readbacks",
+        "control_encoding_sha256",
+        "decoded_proposal_only",
+        "encoded_control_inputs",
+        "generator_schedule_readback_sha256",
+        "generator_schedule_readbacks",
+        "input_encoding_policy",
+        "input_weight_readback_sha256",
+        "input_weight_readbacks",
+        "population_event_deltas",
+        "receipt_sha256",
+        "requested_run_tics",
+        "run_api_argument_ms",
+        "schema_version",
+        "scientific_authority",
+        "step_index"
+      ],
+      "title": "NestStepExecutionReceiptV3",
+      "type": "object"
+    },
+    "NestTailDispositionReceiptV1": {
+      "additionalProperties": false,
+      "description": "Terminal handling of recorder events outside completed decode windows.",
+      "properties": {
+        "accounting_disposition": {
+          "enum": [
+            "discarded-incomplete-recorder-delivery-tail",
+            "unresolved-after-controller-fault"
+          ],
+          "title": "Accounting Disposition",
+          "type": "string"
+        },
+        "decoded_proposal_only": {
+          "const": true,
+          "default": true,
+          "title": "Decoded Proposal Only",
+          "type": "boolean"
+        },
+        "final_biological_time_tics": {
+          "minimum": 0,
+          "title": "Final Biological Time Tics",
+          "type": "integer"
+        },
+        "final_completed_watermark_tics": {
+          "minimum": 0,
+          "title": "Final Completed Watermark Tics",
+          "type": "integer"
+        },
+        "population_tail_roster_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Population Tail Roster Sha256",
+          "type": "string"
+        },
+        "population_tails": {
+          "items": {
+            "$ref": "#/$defs/NestPopulationTailV1"
+          },
+          "maxItems": 2048,
+          "title": "Population Tails",
+          "type": "array"
+        },
+        "proposals_used_completed_windows_only": {
+          "const": true,
+          "default": true,
+          "title": "Proposals Used Completed Windows Only",
+          "type": "boolean"
+        },
+        "receipt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Receipt Sha256",
+          "type": "string"
+        },
+        "recorder_delivery_delay_tics": {
+          "minimum": 1,
+          "title": "Recorder Delivery Delay Tics",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": "engram.nest-tail-disposition-receipt.v1",
+          "default": "engram.nest-tail-disposition-receipt.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "scientific_authority": {
+          "const": false,
+          "default": false,
+          "title": "Scientific Authority",
+          "type": "boolean"
+        },
+        "study_run_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Study Run Id",
+          "type": "string"
+        },
+        "total_pending_event_count": {
+          "minimum": 0,
+          "title": "Total Pending Event Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "accounting_disposition",
+        "decoded_proposal_only",
+        "final_biological_time_tics",
+        "final_completed_watermark_tics",
+        "population_tail_roster_sha256",
+        "population_tails",
+        "proposals_used_completed_windows_only",
+        "receipt_sha256",
+        "recorder_delivery_delay_tics",
+        "schema_version",
+        "scientific_authority",
+        "study_run_id",
+        "total_pending_event_count"
+      ],
+      "title": "NestTailDispositionReceiptV1",
+      "type": "object"
+    },
+    "NestWorkAdmissionV1": {
+      "additionalProperties": false,
+      "description": "Definition-bound deterministic NEST construction and run budget.",
+      "properties": {
+        "action_dimension_count": {
+          "minimum": 1,
+          "title": "Action Dimension Count",
+          "type": "integer"
+        },
+        "admitted": {
+          "const": true,
+          "default": true,
+          "title": "Admitted",
+          "type": "boolean"
+        },
+        "byte_estimate_policy": {
+          "const": "closed-json-upper-bound-v1",
+          "default": "closed-json-upper-bound-v1",
+          "title": "Byte Estimate Policy",
+          "type": "string"
+        },
+        "channel_count": {
+          "maximum": 64,
+          "minimum": 1,
+          "title": "Channel Count",
+          "type": "integer"
+        },
+        "closed_loop_definition_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Closed Loop Definition Sha256",
+          "type": "string"
+        },
+        "controller_configuration_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Controller Configuration Sha256",
+          "type": "string"
+        },
+        "device_node_count": {
+          "minimum": 4,
+          "title": "Device Node Count",
+          "type": "integer"
+        },
+        "estimated_evidence_bundle_bytes": {
+          "minimum": 1,
+          "title": "Estimated Evidence Bundle Bytes",
+          "type": "integer"
+        },
+        "estimated_evidence_bundle_nodes": {
+          "minimum": 1,
+          "title": "Estimated Evidence Bundle Nodes",
+          "type": "integer"
+        },
+        "estimated_step_response_bytes": {
+          "minimum": 1,
+          "title": "Estimated Step Response Bytes",
+          "type": "integer"
+        },
+        "estimated_step_response_nodes": {
+          "minimum": 1,
+          "title": "Estimated Step Response Nodes",
+          "type": "integer"
+        },
+        "expected_control_binding_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Expected Control Binding Sha256",
+          "type": "string"
+        },
+        "expected_population_roster_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Expected Population Roster Sha256",
+          "type": "string"
+        },
+        "input_event_work_units": {
+          "minimum": 0,
+          "title": "Input Event Work Units",
+          "type": "integer"
+        },
+        "max_evidence_bundle_bytes": {
+          "const": 251658240,
+          "default": 251658240,
+          "title": "Max Evidence Bundle Bytes",
+          "type": "integer"
+        },
+        "max_evidence_bundle_nodes": {
+          "const": 131072,
+          "default": 131072,
+          "title": "Max Evidence Bundle Nodes",
+          "type": "integer"
+        },
+        "max_input_event_work_units": {
+          "const": 100000000,
+          "default": 100000000,
+          "title": "Max Input Event Work Units",
+          "type": "integer"
+        },
+        "max_neuron_tic_work_units": {
+          "const": 10000000000,
+          "default": 10000000000,
+          "title": "Max Neuron Tic Work Units",
+          "type": "integer"
+        },
+        "max_step_response_bytes": {
+          "const": 3145728,
+          "default": 3145728,
+          "title": "Max Step Response Bytes",
+          "type": "integer"
+        },
+        "max_step_response_nodes": {
+          "const": 32768,
+          "default": 32768,
+          "title": "Max Step Response Nodes",
+          "type": "integer"
+        },
+        "max_total_connections": {
+          "const": 100000,
+          "default": 100000,
+          "title": "Max Total Connections",
+          "type": "integer"
+        },
+        "max_total_nodes": {
+          "const": 65536,
+          "default": 65536,
+          "title": "Max Total Nodes",
+          "type": "integer"
+        },
+        "maximum_input_rate_hz": {
+          "maximum": 200000.0,
+          "minimum": 0.0,
+          "title": "Maximum Input Rate Hz",
+          "type": "number"
+        },
+        "neuron_tic_work_units": {
+          "minimum": 1,
+          "title": "Neuron Tic Work Units",
+          "type": "integer"
+        },
+        "node_estimate_policy": {
+          "const": "canonical-json-node-upper-bound-v1",
+          "default": "canonical-json-node-upper-bound-v1",
+          "title": "Node Estimate Policy",
+          "type": "string"
+        },
+        "planned_step_count": {
+          "maximum": 1024,
+          "minimum": 1,
+          "title": "Planned Step Count",
+          "type": "integer"
+        },
+        "population_neuron_count": {
+          "minimum": 2,
+          "title": "Population Neuron Count",
+          "type": "integer"
+        },
+        "population_size": {
+          "maximum": 512,
+          "minimum": 2,
+          "title": "Population Size",
+          "type": "integer"
+        },
+        "receipt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Receipt Sha256",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "engram.nest-work-admission.v1",
+          "default": "engram.nest-work-admission.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "signed_population_count": {
+          "minimum": 2,
+          "title": "Signed Population Count",
+          "type": "integer"
+        },
+        "step_duration_tics": {
+          "minimum": 1,
+          "title": "Step Duration Tics",
+          "type": "integer"
+        },
+        "total_connection_count": {
+          "minimum": 4,
+          "title": "Total Connection Count",
+          "type": "integer"
+        },
+        "total_node_count": {
+          "minimum": 6,
+          "title": "Total Node Count",
+          "type": "integer"
+        },
+        "total_run_tics": {
+          "minimum": 1,
+          "title": "Total Run Tics",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "action_dimension_count",
+        "admitted",
+        "byte_estimate_policy",
+        "channel_count",
+        "closed_loop_definition_sha256",
+        "controller_configuration_sha256",
+        "device_node_count",
+        "estimated_evidence_bundle_bytes",
+        "estimated_evidence_bundle_nodes",
+        "estimated_step_response_bytes",
+        "estimated_step_response_nodes",
+        "expected_control_binding_sha256",
+        "expected_population_roster_sha256",
+        "input_event_work_units",
+        "max_evidence_bundle_bytes",
+        "max_evidence_bundle_nodes",
+        "max_input_event_work_units",
+        "max_neuron_tic_work_units",
+        "max_step_response_bytes",
+        "max_step_response_nodes",
+        "max_total_connections",
+        "max_total_nodes",
+        "maximum_input_rate_hz",
+        "neuron_tic_work_units",
+        "node_estimate_policy",
+        "planned_step_count",
+        "population_neuron_count",
+        "population_size",
+        "receipt_sha256",
+        "schema_version",
+        "signed_population_count",
+        "step_duration_tics",
+        "total_connection_count",
+        "total_node_count",
+        "total_run_tics"
+      ],
+      "title": "NestWorkAdmissionV1",
+      "type": "object"
+    },
+    "NestWorkerLaunchAttemptReceiptV1": {
+      "additionalProperties": false,
+      "description": "One total parent observation of worker-generation startup.",
+      "properties": {
+        "anchored_group_kill_delivered": {
+          "title": "Anchored Group Kill Delivered",
+          "type": "boolean"
+        },
+        "bounded_cleanup_observation_complete": {
+          "title": "Bounded Cleanup Observation Complete",
+          "type": "boolean"
+        },
+        "containment_empty": {
+          "title": "Containment Empty",
+          "type": "boolean"
+        },
+        "containment_seal_signal": {
+          "anyOf": [
+            {
+              "const": 9,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Containment Seal Signal"
+        },
+        "group_signal_attempted": {
+          "title": "Group Signal Attempted",
+          "type": "boolean"
+        },
+        "group_signal_basis": {
+          "enum": [
+            "guardian-group-anchor-unreaped",
+            "worker-group-leader-unreaped",
+            "none"
+          ],
+          "title": "Group Signal Basis",
+          "type": "string"
+        },
+        "guardian_pid": {
+          "anyOf": [
+            {
+              "minimum": 2,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Guardian Pid"
+        },
+        "guardian_ready_observed": {
+          "title": "Guardian Ready Observed",
+          "type": "boolean"
+        },
+        "guardian_reaped": {
+          "title": "Guardian Reaped",
+          "type": "boolean"
+        },
+        "guardian_started": {
+          "title": "Guardian Started",
+          "type": "boolean"
+        },
+        "launch_expectation_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Launch Expectation Sha256",
+          "type": "string"
+        },
+        "outcome": {
+          "enum": [
+            "succeeded",
+            "failed",
+            "not-attempted"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "phase": {
+          "enum": [
+            "preflight",
+            "exec-gate-spawn",
+            "exec-gate-readiness",
+            "guardian-spawn",
+            "guardian-readiness",
+            "gate-release",
+            "stderr-drain",
+            "worker-ready"
+          ],
+          "title": "Phase",
+          "type": "string"
+        },
+        "posix_process_group_portability_scope": {
+          "const": "darwin-linux-reviewed-local-development",
+          "default": "darwin-linux-reviewed-local-development",
+          "title": "Posix Process Group Portability Scope",
+          "type": "string"
+        },
+        "process_group_id": {
+          "anyOf": [
+            {
+              "minimum": 2,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Process Group Id"
+        },
+        "production_isolation": {
+          "const": false,
+          "default": false,
+          "title": "Production Isolation",
+          "type": "boolean"
+        },
+        "reason_code": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Reason Code",
+          "type": "string"
+        },
+        "receipt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Receipt Sha256",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "engram.nest-worker-launch-attempt.v1",
+          "default": "engram.nest-worker-launch-attempt.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "scientific_authority": {
+          "const": false,
+          "default": false,
+          "title": "Scientific Authority",
+          "type": "boolean"
+        },
+        "session_id": {
+          "anyOf": [
+            {
+              "minimum": 2,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Session Id"
+        },
+        "stderr_drain_started": {
+          "title": "Stderr Drain Started",
+          "type": "boolean"
+        },
+        "worker_pid": {
+          "anyOf": [
+            {
+              "minimum": 2,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Worker Pid"
+        },
+        "worker_reaped": {
+          "title": "Worker Reaped",
+          "type": "boolean"
+        },
+        "worker_started": {
+          "title": "Worker Started",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "anchored_group_kill_delivered",
+        "bounded_cleanup_observation_complete",
+        "containment_empty",
+        "containment_seal_signal",
+        "group_signal_attempted",
+        "group_signal_basis",
+        "guardian_pid",
+        "guardian_ready_observed",
+        "guardian_reaped",
+        "guardian_started",
+        "launch_expectation_sha256",
+        "outcome",
+        "phase",
+        "posix_process_group_portability_scope",
+        "process_group_id",
+        "production_isolation",
+        "reason_code",
+        "receipt_sha256",
+        "schema_version",
+        "scientific_authority",
+        "session_id",
+        "stderr_drain_started",
+        "worker_pid",
+        "worker_reaped",
+        "worker_started"
+      ],
+      "title": "NestWorkerLaunchAttemptReceiptV1",
+      "type": "object"
+    },
+    "NestWorkerLaunchExpectationV4": {
+      "additionalProperties": false,
+      "description": "Parent-frozen launch inputs for one worker generation.",
+      "properties": {
+        "adapter_source_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Adapter Source Sha256",
+          "type": "string"
+        },
+        "address_space_bytes": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Address Space Bytes"
+        },
+        "address_space_limit_enforced": {
+          "title": "Address Space Limit Enforced",
+          "type": "boolean"
+        },
+        "child_provider_test_failure_phase": {
+          "enum": [
+            "none",
+            "post-simulate",
+            "post-readback"
+          ],
+          "title": "Child Provider Test Failure Phase",
+          "type": "string"
+        },
+        "controller_configuration": {
+          "$ref": "#/$defs/NestPopulationControllerConfigV2"
+        },
+        "core_file_bytes": {
+          "const": 0,
+          "default": 0,
+          "title": "Core File Bytes",
+          "type": "integer"
+        },
+        "cpu_time_seconds": {
+          "minimum": 1,
+          "title": "Cpu Time Seconds",
+          "type": "integer"
+        },
+        "darwin_sandbox_launcher_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Darwin Sandbox Launcher Sha256"
+        },
+        "darwin_sandbox_profile_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Darwin Sandbox Profile Sha256"
+        },
+        "descendant_creation_denied": {
+          "title": "Descendant Creation Denied",
+          "type": "boolean"
+        },
+        "environment": {
+          "items": {
+            "items": false,
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "type": "array"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "title": "Environment",
+          "type": "array"
+        },
+        "exec_gate_source_file": {
+          "$ref": "#/$defs/NestWorkerRuntimeFileV1"
+        },
+        "exec_gate_source_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Exec Gate Source Sha256",
+          "type": "string"
+        },
+        "expected_child_provider_identity_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Expected Child Provider Identity Sha256",
+          "type": "string"
+        },
+        "external_dependency_closure_attested": {
+          "const": false,
+          "default": false,
+          "title": "External Dependency Closure Attested",
+          "type": "boolean"
+        },
+        "file_size_bytes": {
+          "minimum": 1,
+          "title": "File Size Bytes",
+          "type": "integer"
+        },
+        "guardian_command": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 8,
+          "minItems": 4,
+          "title": "Guardian Command",
+          "type": "array"
+        },
+        "guardian_group_member": {
+          "const": true,
+          "default": true,
+          "title": "Guardian Group Member",
+          "type": "boolean"
+        },
+        "guardian_source_file": {
+          "$ref": "#/$defs/NestWorkerRuntimeFileV1"
+        },
+        "guardian_source_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Guardian Source Sha256",
+          "type": "string"
+        },
+        "loaded_bytes_attested": {
+          "const": false,
+          "default": false,
+          "title": "Loaded Bytes Attested",
+          "type": "boolean"
+        },
+        "network_namespace_isolation": {
+          "const": false,
+          "default": false,
+          "title": "Network Namespace Isolation",
+          "type": "boolean"
+        },
+        "open_file_count": {
+          "minimum": 32,
+          "title": "Open File Count",
+          "type": "integer"
+        },
+        "platform": {
+          "enum": [
+            "darwin",
+            "linux"
+          ],
+          "title": "Platform",
+          "type": "string"
+        },
+        "production_isolation": {
+          "const": false,
+          "default": false,
+          "title": "Production Isolation",
+          "type": "boolean"
+        },
+        "project_source_discovery_policy": {
+          "const": "minimum-direct-worker-import-roster-v1",
+          "default": "minimum-direct-worker-import-roster-v1",
+          "title": "Project Source Discovery Policy",
+          "type": "string"
+        },
+        "python_executable_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Python Executable Sha256",
+          "type": "string"
+        },
+        "receipt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Receipt Sha256",
+          "type": "string"
+        },
+        "required_project_source_roster_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Required Project Source Roster Sha256",
+          "type": "string"
+        },
+        "required_runtime_file_roster_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Required Runtime File Roster Sha256",
+          "type": "string"
+        },
+        "required_runtime_files": {
+          "items": {
+            "$ref": "#/$defs/NestWorkerRuntimeFileV1"
+          },
+          "maxItems": 516,
+          "minItems": 32,
+          "title": "Required Runtime Files",
+          "type": "array"
+        },
+        "resource_limit_profile": {
+          "const": "portable-posix-rlimit-v1",
+          "default": "portable-posix-rlimit-v1",
+          "title": "Resource Limit Profile",
+          "type": "string"
+        },
+        "runtime_process_group_leader": {
+          "const": true,
+          "default": true,
+          "title": "Runtime Process Group Leader",
+          "type": "boolean"
+        },
+        "schema_version": {
+          "const": "engram.nest-worker-launch-expectation.v4",
+          "default": "engram.nest-worker-launch-expectation.v4",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "session_escape_prevention_profile": {
+          "enum": [
+            "darwin-gated-group-leader-deny-fork-v1",
+            "linux-trusted-worker-source-v1",
+            "test-only-unconfined-v1"
+          ],
+          "title": "Session Escape Prevention Profile",
+          "type": "string"
+        },
+        "sys_path": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 8,
+          "minItems": 4,
+          "title": "Sys Path",
+          "type": "array"
+        },
+        "syscall_filter": {
+          "const": false,
+          "default": false,
+          "title": "Syscall Filter",
+          "type": "boolean"
+        },
+        "worker_command": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 24,
+          "minItems": 14,
+          "title": "Worker Command",
+          "type": "array"
+        },
+        "worker_command_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Worker Command Sha256",
+          "type": "string"
+        },
+        "worker_dispatch_command": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 14,
+          "title": "Worker Dispatch Command",
+          "type": "array"
+        },
+        "worker_source_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Worker Source Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "adapter_source_sha256",
+        "address_space_bytes",
+        "address_space_limit_enforced",
+        "child_provider_test_failure_phase",
+        "controller_configuration",
+        "core_file_bytes",
+        "cpu_time_seconds",
+        "darwin_sandbox_launcher_sha256",
+        "darwin_sandbox_profile_sha256",
+        "descendant_creation_denied",
+        "environment",
+        "exec_gate_source_file",
+        "exec_gate_source_sha256",
+        "expected_child_provider_identity_sha256",
+        "external_dependency_closure_attested",
+        "file_size_bytes",
+        "guardian_command",
+        "guardian_group_member",
+        "guardian_source_file",
+        "guardian_source_sha256",
+        "loaded_bytes_attested",
+        "network_namespace_isolation",
+        "open_file_count",
+        "platform",
+        "production_isolation",
+        "project_source_discovery_policy",
+        "python_executable_sha256",
+        "receipt_sha256",
+        "required_project_source_roster_sha256",
+        "required_runtime_file_roster_sha256",
+        "required_runtime_files",
+        "resource_limit_profile",
+        "runtime_process_group_leader",
+        "schema_version",
+        "session_escape_prevention_profile",
+        "sys_path",
+        "syscall_filter",
+        "worker_command",
+        "worker_command_sha256",
+        "worker_dispatch_command",
+        "worker_source_sha256"
+      ],
+      "title": "NestWorkerLaunchExpectationV4",
+      "type": "object"
+    },
+    "NestWorkerLifecycleReceiptV2": {
+      "additionalProperties": false,
+      "description": "Confirmed terminal worker-process containment.",
+      "properties": {
+        "adapter_source_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Adapter Source Sha256",
+          "type": "string"
+        },
+        "child_reaped": {
+          "const": true,
+          "default": true,
+          "title": "Child Reaped",
+          "type": "boolean"
+        },
+        "containment_empty": {
+          "const": true,
+          "default": true,
+          "title": "Containment Empty",
+          "type": "boolean"
+        },
+        "diagnostic_stream_complete": {
+          "const": true,
+          "default": true,
+          "title": "Diagnostic Stream Complete",
+          "type": "boolean"
+        },
+        "disposition": {
+          "enum": [
+            "clean-exit",
+            "terminated",
+            "killed",
+            "crashed"
+          ],
+          "title": "Disposition",
+          "type": "string"
+        },
+        "exit_code": {
+          "title": "Exit Code",
+          "type": "integer"
+        },
+        "guardian_pid": {
+          "minimum": 2,
+          "title": "Guardian Pid",
+          "type": "integer"
+        },
+        "guardian_reaped": {
+          "const": true,
+          "default": true,
+          "title": "Guardian Reaped",
+          "type": "boolean"
+        },
+        "guardian_source_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Guardian Source Sha256",
+          "type": "string"
+        },
+        "guardian_unexpected_exit_observed": {
+          "title": "Guardian Unexpected Exit Observed",
+          "type": "boolean"
+        },
+        "hard_deadline_enforcement": {
+          "const": true,
+          "default": true,
+          "title": "Hard Deadline Enforcement",
+          "type": "boolean"
+        },
+        "ncp_transport": {
+          "const": false,
+          "default": false,
+          "title": "Ncp Transport",
+          "type": "boolean"
+        },
+        "physical_authority": {
+          "const": false,
+          "default": false,
+          "title": "Physical Authority",
+          "type": "boolean"
+        },
+        "posix_process_group_portability_scope": {
+          "const": "darwin-linux-reviewed-local-development",
+          "default": "darwin-linux-reviewed-local-development",
+          "title": "Posix Process Group Portability Scope",
+          "type": "string"
+        },
+        "process_group_id": {
+          "minimum": 2,
+          "title": "Process Group Id",
+          "type": "integer"
+        },
+        "reason_code": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Reason Code",
+          "type": "string"
+        },
+        "receipt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Receipt Sha256",
+          "type": "string"
+        },
+        "request_count": {
+          "maximum": 4096,
+          "minimum": 0,
+          "title": "Request Count",
+          "type": "integer"
+        },
+        "resource_limit_receipt_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resource Limit Receipt Sha256"
+        },
+        "response_count": {
+          "maximum": 4096,
+          "minimum": 0,
+          "title": "Response Count",
+          "type": "integer"
+        },
+        "runtime_identity_receipt_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Runtime Identity Receipt Sha256"
+        },
+        "runtime_launch_expectation_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Runtime Launch Expectation Sha256",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "engram.nest-worker-lifecycle-receipt.v2",
+          "default": "engram.nest-worker-lifecycle-receipt.v2",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "scientific_authority": {
+          "const": false,
+          "default": false,
+          "title": "Scientific Authority",
+          "type": "boolean"
+        },
+        "session_binding_receipt_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Session Binding Receipt Sha256"
+        },
+        "session_id": {
+          "minimum": 2,
+          "title": "Session Id",
+          "type": "integer"
+        },
+        "stderr_retained_bytes": {
+          "maximum": 1048576,
+          "minimum": 0,
+          "title": "Stderr Retained Bytes",
+          "type": "integer"
+        },
+        "stderr_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Stderr Sha256",
+          "type": "string"
+        },
+        "stderr_truncated": {
+          "title": "Stderr Truncated",
+          "type": "boolean"
+        },
+        "termination_attempt_roster_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Termination Attempt Roster Sha256",
+          "type": "string"
+        },
+        "termination_attempts": {
+          "items": {
+            "$ref": "#/$defs/NestWorkerTerminationAttemptReceiptV1"
+          },
+          "maxItems": 4096,
+          "minItems": 1,
+          "title": "Termination Attempts",
+          "type": "array"
+        },
+        "termination_signal": {
+          "anyOf": [
+            {
+              "maximum": 64,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Termination Signal"
+        },
+        "worker_command_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Worker Command Sha256",
+          "type": "string"
+        },
+        "worker_launch_attempt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Worker Launch Attempt Sha256",
+          "type": "string"
+        },
+        "worker_pid": {
+          "minimum": 2,
+          "title": "Worker Pid",
+          "type": "integer"
+        },
+        "worker_source_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Worker Source Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "adapter_source_sha256",
+        "child_reaped",
+        "containment_empty",
+        "diagnostic_stream_complete",
+        "disposition",
+        "exit_code",
+        "guardian_pid",
+        "guardian_reaped",
+        "guardian_source_sha256",
+        "guardian_unexpected_exit_observed",
+        "hard_deadline_enforcement",
+        "ncp_transport",
+        "physical_authority",
+        "posix_process_group_portability_scope",
+        "process_group_id",
+        "reason_code",
+        "receipt_sha256",
+        "request_count",
+        "resource_limit_receipt_sha256",
+        "response_count",
+        "runtime_identity_receipt_sha256",
+        "runtime_launch_expectation_sha256",
+        "schema_version",
+        "scientific_authority",
+        "session_binding_receipt_sha256",
+        "session_id",
+        "stderr_retained_bytes",
+        "stderr_sha256",
+        "stderr_truncated",
+        "termination_attempt_roster_sha256",
+        "termination_attempts",
+        "termination_signal",
+        "worker_command_sha256",
+        "worker_launch_attempt_sha256",
+        "worker_pid",
+        "worker_source_sha256"
+      ],
+      "title": "NestWorkerLifecycleReceiptV2",
+      "type": "object"
+    },
+    "NestWorkerPreparationAttemptReceiptV1": {
+      "additionalProperties": false,
+      "description": "Parent-observed adapter preparation, including pre-session failure.",
+      "properties": {
+        "definition_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Definition Sha256",
+          "type": "string"
+        },
+        "outcome": {
+          "enum": [
+            "succeeded",
+            "failed-response",
+            "unknown-after-worker-dispatch",
+            "failed-before-worker-dispatch"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "phase": {
+          "enum": [
+            "host-preflight",
+            "capability-bootstrap",
+            "provider-prepare"
+          ],
+          "title": "Phase",
+          "type": "string"
+        },
+        "provider_preparation_receipt_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Preparation Receipt Sha256"
+        },
+        "reason_code": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Reason Code",
+          "type": "string"
+        },
+        "receipt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Receipt Sha256",
+          "type": "string"
+        },
+        "runtime_identity_receipt_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Runtime Identity Receipt Sha256"
+        },
+        "runtime_launch_expectation_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Runtime Launch Expectation Sha256",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "engram.nest-worker-preparation-attempt.v1",
+          "default": "engram.nest-worker-preparation-attempt.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "scientific_authority": {
+          "const": false,
+          "default": false,
+          "title": "Scientific Authority",
+          "type": "boolean"
+        },
+        "session_binding_receipt_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Session Binding Receipt Sha256"
+        },
+        "study_run_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Study Run Id",
+          "type": "string"
+        },
+        "worker_launch_attempt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Worker Launch Attempt Sha256",
+          "type": "string"
+        },
+        "worker_request_dispatched": {
+          "title": "Worker Request Dispatched",
+          "type": "boolean"
+        },
+        "worker_response_observed": {
+          "title": "Worker Response Observed",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "definition_sha256",
+        "outcome",
+        "phase",
+        "provider_preparation_receipt_sha256",
+        "reason_code",
+        "receipt_sha256",
+        "runtime_identity_receipt_sha256",
+        "runtime_launch_expectation_sha256",
+        "schema_version",
+        "scientific_authority",
+        "session_binding_receipt_sha256",
+        "study_run_id",
+        "worker_launch_attempt_sha256",
+        "worker_request_dispatched",
+        "worker_response_observed"
+      ],
+      "title": "NestWorkerPreparationAttemptReceiptV1",
+      "type": "object"
+    },
+    "NestWorkerResourceLimitReceiptV1": {
+      "additionalProperties": false,
+      "description": "Worker-observed POSIX limits applied before importing PyNEST.",
+      "properties": {
+        "address_space_bytes": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Address Space Bytes"
+        },
+        "address_space_limit_enforced": {
+          "title": "Address Space Limit Enforced",
+          "type": "boolean"
+        },
+        "applied_before_nest_import": {
+          "const": true,
+          "default": true,
+          "title": "Applied Before Nest Import",
+          "type": "boolean"
+        },
+        "core_file_bytes": {
+          "const": 0,
+          "default": 0,
+          "title": "Core File Bytes",
+          "type": "integer"
+        },
+        "cpu_time_seconds": {
+          "minimum": 1,
+          "title": "Cpu Time Seconds",
+          "type": "integer"
+        },
+        "file_size_bytes": {
+          "minimum": 1,
+          "title": "File Size Bytes",
+          "type": "integer"
+        },
+        "network_namespace_isolation": {
+          "const": false,
+          "default": false,
+          "title": "Network Namespace Isolation",
+          "type": "boolean"
+        },
+        "open_file_count": {
+          "minimum": 32,
+          "title": "Open File Count",
+          "type": "integer"
+        },
+        "platform": {
+          "enum": [
+            "darwin",
+            "linux"
+          ],
+          "title": "Platform",
+          "type": "string"
+        },
+        "production_isolation": {
+          "const": false,
+          "default": false,
+          "title": "Production Isolation",
+          "type": "boolean"
+        },
+        "profile": {
+          "const": "portable-posix-rlimit-v1",
+          "default": "portable-posix-rlimit-v1",
+          "title": "Profile",
+          "type": "string"
+        },
+        "receipt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Receipt Sha256",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "engram.nest-worker-resource-limits.v1",
+          "default": "engram.nest-worker-resource-limits.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "syscall_filter": {
+          "const": false,
+          "default": false,
+          "title": "Syscall Filter",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "address_space_bytes",
+        "address_space_limit_enforced",
+        "applied_before_nest_import",
+        "core_file_bytes",
+        "cpu_time_seconds",
+        "file_size_bytes",
+        "network_namespace_isolation",
+        "open_file_count",
+        "platform",
+        "production_isolation",
+        "profile",
+        "receipt_sha256",
+        "schema_version",
+        "syscall_filter"
+      ],
+      "title": "NestWorkerResourceLimitReceiptV1",
+      "type": "object"
+    },
+    "NestWorkerRuntimeFileV1": {
+      "additionalProperties": false,
+      "properties": {
+        "absolute_path": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "title": "Absolute Path",
+          "type": "string"
+        },
+        "role": {
+          "pattern": "^(?:project-module:backend(?:\\.[a-z_][a-z0-9_]*)*|nest-package-init|nest-pynestkernel-native|pydantic-core-native|pydantic-package-init|python-executable|worker-source|guardian-source|exec-gate-source)$",
+          "title": "Role",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "size_bytes": {
+          "maximum": 67108864,
+          "minimum": 0,
+          "title": "Size Bytes",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "absolute_path",
+        "role",
+        "sha256",
+        "size_bytes"
+      ],
+      "title": "NestWorkerRuntimeFileV1",
+      "type": "object"
+    },
+    "NestWorkerRuntimeIdentityReceiptV2": {
+      "additionalProperties": false,
+      "description": "Child-observed runtime files and isolated launch state.",
+      "properties": {
+        "environment": {
+          "items": {
+            "items": false,
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "type": "array"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "title": "Environment",
+          "type": "array"
+        },
+        "external_dependency_closure_attested": {
+          "const": false,
+          "default": false,
+          "title": "External Dependency Closure Attested",
+          "type": "boolean"
+        },
+        "file_roster_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "File Roster Sha256",
+          "type": "string"
+        },
+        "files": {
+          "items": {
+            "$ref": "#/$defs/NestWorkerRuntimeFileV1"
+          },
+          "maxItems": 518,
+          "minItems": 34,
+          "title": "Files",
+          "type": "array"
+        },
+        "ignore_environment_flag": {
+          "const": 1,
+          "default": 1,
+          "title": "Ignore Environment Flag",
+          "type": "integer"
+        },
+        "isolated_flag": {
+          "const": 1,
+          "default": 1,
+          "title": "Isolated Flag",
+          "type": "integer"
+        },
+        "loaded_bytes_attested": {
+          "const": false,
+          "default": false,
+          "title": "Loaded Bytes Attested",
+          "type": "boolean"
+        },
+        "no_site_flag": {
+          "const": 1,
+          "default": 1,
+          "title": "No Site Flag",
+          "type": "integer"
+        },
+        "no_user_site_flag": {
+          "const": 1,
+          "default": 1,
+          "title": "No User Site Flag",
+          "type": "integer"
+        },
+        "project_source_closure_verified": {
+          "const": true,
+          "default": true,
+          "title": "Project Source Closure Verified",
+          "type": "boolean"
+        },
+        "project_source_roster_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Project Source Roster Sha256",
+          "type": "string"
+        },
+        "python_version": {
+          "maxLength": 1024,
+          "minLength": 1,
+          "title": "Python Version",
+          "type": "string"
+        },
+        "receipt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Receipt Sha256",
+          "type": "string"
+        },
+        "reported_nest_version": {
+          "const": "3.9.0",
+          "default": "3.9.0",
+          "title": "Reported Nest Version",
+          "type": "string"
+        },
+        "reported_pydantic_version": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Reported Pydantic Version",
+          "type": "string"
+        },
+        "resource_limits": {
+          "$ref": "#/$defs/NestWorkerResourceLimitReceiptV1"
+        },
+        "response_bound_loaded_bytes": {
+          "const": false,
+          "default": false,
+          "title": "Response Bound Loaded Bytes",
+          "type": "boolean"
+        },
+        "schema_version": {
+          "const": "engram.nest-worker-runtime-identity.v2",
+          "default": "engram.nest-worker-runtime-identity.v2",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "sys_path": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 8,
+          "minItems": 4,
+          "title": "Sys Path",
+          "type": "array"
+        }
+      },
+      "required": [
+        "environment",
+        "external_dependency_closure_attested",
+        "file_roster_sha256",
+        "files",
+        "ignore_environment_flag",
+        "isolated_flag",
+        "loaded_bytes_attested",
+        "no_site_flag",
+        "no_user_site_flag",
+        "project_source_closure_verified",
+        "project_source_roster_sha256",
+        "python_version",
+        "receipt_sha256",
+        "reported_nest_version",
+        "reported_pydantic_version",
+        "resource_limits",
+        "response_bound_loaded_bytes",
+        "schema_version",
+        "sys_path"
+      ],
+      "title": "NestWorkerRuntimeIdentityReceiptV2",
+      "type": "object"
+    },
+    "NestWorkerSessionBindingReceiptV1": {
+      "additionalProperties": false,
+      "description": "Parent join of wrapper, child capability, preparation, and runtime bytes.",
+      "properties": {
+        "adapter_source_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Adapter Source Sha256",
+          "type": "string"
+        },
+        "child_capabilities_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Child Capabilities Sha256",
+          "type": "string"
+        },
+        "child_lineage_verified": {
+          "const": true,
+          "default": true,
+          "title": "Child Lineage Verified",
+          "type": "boolean"
+        },
+        "child_prepared_receipt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Child Prepared Receipt Sha256",
+          "type": "string"
+        },
+        "child_provider_identity_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Child Provider Identity Sha256",
+          "type": "string"
+        },
+        "child_session_receipt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Child Session Receipt Sha256",
+          "type": "string"
+        },
+        "guardian_source_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Guardian Source Sha256",
+          "type": "string"
+        },
+        "loaded_bytes_attested": {
+          "const": false,
+          "default": false,
+          "title": "Loaded Bytes Attested",
+          "type": "boolean"
+        },
+        "ncp_transport": {
+          "const": false,
+          "default": false,
+          "title": "Ncp Transport",
+          "type": "boolean"
+        },
+        "parent_provider_identity_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Parent Provider Identity Sha256",
+          "type": "string"
+        },
+        "receipt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Receipt Sha256",
+          "type": "string"
+        },
+        "response_bound_loaded_bytes": {
+          "const": false,
+          "default": false,
+          "title": "Response Bound Loaded Bytes",
+          "type": "boolean"
+        },
+        "runtime_launch_expectation_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Runtime Launch Expectation Sha256",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "engram.nest-worker-session-binding.v1",
+          "default": "engram.nest-worker-session-binding.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "scientific_authority": {
+          "const": false,
+          "default": false,
+          "title": "Scientific Authority",
+          "type": "boolean"
+        },
+        "study_run_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Study Run Id",
+          "type": "string"
+        },
+        "worker_command_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Worker Command Sha256",
+          "type": "string"
+        },
+        "worker_launch_attempt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Worker Launch Attempt Sha256",
+          "type": "string"
+        },
+        "worker_project_source_roster_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Worker Project Source Roster Sha256",
+          "type": "string"
+        },
+        "worker_runtime_identity_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Worker Runtime Identity Sha256",
+          "type": "string"
+        },
+        "worker_source_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Worker Source Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "adapter_source_sha256",
+        "child_capabilities_sha256",
+        "child_lineage_verified",
+        "child_prepared_receipt_sha256",
+        "child_provider_identity_sha256",
+        "child_session_receipt_sha256",
+        "guardian_source_sha256",
+        "loaded_bytes_attested",
+        "ncp_transport",
+        "parent_provider_identity_sha256",
+        "receipt_sha256",
+        "response_bound_loaded_bytes",
+        "runtime_launch_expectation_sha256",
+        "schema_version",
+        "scientific_authority",
+        "study_run_id",
+        "worker_command_sha256",
+        "worker_launch_attempt_sha256",
+        "worker_project_source_roster_sha256",
+        "worker_runtime_identity_sha256",
+        "worker_source_sha256"
+      ],
+      "title": "NestWorkerSessionBindingReceiptV1",
+      "type": "object"
+    },
+    "NestWorkerTerminationAttemptReceiptV1": {
+      "additionalProperties": false,
+      "description": "One retryable local termination and containment observation.",
+      "properties": {
+        "adapter_source_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Adapter Source Sha256",
+          "type": "string"
+        },
+        "anchored_group_kill_delivered": {
+          "title": "Anchored Group Kill Delivered",
+          "type": "boolean"
+        },
+        "attempt_index": {
+          "maximum": 4096,
+          "minimum": 1,
+          "title": "Attempt Index",
+          "type": "integer"
+        },
+        "child_reaped": {
+          "title": "Child Reaped",
+          "type": "boolean"
+        },
+        "containment_empty": {
+          "title": "Containment Empty",
+          "type": "boolean"
+        },
+        "containment_seal_signal": {
+          "anyOf": [
+            {
+              "const": 9,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Containment Seal Signal"
+        },
+        "diagnostic_stream_complete": {
+          "title": "Diagnostic Stream Complete",
+          "type": "boolean"
+        },
+        "disposition": {
+          "enum": [
+            "clean-exit",
+            "terminated",
+            "killed",
+            "crashed",
+            "unconfirmed"
+          ],
+          "title": "Disposition",
+          "type": "string"
+        },
+        "exit_code": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Exit Code"
+        },
+        "group_signal_attempted": {
+          "title": "Group Signal Attempted",
+          "type": "boolean"
+        },
+        "group_signal_basis": {
+          "enum": [
+            "guardian-group-anchor-unreaped",
+            "worker-group-leader-unreaped",
+            "none"
+          ],
+          "title": "Group Signal Basis",
+          "type": "string"
+        },
+        "group_signal_while_guardian_unreaped": {
+          "title": "Group Signal While Guardian Unreaped",
+          "type": "boolean"
+        },
+        "guardian_pid": {
+          "minimum": 2,
+          "title": "Guardian Pid",
+          "type": "integer"
+        },
+        "guardian_reaped": {
+          "title": "Guardian Reaped",
+          "type": "boolean"
+        },
+        "guardian_source_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Guardian Source Sha256",
+          "type": "string"
+        },
+        "guardian_unexpected_exit_observed": {
+          "title": "Guardian Unexpected Exit Observed",
+          "type": "boolean"
+        },
+        "hard_deadline_enforcement": {
+          "const": true,
+          "default": true,
+          "title": "Hard Deadline Enforcement",
+          "type": "boolean"
+        },
+        "ncp_transport": {
+          "const": false,
+          "default": false,
+          "title": "Ncp Transport",
+          "type": "boolean"
+        },
+        "physical_authority": {
+          "const": false,
+          "default": false,
+          "title": "Physical Authority",
+          "type": "boolean"
+        },
+        "posix_process_group_portability_scope": {
+          "const": "darwin-linux-reviewed-local-development",
+          "default": "darwin-linux-reviewed-local-development",
+          "title": "Posix Process Group Portability Scope",
+          "type": "string"
+        },
+        "process_group_id": {
+          "minimum": 2,
+          "title": "Process Group Id",
+          "type": "integer"
+        },
+        "reason_code": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Reason Code",
+          "type": "string"
+        },
+        "receipt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Receipt Sha256",
+          "type": "string"
+        },
+        "request_count": {
+          "maximum": 4096,
+          "minimum": 0,
+          "title": "Request Count",
+          "type": "integer"
+        },
+        "response_count": {
+          "maximum": 4096,
+          "minimum": 0,
+          "title": "Response Count",
+          "type": "integer"
+        },
+        "runtime_launch_expectation_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Runtime Launch Expectation Sha256",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "engram.nest-worker-termination-attempt.v1",
+          "default": "engram.nest-worker-termination-attempt.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "scientific_authority": {
+          "const": false,
+          "default": false,
+          "title": "Scientific Authority",
+          "type": "boolean"
+        },
+        "session_id": {
+          "minimum": 2,
+          "title": "Session Id",
+          "type": "integer"
+        },
+        "stderr_retained_bytes": {
+          "maximum": 1048576,
+          "minimum": 0,
+          "title": "Stderr Retained Bytes",
+          "type": "integer"
+        },
+        "stderr_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Stderr Sha256",
+          "type": "string"
+        },
+        "stderr_truncated": {
+          "title": "Stderr Truncated",
+          "type": "boolean"
+        },
+        "termination_signal": {
+          "anyOf": [
+            {
+              "maximum": 64,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Termination Signal"
+        },
+        "worker_command_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Worker Command Sha256",
+          "type": "string"
+        },
+        "worker_launch_attempt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Worker Launch Attempt Sha256",
+          "type": "string"
+        },
+        "worker_pid": {
+          "minimum": 2,
+          "title": "Worker Pid",
+          "type": "integer"
+        },
+        "worker_source_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Worker Source Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "adapter_source_sha256",
+        "anchored_group_kill_delivered",
+        "attempt_index",
+        "child_reaped",
+        "containment_empty",
+        "containment_seal_signal",
+        "diagnostic_stream_complete",
+        "disposition",
+        "exit_code",
+        "group_signal_attempted",
+        "group_signal_basis",
+        "group_signal_while_guardian_unreaped",
+        "guardian_pid",
+        "guardian_reaped",
+        "guardian_source_sha256",
+        "guardian_unexpected_exit_observed",
+        "hard_deadline_enforcement",
+        "ncp_transport",
+        "physical_authority",
+        "posix_process_group_portability_scope",
+        "process_group_id",
+        "reason_code",
+        "receipt_sha256",
+        "request_count",
+        "response_count",
+        "runtime_launch_expectation_sha256",
+        "schema_version",
+        "scientific_authority",
+        "session_id",
+        "stderr_retained_bytes",
+        "stderr_sha256",
+        "stderr_truncated",
+        "termination_signal",
+        "worker_command_sha256",
+        "worker_launch_attempt_sha256",
+        "worker_pid",
+        "worker_source_sha256"
+      ],
+      "title": "NestWorkerTerminationAttemptReceiptV1",
+      "type": "object"
+    },
+    "NeuralAdapterCapabilitiesV1": {
+      "additionalProperties": false,
+      "properties": {
+        "automatic_restart": {
+          "const": false,
+          "default": false,
+          "title": "Automatic Restart",
+          "type": "boolean"
+        },
+        "deadline_enforcement": {
+          "enum": [
+            "host-generation-kill",
+            "cooperative-observed",
+            "deterministic-test"
+          ],
+          "title": "Deadline Enforcement",
+          "type": "string"
+        },
+        "declared_step_duration_tics": {
+          "maximum": 10000000,
+          "minimum": 1,
+          "title": "Declared Step Duration Tics",
+          "type": "integer"
+        },
+        "durable_evidence_profile": {
+          "default": "none",
+          "enum": [
+            "none",
+            "engram.nest-closed-loop-evidence-bundle.v2"
+          ],
+          "title": "Durable Evidence Profile",
+          "type": "string"
+        },
+        "loaded_bytes_attested": {
+          "const": false,
+          "default": false,
+          "title": "Loaded Bytes Attested",
+          "type": "boolean"
+        },
+        "max_channels": {
+          "maximum": 64,
+          "minimum": 1,
+          "title": "Max Channels",
+          "type": "integer"
+        },
+        "ncp_transport": {
+          "const": false,
+          "default": false,
+          "title": "Ncp Transport",
+          "type": "boolean"
+        },
+        "physical_actuation": {
+          "const": false,
+          "default": false,
+          "title": "Physical Actuation",
+          "type": "boolean"
+        },
+        "provider": {
+          "pattern": "^[a-z0-9]+(?:[._-][a-z0-9]+)+$",
+          "title": "Provider",
+          "type": "string"
+        },
+        "provider_identity_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Provider Identity Sha256",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "engram.closed-loop-neural-capabilities.v1",
+          "default": "engram.closed-loop-neural-capabilities.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "session_model": {
+          "const": "one-session-named-populations",
+          "title": "Session Model",
+          "type": "string"
+        }
+      },
+      "required": [
+        "automatic_restart",
+        "deadline_enforcement",
+        "declared_step_duration_tics",
+        "durable_evidence_profile",
+        "loaded_bytes_attested",
+        "max_channels",
+        "ncp_transport",
+        "physical_actuation",
+        "provider",
+        "provider_identity_sha256",
+        "schema_version",
+        "session_model"
+      ],
+      "title": "NeuralAdapterCapabilitiesV1",
+      "type": "object"
+    },
+    "NeuralPopulationBindingV1": {
+      "additionalProperties": false,
+      "properties": {
+        "channel_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Channel Id",
+          "type": "string"
+        },
+        "population_names": {
+          "items": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+            "type": "string"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Population Names",
+          "type": "array"
+        }
+      },
+      "required": [
+        "channel_id",
+        "population_names"
+      ],
+      "title": "NeuralPopulationBindingV1",
+      "type": "object"
+    },
+    "NeuralPreparedV1": {
+      "additionalProperties": false,
+      "properties": {
+        "definition_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Definition Sha256",
+          "type": "string"
+        },
+        "populations": {
+          "items": {
+            "$ref": "#/$defs/NeuralPopulationBindingV1"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Populations",
+          "type": "array"
+        },
+        "provider_identity_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Provider Identity Sha256",
+          "type": "string"
+        },
+        "provider_session_receipt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Provider Session Receipt Sha256",
+          "type": "string"
+        },
+        "receipt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Receipt Sha256",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "engram.closed-loop-neural-prepared.v1",
+          "default": "engram.closed-loop-neural-prepared.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "single_session": {
+          "const": true,
+          "default": true,
+          "title": "Single Session",
+          "type": "boolean"
+        },
+        "step_duration_tics": {
+          "maximum": 10000000,
+          "minimum": 1,
+          "title": "Step Duration Tics",
+          "type": "integer"
+        },
+        "study_run_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Study Run Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "definition_sha256",
+        "populations",
+        "provider_identity_sha256",
+        "provider_session_receipt_sha256",
+        "receipt_sha256",
+        "schema_version",
+        "single_session",
+        "step_duration_tics",
+        "study_run_id"
+      ],
+      "title": "NeuralPreparedV1",
+      "type": "object"
+    }
+  },
+  "$id": "https://engram.local/schemas/engram.nest-closed-loop-evidence-bundle.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Typed provider evidence, including an honest unconfirmed terminal state.",
+  "properties": {
+    "bundle_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Bundle Sha256",
+      "type": "string"
+    },
+    "calibrated_posterior": {
+      "const": false,
+      "default": false,
+      "title": "Calibrated Posterior",
+      "type": "boolean"
+    },
+    "child_capabilities": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/NeuralAdapterCapabilitiesV1"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "child_preparation_receipt": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/NeuralPreparedV1"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "digest_canonicalization": {
+      "const": "engram.managed-runtime-json.v1",
+      "default": "engram.managed-runtime-json.v1",
+      "title": "Digest Canonicalization",
+      "type": "string"
+    },
+    "execution_authority": {
+      "const": false,
+      "default": false,
+      "title": "Execution Authority",
+      "type": "boolean"
+    },
+    "is_paper_local_evidence": {
+      "const": false,
+      "default": false,
+      "title": "Is Paper Local Evidence",
+      "type": "boolean"
+    },
+    "ncp_control": {
+      "const": false,
+      "default": false,
+      "title": "Ncp Control",
+      "type": "boolean"
+    },
+    "nest_session_readback": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/NestSessionReadbackV2"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "neural_preparation_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Neural Preparation Sha256"
+    },
+    "neural_provider_identity_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Neural Provider Identity Sha256",
+      "type": "string"
+    },
+    "physical_actuation": {
+      "const": false,
+      "default": false,
+      "title": "Physical Actuation",
+      "type": "boolean"
+    },
+    "preparation_attempt": {
+      "$ref": "#/$defs/NestWorkerPreparationAttemptReceiptV1"
+    },
+    "profile": {
+      "const": "killable-nest-population-controller-v2",
+      "default": "killable-nest-population-controller-v2",
+      "title": "Profile",
+      "type": "string"
+    },
+    "provider_preparation_receipt": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/NeuralPreparedV1"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "run_receipt_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Run Receipt Sha256",
+      "type": "string"
+    },
+    "runtime_launch_expectation": {
+      "$ref": "#/$defs/NestWorkerLaunchExpectationV4"
+    },
+    "schema_version": {
+      "const": "engram.nest-closed-loop-evidence-bundle.v2",
+      "default": "engram.nest-closed-loop-evidence-bundle.v2",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "scientific_authority": {
+      "const": false,
+      "default": false,
+      "title": "Scientific Authority",
+      "type": "boolean"
+    },
+    "step_attempt_receipts": {
+      "items": {
+        "$ref": "#/$defs/NestStepAttemptReceiptV1"
+      },
+      "maxItems": 1024,
+      "title": "Step Attempt Receipts",
+      "type": "array"
+    },
+    "step_execution_receipts": {
+      "items": {
+        "$ref": "#/$defs/NestStepExecutionReceiptV3"
+      },
+      "maxItems": 1024,
+      "title": "Step Execution Receipts",
+      "type": "array"
+    },
+    "study_run_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Study Run Id",
+      "type": "string"
+    },
+    "tail_disposition_receipt": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/NestTailDispositionReceiptV1"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "worker_launch_attempt": {
+      "$ref": "#/$defs/NestWorkerLaunchAttemptReceiptV1"
+    },
+    "worker_lifecycle_receipt": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/NestWorkerLifecycleReceiptV2"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "worker_runtime_identity": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/NestWorkerRuntimeIdentityReceiptV2"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "worker_session_binding": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/NestWorkerSessionBindingReceiptV1"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "worker_terminal_disposition": {
+      "enum": [
+        "confirmed-lifecycle",
+        "unconfirmed-attempts",
+        "startup-contained",
+        "startup-unconfirmed",
+        "launch-not-attempted",
+        "unavailable"
+      ],
+      "title": "Worker Terminal Disposition",
+      "type": "string"
+    },
+    "worker_termination_attempt_receipts": {
+      "items": {
+        "$ref": "#/$defs/NestWorkerTerminationAttemptReceiptV1"
+      },
+      "maxItems": 4096,
+      "title": "Worker Termination Attempt Receipts",
+      "type": "array"
+    }
+  },
+  "required": [
+    "bundle_sha256",
+    "calibrated_posterior",
+    "child_capabilities",
+    "child_preparation_receipt",
+    "digest_canonicalization",
+    "execution_authority",
+    "is_paper_local_evidence",
+    "ncp_control",
+    "nest_session_readback",
+    "neural_preparation_sha256",
+    "neural_provider_identity_sha256",
+    "physical_actuation",
+    "preparation_attempt",
+    "profile",
+    "provider_preparation_receipt",
+    "run_receipt_sha256",
+    "runtime_launch_expectation",
+    "schema_version",
+    "scientific_authority",
+    "step_attempt_receipts",
+    "step_execution_receipts",
+    "study_run_id",
+    "tail_disposition_receipt",
+    "worker_launch_attempt",
+    "worker_lifecycle_receipt",
+    "worker_runtime_identity",
+    "worker_session_binding",
+    "worker_terminal_disposition",
+    "worker_termination_attempt_receipts"
+  ],
+  "title": "NestClosedLoopEvidenceBundleV2",
+  "type": "object"
+}

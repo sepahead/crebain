@@ -251,14 +251,25 @@ It rejoins the NEST worker's runtime module roster to committed checkout bytes.
 This join also supports Engram's frozen worker-source generations.
 It binds the NEST guardian through the worker launch and session receipts.
 It binds the reviewed-runtime guardian through handshake and termination receipts.
-It catalogs every bounded receipt-store file and its exact hash.
+It requires the exact eight-file terminal receipt-store roster.
+It embeds the five retained JSON sidecars as canonical objects.
+It derives every store path, size, and hash from those objects.
+It verifies the fixed writer-lock payload.
+It recomputes the reservation, dispatch, WAL, anchor, authority, and catalog digests.
+The 17-field run summary grants no execution, NCP, physical, or scientific authority.
 Every source path must resolve to one tracked Git blob with identical raw bytes.
+The source roster must equal the union of modules and exercised entrypoints.
+Each module name must map to its exact Python path.
 
 The suite index binds all captures to one installed package and Engram commit.
 It requires distinct receipt, evidence, and receipt-store identities.
 Each capture embeds its terminal receipt and evidence document.
-Each capture also records the complete bounded store file roster and digests.
+It closes every mirrored neural request, input channel, result, and proposal.
+It recomputes each neural request and result digest with managed-runtime JSON.
+Each capture also embeds the retained store metadata and four publication sidecars.
+The verifier rederives all eight file identities from their canonical bodies.
 The four-file publication does not retain the transient receipt-store directories.
+These locally observed bytes are not signatures or external attestations.
 
 Commit the four evidence files as revision C1 after the suite succeeds.
 Do not include another path in C1.
@@ -272,6 +283,9 @@ The receipt-lock timeout accepts 1 through 300,000 milliseconds.
 
 Every request uses canonical, sorted-key JSON before hashing.
 Each digest uses a separate domain string.
+The terminal run, runtime lifecycle, evidence root, and receipt-store JSON use managed-runtime JSON.
+Build, package, contained-command, handshake, termination, and NEST process receipts use ledger canonical JSON.
+The verifier never rehashes a referenced object under a different profile.
 Operational evidence retains the Host API 2 binary64 number spelling.
 The JavaScript verifier preserves each number lexeme during semantic parsing.
 It rejects alternate spellings and integer-like float collapse.
@@ -300,6 +314,27 @@ bun run doc:managed-simulation
 
 These bootstrap commands do not require historical or operational captures.
 The boundary self-test uses only provider-free synthetic capture v2 data.
+It checks exact NEST work arithmetic and recorder state transitions.
+It rejoins affine inputs, signed carrier weights, completed spike windows, and decoded proposals.
+The proposal join permits two binary64 ULPs for CPython and JavaScript `tanh` differences.
+The affine-sum verifier requires the sealed CPython 3.11 arithmetic profile.
+Safety proposals and weights must remain exact zero.
+
+Run the immutable Engram model oracle after contract synchronization:
+
+```bash
+bun run check:managed-simulation-engram-model-oracle -- \
+  --engram-root /absolute/path/to/clean/engram \
+  --engram-commit <immutable-origin-main-object-id> \
+  --python /path/to/engram-python
+```
+
+The oracle requires clean Engram `HEAD` and local `origin/main` at the supplied object ID.
+It validates all synthetic one-, two-, and three-drone plans.
+It validates six imported receipt roots with Engram's Pydantic models.
+It also runs Engram's run-to-evidence validator for each capture.
+It runs eight hostile model and lineage controls.
+The oracle performs no provider execution and grants no scientific authority.
 
 The contract gate also builds a provider-free synthetic installation.
 It runs the exact built binary with one, two, and three channels.
@@ -314,16 +349,29 @@ Synchronize Engram contract copies before the release boundary gate:
 /path/to/engram-python scripts/sync-managed-simulation-engram-contracts.py \
   --engram-root /absolute/path/to/clean/engram \
   --engram-commit <immutable-origin-main-object-id> \
+  --surface wire \
   --write
 /path/to/engram-python scripts/sync-managed-simulation-engram-contracts.py \
   --engram-root /absolute/path/to/clean/engram \
   --engram-commit <immutable-origin-main-object-id> \
+  --surface runtime-receipts \
+  --write
+/path/to/engram-python scripts/sync-managed-simulation-engram-contracts.py \
+  --engram-root /absolute/path/to/clean/engram \
+  --engram-commit <immutable-origin-main-object-id> \
+  --surface wire \
+  --check
+/path/to/engram-python scripts/sync-managed-simulation-engram-contracts.py \
+  --engram-root /absolute/path/to/clean/engram \
+  --engram-commit <immutable-origin-main-object-id> \
+  --surface runtime-receipts \
   --check
 ```
 
 The sync command requires clean Engram `HEAD` and local `origin/main`.
 It verifies each working-tree file against its committed Git blob.
 It replaces copied contracts before it replaces the provenance document.
+Both surfaces must bind the same immutable Engram source identity.
 
 Create the bootstrap code-and-documentation commit before the observed build.
 Push that exact commit to `main`.
