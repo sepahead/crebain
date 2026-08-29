@@ -220,6 +220,7 @@ Each capture binds both washouts, population resets, guardians, stores, and term
 Create the complete replacement suite with this command:
 
 ```bash
+mkdir -p integrations/engram/managed-simulation/operational-evidence
 /path/to/engram-python scripts/run-managed-simulation-real-nest-suite.py \
   --engram-root /absolute/path/to/reviewed/engram \
   --engram-commit <immutable-origin-main-object-id> \
