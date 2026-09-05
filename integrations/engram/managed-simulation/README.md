@@ -529,3 +529,8 @@ It makes no native NCP 1.0 qualification claim.
 
 The existing wire-0.8 integration remains separate and unchanged.
 No managed-simulation operation can publish an NCP message or control a plant.
+
+The project-local Rust kernel also supports an explicit innovation-recording option.
+Historical managed operations cannot enable that option.
+It retains actual Kalman diagnostics without changing simulator arithmetic.
+See [native kernel ownership and diagnostic meaning](../../../docs/NATIVE_SIMULATION_KERNEL.md).

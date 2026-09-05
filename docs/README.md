@@ -20,6 +20,9 @@ has no vehicle-authority path.
 
 ## Architecture and design
 
+- [Native city environment](NATIVE_ENVIRONMENT.md) — Standalone city, actual RGB, pressure, thermal radiance, and reconstructed branches
+- [DETERMINISTIC_DYNAMICS.md](DETERMINISTIC_DYNAMICS.md) — Explicit Rapier ticks, complete reference state, and verified action-prefix forks
+
 - [ARCHITECTURE.md](ARCHITECTURE.md) — Design principles, transport trade-offs, backend selection, directory map
 - [SYSTEM_CONTEXT.md](SYSTEM_CONTEXT.md) — System context, trust boundaries, and claim limits
 - [SENSOR_FUSION.md](SENSOR_FUSION.md) — Fusion math, coordinate contracts, tuning, known limitations
@@ -32,6 +35,8 @@ has no vehicle-authority path.
 - [GALADRIEL_PRODUCER.md](GALADRIEL_PRODUCER.md) — Optional live evidence routes, deployment pins, bounds, and claim limits
 - [NCP_BRIDGE_HANDOFF.md](NCP_BRIDGE_HANDOFF.md) — Dormant action adapter, dependency-isolated headless perception runner, advisory producer, and Engram compatibility boundaries
 - [CREBAIN managed simulation](../integrations/engram/managed-simulation/README.md) — Host API 2.0 schemas, tick order, receipts, packaging, and simulator-only boundaries
+- [Native NCP simulation](NATIVE_NCP_SIMULATION.md) — Bounded local body process, source binding, actual application, and failure limits
+- [Native simulation kernel](NATIVE_SIMULATION_KERNEL.md) — Project-local kernel reuse, actual innovation recording, and numerical parity limits
 
 ## Plant foundation (inactive/unwired candidates)
 

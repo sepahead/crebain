@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 540" role="img" aria-labelledby="title desc">
+  <title id="title">Native NCP body ownership and evidence</title>
+  <desc id="desc">A supervisor supplies an immutable plan and bound neural response. The native NCP owner verifies the exact source, advances the CREBAIN kernel, and retains the actual result until acknowledgement. Unknown execution retires the generation.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#35506d"/></marker>
+    <style>text{font-family:Arial,Helvetica,sans-serif;fill:#172b45} .heading{font-size:25px;font-weight:700}.label{font-size:19px;font-weight:700}.body{font-size:16px}.small{font-size:15px}.box{fill:#fff;stroke:#aec0d2;stroke-width:2}.flow{fill:none;stroke:#35506d;stroke-width:2.5;marker-end:url(#arrow)}</style>
+  </defs>
+  <rect width="1100" height="540" rx="20" fill="#f3f6fa"/>
+  <text class="heading" x="38" y="48">CREBAIN · Native local simulation</text>
+  <text class="body" x="38" y="77">Exact source binding → one body advance → retained actual evidence</text>
+  <rect class="box" x="38" y="110" width="260" height="245" rx="12"/>
+  <text class="label" x="58" y="143">Supervisor</text>
+  <text class="body" x="58" y="178">Immutable plan and generation</text>
+  <text class="body" x="58" y="213">Retained neural response</text>
+  <text class="body" x="58" y="243">Exact source snapshot</text>
+  <text class="small" x="58" y="291">Inherited private input/output</text>
+  <text class="small" x="58" y="321">No network listener</text>
+  <rect class="box" x="348" y="110" width="330" height="245" rx="12"/>
+  <text class="label" x="370" y="143">Native NCP body owner</text>
+  <text class="body" x="370" y="178">Verify binding and request digest</text>
+  <text class="body" x="370" y="213">Verify source, modes, units, time</text>
+  <text class="body" x="370" y="243">Apply frozen availability schedule</text>
+  <text class="small" x="370" y="291">One result retained until ACK</text>
+  <text class="small" x="370" y="321">Duplicate request: same result bytes</text>
+  <rect class="box" x="728" y="110" width="334" height="245" rx="12"/>
+  <text class="label" x="750" y="143">Project-local kernel</text>
+  <text class="body" x="750" y="178">Bounded kinematic simulation</text>
+  <text class="body" x="750" y="213">Kalman fusion and actual NIS</text>
+  <text class="body" x="750" y="243">Explicit measurement absence</text>
+  <text class="small" x="750" y="291">Proposed and applied acceleration</text>
+  <text class="small" x="750" y="321">Separate values; no physical authority</text>
+  <path class="flow" d="M298 190H341"/><path class="flow" d="M678 190H721"/>
+  <path class="flow" d="M728 274H685"/><path class="flow" d="M348 274H305"/>
+  <rect x="38" y="394" width="1024" height="105" rx="12" fill="#e8eef6" stroke="#aec0d2"/>
+  <text class="label" x="58" y="427">Failure boundary</text>
+  <text class="body" x="58" y="457">Invalid input: preserve current state. Unknown execution: retire the generation.</text>
+  <text class="small" x="58" y="482">A captured closed prefix can remain valid when full planned completion is absent.</text>
+</svg>

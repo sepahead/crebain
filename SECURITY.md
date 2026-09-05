@@ -24,6 +24,24 @@ implemented these components as an integrated authority chain.
 | 0.9.x prereleases | Supported for research-source security fixes |
 | < 0.9 | Unsupported / retired |
 
+## Dependency corrections on 2026-09-05
+
+The current source pins compatible corrections for the following dependency findings.
+These changes do not establish operational or scientific qualification.
+
+| Dependency | Previous version | Corrected version | Reason |
+| --- | --- | --- | --- |
+| `nanoid` | 3.3.17 | 3.3.18 | Zero-size custom generator denial of service. |
+| `fflate` | 0.8.2 | 0.8.3 | Malformed ZIP64 archive denial of service. |
+| `browserslist` | 4.28.5 and 4.28.6 | 4.28.7 | Cache growth and custom-statistics input failures. |
+| `baseline-browser-mapping` | 2.10.42 | 2.10.44 | Minimum compatible Browserslist metadata dependency. |
+| `electron-to-chromium` | 1.5.389 | 1.5.393 | Minimum compatible Browserslist metadata dependency. |
+| `chacha20` | 0.10.1 | 0.10.2 | Replace the yanked release in the existing Rand dependency chain. |
+
+The current local configuration digests bind the corrected package and lock files.
+The recorded external Phase 0 capture, hazard states, and authority limits remain unchanged.
+Existing upstream-constrained Rust exceptions remain explicit in the dependency policy.
+
 ## Reporting a vulnerability
 
 Do **not** open a public issue. Use GitHub's

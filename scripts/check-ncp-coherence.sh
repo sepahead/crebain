@@ -139,6 +139,7 @@ done
 
 lock_source() {
   local crate="$1"
+  local lock_file="${2:-$cargo_lock}"
   awk -v crate="$crate" '
     /^\[\[package\]\]$/ {
       if (in_package && !printed_source) print "<missing source>"
@@ -155,7 +156,7 @@ lock_source() {
       printed_source = 1
     }
     END { if (in_package && !printed_source) print "<missing source>" }
-  ' "$cargo_lock"
+  ' "$lock_file"
 }
 
 lock_commit=""
@@ -252,8 +253,52 @@ for relative in "${normative_docs[@]}"; do
   done < <(grep -Enio 'wire[-[:space:]]+`?[0-9]+\.[0-9]+' "$file" || true)
 done
 
+# The separate scalar adapter consumes the local SDK, not the historical wire
+# packages above. This remains an offline consistency check, not proof of public
+# resolution, loaded executable identity, or installed interoperability.
+native_manifest="src-tauri/crates/ncp-simulation/Cargo.toml"
+native_lock="src-tauri/crates/ncp-simulation/Cargo.lock"
+native_doc="docs/NATIVE_NCP_SIMULATION.md"
+for relative in "$native_manifest" "$native_lock" "$native_doc"; do
+  safe_repo_file "$relative" "native NCP pin file"
+done
+native_line="$(cargo_line "$REPO_ROOT/$native_manifest" ncp-local)"
+[[ "$(cargo_field "$native_line" git)" == "https://github.com/sepahead/NCP" ]] \
+  || die "native ncp-local must use the canonical public Git repository"
+if printf '%s\n' "$native_line" | grep -Eq '(path|branch|tag)[[:space:]]*='; then
+  die "native ncp-local may not declare a path, branch, or tag override"
+fi
+if grep -Eq '^\[(patch([.]|\])|replace\])' "$REPO_ROOT/$native_manifest"; then
+  die "native ncp-local workspace may not declare patch or replace overrides"
+fi
+native_rev="$(cargo_field "$native_line" rev)"
+native_version="$(cargo_field "$native_line" version)"
+[[ "$native_rev" =~ ^[0-9a-f]{40}$ ]] \
+  || die "native ncp-local revision must contain 40 lowercase hex characters"
+[[ "$native_version" =~ ^=([0-9]+\.[0-9]+\.[0-9]+)$ ]] \
+  || die "native ncp-local version must be an exact stable =MAJOR.MINOR.PATCH"
+native_version="${native_version#=}"
+native_source="$(single_value 'native ncp-local lock source' "$(lock_source ncp-local "$REPO_ROOT/$native_lock")")"
+[[ "$native_source" == "git+https://github.com/sepahead/NCP?rev=$native_rev#$native_rev" ]] \
+  || die "native ncp-local lock source does not equal its exact public revision"
+native_locked_version="$(single_value 'native ncp-local lock version' "$(awk '
+  /^\[\[package\]\]$/ { in_package = 0; next }
+  $0 == "name = \"ncp-local\"" { in_package = 1; next }
+  in_package && /^version = "/ {
+    sub(/^version = "/, ""); sub(/"$/, ""); print
+  }
+' "$REPO_ROOT/$native_lock")")"
+[[ "$native_locked_version" == "$native_version" ]] \
+  || die "native ncp-local lock version differs from its exact manifest version"
+native_marker="$(single_value 'native ncp-local documentation marker' "$(sed -nE \
+  's/^<!-- ncp-local-pin: ([0-9]+\.[0-9]+\.[0-9]+ [0-9a-f]{40}) -->$/\1/p' \
+  "$REPO_ROOT/$native_doc")")"
+[[ "$native_marker" == "$native_version $native_rev" ]] \
+  || die "native ncp-local documentation marker differs from its exact manifest pin"
+
 echo "OK: NCP $tag (wire $wire) is coherent"
 echo "  Annotated tag object: $tag_object"
 echo "  Peeled Cargo commit: $lock_commit"
 echo "  Bun tag-object ref:  $npm_commit"
 echo "  Normative docs:    ${normative_docs[*]}"
+echo "OK: native ncp-local $native_version at $native_rev is coherent (offline source join only)"

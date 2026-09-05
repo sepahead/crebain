@@ -26,8 +26,11 @@ pub use protocol::{
     ipc_schema_sha256, operation_roster_sha256, serve_managed_runtime, ProtocolError,
     RuntimeSessionReceipt,
 };
+pub use sensor_fusion::SensorModality as InnovationModality;
 pub use simulation::{
-    Finished, MultiDroneSimulation, Prepared, SimulationError, SimulationRuntime, Unprepared,
+    validate_prepare_request, EntityInnovation, Finished, InnovationAbsence, InnovationEvidence,
+    InnovationFrame, InnovationRecording, KalmanInnovation, MultiDroneSimulation, Prepared,
+    SimulationError, SimulationRuntime, Unprepared,
 };
 pub use standard::{
     StandardActionDisposition, StandardFaultDisposition, StandardFinishRequest,

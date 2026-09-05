@@ -199,6 +199,9 @@ const DESCRIPTOR_METHODS = new Map([
   ['Object', new Set(['getOwnPropertyDescriptor', 'getOwnPropertyDescriptors'])],
   ['Reflect', new Set(['getOwnPropertyDescriptor'])],
 ])
+export const AUDITED_DATA_COPIER_PATH = 'src/lib/copyPlainData.ts'
+const AUDITED_DATA_COPIER_SHA256 =
+  '97ab00e02000858b0952dec05f25b0b4b7dfd96694a27b04ac8b0383f4e62df3'
 const REQUIRED_FORBIDDEN_CAPABILITIES = new Set([
   'callService',
   'call_service',
@@ -934,9 +937,57 @@ function routeFromStaticValue(value, knownPrefixes) {
   return null
 }
 
-function analyzeScriptSource(relativePath, source, knownPrefixes, forbiddenCapabilities) {
+export function auditedDataDescriptorReference(relativePath, source, sourceFile) {
+  if (relativePath !== AUDITED_DATA_COPIER_PATH) return null
+  assert(
+    createHash('sha256').update(source).digest('hex') === AUDITED_DATA_COPIER_SHA256,
+    'audited plain-data copier source digest mismatch'
+  )
+  const [declaration] = sourceFile.statements
+  assert(
+    sourceFile.statements.length === 1 &&
+      ts.isFunctionDeclaration(declaration) &&
+      declaration.name?.text === 'copyPlainData' &&
+      declaration.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword),
+    'audited plain-data copier must contain only its reviewed function'
+  )
+  const calls = []
+  const visit = (node) => {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      ts.isIdentifier(node.expression.expression) &&
+      node.expression.expression.text === 'Object' &&
+      node.expression.name.text === 'getOwnPropertyDescriptors'
+    )
+      calls.push(node)
+    ts.forEachChild(node, visit)
+  }
+  visit(declaration)
+  assert(
+    calls.length === 1 &&
+      calls[0].arguments.length === 1 &&
+      ts.isIdentifier(calls[0].arguments[0]) &&
+      calls[0].arguments[0].text === 'value',
+    'audited plain-data copier requires one reviewed direct descriptor call'
+  )
+  return calls[0].expression
+}
+
+function analyzeScriptSource(
+  relativePath,
+  source,
+  knownPrefixes,
+  forbiddenCapabilities,
+  rawSource = source
+) {
   const kind = relativePath.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS
   const sourceFile = ts.createSourceFile(relativePath, source, ts.ScriptTarget.Latest, true, kind)
+  const permittedDataDescriptor = auditedDataDescriptorReference(
+    relativePath,
+    rawSource,
+    sourceFile
+  )
   const bindings = new Map()
   const ambiguousBindings = new Set()
   const routes = new Set()
@@ -1013,7 +1064,8 @@ function analyzeScriptSource(relativePath, source, knownPrefixes, forbiddenCapab
     }
     if (
       (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) &&
-      descriptorMethod(node, bindings)
+      descriptorMethod(node, bindings) &&
+      node !== permittedDataDescriptor
     ) {
       capabilityRecovery.push(sourceLocation(sourceFile, node))
     }
@@ -2038,7 +2090,8 @@ function verifyInventory(root, inventory, hazardIds, getSource, sourceOverrides,
         relativePath,
         source,
         knownRoutePrefixes,
-        new Set(inventory.scan_policy.forbidden_command_capabilities)
+        new Set(inventory.scan_policy.forbidden_command_capabilities),
+        rawSource
       )
       for (const route of analysis.routes) actualRoutes.add(route)
       for (const capability of analysis.capabilities) forbiddenCapabilities.add(capability)

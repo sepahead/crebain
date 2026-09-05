@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 620" role="img" aria-labelledby="title description">
+  <title id="title">Deterministic dynamics and exact reconstruction</title>
+  <desc id="description">A canonical owner advances the existing Rapier dynamics using explicit ticks. Checkpoints retain complete state and action history. A fresh owner replays that history and must match every state field and engine byte before becoming an independent branch. Presentation reads have no time or command authority.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#304960"/></marker>
+    <style>text{font-family:Arial,Helvetica,sans-serif;fill:#172b45}.title{font-size:27px;font-weight:700}.heading{font-size:20px;font-weight:700}.body{font-size:17px}.small{font-size:16px}.box{fill:#fff;stroke:#9aaec2;stroke-width:2}.flow{fill:none;stroke:#304960;stroke-width:2.5;marker-end:url(#arrow)}</style>
+  </defs>
+  <rect width="1120" height="620" rx="20" fill="#f3f6fa"/>
+  <text class="title" x="36" y="48">CREBAIN · One existing dynamics engine</text>
+  <text class="body" x="36" y="79">Exact logical time · Complete reference state · Independent verified branches</text>
+  <rect class="box" x="36" y="112" width="310" height="180" rx="12"/>
+  <text class="heading" x="56" y="145">Canonical owner</text>
+  <text class="body" x="56" y="178">Frozen plan and scheduled actions</text>
+  <text class="body" x="56" y="208">Controller → motors → Rapier</text>
+  <text class="small" x="56" y="245">Integer tick k; time = k / 120 s</text>
+  <text class="small" x="56" y="273">Presentation reads cannot advance</text>
+  <rect class="box" x="406" y="112" width="310" height="180" rx="12"/>
+  <text class="heading" x="426" y="145">Retained checkpoint</text>
+  <text class="body" x="426" y="178">Full engine and controller state</text>
+  <text class="body" x="426" y="208">RNG, battery, motors, pending work</text>
+  <text class="small" x="426" y="245">Plan + complete action history</text>
+  <text class="small" x="426" y="273">Owner-issued handle + SHA-256</text>
+  <path class="flow" d="M346 202H398"/>
+  <rect class="box" x="776" y="112" width="310" height="180" rx="12"/>
+  <text class="heading" x="796" y="145">Fresh reconstruction</text>
+  <text class="body" x="796" y="178">Same Rapier and force model</text>
+  <text class="body" x="796" y="208">Same plan and action prefix</text>
+  <text class="small" x="796" y="245">Compare all fields and engine bytes</text>
+  <text class="small" x="796" y="273">Mismatch: reject and release</text>
+  <path class="flow" d="M716 202H768"/>
+  <path class="flow" d="M930 292V334H730V357"/>
+  <rect class="box" x="576" y="365" width="310" height="116" rx="12"/>
+  <text class="heading" x="596" y="400">Independent branch</text>
+  <text class="body" x="596" y="433">Actions change this branch’s future</text>
+  <text class="small" x="596" y="461">Cannot replace its canonical parent</text>
+  <rect x="36" y="365" width="485" height="116" rx="12" fill="#e7edf4" stroke="#9aaec2"/>
+  <text class="heading" x="56" y="400">Checkpoint is reference data</text>
+  <text class="body" x="56" y="433">Future adapters separate observation and label access.</text>
+  <text class="small" x="56" y="461">A digest is an integrity record, not loaded-code attestation.</text>
+  <text class="heading" x="36" y="539">This milestone: dynamics and controllers only</text>
+  <text class="body" x="36" y="569">City geometry, cameras, acoustic and thermal models, fusion, and cross-process restore need separate contracts.</text>
+  <text class="small" x="36" y="596">Bounded replay preserves the existing dynamics. It does not promise constant-time restoration or real-time throughput.</text>
+</svg>

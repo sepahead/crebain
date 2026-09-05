@@ -90,11 +90,17 @@
     "fmt:rust": "cargo fmt --all --manifest-path src-tauri/Cargo.toml",
     "fmt:rust:check": "cargo fmt --all --manifest-path src-tauri/Cargo.toml --check",
     "validate": "bun run check:phase0-baseline && bun run check:product-profiles && bun run check:ipc-contracts && bun run check:release-tools && bun run check:docs-visuals && bun run check:vendor-compat && bun run check:ros-defs && bun run check:nix-deps && bun run check:production-vendors && bun run typecheck && bun run lint && bun run format:check && bun run test:run",
-    "validate:all": "bun run check:ncp-coherence && bun run validate && bun run check:managed-simulation-boundary && bun run check:managed-simulation-inputs && bun run check:managed-simulation-contract && bun run fmt:managed-simulation:check && bun run check:managed-simulation-rust && bun run test:managed-simulation && bun run clippy:managed-simulation && bun run doc:managed-simulation && bun run fmt:rust:check && bun run check:plant-boundary && bun run check:plant-frames && bun run fmt:plant:check && bun run check:plant && bun run test:plant && bun run clippy:plant && bun run self-check:plant && bun run check:rust && bun run test:rust && bun run clippy:rust && bun run check:ncp-headless-boundary && bun run check:ncp-headless && bun run clippy:ncp-headless && bun run test:ncp-headless && bun run self-check:ncp-headless && bun run clippy:rust:ncp && bun run test:rust:ncp",
+    "validate:all": "bun run check:ncp-coherence && bun run validate && bun run check:managed-simulation-boundary && bun run check:managed-simulation-inputs && bun run check:managed-simulation-contract && bun run fmt:managed-simulation:check && bun run check:managed-simulation-rust && bun run test:managed-simulation && bun run clippy:managed-simulation && bun run doc:managed-simulation && bun run validate:ncp-simulation && bun run fmt:rust:check && bun run check:plant-boundary && bun run check:plant-frames && bun run fmt:plant:check && bun run check:plant && bun run test:plant && bun run clippy:plant && bun run self-check:plant && bun run check:rust && bun run test:rust && bun run clippy:rust && bun run check:ncp-headless-boundary && bun run check:ncp-headless && bun run clippy:ncp-headless && bun run test:ncp-headless && bun run self-check:ncp-headless && bun run clippy:rust:ncp && bun run test:rust:ncp",
     "tauri": "bunx tauri",
     "tauri:dev": "bunx tauri dev",
     "tauri:build": "bunx tauri build",
-    "clean": "rm -rf dist node_modules/.vite src-tauri/target"
+    "clean": "rm -rf dist node_modules/.vite src-tauri/target",
+    "fmt:ncp-simulation:check": "cargo fmt --manifest-path src-tauri/crates/ncp-simulation/Cargo.toml -- --check",
+    "check:ncp-simulation": "cargo check --locked --release --manifest-path src-tauri/crates/ncp-simulation/Cargo.toml --all-targets --all-features",
+    "test:ncp-simulation": "cargo test --locked --release --manifest-path src-tauri/crates/ncp-simulation/Cargo.toml --all-targets --all-features && cargo test --locked --release --manifest-path src-tauri/crates/ncp-simulation/Cargo.toml --doc --all-features",
+    "clippy:ncp-simulation": "cargo clippy --locked --release --manifest-path src-tauri/crates/ncp-simulation/Cargo.toml --all-targets --all-features -- -D warnings",
+    "doc:ncp-simulation": "RUSTDOCFLAGS='-D warnings' cargo doc --locked --release --no-deps --manifest-path src-tauri/crates/ncp-simulation/Cargo.toml --all-features",
+    "validate:ncp-simulation": "bun run fmt:ncp-simulation:check && bun run check:ncp-simulation && bun run test:ncp-simulation && bun run clippy:ncp-simulation && bun run doc:ncp-simulation"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "0.19.3",
@@ -134,9 +140,13 @@
   },
   "overrides": {
     "@babel/core": "7.29.7",
+    "baseline-browser-mapping": "2.10.44",
     "brace-expansion": "5.0.9",
+    "browserslist": "4.28.7",
+    "electron-to-chromium": "1.5.393",
+    "fflate": "0.8.3",
     "flatted": "3.4.2",
-    "nanoid": "3.3.17",
+    "nanoid": "3.3.18",
     "picomatch": "4.0.5",
     "postcss": "8.5.25",
     "rollup": "4.62.2"

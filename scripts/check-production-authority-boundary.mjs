@@ -5,6 +5,10 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import ts from 'typescript'
+import {
+  AUDITED_DATA_COPIER_PATH,
+  auditedDataDescriptorReference,
+} from './verify-phase0-baseline.mjs'
 
 const DIST = resolve(process.cwd(), 'dist')
 const REPORT_PATH = resolve(DIST, 'authority-boundary.json')
@@ -914,6 +918,7 @@ function runtimeBoundaryReferences(
 ) {
   const bindings = createBindingResolver(file, source)
   const { sourceFile } = bindings
+  const permittedDataDescriptor = auditedDataDescriptorReference(file, source, sourceFile)
   const references = []
 
   const record = (node, label) => {
@@ -968,7 +973,11 @@ function runtimeBoundaryReferences(
     }
     if (ts.isCallExpression(node)) {
       const descriptor = descriptorInvocation(node, bindings)
-      if (rejectPropertyDescriptors && descriptor !== undefined) {
+      if (
+        rejectPropertyDescriptors &&
+        descriptor !== undefined &&
+        node.expression !== permittedDataDescriptor
+      ) {
         record(node, 'property descriptor access')
       }
       if (
@@ -1199,6 +1208,13 @@ function verifyApprovedFetchSource(moduleId, expectedCalls) {
   )
 }
 
+export function assertQualifiedProductionModules(file, moduleIds) {
+  assert(
+    !moduleIds.includes(AUDITED_DATA_COPIER_PATH),
+    `${file} includes the audited data copier without finalized-call qualification`
+  )
+}
+
 export function verifyProductionAuthorityBoundary() {
   assert(existsSync(DIST), `production bundle is missing at ${DIST}; run \`bun run build\` first`)
   assert(existsSync(REPORT_PATH), 'Vite module-graph authority report is missing')
@@ -1238,6 +1254,7 @@ export function verifyProductionAuthorityBoundary() {
     assert(!reportedFiles.has(chunk.file), `duplicate reported chunk '${chunk.file}'`)
     reportedFiles.add(chunk.file)
     assert(Array.isArray(chunk.project_modules), `${chunk.file} has no project module inventory`)
+    assertQualifiedProductionModules(chunk.file, chunk.project_modules)
     assert(Array.isArray(chunk.vendor_modules), `${chunk.file} has no vendor module inventory`)
     for (const moduleId of chunk.vendor_modules) {
       assert(

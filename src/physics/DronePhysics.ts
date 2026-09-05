@@ -12,6 +12,7 @@
 import * as THREE from 'three'
 import type * as RapierNamespace from '@dimforge/rapier3d-compat'
 import { logger } from '../lib/logger'
+import { staticGeometryData, type StaticCuboid, type StaticGeometryHandle } from './StaticGeometry'
 
 const log = logger.scope('Physics')
 
@@ -437,6 +438,40 @@ async function loadRapier(): Promise<RapierModule> {
   return rapierModulePromise
 }
 
+export interface FlightControllerCheckpoint {
+  config: FlightControllerConfig
+  integrals: [number, number, number, number]
+  previousErrors: [number, number, number, number]
+}
+
+export const MAX_PHYSICS_CHECKPOINT_BYTES = 4 * 1024 * 1024
+
+/** Complete serialized Rapier and JavaScript dynamics state for exact comparison. */
+export interface PhysicsCheckpoint {
+  readonly serialized: string
+}
+
+interface PhysicsCheckpointState {
+  runtime: string
+  rapier: number[]
+  staticGeometry?: StaticCuboid[]
+  drones: Array<{
+    id: string
+    params: Omit<QuadcopterParams, 'momentOfInertia'> & { momentOfInertia: number[] }
+    position: number[]
+    velocity: number[]
+    acceleration: number[]
+    orientation: number[]
+    angularVelocity: number[]
+    rotors: Array<Omit<RotorState, 'position'> & { position: number[] }>
+    battery: number
+    armed: boolean
+    commands: MotorCommands
+    bodyHandle: number
+    colliderHandle: number
+  }>
+}
+
 export class DronePhysicsWorld {
   private RAPIER: RapierModule | null = null
   private world: World | null = null
@@ -447,6 +482,17 @@ export class DronePhysicsWorld {
   private usingFallback: boolean = false
   private initializationPromise: Promise<void> | null = null
   private lifecycleGeneration = 0
+
+  private readonly staticGeometry: StaticCuboid[]
+
+  constructor(
+    private readonly clock: 'wall' | 'explicit' = 'wall',
+    staticGeometry?: StaticGeometryHandle
+  ) {
+    this.staticGeometry = staticGeometry === undefined ? [] : staticGeometryData(staticGeometry)
+    if (clock !== 'explicit' && this.staticGeometry.length > 0)
+      throw new Error('Static scenario geometry requires explicit physics ownership')
+  }
 
   init(): Promise<void> {
     if (this.isInitialized) return Promise.resolve()
@@ -479,6 +525,24 @@ export class DronePhysicsWorld {
         0.0
       )
       candidateWorld.createCollider(groundCollider, groundBody)
+
+      for (const shape of this.staticGeometry) {
+        const rotation = new THREE.Quaternion().setFromAxisAngle(
+          new THREE.Vector3(0, 1, 0),
+          shape.yaw
+        )
+        const body = candidateWorld.createRigidBody(
+          rapier.RigidBodyDesc.fixed()
+            .setTranslation(...shape.center)
+            .setRotation(rotation)
+        )
+        candidateWorld.createCollider(
+          rapier.ColliderDesc.cuboid(...shape.halfExtents)
+            .setFriction(shape.friction)
+            .setRestitution(shape.restitution),
+          body
+        )
+      }
 
       if (this.lifecycleGeneration !== generation) {
         candidateWorld.free()
@@ -617,6 +681,9 @@ export class DronePhysicsWorld {
   }
 
   update(): void {
+    if (this.clock === 'explicit') {
+      throw new Error('Explicit physics worlds require advanceTicks')
+    }
     if (!this.isInitialized) return
 
     const now = performance.now()
@@ -629,39 +696,98 @@ export class DronePhysicsWorld {
     this.accumulator += deltaTime
 
     while (this.accumulator >= PHYSICS_FIXED_DT) {
-      if (this.world) {
-        // Rapier integrates user forces during step(), so each drone's forces
-        // must be prepared first. Applying them afterward introduces a full
-        // fixed-step control delay and advances the first step under gravity
-        // alone.
-        for (const drone of this.drones.values()) {
-          if (drone.rigidBody) {
-            this.applyDroneForces(drone, PHYSICS_FIXED_DT)
-          }
-        }
-        this.world.step()
-      }
-
-      for (const drone of this.drones.values()) {
-        if (this.world && drone.rigidBody) {
-          const pos = drone.rigidBody.translation()
-          const rot = drone.rigidBody.rotation()
-          const vel = drone.rigidBody.linvel()
-          const angVel = drone.rigidBody.angvel()
-
-          drone.state.position.set(pos.x, pos.y, pos.z)
-          drone.state.orientation.set(rot.x, rot.y, rot.z, rot.w)
-          drone.state.velocity.set(vel.x, vel.y, vel.z)
-          drone.state.angularVelocity.set(angVel.x, angVel.y, angVel.z)
-        } else {
-          drone.updatePhysics(PHYSICS_FIXED_DT)
-        }
-
-        drone.syncMesh()
-      }
-
+      this.stepFixedTick()
       this.accumulator -= PHYSICS_FIXED_DT
     }
+  }
+
+  /** Advance the existing dynamics without consulting or changing the wall clock. */
+  advanceTicks(ticks: number): void {
+    if (this.clock !== 'explicit' || !this.isInitialized || !this.world) {
+      throw new Error('Explicit advancement requires an initialized Rapier world')
+    }
+    if (!Number.isSafeInteger(ticks) || ticks < 1 || ticks > 2400) {
+      throw new Error('Physics advance must contain 1 through 2400 ticks')
+    }
+    for (let tick = 0; tick < ticks; tick++) this.stepFixedTick()
+  }
+
+  private stepFixedTick(): void {
+    if (this.world) {
+      // Rapier integrates user forces during step(), so each drone's forces
+      // must be prepared first. Applying them afterward introduces a full
+      // fixed-step control delay and advances the first step under gravity
+      // alone.
+      for (const drone of this.drones.values()) {
+        if (drone.rigidBody) {
+          this.applyDroneForces(drone, PHYSICS_FIXED_DT)
+        }
+      }
+      this.world.step()
+    }
+
+    for (const drone of this.drones.values()) {
+      if (this.world && drone.rigidBody) {
+        const pos = drone.rigidBody.translation()
+        const rot = drone.rigidBody.rotation()
+        const vel = drone.rigidBody.linvel()
+        const angVel = drone.rigidBody.angvel()
+
+        drone.state.position.set(pos.x, pos.y, pos.z)
+        drone.state.orientation.set(rot.x, rot.y, rot.z, rot.w)
+        drone.state.velocity.set(vel.x, vel.y, vel.z)
+        drone.state.angularVelocity.set(angVel.x, angVel.y, angVel.z)
+      } else {
+        drone.updatePhysics(PHYSICS_FIXED_DT)
+      }
+
+      drone.syncMesh()
+    }
+  }
+
+  /** Capture only the admitted explicit Rapier dynamics, without presentation resources. */
+  checkpoint(): PhysicsCheckpoint {
+    if (this.clock !== 'explicit' || !this.world || !this.RAPIER) {
+      throw new Error('Checkpoints require explicit Rapier dynamics')
+    }
+    const state: PhysicsCheckpointState = {
+      runtime: this.RAPIER.version(),
+      rapier: Array.from(this.world.takeSnapshot()),
+      ...(this.staticGeometry.length > 0 ? { staticGeometry: this.staticGeometry } : {}),
+      drones: this.getAllDrones().map((drone) => {
+        if (!drone.rigidBody || !drone.collider) throw new Error('Incomplete Rapier drone')
+        return {
+          id: drone.id,
+          params: { ...drone.params, momentOfInertia: drone.params.momentOfInertia.toArray() },
+          position: drone.state.position.toArray(),
+          velocity: drone.state.velocity.toArray(),
+          acceleration: drone.state.acceleration.toArray(),
+          orientation: drone.state.orientation.toArray(),
+          angularVelocity: drone.state.angularVelocity.toArray(),
+          rotors: drone.state.rotors.map((rotor) => ({
+            ...rotor,
+            position: rotor.position.toArray(),
+          })),
+          battery: drone.state.battery,
+          armed: drone.state.armed,
+          commands: { ...drone.targetCommands },
+          bodyHandle: drone.rigidBody.handle,
+          colliderHandle: drone.collider.handle,
+        }
+      }),
+    }
+    const serialized = JSON.stringify(state, (_key, value: unknown) => {
+      if (typeof value === 'number' && !Number.isFinite(value)) {
+        throw new Error('Non-finite physics checkpoint state')
+      }
+      if (Object.is(value, -0)) return { float64: 'negative-zero' }
+      return value
+    })
+    if (serialized.length > MAX_PHYSICS_CHECKPOINT_BYTES) {
+      throw new Error('Physics checkpoint exceeds its byte budget')
+    }
+    const checkpoint = Object.freeze({ serialized })
+    return checkpoint
   }
 
   private applyDroneForces(drone: DronePhysicsBody, dt: number) {
@@ -770,7 +896,7 @@ interface PIDGains {
   kd: number
 }
 
-interface FlightControllerConfig {
+export interface FlightControllerConfig {
   rollPID: PIDGains
   pitchPID: PIDGains
   yawPID: PIDGains
@@ -822,6 +948,20 @@ export class FlightController {
       yawPID: { ...config.yawPID },
       altitudePID: { ...config.altitudePID },
       maxAngle: config.maxAngle,
+    }
+  }
+
+  /** Complete controller memory, including derivative history and configured gains. */
+  checkpoint(): FlightControllerCheckpoint {
+    return {
+      config: structuredClone(this.config),
+      integrals: [this.rollIntegral, this.pitchIntegral, this.yawIntegral, this.altitudeIntegral],
+      previousErrors: [
+        this.lastRollError,
+        this.lastPitchError,
+        this.lastYawError,
+        this.lastAltitudeError,
+      ],
     }
   }
 

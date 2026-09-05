@@ -225,6 +225,12 @@ jobs:
           set -o pipefail
           bun run self-check:ncp-headless 2>&1 | tee rust-ncp-headless-self-check.log
 
+      - name: Validate native local scalar adapter
+        timeout-minutes: 30
+        run: |
+          set -o pipefail
+          bun run validate:ncp-simulation 2>&1 | tee rust-ncp-simulation.log
+
       - name: Run tests
         run: |
           set -o pipefail
@@ -236,10 +242,10 @@ jobs:
           {
             echo "### Backend validation (${{ matrix.os }})"
             echo ""
-            echo "- Commands: \`fmt:rust:check\`, \`check:rust\`, \`clippy:rust\`, \`clippy:rust:ncp\`, \`test:rust\`, \`test:rust:ncp\`, \`check:ncp-headless-boundary\`, \`clippy:ncp-headless\`, \`test:ncp-headless\`, \`self-check:ncp-headless\`"
+            echo "- Commands: \`fmt:rust:check\`, \`check:rust\`, \`clippy:rust\`, \`clippy:rust:ncp\`, \`test:rust\`, \`test:rust:ncp\`, \`check:ncp-headless-boundary\`, \`clippy:ncp-headless\`, \`test:ncp-headless\`, \`self-check:ncp-headless\`, \`validate:ncp-simulation\`"
             echo ""
             echo "\`\`\`"
-            grep -E "test result:|Finished|error:|OK:|crebain_ncp_headless_self_check" rust-check.log rust-clippy.log rust-test.log rust-ncp.log rust-ncp-test.log rust-ncp-headless-boundary.log rust-ncp-headless-clippy.log rust-ncp-headless-test.log rust-ncp-headless-self-check.log || true
+            grep -E "test result:|Finished|error:|OK:|crebain_ncp_headless_self_check" rust-check.log rust-clippy.log rust-test.log rust-ncp.log rust-ncp-test.log rust-ncp-headless-boundary.log rust-ncp-headless-clippy.log rust-ncp-headless-test.log rust-ncp-headless-self-check.log rust-ncp-simulation.log || true
             echo "\`\`\`"
           } >> "$GITHUB_STEP_SUMMARY"
 

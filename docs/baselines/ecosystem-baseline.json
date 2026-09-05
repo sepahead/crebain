@@ -103,7 +103,12 @@
       "scope": "CREBAIN",
       "source": "rust-toolchain.toml and local verbose version"
     },
-    { "name": "cargo", "version": "1.91.1", "scope": "CREBAIN", "source": "local --version" },
+    {
+      "name": "cargo",
+      "version": "1.91.1",
+      "scope": "CREBAIN",
+      "source": "local --version"
+    },
     {
       "name": "haldir-rust",
       "version": "1.96.0",
@@ -130,11 +135,11 @@
     },
     {
       "path": "package.json",
-      "sha256": "c3516919b5b1d4e7287f720325d7b271ee6c911b2ceb76dc405589a1ad4302bc"
+      "sha256": "6bbb13ca69d873648ffab3a16492c8f4514e006dcc994af8d378737824ea2594"
     },
     {
       "path": "bun.lock",
-      "sha256": "33c7415d3509f92a36893be20d9eea8fc3e3f45bd3412d9748cf9e6bf0a6c97a"
+      "sha256": "122fe9f2b8170887e634e85dddfc579397f697098f5b972545a4ca68f5347bb9"
     },
     {
       "path": "src-tauri/Cargo.toml",
@@ -142,7 +147,7 @@
     },
     {
       "path": "src-tauri/Cargo.lock",
-      "sha256": "2d0cc8a5fec9289fdd2d7a2d3cacfa462403009c6db1853f33103da3210abd18"
+      "sha256": "42710cbd547a86b50412394480d7d0bed46dcc55791b7bf20509800bda2147f3"
     },
     {
       "path": "src-tauri/crates/ncp-headless/Cargo.toml",
@@ -170,7 +175,7 @@
     },
     {
       "path": "docs/baselines/phase0-command-surfaces.json",
-      "sha256": "9fb7196886eabf528236e304b31dd753d7ac680ddc4f7ff1c6e49dd0c274f327"
+      "sha256": "bdc0e529a3c18eb535d0d9b58fb0a7bd8dd9794a0d4a7bbddc564166d06fa19f"
     },
     {
       "path": "docs/baselines/phase0-hazards.json",
@@ -178,7 +183,7 @@
     },
     {
       "path": "scripts/verify-phase0-baseline.mjs",
-      "sha256": "169d0e155cecfc7c74c3e7d8457c28f1d33cc579d11122408508f6202866872d"
+      "sha256": "ebdc1a7e1eec7453c40cf24875eb87662377fd7c3f83a9b69c3a4cb65b4ac083"
     },
     {
       "path": "scripts/check-plant-authority-boundary.mjs",
@@ -210,11 +215,11 @@
     },
     {
       "path": "scripts/check-production-authority-boundary.mjs",
-      "sha256": "4675e853752adc10bb41a6e7bbfc39843b568ea7f7edc3f08847460310d99c5a"
+      "sha256": "dae0d364b4fc598d3244da2d2d9446f10192576270574c8a18ceb21f183a8c2f"
     },
     {
       "path": "scripts/test-production-authority-boundary.mjs",
-      "sha256": "5a4fb7bb72daec354885c07f48ff29c8cb4d9728a71f455d40e2ed5080ec0a2d"
+      "sha256": "ce6a33c62d903f0ca142ad928ccf7ad1fa3b612f760211bfafc7db2a2b4b6226"
     },
     {
       "path": "scripts/lib/production-vendor-boundary.mjs",
@@ -226,7 +231,7 @@
     },
     {
       "path": "scripts/fixtures/phase0-baseline-invalid-cases.json",
-      "sha256": "e5c077d7f1cf7a4e696b98f0e557380f347ea99af6bc21671a82a7265c349050"
+      "sha256": "388ecccb02686767848802a390516e71bc40b2a1f2193f4b3c7c45b06ca64adb"
     },
     {
       "path": "scripts/fixtures/production-boundary-invalid-cases.json",
@@ -234,11 +239,11 @@
     },
     {
       "path": "scripts/check-ncp-coherence.sh",
-      "sha256": "ee2d70ea7efbf6284c353917d82b95cebd6979885883f1089c32b79ebb15a74a"
+      "sha256": "a472f326e9e9f36f8e96d75c6e6617cbae6e1b6c2fbc5bedc70e5d8ce7ccd3a8"
     },
     {
       "path": "scripts/test-ncp-coherence.sh",
-      "sha256": "2df4446f912265eaa9fac6d0f950be0d1b74e5169c49bb05191048db789bfcf6"
+      "sha256": "f1d5061e96754440a70cce26295c8044e8e54bc6e2dcafcf620506685a2d41c3"
     },
     {
       "path": "scripts/check-ncp-headless-boundary.mjs",
@@ -254,7 +259,7 @@
     },
     {
       "path": ".github/workflows/ci.yml",
-      "sha256": "1a4fcb85a1887807d9943ff2ee8ead65965f9592a098297b9d9050184740e81f"
+      "sha256": "938061fa55ee828f6dbd291420c23a7a0873c5f79dfe842b41e23c2ef0288916"
     },
     {
       "path": ".github/workflows/release.yml",
@@ -282,7 +287,7 @@
     },
     {
       "path": "bun.nix",
-      "sha256": "1a0af1ab16358f4c5946a3a17cfc2552633e9f139686d941851077705ea42814"
+      "sha256": "288538f5d43dca3753d25ad78ceb8193434908e7d0bae7410f1de9d9aa5aede1"
     },
     {
       "path": "flake.nix",
@@ -306,7 +311,7 @@
     },
     {
       "path": ".github/workflows/audit.yml",
-      "sha256": "f2cfc4e5fc80f640791962b10391293d2af1c8c2c3ec7b95ceaac4e944bb920f"
+      "sha256": "7e29c7f5a1fe067fa765309e912877bc4e6f05942712cbf1c678f16261a63ee6"
     },
     {
       "path": ".github/workflows/codeql.yml",

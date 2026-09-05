@@ -153,6 +153,11 @@
       }
     },
     {
+      "path": "docs/DETERMINISTIC_DYNAMICS.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/deterministic-dynamics.svg"]
+    },
+    {
       "path": "docs/DRONE_MGW_PID_STUDY.md",
       "classification": "active-technical",
       "visuals": [
@@ -205,6 +210,24 @@
       "path": "docs/NATIVE_DETECTOR_BENCHMARK.md",
       "classification": "active-technical",
       "visuals": ["assets/diagrams/evidence-claim-chain.svg"]
+    },
+    {
+      "path": "docs/NATIVE_ENVIRONMENT.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/native-environment.svg"]
+    },
+    {
+      "path": "docs/NATIVE_NCP_SIMULATION.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/native-ncp-simulation.svg"]
+    },
+    {
+      "path": "docs/NATIVE_SIMULATION_KERNEL.md",
+      "classification": "active-technical",
+      "exemption": {
+        "kind": "local-api-contract",
+        "reason": "The local API, fixed-width diagnostic fields, and one numerical example are complete in prose and tables. No new runtime integration edge is implemented."
+      }
     },
     {
       "path": "docs/NCP_BRIDGE_HANDOFF.md",

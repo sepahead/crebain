@@ -1,0 +1,24 @@
+[package]
+name = "crebain-ncp-simulation"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.91.1"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/sepahead/crebain"
+description = "Native bounded local NCP responder owning the CREBAIN simulation kernel"
+publish = false
+
+[workspace]
+resolver = "2"
+
+[dependencies]
+crebain-managed-simulation = { path = "../managed-simulation" }
+ncp-local = { git = "https://github.com/sepahead/NCP", rev = "de751d499b5e07d1c95a072e08255083d77cb38b", version = "=1.0.0" }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip"] }
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }

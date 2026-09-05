@@ -39,6 +39,98 @@ pub struct Prepared;
 #[derive(Debug)]
 pub struct Finished;
 
+/// Immutable diagnostic selection for one project-local simulation generation.
+///
+/// This selection changes no body or fusion arithmetic. It is not a transport
+/// profile and grants no authority to operate the historical Host API server.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum InnovationRecording {
+    /// Preserve the historical simulator behavior without diagnostic retention.
+    #[default]
+    Disabled,
+    /// Retain actual Kalman innovation statistics for the latest committed step.
+    KalmanInnovationV1,
+}
+
+/// Why one current simulator measurement has no accepted innovation statistic.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum InnovationAbsence {
+    /// The declared sensor supplied no measurement in this step.
+    SensorUnavailable,
+    /// No accepted filter update emitted a statistic, including initial birth.
+    NoAcceptedUpdate,
+}
+
+/// Actual statistics emitted by one accepted Kalman measurement update.
+///
+/// The residual uses ENU meters and the covariance uses square meters. NIS is
+/// dimensionless. These diagnostics do not establish a calibrated null law or
+/// a common-prior cross-sensor consistency projection.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct KalmanInnovation {
+    /// Lane-local track identifier from the accepted filter update.
+    pub fusion_track_id: u64,
+    /// Actual fusion frame sequence, distinct from the simulator step index.
+    pub fusion_sequence: u64,
+    /// Original measurement time in simulation milliseconds.
+    pub measurement_timestamp_ms: u64,
+    /// Actual sensor modality admitted by the fusion lane.
+    pub modality: SensorModality,
+    /// Normalized innovation squared from the existing Cholesky calculation.
+    pub nis: f64,
+    /// Residual dimension of the actual Kalman update.
+    pub degrees_of_freedom: u8,
+    /// Actual measurement residual, in ENU meters.
+    pub innovation_m: [f64; 3],
+    /// Actual innovation covariance in ENU square meters, stored row-major.
+    pub innovation_covariance_m2: [[f64; 3]; 3],
+}
+
+/// Current evidence for one entity; absence never supplies a numeric substitute.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum InnovationEvidence {
+    /// The current step contains an accepted, source-bound update.
+    Observed { sample: KalmanInnovation },
+    /// This step contains no accepted update for the stated reason.
+    Unavailable { reason: InnovationAbsence },
+}
+
+/// One immutable entity-to-sensor association in the current diagnostic frame.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct EntityInnovation {
+    /// Exact prepared entity identity, independent of lane-local track numbers.
+    pub entity_id: String,
+    /// Configured simulated sensor label, not authenticated transport origin.
+    pub sensor_id: String,
+    /// Current accepted innovation or explicit absence.
+    pub evidence: InnovationEvidence,
+}
+
+/// Bounded diagnostics for exactly one committed simulator interval.
+///
+/// The interval endpoints describe body advancement. Each observed statistic
+/// comes from the measurement at `interval_end_ms`, not an average over time.
+/// Preparation has the zero-width interval `[0, 0]` and usually a birth absence.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct InnovationFrame {
+    /// Exact local diagnostic meaning. This is not an external wire schema.
+    pub profile: &'static str,
+    /// Exact prepared run identity.
+    pub run_id: String,
+    /// Simulator step index, independent of the fusion frame sequence.
+    pub tick_index: u64,
+    /// Previous committed body time in milliseconds.
+    pub interval_start_ms: u64,
+    /// Current committed body and measurement time in milliseconds.
+    pub interval_end_ms: u64,
+    /// Configured physical frame for the simulated visual measurement.
+    pub source_frame_id: &'static str,
+    /// Exactly one row per prepared entity, in the immutable roster order.
+    pub entities: Vec<EntityInnovation>,
+}
+
 #[derive(Debug, Error, Clone, Copy, PartialEq, Eq)]
 pub enum SimulationError {
     #[error("simulation input is invalid")]
@@ -166,6 +258,8 @@ struct SimulationCore {
     state_digest: String,
     transcript_digest: String,
     last_frame: FrameEvidence,
+    innovation_recording: InnovationRecording,
+    last_innovations: Option<InnovationFrame>,
 }
 
 impl Drop for SimulationCore {
@@ -176,6 +270,7 @@ impl Drop for SimulationCore {
         self.fusion_lanes.clear();
         self.drones.clear();
         self.last_frame = empty_frame(self.tick_index);
+        self.last_innovations = None;
     }
 }
 
@@ -216,6 +311,24 @@ impl MultiDroneSimulation<Unprepared> {
         self,
         request: PrepareRequest,
     ) -> Result<(MultiDroneSimulation<Prepared>, PrepareResponse), SimulationError> {
+        self.prepare_with_recording(request, InnovationRecording::Disabled)
+    }
+
+    /// Prepare the same simulator with an explicit immutable diagnostic option.
+    ///
+    /// Historical request, state, and receipt digests remain unchanged. The
+    /// caller must bind this selection separately in its prepared native profile.
+    /// This function starts no server and performs no I/O.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same admission errors as [`Self::prepare`]. Malformed or
+    /// unexpectedly ambiguous innovation output returns [`SimulationError::FusionFailed`].
+    pub fn prepare_with_recording(
+        self,
+        request: PrepareRequest,
+        recording: InnovationRecording,
+    ) -> Result<(MultiDroneSimulation<Prepared>, PrepareResponse), SimulationError> {
         validate_prepare(&request)?;
         let request_digest = digest_request(&request)?;
         let request_bytes = canonical_request_bytes(&request)?;
@@ -246,8 +359,8 @@ impl MultiDroneSimulation<Unprepared> {
             // divergence guard above the corresponding bounded 3-D volume.
             max_position_cov_volume: 8.0e18,
             particle_count: 100,
-            emit_innovations: false,
-            emit_innovation_research: false,
+            emit_innovations: recording == InnovationRecording::KalmanInnovationV1,
+            emit_innovation_research: recording == InnovationRecording::KalmanInnovationV1,
         };
         validate_fusion_config(&config).map_err(|_| SimulationError::FusionFailed)?;
         let mut fusion_lanes: Vec<MultiSensorFusion> = (0..drones.len())
@@ -261,6 +374,15 @@ impl MultiDroneSimulation<Unprepared> {
         if lane_tracks.iter().any(Option::is_none) {
             return Err(SimulationError::FusionFailed);
         }
+        let last_innovations = collect_innovations(
+            recording,
+            &mut fusion_lanes,
+            &drones,
+            &admitted,
+            &request.run_id,
+            0,
+            request.tick_ms,
+        )?;
 
         let frame = frame_from_tracks(
             0,
@@ -313,6 +435,8 @@ impl MultiDroneSimulation<Unprepared> {
             state_digest,
             transcript_digest,
             last_frame: frame,
+            innovation_recording: recording,
+            last_innovations,
         };
         Ok((
             MultiDroneSimulation {
@@ -331,7 +455,51 @@ impl Default for MultiDroneSimulation<Unprepared> {
     }
 }
 
+/// Check the existing kernel preparation contract without creating state or I/O.
+///
+/// # Errors
+///
+/// Returns [`SimulationError::InvalidInput`] for an invalid request.
+pub fn validate_prepare_request(request: &PrepareRequest) -> Result<(), SimulationError> {
+    validate_prepare(request)
+}
+
 impl MultiDroneSimulation<Prepared> {
+    /// Check request admission without advancing body or fusion state.
+    ///
+    /// This does not promise that subsequent computation cannot fail.
+    ///
+    /// # Errors
+    ///
+    /// Returns the existing identity, order, shape, bound, or overload error.
+    pub fn validate_step(&self, request: &StepRequest) -> Result<(), SimulationError> {
+        validate_step(
+            self.core.as_ref().ok_or(SimulationError::NoActiveRun)?,
+            request,
+        )
+    }
+
+    /// Check finish admission without consuming or clearing this generation.
+    ///
+    /// # Errors
+    ///
+    /// Returns the existing run, step, or request-shape error.
+    pub fn validate_finish(&self, request: &FinishRequest) -> Result<(), SimulationError> {
+        validate_finish(
+            self.core.as_ref().ok_or(SimulationError::NoActiveRun)?,
+            request,
+        )
+    }
+
+    /// Return only the latest committed diagnostic interval, when enabled.
+    ///
+    /// A rejected step leaves this frame unchanged, including its old index.
+    /// A successful step replaces every entity row, including explicit absence.
+    /// No history accumulates and this accessor performs no I/O or mutation.
+    pub fn latest_innovations(&self) -> Option<&InnovationFrame> {
+        self.core.as_ref()?.last_innovations.as_ref()
+    }
+
     /// Advance the exact prepared roster by one tick.
     ///
     /// # Errors
@@ -403,6 +571,15 @@ impl MultiDroneSimulation<Prepared> {
             &offsets,
             &sensor_admitted,
         )?;
+        let last_innovations = collect_innovations(
+            core.innovation_recording,
+            &mut proposed_fusion_lanes,
+            &proposed_drones,
+            &sensor_admitted,
+            &core.run_id,
+            next_tick,
+            core.tick_ms,
+        )?;
 
         let frame = frame_from_tracks(
             next_tick,
@@ -450,6 +627,7 @@ impl MultiDroneSimulation<Prepared> {
         core.state_digest = state_digest;
         core.transcript_digest = transcript_digest;
         core.last_frame = frame;
+        core.last_innovations = last_innovations;
         Ok(response)
     }
 
@@ -942,7 +1120,7 @@ fn vector_norm_squared(values: &[f64]) -> f64 {
 
 fn measurement_for(drone: &DroneState, timestamp_ms: u64, offset: [f64; 3]) -> SensorMeasurement {
     SensorMeasurement {
-        sensor_id: format!("sim.{}", drone.id),
+        sensor_id: simulation_sensor_id(drone),
         modality: SensorModality::Visual,
         timestamp_ms,
         source_frame_id: Some(SOURCE_FRAME_ID.to_string()),
@@ -957,6 +1135,97 @@ fn measurement_for(drone: &DroneState, timestamp_ms: u64, offset: [f64; 3]) -> S
         class_label: "drone".to_string(),
         metadata: HashMap::new(),
     }
+}
+
+fn simulation_sensor_id(drone: &DroneState) -> String {
+    format!("sim.{}", drone.id)
+}
+
+fn collect_innovations(
+    recording: InnovationRecording,
+    lanes: &mut [MultiSensorFusion],
+    drones: &[DroneState],
+    admitted: &[bool],
+    run_id: &str,
+    tick_index: u64,
+    tick_ms: u64,
+) -> Result<Option<InnovationFrame>, SimulationError> {
+    if recording == InnovationRecording::Disabled {
+        return Ok(None);
+    }
+    if lanes.len() != drones.len() || admitted.len() != drones.len() || drones.len() > MAX_DRONES {
+        return Err(SimulationError::FusionFailed);
+    }
+    let interval_end_ms = tick_index
+        .checked_mul(tick_ms)
+        .ok_or(SimulationError::SimulationBoundary)?;
+    let interval_start_ms = tick_index
+        .saturating_sub(1)
+        .checked_mul(tick_ms)
+        .ok_or(SimulationError::SimulationBoundary)?;
+    let expected_fusion_sequence = tick_index
+        .checked_add(1)
+        .ok_or(SimulationError::SimulationBoundary)?;
+    let mut entities = Vec::with_capacity(drones.len());
+    for ((lane, drone), admitted) in lanes.iter_mut().zip(drones).zip(admitted) {
+        let records = lane.drain_pid_observations();
+        let evidence = match records.as_slice() {
+            [] => InnovationEvidence::Unavailable {
+                reason: if *admitted {
+                    InnovationAbsence::NoAcceptedUpdate
+                } else {
+                    InnovationAbsence::SensorUnavailable
+                },
+            },
+            [record] if *admitted => {
+                record
+                    .validate()
+                    .map_err(|_| SimulationError::FusionFailed)?;
+                if record.timestamp_ms != interval_end_ms
+                    || record.seq != expected_fusion_sequence
+                    || record.modality != SensorModality::Visual
+                    || record.dof != 3
+                    || drone
+                        .fusion_lane_track_id
+                        .as_deref()
+                        .and_then(crate::pid_observation::track_numeric_id)
+                        != Some(record.track_id)
+                    || record.consistency_projection.is_some()
+                {
+                    return Err(SimulationError::FusionFailed);
+                }
+                InnovationEvidence::Observed {
+                    sample: KalmanInnovation {
+                        fusion_track_id: record.track_id,
+                        fusion_sequence: record.seq,
+                        measurement_timestamp_ms: record.timestamp_ms,
+                        modality: record.modality,
+                        nis: record.nis,
+                        degrees_of_freedom: record.dof,
+                        innovation_m: record.innovation.ok_or(SimulationError::FusionFailed)?,
+                        innovation_covariance_m2: record
+                            .innovation_cov
+                            .ok_or(SimulationError::FusionFailed)?,
+                    },
+                }
+            }
+            _ => return Err(SimulationError::FusionFailed),
+        };
+        entities.push(EntityInnovation {
+            entity_id: drone.id.clone(),
+            sensor_id: simulation_sensor_id(drone),
+            evidence,
+        });
+    }
+    Ok(Some(InnovationFrame {
+        profile: "crebain.kalman-innovation.v1",
+        run_id: run_id.to_owned(),
+        tick_index,
+        interval_start_ms,
+        interval_end_ms,
+        source_frame_id: SOURCE_FRAME_ID,
+        entities,
+    }))
 }
 
 fn process_fusion_lanes(
@@ -1506,6 +1775,289 @@ mod tests {
             );
             assert_eq!(prepared.fused_velocity_mps.len(), drone_count * 3);
             assert_eq!(stepped.fused_velocity_mps.len(), drone_count * 3);
+        }
+    }
+
+    #[test]
+    fn innovation_recording_preserves_exact_responses_for_one_two_and_three_entities() {
+        for entity_count in 1..=3 {
+            let mut request = prepare_request(entity_count);
+            request.max_ticks = 160;
+            let (mut baseline, baseline_prepared) = MultiDroneSimulation::new()
+                .prepare(request.clone())
+                .expect("historical profile prepares");
+            let (mut recorded, recorded_prepared) = MultiDroneSimulation::new()
+                .prepare_with_recording(request, InnovationRecording::KalmanInnovationV1)
+                .expect("explicit diagnostic selection prepares");
+            assert_eq!(
+                serde_json::to_vec(&baseline_prepared).unwrap(),
+                serde_json::to_vec(&recorded_prepared).unwrap()
+            );
+            assert!(baseline.latest_innovations().is_none());
+            for tick_index in 1..=160 {
+                let mut step = step_request(entity_count, tick_index);
+                if tick_index % 17 == 3 {
+                    step.fault_codes[0] = FaultCode::SensorDropout;
+                }
+                if tick_index % 23 == 5 {
+                    step.fault_codes[entity_count - 1] = FaultCode::ActuatorHold;
+                }
+                let expected = baseline.step(step.clone()).expect("baseline step");
+                let actual = recorded.step(step).expect("recorded step");
+                assert_eq!(
+                    serde_json::to_vec(&expected).unwrap(),
+                    serde_json::to_vec(&actual).unwrap(),
+                    "all numerical values and historical receipts remain exact"
+                );
+                let frame = recorded.latest_innovations().expect("enabled frame");
+                assert_eq!(frame.tick_index, tick_index);
+                assert_eq!(frame.entities.len(), entity_count);
+                assert_eq!(frame.interval_start_ms, (tick_index - 1) * 20);
+                assert_eq!(frame.interval_end_ms, tick_index * 20);
+                assert!(baseline.latest_innovations().is_none());
+                for lane in &mut recorded.core.as_mut().unwrap().fusion_lanes {
+                    assert!(lane.drain_pid_observations().is_empty());
+                }
+            }
+            let finish = FinishRequest {
+                schema_version: FINISH_REQUEST_SCHEMA_ID.to_owned(),
+                run_id: baseline_prepared.run_id.clone(),
+                tick_index: 160,
+                reason: "completed".to_owned(),
+            };
+            let (baseline_finished, expected) = baseline.finish(finish.clone()).expect("finish");
+            let (recorded_finished, actual) = recorded.finish(finish).expect("recorded finish");
+            assert!(baseline_finished.cleaned_up() && recorded_finished.cleaned_up());
+            assert_eq!(
+                serde_json::to_vec(&expected).unwrap(),
+                serde_json::to_vec(&actual).unwrap()
+            );
+        }
+    }
+
+    #[test]
+    fn innovation_recording_distinguishes_birth_zero_dropout_and_recovery() {
+        let (mut simulation, _) = MultiDroneSimulation::new()
+            .prepare_with_recording(prepare_request(3), InnovationRecording::KalmanInnovationV1)
+            .expect("prepare");
+        let initial = simulation.latest_innovations().expect("initial frame");
+        assert_eq!((initial.interval_start_ms, initial.interval_end_ms), (0, 0));
+        assert!(initial.entities.iter().all(|entity| matches!(
+            entity.evidence,
+            InnovationEvidence::Unavailable {
+                reason: InnovationAbsence::NoAcceptedUpdate
+            }
+        )));
+
+        let mut stationary = step_request(3, 1);
+        stationary.actuator_intent_acceleration_mps2.fill(0.0);
+        simulation.step(stationary).expect("stationary update");
+        let observed = simulation.latest_innovations().expect("observed zero");
+        for (index, entity) in observed.entities.iter().enumerate() {
+            let InnovationEvidence::Observed { sample } = &entity.evidence else {
+                panic!("accepted zero is observed, not absent");
+            };
+            assert_eq!(entity.entity_id, format!("drone-{:02}", index + 1));
+            assert_eq!(entity.sensor_id, format!("sim.{}", entity.entity_id));
+            assert_eq!(sample.nis, 0.0);
+            assert_eq!(sample.innovation_m, [0.0; 3]);
+            assert_eq!(sample.degrees_of_freedom, 3);
+            assert_eq!(sample.modality, SensorModality::Visual);
+            assert_eq!(sample.fusion_sequence, 2);
+            assert_eq!(sample.measurement_timestamp_ms, 20);
+        }
+
+        let mut dropout = step_request(3, 2);
+        dropout.fault_codes[0] = FaultCode::SensorDropout;
+        simulation.step(dropout).expect("per-entity dropout");
+        let absent = simulation.latest_innovations().expect("current frame");
+        assert_eq!(absent.tick_index, 2);
+        assert!(matches!(
+            absent.entities[0].evidence,
+            InnovationEvidence::Unavailable {
+                reason: InnovationAbsence::SensorUnavailable
+            }
+        ));
+        assert!(absent.entities[1..]
+            .iter()
+            .all(|entity| matches!(entity.evidence, InnovationEvidence::Observed { .. })));
+        simulation.step(step_request(3, 3)).expect("recovery");
+        assert!(simulation
+            .latest_innovations()
+            .unwrap()
+            .entities
+            .iter()
+            .all(|entity| matches!(entity.evidence, InnovationEvidence::Observed { .. })));
+    }
+
+    #[test]
+    fn innovation_recording_preserves_actual_residual_covariance_and_nis() {
+        let (mut simulation, _) = MultiDroneSimulation::new()
+            .prepare_with_recording(prepare_request(1), InnovationRecording::KalmanInnovationV1)
+            .expect("prepare");
+        let mut step = step_request(1, 1);
+        step.actuator_intent_acceleration_mps2.fill(0.0);
+        step.sensor_offset_m = vec![0.1, -0.2, 0.3];
+        simulation.step(step).expect("nonzero innovation");
+        let InnovationEvidence::Observed { sample } =
+            &simulation.latest_innovations().unwrap().entities[0].evidence
+        else {
+            panic!("small accepted displacement emits a statistic");
+        };
+        assert!(sample.nis > 0.0);
+        assert!((sample.innovation_m[0] - 0.1).abs() < 1e-12);
+        assert!((sample.innovation_m[1] + 0.2).abs() < 1e-12);
+        assert!((sample.innovation_m[2] - 0.3).abs() < 1e-12);
+        let mut direct_nis = 0.0;
+        for axis in 0..3 {
+            let variance = sample.innovation_covariance_m2[axis][axis];
+            assert!(variance > 0.0);
+            for other in 0..3 {
+                if axis != other {
+                    assert_eq!(sample.innovation_covariance_m2[axis][other], 0.0);
+                }
+            }
+            direct_nis += sample.innovation_m[axis].powi(2) / variance;
+        }
+        assert!((sample.nis - direct_nis).abs() <= 1e-12 * direct_nis);
+    }
+
+    #[test]
+    fn rejected_step_preserves_prior_innovation_identity_without_refreshing_it() {
+        let (mut simulation, _) = MultiDroneSimulation::new()
+            .prepare_with_recording(prepare_request(2), InnovationRecording::KalmanInnovationV1)
+            .expect("prepare");
+        simulation.step(step_request(2, 1)).expect("first step");
+        let previous = simulation.latest_innovations().unwrap().clone();
+        assert_eq!(
+            simulation.step(step_request(2, 1)).unwrap_err(),
+            SimulationError::TickOutOfOrder
+        );
+        assert_eq!(simulation.latest_innovations(), Some(&previous));
+        let mut malformed = step_request(2, 2);
+        malformed.actuator_intent_acceleration_mps2[0] = f64::NAN;
+        assert_eq!(
+            simulation.step(malformed).unwrap_err(),
+            SimulationError::InvalidInput
+        );
+        assert_eq!(simulation.latest_innovations(), Some(&previous));
+        simulation.step(step_request(2, 2)).expect("valid retry");
+        assert_eq!(simulation.latest_innovations().unwrap().tick_index, 2);
+    }
+
+    #[test]
+    fn historical_prepare_wire_cannot_enable_local_innovation_recording() {
+        let mut wire = serde_json::to_value(prepare_request(1)).unwrap();
+        wire.as_object_mut().unwrap().insert(
+            "innovation_recording".to_owned(),
+            serde_json::json!("kalman_innovation_v1"),
+        );
+        assert!(serde_json::from_value::<PrepareRequest>(wire).is_err());
+        let request: PrepareRequest =
+            serde_json::from_value(serde_json::to_value(prepare_request(1)).unwrap()).unwrap();
+        let (simulation, _) = MultiDroneSimulation::new()
+            .prepare(request)
+            .expect("old wire");
+        assert!(simulation.latest_innovations().is_none());
+    }
+
+    #[test]
+    fn public_preflight_delegates_admission_without_mutation() {
+        let request = prepare_request(1);
+        validate_prepare_request(&request).expect("valid preparation preflight");
+        let mut invalid = request.clone();
+        invalid.sensor_variance_m2[0] = 0.0;
+        assert_eq!(
+            validate_prepare_request(&invalid),
+            Err(SimulationError::InvalidInput)
+        );
+        let (mut simulation, _) = MultiDroneSimulation::new()
+            .prepare_with_recording(request, InnovationRecording::KalmanInnovationV1)
+            .expect("prepare");
+        let initial = simulation.latest_innovations().unwrap().clone();
+        let step = step_request(1, 1);
+        simulation
+            .validate_step(&step)
+            .expect("valid step preflight");
+        assert_eq!(simulation.latest_innovations(), Some(&initial));
+        let mut invalid_step = step.clone();
+        invalid_step.tick_index = 2;
+        assert_eq!(
+            simulation.validate_step(&invalid_step),
+            Err(SimulationError::TickOutOfOrder)
+        );
+        assert_eq!(simulation.latest_innovations(), Some(&initial));
+        let mut finish = FinishRequest {
+            schema_version: FINISH_REQUEST_SCHEMA_ID.to_owned(),
+            run_id: "run-deterministic-01".to_owned(),
+            tick_index: 1,
+            reason: "completed".to_owned(),
+        };
+        assert_eq!(
+            simulation.validate_finish(&finish),
+            Err(SimulationError::TickOutOfOrder)
+        );
+        finish.tick_index = 0;
+        simulation
+            .validate_finish(&finish)
+            .expect("valid finish preflight");
+        assert_eq!(simulation.latest_innovations(), Some(&initial));
+        simulation
+            .step(step)
+            .expect("preflight did not consume the step");
+    }
+
+    #[test]
+    fn innovation_collection_rejects_stale_ambiguous_and_incompatible_evidence() {
+        let (simulation, _) = MultiDroneSimulation::new()
+            .prepare_with_recording(prepare_request(1), InnovationRecording::KalmanInnovationV1)
+            .expect("prepare");
+        let core = simulation.core.as_ref().unwrap();
+        for fault in 0..6 {
+            let mut lanes = core.fusion_lanes.clone();
+            let mut drones = core.drones.clone();
+            let mut admitted = vec![true];
+            let mut measurement = measurement_for(&drones[0], 20, [0.1, 0.0, 0.0]);
+            if fault == 2 {
+                measurement.modality = SensorModality::Thermal;
+            }
+            if fault == 3 {
+                lanes[0].set_config(FusionConfig {
+                    algorithm: FilterAlgorithm::Kalman,
+                    emit_innovations: true,
+                    emit_innovation_research: false,
+                    ..FusionConfig::default()
+                });
+            }
+            lanes[0]
+                .try_process_measurements(vec![measurement.clone()], 20)
+                .expect("actual update");
+            if fault == 0 {
+                measurement.timestamp_ms = 40;
+                lanes[0]
+                    .try_process_measurements(vec![measurement], 40)
+                    .expect("second unconsumed update");
+            }
+            if fault == 4 {
+                admitted[0] = false;
+            }
+            if fault == 5 {
+                drones[0].fusion_lane_track_id = Some("TRK-00002".to_owned());
+            }
+            let tick_index = if fault == 1 { 2 } else { 1 };
+            assert_eq!(
+                collect_innovations(
+                    InnovationRecording::KalmanInnovationV1,
+                    &mut lanes,
+                    &drones,
+                    &admitted,
+                    &core.run_id,
+                    tick_index,
+                    core.tick_ms,
+                ),
+                Err(SimulationError::FusionFailed),
+                "fault {fault} cannot become current accepted evidence"
+            );
         }
     }
 

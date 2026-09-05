@@ -25,6 +25,13 @@ jobs:
         with:
           manifest-path: src-tauri/Cargo.toml
           command: check
+      - name: Audit native local scalar adapter
+        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
+        with:
+          manifest-path: src-tauri/crates/ncp-simulation/Cargo.toml
+          rust-version: 1.91.1
+          arguments: --all-features --locked --config src-tauri/deny.toml
+          command: check
 
   bun-audit:
     name: bun audit (npm advisories)

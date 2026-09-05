@@ -1,0 +1,233 @@
+{
+  "profile": "crebain.city-scene.v1",
+  "id": "owned-city-block",
+  "frame": "three-y-up-z-forward-m",
+  "solids": [
+    {
+      "shape": {
+        "id": "building-00",
+        "center": [-21, 2, -21],
+        "halfExtents": [4, 2, 4],
+        "yaw": 0,
+        "friction": 0.5,
+        "restitution": 0
+      },
+      "materialId": "concrete"
+    },
+    {
+      "shape": {
+        "id": "building-01",
+        "center": [-7, 3.5, -21],
+        "halfExtents": [4, 3.5, 4],
+        "yaw": 0,
+        "friction": 0.5,
+        "restitution": 0
+      },
+      "materialId": "concrete"
+    },
+    {
+      "shape": {
+        "id": "building-02",
+        "center": [7, 5, -21],
+        "halfExtents": [4, 5, 4],
+        "yaw": 0,
+        "friction": 0.5,
+        "restitution": 0
+      },
+      "materialId": "concrete"
+    },
+    {
+      "shape": {
+        "id": "building-03",
+        "center": [21, 2, -21],
+        "halfExtents": [4, 2, 4],
+        "yaw": 0,
+        "friction": 0.5,
+        "restitution": 0
+      },
+      "materialId": "concrete"
+    },
+    {
+      "shape": {
+        "id": "building-04",
+        "center": [-21, 3.5, -7],
+        "halfExtents": [4, 3.5, 4],
+        "yaw": 0,
+        "friction": 0.5,
+        "restitution": 0
+      },
+      "materialId": "concrete"
+    },
+    {
+      "shape": {
+        "id": "building-05",
+        "center": [-7, 5, -7],
+        "halfExtents": [4, 5, 4],
+        "yaw": 0,
+        "friction": 0.5,
+        "restitution": 0
+      },
+      "materialId": "concrete"
+    },
+    {
+      "shape": {
+        "id": "building-06",
+        "center": [7, 2, -7],
+        "halfExtents": [4, 2, 4],
+        "yaw": 0,
+        "friction": 0.5,
+        "restitution": 0
+      },
+      "materialId": "concrete"
+    },
+    {
+      "shape": {
+        "id": "building-07",
+        "center": [21, 3.5, -7],
+        "halfExtents": [4, 3.5, 4],
+        "yaw": 0,
+        "friction": 0.5,
+        "restitution": 0
+      },
+      "materialId": "concrete"
+    },
+    {
+      "shape": {
+        "id": "building-08",
+        "center": [-21, 5, 7],
+        "halfExtents": [4, 5, 4],
+        "yaw": 0,
+        "friction": 0.5,
+        "restitution": 0
+      },
+      "materialId": "concrete"
+    },
+    {
+      "shape": {
+        "id": "building-09",
+        "center": [-7, 2, 7],
+        "halfExtents": [4, 2, 4],
+        "yaw": 0,
+        "friction": 0.5,
+        "restitution": 0
+      },
+      "materialId": "concrete"
+    },
+    {
+      "shape": {
+        "id": "building-10",
+        "center": [7, 3.5, 7],
+        "halfExtents": [4, 3.5, 4],
+        "yaw": 0,
+        "friction": 0.5,
+        "restitution": 0
+      },
+      "materialId": "concrete"
+    },
+    {
+      "shape": {
+        "id": "building-11",
+        "center": [21, 5, 7],
+        "halfExtents": [4, 5, 4],
+        "yaw": 0,
+        "friction": 0.5,
+        "restitution": 0
+      },
+      "materialId": "concrete"
+    },
+    {
+      "shape": {
+        "id": "building-12",
+        "center": [-21, 2, 21],
+        "halfExtents": [4, 2, 4],
+        "yaw": 0,
+        "friction": 0.5,
+        "restitution": 0
+      },
+      "materialId": "concrete"
+    },
+    {
+      "shape": {
+        "id": "building-13",
+        "center": [-7, 3.5, 21],
+        "halfExtents": [4, 3.5, 4],
+        "yaw": 0,
+        "friction": 0.5,
+        "restitution": 0
+      },
+      "materialId": "concrete"
+    },
+    {
+      "shape": {
+        "id": "building-14",
+        "center": [7, 5, 21],
+        "halfExtents": [4, 5, 4],
+        "yaw": 0,
+        "friction": 0.5,
+        "restitution": 0
+      },
+      "materialId": "concrete"
+    },
+    {
+      "shape": {
+        "id": "building-15",
+        "center": [21, 2, 21],
+        "halfExtents": [4, 2, 4],
+        "yaw": 0,
+        "friction": 0.5,
+        "restitution": 0
+      },
+      "materialId": "concrete"
+    }
+  ],
+  "materials": [
+    {
+      "id": "concrete",
+      "linearRgb": [0.35, 0.38, 0.43],
+      "gaussianOpacity": 0.85,
+      "temperatureK": 293.15,
+      "emissivity": 0.9
+    }
+  ],
+  "rgbCameras": [
+    {
+      "id": "rgb-a",
+      "position": [0, 14, 38],
+      "target": [0, 8, 0],
+      "width": 320,
+      "height": 240,
+      "fovDegrees": 70,
+      "periodTicks": 12
+    },
+    {
+      "id": "rgb-b",
+      "position": [38, 14, 0],
+      "target": [0, 8, 0],
+      "width": 320,
+      "height": 240,
+      "fovDegrees": 70,
+      "periodTicks": 12
+    }
+  ],
+  "thermalCameras": [
+    {
+      "id": "thermal-a",
+      "position": [0, 14, 38],
+      "target": [0, 8, 0],
+      "width": 160,
+      "height": 120,
+      "fovDegrees": 70,
+      "periodTicks": 12
+    }
+  ],
+  "microphones": [
+    {
+      "id": "mic-a",
+      "position": [0, 2, 10]
+    },
+    {
+      "id": "mic-b",
+      "position": [4, 2, 10]
+    }
+  ]
+}

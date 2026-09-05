@@ -559,12 +559,20 @@
     },
     {
       "id": "root-cargo-config-toml-input",
-      "mutation": { "type": "add-source", "file": ".cargo/config.toml", "value": "[build]\n" },
+      "mutation": {
+        "type": "add-source",
+        "file": ".cargo/config.toml",
+        "value": "[build]\n"
+      },
       "expected_error": "conditional executable input expected absent: .cargo/config.toml"
     },
     {
       "id": "root-cargo-config-input",
-      "mutation": { "type": "add-source", "file": ".cargo/config", "value": "[build]\n" },
+      "mutation": {
+        "type": "add-source",
+        "file": ".cargo/config",
+        "value": "[build]\n"
+      },
       "expected_error": "conditional executable input expected absent: .cargo/config"
     },
     {
@@ -695,17 +703,29 @@
     },
     {
       "id": "root-vite-env-input",
-      "mutation": { "type": "add-source", "file": ".env", "value": "VITE_OVERRIDE=1\n" },
+      "mutation": {
+        "type": "add-source",
+        "file": ".env",
+        "value": "VITE_OVERRIDE=1\n"
+      },
       "expected_error": "conditional executable input expected absent: .env"
     },
     {
       "id": "root-vite-env-local-input",
-      "mutation": { "type": "add-source", "file": ".env.local", "value": "VITE_OVERRIDE=1\n" },
+      "mutation": {
+        "type": "add-source",
+        "file": ".env.local",
+        "value": "VITE_OVERRIDE=1\n"
+      },
       "expected_error": "conditional executable input expected absent: .env.local"
     },
     {
       "id": "root-vite-env-production-input",
-      "mutation": { "type": "add-source", "file": ".env.production", "value": "VITE_OVERRIDE=1\n" },
+      "mutation": {
+        "type": "add-source",
+        "file": ".env.production",
+        "value": "VITE_OVERRIDE=1\n"
+      },
       "expected_error": "conditional executable input expected absent: .env.production"
     },
     {
@@ -737,17 +757,29 @@
     },
     {
       "id": "root-vite-env-test-input",
-      "mutation": { "type": "add-source", "file": ".env.test", "value": "VITE_OVERRIDE=1\n" },
+      "mutation": {
+        "type": "add-source",
+        "file": ".env.test",
+        "value": "VITE_OVERRIDE=1\n"
+      },
       "expected_error": "conditional executable input expected absent: .env.test"
     },
     {
       "id": "root-vite-env-test-local-input",
-      "mutation": { "type": "add-source", "file": ".env.test.local", "value": "VITE_OVERRIDE=1\n" },
+      "mutation": {
+        "type": "add-source",
+        "file": ".env.test.local",
+        "value": "VITE_OVERRIDE=1\n"
+      },
       "expected_error": "conditional executable input expected absent: .env.test.local"
     },
     {
       "id": "undeclared-root-vite-mode-input",
-      "mutation": { "type": "add-source", "file": ".env.staging", "value": "VITE_OVERRIDE=1\n" },
+      "mutation": {
+        "type": "add-source",
+        "file": ".env.staging",
+        "value": "VITE_OVERRIDE=1\n"
+      },
       "expected_error": "undeclared root Vite environment input: .env.staging"
     },
     {
@@ -879,7 +911,10 @@
             "hazard_id": "HAZ-001",
             "control_ids": ["CTL-001"],
             "command": "node scripts/test-phase0-baseline.mjs --fixture-evidence",
-            "result": { "outcome": "passed", "exit_code": 0 },
+            "result": {
+              "outcome": "passed",
+              "exit_code": 0
+            },
             "candidate_commit": "1111111111111111111111111111111111111111",
             "artifact_path": "evidence/missing-bypass-report.json",
             "artifact_sha256": "4072dedaa841ef317163e311b0764878e8f370a24dc3bb3c4433c9e0734dce4e"
@@ -902,7 +937,10 @@
             "hazard_id": "HAZ-999",
             "control_ids": ["CTL-001"],
             "command": "node scripts/test-phase0-baseline.mjs --fixture-evidence",
-            "result": { "outcome": "passed", "exit_code": 0 },
+            "result": {
+              "outcome": "passed",
+              "exit_code": 0
+            },
             "candidate_commit": "1111111111111111111111111111111111111111",
             "artifact_path": "scripts/fixtures/phase0-evidence-artifact-valid.json",
             "artifact_sha256": "4072dedaa841ef317163e311b0764878e8f370a24dc3bb3c4433c9e0734dce4e"
@@ -925,7 +963,10 @@
             "hazard_id": "HAZ-001",
             "control_ids": ["CTL-001", "CTL-002", "CTL-009", "CTL-020"],
             "command": "node scripts/test-phase0-baseline.mjs --fixture-evidence",
-            "result": { "outcome": "passed", "exit_code": 0 },
+            "result": {
+              "outcome": "passed",
+              "exit_code": 0
+            },
             "candidate_commit": "1111111111111111111111111111111111111111",
             "artifact_path": "scripts/fixtures/phase0-evidence-artifact-valid.json",
             "artifact_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
@@ -948,7 +989,10 @@
             "hazard_id": "HAZ-001",
             "control_ids": ["CTL-001", "CTL-002", "CTL-009", "CTL-020"],
             "command": "node scripts/test-phase0-baseline.mjs --fixture-evidence",
-            "result": { "outcome": "passed", "exit_code": 0 },
+            "result": {
+              "outcome": "passed",
+              "exit_code": 0
+            },
             "candidate_commit": "1111111111111111111111111111111111111111",
             "artifact_path": "scripts/fixtures/phase0-evidence-artifact-valid.json",
             "artifact_sha256": "4072dedaa841ef317163e311b0764878e8f370a24dc3bb3c4433c9e0734dce4e"
@@ -1151,6 +1195,230 @@
         "value": "0000000000000000000000000000000000000000000000000000000000000000"
       },
       "expected_error": "configuration digest drift"
+    },
+    {
+      "id": "audited-data-copy-global-target",
+      "mutation": {
+        "type": "replace-source",
+        "file": "src/lib/copyPlainData.ts",
+        "needle": "Object.getOwnPropertyDescriptors(value)",
+        "value": "Object.getOwnPropertyDescriptors(globalThis)"
+      },
+      "expected_error": "audited plain-data copier source digest mismatch"
+    },
+    {
+      "id": "audited-data-copy-window-target",
+      "mutation": {
+        "type": "replace-source",
+        "file": "src/lib/copyPlainData.ts",
+        "needle": "Object.getOwnPropertyDescriptors(value)",
+        "value": "Object.getOwnPropertyDescriptors(window)"
+      },
+      "expected_error": "audited plain-data copier source digest mismatch"
+    },
+    {
+      "id": "audited-data-copy-aliased-method",
+      "mutation": {
+        "type": "replace-source",
+        "file": "src/lib/copyPlainData.ts",
+        "needle": "const descriptors = Object.getOwnPropertyDescriptors(value)",
+        "value": "const readDescriptors = Object.getOwnPropertyDescriptors; const descriptors = readDescriptors(value)"
+      },
+      "expected_error": "audited plain-data copier source digest mismatch"
+    },
+    {
+      "id": "audited-data-copy-return-original",
+      "mutation": {
+        "type": "replace-source",
+        "file": "src/lib/copyPlainData.ts",
+        "needle": "return Object.freeze(Object.fromEntries(entries))",
+        "value": "return value"
+      },
+      "expected_error": "audited plain-data copier source digest mismatch"
+    },
+    {
+      "id": "audited-data-copy-return-descriptors",
+      "mutation": {
+        "type": "replace-source",
+        "file": "src/lib/copyPlainData.ts",
+        "needle": "return Object.freeze(Object.fromEntries(entries))",
+        "value": "return descriptors"
+      },
+      "expected_error": "audited plain-data copier source digest mismatch"
+    },
+    {
+      "id": "audited-data-copy-remove-accessor-check",
+      "mutation": {
+        "type": "replace-source",
+        "file": "src/lib/copyPlainData.ts",
+        "needle": "if (!Object.hasOwn(descriptor, 'value'))",
+        "value": "if (false)"
+      },
+      "expected_error": "audited plain-data copier source digest mismatch"
+    },
+    {
+      "id": "audited-data-copy-remove-symbol-check",
+      "mutation": {
+        "type": "replace-source",
+        "file": "src/lib/copyPlainData.ts",
+        "needle": "if (Object.getOwnPropertySymbols(descriptors).length > 0)",
+        "value": "if (false)"
+      },
+      "expected_error": "audited plain-data copier source digest mismatch"
+    },
+    {
+      "id": "audited-data-copy-remove-prototype-check",
+      "mutation": {
+        "type": "replace-source",
+        "file": "src/lib/copyPlainData.ts",
+        "needle": "Object.getPrototypeOf(value) !== (array ? Array.prototype : Object.prototype)",
+        "value": "false"
+      },
+      "expected_error": "audited plain-data copier source digest mismatch"
+    },
+    {
+      "id": "audited-data-copy-remove-cycle-check",
+      "mutation": {
+        "type": "replace-source",
+        "file": "src/lib/copyPlainData.ts",
+        "needle": "ancestors.has(value)",
+        "value": "false"
+      },
+      "expected_error": "audited plain-data copier source digest mismatch"
+    },
+    {
+      "id": "audited-data-copy-weaken-node-budget",
+      "mutation": {
+        "type": "replace-source",
+        "file": "src/lib/copyPlainData.ts",
+        "needle": "++nodes > 8192",
+        "value": "++nodes > 8192000"
+      },
+      "expected_error": "audited plain-data copier source digest mismatch"
+    },
+    {
+      "id": "audited-data-copy-extra-descriptor",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/lib/copyPlainData.ts",
+        "value": "\nObject.getOwnPropertyDescriptors(globalThis);\n"
+      },
+      "expected_error": "audited plain-data copier source digest mismatch"
+    },
+    {
+      "id": "audited-data-copy-shadow-intrinsic",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/lib/copyPlainData.ts",
+        "value": "\nconst Object = globalThis;\n"
+      },
+      "expected_error": "audited plain-data copier source digest mismatch"
+    },
+    {
+      "id": "audited-data-copy-shadow-import",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/lib/copyPlainData.ts",
+        "value": "\nimport Object from './unreviewed';\n"
+      },
+      "expected_error": "audited plain-data copier source digest mismatch"
+    },
+    {
+      "id": "data-descriptor-outside-audited-node",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/physics/DeterministicDroneWorld.ts",
+        "value": "\nObject.getOwnPropertyDescriptors({ordinary: 1});\n"
+      },
+      "expected_error": "global capability recovery is forbidden"
+    },
+    {
+      "id": "audited-data-copy-extra-function",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/lib/copyPlainData.ts",
+        "value": "\nfunction another(value) { return Object.getOwnPropertyDescriptors(value); }\n"
+      },
+      "expected_error": "audited plain-data copier source digest mismatch"
+    },
+    {
+      "id": "audited-data-copy-bound-method",
+      "mutation": {
+        "type": "append-source",
+        "file": "src/lib/copyPlainData.ts",
+        "value": "\nconst copy = Object.getOwnPropertyDescriptors.bind(Object);\n"
+      },
+      "expected_error": "audited plain-data copier source digest mismatch"
+    },
+    {
+      "id": "audited-data-copy-return-descriptor-value",
+      "mutation": {
+        "type": "replace-source",
+        "file": "src/lib/copyPlainData.ts",
+        "needle": "return Object.freeze(Object.fromEntries(entries))",
+        "value": "return descriptors[keys[0]].value"
+      },
+      "expected_error": "audited plain-data copier source digest mismatch"
+    },
+    {
+      "id": "audited-data-copy-return-function",
+      "mutation": {
+        "type": "replace-source",
+        "file": "src/lib/copyPlainData.ts",
+        "needle": "return Object.freeze(Object.fromEntries(entries))",
+        "value": "return () => value"
+      },
+      "expected_error": "audited plain-data copier source digest mismatch"
+    },
+    {
+      "id": "audited-data-copy-remove-density-check",
+      "mutation": {
+        "type": "replace-source",
+        "file": "src/lib/copyPlainData.ts",
+        "needle": "if (keys.length !== length + 1)",
+        "value": "if (false)"
+      },
+      "expected_error": "audited plain-data copier source digest mismatch"
+    },
+    {
+      "id": "audited-data-copy-remove-enumerability-check",
+      "mutation": {
+        "type": "replace-source",
+        "file": "src/lib/copyPlainData.ts",
+        "needle": "if (!descriptor?.enumerable)",
+        "value": "if (false)"
+      },
+      "expected_error": "audited plain-data copier source digest mismatch"
+    },
+    {
+      "id": "audited-data-copy-computed-method",
+      "mutation": {
+        "type": "replace-source",
+        "file": "src/lib/copyPlainData.ts",
+        "needle": "Object.getOwnPropertyDescriptors(value)",
+        "value": "Object['getOwnPropertyDescriptors'](value)"
+      },
+      "expected_error": "audited plain-data copier source digest mismatch"
+    },
+    {
+      "id": "audited-data-copy-apply-method",
+      "mutation": {
+        "type": "replace-source",
+        "file": "src/lib/copyPlainData.ts",
+        "needle": "Object.getOwnPropertyDescriptors(value)",
+        "value": "Object.getOwnPropertyDescriptors.apply(Object, [value])"
+      },
+      "expected_error": "audited plain-data copier source digest mismatch"
+    },
+    {
+      "id": "audited-data-copy-call-method",
+      "mutation": {
+        "type": "replace-source",
+        "file": "src/lib/copyPlainData.ts",
+        "needle": "Object.getOwnPropertyDescriptors(value)",
+        "value": "Object.getOwnPropertyDescriptors.call(Object, value)"
+      },
+      "expected_error": "audited plain-data copier source digest mismatch"
     }
   ]
 }

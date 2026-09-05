@@ -99,6 +99,15 @@ heartbeat tests. It does not create a generic publisher exception. The fail-clos
 self-test contains source, comment-shadow, manifest, conditional-input,
 computed-route/capability, network, hazard, evidence, and digest mutations.
 
+One explicit extension permits the reviewed call in `src/lib/copyPlainData.ts`.
+The import-free helper has exact source-byte and single-call AST checks.
+Only that call's descriptor-method reference receives permission.
+Global-target checks and every other descriptor prohibition remain active.
+Phase 0 and production source analysis share the same matcher and mutation controls.
+The helper copies plain data before validation without evaluating ordinary accessors.
+Proxy traps and descriptor-map allocation remain outside its traversal and output bounds.
+This component permission does not grant arbitrary reflection or process isolation.
+
 `bun run validate` runs both checks. `validate:all` inherits them, and hosted CI
 runs them as an explicit required baseline step. The verifier does not build the
 product, contact external repositories, inspect deployment certificates/ACLs,
@@ -179,3 +188,7 @@ plus explicit no-attitude rejection only. It does not carry or prove that
 frame-instance precondition, select an approved profile, or prove attitude,
 quaternion/yaw, point/translation, covariance, Three.js, time-unit, apply-time,
 or FCU semantics. Treating caller-assumed coincidence as evidence blocks L1.
+
+The current desktop bundle excludes the audited copier.
+The production module gate rejects its inclusion until finalized-call provenance receives separate qualification.
+This source allowance grants no future bundle exception.
