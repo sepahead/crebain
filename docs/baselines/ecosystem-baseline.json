@@ -147,7 +147,7 @@
     },
     {
       "path": "src-tauri/Cargo.lock",
-      "sha256": "42710cbd547a86b50412394480d7d0bed46dcc55791b7bf20509800bda2147f3"
+      "sha256": "4814517f55ae6ce82395aa2fb9a706a320d942a1c3d679886d35f233b73ba9fb"
     },
     {
       "path": "src-tauri/crates/ncp-headless/Cargo.toml",
@@ -311,7 +311,7 @@
     },
     {
       "path": ".github/workflows/audit.yml",
-      "sha256": "7e29c7f5a1fe067fa765309e912877bc4e6f05942712cbf1c678f16261a63ee6"
+      "sha256": "4cf2861a5ee654e47397f96393acf1821ac05e238ffe1c46ccf6733476fe52e2"
     },
     {
       "path": ".github/workflows/codeql.yml",
