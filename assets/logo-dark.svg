@@ -1,7 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" role="img" aria-labelledby="crebain-mark-title crebain-mark-desc">
   <title id="crebain-mark-title">CREBAIN raven and scope</title>
-  <desc id="crebain-mark-desc">An angular raven faces left inside a circular instrument reticle. Charcoal and muted olive metal facets frame a red optical eye.</desc>
+  <desc id="crebain-mark-desc">An angular raven faces left inside a circular instrument reticle. Its red optical eye projects a narrow scanning beam. A slow tracking sweep follows the ring. Reduced motion keeps the mark still.</desc>
+  <style>
+    .crebain-laser-scan { animation: crebain-laser-scan 4.8s ease-in-out infinite; transform-origin: 0 0; }
+    .crebain-tracking-sweep { animation: crebain-tracking-sweep 11s linear infinite; transform-origin: 0 0; }
+    .crebain-optic-pulse { animation: crebain-optic-pulse 4.8s ease-in-out infinite; }
+    @keyframes crebain-laser-scan { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg); } }
+    @keyframes crebain-tracking-sweep { to { transform: rotate(360deg); } }
+    @keyframes crebain-optic-pulse { 0%, 100% { opacity: .65; } 50% { opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) {
+      .crebain-laser-scan, .crebain-tracking-sweep, .crebain-optic-pulse { animation: none; }
+    }
+  </style>
   <defs>
+    <linearGradient id="crebain-laser-energy" x1="-78" y1="24" x2="0" y2="0" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fc352b" stop-opacity="0"/><stop offset=".2" stop-color="#ff493b" stop-opacity=".45"/><stop offset="1" stop-color="#ff6b50" stop-opacity=".9"/>
+    </linearGradient>
     <linearGradient id="crebain-ring-metal" x1="25" y1="20" x2="150" y2="160" gradientUnits="userSpaceOnUse">
       <stop stop-color="#79817b"/><stop offset=".27" stop-color="#3d4545"/><stop offset=".64" stop-color="#242b2c"/><stop offset="1" stop-color="#677065"/>
     </linearGradient>
@@ -24,6 +38,12 @@
     <path d="M90 15V28 M90 152V165 M15 90H28 M152 90H165" stroke="#747e76" stroke-width="1.8"/>
     <path d="M31 38V31H38 M142 31H149V38 M31 142V149H38 M142 149H149V142" stroke="#515d56" stroke-width="2.3"/>
     <circle cx="53" cy="147" r="4.8" fill="#84916a" stroke="#141e1c" stroke-width="1.8"/>
+    <g transform="translate(90 90)">
+      <g class="crebain-tracking-sweep">
+        <path d="M-39-56A68 68 0 0 1 0-68" stroke="#a0b37a" stroke-width="1.4" stroke-opacity=".7"/>
+        <path d="M0-72V-64" stroke="#c2cf9b" stroke-width="2"/>
+      </g>
+    </g>
   </g>
 
   <g id="crebain-raven" stroke="#111719" stroke-width="1.15" stroke-linejoin="round">
@@ -69,11 +89,20 @@
 
     <g id="crebain-optic">
       <path d="M67 74 87 61 105 57 97 73 85 79Z" fill="#111b1c" stroke-width="1.5"/>
-      <circle cx="88" cy="68" r="12" fill="url(#crebain-optic-halo)" stroke="none"/>
+      <circle cx="88" cy="68" r="12" fill="url(#crebain-optic-halo)" stroke="none" class="crebain-optic-pulse"/>
       <path d="M75 72 88 64 97 63 92 72 84 75Z" fill="#ac211e" stroke="#ef5b46" stroke-width=".65"/>
       <ellipse cx="88" cy="68" rx="4.2" ry="3.1" transform="rotate(-25 88 68)" fill="#f23c2a" stroke="#6f1818" stroke-width=".6"/>
       <ellipse cx="88" cy="67.6" rx="2.1" ry="1.7" transform="rotate(-25 88 68)" fill="#fff3cf" stroke="none"/>
       <path d="M67 74 88 61 105 57" fill="none" stroke="#a2aa95" stroke-width="1.15"/>
+    </g>
+  </g>
+  <g transform="translate(88 68)" aria-hidden="true">
+    <g class="crebain-laser-scan">
+      <path d="M0 0-78 19-76 29Z" fill="url(#crebain-laser-energy)" opacity=".2"/>
+      <path d="M0 0-77 24" fill="none" stroke="url(#crebain-laser-energy)" stroke-width="2.8" stroke-linecap="round" opacity=".42"/>
+      <path d="M0 0-77 24" fill="none" stroke="url(#crebain-laser-energy)" stroke-width=".9" stroke-linecap="round"/>
+      <path d="M0 0-18 5.6" fill="none" stroke="#ffe0be" stroke-width=".55" stroke-linecap="round"/>
+      <circle r="1.4" fill="#fff3cf" class="crebain-optic-pulse"/>
     </g>
   </g>
 </svg>
