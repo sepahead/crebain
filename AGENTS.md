@@ -1,223 +1,201 @@
-# CREBAIN development guide
+# CREBAIN agent contract
 
-## Build and validation commands
+CREBAIN develops standalone 3D simulation, sensor models, visualization, and sensor-fusion research.
+Its desktop, native environment, and protocol adapters have distinct ownership and evidence contracts.
+Every completion claim must identify the tested scope and remaining limitations.
 
-```bash
-# Frontend development
-bun run dev              # Start Vite dev server
-bun run build            # Typecheck + build for production
-bun run typecheck        # TypeScript type checking only
+## Read before changing
 
-# Tauri (full app)
-bun run tauri:dev        # Development mode with hot reload
-bun run tauri:build      # Production build
+Read [README.md](README.md) first.
+Then read the document that owns the affected surface:
 
-# Validation and testing
-bun run lint             # ESLint
-bun run format           # Prettier (write); format:check verifies
-bun run test             # Run tests in watch mode
-bun run test:run         # Run tests once
-bun run test:coverage    # Run tests with coverage (enforces thresholds)
-bun run test:responsive  # Production-browser layout smoke at supported viewport/scale boundaries
-bun run benchmark:native-detector -- --help # Release-only native detector evidence CLI
-bun run check:bundle     # Build + initial-bundle size budget
-bun run check:docs-visuals # Verify tracked Markdown diagram coverage and SVG accessibility
-bun run check:ncp-coherence # Verify NCP manifests, locks, and normative docs agree
-bun run check:ncp-headless-boundary # Verify the isolated headless package boundary
-bun run check:phase0-baseline # Verify the frozen Phase 0 command-surface baseline
-bun run check:product-profiles # Verify all eight immutable 0.9 NoAuthority profiles
-bun run check:ipc-contracts # Verify frontend/Rust commands and event contracts
-bun run check:release-tools # Verify version/tag and digest-manifest tooling
-bun run check:vendor-compat # Verify exact crates.io overlay provenance
-bun run check:production-vendors # Verify pinned Spark/Rapier/Three transforms and local-byte runtimes
-bun run check:production-boundary # Production vendors + authority-boundary checks
-bun run check:managed-simulation-boundary # Verify the simulator-only Host API 2.0 crate, manifest, schemas, and transcript
-bun run check:managed-simulation-inputs # Verify tracked one-, two-, and three-drone real-NEST inputs
-bun run check:managed-simulation-contract # Build and test the private-pipe and installed-package contracts
-bun run check:managed-simulation-rust # Check the release-profile managed simulation crate
-bun run check:ros-defs    # Validate ROS definitions and package XML
-bun run check:nix-deps    # Verify bun.nix is exactly generated from bun.lock
-bun run check:plant-boundary # Verify the inert plant package/process dependency boundary
-bun run check:plant-frames # Verify the digest-bound JS/Rust frame-convention corpus
-bun run check:plant      # Check the headless plant-authority package
-bun run test:plant       # Test command/health/captured-age/safe-action/deadline-monitor/apply-observation contracts plus frame/lifecycle/channel/passive-expiry/headless foundations
-bun run test:managed-simulation # Test the release-profile one-to-three-drone core and managed private-pipe adapter
-bun run clippy:plant     # Strict Clippy for all plant targets
-bun run clippy:managed-simulation # Strict release-profile Clippy for the managed simulation crate
-bun run doc:managed-simulation # Build managed simulation Rust documentation with warnings denied
-bun run fmt:plant:check  # Rustfmt check scoped to the plant package
-bun run fmt:managed-simulation:check # Rustfmt check scoped to the managed simulation crate
-bun run self-check:plant # Run crebain-plantd in inert self-check mode
-bun run validate         # contracts/provenance + typecheck/lint/format/frontend tests
-bun run validate:all     # NCP + frontend + inert plant + Rust default/NCP gates
+| Surface | Owning documents |
+| --- | --- |
+| Native city, actual observations, renderer lifetime, coupled forks | [Native environment](docs/NATIVE_ENVIRONMENT.md) |
+| Rapier world, actions, time, complete CPU state, replay | [Deterministic dynamics](docs/DETERMINISTIC_DYNAMICS.md) |
+| Local NCP body, numerical kernel, retained responses | [Local NCP body](docs/NATIVE_NCP_SIMULATION.md), [Numerical kernel](docs/NATIVE_SIMULATION_KERNEL.md) |
+| Desktop, module ownership, camera delivery | [Desktop architecture](docs/ARCHITECTURE.md), [Desktop workflows](docs/WORKFLOWS.md) |
+| Sensor fusion, association, covariance, evidence | [Sensor fusion](docs/SENSOR_FUSION.md), [Fusion validation](docs/FUSION_VALIDATION_PROTOCOL.md) |
+| Models, inference, benchmarks | [Model contracts](docs/MODEL_CONTRACTS.md), [Detector benchmarks](docs/NATIVE_DETECTOR_BENCHMARK.md) |
+| Scene files, downloads, settings, controls | [Configuration](docs/CONFIGURATION.md), [Controls](docs/CONTROLS.md) |
+| ROS and Zenoh telemetry | [ROS reference](ros/README.md), [Desktop architecture](docs/ARCHITECTURE.md) |
+| Retained wire-0.8 bridge or advisory producer | [Retained NCP bridge](docs/NCP_BRIDGE_HANDOFF.md), [Advisory producer](docs/GALADRIEL_PRODUCER.md) |
+| Engram embedding | [Restricted embedding](integrations/engram/README.md) |
+| Host API 2.0 package and recorded NEST work | [Host API package](integrations/engram/managed-simulation/README.md) |
+| Inert plant components | The applicable `docs/PLANT_*.md` contract and [System context](docs/SYSTEM_CONTEXT.md) |
+| Release or claim changes | [Release acceptance](docs/RELEASE_ACCEPTANCE.md), [0.9 release decision](docs/NARROWED_GO_0.9.0.md), [Security](SECURITY.md) |
 
-# Rust backend
-bun run check:rust       # locked cargo check for src-tauri/Cargo.toml
-bun run test:rust        # locked cargo test for all default targets
-bun run clippy:rust      # locked cargo clippy for all default targets; warnings denied
-bun run fmt:rust:check   # Rustfmt check for src-tauri (part of validate:all)
-bun run check:rust:ncp   # locked check of dormant bridge and Galadriel producer
-bun run clippy:rust:ncp  # locked clippy for bridge/producer targets; warnings denied
-bun run test:rust:ncp    # locked tests for bridge/producer targets
-bun run check:ncp-headless # locked check of all isolated headless NCP targets
-bun run clippy:ncp-headless # strict Clippy for all isolated headless NCP targets
-bun run test:ncp-headless # locked tests for all isolated headless NCP targets
-bun run self-check:ncp-headless # Run the network-free headless invariant check
-cargo build --locked --manifest-path src-tauri/Cargo.toml
-```
+Inspect the owning schema, implementation, tests, and current evidence before editing.
+[docs/README.md](docs/README.md) indexes the complete contract set.
+Historical records and proposed capabilities cannot override current executable boundaries.
 
-## Code style
+## Working method
 
-### TypeScript / React
+1. Inventory staged changes, unstaged changes, branches, and worktrees before recovery work.
+2. Preserve unrelated changes and another contributor's active scope.
+3. Compare five to ten credible approaches before each material decision.
+4. State assumptions, benefits, failure modes, and a decisive experiment for each approach.
+5. Use independent reviews for separable scientific, ownership, security, and release decisions.
+6. Select a compatible design with explicit reasons and unresolved objections.
+7. Implement generic, schema-driven behavior.
+8. Add a negative control for each new accept path.
+9. Add a positive control for each new rejection path.
+10. Run the complete applicable gate before presenting a milestone for publication.
 
-- ESLint (typescript-eslint type-checked + react-hooks) and Prettier are
-  enforced. Run `bun run lint` and `bun run format:check` (or
-  `bun run validate`).
-- Use functional components with hooks
-- Prefer `useMemo` and `useCallback` for expensive computations
-- Use `useRef` for mutable values that do not trigger re-renders
-- Use the centralized logger (`src/lib/logger.ts`) instead of `console.*` in production code
-- Use named constants for magic numbers
-- Always clean up effects (intervals, subscriptions, event listeners)
+A majority vote cannot override a failed scientific or provenance requirement.
+Do not branch on fixture names, expected outcomes, benchmark rows, or selected sample identities.
+Freeze campaign inputs, source identities, rosters, seeds, exclusions, and unavailable inputs before inspecting outcomes.
+Keep random samples separate from selected challenges and synthetic controls.
+Retain failed trials and negative results. Do not replace difficult cases to improve scores.
 
-### Rust / Tauri
+Recover useful work at the hunk or component level.
+Record retained, integrated, superseded, and rejected changes with reasons.
+Remove a branch or worktree only after preserving its useful changes and audit evidence.
+Follow the user's authorized publication workflow; do not create branches or publish another owner's changes by default.
+Do not add AI co-author trailers or generated-by lines to commits or review descriptions.
 
-- Run `bun run clippy:rust` before committing Rust changes
-- Use `log::info/warn/error` instead of `println!`
-- Validate all external inputs, including paths, scene files, model files, IPC payloads, ROS URLs, Zenoh topics, and CDR payload metadata
-- Use `spawn_blocking` for CPU-intensive operations in async contexts
+## Runtime and scientific boundaries
 
-## Architecture notes
+### Native dynamics and environment
 
-### Frontend (`src/`)
+- Reuse the actual project dynamics. Do not substitute a duplicate simulator or fallback physics for a required Rapier run.
+- Preserve explicit integer ticks and declared units. The city's positive-Y-up, positive-Z-forward frame is not ENU.
+- An accepted future action is binding checkpoint state. Preserve order, pending actions, controller memory, motor state, battery, and random state.
+- Direct snapshot equality is insufficient when future complete-state comparisons fail. Preserve the observed failures and reviewed replay boundary.
+- CPU checkpoints are complete only for their admitted domain. Do not claim a desktop, sensor, fusion, or GPU checkpoint from a narrower owner.
+- The coupled environment uses exact CPU reconstruction and fresh static renderers. Compare fresh matched siblings for controlled branch experiments.
+- Privileged checkpoint and reference-label data must remain separate from ordinary predictor inputs.
+- An owner-issued handle carries local authority. Copied JSON, hashes, declared source IDs, and audit strings cannot recreate that authority.
+- Preserve negative zero, finite-number checks, exact frame/time meanings, and the closed plain-data admission policy.
+- The audited copier bounds traversal and output. It does not isolate Proxy traps or descriptor allocation from arbitrary in-process objects.
+- Reserve output and family capacity before execution or reconstruction. Keep unresolved cleanup charged to its original reservation.
+- Separate actual CPU execution, accepted observations, and durable export. A post-transition failure cannot become rejection before execution.
+- If CPU completion is unknown, report it as unknown. Preserve the last observed completed tick separately.
+- Retire after uncertain required output. Do not silently roll back, resume, or publish an empty successful observation.
+- Copy actual GPU readback before publication. A Promise timeout does not prove renderer termination.
+- Signal only independently joined owned processes. Browser request routing is not operating-system network isolation.
+- Preserve primary and cleanup failures separately. A later idempotent no-op cannot promote unresolved cleanup to confirmed.
 
-- `components/` - React UI components
-- `hooks/` - Custom React hooks
-- `ros/` - ROS bridge, Gazebo integration, Zenoh transport adapters, performance monitoring
-- `detection/` - ML detection types, sensor fusion, and scenario fixtures
-- `physics/` - Drone physics simulation
-- `simulation/` - Interception system
-- `state/` - Scene serialization and persistence
-- `integrations/` - Restricted Engram host validation and read-only status bridge.
-  `engramHost=1` disables CREBAIN native access, external telemetry, artifact
-  exchange, local simulation, scene mutation, and the development NCP command
-  harness. The bridge revokes after more than 32 expected-peer messages in one
-  rolling second.
-  It accepts only user-agent-trusted messages and normalizes exact primitive
-  fields before serialization.
-  The host must also receive fresh heartbeat status and an inaccessible
-  native-IPC probe before interaction.
+The current controller failed bounded attitude-tracking tests.
+The inspected Rapier free-rotation configuration omitted Euler gyroscopic evolution.
+Determinism does not establish accurate aerodynamics, stable tracking, or delivery of requested acceleration.
+Change physics or control behavior only through a separately reviewed profile or correction with decisive controls.
 
-### Backend (`src-tauri/`)
+RGB, pressure, and thermal radiance must come from their declared actual observation implementations.
+Do not relabel position truth, fabricated arrays, or RGB colors as measured sensor modalities.
+The acoustic and thermal equations are explicit simulation models, without calibrated real-drone fidelity.
+Their shared simulator causes and cloned noise streams do not establish independent measurements or replicates.
+Raw modality output does not qualify fusion, tampering detection, or a completed Prisoma experiment.
 
-- `common/` - Shared detection, NMS, YOLO, error, and path validation utilities
-- `inference/` - ML abstraction layer with CoreML default on macOS, experimental MLX YOLOv8 safetensors path, CUDA/TensorRT on Linux, and ONNX fallback
-- `transport/` - Zenoh-oriented transport, CDR validation, and Tauri transport commands
-- `crates/plant-authority/` - Separate zero-dependency inert plant foundation.
-  It includes unwired deadline-monitor and apply-observation candidates. It is
-  not linked into Tauri or tied to a write. It cannot authorize, revoke, or
-  apply output.
-- `crates/ncp-headless/` - Separate dependency-isolated perception package.
-  Its `crebain-ncp-headless` binary requires the package's opt-in `ncp` feature
-  and a compatible NCP wire-0.8 responder. It is not a Tauri command or plant
-  authority path. Its default `engram/ncp` realm is not an Engram compatibility
-  claim. Current Engram native wire 1.0 is incompatible, and no translator or
-  live loop exists. An RPC reply does not identify the responder as the
-  intended deployment receiver or prove an end-to-end effect.
-- `crates/managed-simulation/` - Separate dependency-isolated Host API 2.0 package.
-  It supports one to three simulator-only drone channels and independent fusion lanes.
-  It has no NCP, Tauri, network, artifact, or plant dependency.
-  Operational packaging must bind clean Engram `origin/main` and the exact
-  `scripts/engram_extension.py` Git blob. Installed proof must embed that pack receipt.
-- `ncp/` - Dormant NCP Engram action/control adapter behind the off-by-default
-  `ncp` feature. Its Tauri commands remain unregistered. The feature also
-  compiles the separately gated Galadriel evidence path. Do not describe secure
-  configuration loading as TLS or ACL proof. Do not describe local puts as
-  receiver delivery. See `src-tauri/src/ncp/README.md`,
-  `docs/NCP_BRIDGE_HANDOFF.md`, and `docs/GALADRIEL_PRODUCER.md`. The dormant
-  TypeScript peer is `src/neuro/`. Vite development exposes the transport-free
-  `window.__ncpDrone` harness.
-- `sensor_fusion.rs` - Kalman, EKF, UKF, particle, and IMM filters. It also
-  contains the feature-gated exact-time Galadriel ledger, bounded accounting,
-  and sparse assignment. Registry transforms are not executed. Component load
-  tests are not deployment deadline evidence.
-- `lib.rs` - Tauri IPC commands and app setup
+### Separate integration contracts
 
-## Performance guidelines
+| Surface | Boundary to preserve |
+| --- | --- |
+| Native city environment | Standalone, 1–256 admitted drones; no installed desktop/NCP environment profile |
+| `crates/ncp-simulation` | Separate workspace, exact public `ncp-local` pin, 1–3-entity local kinematic/Kalman body |
+| `crates/managed-simulation` | Host API 2.0, 1–3 simulator channels, independent fusion lanes; no NCP/Tauri/network/artifact/plant dependency |
+| `crates/ncp-headless` | Separate opt-in wire-0.8 perception process; no translator or generic command capability |
+| `src-tauri/src/ncp` | Off-by-default retained adapter; Tauri commands remain unregistered |
+| `crates/plant-authority` | Inert, dependency-free, unwired foundation; no vehicle write or authority chain |
 
-- Use `CircularBuffer` for high-frequency position data
-- Prefer squared distance comparisons (avoid `sqrt()`)
-- Use `ImageBitmap` for browser-native image decoding
-- Memoize derived state to prevent unnecessary recomputes
-- Keep camera feed updates at the documented 83ms interval unless profiling justifies a change
+The native local body verifies the full retained neural response against its own source snapshot.
+Preserve proposed acceleration, applied acceleration, saturation, availability, and genuine innovation provenance separately.
+Clear missing innovation evidence each step. Birth or absence cannot become a numeric zero-NIS observation.
+Zero acceleration permits existing velocity to continue.
+A computed evidence-envelope failure after mutation is indeterminate and retires the generation.
+Retain exact results until acknowledgement; an acknowledgement is separate from durable experiment capture.
 
-## Testing
+Do not tunnel the historical Host API through NCP or silently substitute a sibling SDK dependency.
+Every new composition needs an installed application contract and its own evidence.
+Source pins, descriptor consistency, synthetic proposals, and component tests do not qualify installed ecosystem interoperability.
+The host package's observed-build and pack receipts must retain exact clean-source and `scripts/engram_extension.py` joins.
+Those receipts are not signatures or reproducible-build proof.
 
-Test files use Vitest. Place tests in `__tests__/` directories or use `.test.ts` suffix.
+### Desktop, telemetry, models, and fusion
 
-```ts
-import { describe, expect, it } from 'vitest'
-```
+The normative native fusion engine is `src-tauri/src/sensor_fusion.rs`.
+The browser geometric estimator has a different contract and cannot serve as its parity oracle.
+Preserve modality/frame/timestamp, correlation, missingness, capacity-loss, and lifecycle rules before prediction or evidence mutation.
+Registry transform declarations are not executed transforms or authenticated sensor provenance.
+Component load tests are not deployment deadline evidence.
 
-Before you commit a code or behavior change, prefer `bun run validate:all`. For
-a documentation-only change that cannot affect code, use the documentation
-checks below.
+The product telemetry surface remains read-only.
+Development rosbridge is excluded from production module graphs and finalized chunks.
+The native rosbridge fallback is also subscription-only.
+Neither path may publish vehicle setpoints, call ROS/Gazebo services, or change missions and modes.
+Guidance remains a disabled-by-default local `NoAuthority` preview with generation retirement.
+The Galadriel producer may write only its exact two advisory routes after every feature, runtime, registry, and configuration gate passes.
+Local puts and secure configuration loading do not prove receiver delivery, TLS identities, ACLs, or end-to-end effects.
 
-Do not add Claude, AI assistants, or agents as commit/PR co-authors — no `Co-Authored-By:` trailer and no "Generated with Claude Code" / 🤖 line in commit messages or pull-request descriptions.
+Restricted `engramHost=1` embedding cannot enable native IPC, telemetry, artifact exchange, physics, scene mutation, or the development command harness.
+Preserve exact parent/origin/nonce, trusted-event parsing, heartbeat, message-rate, revocation, and unsupported-platform rules.
+A nonce or browser probe does not attest process identity or native isolation.
 
-## Documentation style
+No model weights ship with CREBAIN.
+CoreML, ONNX, accelerated providers, and experimental Candle-on-Metal paths retain their exact model and platform contracts.
+Synthetic detections, a successful forward, available hardware, and a latency artifact are different evidence scopes.
+Validate source rights, model bytes, tensors, preprocessing, classes, thresholds, fixtures, and actual runtime before claiming model quality or performance.
 
-Use the principles of [ASD-STE100 Simplified Technical English, Issue 9](https://www.asd-ste100.org/assets/files/ASD-STE100_ISSUE9.pdf)
-for new or changed technical prose. The
-[official ASD-STE100 site](https://www.asd-ste100.org/) identifies Issue 9,
-dated January 15, 2025, as the current standard. These rules are the CREBAIN
-house-style adaptation. Do not claim that a document fully conforms to
-ASD-STE100 unless a qualified review verifies it.
+## Code and resource discipline
 
-- Use American English and approved project terminology. Use one technical
-  term for one concept.
-- Write short, direct sentences. Use no more than 20 words in a procedural
-  sentence and 25 words in a descriptive sentence when practical.
-- Give one instruction in each numbered step. Use the imperative form for
-  instructions.
-- Put a condition before the action that depends on it.
-- Use active voice. Use passive voice only when the actor is unknown or the
-  actor is less important than the action.
-- Give one topic in each sentence. Keep related sentences in one paragraph,
-  and use no more than six sentences in a paragraph when practical.
-- Use a vertical list for complex information. Do not use semicolons in prose.
-- Define each abbreviation at its first use. Do not change exact identifiers,
-  command names, code, protocol terms, quoted text, or required legal text.
-- Use requirement words consistently: `must` states a requirement, `must not`
-  states a prohibition, `may` gives permission, and `can` states capability.
-  Do not replace these words if the replacement changes the contract.
-- Use `WARNING` for a risk of injury or death. Use `CAUTION` for a risk of
-  damage. Start the safety instruction with a command or condition, then state
-  the possible result.
-- Do not use slang, unexplained jargon, Latin abbreviations, or a word-for-word
-  substitution that changes the meaning. Rewrite the sentence when necessary.
-- Treat CREBAIN names, source identifiers, API names, and domain-specific
-  vocabulary as technical terms. Keep their spelling consistent.
-- Preserve the meaning of historical records, frozen evidence, generated
-  files, vendored documentation, quotations, licenses, and codes of conduct.
-- Give each complex SVG diagram concise alt text and an adjacent prose text
-  alternative. Keep each SVG self-contained and accessible.
+Use functional React components and clean up effects, subscriptions, timers, and listeners.
+Keep mutable non-render state in refs and use measured memoization where appropriate.
+Use `src/lib/logger.ts` instead of production `console.*` calls.
+Use named constants and bounded containers for high-frequency data.
+Keep camera-feed updates at their documented 83-millisecond interval until profiling justifies a change.
 
-## Documentation consistency
+Use Rust ownership and typed errors to make lifetime and failure states explicit.
+Use `log::info/warn/error` instead of protocol-contaminating output.
+Validate external paths, scene/model files, IPC payloads, ROS URLs, topics, and CDR metadata.
+Move CPU-heavy work out of asynchronous executor threads with the owning bounded blocking-work policy.
+Cancellation does not release reservations while detached work still owns them.
 
-Tracked Markdown files must agree on validation commands, backend status,
-roadmap items, model assumptions, and security boundaries. When behavior
-changes, keep these files synchronized:
+## Commands and gates
 
-- `README.md`, `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `SECURITY.md`, and
-  `CODE_OF_CONDUCT.md`
-- `docs/*.md`
-- `public/models/README.md`
-- `ros/README.md`
-- `.github/**/*.md`
-- `.windsurf/workflows/*.md`
+`package.json` is the executable command registry.
+Use the repository's rustup toolchain and checked-in lockfiles.
+Do not rewrite dependency policy or upgrade tools to bypass a failing gate.
 
-For documentation-only edits, run `bun run check:docs-visuals` and
-`git diff --check` at minimum. Run `bun run validate:all` when the edit reflects
-or accompanies Rust, IPC, model-loading, transport, ROS, scene, or sensor-fusion
-behavior changes.
+| Change | Applicable checks |
+| --- | --- |
+| Documentation only | `bun run check:docs-visuals`, formatting, `git diff --check`; exercise changed command/status contracts |
+| NCP manifests, locks, or normative prose | `bun run check:ncp-coherence`; native package changes also require `bun run validate:ncp-simulation` |
+| Frontend behavior | `bun run validate` |
+| Native environment, dynamics, Rust, IPC, transport, models, scenes, fusion, or cross-cutting behavior | `bun run validate:all` |
+| Responsive UI or production graphics/bundle changes | Applicable source gate plus `bun run check:bundle` and `bun run test:responsive` |
+| Installed, scientific, performance, or release claim | Every applicable target/runtime/model/receipt gate in [Release acceptance](docs/RELEASE_ACCEPTANCE.md) |
+
+Focused commands include `bun run typecheck`, `bun run lint`, `bun run format:check`, and `bun run test:run`.
+Rust commands include `bun run check:rust`, `bun run test:rust`, `bun run clippy:rust`, and `bun run fmt:rust:check`.
+The complete local gate also covers managed simulation, native local NCP, retained NCP paths, and inert plant checks.
+Hosted coverage, bundle, responsive-browser, feature, CodeQL, and supply-chain jobs remain separate where documented.
+A partial command sequence is not a complete gate.
+
+Use a bootstrap source gate before the exact publication commit.
+Where qualification requires an immutable installed artifact, run the operational gate from that commit afterward.
+The bootstrap commit grants no installed, model, field, authority, or scientific completion claim.
+
+## Documentation language and consistency
+
+Use a house style aligned with ASD-STE100 Issue 9.
+Do not claim full controlled-dictionary compliance.
+Use American English, active voice, one term per concept, and short connected paragraphs.
+Limit procedural sentences to 20 words and descriptive sentences to 25 words when practical.
+Give one instruction per numbered step. Put necessary conditions before their actions.
+Define abbreviations, mathematical symbols, units, assumptions, and operating bounds.
+Preserve exact identifiers, normative requirement words, protocol names, quotations, and legal terms.
+Use `must` for requirements, `must not` for prohibitions, `may` for permission, and `can` for capability.
+Use WARNING for injury or death and CAUTION for damage; explain the concrete applicable hazard.
+Avoid slang, unnecessary jargon, Latin abbreviations, and decorative technical claims.
+
+Keep requirements, historical observations, and proposed capabilities distinct.
+Preserve frozen evidence, generated artifacts, vendored documentation, and failed trials without retroactive reinterpretation.
+Keep equations, examples, diagrams, PDFs, and prose consistent.
+Use self-contained SVGs, concise alt text, an adjacent text alternative, and direct original-asset links.
+Inspect normal and enlarged renders, including mobile where relevant.
+A scalable file does not prove that every host application supports interactive zoom.
+
+Update the smallest owning document set.
+Keep README, agent guides, contributing/security instructions, `docs/`, model/ROS guides, and executable workflows consistent when their contracts change.
+Register changed Markdown/diagram coverage in `docs/markdown-visual-coverage.json`.
+Do not add a second policy framework or hide a failed check with a broad exemption.

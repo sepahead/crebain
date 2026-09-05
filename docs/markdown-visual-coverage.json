@@ -39,7 +39,7 @@
       "classification": "project-process",
       "exemption": {
         "kind": "agent-instructions",
-        "reason": "This file delegates to AGENTS.md and repeats documentation rules. A visual would duplicate authoritative technical documents."
+        "reason": "This concise entrypoint delegates to AGENTS.md and names the distinct runtime surfaces. Technical diagrams belong in the linked owning documents."
       }
     },
     {
@@ -58,7 +58,10 @@
     {
       "path": "README.md",
       "classification": "active-technical",
-      "visuals": ["assets/diagrams/system-architecture.svg", "assets/diagrams/drone-mgw-study.svg"]
+      "visuals": [
+        "assets/diagrams/native-environment.svg",
+        "assets/diagrams/native-ncp-simulation.svg"
+      ]
     },
     {
       "path": "SECURITY.md",
@@ -307,6 +310,11 @@
       "path": "docs/SYSTEM_CONTEXT.md",
       "classification": "active-technical",
       "visuals": ["assets/diagrams/authority-boundaries.svg"]
+    },
+    {
+      "path": "docs/WORKFLOWS.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/system-architecture.svg", "assets/diagrams/drone-mgw-study.svg"]
     },
     {
       "path": "docs/archive/SENSOR_FUSION_AGENT_SPECS.md",

@@ -14,6 +14,8 @@ has no vehicle-authority path.
 
 ## User guides
 
+- [WORKFLOWS.md](WORKFLOWS.md) — Desktop setup, models, controls, telemetry, and retained integration procedures
+
 - [CONTROLS.md](CONTROLS.md) — Full keyboard reference
 - [CONFIGURATION.md](CONFIGURATION.md) — Environment variables, settings, scene/asset limits
 - [MANUAL_SMOKE_TEST.md](MANUAL_SMOKE_TEST.md) — Manual smoke checklist

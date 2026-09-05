@@ -9,6 +9,11 @@ these documents for detailed information:
 - [GALADRIEL_PRODUCER.md](GALADRIEL_PRODUCER.md) for the optional advisory
   producer
 
+This document owns the desktop and retained telemetry/integration architecture.
+The separate [native city environment](NATIVE_ENVIRONMENT.md) owns explicit simulation ticks, actual sensor arrays, and reconstructed branches.
+The separate [local NCP body](NATIVE_NCP_SIMULATION.md) owns the one-to-three-entity kinematic/Kalman application.
+Neither component replaces the desktop scheduler or makes the retained wire-0.8 paths compatible with the local SDK.
+
 ## Table of contents
 
 - [System overview](#system-overview)
