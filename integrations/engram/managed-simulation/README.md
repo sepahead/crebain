@@ -387,6 +387,10 @@ python3 scripts/stage-managed-simulation-package.py
 
 The build command requires clean `HEAD` and local `origin/main` at the supplied commit.
 It rejects nonignored untracked files and build override environment variables.
+The pinned CI Rust action exports `CARGO_INCREMENTAL=0`.
+Only the observed-build invocation removes that inherited variable with `env -u CARGO_INCREMENTAL`.
+The build owner rejects other ambient overrides and selects its own incremental setting.
+This command does not change the parent environment or the source-admission policy.
 It binds each managed source to its exact Git blob and raw bytes.
 The source roster includes all fourteen contract schemas embedded by the release binary.
 Fresh Cargo dep-info must match the exact compile-input subset of that roster.

@@ -53,6 +53,21 @@ describe('CI workflow', () => {
     }
   })
 
+  it('removes only the action-owned incremental setting before observed build admission', () => {
+    const observedStep = WORKFLOW.match(
+      /- name: Observe clean immutable main build[\s\S]*?(?=\n {6}- name:)/
+    )?.[0]
+    expect(observedStep).toContain(
+      'env -u CARGO_INCREMENTAL python3 scripts/build-managed-simulation-bootstrap.py'
+    )
+    expect(observedStep?.match(/env -u /g)).toHaveLength(1)
+    expect(observedStep).not.toContain('unset ')
+    expect(PACKAGE.scripts.validate).toContain('bun run check:responsive-tool')
+    expect(PACKAGE.scripts['check:responsive-tool']).toBe(
+      'node --test scripts/test-preview-server.mjs'
+    )
+  })
+
   it('installs the toolchains required by package scripts', () => {
     expect(WORKFLOW).toMatch(/oven-sh\/setup-bun@[0-9a-f]{40}/)
     expect(WORKFLOW).toContain('bun-version: 1.3.14')

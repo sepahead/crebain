@@ -9,6 +9,7 @@ import io
 import os
 import stat
 import struct
+import sys
 import subprocess
 import tempfile
 import unittest
@@ -296,18 +297,38 @@ class ObservedBuildTests(unittest.TestCase):
                 BOOTSTRAP.verify_immutable_checkout(root, commit)
 
     def test_build_override_environment_fails_closed(self) -> None:
+        with mock.patch.dict(os.environ, {}, clear=True):
+            BOOTSTRAP.require_closed_build_environment()
         for name in ("CARGO_INCREMENTAL", "CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS"):
-            with self.subTest(name=name):
-                before = os.environ.get(name)
-                os.environ[name] = "true"
-                try:
-                    with self.assertRaisesRegex(RuntimeError, name):
-                        BOOTSTRAP.require_closed_build_environment()
-                finally:
-                    if before is None:
-                        os.environ.pop(name, None)
-                    else:
-                        os.environ[name] = before
+            for value in ("0", "1", "true"):
+                with self.subTest(name=name, value=value):
+                    with mock.patch.dict(os.environ, {name: value}, clear=True):
+                        with self.assertRaisesRegex(RuntimeError, name):
+                            BOOTSTRAP.require_closed_build_environment()
+
+    def test_ci_environment_cleanup_is_child_local_and_preserves_other_overrides(self) -> None:
+        environment = {"PATH": os.environ["PATH"], "CARGO_INCREMENTAL": "0",
+                       "CREBAIN_CI_TEST_SENTINEL": "preserved"}
+        program = (
+            "import os,runpy,sys;"
+            "assert 'CARGO_INCREMENTAL' not in os.environ;"
+            "assert os.environ['CREBAIN_CI_TEST_SENTINEL']=='preserved';"
+            f"sys.path.insert(0,{str(SCRIPT.parent)!r});"
+            f"runpy.run_path({str(SCRIPT)!r})['require_closed_build_environment']()"
+        )
+        parent_before = dict(os.environ)
+        for overrides in ({}, {"RUSTFLAGS": "-C debuginfo=1"}):
+            with self.subTest(overrides=overrides):
+                completed = subprocess.run(
+                    ["env", "-u", "CARGO_INCREMENTAL", sys.executable, "-B", "-c", program],
+                    env={**environment, **overrides}, capture_output=True, timeout=10,
+                )
+                self.assertEqual(completed.returncode, 1 if overrides else 0,
+                                 completed.stderr.decode())
+                if overrides:
+                    self.assertIn(b"build override environment is not empty: RUSTFLAGS", completed.stderr)
+        self.assertEqual(os.environ, parent_before)
+        self.assertEqual(environment["CARGO_INCREMENTAL"], "0")
 
     def test_build_rejects_a_target_directory_not_named_by_argv(self) -> None:
         with tempfile.TemporaryDirectory(prefix="crebain-build-target-test-") as raw:

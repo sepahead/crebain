@@ -1,15 +1,13 @@
 #!/usr/bin/env node
 
-import { spawn } from 'node:child_process'
 import { setTimeout as delay } from 'node:timers/promises'
 import { chromium } from 'playwright'
+import { startPreviewServer, waitForServer } from './preview-server.mjs'
 
 const DEFAULT_BASE_URL = 'http://127.0.0.1:4173'
 const BASE_URL = process.env.BASE_URL ?? DEFAULT_BASE_URL
 const BROWSER_CHANNEL = process.env.PLAYWRIGHT_CHANNEL
-const SERVER_START_TIMEOUT_MS = 20_000
 const PAGE_READY_TIMEOUT_MS = 20_000
-const PREVIEW_READY_TIMEOUT_MS = 20_000
 const SETTLE_MS = 500
 const GEOMETRY_TOLERANCE_PX = 1
 
@@ -22,76 +20,6 @@ const CASES = [
 
 function fail(message) {
   throw new Error(`Responsive smoke failed: ${message}`)
-}
-
-async function waitForServer(url) {
-  const deadline = Date.now() + SERVER_START_TIMEOUT_MS
-  let lastError
-  while (Date.now() < deadline) {
-    try {
-      const response = await fetch(url, { redirect: 'manual' })
-      if (response.ok) return
-      lastError = new Error(`preview returned HTTP ${response.status}`)
-    } catch (error) {
-      lastError = error
-    }
-    await delay(100)
-  }
-  throw new Error(`preview did not become ready: ${String(lastError)}`)
-}
-
-function startPreviewServer() {
-  const url = new URL(BASE_URL)
-  const child = spawn(
-    'bun',
-    ['run', 'preview', '--', '--host', url.hostname, '--port', url.port || '4173', '--strictPort'],
-    {
-      cwd: process.cwd(),
-      env: process.env,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    }
-  )
-  const diagnostics = []
-  let previewOutput = ''
-  let settleReady
-  const ready = new Promise((resolve, reject) => {
-    let settled = false
-    const timeoutId = setTimeout(() => {
-      if (settled) return
-      settled = true
-      reject(new Error('launched preview did not report readiness'))
-    }, PREVIEW_READY_TIMEOUT_MS)
-    settleReady = (error) => {
-      if (settled) return
-      settled = true
-      clearTimeout(timeoutId)
-      if (error) reject(error)
-      else resolve()
-    }
-  })
-  const retain = (chunk) => {
-    const text = String(chunk)
-    diagnostics.push(text)
-    if (diagnostics.length > 20) diagnostics.shift()
-    previewOutput = `${previewOutput}${text}`.slice(-8_192)
-    if (/\bLocal:\s+https?:\/\/[^\s]+/u.test(previewOutput)) settleReady()
-  }
-  child.stdout.on('data', retain)
-  child.stderr.on('data', retain)
-  child.once('exit', (code, signal) => {
-    const outcome =
-      signal === null ? `preview exited with code ${String(code)}` : `preview exited on ${signal}`
-    settleReady(new Error(outcome))
-  })
-  return { child, diagnostics, ready }
-}
-
-async function stopPreviewServer(child) {
-  if (child.exitCode !== null || child.signalCode !== null) return
-  const exited = new Promise((resolve) => child.once('exit', resolve))
-  child.kill('SIGTERM')
-  await Promise.race([exited, delay(5_000)])
-  if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
 }
 
 async function exerciseScrollableRegion(page, label) {
@@ -297,21 +225,28 @@ let preview
 let browser
 try {
   if (process.env.BASE_URL === undefined) {
-    preview = startPreviewServer()
+    preview = startPreviewServer(BASE_URL)
     await preview.ready
   }
-  await waitForServer(BASE_URL)
+  await waitForServer(BASE_URL, preview)
   browser = await chromium.launch({
     headless: true,
     ...(BROWSER_CHANNEL ? { channel: BROWSER_CHANNEL } : {}),
   })
-  for (const testCase of CASES) await inspectCase(browser, testCase)
+  for (const testCase of CASES) {
+    preview?.assertRunning()
+    await inspectCase(browser, testCase)
+    preview?.assertRunning()
+  }
   console.log(`OK: responsive browser smoke passed (${CASES.length} viewport/scale cases)`)
 } catch (error) {
-  if (preview?.diagnostics.length) process.stderr.write(preview.diagnostics.join(''))
+  if (preview?.diagnostics) process.stderr.write(preview.diagnostics)
   console.error(error instanceof Error ? error.message : String(error))
   process.exitCode = 1
 } finally {
-  await browser?.close()
-  if (preview) await stopPreviewServer(preview.child)
+  try {
+    await browser?.close()
+  } finally {
+    await preview?.stop()
+  }
 }

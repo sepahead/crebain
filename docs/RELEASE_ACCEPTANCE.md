@@ -39,6 +39,11 @@ or field tests provide separate facts.
 
 - **Blocking conditions:** Vendor package/module/payload/AST drift, transformed runtime or mutation failure, module graph/provenance drift, chunk hash/capability scan, artifact self-test, responsive layout smoke, bundle budget, or coverage threshold fails, even if another local gate passed
 
+The responsive tool requires the owned Vite process to advertise the exact strict-port loopback endpoint.
+It accepts bounded color/style sequences, then checks a bounded HTTP response and current child liveness.
+The direct Bun/Vite process retains the normal preview configuration and must terminate before cleanup completes.
+An explicit `BASE_URL` selects a caller-owned server; it supplies no launched-process identity claim.
+
 ### Hosted Rust feature gates
 
 - **Acceptance evidence:** Linux checks pass for `--features cuda,tensorrt` and `--no-default-features`; default and NCP jobs pass on Linux/macOS

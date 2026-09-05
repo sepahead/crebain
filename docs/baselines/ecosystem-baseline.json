@@ -135,7 +135,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "6bbb13ca69d873648ffab3a16492c8f4514e006dcc994af8d378737824ea2594"
+      "sha256": "0fa83632fbe12eca9fe5f185f88631cfe67f6bbfe1d08fde9684bc5214b659ad"
     },
     {
       "path": "bun.lock",
@@ -259,7 +259,7 @@
     },
     {
       "path": ".github/workflows/ci.yml",
-      "sha256": "938061fa55ee828f6dbd291420c23a7a0873c5f79dfe842b41e23c2ef0288916"
+      "sha256": "a0905a1d6c1412c3380e6d6fa2b898625439b2e9a916ce58e6221d897f44c024"
     },
     {
       "path": ".github/workflows/release.yml",

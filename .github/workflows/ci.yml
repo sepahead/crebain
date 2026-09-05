@@ -280,7 +280,8 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           set -o pipefail
-          python3 scripts/build-managed-simulation-bootstrap.py --commit "$GITHUB_SHA" 2>&1 | tee managed-bootstrap.log
+          # The pinned Rust action exports this value; the build owner sets its own.
+          env -u CARGO_INCREMENTAL python3 scripts/build-managed-simulation-bootstrap.py --commit "$GITHUB_SHA" 2>&1 | tee managed-bootstrap.log
           python3 scripts/stage-managed-simulation-package.py 2>&1 | tee managed-stage.log
       - name: Verify provider-free boundary, copied contracts, packaging tools, and tracked inputs
         run: |
