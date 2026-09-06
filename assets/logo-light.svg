@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" role="img" aria-labelledby="crebain-mark-title crebain-mark-desc">
   <title id="crebain-mark-title">CREBAIN raven and scope</title>
-  <desc id="crebain-mark-desc">A dark iridescent raven faces left against an ink-blue disc with a teal-to-indigo instrument rim. Its red optical eye brightens and dims slowly. An occasional soft glint crosses the crown. Reduced motion keeps the mark still.</desc>
+  <desc id="crebain-mark-desc">A graphite raven with field-green highlights faces left against a blue-black disc and a brushed gunmetal rim. Its red optical eye brightens and dims slowly. An occasional soft glint crosses the crown. Reduced motion keeps the mark still.</desc>
   <style>
     .crebain-optic-breath { animation: crebain-optic-breath 5.6s ease-in-out infinite; }
     .crebain-optic-halo-breath { animation: crebain-optic-halo-breath 5.6s ease-in-out infinite; }
@@ -20,23 +20,23 @@
   <defs>
     <clipPath id="crebain-glint-clip"><use href="#crebain-silhouette"/></clipPath>
     <linearGradient id="crebain-glint-light">
-      <stop stop-color="#81c9c0" stop-opacity="0"/>
-      <stop offset=".5" stop-color="#81c9c0"/>
-      <stop offset="1" stop-color="#81c9c0" stop-opacity="0"/>
+      <stop stop-color="#a6b898" stop-opacity="0"/>
+      <stop offset=".5" stop-color="#a6b898"/>
+      <stop offset="1" stop-color="#a6b898" stop-opacity="0"/>
     </linearGradient>
     <radialGradient id="crebain-seat" cx="38%" cy="32%" r="78%">
-      <stop offset="0" stop-color="#172f3d"/>
-      <stop offset="0.56" stop-color="#0d1626"/>
-      <stop offset="1" stop-color="#070d16"/>
+      <stop offset="0" stop-color="#1a2832"/>
+      <stop offset="0.56" stop-color="#10181e"/>
+      <stop offset="1" stop-color="#070c11"/>
     </radialGradient>
     <linearGradient id="crebain-ring-metal" x1="42" y1="36" x2="136" y2="151" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#284d68"/>
-      <stop offset="0.16" stop-color="#94d2c6"/>
-      <stop offset="0.32" stop-color="#5a719e"/>
-      <stop offset="0.5" stop-color="#6f619a"/>
-      <stop offset="0.68" stop-color="#253b59"/>
-      <stop offset="0.84" stop-color="#548ea1"/>
-      <stop offset="1" stop-color="#89c4bc"/>
+      <stop offset="0" stop-color="#293e4b"/>
+      <stop offset="0.16" stop-color="#9aabb0"/>
+      <stop offset="0.32" stop-color="#4e7279"/>
+      <stop offset="0.5" stop-color="#243842"/>
+      <stop offset="0.68" stop-color="#718888"/>
+      <stop offset="0.84" stop-color="#354c59"/>
+      <stop offset="1" stop-color="#869b98"/>
     </linearGradient>
     <radialGradient id="crebain-optic-halo">
       <stop stop-color="#ff4437" stop-opacity=".72"/>
@@ -44,32 +44,32 @@
       <stop offset="1" stop-color="#d11717" stop-opacity="0"/>
     </radialGradient>
     <linearGradient id="crebain-base" x1="42" y1="36" x2="136" y2="151" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#477582"/>
-      <stop offset="0.22" stop-color="#2d5263"/>
-      <stop offset="0.55" stop-color="#192e42"/>
-      <stop offset="0.78" stop-color="#2d3456"/>
-      <stop offset="1" stop-color="#101d2a"/>
+      <stop offset="0" stop-color="#566451"/>
+      <stop offset="0.22" stop-color="#34443c"/>
+      <stop offset="0.55" stop-color="#1c2c29"/>
+      <stop offset="0.78" stop-color="#344038"/>
+      <stop offset="1" stop-color="#101c1c"/>
     </linearGradient>
     <linearGradient id="crebain-lit" x1="42" y1="36" x2="136" y2="151" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#8cc6bc"/>
-      <stop offset="0.22" stop-color="#57949b"/>
-      <stop offset="0.55" stop-color="#3f617b"/>
-      <stop offset="0.78" stop-color="#5b618c"/>
-      <stop offset="1" stop-color="#25465c"/>
+      <stop offset="0" stop-color="#a2ad83"/>
+      <stop offset="0.22" stop-color="#718367"/>
+      <stop offset="0.55" stop-color="#4c685b"/>
+      <stop offset="0.78" stop-color="#71816c"/>
+      <stop offset="1" stop-color="#344c45"/>
     </linearGradient>
     <linearGradient id="crebain-shade" x1="42" y1="36" x2="136" y2="151" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#294652"/>
-      <stop offset="0.22" stop-color="#192c40"/>
-      <stop offset="0.55" stop-color="#111d30"/>
-      <stop offset="0.78" stop-color="#222a40"/>
-      <stop offset="1" stop-color="#101b27"/>
+      <stop offset="0" stop-color="#31413a"/>
+      <stop offset="0.22" stop-color="#21332e"/>
+      <stop offset="0.55" stop-color="#112320"/>
+      <stop offset="0.78" stop-color="#26332c"/>
+      <stop offset="1" stop-color="#0c1b19"/>
     </linearGradient>
     <linearGradient id="crebain-edge" x1="42" y1="36" x2="136" y2="151" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#75b7b0"/>
-      <stop offset="0.22" stop-color="#47788c"/>
-      <stop offset="0.55" stop-color="#47557b"/>
-      <stop offset="0.78" stop-color="#5e5c8d"/>
-      <stop offset="1" stop-color="#2a4e64"/>
+      <stop offset="0" stop-color="#8b9e77"/>
+      <stop offset="0.22" stop-color="#586f59"/>
+      <stop offset="0.55" stop-color="#4d6858"/>
+      <stop offset="0.78" stop-color="#687b60"/>
+      <stop offset="1" stop-color="#2d463e"/>
     </linearGradient>
   </defs>
 
@@ -81,10 +81,10 @@
     <path d="M90 15V28 M90 152V165 M15 90H28 M152 90H165" stroke="#161d20" stroke-width="4.5"/>
     <path d="M90 15V28 M90 152V165 M15 90H28 M152 90H165" stroke="url(#crebain-ring-metal)" stroke-width="1.8"/>
     <path d="M31 38V31H38 M142 31H149V38 M31 142V149H38 M142 149H149V142" stroke="url(#crebain-ring-metal)" stroke-width="2.3"/>
-    <circle cx="53" cy="147" r="4.8" fill="#47788c" stroke="#0b1621" stroke-width="1.8"/>
+    <circle cx="53" cy="147" r="4.8" fill="#526b62" stroke="#0b1621" stroke-width="1.8"/>
   </g>
 
-  <g id="crebain-raven" stroke="#09151f" stroke-width=".85" stroke-linejoin="round">
+  <g id="crebain-raven" stroke="#0c1818" stroke-width=".85" stroke-linejoin="round">
     <path id="crebain-silhouette" d="M42 108 48 86 58 71 61 61 77 47 103 39 128 44 141 55 139 64 150 76 143 79 151 91 137 93 130 112 115 131 70 150 72 130 65 121 70 105 63 96Z" fill="url(#crebain-shade)" stroke-width="2"/>
 
     <g id="crebain-crown">
