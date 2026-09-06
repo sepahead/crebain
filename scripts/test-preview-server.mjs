@@ -1,13 +1,16 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { test } from 'node:test'
+import { fileURLToPath, URL as NodeURL } from 'node:url'
 import {
   MAX_PREVIEW_OUTPUT,
   observePreviewServer,
   previewReportsReady,
-  startPreviewServer,
   waitForServer,
 } from './preview-server.mjs'
 
@@ -20,6 +23,41 @@ function fixture(program, timeoutMs = 1_000) {
     URL,
     timeoutMs
   )
+}
+
+// Exercise the installed CLI without requiring or modifying a checkout build.
+async function withViteFixture(endpoint, run) {
+  const root = await mkdtemp(join(tmpdir(), 'crebain-preview-test-'))
+  const html = '<!doctype html><title>Owned preview fixture</title><p>Private Vite fixture</p>\n'
+  let preview
+  let failure
+  try {
+    await mkdir(join(root, 'dist'))
+    await writeFile(join(root, 'dist', 'index.html'), html)
+    const url = new NodeURL(endpoint)
+    const cli = fileURLToPath(new NodeURL('../node_modules/vite/bin/vite.js', import.meta.url))
+    preview = observePreviewServer(
+      spawn('bun', [cli, 'preview', '--host', url.hostname, '--port', url.port, '--strictPort'], {
+        cwd: root,
+        env: process.env,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      }),
+      endpoint
+    )
+    return await run(preview, html)
+  } catch (error) {
+    failure = error
+    throw error
+  } finally {
+    // Unconfirmed child retirement must not be hidden by discarding its fixture.
+    try {
+      await preview?.stop()
+      await rm(root, { recursive: true, force: true })
+    } catch (cleanup) {
+      if (failure) throw new AggregateError([failure, cleanup], 'Vite fixture and cleanup failed')
+      throw cleanup
+    }
+  }
 }
 
 test('plain and exact Vite SGR banners identify only the requested complete endpoint', () => {
@@ -155,18 +193,37 @@ test('HTTP readiness joins the exact endpoint, live owner, and bounded response'
   }
 })
 
+test('actual Vite serves its private fixture without a checkout build', async () => {
+  const reservation = createServer()
+  reservation.listen(0, '127.0.0.1')
+  await once(reservation, 'listening')
+  const endpoint = `http://127.0.0.1:${reservation.address().port}/`
+  await new Promise((resolve) => reservation.close(resolve))
+  let owned
+  await withViteFixture(endpoint, async (preview, html) => {
+    owned = preview
+    await preview.ready
+    await waitForServer(endpoint, preview, 1_000)
+    const response = await fetch(endpoint, { signal: AbortSignal.timeout(5_000) })
+    assert.equal(response.status, 200)
+    assert.equal(await response.text(), html)
+    preview.assertRunning()
+  })
+  assert.throws(() => owned.assertRunning(), /no longer running/)
+})
+
 test('actual Vite cannot borrow an unrelated listener on its strict port', async () => {
   const unrelated = createServer((_request, response) => response.end('unrelated'))
   unrelated.listen(0, '127.0.0.1')
   await once(unrelated, 'listening')
   const endpoint = `http://127.0.0.1:${unrelated.address().port}/`
-  const preview = startPreviewServer(endpoint)
   try {
-    await assert.rejects(preview.ready, /exited/)
-    assert.match(preview.diagnostics, /already in use/)
-    assert.equal(await (await fetch(endpoint)).text(), 'unrelated')
+    await withViteFixture(endpoint, async (preview) => {
+      await assert.rejects(preview.ready, /exited/)
+      assert.match(preview.diagnostics, /already in use/)
+      assert.equal(await (await fetch(endpoint)).text(), 'unrelated')
+    })
   } finally {
-    await preview.stop()
     await new Promise((resolve) => unrelated.close(resolve))
   }
 })
