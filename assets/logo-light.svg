@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" role="img" aria-labelledby="crebain-mark-title crebain-mark-desc">
   <title id="crebain-mark-title">CREBAIN raven and scope</title>
-  <desc id="crebain-mark-desc">An olive raven faces left against a graphite disc with a thin bronze instrument rim. Its red optical eye brightens and dims slowly. An occasional soft glint crosses the crown. Reduced motion keeps the mark still.</desc>
+  <desc id="crebain-mark-desc">A dark iridescent raven faces left against an ink-blue disc with a teal-to-indigo instrument rim. Its red optical eye brightens and dims slowly. An occasional soft glint crosses the crown. Reduced motion keeps the mark still.</desc>
   <style>
     .crebain-optic-breath { animation: crebain-optic-breath 5.6s ease-in-out infinite; }
     .crebain-optic-halo-breath { animation: crebain-optic-halo-breath 5.6s ease-in-out infinite; }
@@ -9,8 +9,8 @@
     @keyframes crebain-optic-halo-breath { 0%, 100% { opacity: .2; } 50% { opacity: .85; } }
     @keyframes crebain-glint {
       0%, 76% { transform: translateX(-110px); opacity: 0; }
-      80% { opacity: .12; }
-      89% { transform: translateX(110px); opacity: .18; }
+      80% { opacity: .08; }
+      89% { transform: translateX(110px); opacity: .12; }
       94%, 100% { transform: translateX(130px); opacity: 0; }
     }
     @media (prefers-reduced-motion: reduce) {
@@ -20,74 +20,109 @@
   <defs>
     <clipPath id="crebain-glint-clip"><use href="#crebain-silhouette"/></clipPath>
     <linearGradient id="crebain-glint-light">
-      <stop stop-color="#9fae7d" stop-opacity="0"/><stop offset=".5" stop-color="#bdc7a6"/><stop offset="1" stop-color="#9fae7d" stop-opacity="0"/>
+      <stop stop-color="#81c9c0" stop-opacity="0"/>
+      <stop offset=".5" stop-color="#81c9c0"/>
+      <stop offset="1" stop-color="#81c9c0" stop-opacity="0"/>
     </linearGradient>
-    <radialGradient id="crebain-seat" cx="42%" cy="32%" r="75%">
-      <stop stop-color="#10161b"/><stop offset="1" stop-color="#0b1014"/>
+    <radialGradient id="crebain-seat" cx="38%" cy="32%" r="78%">
+      <stop offset="0" stop-color="#172f3d"/>
+      <stop offset="0.56" stop-color="#0d1626"/>
+      <stop offset="1" stop-color="#070d16"/>
     </radialGradient>
-    <linearGradient id="crebain-ring-metal" x1="25" y1="20" x2="150" y2="160" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#705e49"/><stop offset=".27" stop-color="#a38d6b"/><stop offset=".64" stop-color="#4c4338"/><stop offset="1" stop-color="#705e49"/>
-    </linearGradient>
-    <linearGradient id="crebain-crown-metal" x1="65" y1="42" x2="122" y2="100" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#536b47"/><stop offset=".38" stop-color="#35412e"/><stop offset="1" stop-color="#172019"/>
-    </linearGradient>
-    <linearGradient id="crebain-neck-metal" x1="70" y1="90" x2="123" y2="142" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#35432d"/><stop offset=".52" stop-color="#232e22"/><stop offset="1" stop-color="#121a16"/>
+    <linearGradient id="crebain-ring-metal" x1="42" y1="36" x2="136" y2="151" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#284d68"/>
+      <stop offset="0.16" stop-color="#94d2c6"/>
+      <stop offset="0.32" stop-color="#5a719e"/>
+      <stop offset="0.5" stop-color="#6f619a"/>
+      <stop offset="0.68" stop-color="#253b59"/>
+      <stop offset="0.84" stop-color="#548ea1"/>
+      <stop offset="1" stop-color="#89c4bc"/>
     </linearGradient>
     <radialGradient id="crebain-optic-halo">
-      <stop stop-color="#ff4437" stop-opacity=".72"/><stop offset=".48" stop-color="#e12520" stop-opacity=".28"/><stop offset="1" stop-color="#d11717" stop-opacity="0"/>
+      <stop stop-color="#ff4437" stop-opacity=".72"/>
+      <stop offset=".48" stop-color="#e12520" stop-opacity=".28"/>
+      <stop offset="1" stop-color="#d11717" stop-opacity="0"/>
     </radialGradient>
+    <linearGradient id="crebain-base" x1="42" y1="36" x2="136" y2="151" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#477582"/>
+      <stop offset="0.22" stop-color="#2d5263"/>
+      <stop offset="0.55" stop-color="#192e42"/>
+      <stop offset="0.78" stop-color="#2d3456"/>
+      <stop offset="1" stop-color="#101d2a"/>
+    </linearGradient>
+    <linearGradient id="crebain-lit" x1="42" y1="36" x2="136" y2="151" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8cc6bc"/>
+      <stop offset="0.22" stop-color="#57949b"/>
+      <stop offset="0.55" stop-color="#3f617b"/>
+      <stop offset="0.78" stop-color="#5b618c"/>
+      <stop offset="1" stop-color="#25465c"/>
+    </linearGradient>
+    <linearGradient id="crebain-shade" x1="42" y1="36" x2="136" y2="151" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#294652"/>
+      <stop offset="0.22" stop-color="#192c40"/>
+      <stop offset="0.55" stop-color="#111d30"/>
+      <stop offset="0.78" stop-color="#222a40"/>
+      <stop offset="1" stop-color="#101b27"/>
+    </linearGradient>
+    <linearGradient id="crebain-edge" x1="42" y1="36" x2="136" y2="151" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#75b7b0"/>
+      <stop offset="0.22" stop-color="#47788c"/>
+      <stop offset="0.55" stop-color="#47557b"/>
+      <stop offset="0.78" stop-color="#5e5c8d"/>
+      <stop offset="1" stop-color="#2a4e64"/>
+    </linearGradient>
   </defs>
 
   <g id="crebain-reticle" fill="none" stroke-linecap="square">
     <circle cx="90" cy="90" r="68" fill="url(#crebain-seat)" stroke="#0b1014" stroke-width="4.6"/>
-    <circle cx="90" cy="90" r="68" stroke="url(#crebain-ring-metal)" stroke-width="2.4"/>
-    <path d="M26 76A66 66 0 0 1 78 25 M102 25A66 66 0 0 1 155 80 M155 104A66 66 0 0 1 102 155" stroke="#a38d6b" stroke-opacity=".35" stroke-width=".9"/>
+    <circle cx="90" cy="90" r="68" stroke="url(#crebain-ring-metal)" stroke-width="3.2"/>
+    <circle cx="90" cy="90" r="65.9" stroke="url(#crebain-ring-metal)" stroke-opacity=".3" stroke-width=".6"/>
+    <path d="M26 76A66 66 0 0 1 78 25 M102 25A66 66 0 0 1 155 80 M155 104A66 66 0 0 1 102 155" stroke="url(#crebain-ring-metal)" stroke-opacity=".5" stroke-width=".9"/>
     <path d="M90 15V28 M90 152V165 M15 90H28 M152 90H165" stroke="#161d20" stroke-width="4.5"/>
-    <path d="M90 15V28 M90 152V165 M15 90H28 M152 90H165" stroke="#8d785c" stroke-width="1.8"/>
-    <path d="M31 38V31H38 M142 31H149V38 M31 142V149H38 M142 149H149V142" stroke="#705e49" stroke-width="2.3"/>
-    <circle cx="53" cy="147" r="4.8" fill="#596a3d" stroke="#141e1c" stroke-width="1.8"/>
+    <path d="M90 15V28 M90 152V165 M15 90H28 M152 90H165" stroke="url(#crebain-ring-metal)" stroke-width="1.8"/>
+    <path d="M31 38V31H38 M142 31H149V38 M31 142V149H38 M142 149H149V142" stroke="url(#crebain-ring-metal)" stroke-width="2.3"/>
+    <circle cx="53" cy="147" r="4.8" fill="#47788c" stroke="#0b1621" stroke-width="1.8"/>
   </g>
 
-  <g id="crebain-raven" stroke="#111719" stroke-width="1.15" stroke-linejoin="round">
-    <path id="crebain-silhouette" d="M42 108 48 86 58 71 61 61 77 47 103 39 128 44 141 55 139 64 150 76 143 79 151 91 137 93 130 112 115 131 70 150 72 130 65 121 70 105 63 96Z" fill="#182123" stroke-width="2"/>
+  <g id="crebain-raven" stroke="#09151f" stroke-width=".85" stroke-linejoin="round">
+    <path id="crebain-silhouette" d="M42 108 48 86 58 71 61 61 77 47 103 39 128 44 141 55 139 64 150 76 143 79 151 91 137 93 130 112 115 131 70 150 72 130 65 121 70 105 63 96Z" fill="url(#crebain-shade)" stroke-width="2"/>
 
     <g id="crebain-crown">
-      <path d="M58 71 61 61 77 47 103 39 88 56Z" fill="url(#crebain-crown-metal)"/>
-      <path d="M77 47 103 39 128 44 104 49 88 56Z" fill="#536b47"/>
-      <path d="M103 39 128 44 139 52 119 52 104 49Z" fill="#40563c"/>
-      <path d="M88 56 104 49 122 52 103 61 95 73 76 79 64 74Z" fill="#263031"/>
-      <path d="M104 49 121 47 139 52 115 55 103 61Z" fill="#70845b"/>
-      <path d="M103 61 115 55 139 55 133 62 111 67 101 80 95 73Z" fill="#303f2b"/>
-      <path d="M115 55 139 55 133 62 123 62Z" fill="#70845b"/>
-      <path d="M111 67 123 62 139 64 150 76 129 71 116 76 104 90 101 80Z" fill="#263231"/>
-      <path d="M123 62 139 64 150 76 130 70Z" fill="#536b47"/>
-      <path d="M130 70 143 79 151 91 137 87 126 77Z" fill="#40563c"/>
-      <path d="M137 87 151 91 137 93 129 108 128 91Z" fill="#1f2928"/>
+      <path d="M58 71 61 61 77 47 103 39 88 56Z" fill="url(#crebain-base)"/>
+      <path d="M77 47 103 39 128 44 104 49 88 56Z" fill="url(#crebain-lit)"/>
+      <path d="M103 39 128 44 139 52 119 52 104 49Z" fill="url(#crebain-base)"/>
+      <path d="M88 56 104 49 122 52 103 61 95 73 76 79 64 74Z" fill="url(#crebain-base)"/>
+      <path d="M104 49 121 47 139 52 115 55 103 61Z" fill="url(#crebain-lit)"/>
+      <path d="M103 61 115 55 139 55 133 62 111 67 101 80 95 73Z" fill="url(#crebain-base)"/>
+      <path d="M115 55 139 55 133 62 123 62Z" fill="url(#crebain-lit)"/>
+      <path d="M111 67 123 62 139 64 150 76 129 71 116 76 104 90 101 80Z" fill="url(#crebain-base)"/>
+      <path d="M123 62 139 64 150 76 130 70Z" fill="url(#crebain-lit)"/>
+      <path d="M130 70 143 79 151 91 137 87 126 77Z" fill="url(#crebain-base)"/>
+      <path d="M137 87 151 91 137 93 129 108 128 91Z" fill="url(#crebain-shade)"/>
     </g>
 
     <g id="crebain-beak">
-      <path d="M58 71 74 67 66 79 52 89 42 108 48 86Z" fill="#536b47"/>
-      <path d="M52 89 66 79 76 79 64 91 42 108Z" fill="#34403b"/>
-      <path d="M42 108 57 94 73 87 84 87 71 95 63 96Z" fill="#161f21"/>
-      <path d="M57 94 67 88 77 83 84 87 71 90Z" fill="#5c6b47"/>
-      <path d="M63 96 71 95 81 99 72 106 70 118 65 121 68 108 70 105Z" fill="#39483d"/>
+      <path d="M58 71 74 67 66 79 52 89 42 108 48 86Z" fill="url(#crebain-lit)"/>
+      <path d="M52 89 66 79 76 79 64 91 42 108Z" fill="url(#crebain-base)"/>
+      <path d="M42 108 57 94 73 87 84 87 71 95 63 96Z" fill="url(#crebain-shade)"/>
+      <path d="M57 94 67 88 77 83 84 87 71 90Z" fill="url(#crebain-lit)"/>
+      <path d="M63 96 71 95 81 99 72 106 70 118 65 121 68 108 70 105Z" fill="url(#crebain-base)"/>
     </g>
 
     <g id="crebain-cheek-and-neck">
-      <path d="M76 79 95 73 101 80 104 90 91 98 81 99 71 95 84 87Z" fill="#28352f"/>
-      <path d="M76 79 86 79 95 73 93 82 84 87Z" fill="#3c4d30"/>
-      <path d="M84 87 93 82 101 80 97 89 91 94Z" fill="#50613e"/>
-      <path d="M81 99 91 98 82 116 72 130 70 150 70 118 72 106Z" fill="url(#crebain-neck-metal)"/>
-      <path d="M91 98 104 90 96 113 82 130 70 150 82 116Z" fill="#1d2a26"/>
-      <path d="M104 90 116 76 115 95 106 110 96 113Z" fill="#425737"/>
-      <path d="M116 76 126 77 128 91 117 111 106 124 106 110 115 95Z" fill="#344537"/>
-      <path d="M128 91 129 108 130 112 115 131 106 136 117 111Z" fill="#1f2d28"/>
-      <path d="M96 113 106 110 106 124 93 138 70 150 82 130Z" fill="#40563c"/>
-      <path d="M106 124 117 111 115 131 93 142 93 138Z" fill="#28392c"/>
-      <path d="M82 116 82 130 73 143 76 125Z" fill="#70845b"/>
-      <path d="M96 113 95 126 83 142 70 150 82 130Z" fill="#26362b"/>
-      <path d="M106 110 106 124 97 135 101 118Z" fill="#5d7044" opacity=".58"/>
+      <path d="M76 79 95 73 101 80 104 90 91 98 81 99 71 95 84 87Z" fill="url(#crebain-base)"/>
+      <path d="M76 79 86 79 95 73 93 82 84 87Z" fill="url(#crebain-edge)"/>
+      <path d="M84 87 93 82 101 80 97 89 91 94Z" fill="url(#crebain-edge)"/>
+      <path d="M81 99 91 98 82 116 72 130 70 150 70 118 72 106Z" fill="url(#crebain-edge)"/>
+      <path d="M91 98 104 90 96 113 82 130 70 150 82 116Z" fill="url(#crebain-shade)"/>
+      <path d="M104 90 116 76 115 95 106 110 96 113Z" fill="url(#crebain-base)"/>
+      <path d="M116 76 126 77 128 91 117 111 106 124 106 110 115 95Z" fill="url(#crebain-base)"/>
+      <path d="M128 91 129 108 130 112 115 131 106 136 117 111Z" fill="url(#crebain-shade)"/>
+      <path d="M96 113 106 110 106 124 93 138 70 150 82 130Z" fill="url(#crebain-base)"/>
+      <path d="M106 124 117 111 115 131 93 142 93 138Z" fill="url(#crebain-base)"/>
+      <path d="M82 116 82 130 73 143 76 125Z" fill="url(#crebain-lit)"/>
+      <path d="M96 113 95 126 83 142 70 150 82 130Z" fill="url(#crebain-shade)"/>
+      <path d="M106 110 106 124 97 135 101 118Z" fill="url(#crebain-edge)" opacity=".58"/>
     </g>
 
     <g id="crebain-optic">
@@ -98,7 +133,7 @@
         <ellipse cx="88" cy="68" rx="4.2" ry="3.1" transform="rotate(-25 88 68)" fill="#f23c2a" stroke="#6f1818" stroke-width=".6"/>
         <ellipse cx="88" cy="67.6" rx="1.5" ry="1.2" transform="rotate(-25 88 68)" fill="#ffd9ad" stroke="none"/>
       </g>
-      <path d="M67 74 88 61 105 57" fill="none" stroke="#66774c" stroke-width="1.15"/>
+      <path d="M67 74 88 61 105 57" fill="none" stroke="url(#crebain-lit)" stroke-width="1.15"/>
     </g>
   </g>
   <g clip-path="url(#crebain-glint-clip)" aria-hidden="true">
