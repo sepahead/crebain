@@ -44,6 +44,12 @@
       <stop offset=".72" stop-color="#263b46"/>
       <stop offset="1" stop-color="#13232d"/>
     </linearGradient>
+    <linearGradient id="crebain-reticle-shadow" x1="78" y1="76" x2="153" y2="153" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#030910" stop-opacity="0"/>
+      <stop offset=".3" stop-color="#030910" stop-opacity=".12"/>
+      <stop offset=".7" stop-color="#030910" stop-opacity=".48"/>
+      <stop offset="1" stop-color="#030910" stop-opacity=".72"/>
+    </linearGradient>
     <radialGradient id="crebain-optic-halo">
       <stop stop-color="#ff4437" stop-opacity=".72"/>
       <stop offset=".48" stop-color="#e12520" stop-opacity=".28"/>
@@ -84,6 +90,7 @@
     <circle cx="90" cy="90" r="68" stroke="url(#crebain-ring-metal)" stroke-width="3.2"/>
     <circle cx="90" cy="90" r="65.9" stroke="url(#crebain-ring-metal)" stroke-opacity=".3" stroke-width=".6"/>
     <path d="M26 76A66 66 0 0 1 78 25 M102 25A66 66 0 0 1 155 80 M155 104A66 66 0 0 1 102 155" stroke="url(#crebain-ring-metal)" stroke-opacity=".5" stroke-width=".9"/>
+    <path d="M90 15V28 M90 152V165 M15 90H28 M152 90H165" stroke="#030910" stroke-width="5.4" transform="translate(.8 1.1)"/>
     <path d="M90 15V28 M90 152V165 M15 90H28 M152 90H165" stroke="#161d20" stroke-width="4.5"/>
     <path d="M90 15V28 M90 152V165 M15 90H28 M152 90H165" stroke="url(#crebain-ring-metal)" stroke-width="1.8"/>
     <path d="M31 38V31H38 M142 31H149V38 M31 142V149H38 M142 149H149V142" stroke="#070e14" stroke-width="3.8" transform="translate(.55 .75)"/>
@@ -93,6 +100,8 @@
       <path d="M31 142V149H38"/>
       <path d="M142 149H149V142"/>
     </g>
+    <path d="M158 90A68 68 0 0 1 90 158" stroke="url(#crebain-reticle-shadow)" stroke-width="4.6"/>
+    <path d="M90 152V165 M152 90H165 M142 149H149V142" stroke="url(#crebain-reticle-shadow)" stroke-width="2.3"/>
     <circle cx="53" cy="147" r="4.8" fill="#526b62" stroke="#0b1621" stroke-width="1.8"/>
   </g>
 
