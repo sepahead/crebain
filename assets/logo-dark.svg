@@ -38,6 +38,12 @@
       <stop offset="0.84" stop-color="#354c59"/>
       <stop offset="1" stop-color="#869b98"/>
     </linearGradient>
+    <linearGradient id="crebain-bracket-metal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#72878c"/>
+      <stop offset=".38" stop-color="#415b65"/>
+      <stop offset=".72" stop-color="#263b46"/>
+      <stop offset="1" stop-color="#13232d"/>
+    </linearGradient>
     <radialGradient id="crebain-optic-halo">
       <stop stop-color="#ff4437" stop-opacity=".72"/>
       <stop offset=".48" stop-color="#e12520" stop-opacity=".28"/>
@@ -80,7 +86,13 @@
     <path d="M26 76A66 66 0 0 1 78 25 M102 25A66 66 0 0 1 155 80 M155 104A66 66 0 0 1 102 155" stroke="url(#crebain-ring-metal)" stroke-opacity=".5" stroke-width=".9"/>
     <path d="M90 15V28 M90 152V165 M15 90H28 M152 90H165" stroke="#161d20" stroke-width="4.5"/>
     <path d="M90 15V28 M90 152V165 M15 90H28 M152 90H165" stroke="url(#crebain-ring-metal)" stroke-width="1.8"/>
-    <path d="M31 38V31H38 M142 31H149V38 M31 142V149H38 M142 149H149V142" stroke="url(#crebain-ring-metal)" stroke-width="2.3"/>
+    <path d="M31 38V31H38 M142 31H149V38 M31 142V149H38 M142 149H149V142" stroke="#070e14" stroke-width="3.8" transform="translate(.55 .75)"/>
+    <g stroke="url(#crebain-bracket-metal)" stroke-width="2.3">
+      <path d="M31 38V31H38"/>
+      <path d="M142 31H149V38"/>
+      <path d="M31 142V149H38"/>
+      <path d="M142 149H149V142"/>
+    </g>
     <circle cx="53" cy="147" r="4.8" fill="#526b62" stroke="#0b1621" stroke-width="1.8"/>
   </g>
 
