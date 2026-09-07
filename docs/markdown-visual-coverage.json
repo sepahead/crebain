@@ -77,6 +77,14 @@
       }
     },
     {
+      "path": "assets/archive/logos/README.md",
+      "classification": "historical-record",
+      "exemption": {
+        "kind": "historical-logo-gallery",
+        "reason": "The gallery preserves earlier artwork and its exact source history. Its previews are identity designs, not technical diagrams."
+      }
+    },
+    {
       "path": "audit/README.md",
       "classification": "frozen-evidence",
       "exemption": {

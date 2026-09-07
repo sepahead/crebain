@@ -5,6 +5,8 @@
   </picture>
 </p>
 
+<p align="center"><a href="assets/archive/logos/README.md">Logo design archive</a></p>
+
 # CREBAIN
 
 **A 3D environment for drone simulation and sensor-fusion research.**
