@@ -33,7 +33,7 @@ def eq(t):flow.append(Paragraph(t,styles['EquationGuide']))
 def title(t,sub):flow.extend([Paragraph(t,styles['TitleGuide']),Paragraph(sub,styles['SmallGuide'])])
 def page():flow.append(PageBreak())
 
-title('A city, explicit time,<br/>and actual observations','CREBAIN native environment | Source component guide | September 5, 2026')
+title('A city, explicit time,<br/>and actual observations','CREBAIN native environment | Source component guide | September 8, 2026')
 p('CREBAIN advances its existing Rapier drone dynamics. One authored metric scene supplies building colliders, meshes, Gaussian surfaces, acoustic obstruction, and thermal visibility.')
 p('The CPU owns physical state, controller memory, rotor response, acoustic history, and temperature. A private Node and Chromium process owns actual RGB and thermal pixel rendering.')
 h('What one step means')
@@ -96,6 +96,19 @@ h('Failure and capacity')
 p('Failed reconstruction retires only the candidate. Primary failure and cleanup failure remain separate. Constructing and unresolved generations still consume the four-owner family ceiling. A no-op retirement retry cannot erase an earlier unresolved CPU cleanup.')
 p('The 128 MiB retained CPU budget is separate from one 64 MiB temporary reconstruction checkpoint. Camera staging reserves at most 32 MiB raw bytes. A CPU restore also reserves one extra temporary owner. Unresolved cleanup retains that slot and the 64 MiB checkpoint reservation, blocking another reconstruction. These are logical reservations, not total RSS or GPU-memory guarantees.')
 
+page();title('One intervention,<br/>three observed responses','Private frozen force-ground campaign | Matched siblings and reversed order controls')
+p('A parent stops at tick 24, or 0.2 seconds. Three fresh children reconstruct its complete CPU state and verify current pixels. Two receive baseline actions. The third receives a different target at tick 25.')
+p('The intervention requests roll 0.02 rad, pitch 0.03 rad, absolute heading 0.04 rad, and altitude eight meters. At tick 61, the inherited level target applies. Each child stops at tick 84.')
+eq('d<sub>k</sub> = 1,000 √[(Δx<sub>k</sub>)² + (Δy<sub>k</sub>)² + (Δz<sub>k</sub>)²] mm<br/>ΔT<sub>k</sub> = T<sub>B,k</sub> - T<sub>A1,k</sub> K<br/>e<sub>k</sub> = √[(1/N<sub>k</sub>) Σ<sub>j</sub> (p<sub>B,k,j</sub> - p<sub>A1,k,j</sub>)²] Pa')
+p('The values Δx, Δy, and Δz are B minus A1 position components in meters. Multiplying by 1,000 converts meters to millimeters. T is temperature in kelvin. The value p is mic-a pressure in pascals. N is the current block length: 133 or 134 samples. The index j covers exactly that block; k is the completed physics tick.')
+p('Position distance d reaches 13.337742 mm in this selected continuation. The temperature difference is negative: the intervention arm is slightly cooler. Pressure difference e summarizes paired waveform differences; it is not sensor error or a statistical significance test.')
+p('Both creation and advancement orders passed, totaling 408 coupled advances. Matched siblings and corresponding reversed-order branches retained exact outputs and final CPU states. Every owner retired with zero leases and family reservations.')
+h('Resolution changes the observation')
+eq('f<sub>y</sub> = H / [2 tan(θ / 2)] pixels')
+p('H is image height in pixels; θ is vertical field of view. At H = 48 and θ = 60 degrees, f<sub>y</sub> is about 41.57 pixels. A 0.05-meter feature at 5.2 meters spans about 0.40 pixels before orientation effects.')
+p('The original 64 × 48 campaign failed: its thin drone mesh missed every thermal pixel center at tick 36. A separately frozen 256 × 192 arm passed the original criteria. A CPU/GPU edge-coordinate diagnostic still failed at two pixels; separate interior and exterior controls passed.')
+p('The public series is a derived summary of the private campaign, not a public replay package. Shared noise and order repeats are not independent replicates. These results do not qualify physical fidelity, NCP transport, or a complete Prisoma experiment.')
+
 source_digest=hashlib.sha256((root/'docs/NATIVE_ENVIRONMENT.md').read_bytes()).hexdigest()
 def footer(canvas,doc):
  canvas.setFont('Guide',8);canvas.setFillColor(colors.HexColor('#617884'));canvas.drawString(42,27,'CREBAIN | Scoped simulation component | '+source_digest[:16]);canvas.drawRightString(A4[0]-42,27,str(doc.page))
@@ -103,7 +116,8 @@ body_path=custody/'math-guide-body.pdf'
 SimpleDocTemplate(str(body_path),pagesize=A4,rightMargin=44,leftMargin=44,topMargin=42,bottomMargin=46,title='CREBAIN Native Environment: Math and Ownership',author='CREBAIN').build(flow,onFirstPage=footer,onLaterPages=footer)
 subprocess.run(['rsvg-convert','--format','pdf','--width','277mm','--height','191mm','--keep-aspect-ratio','--page-width','297mm','--page-height','210mm','--left','10mm','--top','9mm',str(root/'assets/diagrams/native-environment.svg'),'-o',str(custody/'math-guide-diagram.pdf')],check=True)
 writer=PdfWriter()
-for path in [body_path,custody/'math-guide-diagram.pdf']:
+subprocess.run(['rsvg-convert','--format','pdf','--width','277mm','--height','191mm','--keep-aspect-ratio','--page-width','297mm','--page-height','210mm','--left','10mm','--top','9mm',str(root/'assets/diagrams/force-ground-coupled.svg'),'-o',str(custody/'math-guide-coupled.pdf')],check=True)
+for path in [body_path,custody/'math-guide-diagram.pdf',custody/'math-guide-coupled.pdf']:
  reader=PdfReader(path)
  for page in reader.pages:writer.add_page(page)
 writer.add_metadata({'/Title':'CREBAIN Native Environment: Math and Ownership','/Author':'CREBAIN','/Subject':'Explicit source-component models, actual observations, and bounded checkpoint claims'})

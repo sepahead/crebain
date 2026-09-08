@@ -28,7 +28,7 @@ The [0.9 release decision](docs/NARROWED_GO_0.9.0.md) and its remaining exclusio
 | Workflow | What it supplies | Current boundary |
 | --- | --- | --- |
 | [Native city environment](docs/NATIVE_ENVIRONMENT.md) | Explicit Rapier ticks, city collision, Gaussian and mesh RGB, pressure samples, thermal radiance, reconstructed branches | Standalone source component; admits 1–256 drones within explicit resource limits |
-| [Force-ground environment](docs/NATIVE_ENVIRONMENT.md#force-ground-profile) | Qualified force controller, absolute-heading targets, ground geometry, actual observation models, and privileged control records | Explicit one-drone source profile; zero city solids; separate coupled qualification |
+| [Force-ground environment](docs/NATIVE_ENVIRONMENT.md#force-ground-profile) | Qualified force controller, absolute-heading targets, ground geometry, actual observation models, and privileged control records | One-drone source profile; zero city solids; [measured branch comparison](docs/NATIVE_ENVIRONMENT.md#measured-controlled-branches) |
 | [Desktop application](docs/WORKFLOWS.md) | Tauri/React scene inspection, camera placement, native detection, Rust fusion, read-only telemetry | Separate UI scheduler and defaults; the native environment is not installed into this UI |
 | [Local NCP body](docs/NATIVE_NCP_SIMULATION.md) | Private-process kinematics, Kalman observations, actual application and innovation evidence | Separate 1–3-entity scalar profile; does not transport city images, pressure, or thermal arrays |
 

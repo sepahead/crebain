@@ -110,8 +110,54 @@ Unresolved cleanup retains its resource reservation.
 
 Controlled checkpoint reconstruction awaits the same force transition for every replayed tick, including accepted future actions.
 The existing all-camera barrier and fresh-renderer pixel checks still apply.
-Source controls and the legacy one-tick empty-scene render do not establish coupled force-profile graphics qualification.
-That profile needs its own frozen real-render comparison before an operational qualification claim.
+The private 256 × 192 campaign described below supplies a separate bounded real-render comparison.
+It does not qualify the force profile across every admitted camera configuration.
+
+### Measured controlled branches
+
+![Paused parent, matched siblings, and measured intervention responses](../assets/diagrams/force-ground-coupled.svg)
+
+Text alternative: A parent stops at tick 24.
+Two fresh siblings receive baseline actions. A third receives a different target at tick 25.
+All children advance through tick 84. The parent remains unchanged.
+Plots show position distance, temperature difference, and microphone pressure difference between the intervention and one baseline sibling.
+
+[Open the original SVG](../assets/diagrams/force-ground-coupled.svg?raw=true)
+· [Read the derived numeric series](data/force-ground-coupled-20260908.json)
+· [Read the illustrated math guide](../output/pdf/native-environment-math.pdf)
+
+Private campaign 002 completed 408 coupled advances in two fresh families with reversed creation and advancement orders.
+Each family used one paused parent and three children, with one drone and zero scene solids.
+Two RGB cameras and one thermal camera used 256 × 192 pixels, a 60-degree field of view, and 12-tick periods.
+Two microphones sampled at 16 kHz.
+Each child produced five frames per camera and 8,000 pressure samples per microphone.
+
+The intervention requested roll 0.02 rad, pitch 0.03 rad, heading 0.04 rad, and altitude eight meters at tick 25.
+The inherited level target at tick 61 remained binding.
+Matched siblings agreed on every future payload and complete final CPU state.
+Corresponding branches also agreed across the reversed-order families.
+Separate direct implementation instances matched each returned control, reference, and pressure block.
+Fresh parent checkpoints confirmed unchanged parent state after child operations.
+Every owner retired with zero observation leases and family reservations.
+
+Compared with a baseline child, the intervention changed 791 RGB bytes, 844 thermal bytes, and 115,171 pressure bytes per family.
+Camera differences first appeared at tick 36; pressure differences first appeared at tick 25.
+Byte inequality establishes an observed difference, not perception accuracy, tampering detection, or world-model quality.
+The plotted position distance reaches 13.337742 mm over this selected half-second continuation.
+Shared noise and repeated order controls do not supply independent statistical replicates.
+The public numeric series is a derived private-campaign summary, not a public replay package or installed-runtime receipt.
+
+The original 64 × 48 campaign failed its spatial-variation criterion at tick 36.
+The thin drone mesh missed every pixel center; fresh original-resolution thermal frames reproduced the retained failure bytes exactly.
+A higher-resolution diagnostic recovered the drone but failed exact CPU/GPU coordinate equality at two triangle-edge pixels.
+Those centers lay approximately 0.000795 pixels outside the CPU-projected edges.
+Separate interior, exterior, and ambient-temperature controls passed; the earlier exact-coordinate diagnostic remains failed.
+Campaign 002 changed camera dimensions only. It preserved the original actions, horizon, order controls, and acceptance criteria.
+
+A uniform ambient image can be valid sensor output while failing an experiment's visibility requirement.
+Specify dimensions, projection, sampling, pose, and source tick when defining a camera experiment.
+This campaign establishes no general visibility guarantee, physical calibration, force-controlled city, many-drone force control, or nonzero Gaussian contribution.
+NCP transport and a complete Prisoma experiment remain separate open contracts.
 
 ## Ownership and public interfaces
 
@@ -376,9 +422,9 @@ No real-world vehicle or weapon control is provided by this environment.
 ## Rebuild the math guide
 
 The guide builder is `scripts/build-native-environment-guide.py`.
-The rendered control used ReportLab 4.4.10, pypdf 6.7.4, and rsvg-convert 2.62.3.
+The rendered control used ReportLab 4.5.1, pypdf 6.15.0, and rsvg-convert 2.62.3.
 It embeds Arial fonts from the selected local installation.
 Use `CREBAIN_PDF_FONT_DIR` to select an explicit folder containing `Arial.ttf` and `Arial Bold.ttf`.
-The script writes the six-page guide to `output/pdf/native-environment-math.pdf`.
+The script writes the eight-page guide to `output/pdf/native-environment-math.pdf`.
 Review every rendered page after changing mathematical prose or diagram content.
 The source Markdown remains the owning implementation contract.

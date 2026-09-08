@@ -228,7 +228,10 @@
     {
       "path": "docs/NATIVE_ENVIRONMENT.md",
       "classification": "active-technical",
-      "visuals": ["assets/diagrams/native-environment.svg"]
+      "visuals": [
+        "assets/diagrams/native-environment.svg",
+        "assets/diagrams/force-ground-coupled.svg"
+      ]
     },
     {
       "path": "docs/NATIVE_NCP_SIMULATION.md",

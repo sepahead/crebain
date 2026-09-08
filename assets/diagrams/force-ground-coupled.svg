@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 920" role="img" aria-labelledby="title desc">
+<title id="title">CREBAIN: controlled branches and actual observations</title>
+<desc id="desc">A parent stops at tick 24. Two baseline siblings and one intervention sibling advance through tick 84. Matching siblings and reversed execution orders agree exactly. Three plots show the intervention's position, temperature, and microphone differences in one selected engineering campaign. This is not physical calibration or an independent statistical experiment.</desc>
+<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8Z" fill="#335966"/></marker><marker id="gold" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8Z" fill="#a45c13"/></marker></defs>
+<style>text{font-family:Arial,Helvetica,sans-serif;fill:#183440}.title{font-size:34px;font-weight:700}.heading{font-size:23px;font-weight:700}.body{font-size:19px}.small{font-size:17px;fill:#48616b}.axis{font-size:15px;fill:#48616b}.line{fill:none;stroke:#335966;stroke-width:3;marker-end:url(#arrow)}.grid{stroke:#dce5e7;stroke-width:1}.trace{fill:none;stroke:#a45c13;stroke-width:3;stroke-linejoin:round;stroke-linecap:round}</style>
+<rect width="1280" height="920" rx="20" fill="#fff"/>
+<text x="48" y="58" class="title">Controlled branches. Actual observations.</text>
+<text x="48" y="92" class="body">One ground-plane drone · 120 ticks/s · 256 × 192 cameras · selected M4 Max campaign</text>
+<rect x="42" y="120" width="1196" height="273" rx="16" fill="#f1f6f7" stroke="#ccdce0"/>
+<text x="65" y="157" class="heading">One paused parent; three independently reconstructed futures</text>
+<rect x="67" y="212" width="245" height="112" rx="12" fill="#fff" stroke="#557883" stroke-width="2"/>
+<text x="86" y="246" class="heading">Parent at tick 24</text>
+<text x="86" y="277" class="body">Complete CPU state</text>
+<text x="86" y="303" class="small">Remains unchanged</text>
+<path class="line" d="M312 267H385V209H517"/><path class="line" d="M385 267H517"/><path d="M385 267V325H517" fill="none" stroke="#a45c13" stroke-width="3" marker-end="url(#gold)"/>
+<text x="530" y="215" class="heading">A1</text><path class="line" d="M586 209H1169"/>
+<text x="530" y="273" class="heading">A2</text><path class="line" d="M586 267H1169"/>
+<text x="530" y="331" class="heading" fill="#a45c13">B</text><path d="M586 325H1169" fill="none" stroke="#a45c13" stroke-width="3" marker-end="url(#gold)"/>
+<rect x="611" y="184" width="262" height="38" rx="8" fill="#f1f6f7"/><text x="623" y="210" class="body">Same actions: exact outputs</text>
+<rect x="611" y="297" width="279" height="40" rx="8" fill="#fff2df"/><text x="623" y="324" class="body">New target at 25, held to 60</text>
+<line x1="942" y1="194" x2="942" y2="341" stroke="#73929c" stroke-dasharray="5 5"/>
+<text x="910" y="369" class="small">61: baseline</text><text x="1128" y="369" class="small">84: end</text>
+<text x="48" y="435" class="heading">Intervention response, compared with baseline A1</text>
+<text x="48" y="463" class="small">Observed simulated differences. Shared noise and repeated order controls do not provide independent replicates.</text>
+
+<text x="48" y="510" class="heading">Position difference</text><text x="48" y="537" class="small">Euclidean distance · mm</text>
+<line x1="103" x2="395" y1="705.00" y2="705.00" class="grid"/><text x="95" y="710.00" class="axis" text-anchor="end">0</text>
+<line x1="103" x2="395" y1="659.00" y2="659.00" class="grid"/><text x="95" y="664.00" class="axis" text-anchor="end">5</text>
+<line x1="103" x2="395" y1="613.00" y2="613.00" class="grid"/><text x="95" y="618.00" class="axis" text-anchor="end">10</text>
+<line x1="103" x2="395" y1="567.00" y2="567.00" class="grid"/><text x="95" y="572.00" class="axis" text-anchor="end">15</text>
+<text x="103.00" y="729" class="axis" text-anchor="middle">25</text>
+<text x="216.83" y="729" class="axis" text-anchor="middle">48</text>
+<text x="281.17" y="729" class="axis" text-anchor="middle">61</text>
+<text x="395.00" y="729" class="axis" text-anchor="middle">84</text>
+<line x1="281.17" x2="281.17" y1="567" y2="705" stroke="#92a9b0" stroke-dasharray="4 4"/>
+<path d="M103.000,704.996 L107.949,704.974 L112.898,704.930 L117.847,704.860 L122.797,704.754 L127.746,704.614 L132.695,704.417 L137.644,704.171 L142.593,703.868 L147.542,703.513 L152.492,703.092 L157.441,702.600 L162.390,702.043 L167.339,701.407 L172.288,700.696 L177.237,699.898 L182.186,699.034 L187.136,698.095 L192.085,697.064 L197.034,695.958 L201.983,694.769 L206.932,693.500 L211.881,692.144 L216.831,690.705 L221.780,689.181 L226.729,687.575 L231.678,685.893 L236.627,684.123 L241.576,682.270 L246.525,680.337 L251.475,678.316 L256.424,676.215 L261.373,674.043 L266.322,671.782 L271.271,669.437 L276.220,667.012 L281.169,664.507 L286.119,661.912 L291.068,659.237 L296.017,656.472 L300.966,653.617 L305.915,650.685 L310.864,647.659 L315.814,644.538 L320.763,641.334 L325.712,638.040 L330.661,634.658 L335.610,631.189 L340.559,627.624 L345.508,623.975 L350.458,620.225 L355.407,616.391 L360.356,612.463 L365.305,608.432 L370.254,604.312 L375.203,600.106 L380.153,595.797 L385.102,591.388 L390.051,586.889 L395.000,582.293" class="trace"/><text x="249.0" y="753" class="axis" text-anchor="middle">Completed tick k · time = k/120 s</text>
+<text x="455" y="510" class="heading">Temperature difference</text><text x="455" y="537" class="small">B − A1 · K</text>
+<line x1="510" x2="802" y1="705.00" y2="705.00" class="grid"/><text x="502" y="710.00" class="axis" text-anchor="end">-0.05</text>
+<line x1="510" x2="802" y1="659.00" y2="659.00" class="grid"/><text x="502" y="664.00" class="axis" text-anchor="end">-0.0333</text>
+<line x1="510" x2="802" y1="613.00" y2="613.00" class="grid"/><text x="502" y="618.00" class="axis" text-anchor="end">-0.0167</text>
+<line x1="510" x2="802" y1="567.00" y2="567.00" class="grid"/><text x="502" y="572.00" class="axis" text-anchor="end">0</text>
+<text x="510.00" y="729" class="axis" text-anchor="middle">25</text>
+<text x="623.83" y="729" class="axis" text-anchor="middle">48</text>
+<text x="688.17" y="729" class="axis" text-anchor="middle">61</text>
+<text x="802.00" y="729" class="axis" text-anchor="middle">84</text>
+<line x1="688.17" x2="688.17" y1="567" y2="705" stroke="#92a9b0" stroke-dasharray="4 4"/>
+<path d="M510.000,567.530 L514.949,568.514 L519.898,569.874 L524.847,571.795 L529.797,574.198 L534.746,577.005 L539.695,581.162 L544.644,585.740 L549.593,587.165 L554.542,588.502 L559.492,589.913 L564.441,591.391 L569.390,592.926 L574.339,594.514 L579.288,596.151 L584.237,597.832 L589.186,599.554 L594.136,601.314 L599.085,603.109 L604.034,604.936 L608.983,606.793 L613.932,608.677 L618.881,610.586 L623.831,612.519 L628.780,614.474 L633.729,616.449 L638.678,618.443 L643.627,620.454 L648.576,622.480 L653.525,624.522 L658.475,626.578 L663.424,628.646 L668.373,630.726 L673.322,632.816 L678.271,634.917 L683.220,637.027 L688.169,639.165 L693.119,641.329 L698.068,643.518 L703.017,645.729 L707.966,647.961 L712.915,650.211 L717.864,652.478 L722.814,654.761 L727.763,657.059 L732.712,659.370 L737.661,661.694 L742.610,664.040 L747.559,666.426 L752.508,668.865 L757.458,671.351 L762.407,673.879 L767.356,676.446 L772.305,679.048 L777.254,681.681 L782.203,684.341 L787.153,687.026 L792.102,689.732 L797.051,692.456 L802.000,695.195" class="trace"/><text x="656.0" y="753" class="axis" text-anchor="middle">Completed tick k · time = k/120 s</text>
+<text x="862" y="510" class="heading">Microphone difference</text><text x="862" y="537" class="small">Block RMS of B − A1 · Pa</text>
+<line x1="917" x2="1209" y1="705.00" y2="705.00" class="grid"/><text x="909" y="710.00" class="axis" text-anchor="end">0</text>
+<line x1="917" x2="1209" y1="659.00" y2="659.00" class="grid"/><text x="909" y="664.00" class="axis" text-anchor="end">0.04</text>
+<line x1="917" x2="1209" y1="613.00" y2="613.00" class="grid"/><text x="909" y="618.00" class="axis" text-anchor="end">0.08</text>
+<line x1="917" x2="1209" y1="567.00" y2="567.00" class="grid"/><text x="909" y="572.00" class="axis" text-anchor="end">0.12</text>
+<text x="917.00" y="729" class="axis" text-anchor="middle">25</text>
+<text x="1030.83" y="729" class="axis" text-anchor="middle">48</text>
+<text x="1095.17" y="729" class="axis" text-anchor="middle">61</text>
+<text x="1209.00" y="729" class="axis" text-anchor="middle">84</text>
+<line x1="1095.17" x2="1095.17" y1="567" y2="705" stroke="#92a9b0" stroke-dasharray="4 4"/>
+<path d="M917.000,705.000 L921.949,704.999 L926.898,704.998 L931.847,704.997 L936.797,704.459 L941.746,701.311 L946.695,691.962 L951.644,679.234 L956.593,670.671 L961.542,673.380 L966.492,673.554 L971.441,675.171 L976.390,672.418 L981.339,662.613 L986.288,656.298 L991.237,651.273 L996.186,651.066 L1001.136,641.147 L1006.085,632.273 L1011.034,621.239 L1015.983,613.384 L1020.932,617.748 L1025.881,631.459 L1030.831,645.313 L1035.780,655.863 L1040.729,650.174 L1045.678,657.021 L1050.627,626.235 L1055.576,590.797 L1060.525,589.975 L1065.475,629.827 L1070.424,677.997 L1075.373,677.686 L1080.322,628.243 L1085.271,592.226 L1090.220,609.601 L1095.169,638.182 L1100.119,631.993 L1105.068,643.660 L1110.017,615.760 L1114.966,629.047 L1119.915,606.498 L1124.864,608.535 L1129.814,653.699 L1134.763,656.963 L1139.712,623.915 L1144.661,584.192 L1149.610,620.974 L1154.559,683.442 L1159.508,651.006 L1164.458,592.034 L1169.407,607.022 L1174.356,641.220 L1179.305,645.518 L1184.254,623.253 L1189.203,612.387 L1194.153,619.434 L1199.102,608.909 L1204.051,647.749 L1209.000,645.141" class="trace"/><text x="1063.0" y="753" class="axis" text-anchor="middle">Completed tick k · time = k/120 s</text>
+<rect x="42" y="783" width="1196" height="94" rx="12" fill="#edf4f2" stroke="#c8dcd4"/>
+<text x="64" y="816" class="heading">408 coupled advances · both execution orders passed · all reservations released</text>
+<text x="64" y="846" class="body">RGB, thermal, and pressure bytes changed. Byte differences do not measure perception or model quality.</text>
+<text x="48" y="906" class="small">Finite standalone component evidence. No physical calibration, global stability, NCP transport, or Prisoma experiment qualification.</text>
+</svg>

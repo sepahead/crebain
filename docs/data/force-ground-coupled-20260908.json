@@ -1,0 +1,441 @@
+{
+  "schema": "crebain.coupled-force-observation-summary.v1",
+  "scope": "Public derived summary of a private frozen engineering campaign; not a public replay package or installed-runtime receipt",
+  "source_commit": "aa4969d97b9b58f1c88e665ef25ee8a1640f7e03",
+  "source_inventory_sha256": "4842fdf07e98eab0e507bf0c1c25a45e52062fc036a306cae5756767c730b4cc",
+  "plan_sha256": "488c1e530cc9982d75ae5e9b41c74eb87ff73de2029bcbd7de90a8c4edb9533d",
+  "campaign_result_sha256": "149a03a7e70850f523e1d8b13f0e9ab57aa8c155fa1df1a87dbe2c03a1e547f0",
+  "figure_sha256": "3e2b4b3afa476aceb92b18f2cc10afb731ae9551258c98499f32dd09967e5264",
+  "observations": [
+    {
+      "tick": 25,
+      "time_s": 0.20833333333333334,
+      "position_difference_mm": 0.000476837158203125,
+      "temperature_difference_K": -0.00019204608508971432,
+      "mic_a_pressure_difference_rms_Pa": 8.352796520796122e-8
+    },
+    {
+      "tick": 26,
+      "time_s": 0.21666666666666667,
+      "position_difference_mm": 0.002861022955298822,
+      "temperature_difference_K": -0.0005486170731501261,
+      "mic_a_pressure_difference_rms_Pa": 4.873379824600343e-7
+    },
+    {
+      "tick": 27,
+      "time_s": 0.225,
+      "position_difference_mm": 0.007629394650215278,
+      "temperature_difference_K": -0.0010413836466796056,
+      "mic_a_pressure_difference_rms_Pa": 1.3650281201064799e-6
+    },
+    {
+      "tick": 28,
+      "time_s": 0.23333333333333334,
+      "position_difference_mm": 0.015258790002072984,
+      "temperature_difference_K": -0.0017373209574316206,
+      "mic_a_pressure_difference_rms_Pa": 2.9564927801932125e-6
+    },
+    {
+      "tick": 29,
+      "time_s": 0.24166666666666667,
+      "position_difference_mm": 0.02670288545119534,
+      "temperature_difference_K": -0.0026080526019995887,
+      "mic_a_pressure_difference_rms_Pa": 0.000470728054829796
+    },
+    {
+      "tick": 30,
+      "time_s": 0.25,
+      "position_difference_mm": 0.04196168693751468,
+      "temperature_difference_K": -0.0036250688195877956,
+      "mic_a_pressure_difference_rms_Pa": 0.0032081704894929806
+    },
+    {
+      "tick": 31,
+      "time_s": 0.25833333333333336,
+      "position_difference_mm": 0.06341939227219677,
+      "temperature_difference_K": -0.005130995092372359,
+      "mic_a_pressure_difference_rms_Pa": 0.011337267192286192
+    },
+    {
+      "tick": 32,
+      "time_s": 0.26666666666666666,
+      "position_difference_mm": 0.09012235247718174,
+      "temperature_difference_K": -0.006789934677840392,
+      "mic_a_pressure_difference_rms_Pa": 0.02240543095653662
+    },
+    {
+      "tick": 33,
+      "time_s": 0.275,
+      "position_difference_mm": 0.12302428588758602,
+      "temperature_difference_K": -0.00730605018247843,
+      "mic_a_pressure_difference_rms_Pa": 0.02985121500421864
+    },
+    {
+      "tick": 34,
+      "time_s": 0.2833333333333333,
+      "position_difference_mm": 0.16164843237976267,
+      "temperature_difference_K": -0.007790534633500101,
+      "mic_a_pressure_difference_rms_Pa": 0.027495711456685477
+    },
+    {
+      "tick": 35,
+      "time_s": 0.2916666666666667,
+      "position_difference_mm": 0.20742541822256177,
+      "temperature_difference_K": -0.008301726799459175,
+      "mic_a_pressure_difference_rms_Pa": 0.027344692614935936
+    },
+    {
+      "tick": 36,
+      "time_s": 0.3,
+      "position_difference_mm": 0.2608322532434194,
+      "temperature_difference_K": -0.008837315525511258,
+      "mic_a_pressure_difference_rms_Pa": 0.025938254476179312
+    },
+    {
+      "tick": 37,
+      "time_s": 0.30833333333333335,
+      "position_difference_mm": 0.32139235895011,
+      "temperature_difference_K": -0.009393615373710418,
+      "mic_a_pressure_difference_rms_Pa": 0.028332440126678616
+    },
+    {
+      "tick": 38,
+      "time_s": 0.31666666666666665,
+      "position_difference_mm": 0.3905365843094177,
+      "temperature_difference_K": -0.009968973617446863,
+      "mic_a_pressure_difference_rms_Pa": 0.03685861160602231
+    },
+    {
+      "tick": 39,
+      "time_s": 0.325,
+      "position_difference_mm": 0.46778857529140233,
+      "temperature_difference_K": -0.010561875771031737,
+      "mic_a_pressure_difference_rms_Pa": 0.04234914508879997
+    },
+    {
+      "tick": 40,
+      "time_s": 0.3333333333333333,
+      "position_difference_mm": 0.5545794370628491,
+      "temperature_difference_K": -0.011170933942139527,
+      "mic_a_pressure_difference_rms_Pa": 0.04671945039811639
+    },
+    {
+      "tick": 41,
+      "time_s": 0.3416666666666667,
+      "position_difference_mm": 0.6485258790256282,
+      "temperature_difference_K": -0.01179487616343522,
+      "mic_a_pressure_difference_rms_Pa": 0.04689893268259002
+    },
+    {
+      "tick": 42,
+      "time_s": 0.35,
+      "position_difference_mm": 0.7505826256301139,
+      "temperature_difference_K": -0.012432536622213775,
+      "mic_a_pressure_difference_rms_Pa": 0.055524467459024576
+    },
+    {
+      "tick": 43,
+      "time_s": 0.35833333333333334,
+      "position_difference_mm": 0.8626582506751624,
+      "temperature_difference_K": -0.01308284671358706,
+      "mic_a_pressure_difference_rms_Pa": 0.06324059840166575
+    },
+    {
+      "tick": 44,
+      "time_s": 0.36666666666666664,
+      "position_difference_mm": 0.982847161950267,
+      "temperature_difference_K": -0.013744826847755576,
+      "mic_a_pressure_difference_rms_Pa": 0.07283524005498204
+    },
+    {
+      "tick": 45,
+      "time_s": 0.375,
+      "position_difference_mm": 1.1121049924960422,
+      "temperature_difference_K": -0.01441757894656348,
+      "mic_a_pressure_difference_rms_Pa": 0.07966584972608348
+    },
+    {
+      "tick": 46,
+      "time_s": 0.38333333333333336,
+      "position_difference_mm": 1.2499574042407986,
+      "temperature_difference_K": -0.015100279573402986,
+      "mic_a_pressure_difference_rms_Pa": 0.07587130973510277
+    },
+    {
+      "tick": 47,
+      "time_s": 0.39166666666666666,
+      "position_difference_mm": 1.3973608760735226,
+      "temperature_difference_K": -0.015792173639624707,
+      "mic_a_pressure_difference_rms_Pa": 0.06394831603123982
+    },
+    {
+      "tick": 48,
+      "time_s": 0.4,
+      "position_difference_mm": 1.5538420851644685,
+      "temperature_difference_K": -0.01649256864459403,
+      "mic_a_pressure_difference_rms_Pa": 0.05190167657623714
+    },
+    {
+      "tick": 49,
+      "time_s": 0.4083333333333333,
+      "position_difference_mm": 1.7194051026461863,
+      "temperature_difference_K": -0.017200829399484974,
+      "mic_a_pressure_difference_rms_Pa": 0.04272770107030984
+    },
+    {
+      "tick": 50,
+      "time_s": 0.4166666666666667,
+      "position_difference_mm": 1.8940546753401835,
+      "temperature_difference_K": -0.01791637319934125,
+      "mic_a_pressure_difference_rms_Pa": 0.047675179722938756
+    },
+    {
+      "tick": 51,
+      "time_s": 0.425,
+      "position_difference_mm": 2.0768429390311316,
+      "temperature_difference_K": -0.018638665398384546,
+      "mic_a_pressure_difference_rms_Pa": 0.04172057040503689
+    },
+    {
+      "tick": 52,
+      "time_s": 0.43333333333333335,
+      "position_difference_mm": 2.2692063196935512,
+      "temperature_difference_K": -0.01936721536026198,
+      "mic_a_pressure_difference_rms_Pa": 0.06849149344340423
+    },
+    {
+      "tick": 53,
+      "time_s": 0.44166666666666665,
+      "position_difference_mm": 2.4706753229646674,
+      "temperature_difference_K": -0.020101572749922525,
+      "mic_a_pressure_difference_rms_Pa": 0.09930684299659226
+    },
+    {
+      "tick": 54,
+      "time_s": 0.45,
+      "position_difference_mm": 2.68078153916617,
+      "temperature_difference_K": -0.020841324140178585,
+      "mic_a_pressure_difference_rms_Pa": 0.10002175992656848
+    },
+    {
+      "tick": 55,
+      "time_s": 0.4583333333333333,
+      "position_difference_mm": 2.9004873849587054,
+      "temperature_difference_K": -0.0215860787765223,
+      "mic_a_pressure_difference_rms_Pa": 0.06536793416367809
+    },
+    {
+      "tick": 56,
+      "time_s": 0.4666666666666667,
+      "position_difference_mm": 3.1288500712526446,
+      "temperature_difference_K": -0.02233543407646721,
+      "mic_a_pressure_difference_rms_Pa": 0.023480586535193363
+    },
+    {
+      "tick": 57,
+      "time_s": 0.475,
+      "position_difference_mm": 3.3649283688131204,
+      "temperature_difference_K": -0.02308902096467591,
+      "mic_a_pressure_difference_rms_Pa": 0.023751071278062565
+    },
+    {
+      "tick": 58,
+      "time_s": 0.48333333333333334,
+      "position_difference_mm": 3.6106411407287022,
+      "temperature_difference_K": -0.023846501085472482,
+      "mic_a_pressure_difference_rms_Pa": 0.06674549539315722
+    },
+    {
+      "tick": 59,
+      "time_s": 0.49166666666666664,
+      "position_difference_mm": 3.8655260627587227,
+      "temperature_difference_K": -0.024607564248412928,
+      "mic_a_pressure_difference_rms_Pa": 0.09806417607425366
+    },
+    {
+      "tick": 60,
+      "time_s": 0.5,
+      "position_difference_mm": 4.1291224608168395,
+      "temperature_difference_K": -0.025371926084631014,
+      "mic_a_pressure_difference_rms_Pa": 0.08295587561807365
+    },
+    {
+      "tick": 61,
+      "time_s": 0.5083333333333333,
+      "position_difference_mm": 4.4014476221177965,
+      "temperature_difference_K": -0.02614666517729347,
+      "mic_a_pressure_difference_rms_Pa": 0.058102707589611974
+    },
+    {
+      "tick": 62,
+      "time_s": 0.5166666666666667,
+      "position_difference_mm": 4.683472632357523,
+      "temperature_difference_K": -0.026930937204383554,
+      "mic_a_pressure_difference_rms_Pa": 0.06348420097633743
+    },
+    {
+      "tick": 63,
+      "time_s": 0.525,
+      "position_difference_mm": 4.97426539764759,
+      "temperature_difference_K": -0.027723967452743636,
+      "mic_a_pressure_difference_rms_Pa": 0.053339078012647964
+    },
+    {
+      "tick": 64,
+      "time_s": 0.5333333333333333,
+      "position_difference_mm": 5.2747998375593985,
+      "temperature_difference_K": -0.02852504505960951,
+      "mic_a_pressure_difference_rms_Pa": 0.07760017207351569
+    },
+    {
+      "tick": 65,
+      "time_s": 0.5416666666666666,
+      "position_difference_mm": 5.585099031742411,
+      "temperature_difference_K": -0.029333517729355663,
+      "mic_a_pressure_difference_rms_Pa": 0.06604641821874478
+    },
+    {
+      "tick": 66,
+      "time_s": 0.55,
+      "position_difference_mm": 5.903760428703668,
+      "temperature_difference_K": -0.030148786894415025,
+      "mic_a_pressure_difference_rms_Pa": 0.08565369323953047
+    },
+    {
+      "tick": 67,
+      "time_s": 0.5583333333333333,
+      "position_difference_mm": 6.232713594779024,
+      "temperature_difference_K": -0.030970303275012157,
+      "mic_a_pressure_difference_rms_Pa": 0.08388277051600179
+    },
+    {
+      "tick": 68,
+      "time_s": 0.5666666666666667,
+      "position_difference_mm": 6.571985786034073,
+      "temperature_difference_K": -0.03179756280860602,
+      "mic_a_pressure_difference_rms_Pa": 0.04460977765227476
+    },
+    {
+      "tick": 69,
+      "time_s": 0.575,
+      "position_difference_mm": 6.920179607364764,
+      "temperature_difference_K": -0.03263010291584578,
+      "mic_a_pressure_difference_rms_Pa": 0.04177106079054288
+    },
+    {
+      "tick": 70,
+      "time_s": 0.5833333333333334,
+      "position_difference_mm": 7.278276653576477,
+      "temperature_difference_K": -0.03346749907507274,
+      "mic_a_pressure_difference_rms_Pa": 0.07050907580562488
+    },
+    {
+      "tick": 71,
+      "time_s": 0.5916666666666667,
+      "position_difference_mm": 7.645833568357609,
+      "temperature_difference_K": -0.034309361682403505,
+      "mic_a_pressure_difference_rms_Pa": 0.1050503004963464
+    },
+    {
+      "tick": 72,
+      "time_s": 0.6,
+      "position_difference_mm": 8.022883711242796,
+      "temperature_difference_K": -0.03515924123212244,
+      "mic_a_pressure_difference_rms_Pa": 0.07306585685664863
+    },
+    {
+      "tick": 73,
+      "time_s": 0.6083333333333333,
+      "position_difference_mm": 8.410411023708136,
+      "temperature_difference_K": -0.03602407153346121,
+      "mic_a_pressure_difference_rms_Pa": 0.01874583551188486
+    },
+    {
+      "tick": 74,
+      "time_s": 0.6166666666666667,
+      "position_difference_mm": 8.807026444600302,
+      "temperature_difference_K": -0.036907591933299955,
+      "mic_a_pressure_difference_rms_Pa": 0.04695128361569253
+    },
+    {
+      "tick": 75,
+      "time_s": 0.625,
+      "position_difference_mm": 9.21466440896539,
+      "temperature_difference_K": -0.03780816819585198,
+      "mic_a_pressure_difference_rms_Pa": 0.09823157396671983
+    },
+    {
+      "tick": 76,
+      "time_s": 0.6333333333333333,
+      "position_difference_mm": 9.631463989389513,
+      "temperature_difference_K": -0.03872424142616637,
+      "mic_a_pressure_difference_rms_Pa": 0.08519825987273327
+    },
+    {
+      "tick": 77,
+      "time_s": 0.6416666666666667,
+      "position_difference_mm": 10.058411725466163,
+      "temperature_difference_K": -0.039654326851632504,
+      "mic_a_pressure_difference_rms_Pa": 0.0554608067071792
+    },
+    {
+      "tick": 78,
+      "time_s": 0.65,
+      "position_difference_mm": 10.496493114372043,
+      "temperature_difference_K": -0.04059701245478209,
+      "mic_a_pressure_difference_rms_Pa": 0.05172341521097969
+    },
+    {
+      "tick": 79,
+      "time_s": 0.6583333333333333,
+      "position_difference_mm": 10.944324905252667,
+      "temperature_difference_K": -0.04155095747194082,
+      "mic_a_pressure_difference_rms_Pa": 0.07108442090565975
+    },
+    {
+      "tick": 80,
+      "time_s": 0.6666666666666666,
+      "position_difference_mm": 11.401473386227956,
+      "temperature_difference_K": -0.04251489077262249,
+      "mic_a_pressure_difference_rms_Pa": 0.08053276823991953
+    },
+    {
+      "tick": 81,
+      "time_s": 0.675,
+      "position_difference_mm": 11.869871103009237,
+      "temperature_difference_K": -0.043487609144222006,
+      "mic_a_pressure_difference_rms_Pa": 0.07440559994700563
+    },
+    {
+      "tick": 82,
+      "time_s": 0.6833333333333333,
+      "position_difference_mm": 12.349082997836193,
+      "temperature_difference_K": -0.04446797549792336,
+      "mic_a_pressure_difference_rms_Pa": 0.08355782132561215
+    },
+    {
+      "tick": 83,
+      "time_s": 0.6916666666666667,
+      "position_difference_mm": 12.838202532773012,
+      "temperature_difference_K": -0.04545491701003357,
+      "mic_a_pressure_difference_rms_Pa": 0.04978365008790781
+    },
+    {
+      "tick": 84,
+      "time_s": 0.7,
+      "position_difference_mm": 13.337741733210837,
+      "temperature_difference_K": -0.046447423206132044,
+      "mic_a_pressure_difference_rms_Pa": 0.05205093441186924
+    }
+  ],
+  "meaning": {
+    "position_difference_mm": "1000 times Euclidean norm of B minus A1 position in meters",
+    "temperature_difference_K": "B minus A1 simulated temperature in kelvin",
+    "mic_a_pressure_difference_rms_Pa": "square root of mean squared paired mic-a pressure differences within the current133or134sample block; pascals"
+  },
+  "limitations": [
+    "One selected drone and ground-only geometry",
+    "Common noise state; not independent replicates",
+    "No physical calibration, statistical inference, NCP transport, or Prisoma qualification"
+  ]
+}
