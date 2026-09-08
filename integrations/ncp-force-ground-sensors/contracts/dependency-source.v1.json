@@ -1,7 +1,7 @@
 {
   "schema": "crebain.ncp-construction-dependency.v1",
-  "commit": "76af14fc2c2430e967973bffc96efb57db102684",
-  "tree": "8985473644f7149395a3913909b332dcfc93592f",
+  "commit": "9ae64ac1a77c9cd0612284992a8711220428a6e3",
+  "tree": "fa99d529ff47e67458e62b15b722db896673a4a7",
   "dependency_ready": false,
   "scope": "exact immutable construction input only; no implicit sibling or registry fallback",
   "files": [

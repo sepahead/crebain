@@ -27,7 +27,7 @@ Their absence does not prevent standalone CREBAIN use.
 
 ## Construction and qualification
 
-The construction dependency is exact NCP commit `76af14fc2c2430e967973bffc96efb57db102684`.
+The construction dependency is exact NCP commit `9ae64ac1a77c9cd0612284992a8711220428a6e3`.
 Its exact tree and 41 consumed source files appear in [the dependency contract](contracts/dependency-source.v1.json).
 The dependency contract retains `dependency_ready=false`.
 A source checkout, build, synthetic test, or private channel handshake does not establish installed qualification.
