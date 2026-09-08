@@ -46,6 +46,73 @@ A failed write reports the durable prefix separately from the owner's accepted a
 The export has a 128 MiB admission bound and exclusive private files.
 It is an engineering export, not Prisoma's durable experiment protocol.
 
+## Force-ground profile
+
+`crebain.cpu-force-ground-environment.v1` selects one drone above the existing ground, with an empty `scene.solids` array.
+It reuses the qualified [force-attitude dynamics](DETERMINISTIC_DYNAMICS.md#bounded-force-attitude-profile), acoustic model, thermal model, and existing graphics owner.
+The city profile and its default controller remain separate.
+This profile does not admit force-controlled city geometry or multiple drones.
+
+The closed plan adds `controller.engineModel`, `controller.referenceAltitudeM`, and `controller.referenceHeadingRad`.
+The engine model must be `rapier-0.19.3-observed-no-gyro-v1`.
+Reference altitude uses meters; reference heading uses radians.
+Scene, camera, microphone, thermal, and acoustic admission rules still apply.
+The scene format retains its existing identifier, even with no city solids or Gaussians.
+RGB and thermal rendering still include the ground and drone mesh.
+
+Run the separate explicit example with:
+
+```sh
+bun examples/native-environment/run.ts examples/native-environment/force-ground-run.json /tmp/crebain-force-ground-example /opt/homebrew/bin/node
+```
+
+The supplied plan requests 24 ticks, or 0.2 simulated seconds.
+It schedules a level target at tick one and a 0.03-radian pitch target at tick thirteen.
+This short export example does not establish tracking quality or a completed Prisoma experiment.
+
+A force action uses `kind=force_attitude_height`, `roll_rad`, `pitch_rad`, `heading_rad`, and `altitude_m`.
+Roll and pitch must each lie within ±0.1 radians.
+Heading is absolute, within a wrapped ±0.2 radians of the owned reference.
+Altitude must lie within ±0.5 meters of the owned reference.
+Legacy yaw-rate keys, implicit angle conversions, and out-of-bound targets are rejected.
+Direct motor controls remain explicit comparisons and produce no force-controller diagnostics.
+
+An action applies before its named tick and persists until the next accepted action.
+The first controlled tick requires an explicitly scheduled applicable action.
+Missing control, insufficient capacity, and the wrong CPU advance method reject before mutation.
+`EnvironmentState.advanceControlled()` awaits one actual dynamics transition, then advances thermal state and pressure once.
+The existing synchronous `EnvironmentState.advance()` remains the city API.
+Coupled callers continue using the asynchronous `EnvironmentOwner.advance()` method.
+
+Force observations use `crebain.force-ground-observation.v1`.
+They bind the environment profile, exact owned plan digest, actual control transition, source, scene, tick, and preceding accepted batch.
+The privileged control record retains the held-action tick, applied motor targets, actual rotor state, and complete before/after dynamics digests.
+This CREBAIN record is not Prisoma's selected-execution receipt or a durable experiment commitment.
+Its `crebain.controlled-transition-json.v1` encoding preserves negative zero as `{"float64":"negative-zero"}`.
+The record hashes its exact encoded bytes; its insertion order differs from the sorted dynamics checkpoint encoding.
+This private owned-output encoder does not widen the shared caller-input admission contract.
+Caller input retains accessor rejection; replacement internal returns are outside that accessor-isolation claim.
+The allocator's steady moment guarantee does not remove motor lag or guarantee transient tracking.
+Ordinary predictors must not receive this privileged record or the complete CPU reference.
+
+The raw sensor reservation and the 32,768-byte controlled return cover different data.
+The encoded envelope adds 66,560 bytes for the quoted control record and its metadata.
+`observationEnvelopeBytes()` supplies the same bound to preparation, tick admission, joined output checks, and standalone export projection.
+The optional fourth preparation argument can restrict the encoded observation capacity.
+An insufficient bound rejects before CPU allocation or graphics launch.
+The export retains its 128 MiB cap and distinguishes executed, accepted, and durable prefixes.
+
+A typed controlled CPU failure retains the actual executed tick, or explicit uncertainty, and separate thermal and acoustic completion facts.
+A later sensor failure cannot erase a successfully returned control transition.
+Retirement during an awaited CPU operation waits for that operation before releasing CPU resources.
+An already admitted operation can finish during retirement, but it cannot publish a late observation or start a late graphics request.
+Unresolved cleanup retains its resource reservation.
+
+Controlled checkpoint reconstruction awaits the same force transition for every replayed tick, including accepted future actions.
+The existing all-camera barrier and fresh-renderer pixel checks still apply.
+Source controls and the legacy one-tick empty-scene render do not establish coupled force-profile graphics qualification.
+That profile needs its own frozen real-render comparison before an operational qualification claim.
+
 ## Ownership and public interfaces
 
 | Owner | Interface and meaning |
@@ -96,16 +163,16 @@ Display reads and wall-clock delays cannot advance this clock.
 
 An action for tick `k` applies before that tick's controller and dynamics update.
 The selected control persists until a later accepted action replaces it.
-An attitude control contains roll and pitch in radians, yaw rate in radians per second, and altitude in meters.
+A legacy city attitude control contains roll and pitch in radians, yaw rate in radians per second, and altitude in meters.
 A motor control contains `commands.front_left`, `front_right`, `rear_left`, and `rear_right`, each in `[0, 1]`.
-The existing controller retains its angle clamps, integral state, mixer, and motor saturation.
+The legacy city controller retains its angle clamps, integral state, mixer, and motor saturation.
 Commanded control, actual rotor response, and resulting motion are different quantities.
-The current batch does not expose a separate applied-action receipt.
+The legacy city batch does not expose a separate applied-action record.
 The complete CPU audit retains the relevant controller, motor, and accepted-action state.
 
 A separate 360-tick actual-Rapier controller campaign found tracking failures with small attitude targets.
 Its repeated and direct-world trajectories matched, but late motor saturation and altitude loss violated the frozen tracking bounds.
-This component preserves that controller behavior.
+The legacy city profile preserves that controller behavior.
 Its deterministic forks do not qualify stable attitude tracking or neural acceleration delivery.
 The 120-tick public city example retains attitude commands and tests one second of observations and export, without tracking-quality credit.
 
@@ -270,8 +337,10 @@ The parent checkpoint, state, and observation lease survive a rejected child.
 
 | Quantity | Admitted bound |
 | --- | --- |
-| Sorted drones | 1 through 256 |
-| Static city cuboids | 64 |
+| Sorted drones, legacy city | 1 through 256 |
+| Sorted drones, force-ground | Exactly one |
+| Static scene cuboids, legacy city | At most 64 |
+| Static scene cuboids, force-ground | Zero; existing ground only |
 | RGB cameras | 4, each 8 through 1,280 pixels per dimension |
 | Thermal cameras | 4, each 8 through 320 pixels per dimension |
 | Microphones | 4 at 16 kHz |

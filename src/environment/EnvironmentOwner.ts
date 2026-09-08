@@ -1,8 +1,17 @@
 import { copyPlainData } from '../lib/copyPlainData'
-import { type ScheduledDynamicsAction } from '../physics/DeterministicDroneWorld'
+import {
+  CONTROLLED_RETURN_BYTES,
+  FORCE_PROFILE,
+  type ControlledTransition,
+  type ScheduledDynamicsAction,
+} from '../physics/DeterministicDroneWorld'
+import { ALLOCATION_POLICY, ENGINE_MODEL } from '../physics/ForceAttitudeController'
 import {
   EnvironmentState,
   CpuReconstructionError,
+  ControlledEnvironmentError,
+  FORCE_GROUND_PROFILE,
+  type ControlledEnvironmentFailure,
   type EnvironmentPlan,
   type EnvironmentCheckpoint,
 } from './EnvironmentState'
@@ -101,6 +110,25 @@ export interface EnvironmentFailure {
   knownCpuStateStatus: 'captured' | 'unavailable'
   reason: string
   cleanupErrors: string[]
+  forceControl?: {
+    transition: ControlledTransition | null
+    cpuFailure: Omit<ControlledEnvironmentFailure, 'transition'> | null
+  }
+}
+
+/** Encoded observation reservation; runtime heap and caller retention remain separate. */
+export function observationEnvelopeBytes(
+  profile: EnvironmentPlan['profile'],
+  rawBytes: number
+): number {
+  if (!Number.isSafeInteger(rawBytes) || rawBytes < 0 || rawBytes > 32 * 1024 * 1024)
+    throw new Error('Observation raw extent is outside the admitted capacity')
+  // A quoted exact-JSON control record can double its reserved extent through escaping.
+  return (
+    Math.ceil((rawBytes * 4) / 3) +
+    131072 +
+    (profile === FORCE_GROUND_PROFILE ? 2 * CONTROLLED_RETURN_BYTES + 1024 : 0)
+  )
 }
 
 interface PixelRow {
@@ -149,6 +177,8 @@ export class EnvironmentOwner {
   readonly #graphicsGeneration: string
   readonly #sceneSha256: string
   readonly #maxBatchBytes: number
+  readonly #maxEncodedBatchBytes: number
+  readonly #planSha256: string | null
   readonly #launch: GraphicsLauncher
   readonly #graphicsPlanJson: string
   readonly #family: GraphicsFamily
@@ -177,6 +207,8 @@ export class EnvironmentOwner {
     graphicsGeneration: string,
     sceneSha256: string,
     maxBatchBytes: number,
+    maxEncodedBatchBytes: number,
+    planSha256: string | null,
     launch: GraphicsLauncher,
     graphicsPlanJson: string,
     family: GraphicsFamily = {
@@ -198,6 +230,8 @@ export class EnvironmentOwner {
     this.#graphicsGeneration = graphicsGeneration
     this.#sceneSha256 = sceneSha256
     this.#maxBatchBytes = maxBatchBytes
+    this.#maxEncodedBatchBytes = maxEncodedBatchBytes
+    this.#planSha256 = planSha256
     this.#launch = launch
     this.#graphicsPlanJson = graphicsPlanJson
     this.#family = family
@@ -210,9 +244,14 @@ export class EnvironmentOwner {
   static async prepare(
     input: EnvironmentPlan,
     launch: GraphicsLauncher,
-    maxBatchBytes = 32 * 1024 * 1024
+    maxBatchBytes = 32 * 1024 * 1024,
+    requestedEncodedBatchBytes?: number
   ): Promise<EnvironmentOwner> {
     const plan = copyPlainData(input)
+    const maxEncodedBatchBytes =
+      requestedEncodedBatchBytes === undefined
+        ? observationEnvelopeBytes(plan.profile, maxBatchBytes)
+        : requestedEncodedBatchBytes
     ownSceneSpec(plan.scene)
     ownAcousticConfig(plan.acoustic)
     ownThermalConfig(plan.thermal)
@@ -229,6 +268,14 @@ export class EnvironmentOwner {
     )
       throw new Error(
         'Observation capacity must cover the complete admitted batch before preparation'
+      )
+    if (
+      !Number.isSafeInteger(maxEncodedBatchBytes) ||
+      maxEncodedBatchBytes < observationEnvelopeBytes(plan.profile, maximum) ||
+      maxEncodedBatchBytes > observationEnvelopeBytes(plan.profile, maxBatchBytes)
+    )
+      throw new Error(
+        'Encoded observation capacity must cover the complete admitted batch before preparation'
       )
     const cpu = await EnvironmentState.prepare(plan)
     let graphics: EnvironmentGraphics | undefined
@@ -258,6 +305,8 @@ export class EnvironmentOwner {
         identity.generation,
         await sha256(exactJson(plan.scene)),
         maxBatchBytes,
+        maxEncodedBatchBytes,
+        plan.profile === FORCE_GROUND_PROFILE ? await sha256(exactJson(plan)) : null,
         launch,
         graphicsPlanJson
       )
@@ -385,6 +434,119 @@ export class EnvironmentOwner {
     return frames
   }
 
+  /** Encode a detached owner return, not an external object-admission interface. */
+  private controlJson(transition: ControlledTransition): string {
+    closedKeys(transition, [
+      'profile',
+      'runId',
+      'sourceIdentity',
+      'tick',
+      'beforeStateSha256',
+      'afterStateSha256',
+      'action',
+      'controller',
+      'before',
+      'postEventState',
+      'appliedMotorTargets',
+      'after',
+      'observation',
+    ])
+    if (
+      (transition.action.control.kind === 'force_attitude_height') !==
+      Boolean(transition.controller)
+    )
+      throw new Error('Controlled output does not bind its action kind')
+    let owned: unknown
+    if (transition.controller) {
+      closedKeys(transition.controller, [
+        'profile',
+        'engineModel',
+        'config',
+        'target',
+        'geometry',
+        'alpha',
+        'ay',
+        'allocation',
+        'commands',
+        'disarmed',
+        'allocation_applied',
+      ])
+      const { allocation, ...controller } = transition.controller
+      closedKeys(allocation, [
+        'requestedF',
+        'requestedMoments',
+        'boundedF',
+        'scale',
+        'initialScale',
+        'decrements',
+        'yawInterval',
+        'limitedYaw',
+        'nullspace',
+        'forces',
+        'achieved',
+        'residuals',
+        'forceRounding',
+        'targets',
+        'limitations',
+        'policy',
+        'ceiling',
+        'ceilingDecrements',
+      ])
+      if (
+        transition.controller.profile !== FORCE_PROFILE ||
+        transition.controller.engineModel !== ENGINE_MODEL ||
+        allocation.policy !== ALLOCATION_POLICY ||
+        exactJson(transition.controller.target) !== exactJson(transition.action.control)
+      )
+        throw new Error('Controlled output profile, engine, or allocation policy changed')
+      // The qualified allocation has 18 fields. Preserve the 16-key guard on all caller inputs.
+      const shell = copyPlainData({
+        ...transition,
+        controller: { ...controller, allocation: null },
+      })
+      if (
+        Object.getPrototypeOf(allocation) !== Object.prototype ||
+        Object.getOwnPropertySymbols(allocation).length
+      )
+        throw new Error('Controlled allocation output must contain plain data')
+      // The trusted producer owns these fields; this projection is not caller accessor isolation.
+      const baseAllocation = copyPlainData({
+        requestedF: allocation.requestedF,
+        requestedMoments: allocation.requestedMoments,
+        boundedF: allocation.boundedF,
+        scale: allocation.scale,
+        initialScale: allocation.initialScale,
+        decrements: allocation.decrements,
+        yawInterval: allocation.yawInterval,
+        limitedYaw: allocation.limitedYaw,
+        nullspace: allocation.nullspace,
+        forces: allocation.forces,
+        achieved: allocation.achieved,
+        residuals: allocation.residuals,
+        forceRounding: allocation.forceRounding,
+        targets: allocation.targets,
+        limitations: allocation.limitations,
+      })
+      const allocationPolicy = copyPlainData({
+        policy: allocation.policy,
+        ceiling: allocation.ceiling,
+        ceilingDecrements: allocation.ceilingDecrements,
+      })
+      owned = {
+        ...shell,
+        controller: { ...shell.controller, allocation: { ...baseAllocation, ...allocationPolicy } },
+      }
+    } else owned = copyPlainData(transition)
+    const json = JSON.stringify(owned, (_key, value: unknown) => {
+      if (typeof value === 'number' && !Number.isFinite(value))
+        throw new Error('Non-finite controlled output')
+      return Object.is(value, -0) ? { float64: 'negative-zero' } : value
+    })
+    if (new TextEncoder().encode(json).byteLength > CONTROLLED_RETURN_BYTES)
+      throw new Error('Controlled transition exceeds its reserved encoded extent')
+    return json
+  }
+
   private async pixelIdentity(frames: ProcessFrames): Promise<string> {
     const identity = { rowOrigin: frames.rowOrigin, rgb: [] as unknown[], thermal: [] as unknown[] }
     for (const modality of ['rgb', 'thermal'] as const)
@@ -413,20 +575,57 @@ export class EnvironmentOwner {
       this.#plan.scene.microphones.length * samples * 8
     if (reservedBytes > this.#maxBatchBytes)
       throw new Error('Observation capacity unavailable before execution')
+    if (observationEnvelopeBytes(this.#plan.profile, reservedBytes) > this.#maxEncodedBatchBytes)
+      throw new Error('Encoded observation capacity unavailable before execution')
+    if (this.#plan.profile === FORCE_GROUND_PROFILE) this.#cpu.controlledPreflight()
     this.#phase = 'busy'
     let resolveCompletion!: () => void
     this.#completion = new Promise((resolve) => {
       resolveCompletion = resolve
     })
     let observedExecution = false
+    let transition: ControlledTransition | null = null
     this.#currentExecutionKnown = false
     try {
-      const pressure = this.#cpu.advance()
+      let pressure: PressureBlock
+      if (this.#plan.profile === FORCE_GROUND_PROFILE) {
+        const result = await this.#cpu.advanceControlled()
+        pressure = result.pressure
+        transition = result.transition
+      } else pressure = this.#cpu.advance()
       this.#executedTick = tick
       observedExecution = true
       this.#currentExecutionKnown = true
       const reference = this.#cpu.reference()
+      if (this.#phase !== 'busy')
+        throw new Error(
+          'Retired environment generation cannot request graphics after CPU completion'
+        )
       const sourceJson = exactJson(reference)
+      let privilegedControl: {
+        encoding: 'crebain.controlled-transition-json.v1'
+        sha256: string
+        json: string
+      } | null = null
+      if (this.#plan.profile === FORCE_GROUND_PROFILE) {
+        if (
+          !transition ||
+          transition.profile !== FORCE_PROFILE ||
+          transition.tick !== tick ||
+          transition.runId !== this.#plan.runId ||
+          transition.sourceIdentity !== this.#plan.sourceIdentity ||
+          exactJson(transition.observation) !== exactJson(reference.dynamics) ||
+          !/^[a-f0-9]{64}$/.test(transition.beforeStateSha256) ||
+          !/^[a-f0-9]{64}$/.test(transition.afterStateSha256)
+        )
+          throw new Error('Controlled transition does not join the owned environment reference')
+        const controlJson = this.controlJson(transition)
+        privilegedControl = {
+          encoding: 'crebain.controlled-transition-json.v1',
+          sha256: await sha256(controlJson),
+          json: controlJson,
+        }
+      }
       const request: GraphicsInput = {
         planSha256: this.#graphicsPlanSha256,
         tick,
@@ -439,10 +638,22 @@ export class EnvironmentOwner {
       }
       const requestJson = exactJson(request)
       const inputSha256 = await graphicsInputDigest(JSON.parse(requestJson))
+      if (this.#plan.profile === FORCE_GROUND_PROFILE && this.#phase !== 'busy')
+        throw new Error('Retired environment generation cannot request graphics')
       const frames = this.frames(await this.#graphics.captureJson(requestJson), tick, inputSha256)
       const audio = this.pressure(pressure, tick)
       const batch = {
-        profile: 'crebain.multimodal-observation.v1',
+        profile:
+          this.#plan.profile === FORCE_GROUND_PROFILE
+            ? 'crebain.force-ground-observation.v1'
+            : 'crebain.multimodal-observation.v1',
+        ...(this.#plan.profile === FORCE_GROUND_PROFILE
+          ? {
+              environmentProfile: this.#plan.profile,
+              planSha256: this.#planSha256,
+              privilegedControl,
+            }
+          : {}),
         ownerId: this.ownerId,
         ancestry: this.#ancestry,
         sourceIdentity: this.#plan.sourceIdentity,
@@ -459,7 +670,7 @@ export class EnvironmentOwner {
         graphics: frames,
       }
       const json = JSON.stringify(batch)
-      if (json.length > Math.ceil((this.#maxBatchBytes * 4) / 3) + 131072)
+      if (new TextEncoder().encode(json).byteLength > this.#maxEncodedBatchBytes)
         throw new Error('Joined observation exceeds the admitted byte envelope')
       const digest = await sha256(json)
       const render: RenderReference = {
@@ -482,7 +693,11 @@ export class EnvironmentOwner {
       this.#phase = 'active'
       return handle
     } catch (error) {
-      await this.fail(tick, observedExecution, error)
+      if (error instanceof ControlledEnvironmentError) {
+        this.#executedTick = error.outcome.lastCompletedTick
+        this.#currentExecutionKnown = error.outcome.executedTick !== null
+      }
+      await this.fail(tick, observedExecution, error, transition)
       throw new Error(
         'Environment transition lacks an accepted complete observation; generation retired',
         { cause: error }
@@ -745,6 +960,8 @@ export class EnvironmentOwner {
         identity.generation,
         this.#sceneSha256,
         this.#maxBatchBytes,
+        this.#maxEncodedBatchBytes,
+        this.#planSha256,
         this.#launch,
         this.#graphicsPlanJson,
         this.#family,
@@ -836,11 +1053,21 @@ export class EnvironmentOwner {
     this.#lease = null
   }
 
-  private async fail(tick: number, observedExecution: boolean, error: unknown): Promise<void> {
+  private async fail(
+    tick: number,
+    observedExecution: boolean,
+    error: unknown,
+    transition: ControlledTransition | null = null
+  ): Promise<void> {
     this.#phase = 'retired'
     const failure: EnvironmentFailure = {
       attemptedTick: tick,
-      executedTick: observedExecution ? tick : null,
+      executedTick:
+        error instanceof ControlledEnvironmentError
+          ? error.outcome.executedTick
+          : observedExecution
+            ? tick
+            : null,
       acceptedObservationTick: this.#acceptedTick,
       sourceIdentity: this.#plan.sourceIdentity,
       sourceSceneSha256: this.#sceneSha256,
@@ -849,6 +1076,21 @@ export class EnvironmentOwner {
       knownCpuStateStatus: 'unavailable',
       reason: String(error).slice(0, 2048),
       cleanupErrors: [],
+      ...(this.#plan.profile === FORCE_GROUND_PROFILE
+        ? {
+            forceControl: {
+              transition:
+                error instanceof ControlledEnvironmentError ? error.outcome.transition : transition,
+              cpuFailure:
+                error instanceof ControlledEnvironmentError
+                  ? (() => {
+                      const { transition: _transition, ...failure } = error.outcome
+                      return failure
+                    })()
+                  : null,
+            },
+          }
+        : {}),
     }
     try {
       const checkpoint = await this.#cpu.checkpoint()

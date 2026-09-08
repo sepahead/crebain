@@ -4,7 +4,7 @@ import { constants } from 'node:fs'
 import { mkdir, open, readFile, readdir } from 'node:fs/promises'
 import { dirname, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { EnvironmentOwner } from '../../src/environment/EnvironmentOwner'
+import { EnvironmentOwner, observationEnvelopeBytes } from '../../src/environment/EnvironmentOwner'
 import type { EnvironmentPlan } from '../../src/environment/EnvironmentState'
 import type { ScheduledDynamicsAction } from '../../src/physics/DeterministicDroneWorld'
 import { closedKeys } from '../../src/environment/SceneSpec'
@@ -104,7 +104,7 @@ for (let tick = 1; tick <= specification.steps; tick++) {
       .filter((camera) => tick % camera.periodTicks === 0)
       .reduce((sum, camera) => sum + camera.width * camera.height * 4, 0) +
     plan.scene.microphones.length * samples * 8
-  reservedBytes += Math.ceil((rawBytes * 4) / 3) + 131073
+  reservedBytes += observationEnvelopeBytes(plan.profile, rawBytes) + 1
 }
 assert(
   Number.isSafeInteger(reservedBytes) && reservedBytes <= MAX_EXPORT_BYTES,

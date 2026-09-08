@@ -28,6 +28,7 @@ The [0.9 release decision](docs/NARROWED_GO_0.9.0.md) and its remaining exclusio
 | Workflow | What it supplies | Current boundary |
 | --- | --- | --- |
 | [Native city environment](docs/NATIVE_ENVIRONMENT.md) | Explicit Rapier ticks, city collision, Gaussian and mesh RGB, pressure samples, thermal radiance, reconstructed branches | Standalone source component; admits 1–256 drones within explicit resource limits |
+| [Force-ground environment](docs/NATIVE_ENVIRONMENT.md#force-ground-profile) | Qualified force controller, absolute-heading targets, ground geometry, actual observation models, and privileged control records | Explicit one-drone source profile; zero city solids; separate coupled qualification |
 | [Desktop application](docs/WORKFLOWS.md) | Tauri/React scene inspection, camera placement, native detection, Rust fusion, read-only telemetry | Separate UI scheduler and defaults; the native environment is not installed into this UI |
 | [Local NCP body](docs/NATIVE_NCP_SIMULATION.md) | Private-process kinematics, Kalman observations, actual application and innovation evidence | Separate 1–3-entity scalar profile; does not transport city images, pressure, or thermal arrays |
 
@@ -101,7 +102,9 @@ An observation is accepted only after all required outputs validate.
 A graphics failure after CPU advancement preserves the executed tick and retires the owner.
 It cannot become an apparent rollback or a successful empty observation.
 
-The environment admits up to 256 drones, four RGB cameras, four thermal cameras, and four microphones.
+The legacy city environment admits up to 256 drones.
+The force-ground profile admits exactly one drone and zero scene solids.
+Both profiles admit up to four RGB cameras, four thermal cameras, and four microphones.
 These are admission limits, not a universal frame-rate or memory-performance guarantee.
 The complete [limit table](docs/NATIVE_ENVIRONMENT.md#limits-and-remaining-work) includes leases, checkpoints, generations, and temporary reconstruction capacity.
 

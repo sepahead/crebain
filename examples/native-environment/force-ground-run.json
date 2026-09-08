@@ -1,0 +1,124 @@
+{
+  "plan": {
+    "profile": "crebain.cpu-force-ground-environment.v1",
+    "runId": "standalone-force-ground-example",
+    "sourceIdentity": "0000000000000000000000000000000000000000000000000000000000000000",
+    "seed": 4,
+    "drones": [
+      {
+        "id": "drone-000",
+        "position": [0, 8, 0]
+      }
+    ],
+    "scene": {
+      "profile": "crebain.city-scene.v1",
+      "id": "owned-force-ground",
+      "frame": "three-y-up-z-forward-m",
+      "solids": [],
+      "materials": [
+        {
+          "id": "concrete",
+          "linearRgb": [0.35, 0.38, 0.43],
+          "gaussianOpacity": 0.85,
+          "temperatureK": 293.15,
+          "emissivity": 0.9
+        }
+      ],
+      "rgbCameras": [
+        {
+          "id": "rgb-a",
+          "position": [0, 9, 5],
+          "target": [0, 8, 0],
+          "width": 32,
+          "height": 32,
+          "fovDegrees": 70,
+          "periodTicks": 12
+        },
+        {
+          "id": "rgb-b",
+          "position": [38, 14, 0],
+          "target": [0, 8, 0],
+          "width": 32,
+          "height": 32,
+          "fovDegrees": 70,
+          "periodTicks": 12
+        }
+      ],
+      "thermalCameras": [
+        {
+          "id": "thermal-a",
+          "position": [0, 9, 5],
+          "target": [0, 8, 0],
+          "width": 32,
+          "height": 32,
+          "fovDegrees": 70,
+          "periodTicks": 12
+        }
+      ],
+      "microphones": [
+        {
+          "id": "mic-a",
+          "position": [0, 2, 10]
+        },
+        {
+          "id": "mic-b",
+          "position": [4, 2, 10]
+        }
+      ]
+    },
+    "acoustic": {
+      "profile": "crebain.discrete-direct-acoustic.v1",
+      "sampleRateHz": 16000,
+      "soundSpeedMps": 343,
+      "maximumRangeM": 32,
+      "referenceDistanceM": 1,
+      "referencePressurePa": 1,
+      "bladeCount": 2,
+      "blockedGain": 0,
+      "noiseStdPa": 0.001,
+      "seed": 9
+    },
+    "thermal": {
+      "profile": "crebain.lumped-gray-thermal.v1",
+      "ambientK": 293.15,
+      "initialK": 293.15,
+      "capacityJPerK": 100,
+      "areaM2": 0.1,
+      "convectionWPerM2K": 10,
+      "emissivity": 0.9,
+      "motorEfficiency": 0.7
+    },
+    "controller": {
+      "engineModel": "rapier-0.19.3-observed-no-gyro-v1",
+      "referenceAltitudeM": 8,
+      "referenceHeadingRad": 0
+    }
+  },
+  "actions": [
+    {
+      "tick": 1,
+      "droneId": "drone-000",
+      "armed": true,
+      "control": {
+        "kind": "force_attitude_height",
+        "roll_rad": 0,
+        "pitch_rad": 0,
+        "heading_rad": 0,
+        "altitude_m": 8
+      }
+    },
+    {
+      "tick": 13,
+      "droneId": "drone-000",
+      "armed": true,
+      "control": {
+        "kind": "force_attitude_height",
+        "roll_rad": 0,
+        "pitch_rad": 0.03,
+        "heading_rad": 0,
+        "altitude_m": 8
+      }
+    }
+  ],
+  "steps": 24
+}

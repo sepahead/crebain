@@ -2,10 +2,18 @@ import { copyPlainData } from '../lib/copyPlainData'
 import {
   DeterministicDroneWorld,
   SCENE_DYNAMICS_PROFILE,
+  FORCE_PROFILE,
+  CONTROLLED_RETURN_BYTES,
+  ControlledAdvanceError,
+  type ControlledTransition,
   type DynamicsObservation,
   type InitialPosition,
   type ScheduledDynamicsAction,
 } from '../physics/DeterministicDroneWorld'
+import {
+  ownForceControllerConfig,
+  type ForceControllerConfig,
+} from '../physics/ForceAttitudeController'
 import {
   AcousticState,
   ownAcousticConfig,
@@ -15,8 +23,8 @@ import {
 import { ThermalState, ownThermalConfig, type ThermalConfig } from './ThermalObservation'
 import { closedKeys, finiteRange, ownSceneSpec, type SceneSpec } from './SceneSpec'
 
-export interface EnvironmentPlan {
-  profile: 'crebain.cpu-city-environment.v1'
+export const FORCE_GROUND_PROFILE = 'crebain.cpu-force-ground-environment.v1'
+interface EnvironmentPlanBase {
   runId: string
   sourceIdentity: string
   seed: number
@@ -24,6 +32,30 @@ export interface EnvironmentPlan {
   scene: SceneSpec
   acoustic: AcousticConfig
   thermal: ThermalConfig
+}
+export type EnvironmentPlan = EnvironmentPlanBase &
+  (
+    | { profile: 'crebain.cpu-city-environment.v1' }
+    | { profile: typeof FORCE_GROUND_PROFILE; controller: ForceControllerConfig }
+  )
+
+export interface ControlledEnvironmentFailure {
+  executedTick: number | null
+  lastCompletedTick: number
+  lastAcceptedControlTick: number
+  transition: ControlledTransition | null
+  thermalComplete: boolean
+  acousticComplete: boolean
+  primaryFailure: string
+  cleanupConfirmed: boolean
+  cleanupFailure: string | null
+}
+/** A completed dynamics return remains evidence when a later sensor update fails. */
+export class ControlledEnvironmentError extends Error {
+  constructor(readonly outcome: Readonly<ControlledEnvironmentFailure>) {
+    super('Controlled CPU environment lacks complete sensor output; owner retired')
+    this.name = 'ControlledEnvironmentError'
+  }
 }
 
 export interface EnvironmentCheckpoint {
@@ -121,29 +153,48 @@ export class EnvironmentState {
       'scene',
       'acoustic',
       'thermal',
+      ...(plan.profile === FORCE_GROUND_PROFILE ? ['controller'] : []),
     ])
-    if (plan.profile !== 'crebain.cpu-city-environment.v1')
+    if (plan.profile !== 'crebain.cpu-city-environment.v1' && plan.profile !== FORCE_GROUND_PROFILE)
       throw new Error('Unsupported CPU environment profile')
     ownSceneSpec(plan.scene)
     ownAcousticConfig(plan.acoustic)
     ownThermalConfig(plan.thermal)
     if (!Array.isArray(plan.drones)) throw new Error('Environment drone roster is required')
+    if (plan.profile === FORCE_GROUND_PROFILE) {
+      if (plan.drones.length !== 1 || plan.scene.solids.length !== 0)
+        throw new Error('Force-ground environment requires one drone and zero scene solids')
+      ownForceControllerConfig(plan.controller)
+    }
     for (const drone of plan.drones) {
       const positions = Array.isArray(drone.position)
         ? [drone.position]
         : [drone.position.uniformBox.min, drone.position.uniformBox.max]
       for (const point of positions) point.forEach((value) => finiteRange(value, -1000, 1000))
     }
-    const dynamics = await DeterministicDroneWorld.prepare({
-      profile: SCENE_DYNAMICS_PROFILE,
-      geometry: 'static-cuboids-v1',
-      staticGeometry: plan.scene.solids.map((row) => row.shape),
-      runId: plan.runId,
-      sourceIdentity: plan.sourceIdentity,
-      seed: plan.seed,
-      drones: plan.drones,
-      capabilities: ['dynamics', 'attitude_controller'],
-    })
+    const dynamics = await DeterministicDroneWorld.prepare(
+      plan.profile === FORCE_GROUND_PROFILE
+        ? {
+            profile: FORCE_PROFILE,
+            geometry: 'ground-cuboid-v1',
+            runId: plan.runId,
+            sourceIdentity: plan.sourceIdentity,
+            seed: plan.seed,
+            drones: plan.drones,
+            capabilities: ['dynamics', 'force_attitude_height'],
+            controller: plan.controller,
+          }
+        : {
+            profile: SCENE_DYNAMICS_PROFILE,
+            geometry: 'static-cuboids-v1',
+            staticGeometry: plan.scene.solids.map((row) => row.shape),
+            runId: plan.runId,
+            sourceIdentity: plan.sourceIdentity,
+            seed: plan.seed,
+            drones: plan.drones,
+            capabilities: ['dynamics', 'attitude_controller'],
+          }
+    )
     try {
       return new EnvironmentState(plan, dynamics)
     } catch (error) {
@@ -177,6 +228,8 @@ export class EnvironmentState {
   /** Actual pressure samples. Temperature state remains a privileged rendering input. */
   advance(): PressureBlock {
     this.active()
+    if (this.#plan.profile === FORCE_GROUND_PROFILE)
+      throw new Error('Force-ground environment requires advanceControlled')
     if (this.#dynamics.observe().tick >= 7200)
       throw new Error('Environment duration budget exhausted')
     this.#phase = 'busy'
@@ -204,6 +257,67 @@ export class EnvironmentState {
           { cause: error }
         )
       throw new Error('CPU environment failed after transition; owner retired', { cause: error })
+    }
+  }
+
+  /** Admission only; this does not schedule an implicit target or mutate the world. */
+  controlledPreflight(outputCapacityBytes = CONTROLLED_RETURN_BYTES): void {
+    this.active()
+    if (this.#plan.profile !== FORCE_GROUND_PROFILE)
+      throw new Error('Controlled environment advancement requires the force-ground profile')
+    if (!Number.isSafeInteger(outputCapacityBytes) || outputCapacityBytes < CONTROLLED_RETURN_BYTES)
+      throw new Error('Controlled output reservation exhausted before mutation')
+    const tick = this.#dynamics.observe().tick
+    if (tick >= 7200) throw new Error('Environment duration budget exhausted')
+    if (!this.#history.some((action) => action.tick <= tick + 1))
+      throw new Error('Controlled tick requires an explicitly scheduled target or motor action')
+  }
+
+  async advanceControlled(outputCapacityBytes = CONTROLLED_RETURN_BYTES): Promise<{
+    pressure: PressureBlock
+    transition: ControlledTransition
+  }> {
+    this.controlledPreflight(outputCapacityBytes)
+    const previous = this.#dynamics.controlledStatus()
+    this.#phase = 'busy'
+    let transition: ControlledTransition | null = null
+    let thermalComplete = false
+    let acousticComplete = false
+    try {
+      transition = await this.#dynamics.advanceControlled(outputCapacityBytes)
+      const sources = this.#dynamics.mechanicalSources()
+      this.#thermal.advance(sources.map((source) => source.mechanicalPowerW))
+      thermalComplete = true
+      const pressure = this.#acoustic.advance(
+        sources.map(({ position, rpm }) => ({ position, rpm }))
+      )
+      acousticComplete = true
+      this.#phase = 'active'
+      return { pressure, transition }
+    } catch (error) {
+      const controlled = error instanceof ControlledAdvanceError ? error.outcome : null
+      let cleanupFailure: string | null = null
+      this.#phase = 'active'
+      try {
+        this.retire()
+      } catch (cleanup) {
+        cleanupFailure = String(cleanup).slice(0, 2048)
+      }
+      throw new ControlledEnvironmentError(
+        Object.freeze({
+          executedTick: transition ? transition.tick : controlled ? controlled.executedTick : null,
+          lastCompletedTick:
+            transition?.tick ?? controlled?.lastCompletedTick ?? previous.lastCompletedTick,
+          lastAcceptedControlTick:
+            transition?.tick ?? controlled?.lastAcceptedTick ?? previous.lastAcceptedTick,
+          transition,
+          thermalComplete,
+          acousticComplete,
+          primaryFailure: String(error).slice(0, 2048),
+          cleanupConfirmed: cleanupFailure === null,
+          cleanupFailure,
+        })
+      )
     }
   }
 
@@ -297,7 +411,10 @@ export class EnvironmentState {
     try {
       candidate = await EnvironmentState.prepare(this.#plan)
       for (const action of stored.history) candidate.schedule(action)
-      for (let tick = 0; tick < stored.tick; tick++) candidate.advance()
+      for (let tick = 0; tick < stored.tick; tick++) {
+        if (this.#plan.profile === FORCE_GROUND_PROFILE) await candidate.advanceControlled()
+        else candidate.advance()
+      }
       const handle = await candidate.checkpoint()
       const actual = candidate.checkpointState(handle)
       candidate.releaseCheckpoint(handle)

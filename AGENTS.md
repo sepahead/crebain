@@ -76,7 +76,9 @@ Do not add AI co-author trailers or generated-by lines to commits or review desc
 - Signal only independently joined owned processes. Browser request routing is not operating-system network isolation.
 - Preserve primary and cleanup failures separately. A later idempotent no-op cannot promote unresolved cleanup to confirmed.
 
-The current controller failed bounded attitude-tracking tests.
+The default city controller failed bounded attitude-tracking tests.
+The one-drone force-ground profile reuses separately qualified, bounded force-attitude dynamics.
+Coupled observations require their own qualification and gain no general tracking or stability credit.
 The inspected Rapier free-rotation configuration omitted Euler gyroscopic evolution.
 Determinism does not establish accurate aerodynamics, stable tracking, or delivery of requested acceleration.
 Change physics or control behavior only through a separately reviewed profile or correction with decisive controls.
