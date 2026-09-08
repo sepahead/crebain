@@ -123,6 +123,10 @@ A separate twelve-tick free-rotation probe observed no Euler gyroscopic evolutio
 Reproducible simulation does not establish accurate flight dynamics or stable tracking.
 The [bounded evidence summary](docs/DETERMINISTIC_DYNAMICS.md#observed-controller-and-angular-model-limits) records these observations.
 
+An explicit [force-attitude profile](docs/DETERMINISTIC_DYNAMICS.md#bounded-force-attitude-profile) preserves requested steady moments before allocating remaining collective thrust.
+Its private frozen one-drone campaign passed separate cold and settled tracking criteria.
+It retains motor transients and has not replaced the desktop or city controller.
+
 ## Optional NCP composition
 
 ![Separate local NCP body with retained results and actual innovation evidence](assets/diagrams/native-ncp-simulation.svg)

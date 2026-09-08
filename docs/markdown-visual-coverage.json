@@ -166,7 +166,10 @@
     {
       "path": "docs/DETERMINISTIC_DYNAMICS.md",
       "classification": "active-technical",
-      "visuals": ["assets/diagrams/deterministic-dynamics.svg"]
+      "visuals": [
+        "assets/diagrams/deterministic-dynamics.svg",
+        "assets/diagrams/force-attitude-allocation.svg"
+      ]
     },
     {
       "path": "docs/DRONE_MGW_PID_STUDY.md",
