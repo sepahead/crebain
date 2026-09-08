@@ -164,6 +164,7 @@ Do not rewrite dependency policy or upgrade tools to bypass a failing gate.
 | NCP manifests, locks, or normative prose | `bun run check:ncp-coherence`; native package changes also require `bun run validate:ncp-simulation` |
 | Frontend behavior | `bun run validate` |
 | Native environment, dynamics, Rust, IPC, transport, models, scenes, fusion, or cross-cutting behavior | `bun run validate:all` |
+| Optional typed sensor application, bridge, Python reader, or construction workflow | `bun run validate:with-ncp-sensors` with an explicitly selected `CREBAIN_SENSOR_NCP_SOURCE`; read the [owning contract](integrations/ncp-force-ground-sensors/README.md) |
 | Responsive UI or production graphics/bundle changes | Applicable source gate plus `bun run check:bundle` and `bun run test:responsive` |
 | Installed, scientific, performance, or release claim | Every applicable target/runtime/model/receipt gate in [Release acceptance](docs/RELEASE_ACCEPTANCE.md) |
 

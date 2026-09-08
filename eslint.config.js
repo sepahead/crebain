@@ -92,5 +92,8 @@ export default tseslint.config(
   {
     files: ['*.config.{js,ts}'],
     extends: [js.configs.recommended, ...tseslint.configs.recommended, eslintConfigPrettier],
+    languageOptions: {
+      parserOptions: { tsconfigRootDir: import.meta.dirname },
+    },
   }
 )

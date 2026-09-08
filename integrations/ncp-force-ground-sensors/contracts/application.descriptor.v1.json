@@ -1,0 +1,23 @@
+{
+  "schema": "crebain.ncp-force-ground-sensors.v1",
+  "status": "construction-candidate",
+  "role": "standalone-simulated-sensor-producer",
+  "types_schema_sha256": "6499fb435f7f8a40e31e99115c7ac51e192257afa5a5c93440bea8996186cd52",
+  "operations": [
+    "prepare",
+    "application",
+    "buffer_read",
+    "buffer_release",
+    "finish",
+    "abort"
+  ],
+  "imports": "uninhabited",
+  "composition_policy": "standalone-no-capture-monitor-neural-experiment",
+  "initial_position": "explicit Vec3 only",
+  "maximum_outstanding_batches": 1,
+  "maximum_encoded_catalog_bytes": 16384,
+  "maximum_encoded_typed_manifest_bytes": 2048,
+  "maximum_encoded_application_result_bytes": 32768,
+  "maximum_encoded_byte_manifest_bytes": 1200,
+  "qualified_scope": "none until exact source and installed gates pass"
+}

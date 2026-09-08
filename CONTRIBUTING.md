@@ -96,6 +96,7 @@ bun run validate:all
 | Responsive layout, panel chrome, or UI-scale changes | `bun run validate`, `bun run check:bundle`, and `bun run test:responsive` |
 | Production renderer-vendor, GLB loader, or Vite artifact-boundary changes | `bun run check:production-vendors` and `bun run check:bundle`; use `bun run validate` for the complete frontend gate |
 | Rust, Tauri IPC, model loading, scene persistence, ROS, Zenoh, transport, or sensor fusion changes | `bun run validate:all` |
+| Optional typed sensor application or its construction workflow | `bun run validate:with-ncp-sensors` with explicitly selected `CREBAIN_SENSOR_NCP_SOURCE`; follow the [construction contract](integrations/ncp-force-ground-sensors/README.md#construction-and-qualification) |
 | Headless plant package, command/health/captured-age/safe-action/deadline-monitor/apply-observation contract, frame corpus, lifecycle, or channel-policy changes | `bun run check:plant-boundary`, `bun run check:plant-frames`, and `bun run validate:all` |
 | 0.9 research/source/package prerelease | `bun run validate:all`; manual entries may remain explicitly pending only under the exclusions in `docs/NARROWED_GO_0.9.0.md` |
 | Demo or operational/deployment claim | `bun run validate:all`, completed `docs/MANUAL_SMOKE_TEST.md` evidence, and every applicable target/topology entry in `docs/RELEASE_ACCEPTANCE.md`; manual smoke alone is not sufficient |
@@ -136,6 +137,10 @@ Each Rust package acceptance script uses the checked-in Cargo lockfile with
 
 Release candidates require those hosted workflows. See
 `docs/RELEASE_ACCEPTANCE.md`.
+
+The typed sensor application has a separate hosted construction and dependency-audit workflow.
+Its optional source requirement does not change standalone `validate:all` prerequisites.
+Typed sensor changes require both gates through `validate:with-ncp-sensors`.
 
 ### Code style
 

@@ -1,0 +1,1257 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "crebain.ncp-force-ground-sensors.types.v1",
+  "$defs": {
+    "Vec3": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "number",
+        "minimum": -1000,
+        "maximum": 1000
+      }
+    },
+    "Camera": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "position",
+        "target",
+        "width",
+        "height",
+        "fovDegrees",
+        "periodTicks"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+        },
+        "position": {
+          "$ref": "#/$defs/Vec3"
+        },
+        "target": {
+          "$ref": "#/$defs/Vec3"
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 8,
+          "maximum": 1280
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 8,
+          "maximum": 1280
+        },
+        "fovDegrees": {
+          "type": "number",
+          "minimum": 5,
+          "maximum": 120
+        },
+        "periodTicks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 120
+        }
+      }
+    },
+    "Microphone": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "position"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+        },
+        "position": {
+          "$ref": "#/$defs/Vec3"
+        }
+      }
+    },
+    "Material": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "linearRgb",
+        "gaussianOpacity",
+        "temperatureK",
+        "emissivity"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+        },
+        "linearRgb": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "gaussianOpacity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "temperatureK": {
+          "type": "number",
+          "minimum": 150,
+          "maximum": 800
+        },
+        "emissivity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "Scene": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "id",
+        "frame",
+        "solids",
+        "materials",
+        "rgbCameras",
+        "thermalCameras",
+        "microphones"
+      ],
+      "properties": {
+        "profile": {
+          "const": "crebain.city-scene.v1"
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+        },
+        "frame": {
+          "const": "three-y-up-z-forward-m"
+        },
+        "solids": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 0,
+          "items": false
+        },
+        "materials": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/Material"
+          }
+        },
+        "rgbCameras": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "items": {
+            "$ref": "#/$defs/Camera"
+          }
+        },
+        "thermalCameras": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "items": {
+            "$ref": "#/$defs/Camera"
+          }
+        },
+        "microphones": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "items": {
+            "$ref": "#/$defs/Microphone"
+          }
+        }
+      }
+    },
+    "Acoustic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "sampleRateHz",
+        "soundSpeedMps",
+        "maximumRangeM",
+        "referenceDistanceM",
+        "referencePressurePa",
+        "bladeCount",
+        "blockedGain",
+        "noiseStdPa",
+        "seed"
+      ],
+      "properties": {
+        "profile": {
+          "const": "crebain.discrete-direct-acoustic.v1"
+        },
+        "sampleRateHz": {
+          "const": 16000
+        },
+        "soundSpeedMps": {
+          "type": "number",
+          "minimum": 300,
+          "maximum": 400
+        },
+        "maximumRangeM": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 128
+        },
+        "referenceDistanceM": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 128
+        },
+        "referencePressurePa": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "bladeCount": {
+          "const": 2
+        },
+        "blockedGain": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "noiseStdPa": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        }
+      }
+    },
+    "Thermal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "ambientK",
+        "initialK",
+        "capacityJPerK",
+        "areaM2",
+        "convectionWPerM2K",
+        "emissivity",
+        "motorEfficiency"
+      ],
+      "properties": {
+        "profile": {
+          "const": "crebain.lumped-gray-thermal.v1"
+        },
+        "ambientK": {
+          "type": "number",
+          "minimum": 150,
+          "maximum": 400
+        },
+        "initialK": {
+          "type": "number",
+          "minimum": 150,
+          "maximum": 800
+        },
+        "capacityJPerK": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 100000
+        },
+        "areaM2": {
+          "type": "number",
+          "minimum": 0.001,
+          "maximum": 100
+        },
+        "convectionWPerM2K": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "emissivity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "motorEfficiency": {
+          "type": "number",
+          "minimum": 0.05,
+          "maximum": 1
+        }
+      }
+    },
+    "Controller": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "engineModel",
+        "referenceAltitudeM",
+        "referenceHeadingRad"
+      ],
+      "properties": {
+        "engineModel": {
+          "const": "rapier-0.19.3-observed-no-gyro-v1"
+        },
+        "referenceAltitudeM": {
+          "type": "number",
+          "minimum": -1000,
+          "maximum": 1000
+        },
+        "referenceHeadingRad": {
+          "type": "number",
+          "minimum": -3.141592653589793,
+          "maximum": 3.141592653589793
+        }
+      }
+    },
+    "Drone": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "position"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+        },
+        "position": {
+          "$ref": "#/$defs/Vec3"
+        }
+      }
+    },
+    "Specification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "seed",
+        "drones",
+        "scene",
+        "acoustic",
+        "thermal",
+        "controller"
+      ],
+      "properties": {
+        "profile": {
+          "const": "crebain.cpu-force-ground-environment.v1"
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "drones": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "$ref": "#/$defs/Drone"
+          }
+        },
+        "scene": {
+          "$ref": "#/$defs/Scene"
+        },
+        "acoustic": {
+          "$ref": "#/$defs/Acoustic"
+        },
+        "thermal": {
+          "$ref": "#/$defs/Thermal"
+        },
+        "controller": {
+          "$ref": "#/$defs/Controller"
+        }
+      }
+    },
+    "Prepare": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "specification",
+        "planned_ticks",
+        "composition_digest"
+      ],
+      "properties": {
+        "specification": {
+          "$ref": "#/$defs/Specification"
+        },
+        "planned_ticks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7200
+        },
+        "composition_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "SetTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "armed",
+        "roll_rad",
+        "pitch_rad",
+        "heading_rad",
+        "altitude_m"
+      ],
+      "properties": {
+        "kind": {
+          "const": "set_target"
+        },
+        "armed": {
+          "type": "boolean"
+        },
+        "roll_rad": {
+          "type": "number",
+          "minimum": -0.1,
+          "maximum": 0.1
+        },
+        "pitch_rad": {
+          "type": "number",
+          "minimum": -0.1,
+          "maximum": 0.1
+        },
+        "heading_rad": {
+          "type": "number",
+          "minimum": -3.141592653589793,
+          "maximum": 3.141592653589793
+        },
+        "altitude_m": {
+          "type": "number",
+          "minimum": -1001,
+          "maximum": 1001
+        }
+      }
+    },
+    "Hold": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "accepted_action_request_digest"
+      ],
+      "properties": {
+        "kind": {
+          "const": "hold"
+        },
+        "accepted_action_request_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "Action": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/SetTarget"
+        },
+        {
+          "$ref": "#/$defs/Hold"
+        }
+      ]
+    },
+    "Command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "tick",
+        "previous_batch_digest",
+        "action",
+        "capture_reservation"
+      ],
+      "properties": {
+        "kind": {
+          "const": "advance_tick"
+        },
+        "tick": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7200
+        },
+        "previous_batch_digest": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "action": {
+          "$ref": "#/$defs/Action"
+        },
+        "capture_reservation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "const": "absent"
+            }
+          }
+        }
+      }
+    },
+    "Finish": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "plan_digest",
+        "completed_ticks",
+        "last_batch_digest"
+      ],
+      "properties": {
+        "plan_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "completed_ticks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7200
+        },
+        "last_batch_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "PressureConfiguration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "position",
+        "acoustic"
+      ],
+      "properties": {
+        "position": {
+          "$ref": "#/$defs/Vec3"
+        },
+        "acoustic": {
+          "$ref": "#/$defs/Acoustic"
+        }
+      }
+    },
+    "CatalogEntry": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "sensor_id",
+            "source_id",
+            "sensor_contract_digest",
+            "configuration"
+          ],
+          "properties": {
+            "kind": {
+              "const": "rgba8"
+            },
+            "sensor_id": {
+              "type": "string",
+              "pattern": "^(rgb|thermal|pressure):[a-z][a-z0-9_-]{0,63}$",
+              "maxLength": 73
+            },
+            "source_id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+            },
+            "sensor_contract_digest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "configuration": {
+              "$ref": "#/$defs/Camera"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "sensor_id",
+            "source_id",
+            "sensor_contract_digest",
+            "configuration"
+          ],
+          "properties": {
+            "kind": {
+              "const": "radiance"
+            },
+            "sensor_id": {
+              "type": "string",
+              "pattern": "^(rgb|thermal|pressure):[a-z][a-z0-9_-]{0,63}$",
+              "maxLength": 73
+            },
+            "source_id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+            },
+            "sensor_contract_digest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "configuration": {
+              "$ref": "#/$defs/Camera"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "sensor_id",
+            "source_id",
+            "sensor_contract_digest",
+            "configuration"
+          ],
+          "properties": {
+            "kind": {
+              "const": "pressure"
+            },
+            "sensor_id": {
+              "type": "string",
+              "pattern": "^(rgb|thermal|pressure):[a-z][a-z0-9_-]{0,63}$",
+              "maxLength": 73
+            },
+            "source_id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+            },
+            "sensor_contract_digest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "configuration": {
+              "$ref": "#/$defs/PressureConfiguration"
+            }
+          }
+        }
+      ]
+    },
+    "SensorCatalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "plan_digest",
+        "entries",
+        "catalog_digest"
+      ],
+      "properties": {
+        "schema": {
+          "const": "crebain.sensor-catalog.v1"
+        },
+        "plan_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "entries": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 12,
+          "items": {
+            "$ref": "#/$defs/CatalogEntry"
+          }
+        },
+        "catalog_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "Tensor": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "dtype",
+            "shape",
+            "layout",
+            "row_origin",
+            "encoding"
+          ],
+          "properties": {
+            "kind": {
+              "const": "rgba8"
+            },
+            "dtype": {
+              "const": "u8"
+            },
+            "shape": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "integer",
+                  "minimum": 8,
+                  "maximum": 1280
+                },
+                {
+                  "type": "integer",
+                  "minimum": 8,
+                  "maximum": 1280
+                },
+                {
+                  "const": 4
+                }
+              ],
+              "items": false,
+              "minItems": 3,
+              "maxItems": 3
+            },
+            "layout": {
+              "const": "c_contiguous"
+            },
+            "row_origin": {
+              "const": "bottom-left"
+            },
+            "encoding": {
+              "const": "rgba8-srgb"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "dtype",
+            "shape",
+            "layout",
+            "row_origin",
+            "unit"
+          ],
+          "properties": {
+            "kind": {
+              "const": "radiance"
+            },
+            "dtype": {
+              "const": "f32le"
+            },
+            "shape": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {
+                "type": "integer",
+                "minimum": 8,
+                "maximum": 320
+              }
+            },
+            "layout": {
+              "const": "c_contiguous"
+            },
+            "row_origin": {
+              "const": "bottom-left"
+            },
+            "unit": {
+              "const": "W/(m2 sr)"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "dtype",
+            "shape",
+            "layout",
+            "sample_start",
+            "sample_end",
+            "sample_rate_hz",
+            "unit"
+          ],
+          "properties": {
+            "kind": {
+              "const": "pressure"
+            },
+            "dtype": {
+              "const": "f64le"
+            },
+            "shape": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "items": {
+                "type": "integer",
+                "minimum": 133,
+                "maximum": 134
+              }
+            },
+            "layout": {
+              "const": "c_contiguous"
+            },
+            "sample_start": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 960000
+            },
+            "sample_end": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 960000
+            },
+            "sample_rate_hz": {
+              "const": 16000
+            },
+            "unit": {
+              "const": "pascal"
+            }
+          }
+        }
+      ]
+    },
+    "SensorManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "sensor_contract_digest",
+        "sensor_id",
+        "byte_manifest_digest",
+        "engine_batch_sha256",
+        "source_body_tick",
+        "available_after_body_tick",
+        "tensor",
+        "manifest_digest"
+      ],
+      "properties": {
+        "schema": {
+          "const": "crebain.sensor-manifest.v1"
+        },
+        "sensor_contract_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "sensor_id": {
+          "type": "string",
+          "pattern": "^(rgb|thermal|pressure):[a-z][a-z0-9_-]{0,63}$",
+          "maxLength": 73
+        },
+        "byte_manifest_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "engine_batch_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "source_body_tick": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7200
+        },
+        "available_after_body_tick": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7200
+        },
+        "tensor": {
+          "$ref": "#/$defs/Tensor"
+        },
+        "manifest_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "BufferBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile_digest",
+        "application_digest",
+        "run_id",
+        "endpoint_id",
+        "generation"
+      ],
+      "properties": {
+        "profile_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "application_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "run_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "endpoint_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "generation": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        }
+      }
+    },
+    "BufferManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "binding",
+        "buffer_id",
+        "creating_request_digest",
+        "causal_predecessor",
+        "semantic_digest",
+        "byte_length",
+        "payload_sha256",
+        "chunk_bytes",
+        "chunk_count",
+        "imported_manifest_digest",
+        "manifest_digest"
+      ],
+      "properties": {
+        "schema": {
+          "const": "ncp.modular.buffer-manifest.v1"
+        },
+        "binding": {
+          "$ref": "#/$defs/BufferBinding"
+        },
+        "buffer_id": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "creating_request_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "causal_predecessor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "semantic_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "byte_length": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8388608
+        },
+        "payload_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "chunk_bytes": {
+          "const": 32768
+        },
+        "chunk_count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 256
+        },
+        "imported_manifest_digest": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "manifest_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "SensorSlot": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "sensor_id",
+            "typed_manifest",
+            "byte_manifest"
+          ],
+          "properties": {
+            "kind": {
+              "const": "due"
+            },
+            "sensor_id": {
+              "type": "string",
+              "pattern": "^(rgb|thermal|pressure):[a-z][a-z0-9_-]{0,63}$",
+              "maxLength": 73
+            },
+            "typed_manifest": {
+              "$ref": "#/$defs/SensorManifest"
+            },
+            "byte_manifest": {
+              "$ref": "#/$defs/BufferManifest"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "sensor_id",
+            "next_due_tick"
+          ],
+          "properties": {
+            "kind": {
+              "const": "not_due"
+            },
+            "sensor_id": {
+              "type": "string",
+              "pattern": "^(rgb|thermal|pressure):[a-z][a-z0-9_-]{0,63}$",
+              "maxLength": 73
+            },
+            "next_due_tick": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 7200
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "SensorBatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "plan_digest",
+        "engine_owner_id",
+        "engine_batch_sha256",
+        "source_identity",
+        "scene_sha256",
+        "body_tick",
+        "previous_batch_digest",
+        "slots",
+        "batch_digest"
+      ],
+      "properties": {
+        "schema": {
+          "const": "crebain.sensor-batch.v1"
+        },
+        "plan_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "engine_owner_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "engine_batch_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "source_identity": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "scene_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "body_tick": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7200
+        },
+        "previous_batch_digest": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "slots": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 12,
+          "items": {
+            "$ref": "#/$defs/SensorSlot"
+          }
+        },
+        "batch_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "Prepared": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "plan_digest",
+        "sensor_catalog",
+        "initial_observation",
+        "source_identity",
+        "engine_owner_id",
+        "scene_sha256"
+      ],
+      "properties": {
+        "kind": {
+          "const": "prepared"
+        },
+        "plan_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "sensor_catalog": {
+          "$ref": "#/$defs/SensorCatalog"
+        },
+        "initial_observation": {
+          "const": "not_acquired"
+        },
+        "source_identity": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "engine_owner_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "scene_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "Advanced": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "tick",
+        "accepted_action_request_digest",
+        "batch"
+      ],
+      "properties": {
+        "kind": {
+          "const": "advanced"
+        },
+        "tick": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7200
+        },
+        "accepted_action_request_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "batch": {
+          "$ref": "#/$defs/SensorBatch"
+        }
+      }
+    },
+    "Result": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Prepared"
+        },
+        {
+          "$ref": "#/$defs/Advanced"
+        }
+      ]
+    },
+    "Terminal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "plan_digest",
+        "planned_ticks",
+        "completed_ticks",
+        "last_batch_digest",
+        "engine_retirement",
+        "promised_sensor_output",
+        "scientific_validation"
+      ],
+      "properties": {
+        "plan_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "planned_ticks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7200
+        },
+        "completed_ticks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7200
+        },
+        "last_batch_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "engine_retirement": {
+          "const": "confirmed"
+        },
+        "promised_sensor_output": {
+          "const": "complete"
+        },
+        "scientific_validation": {
+          "const": false
+        }
+      }
+    },
+    "ImportDescriptor": false,
+    "ImportMetadata": false,
+    "Imported": false
+  }
+}

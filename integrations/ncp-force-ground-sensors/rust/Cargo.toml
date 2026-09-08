@@ -1,0 +1,24 @@
+[package]
+name = "crebain-ncp-force-ground-sensors"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.91"
+license = "MIT OR Apache-2.0"
+description = "Closed CREBAIN sensor application construction candidate"
+publish = false
+
+[workspace]
+resolver = "2"
+
+[dependencies]
+# The construction tool supplies this exact pinned crate in a fresh composition.
+ncp-local = { version = "=1.0.0", path = "../ncp-local" }
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = { version = "=1.0.150", features = ["float_roundtrip"] }
+sha2 = "=0.10.9"
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }

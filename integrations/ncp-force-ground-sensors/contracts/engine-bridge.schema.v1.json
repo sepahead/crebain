@@ -1,0 +1,1089 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "crebain.sensor-engine-bridge.v1",
+  "$defs": {
+    "BVec3": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "f64"
+        ],
+        "properties": {
+          "f64": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{16}$"
+          }
+        }
+      }
+    },
+    "BCamera": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "position",
+        "target",
+        "width",
+        "height",
+        "fovDegrees",
+        "periodTicks"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+        },
+        "position": {
+          "$ref": "#/$defs/BVec3"
+        },
+        "target": {
+          "$ref": "#/$defs/BVec3"
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 8,
+          "maximum": 1280
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 8,
+          "maximum": 1280
+        },
+        "fovDegrees": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "f64"
+          ],
+          "properties": {
+            "f64": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            }
+          }
+        },
+        "periodTicks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 120
+        }
+      }
+    },
+    "BMicrophone": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "position"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+        },
+        "position": {
+          "$ref": "#/$defs/BVec3"
+        }
+      }
+    },
+    "BMaterial": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "linearRgb",
+        "gaussianOpacity",
+        "temperatureK",
+        "emissivity"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+        },
+        "linearRgb": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "f64"
+            ],
+            "properties": {
+              "f64": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{16}$"
+              }
+            }
+          }
+        },
+        "gaussianOpacity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "f64"
+          ],
+          "properties": {
+            "f64": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            }
+          }
+        },
+        "temperatureK": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "f64"
+          ],
+          "properties": {
+            "f64": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            }
+          }
+        },
+        "emissivity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "f64"
+          ],
+          "properties": {
+            "f64": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            }
+          }
+        }
+      }
+    },
+    "BScene": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "id",
+        "frame",
+        "solids",
+        "materials",
+        "rgbCameras",
+        "thermalCameras",
+        "microphones"
+      ],
+      "properties": {
+        "profile": {
+          "const": "crebain.city-scene.v1"
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+        },
+        "frame": {
+          "const": "three-y-up-z-forward-m"
+        },
+        "solids": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 0,
+          "items": false
+        },
+        "materials": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/BMaterial"
+          }
+        },
+        "rgbCameras": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "items": {
+            "$ref": "#/$defs/BCamera"
+          }
+        },
+        "thermalCameras": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "items": {
+            "$ref": "#/$defs/BCamera"
+          }
+        },
+        "microphones": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "items": {
+            "$ref": "#/$defs/BMicrophone"
+          }
+        }
+      }
+    },
+    "BAcoustic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "sampleRateHz",
+        "soundSpeedMps",
+        "maximumRangeM",
+        "referenceDistanceM",
+        "referencePressurePa",
+        "bladeCount",
+        "blockedGain",
+        "noiseStdPa",
+        "seed"
+      ],
+      "properties": {
+        "profile": {
+          "const": "crebain.discrete-direct-acoustic.v1"
+        },
+        "sampleRateHz": {
+          "const": 16000
+        },
+        "soundSpeedMps": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "f64"
+          ],
+          "properties": {
+            "f64": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            }
+          }
+        },
+        "maximumRangeM": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "f64"
+          ],
+          "properties": {
+            "f64": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            }
+          }
+        },
+        "referenceDistanceM": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "f64"
+          ],
+          "properties": {
+            "f64": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            }
+          }
+        },
+        "referencePressurePa": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "f64"
+          ],
+          "properties": {
+            "f64": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            }
+          }
+        },
+        "bladeCount": {
+          "const": 2
+        },
+        "blockedGain": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "f64"
+          ],
+          "properties": {
+            "f64": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            }
+          }
+        },
+        "noiseStdPa": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "f64"
+          ],
+          "properties": {
+            "f64": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            }
+          }
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        }
+      }
+    },
+    "BThermal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "ambientK",
+        "initialK",
+        "capacityJPerK",
+        "areaM2",
+        "convectionWPerM2K",
+        "emissivity",
+        "motorEfficiency"
+      ],
+      "properties": {
+        "profile": {
+          "const": "crebain.lumped-gray-thermal.v1"
+        },
+        "ambientK": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "f64"
+          ],
+          "properties": {
+            "f64": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            }
+          }
+        },
+        "initialK": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "f64"
+          ],
+          "properties": {
+            "f64": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            }
+          }
+        },
+        "capacityJPerK": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "f64"
+          ],
+          "properties": {
+            "f64": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            }
+          }
+        },
+        "areaM2": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "f64"
+          ],
+          "properties": {
+            "f64": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            }
+          }
+        },
+        "convectionWPerM2K": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "f64"
+          ],
+          "properties": {
+            "f64": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            }
+          }
+        },
+        "emissivity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "f64"
+          ],
+          "properties": {
+            "f64": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            }
+          }
+        },
+        "motorEfficiency": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "f64"
+          ],
+          "properties": {
+            "f64": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            }
+          }
+        }
+      }
+    },
+    "BController": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "engineModel",
+        "referenceAltitudeM",
+        "referenceHeadingRad"
+      ],
+      "properties": {
+        "engineModel": {
+          "const": "rapier-0.19.3-observed-no-gyro-v1"
+        },
+        "referenceAltitudeM": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "f64"
+          ],
+          "properties": {
+            "f64": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            }
+          }
+        },
+        "referenceHeadingRad": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "f64"
+          ],
+          "properties": {
+            "f64": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            }
+          }
+        }
+      }
+    },
+    "BDrone": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "position"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+        },
+        "position": {
+          "$ref": "#/$defs/BVec3"
+        }
+      }
+    },
+    "BSpecification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "seed",
+        "drones",
+        "scene",
+        "acoustic",
+        "thermal",
+        "controller"
+      ],
+      "properties": {
+        "profile": {
+          "const": "crebain.cpu-force-ground-environment.v1"
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "drones": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "$ref": "#/$defs/BDrone"
+          }
+        },
+        "scene": {
+          "$ref": "#/$defs/BScene"
+        },
+        "acoustic": {
+          "$ref": "#/$defs/BAcoustic"
+        },
+        "thermal": {
+          "$ref": "#/$defs/BThermal"
+        },
+        "controller": {
+          "$ref": "#/$defs/BController"
+        }
+      }
+    },
+    "BSetTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "armed",
+        "roll_rad",
+        "pitch_rad",
+        "heading_rad",
+        "altitude_m"
+      ],
+      "properties": {
+        "kind": {
+          "const": "set_target"
+        },
+        "armed": {
+          "type": "boolean"
+        },
+        "roll_rad": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "f64"
+          ],
+          "properties": {
+            "f64": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            }
+          }
+        },
+        "pitch_rad": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "f64"
+          ],
+          "properties": {
+            "f64": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            }
+          }
+        },
+        "heading_rad": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "f64"
+          ],
+          "properties": {
+            "f64": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            }
+          }
+        },
+        "altitude_m": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "f64"
+          ],
+          "properties": {
+            "f64": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            }
+          }
+        }
+      }
+    },
+    "BHold": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "accepted_action_request_digest"
+      ],
+      "properties": {
+        "kind": {
+          "const": "hold"
+        },
+        "accepted_action_request_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "BAction": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/BSetTarget"
+        },
+        {
+          "$ref": "#/$defs/BHold"
+        }
+      ]
+    },
+    "Payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sensor_id",
+        "kind",
+        "byte_length",
+        "payload_sha256"
+      ],
+      "properties": {
+        "sensor_id": {
+          "type": "string",
+          "pattern": "^(rgb|thermal|pressure):[a-z][a-z0-9_-]{0,63}$",
+          "maxLength": 73
+        },
+        "kind": {
+          "enum": [
+            "rgba8",
+            "radiance",
+            "pressure"
+          ]
+        },
+        "byte_length": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8388608
+        },
+        "payload_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "Batch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "engine_owner_id",
+        "source_identity",
+        "scene_sha256",
+        "body_tick",
+        "engine_batch_sha256",
+        "previous_engine_batch_sha256",
+        "payloads"
+      ],
+      "properties": {
+        "engine_owner_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "source_identity": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "scene_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "body_tick": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7200
+        },
+        "engine_batch_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "previous_engine_batch_sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "payloads": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 12,
+          "items": {
+            "$ref": "#/$defs/Payload"
+          }
+        }
+      }
+    },
+    "Request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "generation",
+        "sequence",
+        "command"
+      ],
+      "properties": {
+        "schema": {
+          "const": "crebain.sensor-engine-request.v1"
+        },
+        "generation": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "command": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "run_id",
+                "source_identity",
+                "specification",
+                "planned_ticks"
+              ],
+              "properties": {
+                "kind": {
+                  "const": "prepare"
+                },
+                "run_id": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                },
+                "source_identity": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "specification": {
+                  "$ref": "#/$defs/BSpecification"
+                },
+                "planned_ticks": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 7200
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "tick",
+                "previous_engine_batch_sha256",
+                "action",
+                "accepted_action_request_digest"
+              ],
+              "properties": {
+                "kind": {
+                  "const": "advance"
+                },
+                "tick": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 7200
+                },
+                "previous_engine_batch_sha256": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "action": {
+                  "$ref": "#/$defs/BAction"
+                },
+                "accepted_action_request_digest": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "tick",
+                "engine_batch_sha256",
+                "sensor_id",
+                "offset",
+                "max_bytes"
+              ],
+              "properties": {
+                "kind": {
+                  "const": "read_chunk"
+                },
+                "tick": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 7200
+                },
+                "engine_batch_sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "sensor_id": {
+                  "type": "string",
+                  "pattern": "^(rgb|thermal|pressure):[a-z][a-z0-9_-]{0,63}$",
+                  "maxLength": 73
+                },
+                "offset": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 8388607
+                },
+                "max_bytes": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 32768
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "tick",
+                "engine_batch_sha256"
+              ],
+              "properties": {
+                "kind": {
+                  "const": "release_lease"
+                },
+                "tick": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 7200
+                },
+                "engine_batch_sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind"
+              ],
+              "properties": {
+                "kind": {
+                  "const": "retire"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "Response": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "generation",
+        "sequence",
+        "body"
+      ],
+      "properties": {
+        "schema": {
+          "const": "crebain.sensor-engine-response.v1"
+        },
+        "generation": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "body": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "engine_owner_id",
+                "scene_sha256"
+              ],
+              "properties": {
+                "kind": {
+                  "const": "prepared"
+                },
+                "engine_owner_id": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                },
+                "scene_sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "batch"
+              ],
+              "properties": {
+                "kind": {
+                  "const": "advanced"
+                },
+                "batch": {
+                  "$ref": "#/$defs/Batch"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "tick",
+                "engine_batch_sha256",
+                "sensor_id",
+                "offset",
+                "bytes_base64",
+                "chunk_sha256"
+              ],
+              "properties": {
+                "kind": {
+                  "const": "chunk"
+                },
+                "tick": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 7200
+                },
+                "engine_batch_sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "sensor_id": {
+                  "type": "string",
+                  "pattern": "^(rgb|thermal|pressure):[a-z][a-z0-9_-]{0,63}$",
+                  "maxLength": 73
+                },
+                "offset": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 8388607
+                },
+                "bytes_base64": {
+                  "type": "string",
+                  "minLength": 4,
+                  "maxLength": 43692
+                },
+                "chunk_sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "tick",
+                "engine_batch_sha256"
+              ],
+              "properties": {
+                "kind": {
+                  "const": "released"
+                },
+                "tick": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 7200
+                },
+                "engine_batch_sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "cleanup_confirmed"
+              ],
+              "properties": {
+                "kind": {
+                  "const": "retired"
+                },
+                "cleanup_confirmed": {
+                  "const": true
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "reason",
+                "cleanup_confirmed"
+              ],
+              "properties": {
+                "kind": {
+                  "const": "failed"
+                },
+                "reason": {
+                  "enum": [
+                    "invalid_request",
+                    "engine",
+                    "io"
+                  ]
+                },
+                "cleanup_confirmed": {
+                  "type": "boolean"
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

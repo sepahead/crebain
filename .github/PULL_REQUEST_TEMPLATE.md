@@ -25,6 +25,7 @@ Describe what changed and why.
 | `git diff --check` | not run | Required for every Markdown change |
 | `bun run validate` | not run |  |
 | `bun run validate:all` | not run | Required for Rust, plant-authority, IPC, transport, model-loading, or integration changes |
+| `bun run validate:with-ncp-sensors` | not applicable | Required for typed sensor application or construction changes; explicitly select `CREBAIN_SENSOR_NCP_SOURCE` |
 | Native detector evidence bundle | not applicable | Required only for a retained numeric detector-performance claim |
 | Manual smoke checklist | not run | Required for demo, operational/deployment, or 1.0 readiness claims; the research-only 0.9 exception must cite `docs/NARROWED_GO_0.9.0.md` |
 

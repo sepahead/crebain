@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="950" viewBox="0 0 680 950" role="img" aria-labelledby="title desc">
+  <title id="title">CREBAIN sensor transfer through an optional NCP application</title>
+  <desc id="desc">CREBAIN supplies actual simulated sensor bytes through a private Bun bridge. The Rust application reserves every due NCP buffer before advancing the engine. It copies and seals all outputs before releasing the native observation lease. An independent Python client reads and validates the complete batch, then explicitly releases the NCP buffers. These are two distinct releases. The standalone environment needs no NCP consumer. Installed transfer qualification remains open.</desc>
+  <defs>
+    <linearGradient id="background" x2="1" y2="1"><stop stop-color="#0b1623"/><stop offset="1" stop-color="#111d2c"/></linearGradient>
+    <linearGradient id="native" x2="1"><stop stop-color="#3fc7a3"/><stop offset="1" stop-color="#85dfc6"/></linearGradient>
+    <linearGradient id="protocol" x2="1"><stop stop-color="#5faaff"/><stop offset="1" stop-color="#adcbff"/></linearGradient>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; }
+      .title { font-size: 28px; font-weight: 700; fill: #f2f6fc; }
+      .name { font-size: 24px; font-weight: 700; fill: #f2f6fc; }
+      .body { font-size: 20px; fill: #d9e4f1; }
+      .small { font-size: 17px; fill: #b9cadc; }
+      .label { font-size: 18px; font-weight: 700; fill: #071624; }
+      .arrow { fill: none; stroke-linecap: round; stroke-linejoin: round; stroke-width: 3; }
+    </style>
+  </defs>
+  <rect width="680" height="950" rx="24" fill="url(#background)"/>
+  <rect x="1" y="1" width="678" height="948" rx="23" fill="none" stroke="#35495e"/>
+  <text x="34" y="49" class="title">One producer. One consumer.</text>
+  <text x="34" y="80" class="body">An optional NCP application for sensor bytes</text>
+
+  <rect x="82" y="116" width="516" height="148" rx="15" fill="#122d31" stroke="#4ea78f"/>
+  <rect x="82" y="116" width="6" height="148" rx="3" fill="url(#native)"/>
+  <text x="106" y="153" class="name">CREBAIN environment</text>
+  <text x="106" y="183" class="body">World, drone, and sensor models</text>
+  <rect x="106" y="202" width="106" height="34" rx="8" fill="#9ccaff"/>
+  <text x="159" y="225" text-anchor="middle" class="label">RGB</text>
+  <rect x="224" y="202" width="147" height="34" rx="8" fill="#f2c18e"/>
+  <text x="297.5" y="225" text-anchor="middle" class="label">Thermal</text>
+  <rect x="383" y="202" width="159" height="34" rx="8" fill="#9ce0ce"/>
+  <text x="462.5" y="225" text-anchor="middle" class="label">Pressure</text>
+
+  <path d="M340 265V320" class="arrow" stroke="#83dbc1"/>
+  <path d="m333 311 7 11 7-11" fill="none" stroke="#83dbc1" stroke-width="3"/>
+  <rect x="356" y="275" width="235" height="27" rx="5" fill="#111d2c"/>
+  <text x="365" y="295" class="small">Private Bun bridge · leased bytes</text>
+
+  <rect x="82" y="331" width="516" height="143" rx="15" fill="#172b45" stroke="#618fcb"/>
+  <rect x="82" y="331" width="6" height="143" rx="3" fill="url(#protocol)"/>
+  <text x="106" y="368" class="name">Rust application owner</text>
+  <text x="106" y="400" class="body">Reserve every due output before advance.</text>
+  <text x="106" y="431" class="body">Copy original bytes. Seal every output.</text>
+
+  <path d="M82 403H40V191H72" class="arrow" stroke="#edc184" stroke-dasharray="7 6"/>
+  <path d="m63 184 11 7-11 7" fill="none" stroke="#edc184" stroke-width="3"/>
+  <circle cx="40" cy="301" r="13" fill="#edc184"/>
+  <text x="40" y="307" text-anchor="middle" class="label">1</text>
+  <rect x="102" y="489" width="482" height="38" rx="8" fill="#352f27"/>
+  <text x="120" y="515" font-size="19" fill="#f3d2a1">1 · Release native lease after every output seals.</text>
+
+  <path d="M340 539V569" class="arrow" stroke="#94bfff"/>
+  <path d="m333 560 7 11 7-11" fill="none" stroke="#94bfff" stroke-width="3"/>
+  <rect x="82" y="583" width="516" height="106" rx="15" fill="#14283f" stroke="#618fcb"/>
+  <text x="106" y="620" class="name">NCP buffers</text>
+  <text x="106" y="653" class="body">Typed manifests + exact payloads + bounded reads</text>
+
+  <path d="M287 690V742" class="arrow" stroke="#94bfff"/>
+  <path d="m280 733 7 11 7-11" fill="none" stroke="#94bfff" stroke-width="3"/>
+  <text x="109" y="723" class="small">Read and validate</text>
+  <path d="M442 743V701" class="arrow" stroke="#edc184" stroke-dasharray="7 6"/>
+  <path d="m435 710 7-11 7 11" fill="none" stroke="#edc184" stroke-width="3"/>
+  <text x="458" y="723" class="small">2 · Release</text>
+
+  <rect x="82" y="756" width="516" height="99" rx="15" fill="#232641" stroke="#a399d5"/>
+  <text x="106" y="792" class="name">Independent Python client</text>
+  <text x="106" y="824" class="body">Release buffers, then deliver the validated batch.</text>
+  <text x="34" y="891" class="small">Solid arrows: sensor data. Dashed arrows: explicit release.</text>
+  <text x="34" y="918" class="small">Standalone CREBAIN needs no consumer. Installed qualification is open.</text>
+</svg>

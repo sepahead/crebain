@@ -32,6 +32,9 @@ The [0.9 release decision](docs/NARROWED_GO_0.9.0.md) and its remaining exclusio
 | [Desktop application](docs/WORKFLOWS.md) | Tauri/React scene inspection, camera placement, native detection, Rust fusion, read-only telemetry | Separate UI scheduler and defaults; the native environment is not installed into this UI |
 | [Local NCP body](docs/NATIVE_NCP_SIMULATION.md) | Private-process kinematics, Kalman observations, actual application and innovation evidence | Separate 1–3-entity scalar profile; does not transport city images, pressure, or thermal arrays |
 
+The optional [typed sensor application](integrations/ncp-force-ground-sensors/README.md) is a separate construction candidate.
+Its installed sensor transfer remains unqualified.
+
 The native environment requires no Engram, Prisoma, Galadriel, NCP, ROS, or Gazebo process.
 The scalar NCP body reuses a different project-local kernel.
 Its ENU acceleration interface must not be confused with the city's attitude and motor controls.
@@ -188,6 +191,8 @@ bun run validate:all
 ```
 
 The complete local gate covers frontend checks, contracts, managed simulation, the native local NCP package, inert plant, and applicable Rust targets.
+Typed sensor changes also require the [explicit construction gate](integrations/ncp-force-ground-sensors/README.md#construction-and-qualification).
+Its `validate:with-ncp-sensors` aggregate requires an explicitly selected NCP checkout; standalone `validate:all` does not require that optional dependency.
 Focused backend commands are `bun run check:rust`, `bun run test:rust`, and `bun run clippy:rust`.
 Documentation checks are `bun run check:docs-visuals` and `git diff --check`.
 

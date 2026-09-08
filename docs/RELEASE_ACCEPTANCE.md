@@ -33,6 +33,13 @@ or field tests provide separate facts.
 
 - **Blocking conditions:** Any error, inventory/config/pin drift, stale normative NCP version, unlocked package acceptance command, plant-boundary/frame-corpus drift, benchmark-logic test failure, other test failure, or clippy warning
 
+### Optional typed sensor construction
+
+Typed sensor changes additionally require `validate:with-ncp-sensors` with an explicitly selected NCP checkout.
+The dedicated hosted workflow verifies exact source bytes, fetches locked dependencies, runs offline construction controls, and audits the composed Rust graph.
+Publication requires the exact NCP pin to pass its owning bootstrap and become publicly available.
+These source gates do not qualify actual sensor transfer or renderer isolation.
+
 ### Hosted frontend gates
 
 - **Acceptance evidence:** CI `bun run validate`, `bun run check:bundle`, `bun run test:responsive`, and `bun run test:coverage` pass; the browser smoke covers the 1,600×1,200 free layout, the 1,600×1,000 docked layout, the 1,024×720 minimum, and the minimum at 200% UI scale; it rejects hidden document overflow, panel collisions, clipped chrome, and inaccessible rail overflow; `validate` includes `check:production-vendors`, which binds the exact Spark/Rapier/Three transforms and local-byte/texture runtimes; every build emits schema-v2 module provenance, excludes the development rosbridge module, hashes/scans every finalized JavaScript chunk, runs split/aliased/reflective artifact rejection fixtures, and `check:bundle` then applies the size budget

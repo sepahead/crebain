@@ -1,0 +1,99 @@
+name: Typed sensor construction
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ncp-sensors-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  construction:
+    name: Rust, Bun, and independent Python construction
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: crebain
+    env:
+      CARGO_TERM_COLOR: always
+      RUSTUP_TOOLCHAIN: 1.91.1
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Check out CREBAIN
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          path: crebain
+          persist-credentials: false
+      # This exact commit must be public before publishing this integration.
+      # Missing source is a failed prerequisite; there is no alternate revision.
+      - name: Check out the exact NCP construction dependency
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          repository: sepahead/NCP
+          ref: f341925508e8b3e54efc40e496256f03565d3a9b
+          path: ncp-dependency
+          persist-credentials: false
+      - name: Select Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 26.7.0
+          package-manager-cache: false
+      - name: Select Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.3.14
+      - name: Select Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14.6'
+      - name: Select Rust
+        uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
+        with:
+          toolchain: 1.91.1
+          components: clippy, rustfmt
+      - name: Verify selected tool versions
+        run: |
+          set -euo pipefail
+          test "$(node --version)" = v26.7.0
+          test "$(bun --version)" = 1.3.14
+          test "$(python3 --version)" = 'Python 3.14.6'
+          test "$(rustc --version | cut -d ' ' -f 2)" = 1.91.1
+      - name: Install locked frontend dependencies
+        run: bun install --frozen-lockfile
+      - name: Verify SDK bytes and compose locked fetch inputs
+        run: |
+          python3 integrations/ncp-force-ground-sensors/compose.py \
+            --ncp-source "$GITHUB_WORKSPACE/ncp-dependency" \
+            --output "$GITHUB_WORKSPACE/sensor-prefetch"
+      - name: Fetch locked Cargo dependencies
+        run: cargo fetch --locked --manifest-path "$GITHUB_WORKSPACE/sensor-prefetch/application/Cargo.toml"
+      - name: Run the offline construction gate
+        env:
+          CREBAIN_SENSOR_NCP_SOURCE: ${{ github.workspace }}/ncp-dependency
+        run: bun run validate:ncp-sensors -- --output "$GITHUB_WORKSPACE/sensor-construction"
+      - name: Audit the composed Rust dependency graph
+        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
+        with:
+          manifest-path: sensor-prefetch/application/Cargo.toml
+          rust-version: 1.91.1
+          arguments: --all-features --locked --config crebain/src-tauri/deny.toml
+          command: check
+      - name: Retain construction evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ncp-sensor-construction-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            sensor-prefetch/construction.json
+            sensor-construction/*.json
+            sensor-construction/*.log
+          if-no-files-found: error
+          retention-days: 30

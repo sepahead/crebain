@@ -31,3 +31,7 @@ src-tauri/
 
 # Static assets
 public/
+
+# Byte-exact typed sensor contracts; Rust uses its own formatter.
+integrations/ncp-force-ground-sensors/contracts/*.json
+integrations/ncp-force-ground-sensors/rust/

@@ -1,0 +1,214 @@
+{
+  "schema": "crebain.ncp-construction-dependency.v1",
+  "commit": "f341925508e8b3e54efc40e496256f03565d3a9b",
+  "tree": "0bbd853bd6dfdbb2ca78ebc0bc26cf47eb171f81",
+  "dependency_ready": false,
+  "scope": "exact immutable construction input only; no implicit sibling or registry fallback",
+  "files": [
+    {
+      "path": "local/python/ncp_local/__init__.py",
+      "bytes": 1745,
+      "sha256": "f6dc9edb5308fb118c0cc8ef8ae12721326bf416093c7a021ad22d03ac5c5e0a"
+    },
+    {
+      "path": "local/python/ncp_local/data.py",
+      "bytes": 12710,
+      "sha256": "369d4903e757bd59ad20f0bdbd8910a6a12f564b2e7764ffbaa63b545c231d9c"
+    },
+    {
+      "path": "local/python/ncp_local/local-profile.v1.json",
+      "bytes": 41365,
+      "sha256": "8a800efcd3efabee00aa68c6751dc52c723569fe6db3ad54ca71943a91fb1e7b"
+    },
+    {
+      "path": "local/python/ncp_local/modular_buffer.py",
+      "bytes": 27825,
+      "sha256": "3be931c869b51cf8e79d6ca9431f501f2ac5453c844017ac4e1d5c91736a34ba"
+    },
+    {
+      "path": "local/python/ncp_local/modular_client.py",
+      "bytes": 7467,
+      "sha256": "6a90a89c0dbc80ec737fbfb8e67b76a5e690c1ae1e635d01b8298c973de0b7ff"
+    },
+    {
+      "path": "local/python/ncp_local/modular_owner.py",
+      "bytes": 26433,
+      "sha256": "35dc17dabf7184fe8808ec75e4f89436afed91e47fbdde950cb24ca49ef08786"
+    },
+    {
+      "path": "local/python/ncp_local/modular_profile.py",
+      "bytes": 17076,
+      "sha256": "e225feec0c00cf4bddfb6cd4cb0f30ac14bb9b476adeb49d6493d20104665e56"
+    },
+    {
+      "path": "local/python/ncp_local/modular_wire.py",
+      "bytes": 29658,
+      "sha256": "2944573d8a2ee020fcb3d41ae08b521f03b292a27dc26a49dd90b3a35aac2ccc"
+    },
+    {
+      "path": "local/python/ncp_local/protocol.py",
+      "bytes": 23839,
+      "sha256": "3317483be783576da9b42bb0f126b65b8b1f2ad25011d5c9bf4c3463733301c5"
+    },
+    {
+      "path": "local/python/ncp_local/py.typed",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "local/python/ncp_local/wire.py",
+      "bytes": 20092,
+      "sha256": "56e256c04c143156d40850128c6519f6a649d095ddd1ceb5b909f8013318a3cc"
+    },
+    {
+      "path": "local/rust/Cargo.lock",
+      "bytes": 4888,
+      "sha256": "9d2a93c5e624edebac4a450d2f580f8c5366f0aa57b17146996cec8cb0074620"
+    },
+    {
+      "path": "local/rust/Cargo.toml",
+      "bytes": 884,
+      "sha256": "389362bf5ab53f25d3a62c1d07b60d4da1ff3e93415f115ab11ec09ba5c6795c"
+    },
+    {
+      "path": "local/rust/LICENSE-APACHE",
+      "bytes": 11347,
+      "sha256": "bea3a5ebc1671071bb1bb157c18313a08821abd3d5e5e1915043b18cf78a0cfd"
+    },
+    {
+      "path": "local/rust/LICENSE-MIT",
+      "bytes": 1074,
+      "sha256": "faa815fa3c5afee4349c48ea3740b75d82d9e2b6f10835daf224709f00348b33"
+    },
+    {
+      "path": "local/rust/README.md",
+      "bytes": 2280,
+      "sha256": "030713a13e7d09168c24dbd11e712a4fabd88638abcc71d41ef0ee9b7797e702"
+    },
+    {
+      "path": "local/rust/examples/local_contract_probe.rs",
+      "bytes": 2987,
+      "sha256": "fc28110f4456a4098c4d613c585a0a59926cfb54ddfe3fdadab8e9664f9289f7"
+    },
+    {
+      "path": "local/rust/examples/modular_buffer_probe.rs",
+      "bytes": 8474,
+      "sha256": "9f1e6417d1b608d8d85a4b9266dbdc4f4ac7adf5bddd38aca2ec6b0e109ee7cb"
+    },
+    {
+      "path": "local/rust/examples/modular_owner_probe.rs",
+      "bytes": 558,
+      "sha256": "4ab4a374d15ac1607350824feef26a8265079005cd49ee5bc5ada2707e391801"
+    },
+    {
+      "path": "local/rust/local-profile.v1.json",
+      "bytes": 41365,
+      "sha256": "8a800efcd3efabee00aa68c6751dc52c723569fe6db3ad54ca71943a91fb1e7b"
+    },
+    {
+      "path": "local/rust/source-projection.v1.json",
+      "bytes": 8641,
+      "sha256": "9d7b8ea6ec69468ac384478cb3ff7595c466b78c808f6867dd7153afd7ae736b"
+    },
+    {
+      "path": "local/rust/src/bounded_json.rs",
+      "bytes": 17184,
+      "sha256": "ba98fa40784da4d6ac10c1d0d803041c77cd70cd02900b5a3dfeb982e0bd1550"
+    },
+    {
+      "path": "local/rust/src/canonical_digest.rs",
+      "bytes": 6672,
+      "sha256": "d72eddd2a5ea0fdb23d19bdc699b6a1c7af1580b5d6f0debc4f080433a06345f"
+    },
+    {
+      "path": "local/rust/src/lib.rs",
+      "bytes": 515,
+      "sha256": "e50c799cd8f289de37f15985760ccfa2c0a13fe47647974bbfc34f38df721198"
+    },
+    {
+      "path": "local/rust/src/local.rs",
+      "bytes": 29205,
+      "sha256": "1018977f42d0779d3218db0e676e7f1a67c21229cb09f1cc8e2d238683882619"
+    },
+    {
+      "path": "local/rust/src/local_data.rs",
+      "bytes": 19185,
+      "sha256": "ae171199dbad67f7570bb850b61b69477f513a05592f1c4ad156486efba35b37"
+    },
+    {
+      "path": "local/rust/src/modular_buffer.rs",
+      "bytes": 42592,
+      "sha256": "25083d146be74da1d64deaabd9fbfe9c34b967ff4f915bf48cc3ed8a690a3d39"
+    },
+    {
+      "path": "local/rust/src/modular_client.rs",
+      "bytes": 14276,
+      "sha256": "17928125ffd37f7f4868509aed73174e5722ef55ebdde1c0fc96e04268a80e74"
+    },
+    {
+      "path": "local/rust/src/modular_owner.rs",
+      "bytes": 46394,
+      "sha256": "7c51e7006b3a368313174f8d25eaa8b47de289ba3bf2c23a26021652469d32a6"
+    },
+    {
+      "path": "local/rust/src/modular_profile.v1.json",
+      "bytes": 16567,
+      "sha256": "af2fc13f4f231f6ee5f23744040cebacbaf56db8a3741127dd4b7c00307c5549"
+    },
+    {
+      "path": "local/rust/src/modular_wire.rs",
+      "bytes": 24034,
+      "sha256": "8e79e6e156493be6aadd7a186b415379142141fd772141e55550daee277ff2c0"
+    },
+    {
+      "path": "local/rust/tests/fixtures/local-binary64.json",
+      "bytes": 5531,
+      "sha256": "31fdf907c41dc5093e31b63c258223bf6c606a73badd88eab40b9eac926272e9"
+    },
+    {
+      "path": "local/rust/tests/fixtures/local-profile-identity.json",
+      "bytes": 358,
+      "sha256": "254956dc1659dee62e66a1f61219127d9b17a9e5a2b1a4b00dbacaa73e5a6709"
+    },
+    {
+      "path": "local/rust/tests/fixtures/modular-binary64.json",
+      "bytes": 472,
+      "sha256": "ba84d5321476601110d13fb9f2ccd1e0ba20704b0f31b260e152064e194b7476"
+    },
+    {
+      "path": "local/rust/tests/local.rs",
+      "bytes": 17753,
+      "sha256": "fed00912a2fc64c601ac729bb1de866997f16cfd562b3e6d1ee399a988d6524d"
+    },
+    {
+      "path": "local/rust/tests/local_binary64.rs",
+      "bytes": 1828,
+      "sha256": "a7a5573e3fb4ea32f1c1a669da3287dc41a89ddb10df878ac013e8b2981afaf4"
+    },
+    {
+      "path": "local/rust/tests/local_profile_contract.rs",
+      "bytes": 3665,
+      "sha256": "2a6822b4ef8c082cdfcfb27bcec4bb5e022d02e3e2c4bbb2293b8180f83f6d6d"
+    },
+    {
+      "path": "local/rust/tests/modular_buffer.rs",
+      "bytes": 14649,
+      "sha256": "44bda6ede9eff404cb6aa975f8868ff11f6dd1e7f7ca3029d2e1b0b58bf954e6"
+    },
+    {
+      "path": "local/rust/tests/modular_owner.rs",
+      "bytes": 64762,
+      "sha256": "a60445c3b8e48141d15a8766800236e212bab405c9ee943950f17f52382e516e"
+    },
+    {
+      "path": "local/rust/tests/modular_wire.rs",
+      "bytes": 8835,
+      "sha256": "fcbadbb128b59cbad60ae295b3fa0b25224b37790fd6905be2963cd06d9de224"
+    },
+    {
+      "path": "local/rust/tests/support/modular_fixture.rs",
+      "bytes": 9015,
+      "sha256": "fa1728b06524f9c4e12703d38a48df8b21c80d1bfb26c387f965ae544dc18e06"
+    }
+  ]
+}

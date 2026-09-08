@@ -1,0 +1,11 @@
+{
+  "schema": "crebain.standalone-sensor-composition.v1",
+  "producer_application_digest": "0bb5870f3e20101877516fe7521b92c24c755e56d4da5cc62a7431892801052d",
+  "roles": [
+    "producer"
+  ],
+  "capture": "absent",
+  "monitor": "absent",
+  "neural": "absent",
+  "experiment": "absent"
+}

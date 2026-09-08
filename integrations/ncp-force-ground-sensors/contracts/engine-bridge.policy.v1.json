@@ -1,0 +1,21 @@
+{
+  "schema": "crebain.sensor-engine-bridge-policy.v1",
+  "frame_length": "four-byte unsigned big-endian UTF8 payload length",
+  "max_frame_bytes": 65536,
+  "max_request_nodes": 4096,
+  "max_depth": 16,
+  "max_key_bytes": 128,
+  "pending_requests": 1,
+  "request_sequence": "strictly contiguous; starts at one; no retry after uncertain I/O",
+  "generation": "exact trusted fresh NCP generation",
+  "json": "compact; no duplicate decoded keys; canonical JSON string escaping; exact integer tokens only; no unknown fields",
+  "continuous_scalars": "only a closed {f64: sixteen lowercase hexadecimal IEEE754 binary64 big-endian bit digits} in the typed continuous slots; reject nonfinite patterns; preserve negative zero 8000000000000000",
+  "integer_scalars": "nonnegative safe integer tokens; reject booleans, fractions and negative zero",
+  "chunk_encoding": "standard canonical padded base64; raw length <=32768; exact SHA-256",
+  "process_boundary": "private CREBAIN child only; no peer endpoint or executable/path/URL fields",
+  "parent_eof": "retire owned environment; return no complete terminal success on unresolved cleanup",
+  "timeout_ms": 60000,
+  "graphics_timeout_ms": 30000,
+  "retirement_timeout_ms": 45000,
+  "external_ncp_transport": "unchanged generic SDK; only Rust endpoint is externally exposed"
+}
