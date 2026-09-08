@@ -1,8 +1,8 @@
 {
   "schema": "crebain.sensor-launcher-prerequisites.v1",
   "status": "OPEN",
-  "dependency_commit": "f341925508e8b3e54efc40e496256f03565d3a9b",
-  "dependency_tree": "0bbd853bd6dfdbb2ca78ebc0bc26cf47eb171f81",
+  "dependency_commit": "76af14fc2c2430e967973bffc96efb57db102684",
+  "dependency_tree": "8985473644f7149395a3913909b332dcfc93592f",
   "dependency_ready": false,
   "application_digest": "0bb5870f3e20101877516fe7521b92c24c755e56d4da5cc62a7431892801052d",
   "composition_digest": "0e909a703feac1afce307e249cfa00fa89df04fc599bed871405959830840c98",
