@@ -220,7 +220,9 @@ test('actual Vite cannot borrow an unrelated listener on its strict port', async
   try {
     await withViteFixture(endpoint, async (preview) => {
       await assert.rejects(preview.ready, /exited/)
-      assert.match(preview.diagnostics, /already in use/)
+      assert.equal(preview.child.exitCode, 1)
+      assert.equal(preview.child.signalCode, null)
+      assert.equal(previewReportsReady(preview.diagnostics, endpoint), false)
       assert.equal(await (await fetch(endpoint)).text(), 'unrelated')
     })
   } finally {
