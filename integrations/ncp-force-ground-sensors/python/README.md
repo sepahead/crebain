@@ -56,6 +56,54 @@ An unknown attempted tick remains separate from the last validated tick.
 An accepted terminal response can confirm reported retirement even when its subsequent acknowledgement is lost.
 That case still raises `SessionError` and returns no successful `SessionResult`.
 
+## Adaptive steps and capture ordering
+
+Use `SensorSession` when each action depends on the previous observation.
+The host supplies the policy, streams, binding, prepared configuration, and absolute deadline.
+This example uses a host-defined `choose_target` function:
+
+```python
+from crebain_ncp_sensors import SensorSession
+
+with SensorSession(reader, writer, binding, prepare, deadline=deadline) as session:
+    next_target = initial_target
+    for _ in range(prepare.planned_ticks):
+        with session.advance(next_target) as batch:
+            next_target = choose_target(batch.observation)
+        del batch
+    result = session.finish()
+```
+
+Context entry prepares the producer.
+`advance` returns only after every due payload passes the existing complete-batch checks.
+The first advance requires a `SetTarget`.
+Later calls can omit the target to hold the last accepted target.
+The host can call other optional NCP peers between body steps.
+This interface installs no policy, neural model, capture owner, or additional simulator.
+
+A `PendingBatch` exposes immutable observation data, original request bytes, and the verified typed response.
+Its normal context exit releases the source buffers.
+An explicit `release()` has the same effect and becomes a local no-op after success.
+The session rejects another advance or finish while a batch remains live.
+A copied Python handle cannot release the original batch.
+
+If capture is required, reserve its capacity before dependent neural or body mutation.
+Commit the complete batch durably before normal batch-context exit.
+The host must verify that capture result through the capture owner's contract.
+The body request still declares `capture_reservation.kind=absent` because the body does not verify a capture reservation.
+Neither context exit nor a policy return proves durable capture.
+
+An exception inside a batch context retires the client without releasing its source buffers.
+The host must close its streams and confirm engine cleanup.
+Session-context exit also retires only the client.
+Call `finish()` explicitly after the complete planned prefix to obtain a terminal result.
+Early finish and invalid local targets fail before a new write and allow correction.
+Transport uncertainty retires the client and preserves the existing failure-prefix rules.
+
+Manual calls do not advance `SessionError.last_recorded_tick` because this interface observes no recorder completion.
+Use the capture owner's own receipt for captured progress.
+The scheduled `run_session` helper preserves its original release-before-callback behavior and callback-completed prefix.
+
 ## Bytes, clocks, and identity
 
 | Modality | Exact tensor representation | Additional validation |
@@ -106,6 +154,8 @@ The schema admits 1–7200 planned ticks and up to four sensors per modality.
 Logical raw batch storage is bounded by 27,857,088 bytes across twelve payloads.
 A single payload copy adds at most 6,553,600 bytes during conversion to immutable bytes.
 Chunk scratch, SDK overhead, bounded application metadata, and host retention are separate allocations.
+The incremental session additionally retains two original request frames, each bounded by 65,536 bytes, and their schema-bounded typed response metadata.
+Callers must bound policy work and retained batches independently.
 These logical limits are not process RSS or renderer memory measurements.
 
 The selected 24-tick roster carries 4,326,400 raw bytes across 44 payloads.
