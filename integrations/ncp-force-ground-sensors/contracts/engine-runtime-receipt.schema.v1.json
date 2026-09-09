@@ -63,6 +63,9 @@
         },
         "workerPid": {
           "$ref": "#/$defs/Pid"
+        },
+        "workerRuntime": {
+          "$ref": "#/$defs/WorkerRuntime"
         }
       },
       "required": [
@@ -72,7 +75,8 @@
         "planSha256",
         "graphics",
         "distributionScope",
-        "workerPid"
+        "workerPid",
+        "workerRuntime"
       ],
       "additionalProperties": false
     },
@@ -161,6 +165,30 @@
         "scene_sha256",
         "graphics",
         "identity_scope"
+      ],
+      "additionalProperties": false
+    },
+    "WorkerRuntime": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "const": "node"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "maxLength": 64
+        },
+        "executable": {
+          "type": "string",
+          "pattern": "^/[\\x20-\\x7e]+$",
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "executable"
       ],
       "additionalProperties": false
     }

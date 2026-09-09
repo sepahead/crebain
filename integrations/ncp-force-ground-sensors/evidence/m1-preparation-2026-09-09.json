@@ -1,0 +1,37 @@
+{
+  "schema": "crebain.sensor-engineering-observation.v1",
+  "observed_date": "2026-09-09",
+  "status": "FAILED_PREPARATION",
+  "crebain_commit": "bb37b7e439cefe5b897259bfa1c2bf80515096ef",
+  "ncp_commit": "9ae64ac1a77c9cd0612284992a8711220428a6e3",
+  "workload_sha256": "f4b8cad4a9daf1f5b95abb9b03409040cd8caa67cf2e14c074a17dcc4a77ecae",
+  "producer_invoked": true,
+  "failure_stage": "prepare",
+  "diagnostic": "Closed installed schema rejected",
+  "last_validated_tick": 0,
+  "local_export_prefix": 0,
+  "payloads": 0,
+  "raw_bytes": 0,
+  "producer_returncode": 1,
+  "session_elapsed_s": 2.277456041891128,
+  "actual_cpu_executed_tick": null,
+  "source_and_installed_runtime_unchanged": true,
+  "observed_process_identities_retired": 13,
+  "root_signals_sent": 0,
+  "automatic_retry": false,
+  "receipts": {
+    "root_review_sha256": "134f7efd9e9697704d134be05e9af33b9bff8a15222dccea7f0d7c5d396074cd",
+    "session_result_sha256": "35dd61da91748566b45e8f72a68bd751857dd32e1ae9b24e289eac2e2bbf2dda",
+    "producer_stderr_sha256": "dc261aedb7f67d19b911093cdfe19003dc27f815668804ed619b4c18a5564289"
+  },
+  "source_diagnosis": "The graphics worker adds workerRuntime. The sensor Diagnostics schema and synthetic fixture omitted that member. An actual-shaped source regression reproduced the rejection.",
+  "limits": {
+    "runtime_diagnostics_captured": false,
+    "installed_qualified": false,
+    "real_time_qualified": false,
+    "capture": "absent",
+    "independent_renderer_oracle": false,
+    "scientific_validation": false,
+    "final70": "OPEN"
+  }
+}

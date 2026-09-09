@@ -21,7 +21,7 @@
     "No private path, engine endpoint, external network or file-poll data bypass"
   ],
   "operational_workload": "contracts/m1.workload.v1.json",
-  "actual_sensor_transfer": "NOT_RUN",
+  "actual_sensor_transfer": "FAILED_PREPARATION",
   "capture": "absent",
   "monitor": "absent",
   "neural": "absent",

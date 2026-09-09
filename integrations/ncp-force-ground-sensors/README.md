@@ -74,7 +74,11 @@ It runs every construction control and audits the composed Rust graph with the e
 These Linux source controls prepare no Metal renderer and grant no installed-runtime qualification.
 Publishing this integration requires the exact NCP commit to pass its owning bootstrap and become publicly available.
 
-Actual transfer remains `NOT_RUN` until source, launcher, and dependency prerequisites pass.
+The [first actual run](evidence/m1-preparation-2026-09-09.json) failed during preparation on September 9, 2026.
+It accepted no sensor tick and exported no payload.
+The graphics worker supplied `workerRuntime`; the bridge's closed diagnostic schema omitted that field.
+An actual-shaped regression reproduced the rejection. The corrected schema requires its three closed fields.
+The failed run remains retained. A new native run must qualify the correction before any transfer claim.
 The [launcher prerequisite roster](launcher-prerequisites.v1.json) keeps those requirements separate.
 No current receipt establishes renderer isolation, maximum-scale memory, installed interoperability, or final acceptance.
 All original scientific and operational failures remain retained.
@@ -151,6 +155,8 @@ It joins the run, source, owner, scene, graphics plan, reported browser strings,
 Missing or malformed diagnostics and failed receipt writes retire the bridge before prepared publication.
 The five-second receipt-write deadline does not replace the separate retirement deadline.
 These are browser-reported strings, without loaded-code, hardware, or process-signal authority.
+The internal diagnostic also requires the Node worker's name, bounded version, and bounded absolute executable path.
+These fields grant no execution authority. The public receipt omits this local worker metadata.
 The trusted launcher must retain and independently join this receipt; ordinary sensor clients receive no diagnostic side channel.
 Retirement joins pending preparation and active environment work.
 Emergency termination of the directly owned child never confirms renderer-family cleanup.

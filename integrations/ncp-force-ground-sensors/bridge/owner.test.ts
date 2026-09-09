@@ -331,6 +331,7 @@ function syntheticRuntime(): Record<string, unknown> {
     },
     distributionScope: 'development-component',
     workerPid: 102,
+    workerRuntime: { name: 'node', version: '26.7.0', executable: '/selected/bin/node' },
   }
 }
 function runtimeSource(diagnostics: unknown = syntheticRuntime()): PreparedGraphics {
@@ -347,6 +348,42 @@ const syntheticPrepared = {
 }
 
 describe('private browser-reported runtime receipt', () => {
+  test('Node worker metadata follows the actual closed diagnostic shape', () => {
+    const worker = { name: 'node', version: '26.7.0', executable: '/selected/bin/node' }
+    const diagnostic = { ...syntheticRuntime(), workerRuntime: worker }
+    expect(() => validateFrozen('Diagnostics', diagnostic, 'runtime')).not.toThrow()
+    for (const executable of ['/another installation/node', '/' + 'x'.repeat(4095)])
+      expect(() =>
+        validateFrozen(
+          'Diagnostics',
+          { ...diagnostic, workerRuntime: { ...worker, executable } },
+          'runtime'
+        )
+      ).not.toThrow()
+    const malformed: unknown[] = [null, {}, { ...worker, extra: true }]
+    for (const name of Object.keys(worker)) {
+      const incomplete: Record<string, unknown> = { ...worker }
+      delete incomplete[name]
+      malformed.push(incomplete)
+    }
+    malformed.push({ ...worker, name: 'bun' })
+    for (const version of ['', '26', '26.7', '26.7.0\n', 'v26.7.0', '1'.repeat(65)])
+      malformed.push({ ...worker, version })
+    for (const executable of [
+      '',
+      'relative/node',
+      '/',
+      '/bad\nnode',
+      '/é/node',
+      '/' + 'x'.repeat(4096),
+    ])
+      malformed.push({ ...worker, executable })
+    for (const workerRuntime of malformed)
+      expect(() =>
+        validateFrozen('Diagnostics', { ...diagnostic, workerRuntime }, 'runtime')
+      ).toThrow()
+  })
+
   test('complete receipt writes once before prepared and retains closed joins', async () => {
     const events: string[] = []
     await publishPreparedRuntime(
