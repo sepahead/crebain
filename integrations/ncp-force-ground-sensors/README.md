@@ -74,13 +74,26 @@ It runs every construction control and audits the composed Rust graph with the e
 These Linux source controls prepare no Metal renderer and grant no installed-runtime qualification.
 Publishing this integration requires the exact NCP commit to pass its owning bootstrap and become publicly available.
 
-The [first actual run](evidence/m1-preparation-2026-09-09.json) failed during preparation on September 9, 2026.
-It accepted no sensor tick and exported no payload.
-The graphics worker supplied `workerRuntime`; the bridge's closed diagnostic schema omitted that field.
-An actual-shaped regression reproduced the rejection. The corrected schema requires its three closed fields.
-The failed run remains retained. A new native run must qualify the correction before any transfer claim.
+The [native engineering run](evidence/m1-transfer-2026-09-09.json) passed on September 9, 2026, at CREBAIN commit `8060fba6ec5230ed747292e9064dc46ee1fca31a`.
+An independent Python reader received all 24 ticks, 44 payloads, 168 chunks, and 4,326,400 bytes through NCP.
+Every reopened payload matched its complete producer byte commitment. The terminal confirmed engine retirement; all 13 observed process identities retired.
+
+| Modality | Received data | Raw bytes |
+| --- | --- | --- |
+| RGB | 12 frames × 320 × 240 pixels × 4 bytes | 3,686,400 |
+| Thermal radiance | 8 frames × 160 × 120 values × 4 bytes | 614,400 |
+| Pressure | 3,200 samples × 8 bytes | 25,600 |
+
+The 24 body ticks represent 0.2 simulated second at 120 ticks per second.
+The unpaced session took 6.62 seconds, including preparation, transfer, local file synchronization, and retirement.
+This result does not establish real-time performance, an independent renderer oracle, or durable Prisoma capture.
+
+The [first run](evidence/m1-preparation-2026-09-09.json) failed during preparation and remains retained.
+The graphics worker adds `workerRuntime`; the bridge's diagnostic schema had omitted that field.
+A regression using the worker's field roster reproduced the rejection. The corrected schema requires its three closed fields.
+The successful run kept the original workload, deadlines, and payload requirements.
 The [launcher prerequisite roster](launcher-prerequisites.v1.json) keeps those requirements separate.
-No current receipt establishes renderer isolation, maximum-scale memory, installed interoperability, or final acceptance.
+Renderer isolation, maximum-scale memory, failure recovery, and complete installed qualification remain open.
 All original scientific and operational failures remain retained.
 The final 70 requirements remain open.
 

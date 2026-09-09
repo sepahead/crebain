@@ -33,7 +33,8 @@ The [0.9 release decision](docs/NARROWED_GO_0.9.0.md) and its remaining exclusio
 | [Local NCP body](docs/NATIVE_NCP_SIMULATION.md) | Private-process kinematics, Kalman observations, actual application and innovation evidence | Separate 1–3-entity scalar profile; does not transport city images, pressure, or thermal arrays |
 
 The optional [typed sensor application](integrations/ncp-force-ground-sensors/README.md) is a separate construction candidate.
-Its installed sensor transfer remains unqualified.
+Its first successful native run transferred all 44 RGB, thermal, and pressure payloads through NCP to an independent Python reader.
+Renderer loss, parent loss, delayed preparation, and failed cleanup still need qualification.
 
 The native environment requires no Engram, Prisoma, Galadriel, NCP, ROS, or Gazebo process.
 The scalar NCP body reuses a different project-local kernel.

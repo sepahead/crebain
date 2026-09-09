@@ -1,0 +1,447 @@
+{
+  "schema": "crebain.sensor-engineering-observation.v1",
+  "observed_date": "2026-09-09",
+  "status": "PASS_EXACT_RETURNED_SENSOR_BYTES",
+  "crebain_commit": "8060fba6ec5230ed747292e9064dc46ee1fca31a",
+  "ncp_commit": "9ae64ac1a77c9cd0612284992a8711220428a6e3",
+  "workload_sha256": "f4b8cad4a9daf1f5b95abb9b03409040cd8caa67cf2e14c074a17dcc4a77ecae",
+  "prior_failure": "m1-preparation-2026-09-09.json",
+  "planned_ticks": 24,
+  "completed_ticks": 24,
+  "body_ticks_per_second": 120,
+  "simulated_seconds": 0.2,
+  "payloads": 44,
+  "chunks": 168,
+  "raw_bytes": 4326400,
+  "modalities": {
+    "rgba8": {
+      "frames": 12,
+      "shape": [240, 320, 4],
+      "bytes": 3686400
+    },
+    "radiance": {
+      "frames": 8,
+      "shape": [120, 160],
+      "bytes": 614400,
+      "unit": "W/(m2 sr)"
+    },
+    "pressure": {
+      "windows": 24,
+      "samples": 3200,
+      "bytes": 25600,
+      "sample_rate_hz": 16000,
+      "unit": "pascal"
+    }
+  },
+  "session_elapsed_s": 6.619216208811849,
+  "session_elapsed_scope": "Includes preparation, transfer, local export, and normal retirement; unpaced; no real-time claim",
+  "reported_runtime": {
+    "plan_sha256": "96e1470673a5f0705fa6ce4a16c42a49d82a51165c6c5d48781b0b3f1aa329cf",
+    "browser_version": "151.0.7922.34",
+    "webgl_version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+    "vendor": "Google Inc. (Apple)"
+  },
+  "terminal_engine_retirement": "confirmed",
+  "source_and_runtime_unchanged": true,
+  "observed_process_identities_retired": 13,
+  "root_signals_sent": 0,
+  "receipts": {
+    "root_review_sha256": "11b1e2149526bbd2624b5dcc67d255db3002a5512f3dde829e8a5c2dfbda268b",
+    "launch_result_sha256": "789b6c6cfb4386ed51ed608cdde358ef0ea69c832673b9063b63a0f58d15582e",
+    "session_result_sha256": "b6335d7ab84ba7e2e799b9f6a212ef344b5035cfb12dd008f7a8816414065be6",
+    "runtime_receipt_sha256": "e33280c97d21a17b673681ac3775549783652b35ab9395adeab727f481f343f2",
+    "payload_review_sha256": "ded211934f8e9d864929afb8a4876b9d64470680136ce4c639b97c3bfecf1f5d",
+    "retirement_sha256": "0e34acec743519f8b8e6d0e132c8539e139fe0fa2f2a9a0bf90bfabe44ba2d02"
+  },
+  "descriptive_statistics": {
+    "scope": "descriptive values only; no calibration or quality threshold",
+    "rgba_distinct_byte_values": 44,
+    "unique_payload_hashes": {
+      "rgba8": 12,
+      "radiance": 8,
+      "pressure": 24
+    },
+    "pressure": {
+      "samples": 3200,
+      "sample_rate_hz": 16000,
+      "unit": "pascal",
+      "minimum": -0.05931354965627434,
+      "maximum": 0.05867357597282213,
+      "mean": -0.00012102003581430167,
+      "rms": 0.02075174797704849
+    },
+    "radiance": {
+      "values": 153600,
+      "unit": "W/(m2 sr)",
+      "minimum": 133.29733276367188,
+      "maximum": 134.70387268066406
+    }
+  },
+  "payload_manifest": [
+    {
+      "tick": 1,
+      "sensor_id": "pressure:mic-a",
+      "kind": "pressure",
+      "bytes": 1064,
+      "chunks": 1,
+      "sha256": "b233ffd7e870596cae06c612d3a71ea5b8353867f7914b7ee9686e12167e21f4"
+    },
+    {
+      "tick": 2,
+      "sensor_id": "rgb:rgb-a",
+      "kind": "rgba8",
+      "bytes": 307200,
+      "chunks": 10,
+      "sha256": "c5bb5ab563e3b5040987a92505b2e960a5366484d1f20cf4aaf8f0a77df65264"
+    },
+    {
+      "tick": 2,
+      "sensor_id": "pressure:mic-a",
+      "kind": "pressure",
+      "bytes": 1064,
+      "chunks": 1,
+      "sha256": "3a80be07675ccdcc5717733edf0f1664d9b58f7754dd4121f70955c8ff9283b6"
+    },
+    {
+      "tick": 3,
+      "sensor_id": "thermal:thermal-a",
+      "kind": "radiance",
+      "bytes": 76800,
+      "chunks": 3,
+      "sha256": "dc85a90a1c1b58c6472bf960083dd6c625af1b6de0735157e6c36f052727b4ce"
+    },
+    {
+      "tick": 3,
+      "sensor_id": "pressure:mic-a",
+      "kind": "pressure",
+      "bytes": 1072,
+      "chunks": 1,
+      "sha256": "34b8f9f75259636d7f459c5565a912e06f7167dc99104b2b566a069b3b9b2a62"
+    },
+    {
+      "tick": 4,
+      "sensor_id": "rgb:rgb-a",
+      "kind": "rgba8",
+      "bytes": 307200,
+      "chunks": 10,
+      "sha256": "d4a1847d9e9ac4880bed1163fdd6fb326b89bcf35213a7f6bc71ba3d2ab86563"
+    },
+    {
+      "tick": 4,
+      "sensor_id": "pressure:mic-a",
+      "kind": "pressure",
+      "bytes": 1064,
+      "chunks": 1,
+      "sha256": "e89c1de5b4729cd0c1bb57b9b89b7964165cbaca5c3cad59a255a217b006f2cb"
+    },
+    {
+      "tick": 5,
+      "sensor_id": "pressure:mic-a",
+      "kind": "pressure",
+      "bytes": 1064,
+      "chunks": 1,
+      "sha256": "1968aaf3b9a7e4f807b6134250b18535e4a648f7c3d8799a73da1b95b5b79d97"
+    },
+    {
+      "tick": 6,
+      "sensor_id": "rgb:rgb-a",
+      "kind": "rgba8",
+      "bytes": 307200,
+      "chunks": 10,
+      "sha256": "7e1abb36498d22f42449e4b1922d94e819f2c4c13f3f597226725129221f6d4b"
+    },
+    {
+      "tick": 6,
+      "sensor_id": "thermal:thermal-a",
+      "kind": "radiance",
+      "bytes": 76800,
+      "chunks": 3,
+      "sha256": "38e42e69a2c628fb2fcc7f87e6af138b2781297e763e3c138e699418845edbf2"
+    },
+    {
+      "tick": 6,
+      "sensor_id": "pressure:mic-a",
+      "kind": "pressure",
+      "bytes": 1072,
+      "chunks": 1,
+      "sha256": "a5f85e10abebcba3c9a79bc719abcf41d56f920d8d51ad2e1b7c7c700a46b6ca"
+    },
+    {
+      "tick": 7,
+      "sensor_id": "pressure:mic-a",
+      "kind": "pressure",
+      "bytes": 1064,
+      "chunks": 1,
+      "sha256": "197b1087099250faebf4b7dead5a82a6de3d1d15936e62b3930cd858383d6bf8"
+    },
+    {
+      "tick": 8,
+      "sensor_id": "rgb:rgb-a",
+      "kind": "rgba8",
+      "bytes": 307200,
+      "chunks": 10,
+      "sha256": "fc54aae6b2626d61e034724bd362fdc7243b907081a57fe8adc06460ba115fb4"
+    },
+    {
+      "tick": 8,
+      "sensor_id": "pressure:mic-a",
+      "kind": "pressure",
+      "bytes": 1064,
+      "chunks": 1,
+      "sha256": "3c9b3dad62592bac4da96a573ca960e7c41ab843d178ba9746976362f2c0ddd3"
+    },
+    {
+      "tick": 9,
+      "sensor_id": "thermal:thermal-a",
+      "kind": "radiance",
+      "bytes": 76800,
+      "chunks": 3,
+      "sha256": "fa61b8705a2b8f4ee35aef82577d30f8f39c55f0ca65336ce791985822fef6a7"
+    },
+    {
+      "tick": 9,
+      "sensor_id": "pressure:mic-a",
+      "kind": "pressure",
+      "bytes": 1072,
+      "chunks": 1,
+      "sha256": "5ee538036d38af5f5fad29bc42e9d909058ebaf8d486c0568d24cd9be7c1db32"
+    },
+    {
+      "tick": 10,
+      "sensor_id": "rgb:rgb-a",
+      "kind": "rgba8",
+      "bytes": 307200,
+      "chunks": 10,
+      "sha256": "149f8608f5f3a2bf12f381377757a028fb0e354c6fc1ff92d0ced243958eebcb"
+    },
+    {
+      "tick": 10,
+      "sensor_id": "pressure:mic-a",
+      "kind": "pressure",
+      "bytes": 1064,
+      "chunks": 1,
+      "sha256": "9f7c9f5883299bcd78077632d88d864d9c51dd3819245daba6398264407140fb"
+    },
+    {
+      "tick": 11,
+      "sensor_id": "pressure:mic-a",
+      "kind": "pressure",
+      "bytes": 1064,
+      "chunks": 1,
+      "sha256": "4fed125534037d1d1a09a8f546b5ac206ad8d9e782b8a45a40648f580815db96"
+    },
+    {
+      "tick": 12,
+      "sensor_id": "rgb:rgb-a",
+      "kind": "rgba8",
+      "bytes": 307200,
+      "chunks": 10,
+      "sha256": "7d67abd10adce23f72de597e9250ae8beee39e8df500fb4249fb7663b4eab748"
+    },
+    {
+      "tick": 12,
+      "sensor_id": "thermal:thermal-a",
+      "kind": "radiance",
+      "bytes": 76800,
+      "chunks": 3,
+      "sha256": "76b263e099900bf78f392232d52c9f280cacb41deef10ac9d8aafe3c3254fced"
+    },
+    {
+      "tick": 12,
+      "sensor_id": "pressure:mic-a",
+      "kind": "pressure",
+      "bytes": 1072,
+      "chunks": 1,
+      "sha256": "51b0abf81c3f78fe5d6dd356208603c8f843d6027469d3ed97dff0521b3aaa1b"
+    },
+    {
+      "tick": 13,
+      "sensor_id": "pressure:mic-a",
+      "kind": "pressure",
+      "bytes": 1064,
+      "chunks": 1,
+      "sha256": "bdd83548b70865aaec6b6822dc69b6a0ac8f24833a055029c638c72dc12a50b1"
+    },
+    {
+      "tick": 14,
+      "sensor_id": "rgb:rgb-a",
+      "kind": "rgba8",
+      "bytes": 307200,
+      "chunks": 10,
+      "sha256": "dc4e4b1dfcfb22b6e37bd02f41b21903994b2722c207cba3bfa24445bc38ea7d"
+    },
+    {
+      "tick": 14,
+      "sensor_id": "pressure:mic-a",
+      "kind": "pressure",
+      "bytes": 1064,
+      "chunks": 1,
+      "sha256": "e1573a808d8fc2f84757094bea866ae6680859c7feee3c18d2f9c5ab12724b0e"
+    },
+    {
+      "tick": 15,
+      "sensor_id": "thermal:thermal-a",
+      "kind": "radiance",
+      "bytes": 76800,
+      "chunks": 3,
+      "sha256": "a82889873984a0879a22e2d0c6fb6aad7c795b4612c1bc7524c5adf51f177e1d"
+    },
+    {
+      "tick": 15,
+      "sensor_id": "pressure:mic-a",
+      "kind": "pressure",
+      "bytes": 1072,
+      "chunks": 1,
+      "sha256": "a668770473fee70e3f6a22c9704625cf5a130d8858d1c50c7e2207806a414de3"
+    },
+    {
+      "tick": 16,
+      "sensor_id": "rgb:rgb-a",
+      "kind": "rgba8",
+      "bytes": 307200,
+      "chunks": 10,
+      "sha256": "f1469789a65501cc0f4b30d8dd3a76bfd89998a1cf5b90706b0e5ec3c2c32959"
+    },
+    {
+      "tick": 16,
+      "sensor_id": "pressure:mic-a",
+      "kind": "pressure",
+      "bytes": 1064,
+      "chunks": 1,
+      "sha256": "a9818bdad14a90c60595a9bc77aa7be8756c94cbedbf7e9adb3d5e0a3fbfda8e"
+    },
+    {
+      "tick": 17,
+      "sensor_id": "pressure:mic-a",
+      "kind": "pressure",
+      "bytes": 1064,
+      "chunks": 1,
+      "sha256": "b8edd04a05810e4e8e3d6a1cabdc03d8bb7142b2a3cf40902facd38c0e48048d"
+    },
+    {
+      "tick": 18,
+      "sensor_id": "rgb:rgb-a",
+      "kind": "rgba8",
+      "bytes": 307200,
+      "chunks": 10,
+      "sha256": "7f6d6f90e5b9a4985aabae8fd8d9f8175ea7bf25642980bd5a5018fa2492424a"
+    },
+    {
+      "tick": 18,
+      "sensor_id": "thermal:thermal-a",
+      "kind": "radiance",
+      "bytes": 76800,
+      "chunks": 3,
+      "sha256": "f49a28f6f754da71f29b76ae2475148377a88c1c5e93bb89dfaf89b75d9638ad"
+    },
+    {
+      "tick": 18,
+      "sensor_id": "pressure:mic-a",
+      "kind": "pressure",
+      "bytes": 1072,
+      "chunks": 1,
+      "sha256": "ddc89f6cede949482c1240484337de31ee63a3bc5cdaccac8b8a28564e696797"
+    },
+    {
+      "tick": 19,
+      "sensor_id": "pressure:mic-a",
+      "kind": "pressure",
+      "bytes": 1064,
+      "chunks": 1,
+      "sha256": "86a800ed2cd0a1aa901e9609df3be1c5f15c6fc9db02ddba42a9102a978a3f27"
+    },
+    {
+      "tick": 20,
+      "sensor_id": "rgb:rgb-a",
+      "kind": "rgba8",
+      "bytes": 307200,
+      "chunks": 10,
+      "sha256": "e94d7817e06d1940e61cdd05e2d2e1086439816438da95b20b10fe34058c0f96"
+    },
+    {
+      "tick": 20,
+      "sensor_id": "pressure:mic-a",
+      "kind": "pressure",
+      "bytes": 1064,
+      "chunks": 1,
+      "sha256": "97aee7a990bdac3ddb7b2887c75a78403b4a3e05669019893fd98073bdb9c2b8"
+    },
+    {
+      "tick": 21,
+      "sensor_id": "thermal:thermal-a",
+      "kind": "radiance",
+      "bytes": 76800,
+      "chunks": 3,
+      "sha256": "e12293d83c163eec3f37a11b6d430c2d31899f26a657f28e083d147ff2d629c2"
+    },
+    {
+      "tick": 21,
+      "sensor_id": "pressure:mic-a",
+      "kind": "pressure",
+      "bytes": 1072,
+      "chunks": 1,
+      "sha256": "ca4ed1df61c71d72e06348d0fa27bd992048245f418c86bf5a990743b7fd7faa"
+    },
+    {
+      "tick": 22,
+      "sensor_id": "rgb:rgb-a",
+      "kind": "rgba8",
+      "bytes": 307200,
+      "chunks": 10,
+      "sha256": "f940327960c2c883c360e8f54aeb451534d34db1fb99c7661ed5d231e49f5512"
+    },
+    {
+      "tick": 22,
+      "sensor_id": "pressure:mic-a",
+      "kind": "pressure",
+      "bytes": 1064,
+      "chunks": 1,
+      "sha256": "eed0b9003ea4514229a351595563f4fee55e2aaa967a939c084f8ac0ad43413d"
+    },
+    {
+      "tick": 23,
+      "sensor_id": "pressure:mic-a",
+      "kind": "pressure",
+      "bytes": 1064,
+      "chunks": 1,
+      "sha256": "1d9b3e9664e4c826eea8a48daa9fa7aa7edc3f4640a8e2174543b0a9e6d5285d"
+    },
+    {
+      "tick": 24,
+      "sensor_id": "rgb:rgb-a",
+      "kind": "rgba8",
+      "bytes": 307200,
+      "chunks": 10,
+      "sha256": "39dc5630a98e79653ed08a08dd5421c23c2e83a13c7bfc9e394cff40d1fbcdbf"
+    },
+    {
+      "tick": 24,
+      "sensor_id": "thermal:thermal-a",
+      "kind": "radiance",
+      "bytes": 76800,
+      "chunks": 3,
+      "sha256": "73f26cebddb82c1c1fb2c1c41a153b1c0fe3c72ba9ec456ed1896b3d90bf3e7e"
+    },
+    {
+      "tick": 24,
+      "sensor_id": "pressure:mic-a",
+      "kind": "pressure",
+      "bytes": 1072,
+      "chunks": 1,
+      "sha256": "326e9d2c4259802f32bc215a6136861050a084b65a05f893980ed26a408bb453"
+    }
+  ],
+  "limits": {
+    "capture": "absent",
+    "neural": "absent",
+    "monitor": "absent",
+    "native_lifetime_controls": "OPEN",
+    "independent_renderer_oracle": false,
+    "runtime_identity_scope": "browser-reported-strings-not-loaded-code-or-hardware-proof",
+    "installed_qualified": false,
+    "real_time_qualified": false,
+    "scientific_validation": false,
+    "final70": "OPEN"
+  }
+}
