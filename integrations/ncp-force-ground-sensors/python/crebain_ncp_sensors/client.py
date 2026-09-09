@@ -6,7 +6,7 @@ import math
 import time
 from collections.abc import Callable, Sequence
 from contextlib import contextmanager
-from typing import BinaryIO
+from typing import BinaryIO, Protocol
 
 from ncp_local import modular_wire as w
 from ncp_local.modular_client import Client
@@ -14,6 +14,19 @@ from ncp_local.modular_client import Client
 from . import codec as c
 from . import types as t
 from .contract import SensorContract
+
+
+class Exchange(Protocol):
+    """Host-supplied transport boundary; returns one original response frame."""
+
+    def __call__(
+        self,
+        request: bytes,
+        reader: BinaryIO,
+        writer: BinaryIO,
+        *,
+        deadline: float,
+    ) -> bytes: ...
 
 
 class SessionError(RuntimeError):
@@ -107,15 +120,18 @@ class SensorSession:
         prepare: t.Prepare,
         *,
         deadline: float,
+        exchange: Exchange | None = None,
     ) -> None:
         c.require(
             type(deadline) in (int, float)
             and math.isfinite(deadline)
             and deadline > time.monotonic()
         )
+        c.require(exchange is None or callable(exchange))
         SensorContract.check_input(w.Prepare(prepare))
         self._reader, self._writer = reader, writer
         self._plan, self._deadline = prepare, deadline
+        self._exchange = exchange
         self._client = Client(binding, SensorContract)
         self._prepared = self._prepare_request = self._prepare_response = None
         self._pending = self._completed = None
@@ -164,16 +180,33 @@ class SensorSession:
 
     def _execute(self, operation: w.Operation) -> tuple[bytes, w.Response]:
         request = self._client.begin(operation)
-        response = self._client.dispatch(
-            self._reader, self._writer, deadline=self._deadline
-        )
+        if self._exchange is None:
+            response = self._client.dispatch(
+                self._reader, self._writer, deadline=self._deadline
+            )
+        else:
+            response = self._client.observe(
+                self._exchange(
+                    request, self._reader, self._writer, deadline=self._deadline
+                )
+            )
         c.require(response.outcome is w.Outcome.COMMITTED, "binding")
         return request, response
 
     def _acknowledge(self) -> None:
-        response = self._client.dispatch_acknowledgement(
-            self._reader, self._writer, deadline=self._deadline
-        )
+        if self._exchange is None:
+            response = self._client.dispatch_acknowledgement(
+                self._reader, self._writer, deadline=self._deadline
+            )
+        else:
+            response = self._client.observe_acknowledgement(
+                self._exchange(
+                    self._client.acknowledgement(),
+                    self._reader,
+                    self._writer,
+                    deadline=self._deadline,
+                )
+            )
         c.require(response.outcome is w.Outcome.ACKNOWLEDGED, "binding")
 
     def prepare(self) -> t.Prepared:
@@ -311,11 +344,13 @@ def run_session(
     recorder: Callable[[t.BatchObservation], None],
     *,
     deadline: float,
+    exchange: Exchange | None = None,
 ) -> t.SessionResult:
     """Validate the full schedule, then release each batch before its callback.
 
-    The host owns streams, cleanup, and callback bounds. Use SensorSession when
-    actions depend on observations or capture must precede source-buffer release.
+    The host owns streams, cleanup, and callback bounds. An optional exchange
+    function can capture original frames before source-buffer release. Use
+    SensorSession for observation-dependent actions or explicit release timing.
     """
     SensorContract.check_input(w.Prepare(prepare))
     c.require(
@@ -332,7 +367,9 @@ def run_session(
         schedule[tick] = target
         prior = tick
     c.require(1 in schedule and callable(recorder))
-    with SensorSession(reader, writer, binding, prepare, deadline=deadline) as session:
+    with SensorSession(
+        reader, writer, binding, prepare, deadline=deadline, exchange=exchange
+    ) as session:
         for tick in range(1, prepare.planned_ticks + 1):
             batch = session.advance(schedule.get(tick))
             batch.release()

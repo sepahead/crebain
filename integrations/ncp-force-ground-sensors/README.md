@@ -18,6 +18,8 @@ The native observation lease remains live until all outputs seal.
 The incremental Python client exposes a complete validated batch while its source buffers remain live.
 The caller can inspect observations and choose the next action before explicit release.
 The scheduled helper releases buffers before invoking its local recorder.
+An optional host exchange function can capture original NCP frames before dispatch and before the client receives each response.
+This includes every sensor read before its source buffer is released.
 These separate releases establish no durable capture claim.
 
 [Open the original SVG](../../assets/diagrams/ncp-sensor-transfer.svg).
@@ -121,6 +123,16 @@ All observed process identities retired: fourteen for the scheduled case and six
 The fixed policy tests interface causality. It supplies no tracking, world-model, or stability result.
 These unpaced durations include preparation, transfer, file synchronization, and retirement; they are not a comparative latency benchmark.
 The [Python calling guide](python/README.md#adaptive-steps-and-capture-ordering) defines batch ownership and optional capture ordering.
+
+### Optional transcript capture
+
+`SensorSession` and `run_session` accept one host-supplied exchange function.
+The [capture example](python/README.md#capture-original-ncp-exchanges) uses Prisoma without adding it to CREBAIN's dependencies.
+The SDK validates all replies and acknowledgements through the selected function.
+Capture failure stops the client and preserves its observed prefix without retry.
+The host retains responsibility for process cleanup and callback resource bounds.
+Synthetic controls cover complete transfer, failures around execution, malformed replies, refused acknowledgements, and capture before release.
+These controls qualify the source interface only; native Prisoma capture remains open.
 
 ## Closed application contract
 

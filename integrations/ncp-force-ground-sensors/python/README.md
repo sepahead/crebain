@@ -12,6 +12,7 @@ No peer request accepts a filesystem path, executable, URL, or installation opti
 ## Calling contract
 
 Call `run_session(reader, writer, binding, prepare, actions, recorder, deadline=deadline)` with trusted, already-open binary streams.
+Both `run_session` and `SensorSession` accept an optional `exchange` function for host-selected capture.
 The deadline is an absolute `time.monotonic()` value.
 The host owns both streams, the engine, cancellation, and confirmed cleanup.
 Frame operations use the unchanged SDK deadline checks.
@@ -107,6 +108,67 @@ Transport uncertainty retires the client and preserves the existing failure-pref
 Manual calls do not advance `SessionError.last_recorded_tick` because this interface observes no recorder completion.
 Use the capture owner's own receipt for captured progress.
 The scheduled `run_session` helper preserves its original release-before-callback behavior and callback-completed prefix.
+
+### Capture original NCP exchanges
+
+The optional `exchange` function receives original request bytes, both streams, and the absolute deadline.
+It returns one original response frame.
+The SDK validates that response before the session accepts it.
+The function also handles acknowledgements, buffer reads, releases, preparation, and finish.
+Without a function, the session uses its existing SDK transport.
+CREBAIN installs no capture package and requires no additional peer.
+
+The following example selects the [Prisoma transcript package](https://github.com/sepahead/prisoma/tree/main/integrations/ncp-transcript).
+It assumes the documented 24-tick M1 configuration, its target schedule, and host-owned streams.
+The parent directory must already exist and remain trusted by the host.
+The journal path must be new.
+
+```python
+from functools import partial
+
+from crebain_ncp_sensors import SensorContract, run_session
+from prisoma_ncp_transcript import Journal, Peer, verify
+
+peers = (Peer(binding, SensorContract),)
+with Journal(
+    journal_path,
+    peers,
+    max_exchanges=512,
+    quota_bytes=72 * 1024**2,
+) as journal:
+    result = run_session(
+        reader,
+        writer,
+        binding,
+        prepare,
+        actions,
+        recorder,
+        deadline=deadline,
+        exchange=partial(journal.exchange, binding.endpoint_id),
+    )
+    capture = journal.finish()
+
+assert verify(journal_path, peers) == capture
+```
+
+The journal admits its logical limits before preparation or simulation actions.
+Its quota is a byte ceiling, not reserved physical disk space.
+For this M1 roster, 238 operations and their acknowledgements require 476 exchanges.
+The 512-exchange example leaves bounded spare capacity within its 72 MiB quota.
+Other workloads require their own exchange and storage bounds.
+
+Prisoma synchronizes each request before dispatch and each response before returning it.
+Thus, every sensor read reaches capture before its source buffer is released.
+The scheduled recorder still receives each complete observation after release.
+Its completion is independent of transcript completion.
+The body still declares `capture_reservation.kind=absent`; it grants the host no capture authority.
+
+A capture failure retires the session without retry or further release.
+An executed action whose response never reaches the client remains unobserved.
+The host owns stream closure and confirmed process retirement.
+The exchange function is trusted caller code; arbitrary callback work and filesystem synchronization have no hard deadline guarantee.
+Transcript verification checks stored exchanges, not physical fidelity or scientific validity.
+Native CREBAIN capture qualification remains open.
 
 ## Bytes, clocks, and identity
 

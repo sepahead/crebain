@@ -1,12 +1,13 @@
 """CREBAIN typed sensor reading; construction does not qualify installation."""
 
-from .client import PendingBatch, SensorSession, SessionError, run_session
+from .client import Exchange, PendingBatch, SensorSession, SessionError, run_session
 from .codec import decode
 from .contract import SensorContract
 from .types import BatchObservation, Prepare, SessionResult, SetTarget
 
 __all__ = [
     "BatchObservation",
+    "Exchange",
     "PendingBatch",
     "Prepare",
     "SensorContract",
