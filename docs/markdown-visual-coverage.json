@@ -354,7 +354,10 @@
     {
       "path": "integrations/ncp-force-ground-sensors/README.md",
       "classification": "active-technical",
-      "visuals": ["assets/diagrams/ncp-sensor-transfer.svg"]
+      "visuals": [
+        "assets/diagrams/ncp-sensor-transfer.svg",
+        "assets/diagrams/sensor-instance-timing.svg"
+      ]
     },
     {
       "path": "integrations/ncp-force-ground-sensors/python/README.md",

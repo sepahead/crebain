@@ -67,6 +67,37 @@ Larger rosters require separately qualified application and estimator bounds.
 Radar, LiDAR, inertial, and contact sensor applications remain future work.
 They need typed contracts and actual forward models; Gaussian-splat geometry alone does not define radar returns.
 
+### Native sensor selection
+
+Four [frozen native cases](evidence/selected-sensors-native-2026-09-09.json) passed on the selected M4 Max runtime at commit `660e065`.
+Each ran six body ticks, or 0.05 simulated second, through one producer and an independent Python reader.
+They used the existing M1 drone, force-ground physics, sensor models, and initial target.
+
+| Selected sensors | RGB frames | Thermal frames | Pressure samples | Raw bytes |
+| --- | --- | --- | --- | --- |
+| One RGB camera, one microphone | 3 | 0 | 800 | 928,000 |
+| Two RGB cameras, one microphone | 5 | 0 | 800 | 1,542,400 |
+| Two RGB cameras, one microphone, one thermal camera | 5 | 2 | 800 | 1,696,000 |
+| One RGB camera | 3 | 0 | 0 | 921,600 |
+
+![Two RGB cameras retain different schedules; pressure arrives each tick; thermal is optional](../../assets/diagrams/sensor-instance-timing.svg)
+
+Text alternative: `rgb-a` returns frames at ticks 2, 4, and 6; `rgb-b` returns frames at ticks 3 and 6.
+The microphone returns 133, 133, 134, 133, 133, and 134 samples.
+The optional thermal camera returns frames at ticks 3 and 6.
+Each tick has a complete batch, including configured cameras whose observations are not due.
+
+[Open the original timing SVG](../../assets/diagrams/sensor-instance-timing.svg?raw=1).
+
+The two RGB cameras retained distinct catalog identities, viewpoints, and periods.
+The camera-only case returned three valid batches with no due payloads.
+Every reopened payload matched its complete producer byte commitment.
+All 68 observed build and runtime process identities retired; source, runtime, and index bytes remained unchanged during native execution.
+
+The unpaced sessions took 2.42–3.56 seconds each, including preparation, transfer, file synchronization, and retirement.
+These selected cases do not establish real-time performance, sensor calibration, independent statistical replicates, or a PID result.
+No case loaded Prisoma, Galadriel, Engram, or PID-rs.
+
 ## Construction and qualification
 
 The construction dependency is exact NCP commit `9ae64ac1a77c9cd0612284992a8711220428a6e3`.

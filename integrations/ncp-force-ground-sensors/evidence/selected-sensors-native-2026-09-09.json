@@ -1,0 +1,178 @@
+{
+  "schema": "crebain.selected-sensors-native-observation.v1",
+  "observed_date": "2026-09-09",
+  "status": "PASS_FROZEN_FOUR_CASE_ROSTER",
+  "crebain_commit": "660e0654ffed5df2fb9c9665e50c6cbcf4e338fc",
+  "ncp_commit": "9ae64ac1a77c9cd0612284992a8711220428a6e3",
+  "api": "run_session",
+  "body_ticks_per_second": 120,
+  "simulated_seconds_per_case": 0.05,
+  "sensor_count_order": ["RGB cameras", "thermal cameras", "microphones"],
+  "base_workload_sha256": "f4b8cad4a9daf1f5b95abb9b03409040cd8caa67cf2e14c074a17dcc4a77ecae",
+  "automatic_retry": false,
+  "source_runtime_and_index_unchanged": true,
+  "shared_dynamics": "One M1 drone; zero city solids; initial M1 target held; existing force-ground physics and shared model seeds.",
+  "second_rgb_camera": {
+    "id": "rgb-b",
+    "position_m": [3, 9, -5],
+    "target_m": [0, 8, 0],
+    "width": 320,
+    "height": 240,
+    "period_ticks": 3
+  },
+  "timing": "Cameras emit when the body tick is divisible by their period. Each microphone emits samples [floor((k-1)*16000/120), floor(k*16000/120)).",
+  "session_elapsed_scope": "Unpaced preparation, actual observation generation, NCP transfer, local file synchronization, and normal retirement; not a comparative latency benchmark.",
+  "runtime_observations": {
+    "browser_version": "151.0.7922.34",
+    "webgl_version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+    "vendor": "Google Inc. (Apple)"
+  },
+  "runtime_identity_scope": "Browser-reported strings; not loaded-code or hardware attestation.",
+  "runs": [
+    {
+      "sensor_counts": [1, 0, 1],
+      "sensors": [
+        {
+          "sensor_id": "rgb:rgb-a",
+          "kind": "rgba8",
+          "observed_ticks": [2, 4, 6]
+        },
+        {
+          "sensor_id": "pressure:mic-a",
+          "kind": "pressure",
+          "observed_ticks": [1, 2, 3, 4, 5, 6]
+        }
+      ],
+      "completed_ticks": 6,
+      "payloads": 9,
+      "chunks": 36,
+      "raw_bytes": 928000,
+      "pressure_samples": 800,
+      "empty_batches": 0,
+      "session_elapsed_s": 3.5597528340294957,
+      "terminal_engine_retirement": "confirmed",
+      "observed_process_identities_retired": 12,
+      "case_sha256": "432af538d4036151d2131555e66dab0982b0a44a7dd58ff8c6fc66598ccce8d9",
+      "session_result_sha256": "ea665e78b12ef8421934c3a5ad9db91ed23ad02296c784fdd136c25787461614",
+      "runtime_receipt_sha256": "77c2aa4d9fbae29e5cf39a0dea37a1164e0ca3c1dfb956dfb4897a8ceb02a0a4",
+      "payload_comparison_sha256": "ffe22ce52a82e5a0e4a35a8bfa7db16d05809af3e2a79b8212a97564afcb7ff0"
+    },
+    {
+      "sensor_counts": [2, 0, 1],
+      "sensors": [
+        {
+          "sensor_id": "rgb:rgb-a",
+          "kind": "rgba8",
+          "observed_ticks": [2, 4, 6]
+        },
+        {
+          "sensor_id": "rgb:rgb-b",
+          "kind": "rgba8",
+          "observed_ticks": [3, 6]
+        },
+        {
+          "sensor_id": "pressure:mic-a",
+          "kind": "pressure",
+          "observed_ticks": [1, 2, 3, 4, 5, 6]
+        }
+      ],
+      "completed_ticks": 6,
+      "payloads": 11,
+      "chunks": 56,
+      "raw_bytes": 1542400,
+      "pressure_samples": 800,
+      "empty_batches": 0,
+      "session_elapsed_s": 3.1918483751360327,
+      "terminal_engine_retirement": "confirmed",
+      "observed_process_identities_retired": 11,
+      "case_sha256": "1528e4b740671792e44d5e69982d9f00c515aced9404c5b017488e0af6673fbe",
+      "session_result_sha256": "7e05c9d09b3bbd0e90e3d0e0cb4955672726e51bf933aafc6632217fcd523fdf",
+      "runtime_receipt_sha256": "6fa5fa498cf4d6bb54d263b7c2bd6c1156de4ec55854755ad9e6f0f6f2175ebf",
+      "payload_comparison_sha256": "56accd5f1226e9b03d35eabc8493db37bea06a802a7197c2817c8a1a8a17cad4"
+    },
+    {
+      "sensor_counts": [2, 1, 1],
+      "sensors": [
+        {
+          "sensor_id": "rgb:rgb-a",
+          "kind": "rgba8",
+          "observed_ticks": [2, 4, 6]
+        },
+        {
+          "sensor_id": "rgb:rgb-b",
+          "kind": "rgba8",
+          "observed_ticks": [3, 6]
+        },
+        {
+          "sensor_id": "thermal:thermal-a",
+          "kind": "radiance",
+          "observed_ticks": [3, 6]
+        },
+        {
+          "sensor_id": "pressure:mic-a",
+          "kind": "pressure",
+          "observed_ticks": [1, 2, 3, 4, 5, 6]
+        }
+      ],
+      "completed_ticks": 6,
+      "payloads": 13,
+      "chunks": 62,
+      "raw_bytes": 1696000,
+      "pressure_samples": 800,
+      "empty_batches": 0,
+      "session_elapsed_s": 3.541282792109996,
+      "terminal_engine_retirement": "confirmed",
+      "observed_process_identities_retired": 11,
+      "case_sha256": "3affc7d3ef26ef3d27cc3f3688a2320499d45528c81c999e79f92d3507e15e8c",
+      "session_result_sha256": "e6debe77623e1bba3676d81fb4db99d84464a83baeefb2705cb3446b153ac443",
+      "runtime_receipt_sha256": "8845572459b4e3ac831af8f978bcbc78e8ce2e15ebaebfbf5e9e8ec5c9259ee5",
+      "payload_comparison_sha256": "104c622baa35096664b1314ce893ceae42f5b5cfde9a6e38fc14a090b66b81b3"
+    },
+    {
+      "sensor_counts": [1, 0, 0],
+      "sensors": [
+        {
+          "sensor_id": "rgb:rgb-a",
+          "kind": "rgba8",
+          "observed_ticks": [2, 4, 6]
+        }
+      ],
+      "completed_ticks": 6,
+      "payloads": 3,
+      "chunks": 30,
+      "raw_bytes": 921600,
+      "pressure_samples": 0,
+      "empty_batches": 3,
+      "session_elapsed_s": 2.4164383329916745,
+      "terminal_engine_retirement": "confirmed",
+      "observed_process_identities_retired": 11,
+      "case_sha256": "e99020550ca74cfe35b6fefd15455fecf318e99b17f936412dcf524f60dcb6f9",
+      "session_result_sha256": "0f30244260a6bcd360f8cac5c9ae26d02d1a9189760066399cfb255099aee40a",
+      "runtime_receipt_sha256": "97c57a7df65de43601de0313fc6586a9de562e71d72c65e5cecde5216e5767dd",
+      "payload_comparison_sha256": "9b243f4b281a4b02304a07215b9b46c86d436d38798ea64711f6acd3768e77f3"
+    }
+  ],
+  "harness": {
+    "frozen_input_sha256": "9884463ff01e521d493af841d8b40541a1906bd74a0d1085057b5e4a26596b20",
+    "plan_sha256": "f029cd3db5a6d48b49b34fd2e49c34b82f605647bd543e28e9c15dcde92644c3",
+    "oracle_positive_batches": 24,
+    "oracle_damaged_rosters_rejected": 45,
+    "oracle_valid_empty_batches": 3,
+    "construction_sha256": "3e0080bc7ae48ad91c3b1f725e07a81d214da2ae281a8bd6f964bdf6be241890",
+    "producer_sha256": "fbc83e891903a41fcd39a7e6aae36fd284ab2b7b2952eb248ba59272bab79177",
+    "root_retirement_sha256": "0e7172b63d8e43eb4708b4cb9197791c6fa48236ef2b1fc1e461a758fbe490d4",
+    "all_observed_process_identities_retired": 68,
+    "root_signals_sent": 0
+  },
+  "limits": {
+    "independent_renderer_oracle": false,
+    "sensor_calibration": false,
+    "independent_statistical_replicates": false,
+    "pid_or_world_model_result": false,
+    "real_time_qualified": false,
+    "installed_ecosystem_qualified": false,
+    "final70_complete": false,
+    "fresh_independent_council": false
+  }
+}
