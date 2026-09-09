@@ -8,7 +8,7 @@
     },
     {
       "path": "src-tauri/src/lib.rs",
-      "sha256": "16251fe7b2e239e34aa3131642afb8857b010fc3683c47815f1ac3da394e14cf"
+      "sha256": "32bdbd5ad761a9d18635a192f42d6a41449707f1cbb86e41f6ec3e17ef08ae43"
     },
     {
       "path": "src-tauri/src/transport/commands.rs",

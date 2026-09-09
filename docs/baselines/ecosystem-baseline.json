@@ -347,7 +347,7 @@
     },
     {
       "path": "docs/baselines/ipc-contract-registry.json",
-      "sha256": "859f615e6bf95f2d2b2726929ba8ca3e6032d2779e9d6cad49826080d738095f"
+      "sha256": "18387ae9d8a98ef9b0e9c5495f634fb29ce63b15c953d3923f750b1d41e274b4"
     },
     {
       "path": "scripts/generate-ipc-contract-registry.mjs",

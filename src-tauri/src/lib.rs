@@ -2330,12 +2330,16 @@ mod tests {
                     .unwrap();
 
                 task.abort();
+                // Observe cancellation before releasing work that could complete the command.
+                let cancelled = matches!(
+                    task.await,
+                    Err(tauri::Error::JoinError(error)) if error.is_cancelled()
+                );
                 let rejected_while_blocking = matches!(
                     admission.try_reserve(1),
                     Err(NativeDetectionAdmissionRejection::ConcurrentJobLimit)
                 );
                 release_tx.send(()).unwrap();
-                let cancelled = task.await.is_err();
                 let released = tokio::time::timeout(std::time::Duration::from_secs(2), async {
                     while admission.in_flight() != (0, 0) {
                         tokio::time::sleep(std::time::Duration::from_millis(5)).await;
