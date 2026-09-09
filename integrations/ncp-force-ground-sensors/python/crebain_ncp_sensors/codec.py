@@ -13,8 +13,8 @@ from ncp_local import modular_wire as w
 
 from . import types as t
 
-APPLICATION_DIGEST = "0bb5870f3e20101877516fe7521b92c24c755e56d4da5cc62a7431892801052d"
-COMPOSITION_DIGEST = "0e909a703feac1afce307e249cfa00fa89df04fc599bed871405959830840c98"
+APPLICATION_DIGEST = "e49f1b607458c1953302d370408d2ca8c12ca9a918d72689e1d21ae88058db1e"
+COMPOSITION_DIGEST = "861a17b6ce758178db21a89a409ec3988a0e6301c99e777298dde3905e4ef396"
 SENSOR_DIGESTS = {
     "rgba8": "b07ecbee4fc8e22e322971b0c4082cd54ac8d19b617c591ef2fc7451b066a93f",
     "radiance": "de342271b445443d44a5cecac93250951905ff2c9f3703127bf175d24d32eaac",
@@ -22,7 +22,7 @@ SENSOR_DIGESTS = {
 }
 MAX_BATCH_BYTES = 27_857_088
 MAX_BATCH_CHUNKS = 856
-_ROOT = Path(__file__).resolve().parents[2] / "contracts"
+_ROOT = Path(__file__).resolve().parent / "contracts"
 
 
 def require(condition: bool, code: str = "wire") -> None:
@@ -160,6 +160,7 @@ def verify_commitment(kind: str, value: Any, maximum: int) -> None:
 
 
 def validate_specification(spec: t.Specification) -> None:
+    require(bool(spec.scene.rgbCameras or spec.scene.thermalCameras or spec.scene.microphones))
     for roster in (spec.scene.materials, spec.scene.rgbCameras, spec.scene.thermalCameras, spec.scene.microphones):
         require(all(left.id < right.id for left, right in zip(roster, roster[1:])))
     for camera in (*spec.scene.rgbCameras, *spec.scene.thermalCameras):
@@ -208,6 +209,8 @@ def validate_batch_envelope(batch: t.SensorBatch, context: Any) -> None:
     total_bytes = total_chunks = 0
     for slot in batch.slots:
         if type(slot) is t.NotDue:
+            require(not slot.sensor_id.startswith("pressure:"), "binding")
+            require(slot.next_due_tick is None or slot.next_due_tick > batch.body_tick, "binding")
             continue
         manifest, byte_manifest = slot.typed_manifest, slot.byte_manifest
         verify_commitment("manifest", manifest, 2_048)

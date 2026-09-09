@@ -150,6 +150,9 @@ pub fn validate_prepare(prepare: &Prepare) -> Result<(), ModularError> {
     let scene = &spec.scene;
     let cameras = scene.rgb_cameras.iter().chain(&scene.thermal_cameras);
     if prepare.composition_digest != contract::composition_digest()?
+        || (scene.rgb_cameras.is_empty()
+            && scene.thermal_cameras.is_empty()
+            && scene.microphones.is_empty())
         || !sorted(scene.materials.iter().map(|v| v.id.as_str()))
         || !sorted(scene.rgb_cameras.iter().map(|v| v.id.as_str()))
         || !sorted(scene.thermal_cameras.iter().map(|v| v.id.as_str()))
@@ -660,21 +663,15 @@ impl<E: EnginePort> Contract for SensorApplication<E> {
                         {
                             return Err(ModularError::Wire);
                         }
-                    } else if let SensorSlot::NotDue {
-                        next_due_tick: Some(next),
-                        ..
-                    } = slot
-                    {
-                        if *next <= c.tick {
+                    } else if let SensorSlot::NotDue { next_due_tick, .. } = slot {
+                        if id.starts_with("pressure:")
+                            || next_due_tick.is_some_and(|next| next <= c.tick)
+                        {
                             return Err(ModularError::Wire);
                         }
                     }
                 }
-                if total_bytes == 0
-                    || total_bytes > 27_857_088
-                    || total_chunks == 0
-                    || total_chunks > 856
-                {
+                if total_bytes > 27_857_088 || total_chunks > 856 {
                     return Err(ModularError::Capacity);
                 }
             }

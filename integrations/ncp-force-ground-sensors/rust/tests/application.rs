@@ -355,6 +355,105 @@ fn prepared_source_bounds_have_passing_neighbors() {
 }
 
 #[test]
+fn every_nonempty_modality_subset_releases_its_native_lease() {
+    for mask in 1_u8..8 {
+        let mut p = small();
+        let scene = &mut p.specification.scene;
+        if mask & 1 == 0 {
+            scene.rgb_cameras.clear();
+        }
+        if mask & 2 == 0 {
+            scene.thermal_cameras.clear();
+        }
+        if mask & 4 == 0 {
+            scene.microphones.clear();
+        }
+        for camera in scene
+            .rgb_cameras
+            .iter_mut()
+            .chain(&mut scene.thermal_cameras)
+        {
+            camera.period_ticks = 2;
+        }
+        validate_prepare(&p).unwrap();
+        let (mut owner, mut client, state) = setup(p);
+        let mut previous = None;
+        let mut accepted = None;
+        for tick in 1..=2 {
+            let response = run(
+                &mut owner,
+                &mut client,
+                Operation::Application(advance(tick, previous, accepted)),
+            );
+            let (batch, action) = completed(response);
+            assert_eq!(batch.slots.len(), mask.count_ones() as usize);
+            let due_count = batch
+                .slots
+                .iter()
+                .filter(|slot| matches!(slot, SensorSlot::Due { .. }))
+                .count();
+            assert_eq!(
+                due_count,
+                if tick == 1 {
+                    usize::from(mask & 4 != 0)
+                } else {
+                    mask.count_ones() as usize
+                }
+            );
+            assert_eq!(state.borrow().leases, 0);
+            release(&mut owner, &mut client, &batch);
+            previous = Some(batch.batch_digest);
+            accepted = Some(action);
+        }
+        assert_eq!(state.borrow().advances, 2);
+    }
+}
+
+#[test]
+fn empty_sensor_selection_rejects_and_repeated_modalities_keep_their_ids() {
+    let mut p = small();
+    p.specification.scene.thermal_cameras.clear();
+    p.specification.scene.microphones.clear();
+    p.specification.scene.rgb_cameras.clear();
+    assert!(validate_prepare(&p).is_err());
+    let camera = small().specification.scene.rgb_cameras.remove(0);
+    for index in 0..4 {
+        let mut instance = camera.clone();
+        instance.id = format!("camera-{index}");
+        p.specification.scene.rgb_cameras.push(instance);
+        validate_prepare(&p).unwrap();
+        let (mut owner, mut client, _) = setup(p.clone());
+        let (batch, _) = completed(run(
+            &mut owner,
+            &mut client,
+            Operation::Application(advance(1, None, None)),
+        ));
+        let ids: Vec<_> = batch
+            .slots
+            .iter()
+            .map(|slot| match slot {
+                SensorSlot::Due { sensor_id, .. } => sensor_id.clone(),
+                _ => panic!("configured camera omitted"),
+            })
+            .collect();
+        assert_eq!(
+            ids,
+            (0..=index)
+                .map(|i| format!("rgb:camera-{i}"))
+                .collect::<Vec<_>>()
+        );
+        release(&mut owner, &mut client, &batch);
+    }
+    let mut duplicate = p.clone();
+    duplicate.specification.scene.rgb_cameras[1].id = "camera-0".into();
+    assert!(validate_prepare(&duplicate).is_err());
+    let mut fifth = camera;
+    fifth.id = "camera-4".into();
+    p.specification.scene.rgb_cameras.push(fifth);
+    assert!(validate_prepare(&p).is_err());
+}
+
+#[test]
 fn replay_ack_and_explicit_release_preserve_byte_identity() {
     let (mut owner, mut client, state) = setup(small());
     let request = client
@@ -546,7 +645,7 @@ fn recomputed_commitments_cannot_hide_typed_tensor_or_source_substitution() {
     let valid = owner.process(&bytes).unwrap().to_vec();
     modular_owner::verify_response::<App>(&binding(), &request, &valid).unwrap();
     let original: Value = serde_json::from_slice(&valid).unwrap();
-    for change in 0..6 {
+    for change in 0..7 {
         let mut value = original.clone();
         match change {
             0 => {
@@ -569,9 +668,14 @@ fn recomputed_commitments_cannot_hide_typed_tensor_or_source_substitution() {
                 value["body"]["data"]["batch"]["slots"][2]["typed_manifest"]["tensor"]
                     ["sample_end"] = 134.into()
             }
-            _ => {
+            5 => {
                 value["body"]["data"]["batch"]["slots"][0]["typed_manifest"]
                     ["engine_batch_sha256"] = "e".repeat(64).into()
+            }
+            _ => {
+                value["body"]["data"]["batch"]["slots"][2] = json!({
+                    "kind": "not_due", "sensor_id": "pressure:mic-a", "next_due_tick": null
+                });
             }
         }
         assert!(modular_owner::verify_response::<App>(

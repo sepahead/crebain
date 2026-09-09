@@ -8,6 +8,7 @@ The Rust owner admits each request and reserves every due output before engine m
 Its private Bun bridge owns the existing environment and graphics processes.
 The independent Python client validates and reads complete sensor batches through NCP.
 Cross-project observations use NCP buffers exclusively.
+The [Python reader](python/README.md) installs as an optional package with its exact NCP v1 dependency and owned contract resources.
 
 <p align="center">
   <img alt="CREBAIN sensor bytes pass through reserved NCP buffers to an independent Python client" src="../../assets/diagrams/ncp-sensor-transfer.svg" width="680">
@@ -29,6 +30,42 @@ Engram remains optional.
 The host can select Prisoma transcript capture independently; its native evidence appears below.
 Galadriel record-only monitoring requires separate composition qualification.
 Their absence does not prevent standalone CREBAIN use.
+
+## Select the sensors you need
+
+Each modality admits zero through four sensor instances.
+The selected roster must contain at least one sensor overall.
+An empty `rgbCameras`, `thermalCameras`, or `microphones` list disables that modality's observation channels.
+Thermal and acoustic model settings remain explicit parts of simulator state.
+
+| Example selection | Sensor instances | Modalities |
+| --- | --- | --- |
+| One RGB camera and one microphone | 2 | RGB, acoustic |
+| Two RGB cameras and one microphone | 3 | RGB, acoustic |
+| Two RGB cameras, one microphone, and one thermal camera | 4 | RGB, acoustic, thermal |
+| Four microphones | 4 | Acoustic |
+
+Each instance retains its own catalog identity, configuration, and observation schedule.
+For example, `rgb:front` and `rgb:rear` identify different cameras.
+They can have different capture periods and dimensions.
+An unconfigured modality has no catalog entry or payload.
+A configured camera that is not due has an explicit `not_due` slot.
+A missing expected observation fails the batch; it never becomes a zero-valued sample.
+
+NCP owns message exchange and buffer lifetime.
+CREBAIN owns dynamics, sensor models, and original observation bytes.
+Prisoma owns experiment design, feature encoding, source grouping, targets, and statistical assumptions.
+The optional PID-rs library owns its estimators; no PID dependency enters this sensor client.
+Two cameras need not become two PID variables, but any grouping must remain explicit and traceable.
+
+The initial planned PID case uses RGB and acoustic observations, with thermal optional.
+Microphones produce pressure samples in pascals at 16 kHz through the [declared acoustic model](../../docs/NATIVE_ENVIRONMENT.md#microphone-pressure-model).
+Shared causes, clocks, or simulator noise do not establish independent sources or experimental replicates.
+The four-instance limits belong to this CREBAIN application, not to NCP or PID-rs.
+Larger rosters require separately qualified application and estimator bounds.
+
+Radar, LiDAR, inertial, and contact sensor applications remain future work.
+They need typed contracts and actual forward models; Gaussian-splat geometry alone does not define radar returns.
 
 ## Construction and qualification
 
@@ -204,7 +241,7 @@ This bounded enumeration is an engineering check, not a formal refinement proof.
 | Thermal | Bottom-left little-endian binary32 radiance, shape `[H,W]`, W/(m² sr) | `4HW` |
 | Pressure | Little-endian binary64 pascals, shape `[S]` | `8S` |
 
-The source admits four cameras per modality and four microphones.
+The source admits up to four cameras per modality and four microphones, with at least one sensor overall.
 RGB dimensions stop at 1,280; thermal dimensions stop at 320.
 The maximum configured due batch contains 27,857,088 raw bytes and 856 chunks.
 Each payload stays within the existing 8 MiB buffer limit.

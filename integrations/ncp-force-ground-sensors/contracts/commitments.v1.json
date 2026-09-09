@@ -1,7 +1,7 @@
 {
   "schema": "crebain.sensor-application-commitments.v1",
-  "application_digest": "0bb5870f3e20101877516fe7521b92c24c755e56d4da5cc62a7431892801052d",
-  "composition_digest": "0e909a703feac1afce307e249cfa00fa89df04fc599bed871405959830840c98",
+  "application_digest": "e49f1b607458c1953302d370408d2ca8c12ca9a918d72689e1d21ae88058db1e",
+  "composition_digest": "861a17b6ce758178db21a89a409ec3988a0e6301c99e777298dde3905e4ef396",
   "sensor_contract_digests": {
     "rgba8": "b07ecbee4fc8e22e322971b0c4082cd54ac8d19b617c591ef2fc7451b066a93f",
     "radiance": "de342271b445443d44a5cecac93250951905ff2c9f3703127bf175d24d32eaac",

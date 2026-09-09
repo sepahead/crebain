@@ -23,13 +23,14 @@
   <rect x="82" y="116" width="516" height="148" rx="15" fill="#122d31" stroke="#4ea78f"/>
   <rect x="82" y="116" width="6" height="148" rx="3" fill="url(#native)"/>
   <text x="106" y="153" class="name">CREBAIN environment</text>
-  <text x="106" y="183" class="body">World, drone, and sensor models</text>
+  <text x="106" y="183" class="body">World, drone, and selected sensors</text>
   <rect x="106" y="202" width="106" height="34" rx="8" fill="#9ccaff"/>
   <text x="159" y="225" text-anchor="middle" class="label">RGB</text>
   <rect x="224" y="202" width="147" height="34" rx="8" fill="#f2c18e"/>
   <text x="297.5" y="225" text-anchor="middle" class="label">Thermal</text>
   <rect x="383" y="202" width="159" height="34" rx="8" fill="#9ce0ce"/>
-  <text x="462.5" y="225" text-anchor="middle" class="label">Pressure</text>
+  <text x="462.5" y="225" text-anchor="middle" class="label">Acoustic</text>
+  <text x="106" y="253" class="small">Select 1–12 sensors. No modality is required.</text>
 
   <path d="M340 265V320" class="arrow" stroke="#83dbc1"/>
   <path d="m333 311 7 11 7-11" fill="none" stroke="#83dbc1" stroke-width="3"/>

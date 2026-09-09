@@ -204,6 +204,56 @@ describe('closed private grammar, synthetic controls only', () => {
 })
 
 describe('retained native projection, synthetic engine only', () => {
+  test('selected modalities admit empty due rosters without inventing sensor bytes', async () => {
+    for (let mask = 1; mask < 8; mask++) {
+      const input = preparation()
+      const scene = object(object(input.specification).scene)
+      for (const [bit, field] of ['rgbCameras', 'thermalCameras', 'microphones'].entries()) {
+        if (!(mask & (1 << bit))) scene[field] = []
+      }
+      let native: SyntheticOwner | undefined
+      const bridge = new SensorBridge(async (plan) => {
+        native = new SyntheticOwner(plan)
+        return native
+      })
+      await bridge.command(object(decodeFrame(framed(input)).command))
+      let previous: string | null = null
+      for (let tick = 1; tick <= 3; tick++) {
+        const response = object(await bridge.command(advance(tick, previous)))
+        validateFrozen('Response', {
+          schema: 'crebain.sensor-engine-response.v1',
+          generation,
+          sequence: tick + 1,
+          body: response,
+        })
+        const batch = object(response.batch)
+        const expected = []
+        if (mask & 1 && tick === 2) expected.push('rgb:rgb-a')
+        if (mask & 2 && tick === 3) expected.push('thermal:thermal-a')
+        if (mask & 4) expected.push('pressure:mic-a')
+        expect(
+          (batch.payloads as Array<{ sensor_id: string }>).map((row) => row.sensor_id)
+        ).toEqual(expected)
+        previous = String(batch.engine_batch_sha256)
+        await bridge.command({ kind: 'release_lease', tick, engine_batch_sha256: previous })
+      }
+      expect(native?.releases).toBe(3)
+      expect(await bridge.retire()).toBe(true)
+    }
+    const empty = preparation()
+    const scene = object(object(empty.specification).scene)
+    for (const field of ['rgbCameras', 'thermalCameras', 'microphones']) scene[field] = []
+    let creations = 0
+    const bridge = new SensorBridge(async (plan) => {
+      creations++
+      return new SyntheticOwner(plan)
+    })
+    await expect(bridge.command(object(decodeFrame(framed(empty)).command))).rejects.toThrow(
+      'Force-ground envelope'
+    )
+    expect(creations).toBe(0)
+    expect(await bridge.retire()).toBe(true)
+  })
   test('M1 due schedule, original bytes, private exclusion and explicit native lease release', async () => {
     let native: SyntheticOwner | undefined
     const bridge = new SensorBridge(async (plan) => {

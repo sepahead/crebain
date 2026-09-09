@@ -33,6 +33,8 @@ The [0.9 release decision](docs/NARROWED_GO_0.9.0.md) and its remaining exclusio
 | [Local NCP body](docs/NATIVE_NCP_SIMULATION.md) | Private-process kinematics, Kalman observations, actual application and innovation evidence | Separate 1–3-entity scalar profile; does not transport city images, pressure, or thermal arrays |
 
 The optional [typed sensor application](integrations/ncp-force-ground-sensors/README.md) is a separate construction candidate.
+Its [sensor selection](integrations/ncp-force-ground-sensors/README.md#select-the-sensors-you-need) supports multiple cameras and microphones without requiring every modality.
+NCP carries typed observations; experiment software defines features, source variables, targets, and statistical assumptions.
 Its first successful native run transferred all 44 RGB, thermal, and pressure payloads through NCP to an independent Python reader.
 Its [one-step interface](integrations/ncp-force-ground-sensors/README.md#observation-driven-steps) also completed a native run with observation-dependent next actions.
 An optional [Prisoma transcript](integrations/ncp-force-ground-sensors/README.md#optional-transcript-capture) captured every sensor payload before source-buffer release in one native run.

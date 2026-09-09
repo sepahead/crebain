@@ -1,13 +1,23 @@
 # Independent sensor reader
 
 This Python component reads the closed CREBAIN sensor application through the generic NCP SDK.
-It does not launch the producer, install dependencies, or run a simulator.
-The package construction tooling owns dependency checks and process cleanup.
+The host launches the producer and owns process cleanup.
 
-Source imports use the installed `ncp_local` package.
-Fixed contract files resolve relative to this integration directory.
+The optional `crebain-ncp-sensors` package installs its pinned NCP v1 SDK automatically.
+It includes the exact owned application, composition, schema, and sensor contract files.
 The reader verifies their application, composition, semantic, and schema commitments before use.
 No peer request accepts a filesystem path, executable, URL, or installation option.
+
+From a CREBAIN checkout, install the reader into your selected Python environment:
+
+```sh
+python -m pip install ./integrations/ncp-force-ground-sensors/python
+```
+
+The dependency is public NCP commit `9ae64ac1a77c9cd0612284992a8711220428a6e3`, with the independent `ncp-local` Python package.
+No NCP sibling checkout or `PYTHONPATH` change is required for installed use.
+The reader still requires the host-owned streams and producer described below.
+Its package does not install the CREBAIN renderer or qualify a complete native session.
 
 ## Calling contract
 
@@ -19,9 +29,21 @@ Frame operations use the unchanged SDK deadline checks.
 Local validation work has declared size bounds; the callback requires separate host time and storage bounds.
 
 `prepare` is the immutable `Prepare` type.
-Use `decode("Prepare", plain_json)` to construct it from bounded configuration data.
-The driver applies the remaining composition and relational checks before its first write.
+Use `SensorContract.decode_prepare(plain_json)` to validate bounded host configuration before its first write.
 Source rosters require unique IDs in ascending order, matching CREBAIN's existing scene owner.
+Each modality accepts zero through four instances; the complete roster requires at least one sensor.
+For RGB and acoustic observations, leave the thermal camera list empty:
+
+```python
+from crebain_ncp_sensors import SensorContract
+
+plain_json["specification"]["scene"]["thermalCameras"] = []
+prepare = SensorContract.decode_prepare(plain_json)
+```
+
+The host supplies `plain_json`, including its selected camera and microphone configurations.
+Two cameras remain distinct catalog entries with their own periods, dimensions, and IDs.
+The reader performs no source grouping, resampling, feature extraction, or PID estimation.
 The acoustic reference distance cannot exceed the declared maximum range.
 Decoding alone grants no source, capture, or simulation authority.
 

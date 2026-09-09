@@ -1,0 +1,57 @@
+{
+  "schema": "crebain.sensor-rgba8.v1",
+  "tensor": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "kind",
+      "dtype",
+      "shape",
+      "layout",
+      "row_origin",
+      "encoding"
+    ],
+    "properties": {
+      "kind": {
+        "const": "rgba8"
+      },
+      "dtype": {
+        "const": "u8"
+      },
+      "shape": {
+        "type": "array",
+        "prefixItems": [
+          {
+            "type": "integer",
+            "minimum": 8,
+            "maximum": 1280
+          },
+          {
+            "type": "integer",
+            "minimum": 8,
+            "maximum": 1280
+          },
+          {
+            "const": 4
+          }
+        ],
+        "items": false,
+        "minItems": 3,
+        "maxItems": 3
+      },
+      "layout": {
+        "const": "c_contiguous"
+      },
+      "row_origin": {
+        "const": "bottom-left"
+      },
+      "encoding": {
+        "const": "rgba8-srgb"
+      }
+    }
+  },
+  "time": "source_body_tick=available_after_body_tick=k; t=k/120 seconds",
+  "raw_bit_preservation": true,
+  "floating_point_policy": "finite; signed zero preserved",
+  "meaning": "actual awaited source RGBA8 renderer bytes"
+}

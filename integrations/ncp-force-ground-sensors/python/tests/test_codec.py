@@ -220,18 +220,15 @@ class CodecTests(unittest.TestCase):
         self.assert_rejected(SensorContract.decode_command, command)
         self.assertFalse(SensorContract.allows(w.Name.IMPORT))
 
-    def test_every_admitted_tick_has_nonempty_pressure_payload(self):
+    def test_configured_microphone_cannot_be_omitted_from_a_due_batch(self):
         requested, result, command, advanced, context = self.advanced(1)
         self.assertEqual([slot.kind for slot in advanced.batch.slots], ["not_due", "not_due", "due"])
         c.validate_batch_envelope(advanced.batch, context)
         c.validate_batch(requested, result, command, advanced)
-        raw = c.raw(requested)
-        raw["specification"]["scene"]["microphones"] = []
-        self.assert_rejected(SensorContract.decode_prepare, raw)
         pressure = advanced.batch.slots[2]
         absent = t.NotDue("not_due", pressure.sensor_id, None)
         changed = replace(advanced, batch=seal("batch", replace(advanced.batch, slots=(*advanced.batch.slots[:2], absent))))
-        c.validate_batch_envelope(changed.batch, context)
+        self.assert_rejected(c.validate_batch_envelope, changed.batch, context)
         self.assert_rejected(c.validate_batch, requested, result, command, changed)
         for field in ("byte_length", "chunk_count"):
             invalid = replace(pressure, byte_manifest=replace(pressure.byte_manifest, **{field: 0}))

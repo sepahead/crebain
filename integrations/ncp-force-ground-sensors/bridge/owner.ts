@@ -88,7 +88,12 @@ export class SensorBridge {
         if (
           spec.profile !== FORCE_GROUND_PROFILE ||
           spec.drones.length !== 1 ||
-          spec.scene.solids.length
+          spec.scene.solids.length ||
+          !(
+            spec.scene.rgbCameras.length ||
+            spec.scene.thermalCameras.length ||
+            spec.scene.microphones.length
+          )
         )
           throw new Error('Force-ground envelope')
         for (const roster of [
