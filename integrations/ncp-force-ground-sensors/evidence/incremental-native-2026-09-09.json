@@ -1,0 +1,345 @@
+{
+  "schema": "crebain.incremental-native-observation.v1",
+  "observed_date": "2026-09-09",
+  "status": "PASS_FROZEN_TWO_CASE_ROSTER",
+  "crebain_commit": "5e62c3e7b4faf72211658991354650f8ab643e52",
+  "ncp_commit": "9ae64ac1a77c9cd0612284992a8711220428a6e3",
+  "api": "SensorSession",
+  "base_workload_sha256": "f4b8cad4a9daf1f5b95abb9b03409040cd8caa67cf2e14c074a17dcc4a77ecae",
+  "body_ticks_per_second": 120,
+  "simulated_seconds_per_case": 0.2,
+  "roster_order": ["scheduled", "pressure-sign"],
+  "automatic_retry": false,
+  "policy": {
+    "scope": "arbitrary bounded interface exercise; no learned or qualified controller",
+    "initial_target": "M1 tick-one target",
+    "observation": "one complete pressure window at body tick k; binary64 little-endian pascals",
+    "statistic": "math.fsum(samples) / len(samples)",
+    "action": "At tick k+1, request pitch +0.015 rad for nonnegative mean, otherwise -0.015 rad; preserve initial armed state, roll, heading and altitude.",
+    "independent_review": "Reopen actual pressure bytes; exact-rational mean determines the branch. Compare every original request and allow at most two ULPs of recorded mean error.",
+    "last_tick": "No unused decision after tick 24"
+  },
+  "session_elapsed_scope": "Unpaced preparation, transfer, local file synchronization and normal retirement; separate runs, not a comparative latency benchmark",
+  "harness": {
+    "freeze_sha256": "da016332e2b08065a7e89bd2fdb287a5db2afa03a766399bd451cf0bff8d9678",
+    "native_plan_sha256": "83f56ddb4fbc85f9db545b2446678657d9114f4d4e919904202494429780513a",
+    "source_files": 56,
+    "bootstrap_dotenv_and_policy_tests": 31,
+    "paired_synthetic_controls": 6,
+    "runtime_receipt_parser_negatives": 15,
+    "runtime_files": 15184,
+    "construction_sha256": "6f19fb9b57d4d9fd55df976aaf8a760cc66a93a48c6d9b19cf997f7d11094e2a",
+    "producer_sha256": "d3f3ba44ff6438a8020d1f0f79909c03d8d4dcc874f77d50ce4a01d576e4044a"
+  },
+  "retained_checker_failure": {
+    "scope": "independent review, after scheduled native execution",
+    "cause": "Engine control kind overwrote the protocol set_target kind in the checker expected-value construction.",
+    "correction": "Project only the four declared continuous target fields.",
+    "original_reviewer_sha256": "b9112f63cb6a6abc7c0aff6302bead5c4035cf208fe285035355691a166aed62",
+    "native_execution_repeated": false,
+    "failure_record_sha256": "1b7f747b150a3c46d03a6e286c8ecc29dd1328aab367078a3cec7c66b17a540a"
+  },
+  "runs": [
+    {
+      "case": "scheduled",
+      "status": "PASS_EXACT_INCREMENTAL_NATIVE_RUN",
+      "completed_ticks": 24,
+      "original_request_frames_rejoined": 24,
+      "complete_batches_released": 24,
+      "payloads": 44,
+      "chunks": 168,
+      "raw_bytes": 4326400,
+      "session_elapsed_s": 7.195608125068247,
+      "source_and_runtime_unchanged": true,
+      "terminal_engine_retirement": "confirmed",
+      "observed_process_identities_retired": 14,
+      "root_signals_sent": 0,
+      "exact_rational_sign_counts": {
+        "negative": 0,
+        "nonnegative": 0
+      },
+      "maximum_mean_error_pascal": 0.0,
+      "receipts": {
+        "root_review_sha256": "d353006127e50e4f2b446ecb320d640912ae403b4f3b18d033583e6540efeab9",
+        "payload_policy_review_sha256": "79040df34964b08b7b5f0b7fb330c5a505fa46c3dc0890d9bf657c7b1909823b",
+        "session_result_sha256": "826030a31ce901d34653881ff86379c5900398d7ab21e4e898c9737b3f39aef5",
+        "policy_trace_sha256": "d12597ff914e05e4752980934f811a346d302cf016af992e641c692bd80262ac",
+        "retirement_sha256": "37b7835c8a0ddf9446f86715768b20aea101a0c796a045132dc460daeb25d98c"
+      },
+      "pressure_decisions": []
+    },
+    {
+      "case": "pressure-sign",
+      "status": "PASS_EXACT_INCREMENTAL_NATIVE_RUN",
+      "completed_ticks": 24,
+      "original_request_frames_rejoined": 24,
+      "complete_batches_released": 24,
+      "payloads": 44,
+      "chunks": 168,
+      "raw_bytes": 4326400,
+      "session_elapsed_s": 6.4657094578724355,
+      "source_and_runtime_unchanged": true,
+      "terminal_engine_retirement": "confirmed",
+      "observed_process_identities_retired": 16,
+      "root_signals_sent": 0,
+      "exact_rational_sign_counts": {
+        "negative": 12,
+        "nonnegative": 11
+      },
+      "maximum_mean_error_pascal": 4.336808689942018e-19,
+      "receipts": {
+        "root_review_sha256": "4c2e002b21b41e1e10fced07b888fce08df3fd4dbe56352f923cd0927542b8e1",
+        "payload_policy_review_sha256": "28aee2e8c06812c5c16bad328e886c7b9e2ec123eca609edf58d4d04b0aaa88e",
+        "session_result_sha256": "a3bab44dd7dfb7e1d03b3033f734102e5713055160fddd9284edbef183769f7f",
+        "policy_trace_sha256": "4e036a3724fe50456ab337e48b120d2514045227263356eccdceecb4062d01ed",
+        "retirement_sha256": "d107361e2fe2d544f94ef1dedb283e0523846db30088edb03e388f912ca8faea"
+      },
+      "pressure_decisions": [
+        {
+          "source_tick": 1,
+          "sensor_id": "pressure:mic-a",
+          "payload_sha256": "b233ffd7e870596cae06c612d3a71ea5b8353867f7914b7ee9686e12167e21f4",
+          "samples": 133,
+          "mean_pascal": -0.00018114761789863947,
+          "branch": "negative",
+          "applies_at_tick": 2,
+          "next_pitch_rad": -0.015
+        },
+        {
+          "source_tick": 2,
+          "sensor_id": "pressure:mic-a",
+          "payload_sha256": "3a80be07675ccdcc5717733edf0f1664d9b58f7754dd4121f70955c8ff9283b6",
+          "samples": 133,
+          "mean_pascal": 2.6570220213946994e-5,
+          "branch": "nonnegative",
+          "applies_at_tick": 3,
+          "next_pitch_rad": 0.015
+        },
+        {
+          "source_tick": 3,
+          "sensor_id": "pressure:mic-a",
+          "payload_sha256": "34b8f9f75259636d7f459c5565a912e06f7167dc99104b2b566a069b3b9b2a62",
+          "samples": 134,
+          "mean_pascal": -2.2498302902487503e-5,
+          "branch": "negative",
+          "applies_at_tick": 4,
+          "next_pitch_rad": -0.015
+        },
+        {
+          "source_tick": 4,
+          "sensor_id": "pressure:mic-a",
+          "payload_sha256": "e89c1de5b4729cd0c1bb57b9b89b7964165cbaca5c3cad59a255a217b006f2cb",
+          "samples": 133,
+          "mean_pascal": -0.00014687842051501647,
+          "branch": "negative",
+          "applies_at_tick": 5,
+          "next_pitch_rad": -0.015
+        },
+        {
+          "source_tick": 5,
+          "sensor_id": "pressure:mic-a",
+          "payload_sha256": "de36253d4806edf775270e997e8871eed0a109b0d814e22b484000e6749c1ff7",
+          "samples": 133,
+          "mean_pascal": 0.00047159384962878754,
+          "branch": "nonnegative",
+          "applies_at_tick": 6,
+          "next_pitch_rad": 0.015
+        },
+        {
+          "source_tick": 6,
+          "sensor_id": "pressure:mic-a",
+          "payload_sha256": "f135b4dde040c5b6a32b3d2eb20c0b7eb86692375de5621b55e1aacecb499e93",
+          "samples": 134,
+          "mean_pascal": -0.00037800282939504137,
+          "branch": "negative",
+          "applies_at_tick": 7,
+          "next_pitch_rad": -0.015
+        },
+        {
+          "source_tick": 7,
+          "sensor_id": "pressure:mic-a",
+          "payload_sha256": "c284e69afb075b4384e49a678e8c075ca0444ae69edd277a86586f78ab99a374",
+          "samples": 133,
+          "mean_pascal": 0.0007204638263113493,
+          "branch": "nonnegative",
+          "applies_at_tick": 8,
+          "next_pitch_rad": 0.015
+        },
+        {
+          "source_tick": 8,
+          "sensor_id": "pressure:mic-a",
+          "payload_sha256": "cd1956a2db6b471331b5d51a31e1adce28d1beb8821aeeab3e69125a678993a3",
+          "samples": 133,
+          "mean_pascal": -0.00031478177392129113,
+          "branch": "negative",
+          "applies_at_tick": 9,
+          "next_pitch_rad": -0.015
+        },
+        {
+          "source_tick": 9,
+          "sensor_id": "pressure:mic-a",
+          "payload_sha256": "6d771d11fa47a27aecb176e68d70cca77299ed81b0b4e18033a22d12591a0d02",
+          "samples": 134,
+          "mean_pascal": -0.0010550222642605898,
+          "branch": "negative",
+          "applies_at_tick": 10,
+          "next_pitch_rad": -0.015
+        },
+        {
+          "source_tick": 10,
+          "sensor_id": "pressure:mic-a",
+          "payload_sha256": "d7bd71223872a78962371b6f38e134638657dfcfa5914b659ba4e82a1b5355ca",
+          "samples": 133,
+          "mean_pascal": 0.0021559815536118417,
+          "branch": "nonnegative",
+          "applies_at_tick": 11,
+          "next_pitch_rad": 0.015
+        },
+        {
+          "source_tick": 11,
+          "sensor_id": "pressure:mic-a",
+          "payload_sha256": "0e20a69af23532043012bdd41b3b453b2a0558a000c16c315c3ee4b2d9fb9aeb",
+          "samples": 133,
+          "mean_pascal": -0.0006684939258297714,
+          "branch": "negative",
+          "applies_at_tick": 12,
+          "next_pitch_rad": -0.015
+        },
+        {
+          "source_tick": 12,
+          "sensor_id": "pressure:mic-a",
+          "payload_sha256": "5374688f12c2e8911c92e98744ad190ae005baca9b06e5a8bfa208a065beb823",
+          "samples": 134,
+          "mean_pascal": -0.0010173732291646343,
+          "branch": "negative",
+          "applies_at_tick": 13,
+          "next_pitch_rad": -0.015
+        },
+        {
+          "source_tick": 13,
+          "sensor_id": "pressure:mic-a",
+          "payload_sha256": "c3f431afd5ba1ee8bd85338ba9b20859d9a4c768b5355a3072ad555e7e423c25",
+          "samples": 133,
+          "mean_pascal": 0.0005081726140199374,
+          "branch": "nonnegative",
+          "applies_at_tick": 14,
+          "next_pitch_rad": 0.015
+        },
+        {
+          "source_tick": 14,
+          "sensor_id": "pressure:mic-a",
+          "payload_sha256": "2f94bd6516b7231378bc182ab7ccab15e18d2dd5f8941b40701cfb434d990dc5",
+          "samples": 133,
+          "mean_pascal": 0.0011605539346578352,
+          "branch": "nonnegative",
+          "applies_at_tick": 15,
+          "next_pitch_rad": 0.015
+        },
+        {
+          "source_tick": 15,
+          "sensor_id": "pressure:mic-a",
+          "payload_sha256": "e0eae4de036d72f8bbe67e39d4b57e8a124f40cea65651cd168b5c92bcb0fac6",
+          "samples": 134,
+          "mean_pascal": -0.0021687981320391955,
+          "branch": "negative",
+          "applies_at_tick": 16,
+          "next_pitch_rad": -0.015
+        },
+        {
+          "source_tick": 16,
+          "sensor_id": "pressure:mic-a",
+          "payload_sha256": "0d71653e8dca876bae493bd93b4a380231c10dd8f628a1636edab7dc615afe02",
+          "samples": 133,
+          "mean_pascal": 0.0015746025699207675,
+          "branch": "nonnegative",
+          "applies_at_tick": 17,
+          "next_pitch_rad": 0.015
+        },
+        {
+          "source_tick": 17,
+          "sensor_id": "pressure:mic-a",
+          "payload_sha256": "04fa3b48d691d07d0e227d1fde8ffde53b41dd6b51088c15421561751f2e2d72",
+          "samples": 133,
+          "mean_pascal": -0.0027710169996928258,
+          "branch": "negative",
+          "applies_at_tick": 18,
+          "next_pitch_rad": -0.015
+        },
+        {
+          "source_tick": 18,
+          "sensor_id": "pressure:mic-a",
+          "payload_sha256": "24f833397d1940d8ebc9f50d615b134c4ab2e1e5a99042ab68f89e9d6eee60f6",
+          "samples": 134,
+          "mean_pascal": 0.0032237125866228164,
+          "branch": "nonnegative",
+          "applies_at_tick": 19,
+          "next_pitch_rad": 0.015
+        },
+        {
+          "source_tick": 19,
+          "sensor_id": "pressure:mic-a",
+          "payload_sha256": "8e592bb4191771bdd312d32f5f37f939291b19e10aa4bce4f605c80910e008fc",
+          "samples": 133,
+          "mean_pascal": 0.0005135269806358589,
+          "branch": "nonnegative",
+          "applies_at_tick": 20,
+          "next_pitch_rad": 0.015
+        },
+        {
+          "source_tick": 20,
+          "sensor_id": "pressure:mic-a",
+          "payload_sha256": "7e4222a6c7d0b0f7336dd1c03adaf69e0e6968e1749dc58aa2e77c38c0e33d38",
+          "samples": 133,
+          "mean_pascal": -0.0004003869762297906,
+          "branch": "negative",
+          "applies_at_tick": 21,
+          "next_pitch_rad": -0.015
+        },
+        {
+          "source_tick": 21,
+          "sensor_id": "pressure:mic-a",
+          "payload_sha256": "8add9f3e71940faaae39624d83ea57be06e9dd9199b25b05bf7b619ea23b8854",
+          "samples": 134,
+          "mean_pascal": 4.861152319109474e-5,
+          "branch": "nonnegative",
+          "applies_at_tick": 22,
+          "next_pitch_rad": 0.015
+        },
+        {
+          "source_tick": 22,
+          "sensor_id": "pressure:mic-a",
+          "payload_sha256": "e762abca1995cf9a698ac7c407fe4b063e2960692c45e53b57a3ae5177a8c47a",
+          "samples": 133,
+          "mean_pascal": 0.00023856635644281914,
+          "branch": "nonnegative",
+          "applies_at_tick": 23,
+          "next_pitch_rad": 0.015
+        },
+        {
+          "source_tick": 23,
+          "sensor_id": "pressure:mic-a",
+          "payload_sha256": "ee754629775a90e5cf031d351350ad3686f6ec733488db561f59cfeadb89e0a9",
+          "samples": 133,
+          "mean_pascal": -4.738685151339504e-5,
+          "branch": "negative",
+          "applies_at_tick": 24,
+          "next_pitch_rad": -0.015
+        }
+      ]
+    }
+  ],
+  "limits": {
+    "capture": "absent; local export was not reserved before body mutation",
+    "neural": "absent",
+    "monitor": "absent",
+    "world_model": "absent",
+    "native_lifetime_fault_controls": "OPEN",
+    "complete_installed_qualification": false,
+    "real_time_qualified": false,
+    "tracking_or_stability_qualified": false,
+    "independent_renderer_oracle": false,
+    "scientific_validation": false,
+    "fresh_independent_council": "UNAVAILABLE_AGENT_SERVICE_LIMIT",
+    "final70": "OPEN"
+  }
+}

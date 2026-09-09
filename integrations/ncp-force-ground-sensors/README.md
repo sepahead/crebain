@@ -15,7 +15,9 @@ Cross-project observations use NCP buffers exclusively.
 
 Text alternative: The Rust owner reserves every due output before engine advance.
 The native observation lease remains live until all outputs seal.
-Python validates the complete batch, releases the NCP buffers, then invokes the caller's local recorder.
+The incremental Python client exposes a complete validated batch while its source buffers remain live.
+The caller can inspect observations and choose the next action before explicit release.
+The scheduled helper releases buffers before invoking its local recorder.
 These separate releases establish no durable capture claim.
 
 [Open the original SVG](../../assets/diagrams/ncp-sensor-transfer.svg).
@@ -97,6 +99,29 @@ Renderer isolation, maximum-scale memory, failure recovery, and complete install
 All original scientific and operational failures remain retained.
 The final 70 requirements remain open.
 
+### Observation-driven steps
+
+The [incremental native runs](evidence/incremental-native-2026-09-09.json) used commit `5e62c3e7b4faf72211658991354650f8ab643e52` and the same NCP dependency.
+Both called `SensorSession` directly with the M1 scene, sensor roster, and 24-tick horizon.
+Each received and reopened all 44 payloads, totaling 4,326,400 raw bytes.
+
+| Case | Next action | Observed result |
+| --- | --- | --- |
+| Scheduled control | Original M1 targets | Complete transfer and terminal; 7.20-second session |
+| Pressure feedback | Previous pressure window selects the next pitch target | Complete transfer and terminal; 6.47-second session |
+
+The pressure case computed each window's mean in pascals.
+A nonnegative mean selected +0.015 radians of pitch for the next tick; a negative mean selected −0.015 radians.
+Roll, heading, altitude, and armed state retained the initial target values.
+An independent exact-rational calculation verified all 23 decisions against retained pressure bytes and original request frames.
+The negative branch occurred twelve times; the nonnegative branch occurred eleven times.
+
+Both sessions exported each complete batch before releasing its source buffers.
+All observed process identities retired: fourteen for the scheduled case and sixteen for the pressure case.
+The fixed policy tests interface causality. It supplies no tracking, world-model, or stability result.
+These unpaced durations include preparation, transfer, file synchronization, and retirement; they are not a comparative latency benchmark.
+The [Python calling guide](python/README.md#adaptive-steps-and-capture-ordering) defines batch ownership and optional capture ordering.
+
 ## Closed application contract
 
 [The schema](contracts/application.schema.v1.json) defines every public field and rejects unknown fields.
@@ -174,8 +199,10 @@ The trusted launcher must retain and independently join this receipt; ordinary s
 Retirement joins pending preparation and active environment work.
 Emergency termination of the directly owned child never confirms renderer-family cleanup.
 
-The [Python client](python/README.md) validates all due payloads before releasing them and invoking its local recorder.
-A recorder failure cannot recover released buffers or establish durable capture.
+The [Python client](python/README.md) validates every due payload before exposing a complete batch.
+`SensorSession` keeps source buffers live until explicit release or normal batch-context exit.
+Its scheduled `run_session` wrapper releases those buffers before invoking its recorder.
+A callback cannot establish durable capture without a separately verified capture contract.
 
 The frozen [M1 workload](contracts/m1.workload.v1.json) has 24 ticks and two target actions.
 It expects twelve RGB frames, eight thermal frames, 3,200 pressure samples, and 4,326,400 raw bytes.

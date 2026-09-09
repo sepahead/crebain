@@ -81,6 +81,10 @@ Later calls can omit the target to hold the last accepted target.
 The host can call other optional NCP peers between body steps.
 This interface installs no policy, neural model, capture owner, or additional simulator.
 
+Two [native runs](../README.md#observation-driven-steps) exercised this interface with actual RGB, thermal, and pressure outputs.
+One retained the existing schedule; the other selected each next pitch target from the previous pressure window.
+Both completed the planned 24 ticks. Separate capture and native lifetime-fault qualification remain open.
+
 A `PendingBatch` exposes immutable observation data, original request bytes, and the verified typed response.
 Its normal context exit releases the source buffers.
 An explicit `release()` has the same effect and becomes a local no-op after success.
