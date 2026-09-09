@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="680" height="1120" viewBox="0 0 680 1120" role="img" aria-labelledby="title desc">
   <title id="title">CREBAIN sensor transfer through an optional NCP application</title>
-  <desc id="desc">CREBAIN supplies actual simulated sensor bytes through a private Bun bridge. The Rust application reserves every due NCP buffer before advancing the engine. It copies and seals all outputs before releasing the native observation lease. The incremental Python client exposes a complete validated batch while NCP buffers remain live. An optional host exchange function can capture original NCP frames before the client receives them or releases the buffers. The caller can choose the next action before explicit release. The scheduled helper releases before its local recorder callback. Solid arrows carry sensor data, dashed amber arrows release resources, and the dotted violet arrow carries the next action. Standalone CREBAIN needs no consumer. Native bytes and observation-driven steps have been observed; native capture and full lifetime qualification remain open.</desc>
+  <desc id="desc">CREBAIN supplies actual simulated sensor bytes through a private Bun bridge. The Rust application reserves every due NCP buffer before advancing the engine. It copies and seals all outputs before releasing the native observation lease. The incremental Python client exposes a complete validated batch while NCP buffers remain live. An optional host exchange function can capture original NCP frames before the client receives them or releases the buffers. The caller can choose the next action before explicit release. The scheduled helper releases before its local recorder callback. Solid arrows carry sensor data, dashed amber arrows release resources, and the dotted violet arrow carries the next action. Standalone CREBAIN needs no consumer. Native capture and observation-driven steps have been observed; full lifetime qualification remains open.</desc>
   <defs>
     <linearGradient id="background" x2="1" y2="1"><stop stop-color="#0b1623"/><stop offset="1" stop-color="#111d2c"/></linearGradient>
     <linearGradient id="native" x2="1"><stop stop-color="#3fc7a3"/><stop offset="1" stop-color="#85dfc6"/></linearGradient>
@@ -76,5 +76,5 @@
   <text x="34" y="1006" class="small">Scheduled helper: release buffers, then invoke the local recorder.</text>
   <text x="34" y="1033" class="small">Solid: sensor data. Dashed amber: explicit resource release.</text>
   <text x="34" y="1060" class="small">Dotted violet: next action, selected after the preceding observation.</text>
-  <text x="34" y="1087" class="small">Native capture and full lifetime qualification remain open.</text>
+  <text x="34" y="1087" class="small">Native capture observed. Full lifetime qualification remains open.</text>
 </svg>

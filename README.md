@@ -35,6 +35,7 @@ The [0.9 release decision](docs/NARROWED_GO_0.9.0.md) and its remaining exclusio
 The optional [typed sensor application](integrations/ncp-force-ground-sensors/README.md) is a separate construction candidate.
 Its first successful native run transferred all 44 RGB, thermal, and pressure payloads through NCP to an independent Python reader.
 Its [one-step interface](integrations/ncp-force-ground-sensors/README.md#observation-driven-steps) also completed a native run with observation-dependent next actions.
+An optional [Prisoma transcript](integrations/ncp-force-ground-sensors/README.md#optional-transcript-capture) captured every sensor payload before source-buffer release in one native run.
 Renderer loss, parent loss, delayed preparation, and failed cleanup still need qualification.
 
 The native environment requires no Engram, Prisoma, Galadriel, NCP, ROS, or Gazebo process.

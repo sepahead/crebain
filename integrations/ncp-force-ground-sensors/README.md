@@ -26,7 +26,8 @@ These separate releases establish no durable capture claim.
 
 The application has no capture, monitor, neural, or experiment role.
 Engram remains optional.
-Prisoma capture and Galadriel record-only monitoring require separate composition qualification.
+The host can select Prisoma transcript capture independently; its native evidence appears below.
+Galadriel record-only monitoring requires separate composition qualification.
 Their absence does not prevent standalone CREBAIN use.
 
 ## Construction and qualification
@@ -132,7 +133,34 @@ The SDK validates all replies and acknowledgements through the selected function
 Capture failure stops the client and preserves its observed prefix without retry.
 The host retains responsibility for process cleanup and callback resource bounds.
 Synthetic controls cover complete transfer, failures around execution, malformed replies, refused acknowledgements, and capture before release.
-These controls qualify the source interface only; native Prisoma capture remains open.
+These controls qualify the source interface; native evidence requires its separate run and retained bytes.
+
+The [native capture run](evidence/captured-native-2026-09-09.json) used CREBAIN `04edafc`, Prisoma `3282a17`, and the unchanged NCP dependency.
+It completed the same 24-tick pressure-sign workload on the selected M4 Max runtime.
+An independent reader reconstructed all 44 sensor payloads from the journal and checked every read before source-buffer release.
+
+| Captured quantity | Observed value |
+| --- | --- |
+| Raw RGB, thermal, and pressure bytes | 4,326,400 |
+| Original NCP exchanges | 476 request-response pairs |
+| Journal records | 954: header, 952 original frames, and terminal |
+| Journal file | 6,669,600 bytes |
+| Unpaced session | 11.21 seconds for 0.2 simulated second |
+| Observed process identities | All thirteen retired |
+
+The complete workflow uses 238 operations: preparation, 24 advances, 168 reads, 44 releases, and finish.
+Their acknowledgements add 238 exchanges.
+All 23 next-action decisions passed the existing exact-rational pressure check.
+The negative branch occurred twelve times; the nonnegative branch occurred eleven times.
+
+The journal admits a fixed logical quota before producer launch and synchronizes original frames through the host exchange function.
+Here, frames are original NCP JSON payloads; transport length prefixes are not journal records.
+Its completion remains separate from application validity and physical disk-space reservation.
+All 44 raw payloads also matched the earlier pressure-sign run byte for byte.
+This comparison covers one fixed workload and does not establish sensor accuracy.
+The duration includes preparation, simulation, transfer, file synchronization, transcript verification, and producer retirement.
+It does not establish a comparative latency result or real-time execution.
+Registry-installed host qualification, native lifetime faults, canonical experiment-event binding, and world-model quality remain open.
 
 ## Closed application contract
 

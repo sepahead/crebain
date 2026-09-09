@@ -84,7 +84,9 @@ This interface installs no policy, neural model, capture owner, or additional si
 
 Two [native runs](../README.md#observation-driven-steps) exercised this interface with actual RGB, thermal, and pressure outputs.
 One retained the existing schedule; the other selected each next pitch target from the previous pressure window.
-Both completed the planned 24 ticks. Separate capture and native lifetime-fault qualification remain open.
+Both completed the planned 24 ticks.
+The later [capture run](../README.md#optional-transcript-capture) used the same pressure policy with a Prisoma journal.
+Native lifetime-fault qualification remains open.
 
 A `PendingBatch` exposes immutable observation data, original request bytes, and the verified typed response.
 Its normal context exit releases the source buffers.
@@ -113,6 +115,7 @@ The scheduled `run_session` helper preserves its original release-before-callbac
 
 The optional `exchange` function receives original request bytes, both streams, and the absolute deadline.
 It returns one original response frame.
+These frames are NCP JSON payloads; the transport layer adds and removes its length prefixes.
 The SDK validates that response before the session accepts it.
 The function also handles acknowledgements, buffer reads, releases, preparation, and finish.
 Without a function, the session uses its existing SDK transport.
@@ -168,7 +171,9 @@ An executed action whose response never reaches the client remains unobserved.
 The host owns stream closure and confirmed process retirement.
 The exchange function is trusted caller code; arbitrary callback work and filesystem synchronization have no hard deadline guarantee.
 Transcript verification checks stored exchanges, not physical fidelity or scientific validity.
-Native CREBAIN capture qualification remains open.
+One [native CREBAIN run](../evidence/captured-native-2026-09-09.json) captured all 44 sensor payloads and verified their presence before release.
+Its journal contains 476 exchanges and 6,669,600 bytes.
+This source-bound workflow does not qualify an installed host package, lifetime faults, world-model quality, or real-time deadlines.
 
 ## Bytes, clocks, and identity
 
