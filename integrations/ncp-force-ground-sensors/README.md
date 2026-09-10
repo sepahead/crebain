@@ -100,10 +100,13 @@ No case loaded Prisoma, Galadriel, Engram, or PID-rs.
 
 ## Construction and qualification
 
-The construction dependency is exact NCP commit `9ae64ac1a77c9cd0612284992a8711220428a6e3`.
+The construction dependency is exact NCP commit `233de821a5b67a34aa7721f900c09ab73a61ba88`.
 Its exact tree and 41 consumed source files appear in [the dependency contract](contracts/dependency-source.v1.json).
 The dependency contract retains `dependency_ready=false`.
 A source checkout, build, synthetic test, or private channel handshake does not establish installed qualification.
+
+The recorded native runs in this guide use NCP `9ae64ac1a77c9cd0612284992a8711220428a6e3`.
+Their source identities remain unchanged by this construction update.
 
 Select the dependency explicitly before running the construction gate:
 

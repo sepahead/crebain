@@ -1,7 +1,7 @@
 {
   "schema": "crebain.ncp-construction-dependency.v1",
-  "commit": "9ae64ac1a77c9cd0612284992a8711220428a6e3",
-  "tree": "fa99d529ff47e67458e62b15b722db896673a4a7",
+  "commit": "233de821a5b67a34aa7721f900c09ab73a61ba88",
+  "tree": "2574c012a9bb9426cdef74e53bfae546fb5dde1e",
   "dependency_ready": false,
   "scope": "exact immutable construction input only; no implicit sibling or registry fallback",
   "files": [
@@ -42,8 +42,8 @@
     },
     {
       "path": "local/python/ncp_local/modular_wire.py",
-      "bytes": 30036,
-      "sha256": "7506fb41a3183b1325271dd61eec84aabb7909b34f48e2ec04fc90a7023187aa"
+      "bytes": 31805,
+      "sha256": "616a09d296f85477f2fc115796f6d061da5cc6d05b1422781f8ea3c45d0ef36b"
     },
     {
       "path": "local/python/ncp_local/protocol.py",

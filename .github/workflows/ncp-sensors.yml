@@ -38,7 +38,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           repository: sepahead/NCP
-          ref: 9ae64ac1a77c9cd0612284992a8711220428a6e3
+          ref: 233de821a5b67a34aa7721f900c09ab73a61ba88
           path: ncp-dependency
           persist-credentials: false
       - name: Select Node

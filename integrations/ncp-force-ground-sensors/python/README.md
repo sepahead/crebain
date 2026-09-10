@@ -14,7 +14,7 @@ From a CREBAIN checkout, install the reader into your selected Python environmen
 python -m pip install ./integrations/ncp-force-ground-sensors/python
 ```
 
-The dependency is public NCP commit `9ae64ac1a77c9cd0612284992a8711220428a6e3`, with the independent `ncp-local` Python package.
+The dependency is public NCP commit `233de821a5b67a34aa7721f900c09ab73a61ba88`, with the independent `ncp-local` Python package.
 No NCP sibling checkout or `PYTHONPATH` change is required for installed use.
 The reader still requires the host-owned streams and producer described below.
 Its package does not install the CREBAIN renderer or qualify a complete native session.
