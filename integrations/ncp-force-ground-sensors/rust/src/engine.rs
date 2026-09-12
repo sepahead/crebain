@@ -244,12 +244,12 @@ impl EngineProcess {
     /// Start only explicitly selected local executables after launcher source admission.
     pub fn spawn(
         bun: &Path,
-        node: &Path,
+        node: Option<&Path>,
         bridge: &Path,
         generation: String,
     ) -> Result<Self, EngineError> {
         if !bun.is_absolute()
-            || !node.is_absolute()
+            || node.is_some_and(|path| !path.is_absolute())
             || !bridge.is_absolute()
             || !contract::valid_uuid(&generation)
         {
@@ -257,11 +257,12 @@ impl EngineProcess {
         }
         let (stream, child_stream) = UnixStream::pair().map_err(|_| EngineError)?;
         let child_input = child_stream.try_clone().map_err(|_| EngineError)?;
-        let child = Command::new(bun)
-            .arg("run")
-            .arg(bridge)
-            .arg("--node")
-            .arg(node)
+        let mut command = Command::new(bun);
+        command.arg("run").arg(bridge);
+        if let Some(node) = node {
+            command.arg("--node").arg(node);
+        }
+        let child = command
             .arg("--generation")
             .arg(&generation)
             .stdin(Stdio::from(OwnedFd::from(child_input)))
@@ -785,7 +786,7 @@ mod tests {
         let bridge = std::env::var_os("CREBAIN_SENSOR_BRIDGE").expect("paired owned bridge path");
         let mut engine = EngineProcess::spawn(
             Path::new(&bun),
-            Path::new(&node),
+            Some(Path::new(&node)),
             Path::new(&bridge),
             "33333333-3333-4333-8333-333333333333".into(),
         )
@@ -794,9 +795,24 @@ mod tests {
         engine.retire().unwrap();
         assert!(EngineProcess::spawn(
             Path::new(&bun),
-            Path::new(&node),
+            Some(Path::new(&node)),
             Path::new(&bridge),
             "not-a-generation".into()
+        )
+        .is_err());
+        let mut camera_free = EngineProcess::spawn(
+            Path::new(&bun),
+            None,
+            Path::new(&bridge),
+            "33333333-3333-4333-8333-333333333333".into(),
+        )
+        .unwrap();
+        camera_free.retire().unwrap();
+        assert!(EngineProcess::spawn(
+            Path::new(&bun),
+            Some(Path::new("relative-node")),
+            Path::new(&bridge),
+            "33333333-3333-4333-8333-333333333333".into(),
         )
         .is_err());
     }

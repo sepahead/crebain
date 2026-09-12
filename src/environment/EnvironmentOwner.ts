@@ -28,6 +28,13 @@ export interface EnvironmentGraphics {
   retire(): Promise<void>
 }
 export type GraphicsLauncher = (planJson: string) => Promise<EnvironmentGraphics>
+interface SelectedGraphics {
+  readonly port: EnvironmentGraphics
+  readonly planSha256: string
+  readonly generation: string
+  readonly planJson: string
+  readonly launch: GraphicsLauncher
+}
 export interface ObservationHandle {
   readonly ownerId: string
   readonly tick: number
@@ -167,20 +174,16 @@ function decodeBytes(text: unknown, count: number): Uint8Array {
   return Uint8Array.from(binary, (character) => character.charCodeAt(0))
 }
 
-/** One actual CPU owner, one graphics generation, and one immutable accepted batch lease. */
+/** One actual CPU owner, selected graphics, and one immutable accepted batch lease. */
 export class EnvironmentOwner {
   readonly ownerId = crypto.randomUUID()
   readonly #plan: EnvironmentPlan
   readonly #cpu: EnvironmentState
-  readonly #graphics: EnvironmentGraphics
-  readonly #graphicsPlanSha256: string
-  readonly #graphicsGeneration: string
+  readonly #graphics: SelectedGraphics | null
   readonly #sceneSha256: string
   readonly #maxBatchBytes: number
   readonly #maxEncodedBatchBytes: number
   readonly #planSha256: string | null
-  readonly #launch: GraphicsLauncher
-  readonly #graphicsPlanJson: string
   readonly #family: GraphicsFamily
   readonly #ancestry: EnvironmentAncestry | null
   #familySlotHeld = true
@@ -202,15 +205,11 @@ export class EnvironmentOwner {
   private constructor(
     plan: EnvironmentPlan,
     cpu: EnvironmentState,
-    graphics: EnvironmentGraphics,
-    graphicsPlanSha256: string,
-    graphicsGeneration: string,
+    graphics: SelectedGraphics | null,
     sceneSha256: string,
     maxBatchBytes: number,
     maxEncodedBatchBytes: number,
     planSha256: string | null,
-    launch: GraphicsLauncher,
-    graphicsPlanJson: string,
     family: GraphicsFamily = {
       owners: 1,
       checkpoints: 0,
@@ -219,31 +218,29 @@ export class EnvironmentOwner {
       stagingRawBytes: 0,
       generations: new Set<string>(),
       ports: new WeakSet<EnvironmentGraphics>(),
-      attempts: 1,
+      attempts: graphics ? 1 : 0,
     },
     ancestry: EnvironmentAncestry | null = null
   ) {
     this.#plan = plan
     this.#cpu = cpu
     this.#graphics = graphics
-    this.#graphicsPlanSha256 = graphicsPlanSha256
-    this.#graphicsGeneration = graphicsGeneration
     this.#sceneSha256 = sceneSha256
     this.#maxBatchBytes = maxBatchBytes
     this.#maxEncodedBatchBytes = maxEncodedBatchBytes
     this.#planSha256 = planSha256
-    this.#launch = launch
-    this.#graphicsPlanJson = graphicsPlanJson
     this.#family = family
     this.#ancestry = ancestry
-    this.#family.generations.add(graphicsGeneration)
-    this.#family.ports.add(graphics)
+    if (graphics) {
+      this.#family.generations.add(graphics.generation)
+      this.#family.ports.add(graphics.port)
+    }
     Object.freeze(this)
   }
 
   static async prepare(
     input: EnvironmentPlan,
-    launch: GraphicsLauncher,
+    launch?: GraphicsLauncher,
     maxBatchBytes = 32 * 1024 * 1024,
     requestedEncodedBatchBytes?: number
   ): Promise<EnvironmentOwner> {
@@ -255,6 +252,10 @@ export class EnvironmentOwner {
     ownSceneSpec(plan.scene)
     ownAcousticConfig(plan.acoustic)
     ownThermalConfig(plan.thermal)
+    const camerasConfigured = plan.scene.rgbCameras.length + plan.scene.thermalCameras.length > 0
+    const selectedLaunch = camerasConfigured ? launch : undefined
+    if (camerasConfigured && typeof selectedLaunch !== 'function')
+      throw new Error('Configured cameras require an explicit graphics launcher')
     const maximum =
       [...plan.scene.rgbCameras, ...plan.scene.thermalCameras].reduce(
         (sum, camera) => sum + camera.width * camera.height * 4,
@@ -280,35 +281,41 @@ export class EnvironmentOwner {
     const cpu = await EnvironmentState.prepare(plan)
     let graphics: EnvironmentGraphics | undefined
     try {
-      const graphicsPlan: GraphicsPlan = {
-        profile: 'crebain.owned-city-graphics.v1',
-        sourceIdentity: plan.sourceIdentity,
-        scene: plan.scene,
-        droneIds: plan.drones.map((drone) => drone.id),
-        thermal: plan.thermal,
+      let selected: SelectedGraphics | null = null
+      if (selectedLaunch) {
+        const graphicsPlan: GraphicsPlan = {
+          profile: 'crebain.owned-city-graphics.v1',
+          sourceIdentity: plan.sourceIdentity,
+          scene: plan.scene,
+          droneIds: plan.drones.map((drone) => drone.id),
+          thermal: plan.thermal,
+        }
+        const graphicsPlanSha256 = await graphicsInputDigest(graphicsPlan)
+        const graphicsPlanJson = exactJson(graphicsPlan)
+        graphics = await selectedLaunch(graphicsPlanJson)
+        const identity = copyPlainData(graphics.diagnostics())
+        if (
+          identity.planSha256 !== graphicsPlanSha256 ||
+          typeof identity.generation !== 'string' ||
+          !/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(identity.generation)
+        )
+          throw new Error('Graphics preparation does not bind the requested plan and generation')
+        selected = {
+          port: graphics,
+          planSha256: graphicsPlanSha256,
+          generation: identity.generation,
+          planJson: graphicsPlanJson,
+          launch: selectedLaunch,
+        }
       }
-      const graphicsPlanSha256 = await graphicsInputDigest(graphicsPlan)
-      const graphicsPlanJson = exactJson(graphicsPlan)
-      graphics = await launch(graphicsPlanJson)
-      const identity = copyPlainData(graphics.diagnostics())
-      if (
-        identity.planSha256 !== graphicsPlanSha256 ||
-        typeof identity.generation !== 'string' ||
-        !/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(identity.generation)
-      )
-        throw new Error('Graphics preparation does not bind the requested plan and generation')
       return new EnvironmentOwner(
         plan,
         cpu,
-        graphics,
-        graphicsPlanSha256,
-        identity.generation,
+        selected,
         await sha256(exactJson(plan.scene)),
         maxBatchBytes,
         maxEncodedBatchBytes,
-        plan.profile === FORCE_GROUND_PROFILE ? await sha256(exactJson(plan)) : null,
-        launch,
-        graphicsPlanJson
+        plan.profile === FORCE_GROUND_PROFILE ? await sha256(exactJson(plan)) : null
       )
     } catch (error) {
       const cleanupErrors: string[] = []
@@ -374,8 +381,10 @@ export class EnvironmentOwner {
     json: string,
     tick: number,
     inputSha256: string,
-    generation = this.#graphicsGeneration
+    generation?: string
   ): ProcessFrames {
+    const selected = this.#graphics
+    if (!selected) throw new Error('Unselected graphics cannot supply camera frames')
     if (typeof json !== 'string' || json.length > Math.ceil((this.#maxBatchBytes * 4) / 3) + 131072)
       throw new Error('Graphics result exceeds the admitted transport extent')
     const frames = JSON.parse(json) as ProcessFrames
@@ -389,8 +398,8 @@ export class EnvironmentOwner {
       'thermal',
     ])
     if (
-      frames.generation !== generation ||
-      frames.planSha256 !== this.#graphicsPlanSha256 ||
+      frames.generation !== (generation ?? selected.generation) ||
+      frames.planSha256 !== selected.planSha256 ||
       frames.inputSha256 !== inputSha256 ||
       frames.tick !== tick ||
       frames.rowOrigin !== 'bottom-left'
@@ -626,21 +635,37 @@ export class EnvironmentOwner {
           json: controlJson,
         }
       }
-      const request: GraphicsInput = {
-        planSha256: this.#graphicsPlanSha256,
-        tick,
-        drones: reference.dynamics.drones.map((drone, index) => ({
-          id: drone.id,
-          position: drone.position as [number, number, number],
-          orientation: drone.orientation as [number, number, number, number],
-          temperatureK: reference.temperaturesK[index],
-        })),
+      let captured: {
+        frames: ProcessFrames
+        inputJson: string
+        inputSha256: string
+      } | null = null
+      if (this.#graphics) {
+        const request: GraphicsInput = {
+          planSha256: this.#graphics.planSha256,
+          tick,
+          drones: reference.dynamics.drones.map((drone, index) => ({
+            id: drone.id,
+            position: drone.position as [number, number, number],
+            orientation: drone.orientation as [number, number, number, number],
+            temperatureK: reference.temperaturesK[index],
+          })),
+        }
+        const requestJson = exactJson(request)
+        const inputSha256 = await graphicsInputDigest(JSON.parse(requestJson))
+        if (this.#plan.profile === FORCE_GROUND_PROFILE && this.#phase !== 'busy')
+          throw new Error('Retired environment generation cannot request graphics')
+        const frames = this.frames(
+          await this.#graphics.port.captureJson(requestJson),
+          tick,
+          inputSha256
+        )
+        captured = {
+          frames,
+          inputJson: requestJson,
+          inputSha256,
+        }
       }
-      const requestJson = exactJson(request)
-      const inputSha256 = await graphicsInputDigest(JSON.parse(requestJson))
-      if (this.#plan.profile === FORCE_GROUND_PROFILE && this.#phase !== 'busy')
-        throw new Error('Retired environment generation cannot request graphics')
-      const frames = this.frames(await this.#graphics.captureJson(requestJson), tick, inputSha256)
       const audio = this.pressure(pressure, tick)
       const batch = {
         profile:
@@ -667,20 +692,23 @@ export class EnvironmentOwner {
           json: sourceJson,
         },
         pressure: audio,
-        graphics: frames,
+        graphics: captured?.frames ?? null,
       }
       const json = JSON.stringify(batch)
       if (new TextEncoder().encode(json).byteLength > this.#maxEncodedBatchBytes)
         throw new Error('Joined observation exceeds the admitted byte envelope')
       const digest = await sha256(json)
-      const render: RenderReference = {
-        inputJson: requestJson,
-        inputSha256,
-        pixelsJson: await this.pixelIdentity(frames),
-      }
+      const render: RenderReference | null = captured
+        ? {
+            inputJson: captured.inputJson,
+            inputSha256: captured.inputSha256,
+            pixelsJson: await this.pixelIdentity(captured.frames),
+          }
+        : null
       if (
+        render &&
         new TextEncoder().encode(JSON.stringify(render)).byteLength >
-        MAX_CHECKPOINT_METADATA_BYTES / 2
+          MAX_CHECKPOINT_METADATA_BYTES / 2
       )
         throw new Error('Static-render reference exceeds its fixed per-owner reservation')
       if (this.#phase !== 'busy')
@@ -805,7 +833,7 @@ export class EnvironmentOwner {
 
   async checkpoint(): Promise<StaticRenderCheckpoint> {
     const eligibility = this.checkpointEligibility()
-    if (!eligibility.eligible) throw new Error(eligibility.reason)
+    if (!eligibility.eligible || !this.#graphics) throw new Error(eligibility.reason)
     if (this.#family.reconstructing) throw new Error('Environment family reconstruction is busy')
     if (
       this.#family.checkpoints >= 8 ||
@@ -826,8 +854,8 @@ export class EnvironmentOwner {
         ownerId: this.ownerId,
         sourceIdentity: this.#plan.sourceIdentity,
         sceneSha256: this.#sceneSha256,
-        graphicsPlanSha256: this.#graphicsPlanSha256,
-        graphicsGeneration: this.#graphicsGeneration,
+        graphicsPlanSha256: this.#graphics.planSha256,
+        graphicsGeneration: this.#graphics.generation,
         tick: this.#acceptedTick,
         acceptedBatchSha256,
         actionPosition: this.#actionPosition,
@@ -898,6 +926,8 @@ export class EnvironmentOwner {
   async fork(handle: StaticRenderCheckpoint): Promise<EnvironmentOwner> {
     this.active()
     const stored = this.retained(handle)
+    const selected = this.#graphics
+    if (!selected) throw new Error('Static-render forks require selected graphics')
     if (this.#family.owners >= 4) throw new Error('Graphics owner family budget exhausted')
     if (this.#family.attempts >= 256)
       throw new Error('Graphics generation attempt budget exhausted')
@@ -916,7 +946,7 @@ export class EnvironmentOwner {
       cpu = await this.#cpu.fork(stored.cpu)
       if (this.#phase !== 'busy') throw new Error('Parent retired during CPU reconstruction')
       launchAttempted = true
-      graphics = await this.#launch(this.#graphicsPlanJson)
+      graphics = await selected.launch(selected.planJson)
       if (this.#family.ports.has(graphics)) {
         graphics = undefined
         launchAttempted = false
@@ -926,7 +956,7 @@ export class EnvironmentOwner {
       if (this.#phase !== 'busy') throw new Error('Parent retired during graphics reconstruction')
       const identity = copyPlainData(graphics.diagnostics())
       if (
-        identity.planSha256 !== this.#graphicsPlanSha256 ||
+        identity.planSha256 !== selected.planSha256 ||
         typeof identity.generation !== 'string' ||
         !/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(identity.generation) ||
         this.#family.generations.has(identity.generation)
@@ -955,15 +985,11 @@ export class EnvironmentOwner {
       const child = new EnvironmentOwner(
         this.#plan,
         cpu,
-        graphics,
-        this.#graphicsPlanSha256,
-        identity.generation,
+        { ...selected, port: graphics, generation: identity.generation },
         this.#sceneSha256,
         this.#maxBatchBytes,
         this.#maxEncodedBatchBytes,
         this.#planSha256,
-        this.#launch,
-        this.#graphicsPlanJson,
         this.#family,
         ancestry
       )
@@ -1110,7 +1136,7 @@ export class EnvironmentOwner {
       failure.cleanupErrors.push(String(cleanup).slice(0, 2048))
     }
     try {
-      await this.#graphics.retire()
+      await this.#graphics?.port.retire()
       if (failure.cleanupErrors.length === 0) this.releaseFamilySlot()
     } catch (cleanup) {
       failure.cleanupErrors.push(String(cleanup).slice(0, 2048))
@@ -1130,10 +1156,10 @@ export class EnvironmentOwner {
     let graphicsRetired = false
     try {
       const cleanup = await Promise.allSettled([
-        this.#graphics.retire(),
+        ...(this.#graphics ? [this.#graphics.port.retire()] : []),
         ...(candidate ? [candidate.retire()] : []),
       ])
-      graphicsRetired = cleanup[0].status === 'fulfilled'
+      graphicsRetired = this.#graphics === null || cleanup[0].status === 'fulfilled'
       const errors = cleanup.flatMap((result) =>
         result.status === 'rejected' ? [result.reason as unknown] : []
       )

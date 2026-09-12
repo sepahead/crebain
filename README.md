@@ -34,6 +34,7 @@ The [0.9 release decision](docs/NARROWED_GO_0.9.0.md) and its remaining exclusio
 
 The optional [typed sensor application](integrations/ncp-force-ground-sensors/README.md) is a separate construction candidate.
 Its [sensor selection](integrations/ncp-force-ground-sensors/README.md#select-the-sensors-you-need) supports multiple cameras and microphones without requiring every modality.
+Microphone-only selections use the same CPU environment without starting a graphics renderer.
 Four [native selection cases](integrations/ncp-force-ground-sensors/README.md#native-sensor-selection) passed, including two RGB cameras with different periods and a camera-only roster.
 NCP carries typed observations; experiment software defines features, source variables, targets, and statistical assumptions.
 Its first successful native run transferred all 44 RGB, thermal, and pressure payloads through NCP to an independent Python reader.

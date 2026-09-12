@@ -24,7 +24,7 @@ export interface LeaseOwner {
 export type OwnerFactory = (plan: EnvironmentPlan, maximum: number) => Promise<LeaseOwner>
 export type GraphicsFactory = (json: string) => Promise<EnvironmentGraphics>
 
-export function actualFactory(graphics: GraphicsFactory): OwnerFactory {
+export function actualFactory(graphics?: GraphicsFactory): OwnerFactory {
   return (plan, maximum) =>
     EnvironmentOwner.prepare(
       plan,
@@ -217,16 +217,22 @@ export class SensorBridge {
           time.unit !== 'second'
         )
           throw new Error('Actual source observation join')
-        const graphics = keys(batch.graphics, [
-          'generation',
-          'planSha256',
-          'inputSha256',
-          'tick',
-          'rowOrigin',
-          'rgb',
-          'thermal',
-        ])
-        if (graphics.tick !== input.tick || graphics.rowOrigin !== 'bottom-left')
+        const camerasConfigured =
+          plan.scene.rgbCameras.length + plan.scene.thermalCameras.length > 0
+        if ((batch.graphics !== null) !== camerasConfigured)
+          throw new Error('Graphics selection differs from the configured camera roster')
+        const graphics = camerasConfigured
+          ? keys(batch.graphics, [
+              'generation',
+              'planSha256',
+              'inputSha256',
+              'tick',
+              'rowOrigin',
+              'rgb',
+              'thermal',
+            ])
+          : null
+        if (graphics && (graphics.tick !== input.tick || graphics.rowOrigin !== 'bottom-left'))
           throw new Error('Graphics clock and axes')
         const payloads: Retained['payloads'] = []
         for (const [modality, cameras, kind, prefix] of [
@@ -234,7 +240,7 @@ export class SensorBridge {
           ['thermal', plan.scene.thermalCameras, 'radiance', 'thermal'],
         ] as const) {
           const due = cameras.filter((c) => Number(input.tick) % c.periodTicks === 0)
-          const actual = rows(graphics[modality])
+          const actual = graphics ? rows(graphics[modality]) : []
           if (actual.length !== due.length) throw new Error('Due graphics roster')
           for (let index = 0; index < due.length; index++) {
             const camera = due[index]

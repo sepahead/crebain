@@ -1,18 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 800" role="img" aria-labelledby="title description">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 824" role="img" aria-labelledby="title description">
   <title id="title">CREBAIN native city environment and reconstructed branches</title>
-  <desc id="description">One metric scene supplies city colliders, meshes, and static Gaussian surfaces. Explicit physics ticks update complete CPU, acoustic, and thermal state. A private renderer returns actual camera pixels. The owner accepts observations after complete source and time joins. At an all-camera barrier, exact CPU reconstruction and fresh current-pixel equality admit independent branches. This does not clone hidden GPU state.</desc>
+  <desc id="description">One metric scene supplies city colliders, meshes, and static Gaussian surfaces. Explicit physics ticks update complete CPU, acoustic, and thermal state. Configured RGB or thermal cameras select a private renderer. Without cameras, no graphics process starts and CPU observations still reach the lease. The owner accepts observations after complete source and time joins. Camera-based checkpoints reconstruct exact CPU state and verify fresh current pixels before admitting independent branches. This does not clone hidden GPU state.</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#315c67"/></marker>
     <style>text{font-family:Arial,Helvetica,sans-serif;fill:#172b3a}.title{font-size:29px;font-weight:700}.head{font-size:20px;font-weight:700}.body{font-size:17px}.small{font-size:16px}.box{fill:#fff;stroke:#91a8b5;stroke-width:2}.flow{fill:none;stroke:#315c67;stroke-width:2.5;marker-end:url(#arrow)}.dashed{fill:none;stroke:#647b8c;stroke-width:2;stroke-dasharray:7 5;marker-end:url(#arrow)}</style>
   </defs>
-  <rect width="1160" height="800" rx="20" fill="#f2f6f7"/>
+  <rect width="1160" height="824" rx="20" fill="#f2f6f7"/>
   <text class="title" x="36" y="48">CREBAIN · A city, explicit time, actual observations</text>
   <text class="body" x="36" y="80">Standalone source component · +Y up, +Z forward · No neural controller or protocol bundle required</text>
   <rect class="box" x="36" y="115" width="1088" height="90" rx="12"/>
   <text class="head" x="58" y="148">One owned metric SceneSpec</text>
   <text class="body" x="58" y="179">Authored cuboids → Rapier colliders, mesh surfaces, static Gaussians, acoustic obstruction, and thermal visibility</text>
   <path class="flow" d="M305 205V249"/>
-  <path class="flow" d="M849 205V249"/>
+  <path class="flow" stroke-dasharray="2 6" d="M849 205V249"/>
   <rect class="box" x="36" y="258" width="518" height="203" rx="12"/>
   <text class="head" x="58" y="293">Complete CPU owner</text>
   <text class="body" x="58" y="326">Accepted action → controller → motors → actual Rapier</text>
@@ -20,14 +20,14 @@
   <text class="body" x="58" y="386">Mechanical power → explicit heat balance → temperature</text>
   <text class="small" x="58" y="433">Executed time: tick k / 120 s · Acoustic samples: 16 kHz</text>
   <rect class="box" x="604" y="258" width="520" height="203" rx="12"/>
-  <text class="head" x="626" y="293">Private graphics owner</text>
+  <text class="head" x="626" y="293">Graphics: configured cameras only</text>
   <text class="body" x="626" y="326">Exact scene, tick, pose, and temperature inputs</text>
   <text class="body" x="626" y="356">Awaited Spark RGB: RGBA8 sRGB</text>
   <text class="body" x="626" y="386">Float thermal pixels: bolometric W/(m² sr)</text>
   <text class="small" x="626" y="433">Parent watchdog owns setup, capture, and cleanup</text>
-  <path class="flow" d="M554 347H596"/>
+  <path class="flow" stroke-dasharray="2 6" d="M554 347H596"/>
   <path class="flow" d="M295 461V491H577V516"/>
-  <path class="flow" d="M865 461V491H585"/>
+  <path class="flow" stroke-dasharray="2 6" d="M865 461V491H585"/>
   <rect x="215" y="524" width="730" height="104" rx="12" fill="#e4eff0" stroke="#83a5ac" stroke-width="2"/>
   <text class="head" x="237" y="558">Accept one complete observation, then issue one immutable lease</text>
   <text class="body" x="237" y="590">Bind raw arrays and privileged reference separately. Failure retires the generation.</text>
@@ -40,4 +40,5 @@
   <text class="head" x="644" y="714">Fresh matched branch B</text>
   <text class="small" x="644" y="742">Own actions and lifetime · Shared initial noise state</text>
   <text class="small" x="36" y="785">Dashed links: checkpoint reconstruction at an all-camera barrier. Hidden GPU-state cloning and universal future equality are not claimed.</text>
+  <text class="small" x="36" y="810">Dotted links: configured cameras only. Without cameras, graphics is null and CPU observations still reach the lease.</text>
 </svg>

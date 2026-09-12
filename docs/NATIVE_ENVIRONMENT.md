@@ -9,7 +9,8 @@ This component is not an installed desktop or NCP environment profile.
 
 Text alternative: One scene specifies city colliders, meshes, and static Gaussian surfaces.
 The CPU owner advances dynamics, acoustic history, and temperature at explicit ticks.
-A private renderer returns actual RGB and thermal pixels.
+Selected cameras use a private renderer for actual RGB and thermal pixels.
+Camera-free rosters require no graphics process.
 The environment accepts a complete observation only after every required output joins the executed tick.
 Branches reconstruct exact CPU state and use fresh static renderers with verified current pixels.
 
@@ -28,7 +29,8 @@ bun examples/native-environment/run.ts examples/native-environment/city-run.json
 ```
 
 Use a new output directory.
-Provide your explicitly selected absolute Node executable path.
+If the plan includes cameras, provide your explicitly selected absolute Node executable path.
+For a camera-free plan, omit that final argument.
 The launcher does not search PATH for a fallback.
 The example advances 120 physics ticks, or one simulated second.
 Two RGB cameras and one thermal camera each capture ten frames.
@@ -170,6 +172,11 @@ NCP transport and a complete Prisoma experiment remain separate open contracts.
 | `EnvironmentOwner.ts` | Join CPU execution and all required outputs, retain one immutable observation lease, and own reconstructed branches. |
 
 `EnvironmentOwner.prepare(plan, launcher)` admits the complete raw output capacity before CPU preparation.
+The launcher is required only when RGB or thermal cameras are configured.
+With both camera lists empty, preparation starts no renderer and ignores any supplied graphics launcher.
+Camera-free observations contain `graphics=null`; pressure, CPU state, and lease rules remain unchanged.
+The standalone example records `diagnostics=null` for that path.
+Configured cameras retain their graphics checks on every tick, including ticks without a due frame.
 `schedule(action)` accepts one future action through the existing dynamics contract.
 `advance()` executes one tick and returns an owner-issued observation handle after complete output validation.
 `readObservation(handle)` returns an immutable JSON string.
@@ -177,6 +184,8 @@ NCP transport and a complete Prisoma experiment remain separate open contracts.
 Copied, foreign, altered, and released handles reject.
 
 `checkpointEligibility()` explains the required all-camera barrier.
+Static-render checkpoints require at least one camera.
+The separate CPU checkpoint interface remains available for camera-free state.
 `checkpoint()` returns a live owner-issued checkpoint handle at that barrier.
 `checkpointAudit(handle)` returns metadata and complete CPU checkpoint strings for privileged audit.
 `fork(handle)` reconstructs an independent child with explicit parent ancestry.

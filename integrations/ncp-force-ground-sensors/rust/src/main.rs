@@ -12,20 +12,49 @@ use std::path::Path;
 use std::sync::mpsc;
 use std::time::Duration;
 
+struct LauncherArguments<'a> {
+    bun: &'a Path,
+    node: Option<&'a Path>,
+    bridge: &'a Path,
+    source_identity: &'a str,
+    binding_json: &'a str,
+}
+
+fn launcher_arguments(args: &[String]) -> Result<LauncherArguments<'_>, String> {
+    let (bun, node, bridge, source_identity, binding_json) = match args {
+        [bun_key, bun, node_key, node, bridge_key, bridge, source_key, source, binding_key, binding]
+            if bun_key == "--bun"
+                && node_key == "--node"
+                && bridge_key == "--bridge"
+                && source_key == "--source-identity"
+                && binding_key == "--binding-json" =>
+        {
+            (bun, Some(Path::new(node)), bridge, source, binding)
+        }
+        [bun_key, bun, bridge_key, bridge, source_key, source, binding_key, binding]
+            if bun_key == "--bun"
+                && bridge_key == "--bridge"
+                && source_key == "--source-identity"
+                && binding_key == "--binding-json" =>
+        {
+            (bun, None, bridge, source, binding)
+        }
+        _ => return Err("trusted launcher arguments required".into()),
+    };
+    Ok(LauncherArguments {
+        bun: Path::new(bun),
+        node,
+        bridge: Path::new(bridge),
+        source_identity,
+        binding_json,
+    })
+}
+
 fn run() -> Result<(), String> {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let names = [
-        "--bun",
-        "--node",
-        "--bridge",
-        "--source-identity",
-        "--binding-json",
-    ];
-    if args.len() != 10 || names.iter().enumerate().any(|(i, key)| args[2 * i] != *key) {
-        return Err("trusted launcher arguments required".into());
-    }
-    let value =
-        ncp_local::modular_wire::parse_value(args[9].as_bytes()).map_err(|_| "binding JSON")?;
+    let args = launcher_arguments(&args)?;
+    let value = ncp_local::modular_wire::parse_value(args.binding_json.as_bytes())
+        .map_err(|_| "binding JSON")?;
     let binding: BufferBinding = serde_json::from_value(value).map_err(|_| "binding schema")?;
     binding.validate().map_err(|_| "binding identity")?;
     let mut semantics = ["rgba8", "radiance", "pressure"]
@@ -34,16 +63,11 @@ fn run() -> Result<(), String> {
         .collect::<Result<Vec<_>, _>>()
         .map_err(|_| "installed semantic descriptors")?;
     semantics.sort();
-    let engine = EngineProcess::spawn(
-        Path::new(&args[1]),
-        Path::new(&args[3]),
-        Path::new(&args[5]),
-        binding.generation.clone(),
-    )
-    .map_err(|_| "engine start")?;
+    let engine = EngineProcess::spawn(args.bun, args.node, args.bridge, binding.generation.clone())
+        .map_err(|_| "engine start")?;
     let mut engine = SharedEngine::new(engine);
-    let application =
-        SensorApplication::new(engine.clone(), args[7].clone()).map_err(|_| "source identity")?;
+    let application = SensorApplication::new(engine.clone(), args.source_identity.to_owned())
+        .map_err(|_| "source identity")?;
     let mut owner = Owner::new(binding, application, semantics).map_err(|_| "installed owner")?;
     let (input_tx, input_rx) = mpsc::sync_channel(1);
     std::thread::spawn(move || {
@@ -126,5 +150,49 @@ fn main() {
     if let Err(error) = run() {
         eprintln!("CREBAIN sensor producer: {error}");
         std::process::exit(1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn launcher_forms_keep_node_explicit_and_optional() {
+        let plain = [
+            "--bun",
+            "/selected/bun",
+            "--bridge",
+            "/selected/bridge.ts",
+            "--source-identity",
+            "source",
+            "--binding-json",
+            "{}",
+        ]
+        .map(String::from)
+        .to_vec();
+        let parsed = launcher_arguments(&plain).unwrap();
+        assert_eq!(parsed.node, None);
+        assert_eq!(parsed.bun, Path::new("/selected/bun"));
+        assert_eq!(parsed.bridge, Path::new("/selected/bridge.ts"));
+        assert_eq!(parsed.source_identity, "source");
+        assert_eq!(parsed.binding_json, "{}");
+        let mut rendered = plain.clone();
+        rendered.splice(2..2, ["--node".into(), "/selected/node".into()]);
+        assert_eq!(
+            launcher_arguments(&rendered).unwrap().node,
+            Some(Path::new("/selected/node"))
+        );
+        for count in [0, 1, 7, 9] {
+            assert!(launcher_arguments(&rendered[..count]).is_err());
+        }
+        for index in (0..rendered.len()).step_by(2) {
+            let mut malformed = rendered.clone();
+            malformed[index] = "--unknown".into();
+            assert!(launcher_arguments(&malformed).is_err());
+        }
+        let mut repeated = plain;
+        repeated[2] = "--bun".into();
+        assert!(launcher_arguments(&repeated).is_err());
     }
 }

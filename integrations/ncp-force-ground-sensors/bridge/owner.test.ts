@@ -85,6 +85,7 @@ class SyntheticOwner implements LeaseOwner {
   lease: ObservationHandle | null = null
   serialized = ''
   scheduled: unknown[] = []
+  forceGraphics: boolean | null = null
   constructor(readonly plan: EnvironmentPlan) {}
   schedule(action: unknown): void {
     this.scheduled.push(action)
@@ -147,7 +148,12 @@ class SyntheticOwner implements LeaseOwner {
           })),
       },
     }
-    this.serialized = JSON.stringify(payload)
+    const camerasConfigured =
+      this.plan.scene.rgbCameras.length + this.plan.scene.thermalCameras.length > 0
+    this.serialized = JSON.stringify({
+      ...payload,
+      graphics: (this.forceGraphics ?? camerasConfigured) ? payload.graphics : null,
+    })
     this.lease = Object.freeze({ ownerId, tick, sha256: sha256(this.serialized) })
     this.previous = this.lease.sha256
     return this.lease
@@ -204,6 +210,24 @@ describe('closed private grammar, synthetic controls only', () => {
 })
 
 describe('retained native projection, synthetic engine only', () => {
+  test('rejects missing configured graphics and invented unselected graphics', async () => {
+    for (const camerasConfigured of [false, true]) {
+      const input = preparation()
+      if (!camerasConfigured) {
+        const scene = object(object(input.specification).scene)
+        scene.rgbCameras = []
+        scene.thermalCameras = []
+      }
+      const bridge = new SensorBridge(async (plan) => {
+        const native = new SyntheticOwner(plan)
+        native.forceGraphics = !camerasConfigured
+        return native
+      })
+      await bridge.command(object(decodeFrame(framed(input)).command))
+      await expect(bridge.command(advance(1))).rejects.toThrow('Graphics selection differs')
+      expect(await bridge.retire()).toBe(true)
+    }
+  })
   test('selected modalities admit empty due rosters without inventing sensor bytes', async () => {
     for (let mask = 1; mask < 8; mask++) {
       const input = preparation()
@@ -398,6 +422,61 @@ const syntheticPrepared = {
 }
 
 describe('private browser-reported runtime receipt', () => {
+  test('camera-free receipts keep graphics absent and precede prepared publication', async () => {
+    const input = preparation()
+    const scene = object(object(input.specification).scene)
+    scene.rgbCameras = []
+    scene.thermalCameras = []
+    const request = object(JSON.parse(framed(input).toString()))
+    const events: string[] = []
+    await publishPreparedRuntime(
+      request,
+      syntheticPrepared,
+      undefined,
+      async (line) => {
+        const receipt = object(JSON.parse(line.toString().slice(RUNTIME_RECEIPT_PREFIX.length)))
+        validateFrozen('Receipt', receipt, 'runtime')
+        expect(receipt.graphics).toBeNull()
+        expect(receipt.identity_scope).toBe('graphics-unselected-by-camera-roster')
+        for (const changed of [
+          {
+            ...receipt,
+            identity_scope: 'browser-reported-strings-not-loaded-code-or-hardware-proof',
+          },
+          { ...receipt, graphics: {} },
+          { ...receipt, browser_pid: 123 },
+        ])
+          expect(() => validateFrozen('Receipt', changed, 'runtime')).toThrow()
+        events.push('written')
+      },
+      async () => {
+        events.push('prepared')
+      }
+    )
+    expect(events).toEqual(['written', 'prepared'])
+    let writes = 0
+    let publications = 0
+    for (const [selectedRequest, graphics] of [
+      [request, runtimeSource()],
+      [object(JSON.parse(framed(preparation()).toString())), undefined],
+    ] as const) {
+      await expect(
+        publishPreparedRuntime(
+          selectedRequest,
+          syntheticPrepared,
+          graphics,
+          async () => {
+            writes++
+          },
+          async () => {
+            publications++
+          }
+        )
+      ).rejects.toThrow('Runtime graphics selection differs')
+    }
+    expect(writes).toBe(0)
+    expect(publications).toBe(0)
+  })
   test('Node worker metadata follows the actual closed diagnostic shape', () => {
     const worker = { name: 'node', version: '26.7.0', executable: '/selected/bin/node' }
     const diagnostic = { ...syntheticRuntime(), workerRuntime: worker }

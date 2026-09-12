@@ -33,9 +33,9 @@ def eq(t):flow.append(Paragraph(t,styles['EquationGuide']))
 def title(t,sub):flow.extend([Paragraph(t,styles['TitleGuide']),Paragraph(sub,styles['SmallGuide'])])
 def page():flow.append(PageBreak())
 
-title('A city, explicit time,<br/>and actual observations','CREBAIN native environment | Source component guide | September 8, 2026')
+title('A city, explicit time,<br/>and actual observations','CREBAIN native environment | Source component guide | September 12, 2026')
 p('CREBAIN advances its existing Rapier drone dynamics. One authored metric scene supplies building colliders, meshes, Gaussian surfaces, acoustic obstruction, and thermal visibility.')
-p('The CPU owns physical state, controller memory, rotor response, acoustic history, and temperature. A private Node and Chromium process owns actual RGB and thermal pixel rendering.')
+p('The CPU owns physical state, controller memory, rotor response, acoustic history, and temperature. Selected cameras use a private Node and Chromium renderer. Camera-free rosters start neither process.')
 h('What one step means')
 eq('t<sub>k</sub> = k / 120 seconds; &nbsp; Δt = 1 / 120 seconds')
 p('The integer k is the completed physics tick. The next scheduled action applies before that tick. Display reads and wall-clock delays cannot advance simulation time.')
@@ -45,7 +45,7 @@ p('A motor command is a named fraction from 0 to 1. An attitude command sets rol
 p('The frame is positive Y upward, positive Z forward, and positive X right. It is not ENU or PushT. Commanded acceleration must never be claimed as delivered acceleration without a separate measured adapter.')
 p('The default attitude controller failed a frozen three-second tracking campaign. A separate twelve-tick free-rotation probe observed no Euler gyroscopic evolution in its inspected configuration. The one-second city export does not qualify tracking or physical fidelity.')
 h('Output and reference stay separate')
-p('Accepted batches bind actual pressure, RGB, and thermal arrays. Privileged CPU truth is a separate field. A predictor must not gain checkpoint or future-label access through an observation interface.')
+p('Accepted batches bind each selected sensor and its actual arrays. Camera-free batches contain graphics=null. Privileged CPU truth is separate. A predictor must not gain checkpoint or future-label access through an observation interface.')
 p('This component is not physical calibration, installed desktop qualification, a real-vehicle controller, or a completed NCP or Prisoma experiment integration.')
 
 page();title('Heat: from rotor power<br/>to a thermal pixel','Declared lumped gray-surface model | Units and worked examples')
@@ -75,7 +75,7 @@ p('Setting Gaussian opacity to zero versus one must change actual RGB pixels. Me
 
 page();title('Pressure: phase, delay,<br/>and an honest range limit','Explicit acoustic forward model | 16,000 samples per second')
 eq('[ floor((k - 1) f<sub>s</sub> / 120), floor(k f<sub>s</sub> / 120) )<br/>f<sub>s</sub> = 16,000 Hz')
-p('The first three complete intervals contain 133, 133, and 134 samples. CPU advances first; completed pose and rotor speed remain constant within that audio block. This is a declared approximation.')
+p('Each microphone returns 133, 133, and 134 samples in its first three windows. CPU advances first; completed pose and rotor speed remain constant within that audio block. This is a declared approximation.')
 eq('f<sub>b</sub> = 2 n / 60 Hz<br/>q(φ) = sin φ + 0.3 sin(2φ) + 0.1 sin(3φ)')
 p('For a two-bladed rotor, n is revolutions per minute and f<sub>b</sub> is blade-passage frequency. At 6,000 RPM the fundamental is 200 Hz. Phase φ advances at that frequency. Amplitude scales with (n/15,000)² and the declared reference pressure.')
 eq('delay = max(d, d<sub>0</sub>) / c seconds<br/>gain = d<sub>0</sub> / max(d, d<sub>0</sub>) × obstruction factor')
@@ -85,7 +85,7 @@ p('The selected 256-drone challenge changed dynamics, RGB, and thermal output. I
 p('The model retains phases, delay rings, noise generator state, and sample index. It omits echoes, diffraction, calibrated directivity, and moving-source retarded geometry. Cloned noise is shared randomness, not independent replication.')
 
 page();title('A checkpoint is a bounded<br/>causal contract','Exact CPU reconstruction | Fresh static renderer | Independent branch lifetime')
-p('A live owner-issued checkpoint requires a released observation lease, no pending operation, and a tick at which every camera was due. If camera periods have no common positive tick within 7,200 ticks, that checkpoint capability is unavailable.')
+p('The coupled static-render checkpoint requires at least one camera, a released observation lease, no pending operation, and an all-camera tick. If camera periods have no common positive tick within 7,200 ticks, that checkpoint capability is unavailable.')
 p('The complete CPU checkpoint includes dynamics, controller memory, motors, battery, accepted future actions, acoustic history, noise, and temperature. The same actual transition reconstructs it from the bound initial state and action prefix.')
 eq('S<sub>k</sub> = F(S<sub>k-1</sub>, u<sub>k</sub>)')
 p('S is complete admitted CPU state. F is the existing transition. u contains the selected controls for that tick, including no replacement. Exact canonical state comparison guards replay acceptance.')

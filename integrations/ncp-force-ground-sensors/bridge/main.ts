@@ -7,32 +7,40 @@ import { graphicsInputDigest } from '../../../src/environment/GraphicsContract'
 import type * as GraphicsModule from './owned-graphics.mjs'
 
 const args = process.argv.slice(2)
+const withNode =
+  args.length === 4 && args[0] === '--node' && isAbsolute(args[1]) && args[2] === '--generation'
+const withoutNode = args.length === 2 && args[0] === '--generation'
+const generation = args.at(-1)
 if (
-  args.length !== 4 ||
-  args[0] !== '--node' ||
-  !isAbsolute(args[1]) ||
-  args[2] !== '--generation' ||
-  !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(args[3])
+  (!withNode && !withoutNode) ||
+  typeof generation !== 'string' ||
+  !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(generation)
 )
   throw new Error('Trusted bridge arguments')
-const nodeExecutable = args[1]
-const generation = args[3]
+const nodeExecutable = withNode ? args[1] : undefined
 // This fixed project module is selected by source, never by the NCP peer.
 const moduleUrl = new URL('../../../scripts/lib/owned-graphics-process.mjs', import.meta.url)
-const { OwnedGraphicsProcess } = (await import(moduleUrl.href)) as typeof GraphicsModule
 let preparedGraphics: PreparedGraphics | undefined
 const bridge = new SensorBridge(
-  actualFactory(async (json) => {
-    const plan = object(JSON.parse(json))
-    const planSha256 = await graphicsInputDigest(plan)
-    const graphics = await OwnedGraphicsProcess.prepare(json, { timeoutMs: 30000, nodeExecutable })
-    preparedGraphics = {
-      sourceIdentity: String(plan.sourceIdentity),
-      planSha256,
-      diagnostics: () => graphics.diagnostics(),
-    }
-    return graphics
-  })
+  actualFactory(
+    nodeExecutable === undefined
+      ? undefined
+      : async (json) => {
+          const { OwnedGraphicsProcess } = (await import(moduleUrl.href)) as typeof GraphicsModule
+          const plan = object(JSON.parse(json))
+          const planSha256 = await graphicsInputDigest(plan)
+          const graphics = await OwnedGraphicsProcess.prepare(json, {
+            timeoutMs: 30000,
+            nodeExecutable,
+          })
+          preparedGraphics = {
+            sourceIdentity: String(plan.sourceIdentity),
+            planSha256,
+            diagnostics: () => graphics.diagnostics(),
+          }
+          return graphics
+        }
+  )
 )
 let sequence = 0
 let parentGone = false

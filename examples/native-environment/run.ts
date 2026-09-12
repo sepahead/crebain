@@ -2,14 +2,14 @@ import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { constants } from 'node:fs'
 import { mkdir, open, readFile, readdir } from 'node:fs/promises'
-import { dirname, relative, resolve } from 'node:path'
+import { dirname, isAbsolute, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { EnvironmentOwner, observationEnvelopeBytes } from '../../src/environment/EnvironmentOwner'
 import type { EnvironmentPlan } from '../../src/environment/EnvironmentState'
 import type { ScheduledDynamicsAction } from '../../src/physics/DeterministicDroneWorld'
 import { closedKeys } from '../../src/environment/SceneSpec'
 import { exactJson } from '../../src/environment/ExactJson'
-import { OwnedGraphicsProcess } from '../../scripts/lib/owned-graphics-process.mjs'
+import type { OwnedGraphicsProcess } from '../../scripts/lib/owned-graphics-process.mjs'
 
 // A bounded engineering export. This example does not implement Prisoma's commit contract.
 const MAX_INPUT_BYTES = 1024 * 1024
@@ -17,9 +17,14 @@ const MAX_EXPORT_BYTES = 128 * 1024 * 1024
 const TERMINAL_BYTES = 16 * 1024
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const [inputPath, outputPath, nodeExecutable] = process.argv.slice(2)
-if (!inputPath || !outputPath || !nodeExecutable || process.argv.length !== 5)
+if (
+  !inputPath ||
+  !outputPath ||
+  (process.argv.length !== 4 && process.argv.length !== 5) ||
+  (nodeExecutable !== undefined && !isAbsolute(nodeExecutable))
+)
   throw new Error(
-    'Usage: bun examples/native-environment/run.ts PLAN_JSON NEW_OUTPUT_DIRECTORY ABSOLUTE_NODE_EXECUTABLE'
+    'Usage: bun examples/native-environment/run.ts PLAN_JSON NEW_OUTPUT_DIRECTORY [ABSOLUTE_NODE_EXECUTABLE]'
   )
 const sha256 = (bytes: string | Uint8Array): string =>
   createHash('sha256').update(bytes).digest('hex')
@@ -130,10 +135,17 @@ let graphics: OwnedGraphicsProcess | undefined
 let outputFile: Awaited<ReturnType<typeof open>> | undefined
 let durableSteps = 0
 try {
-  owner = await EnvironmentOwner.prepare(plan, async (json) => {
-    graphics = await OwnedGraphicsProcess.prepare(json, { timeoutMs: 30000, nodeExecutable })
-    return graphics
-  })
+  owner = await EnvironmentOwner.prepare(
+    plan,
+    nodeExecutable === undefined
+      ? undefined
+      : async (json) => {
+          const { OwnedGraphicsProcess } =
+            await import('../../scripts/lib/owned-graphics-process.mjs')
+          graphics = await OwnedGraphicsProcess.prepare(json, { timeoutMs: 30000, nodeExecutable })
+          return graphics
+        }
+  )
   for (const action of specification.actions) owner.schedule(action)
   outputFile = await open(resolve(outputPath, 'observations.jsonl'), 'wx', 0o600)
   for (let tick = 1; tick <= specification.steps; tick++) {
@@ -150,7 +162,7 @@ try {
   for (const row of sourceRoster)
     if (sha256(await readFile(resolve(root, row.path))) !== row.sha256) sourceDrift.push(row.path)
   assert.equal(sourceDrift.length, 0, 'Source changed during this engineering run')
-  const diagnostics = graphics!.diagnostics()
+  const diagnostics = graphics?.diagnostics() ?? null
   await owner.retire()
   const status = owner.status()
   await save('result.json', {

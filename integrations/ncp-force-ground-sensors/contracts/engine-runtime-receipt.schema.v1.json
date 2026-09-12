@@ -124,7 +124,31 @@
       ],
       "additionalProperties": false
     },
-    "Receipt": {
+    "WorkerRuntime": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "const": "node"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "maxLength": 64
+        },
+        "executable": {
+          "type": "string",
+          "pattern": "^/[\\x20-\\x7e]+$",
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "executable"
+      ],
+      "additionalProperties": false
+    },
+    "RenderedReceipt": {
       "type": "object",
       "properties": {
         "schema": {
@@ -168,29 +192,59 @@
       ],
       "additionalProperties": false
     },
-    "WorkerRuntime": {
+    "CameraFreeReceipt": {
       "type": "object",
       "properties": {
-        "name": {
-          "const": "node"
+        "schema": {
+          "const": "crebain.sensor-engine-runtime-receipt.v1"
         },
-        "version": {
-          "type": "string",
-          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
-          "maxLength": 64
+        "generation": {
+          "$ref": "#/$defs/Uuid"
         },
-        "executable": {
-          "type": "string",
-          "pattern": "^/[\\x20-\\x7e]+$",
-          "maxLength": 4096
+        "sequence": {
+          "const": 1
+        },
+        "run_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "source_identity": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "engine_owner_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "scene_sha256": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "graphics": {
+          "type": "null"
+        },
+        "identity_scope": {
+          "const": "graphics-unselected-by-camera-roster"
         }
       },
       "required": [
-        "name",
-        "version",
-        "executable"
+        "schema",
+        "generation",
+        "sequence",
+        "run_id",
+        "source_identity",
+        "engine_owner_id",
+        "scene_sha256",
+        "graphics",
+        "identity_scope"
       ],
       "additionalProperties": false
+    },
+    "Receipt": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/RenderedReceipt"
+        },
+        {
+          "$ref": "#/$defs/CameraFreeReceipt"
+        }
+      ]
     }
   }
 }

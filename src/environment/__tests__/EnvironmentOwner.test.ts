@@ -9,6 +9,7 @@ import {
 import { EnvironmentState, type EnvironmentPlan } from '../EnvironmentState'
 import { createCityBlockScene } from '../SceneSpec'
 import { graphicsInputDigest, type GraphicsPlan, type GraphicsInput } from '../GraphicsContract'
+import { exactJson } from '../ExactJson'
 
 const owners: EnvironmentOwner[] = []
 const input = (): EnvironmentPlan => {
@@ -122,6 +123,109 @@ async function prepare(
 afterEach(async () => {
   for (const owner of owners.splice(0)) await owner.retire()
   vi.restoreAllMocks()
+})
+
+describe('camera-free resource selection', () => {
+  it.each([1, 2])(
+    'preserves actual CPU state and %i microphone streams without graphics',
+    async (count) => {
+      const plan = input()
+      plan.scene.rgbCameras = []
+      plan.scene.thermalCameras = []
+      plan.scene.microphones = Array.from({ length: count }, (_, index) => ({
+        id: `microphone-${index}`,
+        position: [2 * index, 2, 10] as [number, number, number],
+      }))
+      const reference = await EnvironmentState.prepare(plan)
+      const preparation = vi.spyOn(EnvironmentState, 'prepare')
+      const launch = vi.fn(async () => {
+        throw new Error('Unselected graphics must not launch')
+      })
+      const owner = await EnvironmentOwner.prepare(plan, launch)
+      owners.push(owner)
+      const actual = (await preparation.mock.results[0].value) as EnvironmentState
+      preparation.mockRestore()
+      try {
+        expect(owner.resourceStatus()).toMatchObject({ reservedOwners: 1, generationAttempts: 0 })
+        for (let tick = 1; tick <= 6; tick++) {
+          const pressure = reference.advance()
+          const handle = await owner.advance()
+          const batch = JSON.parse(owner.readObservation(handle))
+          expect(batch.graphics).toBeNull()
+          expect(batch.privilegedReference.json).toBe(exactJson(reference.reference()))
+          expect(
+            batch.pressure.channels.map((channel: { microphoneId: string }) => channel.microphoneId)
+          ).toEqual(plan.scene.microphones.map((microphone) => microphone.id))
+          expect(batch.pressure.sampleStart).toBe(pressure.sampleStart)
+          expect(batch.pressure.sampleEnd).toBe(pressure.sampleEnd)
+          for (let channel = 0; channel < count; channel++) {
+            const bytes = Buffer.from(batch.pressure.channels[channel].bytesBase64, 'base64')
+            const expected = Buffer.alloc(pressure.channels[channel].length * 8)
+            pressure.channels[channel].forEach((value, sample) =>
+              expected.writeDoubleLE(value, sample * 8)
+            )
+            expect(bytes).toEqual(expected)
+          }
+          await expect(owner.advance()).rejects.toThrow('Release the accepted observation lease')
+          owner.releaseObservation(handle)
+          const actualState = await actual.checkpoint()
+          const expectedState = await reference.checkpoint()
+          try {
+            expect(actual.checkpointState(actualState)).toBe(
+              reference.checkpointState(expectedState)
+            )
+          } finally {
+            actual.releaseCheckpoint(actualState)
+            reference.releaseCheckpoint(expectedState)
+          }
+        }
+        await expect(owner.checkpoint()).rejects.toThrow(
+          'Static-render checkpoints require a camera'
+        )
+        expect(launch).not.toHaveBeenCalled()
+        await owner.retire()
+        expect(owner.resourceStatus()).toMatchObject({ reservedOwners: 0, generationAttempts: 0 })
+        await expect(owner.advance()).rejects.toThrow('retired')
+      } finally {
+        reference.retire()
+      }
+    }
+  )
+
+  it('rejects a missing required launcher before CPU preparation and accepts a selected launcher', async () => {
+    const preparation = vi.spyOn(EnvironmentState, 'prepare')
+    await expect(EnvironmentOwner.prepare(input())).rejects.toThrow('explicit graphics launcher')
+    expect(preparation).not.toHaveBeenCalled()
+    const healthy = await prepare()
+    expect((await healthy.owner.advance()).tick).toBe(1)
+  })
+
+  it('accepts no launcher for an acoustic roster and retires after malformed pressure', async () => {
+    const plan = input()
+    plan.scene.rgbCameras = []
+    plan.scene.thermalCameras = []
+    const owner = await EnvironmentOwner.prepare(plan)
+    owners.push(owner)
+    const advance = EnvironmentState.prototype.advance
+    const malformed = vi
+      .spyOn(EnvironmentState.prototype, 'advance')
+      .mockImplementationOnce(function (this: EnvironmentState) {
+        const block = advance.call(this)
+        block.sampleEnd++
+        return block
+      })
+    await expect(owner.advance()).rejects.toThrow('generation retired')
+    malformed.mockRestore()
+    expect(owner.failure()).toMatchObject({
+      executedTick: 1,
+      acceptedObservationTick: 0,
+      completeSensorObservation: false,
+    })
+    expect(owner.resourceStatus().reservedOwners).toBe(0)
+    const healthy = await EnvironmentOwner.prepare(plan)
+    owners.push(healthy)
+    expect((await healthy.advance()).tick).toBe(1)
+  })
 })
 
 describe('exact CPU and reconstructed current static-pixel branches', () => {

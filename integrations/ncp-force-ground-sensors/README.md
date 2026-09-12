@@ -6,6 +6,7 @@ The admitted environment contains exactly one simulated drone and zero city soli
 
 The Rust owner admits each request and reserves every due output before engine mutation.
 Its private Bun bridge owns the existing environment and graphics processes.
+It starts graphics only when cameras are configured.
 The independent Python client validates and reads complete sensor batches through NCP.
 Cross-project observations use NCP buffers exclusively.
 The [Python reader](python/README.md) installs as an optional package with its exact NCP v1 dependency and owned contract resources.
@@ -37,6 +38,11 @@ Each modality admits zero through four sensor instances.
 The selected roster must contain at least one sensor overall.
 An empty `rgbCameras`, `thermalCameras`, or `microphones` list disables that modality's observation channels.
 Thermal and acoustic model settings remain explicit parts of simulator state.
+With both camera lists empty, the native path requires no Node executable, Chromium process, or GPU renderer.
+The producer's `--node ABSOLUTE_PATH` argument is required only for camera selections.
+When present, it follows `--bun ABSOLUTE_PATH` and precedes `--bridge ABSOLUTE_PATH`.
+The private runtime receipt records `graphics=null` and `identity_scope=graphics-unselected-by-camera-roster` for camera-free preparation.
+These observations describe the selected process path; they do not attest arbitrary host activity.
 
 | Example selection | Sensor instances | Modalities |
 | --- | --- | --- |
