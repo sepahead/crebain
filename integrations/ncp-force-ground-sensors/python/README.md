@@ -14,7 +14,7 @@ From a CREBAIN checkout, install the reader into your selected Python environmen
 python -m pip install ./integrations/ncp-force-ground-sensors/python
 ```
 
-The dependency is public NCP commit `233de821a5b67a34aa7721f900c09ab73a61ba88`, with the independent `ncp-local` Python package.
+The dependency is public NCP commit `c0465d40f1f2b9df2caf9793183d11e65ac9ec74`, with the independent `ncp-local` Python package.
 No NCP sibling checkout or `PYTHONPATH` change is required for installed use.
 The reader still requires the host-owned streams and producer described below.
 Its package does not install the CREBAIN renderer or qualify a complete native session.
@@ -226,7 +226,8 @@ The first three blocks contain 133, 133, and 134 samples.
 `source_body_tick` and `available_after_body_tick` both equal `k`.
 Camera period `p` is due when `k mod p = 0`.
 A non-due camera names its next due tick within the plan, or null beyond the horizon.
-Every admitted scene requires pressure microphones, so every accepted tick has a nonempty payload roster.
+Each selected microphone produces one nonempty window per tick.
+A camera-only roster can produce a complete batch with no due payloads.
 Generic manifests require positive byte lengths and chunk counts.
 
 The catalog fixes sensor IDs, source IDs, calibration, ordering, modality, and semantic digests.

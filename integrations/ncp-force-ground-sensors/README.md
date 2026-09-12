@@ -128,14 +128,14 @@ These runs establish bounded composition behavior, without acoustic calibration,
 
 ## Construction and qualification
 
-The construction dependency is exact NCP commit `233de821a5b67a34aa7721f900c09ab73a61ba88`.
+The construction dependency is exact NCP commit `c0465d40f1f2b9df2caf9793183d11e65ac9ec74`.
 Its exact tree and 41 consumed source files appear in [the dependency contract](contracts/dependency-source.v1.json).
 The dependency contract retains `dependency_ready=false`.
 A source checkout, build, synthetic test, or private channel handshake does not establish installed qualification.
 
 The September 9 native runs use NCP `9ae64ac1a77c9cd0612284992a8711220428a6e3`.
 Their source identities remain unchanged by this construction update.
-The September 12 microphone-only runs use the current selected dependency, NCP `233de821a5b67a34aa7721f900c09ab73a61ba88`.
+The September 12 microphone-only runs use NCP `233de821a5b67a34aa7721f900c09ab73a61ba88`.
 
 Select the dependency explicitly before running the construction gate:
 
