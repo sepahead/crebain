@@ -18,6 +18,7 @@ VENDOR_ROOT = ROOT / "src-tauri" / "vendor-compat"
 MANIFEST_PATH = VENDOR_ROOT / "PROVENANCE.json"
 LOCK_PATH = ROOT / "src-tauri" / "Cargo.lock"
 CARGO_MANIFEST_PATH = ROOT / "src-tauri" / "Cargo.toml"
+HEADLESS_CARGO_MANIFEST_PATH = ROOT / "src-tauri" / "crates" / "ncp-headless" / "Cargo.toml"
 ARCHIVE_ROOT = VENDOR_ROOT / "upstream-archives"
 GENERATED_FROM = (
     "bundled hash-verified crates.io archives; no network access during verification"
@@ -205,7 +206,11 @@ def assert_exact_keys(value: Any, expected: set[str], label: str) -> dict[str, A
     return value
 
 
-def verify_cargo_resolution(lock_path: Path, cargo_manifest_path: Path) -> None:
+def verify_cargo_resolution(
+    lock_path: Path,
+    cargo_manifest_path: Path,
+    headless_cargo_manifest_path: Path = HEADLESS_CARGO_MANIFEST_PATH,
+) -> None:
     lock = tomllib.loads(lock_path.read_text(encoding="utf-8"))
     if lock.get("version") != 4 or not isinstance(lock.get("package"), list):
         fail("Cargo.lock must be a version-4 lock with a package array")
@@ -245,12 +250,25 @@ def verify_cargo_resolution(lock_path: Path, cargo_manifest_path: Path) -> None:
     if actual_patches != expected_patches:
         fail("Cargo.toml [patch.crates-io] does not exactly name the verified overlay")
 
+    transport_version = PACKAGES["zenoh-transport-1.9.0"]["version"]
+    required_zenoh = f"={transport_version}"
+    for path in (cargo_manifest_path, headless_cargo_manifest_path):
+        manifest = tomllib.loads(path.read_text(encoding="utf-8"))
+        dependencies = manifest.get("dependencies")
+        zenoh = dependencies.get("zenoh") if isinstance(dependencies, dict) else None
+        if not isinstance(zenoh, dict) or zenoh.get("version") != required_zenoh:
+            fail(
+                f"{path}: zenoh must require exact {required_zenoh} "
+                "to select the verified transport overlay"
+            )
+
 
 def verify_manifest(
     document: Any,
     vendor_root: Path = VENDOR_ROOT,
     lock_path: Path = LOCK_PATH,
     cargo_manifest_path: Path = CARGO_MANIFEST_PATH,
+    headless_cargo_manifest_path: Path = HEADLESS_CARGO_MANIFEST_PATH,
 ) -> None:
     root = assert_exact_keys(
         document, {"schema_version", "generated_from", "packages"}, "PROVENANCE root"
@@ -314,7 +332,7 @@ def verify_manifest(
 
     if regular_files(vendor_root) != expected_vendor_files:
         fail("compatibility overlay has unaccounted top-level or package files")
-    verify_cargo_resolution(lock_path, cargo_manifest_path)
+    verify_cargo_resolution(lock_path, cargo_manifest_path, headless_cargo_manifest_path)
 
 
 def parse_args() -> argparse.Namespace:

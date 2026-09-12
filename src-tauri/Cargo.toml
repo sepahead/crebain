@@ -90,9 +90,9 @@ rand_distr = "0.6"
 # Using the pinned 2.0.0 release-candidate API selected for this project.
 ort = "2.0.0-rc.10"
 
-# Zenoh-oriented ROS2 communication (1.9.x series)
+# Reviewed Zenoh transport. Keep the exact version aligned with vendor-compat.
 # Deployment latency depends on topology, payloads, and transport configuration.
-zenoh = { version = "1.9", default-features = false, features = [
+zenoh = { version = "=1.9.0", default-features = false, features = [
     "transport_tcp",
     "transport_udp",
     "shared-memory",

@@ -13,6 +13,9 @@ disables Zenoh defaults and does not enable transport compression. The exact
 connects it to the existing feature. This removes LZ4 from the selected lock and
 compiled graph while preserving Zenoh's behavior and its dormant feature.
 
+The workspace and headless manifests must require exact Zenoh `=1.9.0` while this
+transport overlay is selected. The verifier checks both declarations.
+
 The only edits to these four upstream source trees are dependency versions and
 feature wiring in their generated `Cargo.toml` files. Resolving the constraints against
 `spin 0.12.2` necessarily changes the transitive synchronization implementation;

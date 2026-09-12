@@ -143,7 +143,7 @@
     },
     {
       "path": "src-tauri/Cargo.toml",
-      "sha256": "7c8750aa099e220d32f653101fb252fc2cdf60fe90607a9a1d1ae8b5327a15ec"
+      "sha256": "b29da60420b08a1c5e694e4246321721cb7ffcfb5350a793fc348ff01f7c5ca1"
     },
     {
       "path": "src-tauri/Cargo.lock",
@@ -151,7 +151,7 @@
     },
     {
       "path": "src-tauri/crates/ncp-headless/Cargo.toml",
-      "sha256": "ed8a1ffced23983915067406f4788aaf95dbf033d5a29b9898292aa25370ebef"
+      "sha256": "81fa450b5e189c5216f7280e2870bbae9f4b78dcd1c9d36079f720d68277e998"
     },
     {
       "path": "src-tauri/crates/plant-authority/Cargo.toml",
@@ -379,11 +379,11 @@
     },
     {
       "path": "scripts/verify-vendor-compat.py",
-      "sha256": "817e911dc5951ef2dfe78dfea83e30abd561680efc17dda06856e0c9ed99c023"
+      "sha256": "dec992dfbf2c678950ebea771ffc6f97cd5c03bddf77ba3ceb77f9d488850f2d"
     },
     {
       "path": "scripts/test-vendor-compat.py",
-      "sha256": "fd5503d680c576a2d2be76685856e073167d41d9f00ef944b54f5002fe4f93c4"
+      "sha256": "01a61bcb1bf586011c51d5aec89209b1cb8c39c2036aba06662a6d14ab546aa9"
     },
     {
       "path": "scripts/generate-release-evidence-manifest.py",

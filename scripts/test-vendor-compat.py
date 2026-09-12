@@ -27,8 +27,10 @@ class VendorCompatTests(unittest.TestCase):
         shutil.copytree(MODULE.VENDOR_ROOT, self.vendor)
         self.lock = self.root / "Cargo.lock"
         self.cargo = self.root / "Cargo.toml"
+        self.headless_cargo = self.root / "headless-Cargo.toml"
         shutil.copy2(MODULE.LOCK_PATH, self.lock)
         shutil.copy2(MODULE.CARGO_MANIFEST_PATH, self.cargo)
+        shutil.copy2(MODULE.HEADLESS_CARGO_MANIFEST_PATH, self.headless_cargo)
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
@@ -42,10 +44,37 @@ class VendorCompatTests(unittest.TestCase):
         )
 
     def verify(self, document: dict[str, object] | None = None) -> None:
-        MODULE.verify_manifest(document or self.document(), self.vendor, self.lock, self.cargo)
+        MODULE.verify_manifest(
+            document or self.document(), self.vendor, self.lock, self.cargo, self.headless_cargo
+        )
 
     def test_accepts_exact_bundled_archives_and_overlay(self) -> None:
         self.verify()
+
+    def test_rejects_non_exact_zenoh_requirements(self) -> None:
+        for manifest in (self.cargo, self.headless_cargo):
+            original = manifest.read_text(encoding="utf-8")
+            self.assertEqual(original.count('version = "=1.9.0"'), 1)
+            for requirement in ("1.9", "1.9.0", "^1.9.0", "~1.9.0", "=1.10.1"):
+                with self.subTest(manifest=manifest.name, requirement=requirement):
+                    manifest.write_text(
+                        original.replace('version = "=1.9.0"', f'version = "{requirement}"'),
+                        encoding="utf-8",
+                    )
+                    with self.assertRaisesRegex(ValueError, "zenoh must require exact"):
+                        self.verify()
+            manifest.write_text(original, encoding="utf-8")
+
+    def test_rejects_missing_zenoh_version(self) -> None:
+        for manifest in (self.cargo, self.headless_cargo):
+            original = manifest.read_text(encoding="utf-8")
+            with self.subTest(manifest=manifest.name):
+                changed = original.replace('version = "=1.9.0", ', "")
+                self.assertNotEqual(changed, original)
+                manifest.write_text(changed, encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "zenoh must require exact"):
+                    self.verify()
+            manifest.write_text(original, encoding="utf-8")
 
     def test_rejects_source_and_manifest_changed_together(self) -> None:
         source = self.vendor / "flume-0.11.1" / "src" / "lib.rs"
