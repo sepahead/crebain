@@ -104,6 +104,28 @@ The unpaced sessions took 2.42–3.56 seconds each, including preparation, trans
 These selected cases do not establish real-time performance, sensor calibration, independent statistical replicates, or a PID result.
 No case loaded Prisoma, Galadriel, Engram, or PID-rs.
 
+### Native microphone-only runs
+
+Two [frozen microphone-only cases](evidence/camera-free-native-2026-09-12.json) passed through standalone CREBAIN, NCP, and optional Prisoma recording on September 12, 2026.
+Each route ran the same six physics ticks with the same initial target and sensor settings.
+Every microphone retained its identity and returned 800 samples in six consecutive windows.
+Complete pressure bytes agreed across the three routes for each case.
+
+| Microphones | Payloads per route | Samples per route | Raw bytes per route | Captured NCP exchanges |
+| --- | --- | --- | --- | --- |
+| One | 6 | 800 | 6,400 | 40 |
+| Two | 12 | 1,600 | 12,800 | 64 |
+
+The final column describes each Prisoma transcript.
+Both transcripts replayed eight canonical commands and 28 events.
+No route supplied a Node launcher; NCP runtime receipts recorded `graphics=null`.
+All 14 observed campaign process identities retired.
+
+The native producer used CREBAIN `54bd49c` and NCP `233de82`.
+The installed CREBAIN Python reader remained at `6c9f09a`; its module and schema bytes matched the selected source.
+The evidence record preserves complete identities, payload hashes, and two corrected private-harness failures.
+These runs establish bounded composition behavior, without acoustic calibration, statistical independence, a PID result, or real-time qualification.
+
 ## Construction and qualification
 
 The construction dependency is exact NCP commit `233de821a5b67a34aa7721f900c09ab73a61ba88`.
@@ -111,8 +133,9 @@ Its exact tree and 41 consumed source files appear in [the dependency contract](
 The dependency contract retains `dependency_ready=false`.
 A source checkout, build, synthetic test, or private channel handshake does not establish installed qualification.
 
-The recorded native runs in this guide use NCP `9ae64ac1a77c9cd0612284992a8711220428a6e3`.
+The September 9 native runs use NCP `9ae64ac1a77c9cd0612284992a8711220428a6e3`.
 Their source identities remain unchanged by this construction update.
+The September 12 microphone-only runs use the current selected dependency, NCP `233de821a5b67a34aa7721f900c09ab73a61ba88`.
 
 Select the dependency explicitly before running the construction gate:
 

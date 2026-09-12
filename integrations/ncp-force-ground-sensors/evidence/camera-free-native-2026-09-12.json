@@ -1,0 +1,536 @@
+{
+  "schema": "crebain.camera-free-native-evidence.v1",
+  "observed_date": "2026-09-12",
+  "scope": "Two frozen microphone-only engineering cases through standalone CREBAIN, NCP, and the optional Prisoma Agent Bridge.",
+  "source": {
+    "crebain_producer": "54bd49cac8dfca9f168349a0b4b528d5ea459721",
+    "crebain_installed_python_reader": "6c9f09a060abf5bfb098e285125c14ec2bb6d16c",
+    "ncp_selected_sdk": "233de821a5b67a34aa7721f900c09ab73a61ba88",
+    "prisoma": "e757f950fb2ac4e91e05c3b4f0f1c3a639d8b3a4",
+    "producer_build": "Rust 1.91.1 release profile, locked and offline, two build jobs",
+    "runtime": "Existing selected M4 Max Bun and isolated Python runtime",
+    "reader_compatibility": "All 27 installed Python module and packaged resource files matched their selected unchanged source bytes.",
+    "producer_source_identity": "9da885f99f74f82078220742f10dac3dbc9f7dd323bac149c6f56c551bce3964",
+    "producer_source_identity_scope": "SHA256 of compact JSON of the complete tracked source path, mode and byte-digest roster."
+  },
+  "selection": {
+    "basis": "Fixed engineering cases frozen before execution, not random holdouts",
+    "body_hz": 120,
+    "ticks_per_run": 6,
+    "seconds_per_run": 0.05,
+    "microphone_hz": 16000,
+    "samples_per_microphone": 800,
+    "graphics_launcher_selected": false,
+    "node_argument_supplied": false
+  },
+  "cases": [
+    {
+      "input": {
+        "schema": "crebain.selected-sensor-engineering-case.v1",
+        "sensor_counts": [0, 0, 1],
+        "specification": {
+          "profile": "crebain.cpu-force-ground-environment.v1",
+          "seed": 4,
+          "drones": [
+            {
+              "id": "drone-000",
+              "position": [0, 8, 0]
+            }
+          ],
+          "scene": {
+            "profile": "crebain.city-scene.v1",
+            "id": "owned-force-ground",
+            "frame": "three-y-up-z-forward-m",
+            "solids": [],
+            "materials": [
+              {
+                "id": "concrete",
+                "linearRgb": [0.35, 0.38, 0.43],
+                "gaussianOpacity": 0.85,
+                "temperatureK": 293.15,
+                "emissivity": 0.9
+              }
+            ],
+            "rgbCameras": [],
+            "thermalCameras": [],
+            "microphones": [
+              {
+                "id": "mic-a",
+                "position": [0, 2, 10]
+              }
+            ]
+          },
+          "acoustic": {
+            "profile": "crebain.discrete-direct-acoustic.v1",
+            "sampleRateHz": 16000,
+            "soundSpeedMps": 343,
+            "maximumRangeM": 32,
+            "referenceDistanceM": 1,
+            "referencePressurePa": 1,
+            "bladeCount": 2,
+            "blockedGain": 0,
+            "noiseStdPa": 0.001,
+            "seed": 9
+          },
+          "thermal": {
+            "profile": "crebain.lumped-gray-thermal.v1",
+            "ambientK": 293.15,
+            "initialK": 293.15,
+            "capacityJPerK": 100,
+            "areaM2": 0.1,
+            "convectionWPerM2K": 10,
+            "emissivity": 0.9,
+            "motorEfficiency": 0.7
+          },
+          "controller": {
+            "engineModel": "rapier-0.19.3-observed-no-gyro-v1",
+            "referenceAltitudeM": 8,
+            "referenceHeadingRad": 0
+          }
+        },
+        "planned_ticks": 6,
+        "targets": [
+          {
+            "tick": 1,
+            "droneId": "drone-000",
+            "armed": true,
+            "control": {
+              "kind": "force_attitude_height",
+              "roll_rad": 0,
+              "pitch_rad": 0,
+              "heading_rad": 0,
+              "altitude_m": 8
+            }
+          }
+        ],
+        "base_workload_sha256": "f4b8cad4a9daf1f5b95abb9b03409040cd8caa67cf2e14c074a17dcc4a77ecae"
+      },
+      "input_sha256": "64bd45596ad4494d4a67208bc5074742c023741243cc687b185bad4c4d131d6b",
+      "expected": {
+        "ticks": 6,
+        "payloads": 6,
+        "chunks": 6,
+        "raw_bytes": 6400,
+        "microphone_samples": 800,
+        "ncp_exchanges_when_captured": 40,
+        "canonical_calls": 8,
+        "canonical_events": 28,
+        "sample_windows": [
+          [0, 133],
+          [133, 266],
+          [266, 400],
+          [400, 533],
+          [533, 666],
+          [666, 800]
+        ],
+        "sensor_ids": ["pressure:mic-a"]
+      },
+      "routes": [
+        {
+          "route": "standalone",
+          "status": "PASS",
+          "process_elapsed_s": 0.24850400000000006,
+          "raw_bytes": 6400,
+          "payload_count": 6,
+          "result_sha256": "9c511929c64b03b9f578844938a28eba37013a09b6d641bffc4ca3093365d0ed",
+          "execution_sha256": "172ec5e5c4433153c5721a3beef2c40b7c63dc7ab2b7d62640a5744b77f53d0a",
+          "verified_payloads_sha256": "e16589b08ebb7a9b03aa164fb1204a16c5c30e1155767ca82d8bd418f0e2a9a0",
+          "graphics_diagnostics": null,
+          "source_identity": "b30709ba5c3fa2109046e82da16faf26272be5f697d7c4e83280f9649930fd0b",
+          "source_identity_scope": "Standalone example source inventory",
+          "observations_sha256": "5b632e9155be3b7f21acfe4ca5ac56c36f2d29485daeb268524b317749fd99d5"
+        },
+        {
+          "route": "ncp",
+          "status": "PASS",
+          "process_elapsed_s": 0.47327733400000027,
+          "raw_bytes": 6400,
+          "payload_count": 6,
+          "result_sha256": "26376aeacddd91553aadad082b79513c77dcae743e8d526c68f1485d46bba802",
+          "execution_sha256": "46df63c025df5aff5cdd94e8629c16f46db42d7a71afb71e935899436850bb8f",
+          "verified_payloads_sha256": "e16589b08ebb7a9b03aa164fb1204a16c5c30e1155767ca82d8bd418f0e2a9a0",
+          "runtime_receipt": {
+            "schema": "crebain.sensor-engine-runtime-receipt.v1",
+            "generation": "f6eb453f-3f3b-40b8-aac4-786e06b39d62",
+            "sequence": 1,
+            "run_id": "d71875ed-c4f3-4fff-aace-280a6c140e57",
+            "source_identity": "9da885f99f74f82078220742f10dac3dbc9f7dd323bac149c6f56c551bce3964",
+            "engine_owner_id": "9ba3898c-9ec3-4d25-889c-4d38b984f28a",
+            "scene_sha256": "fabc6b512867041b5828eb7e1e1fbd39da4c0bcc827ab5abef02cb7882c478eb",
+            "graphics": null,
+            "identity_scope": "graphics-unselected-by-camera-roster"
+          },
+          "session_elapsed_s": 0.17668820801191032,
+          "payload_comparison_sha256": "52a231df9cf3aa23fa456b69cb76201613192d423bef26e19f7f8363722d4be5"
+        },
+        {
+          "route": "prisoma",
+          "status": "PASS",
+          "process_elapsed_s": 0.6933897500000001,
+          "raw_bytes": 6400,
+          "payload_count": 6,
+          "result_sha256": "d0c77adf2c4ee997d29b0bda78660a7d63c9709515c7736c08fbd69a261a4f1c",
+          "execution_sha256": "6f6e728149c2310c705c0f8182c2964794f60657a5cb103b562e2e673454d679",
+          "verified_payloads_sha256": "e16589b08ebb7a9b03aa164fb1204a16c5c30e1155767ca82d8bd418f0e2a9a0",
+          "runtime_receipt": {
+            "schema": "crebain.sensor-engine-runtime-receipt.v1",
+            "generation": "7f41166f-aafc-44c9-af92-f9dc0634a87d",
+            "sequence": 1,
+            "run_id": "1eed3c38-f5ee-4fc6-9605-35f670587d96",
+            "source_identity": "9da885f99f74f82078220742f10dac3dbc9f7dd323bac149c6f56c551bce3964",
+            "engine_owner_id": "dc5e5a3a-7cd1-43fd-b9f2-faf1564caf5f",
+            "scene_sha256": "fabc6b512867041b5828eb7e1e1fbd39da4c0bcc827ab5abef02cb7882c478eb",
+            "graphics": null,
+            "identity_scope": "graphics-unselected-by-camera-roster"
+          },
+          "session_elapsed_s": 0.5637077919673175,
+          "payload_comparison_sha256": "52a231df9cf3aa23fa456b69cb76201613192d423bef26e19f7f8363722d4be5",
+          "canonical_calls": 8,
+          "canonical_events": 28,
+          "canonical_bytes": 19792,
+          "ncp_exchanges": 40,
+          "transcript_bytes": 91361,
+          "canonical_log_sha256": "4216d96e78cd1cf312d13c92b051d7f8473a078732c7f0885ff54cab6dfb7d0a",
+          "transcript_sha256": "ceb9156f7b0843dd942e9f4d9527550b68cad3f4e958b0122692d4d47274e354",
+          "canonical_replay_sha256": "d5d79415d200e6654c4d062ce21aed3eff4bc94275dbe6f9c9764eeb322ccf09"
+        }
+      ],
+      "payloads": [
+        {
+          "tick": 1,
+          "sensor_id": "pressure:mic-a",
+          "bytes": 1064,
+          "sha256": "b233ffd7e870596cae06c612d3a71ea5b8353867f7914b7ee9686e12167e21f4"
+        },
+        {
+          "tick": 2,
+          "sensor_id": "pressure:mic-a",
+          "bytes": 1064,
+          "sha256": "3a80be07675ccdcc5717733edf0f1664d9b58f7754dd4121f70955c8ff9283b6"
+        },
+        {
+          "tick": 3,
+          "sensor_id": "pressure:mic-a",
+          "bytes": 1072,
+          "sha256": "34b8f9f75259636d7f459c5565a912e06f7167dc99104b2b566a069b3b9b2a62"
+        },
+        {
+          "tick": 4,
+          "sensor_id": "pressure:mic-a",
+          "bytes": 1064,
+          "sha256": "e89c1de5b4729cd0c1bb57b9b89b7964165cbaca5c3cad59a255a217b006f2cb"
+        },
+        {
+          "tick": 5,
+          "sensor_id": "pressure:mic-a",
+          "bytes": 1064,
+          "sha256": "1968aaf3b9a7e4f807b6134250b18535e4a648f7c3d8799a73da1b95b5b79d97"
+        },
+        {
+          "tick": 6,
+          "sensor_id": "pressure:mic-a",
+          "bytes": 1072,
+          "sha256": "a5f85e10abebcba3c9a79bc719abcf41d56f920d8d51ad2e1b7c7c700a46b6ca"
+        }
+      ]
+    },
+    {
+      "input": {
+        "schema": "crebain.selected-sensor-engineering-case.v1",
+        "sensor_counts": [0, 0, 2],
+        "specification": {
+          "profile": "crebain.cpu-force-ground-environment.v1",
+          "seed": 4,
+          "drones": [
+            {
+              "id": "drone-000",
+              "position": [0, 8, 0]
+            }
+          ],
+          "scene": {
+            "profile": "crebain.city-scene.v1",
+            "id": "owned-force-ground",
+            "frame": "three-y-up-z-forward-m",
+            "solids": [],
+            "materials": [
+              {
+                "id": "concrete",
+                "linearRgb": [0.35, 0.38, 0.43],
+                "gaussianOpacity": 0.85,
+                "temperatureK": 293.15,
+                "emissivity": 0.9
+              }
+            ],
+            "rgbCameras": [],
+            "thermalCameras": [],
+            "microphones": [
+              {
+                "id": "mic-a",
+                "position": [0, 2, 10]
+              },
+              {
+                "id": "mic-b",
+                "position": [2, 2, 10]
+              }
+            ]
+          },
+          "acoustic": {
+            "profile": "crebain.discrete-direct-acoustic.v1",
+            "sampleRateHz": 16000,
+            "soundSpeedMps": 343,
+            "maximumRangeM": 32,
+            "referenceDistanceM": 1,
+            "referencePressurePa": 1,
+            "bladeCount": 2,
+            "blockedGain": 0,
+            "noiseStdPa": 0.001,
+            "seed": 9
+          },
+          "thermal": {
+            "profile": "crebain.lumped-gray-thermal.v1",
+            "ambientK": 293.15,
+            "initialK": 293.15,
+            "capacityJPerK": 100,
+            "areaM2": 0.1,
+            "convectionWPerM2K": 10,
+            "emissivity": 0.9,
+            "motorEfficiency": 0.7
+          },
+          "controller": {
+            "engineModel": "rapier-0.19.3-observed-no-gyro-v1",
+            "referenceAltitudeM": 8,
+            "referenceHeadingRad": 0
+          }
+        },
+        "planned_ticks": 6,
+        "targets": [
+          {
+            "tick": 1,
+            "droneId": "drone-000",
+            "armed": true,
+            "control": {
+              "kind": "force_attitude_height",
+              "roll_rad": 0,
+              "pitch_rad": 0,
+              "heading_rad": 0,
+              "altitude_m": 8
+            }
+          }
+        ],
+        "base_workload_sha256": "f4b8cad4a9daf1f5b95abb9b03409040cd8caa67cf2e14c074a17dcc4a77ecae"
+      },
+      "input_sha256": "fde63488a600374256fafd73161e9afa51b824efd049e26d249b884c8016d8f5",
+      "expected": {
+        "ticks": 6,
+        "payloads": 12,
+        "chunks": 12,
+        "raw_bytes": 12800,
+        "microphone_samples": 1600,
+        "ncp_exchanges_when_captured": 64,
+        "canonical_calls": 8,
+        "canonical_events": 28,
+        "sample_windows": [
+          [0, 133],
+          [133, 266],
+          [266, 400],
+          [400, 533],
+          [533, 666],
+          [666, 800]
+        ],
+        "sensor_ids": ["pressure:mic-a", "pressure:mic-b"]
+      },
+      "routes": [
+        {
+          "route": "standalone",
+          "status": "PASS",
+          "process_elapsed_s": 0.2477926250000002,
+          "raw_bytes": 12800,
+          "payload_count": 12,
+          "result_sha256": "9c511929c64b03b9f578844938a28eba37013a09b6d641bffc4ca3093365d0ed",
+          "execution_sha256": "6ef4df293342eb55cf7687395b90424fdfabba182357795b62c0c5a4b82e79da",
+          "verified_payloads_sha256": "3492f73e3cbd20f4a5b38d8af0a9be22f833f4657b24900e57d158a1e56a8c75",
+          "graphics_diagnostics": null,
+          "source_identity": "b30709ba5c3fa2109046e82da16faf26272be5f697d7c4e83280f9649930fd0b",
+          "source_identity_scope": "Standalone example source inventory",
+          "observations_sha256": "4f0db175bc5ed70794f43816a4c990ade783473cf48ec5b7ef2c5d71f4bd3e74"
+        },
+        {
+          "route": "ncp",
+          "status": "PASS",
+          "process_elapsed_s": 0.47073937499999996,
+          "raw_bytes": 12800,
+          "payload_count": 12,
+          "result_sha256": "f1f237aa81703df7be6d735403c3f853ce2e7c12d2a710c5eb6c14a835e2fca1",
+          "execution_sha256": "40567adae71febb3eea12f264e20236b39310f9353084aba3fbfda48153fba66",
+          "verified_payloads_sha256": "3492f73e3cbd20f4a5b38d8af0a9be22f833f4657b24900e57d158a1e56a8c75",
+          "runtime_receipt": {
+            "schema": "crebain.sensor-engine-runtime-receipt.v1",
+            "generation": "c83a2a19-4a76-47c5-8611-bdda29a3dacf",
+            "sequence": 1,
+            "run_id": "4943af04-7e79-47a9-bd37-421b8a2a9fd7",
+            "source_identity": "9da885f99f74f82078220742f10dac3dbc9f7dd323bac149c6f56c551bce3964",
+            "engine_owner_id": "12948198-d423-408f-a5af-4599eaa23731",
+            "scene_sha256": "6252a10e73f40ba6d98938263d98113615d4ee68fd31c9b10978e74e2625b5cd",
+            "graphics": null,
+            "identity_scope": "graphics-unselected-by-camera-roster"
+          },
+          "session_elapsed_s": 0.2256814579013735,
+          "payload_comparison_sha256": "785a135129abe7c7c731e5d037350de204ecebbd1715ae402378f7647fdbefa1"
+        },
+        {
+          "route": "prisoma",
+          "status": "PASS",
+          "process_elapsed_s": 0.9196049159999999,
+          "raw_bytes": 12800,
+          "payload_count": 12,
+          "result_sha256": "cb67aa89bcef73f169f18ecfa3bd0ce0833b125f629b888112b86fb850260226",
+          "execution_sha256": "f0368a40452040c3d5a5efd9b327849af4d33da2cff0181e014302e818acea40",
+          "verified_payloads_sha256": "3492f73e3cbd20f4a5b38d8af0a9be22f833f4657b24900e57d158a1e56a8c75",
+          "runtime_receipt": {
+            "schema": "crebain.sensor-engine-runtime-receipt.v1",
+            "generation": "27231b55-a4a7-4d7f-b3c2-1876aa12e66c",
+            "sequence": 1,
+            "run_id": "2172f06f-d4d7-4fbd-9c80-5571c0de49e2",
+            "source_identity": "9da885f99f74f82078220742f10dac3dbc9f7dd323bac149c6f56c551bce3964",
+            "engine_owner_id": "db3d2f2f-1bc6-41a6-891a-2eaf7b73e76e",
+            "scene_sha256": "6252a10e73f40ba6d98938263d98113615d4ee68fd31c9b10978e74e2625b5cd",
+            "graphics": null,
+            "identity_scope": "graphics-unselected-by-camera-roster"
+          },
+          "session_elapsed_s": 0.7797371670603752,
+          "payload_comparison_sha256": "785a135129abe7c7c731e5d037350de204ecebbd1715ae402378f7647fdbefa1",
+          "canonical_calls": 8,
+          "canonical_events": 28,
+          "canonical_bytes": 21483,
+          "ncp_exchanges": 64,
+          "transcript_bytes": 149880,
+          "canonical_log_sha256": "55af03b36184e5a2c6cd0f883c1cfb49ac8d1ac29f3c4936c4dd65c4af0282a1",
+          "transcript_sha256": "761860455f5bc88bff3850e1ffcb553adaf5c281eb0b2f7f690c3f5f7f129a38",
+          "canonical_replay_sha256": "9f3475fa99d689828c520c2b8485d8c13a209869e639bd69faa48aa2d9ab96fe"
+        }
+      ],
+      "payloads": [
+        {
+          "tick": 1,
+          "sensor_id": "pressure:mic-a",
+          "bytes": 1064,
+          "sha256": "b233ffd7e870596cae06c612d3a71ea5b8353867f7914b7ee9686e12167e21f4"
+        },
+        {
+          "tick": 1,
+          "sensor_id": "pressure:mic-b",
+          "bytes": 1064,
+          "sha256": "ae5231501fd8920bffa71fb5304a0ff95e1e7036d0800ea1d5be7505181556f6"
+        },
+        {
+          "tick": 2,
+          "sensor_id": "pressure:mic-a",
+          "bytes": 1064,
+          "sha256": "3a80be07675ccdcc5717733edf0f1664d9b58f7754dd4121f70955c8ff9283b6"
+        },
+        {
+          "tick": 2,
+          "sensor_id": "pressure:mic-b",
+          "bytes": 1064,
+          "sha256": "ef7571455a742c7b64fb9a5f8716bdfc9cfc34893a7f1215945628274d96b7ca"
+        },
+        {
+          "tick": 3,
+          "sensor_id": "pressure:mic-a",
+          "bytes": 1072,
+          "sha256": "34b8f9f75259636d7f459c5565a912e06f7167dc99104b2b566a069b3b9b2a62"
+        },
+        {
+          "tick": 3,
+          "sensor_id": "pressure:mic-b",
+          "bytes": 1072,
+          "sha256": "2f06ccf51b1666b12a01de60750668dd0a31cb53e2ca6738d92bbde8f089d743"
+        },
+        {
+          "tick": 4,
+          "sensor_id": "pressure:mic-a",
+          "bytes": 1064,
+          "sha256": "e89c1de5b4729cd0c1bb57b9b89b7964165cbaca5c3cad59a255a217b006f2cb"
+        },
+        {
+          "tick": 4,
+          "sensor_id": "pressure:mic-b",
+          "bytes": 1064,
+          "sha256": "66a12ec934cebbc519c0fc17b9b767bd19bb541602ba0caa5579f8d9a87555d8"
+        },
+        {
+          "tick": 5,
+          "sensor_id": "pressure:mic-a",
+          "bytes": 1064,
+          "sha256": "1968aaf3b9a7e4f807b6134250b18535e4a648f7c3d8799a73da1b95b5b79d97"
+        },
+        {
+          "tick": 5,
+          "sensor_id": "pressure:mic-b",
+          "bytes": 1064,
+          "sha256": "08609b09f4a65a0c82df166fd5f4904d5b0ec694f655bdcb62e694d2c58182ba"
+        },
+        {
+          "tick": 6,
+          "sensor_id": "pressure:mic-a",
+          "bytes": 1072,
+          "sha256": "a5f85e10abebcba3c9a79bc719abcf41d56f920d8d51ad2e1b7c7c700a46b6ca"
+        },
+        {
+          "tick": 6,
+          "sensor_id": "pressure:mic-b",
+          "bytes": 1072,
+          "sha256": "39355822d6e6043df41ee74043a908047b604d834fab8b29b3ed9fb69b1d4273"
+        }
+      ]
+    }
+  ],
+  "claims": {
+    "cross_route_complete_pressure_bytes_equal": true,
+    "source_runtime_and_index_bytes_unchanged": true,
+    "canonical_sensor_sessions_replayed": true,
+    "all_observed_process_identities_retired": true,
+    "independent_council": false,
+    "independent_acoustic_oracle": false,
+    "calibrated_acoustics": false,
+    "statistical_independence": false,
+    "pid_estimate": false,
+    "real_time_qualified": false,
+    "camera_free_coupled_checkpoint_qualified": false,
+    "release_complete": false
+  },
+  "process_retirement": {
+    "observed_identities": 14,
+    "signals_sent": 0,
+    "receipt_sha256": "b4f0ad887d7c0d1ca055c73c99a3642f851edcf1e780b0614fb684c23bfdb7a6",
+    "scope": "Observed owned process births; no claim about arbitrary host activity."
+  },
+  "retained_failures": [
+    {
+      "result_sha256": "f0d4f767980352bda63beeac815fc774a59d69f06a28cae4d52c63083e59a6b3",
+      "cause": "The private harness requested retirement of its own active campaign driver after a successful standalone run."
+    },
+    {
+      "result_sha256": "b98444ec61e6fd6cede187f139367cad666f75b0d7dac5bbfd07dd0eff18f343",
+      "cause": "The private harness supplied digit-leading standalone run IDs. The existing dynamics validator rejected both before execution; NCP and Prisoma cases passed."
+    }
+  ],
+  "retained_evidence_sha256": {
+    "native-root-review-026.json": "87e007f74728db3e1ec7d05b3ea8a4faf24e5449493b8cb070f3adc8ae21dabb",
+    "aggregate-011/result.json": "9747bac009feae268936b6ee8c46d5a206b10bb2b2f3956d15f305d84addb1b2",
+    "native-preparation-016/frozen-plan.json": "70aa8be0c81c54b110dcee9a54962318bf103f5dbfdbba55b541437f2f18ec70",
+    "native-preparation-016/result.json": "483ea1c05ed98eff869b9be2346a0a38f8e5598f77d9414ac639133f31d6bac1",
+    "native-024/frozen-input.json": "b6c11763a877c14ac2a46a7a9f13a183e433ac74169c014eb291c7450a52406e",
+    "native-024/result.json": "14b81bae6269eb7de95ef277d628ed06e00f49b94df713895be52e24aa530f06",
+    "native-024/receipt-controls.json": "3abba0a68321c4faa044c3226e49f69038c4c393f625727c53b5d82d4be76a4c",
+    "harness-review-022.json": "832f1f91c97ccc622b5e024d162a8ebe42a4cd0cceac9a0eeaa3c18b240dd671",
+    "harness-input-review-024.json": "f45ba3cab381c3c634bd255476270f6e044c9ffcafca05704a996a9c87d40a3d"
+  },
+  "limits": [
+    "Complete transcripts and source/runtime rosters remain in local custody. This public record supplies exact inputs, identities, counts and per-payload hashes.",
+    "Shared simulator dynamics and random state do not establish independent sources or replicates.",
+    "Whole-session timings include startup, transfer, synchronized export and retirement. They are not deadline or population latency evidence.",
+    "Configured-camera behavior retains its prior gates. This camera-free campaign does not requalify that separate runtime.",
+    "The existing installed Python reader was reused because its module and schema bytes did not change. The native producer has a different source identity."
+  ]
+}
