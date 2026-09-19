@@ -260,7 +260,38 @@ All 44 raw payloads also matched the earlier pressure-sign run byte for byte.
 This comparison covers one fixed workload and does not establish sensor accuracy.
 The duration includes preparation, simulation, transfer, file synchronization, transcript verification, and producer retirement.
 It does not establish a comparative latency result or real-time execution.
-Registry-installed host qualification, native lifetime faults, canonical experiment-event binding, and world-model quality remain open.
+The installed controls below qualify a narrower public-session composition.
+Registry distribution, canonical experiment-event binding, and world-model quality remain separate work.
+
+### Installed body and neural sessions
+
+The [September 19 evidence](evidence/owned-installed-native-2026-09-19.json) records public Python sessions from CREBAIN commit `a5037a2`.
+Four installed packages matched their selected source bytes.
+The selected Python and NEST files remained unchanged across the native campaign.
+All 66 installed reader tests passed.
+
+| Case | Observed result |
+| --- | --- |
+| Microphone-only CLI | 24 ticks; 24 payloads; 25,600 bytes; normal retirement |
+| Full-sensor CLI | 24 ticks; 44 payloads; 4,326,400 bytes; normal retirement |
+| Body with real NEST | 24 body ticks; eight neural steps; 44 complete sensor payloads |
+| Same loop with Prisoma | 496 recorded request–response pairs; unchanged payloads and coupled outcomes |
+| Caller killed after preparation | All 13 observed process births disappeared without observer cleanup |
+| Renderer stopped after tick one | Tick two failed; no successful Finish; all 13 observed process births disappeared |
+
+The independent neural construction used the same NEST 3.9.0 numerical engine.
+All 64 count and rate comparisons matched. A changed count failed the comparison.
+The host policy consumes three body ticks per neural step: `3 / (120 Hz) = 0.025 s`.
+At 16 kHz, that interval supplies 400 pressure samples.
+Engram's [coupling example (private source)](https://github.com/sepahead/Paper2Brain/blob/main/packages/ncp-nest/examples/crebain_coupling.py) defines the pressure encoding and next-action rule.
+
+Renderer loss remains a failed session, with validated tick one and attempted tick two.
+Its public receipt keeps `cleanup_confirmed=false` and retains diagnostics.
+Independent process disappearance does not change that receipt or establish the unknown executed tick.
+The first fault-observer attempt used a stale executable-name assumption and remains recorded as failed.
+
+These fixed engineering cases establish installed behavior within one selected runtime.
+They do not establish arbitrary-paper reproduction, many-agent performance, real-time operation, sensor calibration, or learned-model quality.
 
 ## Closed application contract
 

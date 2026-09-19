@@ -147,7 +147,7 @@
     },
     {
       "path": "src-tauri/Cargo.lock",
-      "sha256": "4814517f55ae6ce82395aa2fb9a706a320d942a1c3d679886d35f233b73ba9fb"
+      "sha256": "7cd055cb4cb24ab05676cd26456b12b5f9ae98939ffe40213914596b1f38fb63"
     },
     {
       "path": "src-tauri/crates/ncp-headless/Cargo.toml",

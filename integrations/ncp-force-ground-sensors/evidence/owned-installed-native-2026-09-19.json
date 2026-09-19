@@ -1,0 +1,530 @@
+{
+  "schema": "crebain.owned-installed-native-evidence.v1",
+  "observed_date": "2026-09-19",
+  "status": "PASS_SCOPED_INSTALLED_CONTROLS",
+  "source": {
+    "crebain": "a5037a23a8e55d39ca0f09da2c25853c5209467b",
+    "engram": "715041160ca849e33374599386a33f331d92299b",
+    "ncp": "c0465d40f1f2b9df2caf9793183d11e65ac9ec74",
+    "prisoma": "5bd340df920b034e3c700e9234d785d7b953f148",
+    "runtime_manifest_sha256": "64ff7bc41f7cfdb38ad8aaed7269748d892ab914bcf0b8b668b229da657f9dba",
+    "producer_source_identity": "84c6426873542f892320f0ffbb02507aef44d85af21cce1d6407b5acdc8e2f4f"
+  },
+  "scope": "Installed public body sessions and an explicit neural/body experiment with optional host transcript recording.",
+  "selection": {
+    "kind": "Frozen engineering controls, not random holdouts",
+    "platform": "Darwin, Apple M4 Max",
+    "python": "3.11.15",
+    "nest": "3.9.0",
+    "bun": "1.3.14",
+    "node": "26.7.0",
+    "playwright": "1.62.1",
+    "browser": "chromium-1234",
+    "body_hz": 120,
+    "session_deadline_s": 300,
+    "one_workload_at_a_time": true
+  },
+  "installation": {
+    "packages": 4,
+    "application_source_files_rejoined": 40,
+    "native_prefix_files": 26644,
+    "before_after_equal": true,
+    "isolated_python_imports": true,
+    "installed_python_tests": 66,
+    "application_files": {
+      "crebain_ncp_sensors/__init__.py": "d5f897894363967d6052e46f88fca4c303e55a489fb30ec240bfe19c4381b68f",
+      "crebain_ncp_sensors/__main__.py": "9c43f53d70ff8e315f50a59005cdb68c950a48f487d45f8abc3f233b54f8f93f",
+      "crebain_ncp_sensors/_guardian.py": "f3288a79be5b48388f9065398696009437435ffd41f929f79e45a4b7547c34f6",
+      "crebain_ncp_sensors/_process.py": "9a9edb7da68a6b3729e4b7637b9897f548f4171d24cf14312b7c4fd264627cba",
+      "crebain_ncp_sensors/client.py": "b8c8619377585b2278cfdc45eb37f6d0a88a56a17dd48702743daa85d82205d2",
+      "crebain_ncp_sensors/codec.py": "2836c6e6290e72e7f9bd8a2e28d59dda7d1b18109914642b6a50d58c81478c3b",
+      "crebain_ncp_sensors/contract.py": "465089ce39461d2ad3588125baa1070702106d424a7116391f8fe4c27c4430fa",
+      "crebain_ncp_sensors/contracts/application.descriptor.v1.json": "7546cd22c881a51e36f24158a2e79df3c498493556643991b6ffdca96db76738",
+      "crebain_ncp_sensors/contracts/application.schema.v1.json": "48fcb078d2682fcb2cd4d71172c95196fa9b8e990abe46af57978e6b61fc575a",
+      "crebain_ncp_sensors/contracts/pressure.semantic.v1.json": "920b9b28b01875be04473a7c156ced83c2a7874cf82e92473f8dc6e8be462230",
+      "crebain_ncp_sensors/contracts/radiance.semantic.v1.json": "750f0b18a7dc1248d9ebc69a51ac401441869a7d6ed4ec141cf8fc8caad0a7ad",
+      "crebain_ncp_sensors/contracts/rgba8.semantic.v1.json": "bbaf805df5443ddd6279441d4a449faeb7e3bcc4e8e5c5cc1ddc9d6636a9823d",
+      "crebain_ncp_sensors/contracts/standalone.composition.v1.json": "663898c228a0ee462d9aeee13bab277f508a0d08bccb73b40f4cce9d832ef9a7",
+      "crebain_ncp_sensors/owned.py": "f77ec7414b61417236d7b158f7f9fcac983650fe8919410e9daf3bb760e2c15f",
+      "crebain_ncp_sensors/py.typed": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "crebain_ncp_sensors/runtime.py": "4f70603dcac6bfbad8aa7053373a54eb38ac41cd42b0e7e7a89dbe7ad6cb80b7",
+      "crebain_ncp_sensors/types.py": "54ccb627aabd8e07e816844d7a655c5ea87ce4b28c197e090265ea18efed0c36",
+      "engram_ncp_nest/__init__.py": "265f15ef10c08f75362d1cf8c1a650c86edde9548977c3a823dc122736baaac7",
+      "engram_ncp_nest/__main__.py": "d562172d8542e206fbc02fce0efc25c740fe221dc4ed30db9c73a986d4c069d7",
+      "engram_ncp_nest/_guardian.py": "91ddd77966631ecf6d0f89dc755e1bc743e087506a52275233a2ae1cd88ba8af",
+      "engram_ncp_nest/application.py": "fab873c3a776453061d00b7809f3933c8992c864bd8706e4997ab14af40c47eb",
+      "engram_ncp_nest/contract.py": "8e7fdd530b881585f73859215b56ef605f2af31b707b1b293e3cab7fb2ddde38",
+      "engram_ncp_nest/kernel.py": "8ffca1c2cc7832da423a12c4cdb4df63c442c61e2b3aeec37a651c4180c52b5a",
+      "engram_ncp_nest/owned.py": "88b5141b8afc258b9a75950d2604a6d4f9909ad47b32dd1a6cfb831ecc008dc8",
+      "engram_ncp_nest/process.py": "31f040b130de2fd0a8d2419ed98ef79bceec835eb281a214bc9ef76ed98a4539",
+      "engram_ncp_nest/service.py": "79b5c0b33ce371e497e7781e969e8bb3360125a6e17adba4df0c2b606d141a63",
+      "engram_ncp_nest/session.py": "45fff2772da3a2fc9be210090039ed1a4a2df2ffb21fcd1d2ac901745390fd30",
+      "ncp_local/__init__.py": "f6dc9edb5308fb118c0cc8ef8ae12721326bf416093c7a021ad22d03ac5c5e0a",
+      "ncp_local/data.py": "369d4903e757bd59ad20f0bdbd8910a6a12f564b2e7764ffbaa63b545c231d9c",
+      "ncp_local/local-profile.v1.json": "8a800efcd3efabee00aa68c6751dc52c723569fe6db3ad54ca71943a91fb1e7b",
+      "ncp_local/modular_buffer.py": "3be931c869b51cf8e79d6ca9431f501f2ac5453c844017ac4e1d5c91736a34ba",
+      "ncp_local/modular_client.py": "6a90a89c0dbc80ec737fbfb8e67b76a5e690c1ae1e635d01b8298c973de0b7ff",
+      "ncp_local/modular_owner.py": "35dc17dabf7184fe8808ec75e4f89436afed91e47fbdde950cb24ca49ef08786",
+      "ncp_local/modular_profile.py": "e225feec0c00cf4bddfb6cd4cb0f30ac14bb9b476adeb49d6493d20104665e56",
+      "ncp_local/modular_wire.py": "5196d7501bc1793124db6bd9af765f729c50b77d243f905c2fbb7c8010da71bd",
+      "ncp_local/protocol.py": "3317483be783576da9b42bb0f126b65b8b1f2ad25011d5c9bf4c3463733301c5",
+      "ncp_local/py.typed": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "ncp_local/wire.py": "56e256c04c143156d40850128c6519f6a649d095ddd1ceb5b909f8013318a3cc",
+      "prisoma_ncp_transcript/__init__.py": "ba76a55ca6470f6c2ac1d37459fd43c7ff9aaa15d224b1d5911d1a5db05eb8bf",
+      "prisoma_ncp_transcript/transcript.py": "456a39f87cb09b3422a6742d8b70fab03b37b9b11dbd8a3e35224b085c97df7d"
+    },
+    "before": {
+      "artifact": "runtime-before.json",
+      "sha256": "70aefd9c34eabf073b92990869e177aa68828da8995f572f8a348e37cdb85ce2"
+    },
+    "after": {
+      "artifact": "runtime-after.json",
+      "sha256": "70aefd9c34eabf073b92990869e177aa68828da8995f572f8a348e37cdb85ce2"
+    }
+  },
+  "cli_controls": [
+    {
+      "selection": "microphone only",
+      "completed_ticks": 24,
+      "payloads": 24,
+      "raw_bytes": 25600
+    },
+    {
+      "selection": "RGB, thermal radiance, microphone",
+      "completed_ticks": 24,
+      "payloads": 44,
+      "raw_bytes": 4326400
+    }
+  ],
+  "coupled_input": {
+    "prepare": {
+      "specification": {
+        "profile": "crebain.cpu-force-ground-environment.v1",
+        "seed": 4,
+        "drones": [
+          {
+            "id": "drone-000",
+            "position": [0, 8, 0]
+          }
+        ],
+        "scene": {
+          "profile": "crebain.city-scene.v1",
+          "id": "owned-force-ground",
+          "frame": "three-y-up-z-forward-m",
+          "solids": [],
+          "materials": [
+            {
+              "id": "concrete",
+              "linearRgb": [0.35, 0.38, 0.43],
+              "gaussianOpacity": 0.85,
+              "temperatureK": 293.15,
+              "emissivity": 0.9
+            }
+          ],
+          "rgbCameras": [
+            {
+              "id": "rgb-a",
+              "position": [0, 9, 5],
+              "target": [0, 8, 0],
+              "width": 320,
+              "height": 240,
+              "fovDegrees": 60,
+              "periodTicks": 2
+            }
+          ],
+          "thermalCameras": [
+            {
+              "id": "thermal-a",
+              "position": [0, 9, 5],
+              "target": [0, 8, 0],
+              "width": 160,
+              "height": 120,
+              "fovDegrees": 60,
+              "periodTicks": 3
+            }
+          ],
+          "microphones": [
+            {
+              "id": "mic-a",
+              "position": [0, 2, 10]
+            }
+          ]
+        },
+        "acoustic": {
+          "profile": "crebain.discrete-direct-acoustic.v1",
+          "sampleRateHz": 16000,
+          "soundSpeedMps": 343,
+          "maximumRangeM": 32,
+          "referenceDistanceM": 1,
+          "referencePressurePa": 1,
+          "bladeCount": 2,
+          "blockedGain": 0,
+          "noiseStdPa": 0.001,
+          "seed": 9
+        },
+        "thermal": {
+          "profile": "crebain.lumped-gray-thermal.v1",
+          "ambientK": 293.15,
+          "initialK": 293.15,
+          "capacityJPerK": 100,
+          "areaM2": 0.1,
+          "convectionWPerM2K": 10,
+          "emissivity": 0.9,
+          "motorEfficiency": 0.7
+        },
+        "controller": {
+          "engineModel": "rapier-0.19.3-observed-no-gyro-v1",
+          "referenceAltitudeM": 8,
+          "referenceHeadingRad": 0
+        }
+      },
+      "planned_ticks": 24,
+      "composition_digest": "861a17b6ce758178db21a89a409ec3988a0e6301c99e777298dde3905e4ef396"
+    },
+    "actions": [
+      [
+        1,
+        {
+          "kind": "set_target",
+          "armed": true,
+          "roll_rad": 0,
+          "pitch_rad": 0,
+          "heading_rad": 0,
+          "altitude_m": 8
+        }
+      ],
+      [
+        13,
+        {
+          "kind": "set_target",
+          "armed": true,
+          "roll_rad": 0,
+          "pitch_rad": 0.03,
+          "heading_rad": 0,
+          "altitude_m": 8
+        }
+      ]
+    ],
+    "workload_sha256": "f4b8cad4a9daf1f5b95abb9b03409040cd8caa67cf2e14c074a17dcc4a77ecae",
+    "source_identity": "84c6426873542f892320f0ffbb02507aef44d85af21cce1d6407b5acdc8e2f4f",
+    "mode": "actual",
+    "neural_plan": {
+      "populations": [
+        {
+          "name": "exc",
+          "size": 4
+        },
+        {
+          "name": "inh",
+          "size": 4
+        }
+      ],
+      "resolution_us": 100,
+      "step_us": 25000,
+      "steps": 8,
+      "seed": 1,
+      "profile": "iaf-psc-alpha-static-network-v1",
+      "projections": [
+        {
+          "source": "exc",
+          "target": "exc",
+          "weight_pA": 100.0,
+          "delay_us": 1000,
+          "rule": "all_to_all"
+        },
+        {
+          "source": "exc",
+          "target": "inh",
+          "weight_pA": 1500.0,
+          "delay_us": 1000,
+          "rule": "one_to_one"
+        },
+        {
+          "source": "inh",
+          "target": "exc",
+          "weight_pA": -300.0,
+          "delay_us": 1200,
+          "rule": "all_to_all"
+        }
+      ]
+    },
+    "capture": "none",
+    "policy": "pressure-exact-sign-neural-count-v1",
+    "later_workload_targets_replaced_by_neural_policy": true
+  },
+  "coupled_results": [
+    {
+      "case": "native-uncaptured-001",
+      "body_ticks": 24,
+      "neural_steps": 8,
+      "payloads": 44,
+      "raw_bytes": 4326400,
+      "modalities": {
+        "rgba8": 12,
+        "radiance": 8,
+        "pressure": 24
+      },
+      "body_process_exit": {
+        "schema": "crebain.sensor-process-exit.v1",
+        "returncode": 0,
+        "reason": "owner_shutdown",
+        "forced": false,
+        "diagnostics_bytes": 1017,
+        "diagnostics_truncated": false,
+        "cleanup_confirmed": true
+      },
+      "neural_terminal": {
+        "steps": 8,
+        "executed_end_us": 200000,
+        "completed_end_us": 199000,
+        "pending_events": 0,
+        "unread_tail_us": 1000
+      },
+      "transcript": null,
+      "session_result": {
+        "artifact": "native-uncaptured-001/actual/session/session-result.json",
+        "sha256": "c504d46b40fe796857e66d4961db9b6c84f2ebdd733e8c58211510d94ccb077f"
+      },
+      "policy_trace": {
+        "artifact": "native-uncaptured-001/actual/session/policy-trace.json",
+        "sha256": "57b5a623dc7425ec09fa2de6fa24c409837b46c7e5a7558deb5fa0a1eb9c461a"
+      },
+      "payload_comparison": {
+        "artifact": "native-uncaptured-001/actual/session/payload-comparison.json",
+        "sha256": "744de4d2b7197aa06ec21703ceca7dea09346929cfd37ff423dc2da598913c00"
+      }
+    },
+    {
+      "case": "native-captured-001",
+      "body_ticks": 24,
+      "neural_steps": 8,
+      "payloads": 44,
+      "raw_bytes": 4326400,
+      "modalities": {
+        "rgba8": 12,
+        "radiance": 8,
+        "pressure": 24
+      },
+      "body_process_exit": {
+        "schema": "crebain.sensor-process-exit.v1",
+        "returncode": 0,
+        "reason": "owner_shutdown",
+        "forced": false,
+        "diagnostics_bytes": 1017,
+        "diagnostics_truncated": false,
+        "cleanup_confirmed": true
+      },
+      "neural_terminal": {
+        "steps": 8,
+        "executed_end_us": 200000,
+        "completed_end_us": 199000,
+        "pending_events": 0,
+        "unread_tail_us": 1000
+      },
+      "transcript": {
+        "store_completion": "complete",
+        "exchange_pairs": 496,
+        "unanswered_request": false,
+        "pending_peer_operations": 0,
+        "finished_peers": 2,
+        "peer_count": 2,
+        "journal_bytes": 6704867,
+        "journal_digest": "cfaebcab831c81e3c7b2e9d7517249cbb91b27c9ce291293feac3e72a67a731c",
+        "application_completion_validated": false,
+        "scientific_validation": false
+      },
+      "session_result": {
+        "artifact": "native-captured-001/actual/session/session-result.json",
+        "sha256": "2d67404137d274bdccec0763c2098d72e9659b6bbdd8ce9f651c32d1628644c9"
+      },
+      "policy_trace": {
+        "artifact": "native-captured-001/actual/session/policy-trace.json",
+        "sha256": "2c019a20ab333bcb27585e0fd271e06210e9315b66b100ff323918552a23fd9c"
+      },
+      "payload_comparison": {
+        "artifact": "native-captured-001/actual/session/payload-comparison.json",
+        "sha256": "744de4d2b7197aa06ec21703ceca7dea09346929cfd37ff423dc2da598913c00"
+      }
+    }
+  ],
+  "direct_comparison": {
+    "status": "PASS_INSTALLED_COUPLED_DIRECT_COMPARISON",
+    "body_ticks_each": 24,
+    "neural_steps_each": 8,
+    "payloads_each": 44,
+    "payload_bytes_each": 4326400,
+    "captured_exchange_pairs": 496,
+    "equal_count_rate_scalars": 64,
+    "changed_count_rejected_by_numerical_comparator": true,
+    "capture_preserves_payloads_and_outcomes": true,
+    "input_sha256": "f2ccc55fab135d3ec94484161b291286df72a77f10add80886d1017425aa1360",
+    "observation_sha256": "2c2c43c5ab407852d3939e5c3905bd1a9f81b8cc3f364b71003275d402588e71",
+    "helper_manifest_sha256": "f0f7cf425311d57a58697fe7035c194e448c84be66b2edb6c42d4323b959e404",
+    "independent_construction": true,
+    "shared_numerical_engine": "NEST 3.9.0",
+    "independent_renderer_oracle": false,
+    "scientific_validation": false,
+    "real_time_claim": false,
+    "outer_process_retirement": "root-owned independent check required",
+    "release_complete": false
+  },
+  "fault_controls": [
+    {
+      "case": "caller-loss-002",
+      "observed_process_births": 13,
+      "observed_births_remaining_including_zombies": 0,
+      "emergency_cleanup_used": false,
+      "result": {
+        "artifact": "caller-loss-002/actual/result.json",
+        "sha256": "eeadb8a13e26c63a25d9b107c649ef8fc040761a5a700284c9e0158c13d0b9fb"
+      }
+    },
+    {
+      "case": "renderer-loss-001",
+      "observed_process_births": 13,
+      "observed_births_remaining_including_zombies": 0,
+      "emergency_cleanup_used": false,
+      "result": {
+        "artifact": "renderer-loss-001/actual/result.json",
+        "sha256": "46b8bf39cb1b5ca4ebbf4359da6bb7fa26bd93e1e1682b3837dba86ffc296e71"
+      }
+    }
+  ],
+  "renderer_loss_boundary": {
+    "last_validated_tick": 1,
+    "attempted_tick": 2,
+    "successful_finish": false,
+    "public_cleanup_confirmed": false,
+    "independently_observed_births_remaining": 0,
+    "diagnostics_retained": true,
+    "executed_tick_after_fault": "unknown"
+  },
+  "observed_retirement": {
+    "status": "PASS",
+    "observed_births": 77,
+    "present_including_zombies": [],
+    "scope": "Observed identities only; not hostile process containment."
+  },
+  "executions": [
+    {
+      "case": "cli-microphone-001",
+      "elapsed_s": 5.403312833979726,
+      "observed_process_births": 4,
+      "result": {
+        "artifact": "cli-microphone-001/result.json",
+        "sha256": "ebd4d68325cb057cb5ee2accdded74a64d30fef0755241ced8c150315d03402c"
+      },
+      "execution": {
+        "artifact": "cli-microphone-001/execution.json",
+        "sha256": "39d6cd2378fc0f3ef349efa30301938b9f299422099bfba90d2c13c95c7c8bfb"
+      }
+    },
+    {
+      "case": "cli-full-001",
+      "elapsed_s": 10.390060625039041,
+      "observed_process_births": 13,
+      "result": {
+        "artifact": "cli-full-001/result.json",
+        "sha256": "ef4123bb9a11f9eb15a997590ed927eea295c1f8eb6226ec816da202689b3142"
+      },
+      "execution": {
+        "artifact": "cli-full-001/execution.json",
+        "sha256": "c6936967154653d2baa7ce7a4de23d08d79e5da8047146587dc6e93fb1ef1d54"
+      }
+    },
+    {
+      "case": "native-uncaptured-001",
+      "elapsed_s": 7.931918125133961,
+      "observed_process_births": 15,
+      "result": {
+        "artifact": "native-uncaptured-001/result.json",
+        "sha256": "e4bca67f3207a1f3e962ceb63bd1d12bf9d53959344544888b4dc59e8b212368"
+      },
+      "execution": {
+        "artifact": "native-uncaptured-001/execution.json",
+        "sha256": "c36ac963262fa0dbc8d30d49a848fe2f80ad16773434b62b52ce3a8440e578f5"
+      }
+    },
+    {
+      "case": "native-captured-001",
+      "elapsed_s": 8.585228499956429,
+      "observed_process_births": 14,
+      "result": {
+        "artifact": "native-captured-001/result.json",
+        "sha256": "cd88ad97706d467a6ae23a61079f87f5dca6862691f4eb17a0fceaec77528e83"
+      },
+      "execution": {
+        "artifact": "native-captured-001/execution.json",
+        "sha256": "b18f8c6d7b455434f7fe0efa49e48f3499c1dc9e740fcc9b88e22fdefcc0a12c"
+      }
+    },
+    {
+      "case": "caller-loss-002",
+      "elapsed_s": 7.906384208006784,
+      "observed_process_births": 15,
+      "result": {
+        "artifact": "caller-loss-002/result.json",
+        "sha256": "b0fbbffd580b5c3eba7358e77353b0f9c74f7b579adf8295343052bd6331b019"
+      },
+      "execution": {
+        "artifact": "caller-loss-002/execution.json",
+        "sha256": "fe6ec4149992d082c8994ec09063a96c944a57177f4c840dbc43c3737548102c"
+      }
+    },
+    {
+      "case": "renderer-loss-001",
+      "elapsed_s": 9.901830165879801,
+      "observed_process_births": 14,
+      "result": {
+        "artifact": "renderer-loss-001/result.json",
+        "sha256": "f4fe3a96de6d19745b14106e062d7218fed0fc9c51ff7f5c0ddb3e6f862bd471"
+      },
+      "execution": {
+        "artifact": "renderer-loss-001/execution.json",
+        "sha256": "909ede7d993599efbc2844d7373830d706fd5da325c1f31fda6b2a83014fba6d"
+      }
+    },
+    {
+      "case": "direct-oracle-run-001",
+      "elapsed_s": 0.4644605841021985,
+      "observed_process_births": 1,
+      "result": {
+        "artifact": "direct-oracle-run-001/result.json",
+        "sha256": "40fbe2dfb66ab8665b7eca2e3574e6457c12c7a71a9445a0271499498bd0a901"
+      },
+      "execution": {
+        "artifact": "direct-oracle-run-001/execution.json",
+        "sha256": "e9072423253fa8cd1fbd5e748bda8444476507fd22b5484e1b70430541e86931"
+      }
+    }
+  ],
+  "retained_failures": [
+    {
+      "case": "install-python-001",
+      "reason": "GitHub HTTP/2 checkout failure; tracked source and indexes unchanged."
+    },
+    {
+      "case": "installed-python-tests-001",
+      "reason": "Flattened test copy omitted repository-relative fixtures; unchanged suite passed from full staged source."
+    },
+    {
+      "case": "caller-loss-001",
+      "reason": "Observer assumed a browser executable name; no intended fault injected. Emergency cleanup retired all 12 observed births."
+    }
+  ],
+  "limits": [
+    "This campaign uses explicit scene and neural definitions; it does not reproduce an arbitrary PDF.",
+    "The body profile admits one drone and no city solids; this does not qualify many-agent workloads.",
+    "The fresh neural reference uses independent construction with the same NEST numerical engine.",
+    "Payload equality does not independently validate rendering, sensor calibration, or physical fidelity.",
+    "Transcript completeness is separate from scientific validity and canonical experiment-event integration.",
+    "Whole-command timings include validation, startup, transfer, export, and retirement; no real-time claim follows.",
+    "Renderer loss leaves public cleanup unconfirmed even though the independent observer found no remaining owned births.",
+    "Process evidence covers observed trusted descendants; arbitrary simultaneous termination and hostile escape are excluded.",
+    "Complete raw outputs and process inventories remain in local custody; this record preserves inputs, summaries, and artifact hashes."
+  ],
+  "world_model_evaluation": false,
+  "scientific_validation": false,
+  "real_time_claim": false,
+  "release_complete": false
+}

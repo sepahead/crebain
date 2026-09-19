@@ -42,7 +42,9 @@ NCP carries typed observations; experiment software defines features, source var
 Its first successful native run transferred all 44 RGB, thermal, and pressure payloads through NCP to an independent Python reader.
 Its [one-step interface](integrations/ncp-force-ground-sensors/README.md#observation-driven-steps) also completed a native run with observation-dependent next actions.
 An optional [Prisoma transcript](integrations/ncp-force-ground-sensors/README.md#optional-transcript-capture) captured every sensor payload before source-buffer release in one native run.
-Renderer loss, parent loss, delayed preparation, and failed cleanup still need qualification.
+The [installed-session controls](integrations/ncp-force-ground-sensors/README.md#installed-body-and-neural-sessions) passed on the selected M4 Max runtime.
+They cover standalone sensor sessions, real NEST coupling, optional transcript capture, caller loss, and renderer loss.
+Broader workloads, delayed preparation, and forced-cleanup behavior still need native qualification.
 
 The native environment requires no Engram, Prisoma, Galadriel, NCP, ROS, or Gazebo process.
 The scalar NCP body reuses a different project-local kernel.
@@ -144,6 +146,25 @@ It retains motor transients and has not replaced the desktop or city controller.
 
 ## Optional NCP composition
 
+The [typed sensor application](integrations/ncp-force-ground-sensors/README.md) connects the force-ground environment to independently selected clients.
+CREBAIN owns physics, sensor generation, and action application.
+NCP carries typed requests and observations; the host selects the controller and optional recording.
+Its installed example completed 24 body ticks and eight NEST steps, with and without Prisoma recording.
+
+Prisoma uses CREBAIN as an environment for embodied-agent experiments.
+Prisoma owns forecasts, experiment ordering, comparisons, and recorded outcomes.
+Its [Agent Bridge](https://github.com/sepahead/prisoma/tree/main/integrations/agent-bridge) already records selected sensor execution through NCP.
+The complete learned forecast and independently restored outcome comparison remains open.
+CREBAIN runs without Prisoma.
+
+The target paper workflow starts with Engram's review of PDF evidence.
+Engram constructs a neural network and experiment plan, coordinates the closed loop, and reports results.
+CREBAIN supplies the selected simulated world and sensors.
+Prisoma can supply experiment analysis or recording; Galadriel can provide optional sensor-tampering diagnostics.
+Current native cases use explicit network and scene inputs. They do not establish automatic reproduction of an arbitrary paper.
+
+### Separate scalar reference
+
 ![Separate local NCP body with retained results and actual innovation evidence](assets/diagrams/native-ncp-simulation.svg)
 
 Text alternative: A supervisor installs one immutable local binding and plan.
@@ -222,6 +243,20 @@ They do not establish model accuracy or physical deployment readiness.
 - [x] Executable negative guard tests for native detection, model path, scene path, and transport topic boundaries
 
 </details>
+
+## Integration status and remaining work
+
+| Surface | Completed within the stated scope | Remaining work |
+| --- | --- | --- |
+| Standalone environment | Native dynamics, actual sensor output, and reconstructed branches | Larger-workload measurements and sensor calibration |
+| Typed NCP sensors | Selected sensor rosters, installed launcher, and complete payload transfer | Many-entity transport and its measured resource envelope |
+| Engram neural control | Installed explicit NEST/body loop and a fresh same-NEST comparison | Paper-derived experiment construction and broader controller profiles |
+| Prisoma | Optional transcript capture and a separate canonical sensor-execution adapter | Learned forecasts, applied-action comparison, and independently restored outcome labels |
+| Galadriel | Separate advisory monitor for compatible evidence | A qualified application for this typed sensor composition |
+
+Galadriel is optional. Its alerts identify statistical inconsistency, without proving an attack or granting control authority.
+The [environment contract](docs/NATIVE_ENVIRONMENT.md#limits-and-remaining-work) owns the detailed implementation bounds and open physics work.
+The [typed application](integrations/ncp-force-ground-sensors/README.md) owns transport, lifecycle, and installed evidence.
 
 ## Read next
 

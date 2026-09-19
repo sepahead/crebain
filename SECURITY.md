@@ -42,6 +42,12 @@ The current local configuration digests bind the corrected package and lock file
 The recorded external Phase 0 capture, hazard states, and authority limits remain unchanged.
 Existing upstream-constrained Rust exceptions remain explicit in the dependency policy.
 
+## Dependency correction on 2026-09-19
+
+The September 19 dependency correction updates active Rustls to `0.23.45` and Rustls-webpki to `0.103.14`.
+It addresses [RUSTSEC-2026-0285](https://rustsec.org/advisories/RUSTSEC-2026-0285), which concerns TLS handshake encryption boundaries.
+Frozen vendor lockfiles remain historical source records. Workspace resolution uses the active root lockfile.
+
 ## Reporting a vulnerability
 
 Do **not** open a public issue. Use GitHub's
@@ -62,7 +68,7 @@ before public disclosure. Reporters are credited on request.
 - Run the desktop app and simulator with least privilege.
 - Verify model provenance, rights, immutable digest, tensor contract, and fixtures.
 - Keep Rust dependency audits enabled. The root lock pins patched `openssl`
-  0.10.81, `serde_with` 3.21.0, `rustls-webpki` 0.103.13, and `rand` 0.8.6/0.9.3
+  0.10.81, `serde_with` 3.21.0, `rustls` 0.23.45, `rustls-webpki` 0.103.14, and `rand` 0.8.6/0.9.3
   where their dependency constraints permit it. Two upstream-constrained
   advisories remain: `glib` 0.18.5 in Tauri's GTK3 runtime path and `rand` 0.7.3
   in Tauri's legacy `phf` build path. CREBAIN does not call the affected

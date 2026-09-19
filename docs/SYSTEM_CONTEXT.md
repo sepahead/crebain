@@ -1,5 +1,11 @@
 # System context, trust boundaries, and claims
 
+This page describes desktop telemetry and the proposed physical-control authority chain.
+The [standalone native environment](NATIVE_ENVIRONMENT.md) has a separate CPU owner and optional graphics worker.
+Its [typed NCP application](../integrations/ncp-force-ground-sensors/README.md) now has bounded installed sensor and NEST-coupling evidence.
+The [integration status](../README.md#integration-status-and-remaining-work) separates those results from Prisoma experiments and optional Galadriel monitoring.
+Neither native simulation nor these process controls grants physical actuator authority.
+
 <p align="center">
   <img alt="CREBAIN current and target authority boundaries" src="../assets/diagrams/authority-boundaries.svg" width="900">
 </p>
@@ -34,8 +40,9 @@ A separate dependency-isolated workspace package builds the opt-in
 perception open, step, and close lifecycle against a compatible NCP wire-0.8
 responder. It has no command subscription, sensor put, Tauri registration, or
 plant dependency. The `engram/ncp` default realm does not establish current
-Engram compatibility. Current Engram native wire 1.0 is incompatible, and no
-translator or live CREBAIN↔current-Engram loop exists.
+Engram compatibility. That retained wire-0.8 interface has no translator to the
+current local NCP applications. The installed neural/body loop uses the separate
+typed application linked above.
 
 A separate dependency-free `crebain-plant-authority` workspace package and
 `crebain-plantd` process now provide an inactive draft contract-v1 validator,

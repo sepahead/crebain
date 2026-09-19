@@ -86,7 +86,10 @@ The guardian retains at most 64 KiB of producer diagnostics and retires the chan
 This contract assumes trusted, schedulable descendants.
 It cannot guarantee cleanup after arbitrary simultaneous process kills, operating-system failure, or suspended cleanup owners.
 Trusted callbacks must return; the guardian can retire the producer without interrupting a hung Python callback.
-Source controls exercise synthetic process lifetimes; actual graphics fault qualification requires separate native evidence.
+Source controls exercise synthetic process lifetimes.
+The [installed native controls](../README.md#installed-body-and-neural-sessions) also exercised actual caller loss and renderer loss.
+Renderer loss preserved the failed prefix and left public cleanup unconfirmed.
+An independent observer found no remaining observed process births; that observation does not upgrade the API receipt.
 
 ![Typed sensor transfer, complete-batch validation, and explicit buffer release](../../../assets/diagrams/ncp-sensor-transfer.svg)
 
