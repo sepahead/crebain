@@ -35,6 +35,7 @@ The [0.9 release decision](docs/NARROWED_GO_0.9.0.md) and its remaining exclusio
 The optional [typed sensor application](integrations/ncp-force-ground-sensors/README.md) is a separate construction candidate.
 Its [sensor selection](integrations/ncp-force-ground-sensors/README.md#select-the-sensors-you-need) supports multiple cameras and microphones without requiring every modality.
 Microphone-only selections use the same CPU environment without starting a graphics renderer.
+The [owned Python session](integrations/ncp-force-ground-sensors/python/README.md#install-and-run-a-body-session) provides explicit runtime installation, process startup, and bounded retirement.
 Native [one- and two-microphone cases](integrations/ncp-force-ground-sensors/README.md#native-microphone-only-runs) produced identical pressure bytes through standalone CREBAIN, NCP, and optional Prisoma recording.
 Four [native selection cases](integrations/ncp-force-ground-sensors/README.md#native-sensor-selection) passed, including two RGB cameras with different periods and a camera-only roster.
 NCP carries typed observations; experiment software defines features, source variables, targets, and statistical assumptions.

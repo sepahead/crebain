@@ -362,10 +362,7 @@
     {
       "path": "integrations/ncp-force-ground-sensors/python/README.md",
       "classification": "active-technical",
-      "exemption": {
-        "kind": "bounded-contract-reference",
-        "reason": "This independent decoder reference defines API values and validation order in prose and tables; it adds no separate runtime topology."
-      }
+      "visuals": ["assets/diagrams/ncp-sensor-transfer.svg"]
     },
     {
       "path": "public/models/README.md",

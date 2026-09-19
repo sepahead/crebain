@@ -83,6 +83,7 @@ def main():
             run(name + "-version", [tools[name], "--version"])
         run("generated-dtos", [sys.executable, "-B", APP / "contracts/generate-rust-types.py", "--check"])
         run("packaged-resources", [sys.executable, "-B", APP / "contracts/generate-python-resources.py", "--check"])
+        run("runtime-installer-controls", [sys.executable, "-B", "-m", "unittest", "discover", "-s", APP, "-p", "test_install_runtime.py", "-v"])
         run("bridge-types", [tools["bun"], "x", "--no-install", "tsc", "-p", APP / "tsconfig.json"])
         run("bridge-lint", [tools["bun"], "x", "--no-install", "eslint", "--config", APP / "eslint.config.mjs", APP / "bridge", "--max-warnings", "0"])
         run("bridge-controls", [tools["bun"], "test", APP / "bridge/owner.test.ts"])

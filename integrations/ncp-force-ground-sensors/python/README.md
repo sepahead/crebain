@@ -1,7 +1,7 @@
-# Independent sensor reader
+# CREBAIN sensor sessions
 
 This Python component reads the closed CREBAIN sensor application through the generic NCP SDK.
-The host launches the producer and owns process cleanup.
+Use `body_session` to own an installed producer, or `SensorSession` with streams managed by your application.
 
 The optional `crebain-ncp-sensors` package installs its pinned NCP v1 SDK automatically.
 It includes the exact owned application, composition, schema, and sensor contract files.
@@ -16,10 +16,88 @@ python -m pip install ./integrations/ncp-force-ground-sensors/python
 
 The dependency is public NCP commit `c0465d40f1f2b9df2caf9793183d11e65ac9ec74`, with the independent `ncp-local` Python package.
 No NCP sibling checkout or `PYTHONPATH` change is required for installed use.
-The reader still requires the host-owned streams and producer described below.
-Its package does not install the CREBAIN renderer or qualify a complete native session.
+The Python package does not include Bun, Node, Chromium, or the Rust producer.
+The explicit runtime installation below binds those separately selected resources.
 
-## Calling contract
+## Install and run a body session
+
+Use a clean committed CREBAIN checkout, its locked frontend dependencies, and the pinned Rust toolchain.
+Select the exact NCP checkout named in the [construction contract](../README.md#construction-and-qualification).
+Populate Cargo's locked cache with that contract's preparation command before an offline build.
+Create a new absolute output path outside both source checkouts:
+
+```sh
+python3 integrations/ncp-force-ground-sensors/install_runtime.py \
+  --ncp-source /operator/selected/NCP \
+  --output /operator/runtimes/crebain-sensors \
+  --bun /absolute/path/to/bun
+python -m crebain_ncp_sensors /operator/runtimes/crebain-sensors --microphone-only
+```
+
+This selection needs no Node or graphics process.
+For cameras, add `--node /absolute/path/to/node` and `--browser-root /absolute/path/to/playwright-browsers` during installation.
+That root must contain the browser distribution selected by the installed Playwright package.
+Omit `--microphone-only` when running the complete RGB, thermal, and pressure example.
+Both examples execute 24 body ticks with the committed two-target schedule.
+
+The installer stages the complete Git source tree and builds the Rust producer with locked, offline dependencies.
+It retains all source licenses and hashes the selected external tools, dependencies, and browser tree.
+It never downloads a browser or substitutes another simulator.
+Keep those external roots immutable during use.
+Moving the installed prefix is supported; moving an external root requires another installation.
+Hash checks describe selected files, without attesting loaded operating-system libraries or hostile-host isolation.
+
+For observation-dependent actions, use the ordinary Python API:
+
+```python
+from crebain_ncp_sensors import InstalledRuntime, body_session
+
+runtime = InstalledRuntime.open("/operator/runtimes/crebain-sensors")
+with body_session(runtime, prepare, timeout_s=180) as body:
+    next_target = initial_target
+    for _ in range(prepare.planned_ticks):
+        with body.advance(next_target) as batch:
+            next_target = choose_target(batch.observation)
+    result = body.finish()
+
+assert body.process_exit["cleanup_confirmed"]
+```
+
+The caller supplies a validated `Prepare`, an initial `SetTarget`, and its `choose_target` policy.
+The launcher rechecks installed bytes before spawning and joins the prepared source identity to that runtime.
+Runtime verification precedes the session timeout; it never runs inside the body tick loop.
+The default binding has fresh run, endpoint, and generation IDs.
+Pass `new_binding(run_id=shared_run)` when another selected peer shares the run.
+An optional `exchange` function uses the same [capture contract](#capture-original-ncp-exchanges) as the stream API.
+
+Normal context exit calls `finish()` automatically if needed.
+It rejects an incomplete horizon or an unreleased batch instead of inventing successful completion.
+`process_exit`, bounded `diagnostics`, and `diagnostics_truncated` become available after context exit, including failed exits.
+Primary and cleanup failures remain separate exceptions when both occur.
+
+An independent guardian enforces the session deadline and detects caller loss.
+It shuts down the shared socket, then preserves the existing Rust, Bun, and Node cleanup chain.
+Cleanup has a separate 205-second maximum grace; a normal exit returns immediately.
+This accommodates the current producer's repeated bounded retirement attempts.
+Forced termination reaps only the directly owned Rust child and reports family cleanup as unresolved.
+Unresolved cleanup retains its private diagnostic directory and always raises an error.
+The guardian retains at most 64 KiB of producer diagnostics and retires the channel above 1 MiB of observed output.
+
+This contract assumes trusted, schedulable descendants.
+It cannot guarantee cleanup after arbitrary simultaneous process kills, operating-system failure, or suspended cleanup owners.
+Trusted callbacks must return; the guardian can retire the producer without interrupting a hung Python callback.
+Source controls exercise synthetic process lifetimes; actual graphics fault qualification requires separate native evidence.
+
+![Typed sensor transfer, complete-batch validation, and explicit buffer release](../../../assets/diagrams/ncp-sensor-transfer.svg)
+
+Text alternative: The owned launcher supplies the private process channel shown in this sensor-flow diagram.
+The Rust producer transfers every selected payload through NCP.
+Python exposes a complete batch, then releases its buffers after caller processing.
+Process retirement remains separate from payload release and optional durable capture.
+
+[Open the original SVG](../../../assets/diagrams/ncp-sensor-transfer.svg?raw=true)
+
+## Caller-owned streams
 
 Call `run_session(reader, writer, binding, prepare, actions, recorder, deadline=deadline)` with trusted, already-open binary streams.
 Both `run_session` and `SensorSession` accept an optional `exchange` function for host-selected capture.

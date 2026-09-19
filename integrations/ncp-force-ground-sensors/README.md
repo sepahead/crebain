@@ -340,6 +340,8 @@ Retirement joins pending preparation and active environment work.
 Emergency termination of the directly owned child never confirms renderer-family cleanup.
 
 The [Python client](python/README.md) validates every due payload before exposing a complete batch.
+Its [owned session](python/README.md#install-and-run-a-body-session) uses an explicitly installed runtime and manages producer lifetime through a separate guardian.
+The stream API remains available for applications with their own process owner.
 `SensorSession` keeps source buffers live until explicit release or normal batch-context exit.
 Its scheduled `run_session` wrapper releases those buffers before invoking its recorder.
 A callback cannot establish durable capture without a separately verified capture contract.
