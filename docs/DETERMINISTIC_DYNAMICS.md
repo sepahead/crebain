@@ -279,6 +279,98 @@ The checkpoint binds the exact allocation policy, gains, physical parameters, li
 Changing that policy changes canonical state identity.
 Returned controller diagnostics are detached audit values and supply no restoration or external command authority.
 
+## Whole-roster force-city component
+
+`ForceCityWorld` separately selects `crebain.rapier-force-city.v1`.
+It reuses the actual `DronePhysicsWorld` and the reviewed pure force controller.
+It creates one shared Rapier world with accepted static cuboids.
+It does not change the legacy city controller or force-ground replay bytes.
+
+The plan fixes sorted entity identifiers, explicit positions, per-entity controller references, geometry, a tick horizon, and an action budget.
+Every entity uses the same reviewed default quadcopter model.
+Different altitude and heading references do not imply heterogeneous physical models.
+There is no unused placement seed or implicit target.
+
+The construction ceiling is 256 entities, 64 cuboids, 7,200 ticks, and 4,096 submitted set actions.
+The action budget must accommodate an initial set action for every entity.
+These source bounds do not qualify a 256-drone native application or its resource usage.
+The selected city qualification target is 256 drones; its remaining gates stay separate.
+
+| Method | Contract |
+| --- | --- |
+| `prepare(plan)` | Admit the complete owned plan before initialization. Construct actual shared physics and reject fallback. |
+| `advanceControlled(batch, capacity)` | Admit one complete ordered batch for the exact next tick. Execute one shared physics step. |
+| `referenceState()` | Return detached privileged CPU reference bytes. Grant no checkpoint, restore, or fork authority. |
+| `status()` | Separate the last accepted return from observed or unknown execution and retained cleanup uncertainty. |
+| `retire()` | Release the owned world once. Preserve any cleanup failure across later calls. |
+
+Each batch contains exactly one `set` or `hold` row for every prepared entity.
+A set row supplies its entity identifier, armed state, and force target.
+A hold row supplies the exact digest of that entity's retained action.
+The digest binds the run identifier, declared source identity, target, armed state, entity identifier, and original application tick.
+It is a content join, not a signature or external command capability.
+An initial hold, foreign digest, stale digest, omitted entity, duplicate, or reordered row rejects.
+Every submitted set consumes one history slot, even when its values repeat.
+A hold consumes no new history slot.
+
+The owner admits every row, the complete history addition, and the output reservation before committing history or touching a motor.
+It computes every command from the same pre-step world state.
+It then applies the ordered armed states and motor targets before advancing the shared world exactly once.
+There is no scalar scheduling loop with attempted rollback.
+
+Caller admission, capacity, and pre-effect hash failures preserve the unchanged valid owner.
+A failed owned-state or state/target control-envelope check retires the owner before motor effects.
+That retirement is conservative; it does not classify every rejected target as an intrinsically corrupted state.
+After mutation starts, every failure retires the owner and forbids retry.
+
+### Return reservation and failure knowledge
+
+For `N` entities, the encoded return allowance is `4096 + 32768N` bytes.
+The return includes per-entity control and body facts, with two shared whole-world digests.
+It never repeats a complete world snapshot for each entity.
+
+Before mutation, the owner counts the complete staged output shape with 32 bytes reserved for every number.
+That allowance exceeds finite JavaScript numeric tokens and the canonical negative-zero object.
+Strings use their exact encoded lengths; Boolean values reserve five bytes.
+Object keys, arrays, separators, and braces are counted explicitly.
+The fixed post-step body shape has four rotors and declared vector dimensions.
+The same shape checks apply after execution.
+Admission rejects a shape that exceeds the fixed allowance before allocating the reserved byte array.
+
+Final bounded encoding remains an integrity check.
+A failed encoding after execution retires completed-but-unaccepted work.
+These limits concern encoded logical output, not JavaScript heap, allocator behavior, RSS, GPU memory, or the NCP frame ceiling.
+
+Each failure retains prepared motor targets and action digests separately from confirmed completed writes.
+The in-flight entity and operation remain uncertain when their setter throws.
+The receipt also retains history commitment, the previous state digest, and whether physics was attempted.
+No completed row implies completion of an unobserved later row.
+
+If the engine call throws, `executedTick` is unknown.
+If it returns, a later hash, envelope, or encoding failure preserves the newly completed tick.
+The last accepted return remains separate in both cases.
+Acceptance means successful local return construction, not caller receipt or durable publication.
+Original primary and cleanup exceptions remain available independently of bounded diagnostic strings.
+Cleanup precedes optional formatting of a thrown value.
+
+The privileged reference binds the complete plan, actual Rapier state, submitted action history, retained actions, clock, and exact force-control policy.
+Its logical extent combines the existing four-MiB physics limit, a 256-KiB plan, bounded 1,024-byte action records, and shared metadata.
+The physics snapshot allocates before its size check; this is not a hostile-input preallocation guarantee.
+No checkpoint, replay, or restoration capability is exposed by this component.
+
+### Component evidence boundary
+
+The focused controls use actual Rapier with synthetic plans.
+They compare complete bytes against one direct shared world and exercise a single 256-entity transition.
+They reject an invalid later row before effects and inject failures after the first applied row.
+They also test target lineage, complete rosters, output admission, original errors, uncertain execution, and cleanup failures.
+The existing force-ground checkpoint and fork controls remain required.
+
+This component supplies no city NCP application, renderer, sensor output, mounted modality, or per-entity sensor authority.
+Shared scene observations do not satisfy a requirement for independently attributable per-entity sensor failures.
+Those semantics remain unresolved and cannot be filled with replicated association rows.
+City stability, installed execution, resource qualification, and complete 256-drone end-to-end operation remain unqualified.
+
 ## Complete state and replay
 
 The canonical checkpoint includes:
@@ -348,7 +440,7 @@ bun run validate:all
 The focused actual-Rapier controls are:
 
 ```bash
-bun run test:run src/physics/__tests__/DeterministicDroneWorld.test.ts src/physics/__tests__/DronePhysics.test.ts src/physics/__tests__/ForceAttitudeController.test.ts src/physics/__tests__/ForceDynamics.test.ts
+bun run test:run src/physics/__tests__/DeterministicDroneWorld.test.ts src/physics/__tests__/DronePhysics.test.ts src/physics/__tests__/ForceAttitudeController.test.ts src/physics/__tests__/ForceDynamics.test.ts src/physics/__tests__/ForceCityWorld.test.ts
 ```
 
 They compare direct existing dynamics, controller memory, motor and battery state, pending actions, random placement, and complete checkpoint bytes.
