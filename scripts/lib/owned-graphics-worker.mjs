@@ -1,4 +1,5 @@
 import { OwnedGraphicsRuntime } from './owned-graphics-runtime.mjs'
+import { SourceGraphicsTransferError } from './source-graphics-codec.mjs'
 
 if (process.versions.bun || !process.versions.node)
   throw new Error('The private graphics worker requires Node.js')
@@ -7,6 +8,7 @@ let owner
 let busy = false
 let retired = false
 let pending
+let sourceMode = false
 const send = (message) => {
   if (process.connected) process.send(message)
 }
@@ -26,7 +28,15 @@ process.on('message', (message) => {
     !message ||
     typeof message !== 'object' ||
     !Number.isSafeInteger(message.sequence) ||
-    !['prepare', 'capture', 'retire'].includes(message.operation) ||
+    ![
+      'prepare',
+      'prepare_sources',
+      'capture',
+      'capture_source',
+      'read_source',
+      'release_source',
+      'retire',
+    ].includes(message.operation) ||
     busy ||
     retired
   ) {
@@ -37,9 +47,13 @@ process.on('message', (message) => {
   pending = (async () => {
     try {
       let result
-      if (message.operation === 'prepare') {
+      if (message.operation === 'prepare' || message.operation === 'prepare_sources') {
         if (owner) throw new Error('Graphics worker is already prepared')
-        owner = await OwnedGraphicsRuntime.prepare(message.body, {
+        sourceMode = message.operation === 'prepare_sources'
+        const prepare = sourceMode
+          ? OwnedGraphicsRuntime.prepareSources
+          : OwnedGraphicsRuntime.prepare
+        owner = await prepare(message.body, {
           timeoutMs: message.timeoutMs,
           onBrowserProcess: (pid) => send({ kind: 'browser', pid }),
         })
@@ -58,6 +72,9 @@ process.on('message', (message) => {
       } else if (message.operation === 'capture') {
         if (!owner) throw new Error('Graphics worker is not prepared')
         result = await owner.capture(message.body)
+      } else if (['capture_source', 'read_source', 'release_source'].includes(message.operation)) {
+        if (!owner || !sourceMode) throw new Error('Source graphics worker is not prepared')
+        result = await owner.sourceOperation(message.operation, message.body)
       } else {
         await retire()
         result = { retired: true }
@@ -66,8 +83,29 @@ process.on('message', (message) => {
         throw new Error('Retired worker cannot publish')
       send({ kind: 'result', sequence: message.sequence, result })
     } catch (error) {
-      await retire().catch(() => {})
-      send({ kind: 'error', sequence: message.sequence, error: String(error).slice(0, 2048) })
+      let cleanupFailed = false
+      await retire().catch(() => {
+        cleanupFailed = true
+      })
+      let diagnostic = 'Unprintable private graphics failure'
+      try {
+        diagnostic = String(error).slice(0, 2048)
+      } catch {
+        /* Diagnostic only. */
+      }
+      send({
+        kind: 'error',
+        sequence: message.sequence,
+        error: diagnostic,
+        ...(sourceMode
+          ? {
+              category:
+                !cleanupFailed && error instanceof SourceGraphicsTransferError
+                  ? error.category
+                  : 'integrity',
+            }
+          : {}),
+      })
     } finally {
       busy = false
     }

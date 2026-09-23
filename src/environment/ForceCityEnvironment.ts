@@ -9,6 +9,7 @@ import { AcousticState, type PressureBlock } from './AcousticObservation'
 import { ThermalState } from './ThermalObservation'
 import {
   graphicsInputDigest,
+  isGraphicsSourceIntegrityError,
   type SourceGraphicsLauncher,
   type SourceGraphicsPort,
   type SourceGraphicsPlan,
@@ -562,6 +563,10 @@ export class ForceCityEnvironment {
                 bytes
               )
             } catch (error) {
+              if (isGraphicsSourceIntegrityError(error)) {
+                stage = 'source_validation'
+                throw error
+              }
               failedSource = { requestId: source.requestId, error }
               slots.set(source.requestId, {
                 ...join(source),

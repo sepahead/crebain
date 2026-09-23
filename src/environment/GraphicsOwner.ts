@@ -7,6 +7,7 @@ import { createSceneProjection, type SceneProjection } from './SceneProjection'
 
 import {
   graphicsInputDigest,
+  ownSourceGraphicsPlan,
   type GraphicsPlan,
   type GraphicsInput,
   type GraphicsFrames,
@@ -105,7 +106,10 @@ export class GraphicsOwner {
   }
 
   static async prepareSources(input: SourceGraphicsPlan): Promise<GraphicsOwner> {
-    return GraphicsOwner.prepareOwned(input, 'crebain.owned-force-city-source-graphics.v1')
+    return GraphicsOwner.prepareOwned(
+      ownSourceGraphicsPlan(input),
+      'crebain.owned-force-city-source-graphics.v1'
+    )
   }
 
   private static async prepareOwned(

@@ -234,6 +234,50 @@ Retained partial bytes remain private audit inputs until a containing process ow
 The component supplies no deadline, forced termination, resume, successful Finish, checkpoint, or fork authority.
 Its caller must enforce process deadlines; a stuck rendering promise cannot establish cleanup.
 
+### Private source transfer
+
+`OwnedGraphicsProcess.prepareSources()` explicitly selects the private source adapter.
+The existing `prepare()` and `capture()` methods retain their aggregate profile and capture order.
+Source mode rejects aggregate capture; aggregate mode rejects individual source operations.
+The adapter uses the actual `GraphicsOwner.prepareSources()` implementation inside its owned browser.
+
+`GraphicsSourceRetention` allocates one byte arena before constructing that graphics owner.
+Its capacity equals the largest selected image, at most 6,553,600 bytes.
+Only one source can retain the arena at a time.
+The retained receipt joins the plan, exact pose input, tick, camera, tensor extent, sequence, and original SHA-256.
+These local commitments do not attest loaded code or physical sensor calibration.
+
+The parent copies contiguous chunks of at most 32,768 bytes into the native environment's separately reserved destination.
+Each reply must fit 65,536 encoded bytes.
+Canonical base64 occupies at most 43,692 bytes per complete chunk.
+The parent checks every chunk and hashes the complete original before requesting release.
+Foreign sequences, skipped offsets, truncated payloads, changed digests, and incomplete release reject.
+The browser arena and parent original storage remain separate resource charges during transfer.
+These limits bound accepted storage and serialization; they do not bound IPC parser allocations or browser resident memory.
+
+`source-graphics-codec.mjs` preserves finite binary64 values and negative zero across private JSON.
+The source plan has a 512 KiB encoded limit; pose input has a 128 KiB limit.
+Executable selection remains an explicit trusted launcher option.
+Scene and source fields cannot select modules, paths, or executable code.
+
+One parent deadline covers capture, every chunk, complete hashing, and release.
+It defaults to 15 seconds and admits explicit values from 100 milliseconds through 60 seconds.
+The parent retains its separate bounded cleanup observation.
+Missing process announcements and changed process identities cannot establish confirmed retirement or authorize an unrelated process signal.
+Unresolved cleanup remains unresolved on repeated calls.
+Local exception objects remain separate; private IPC carries only bounded diagnostic summaries and categories.
+
+Only an identified acquisition failure can retain the component's partial-source route.
+Malformed metadata, changed original bytes, transport failures, and unknown cleanup use the shared local integrity classification.
+They cannot become favorable partial observations through the graphics port.
+The adapter alone grants no public partial-output authority, installed NCP qualification, or native GPU parity.
+The containing application still owns native process retirement and export completion.
+
+`bun run check:source-graphics` runs codec, lifecycle, and directly owned worker controls.
+Renderer and operating-system ports are synthetic in lifecycle controls; separate worker controls execute the unchanged worker in real Node children.
+Those worker controls substitute the rendering dependency and run no simulator or browser.
+The complete source gate also runs the retained source-custody and city-component controls.
+
 ### Source storage and construction bounds
 
 Let `N` be the body count and `S` the total requested-source count.

@@ -1,5 +1,6 @@
-import type { SceneSpec } from './SceneSpec'
-import type { ThermalConfig } from './ThermalObservation'
+import { copyPlainData } from '../lib/copyPlainData'
+import { closedKeys, ownSceneSpec, type SceneSpec } from './SceneSpec'
+import { ownThermalConfig, type ThermalConfig } from './ThermalObservation'
 
 export interface GraphicsPlan {
   profile: 'crebain.owned-city-graphics.v1'
@@ -63,6 +64,37 @@ export interface SourceGraphicsPort {
   retire(): void | Promise<void>
 }
 export type SourceGraphicsLauncher = (plan: SourceGraphicsPlan) => Promise<SourceGraphicsPort>
+
+export {
+  GraphicsSourceIntegrityError,
+  isGraphicsSourceIntegrityError,
+} from './GraphicsSourceErrors.js'
+
+/** Pure source-profile admission, before either source storage or a renderer is constructed. */
+export function ownSourceGraphicsPlan(input: SourceGraphicsPlan): SourceGraphicsPlan {
+  const plan = copyPlainData(input)
+  closedKeys(plan, ['profile', 'sourceIdentity', 'scene', 'droneIds', 'thermal'])
+  if (
+    plan.profile !== 'crebain.owned-force-city-source-graphics.v1' ||
+    !/^[a-f0-9]{64}$/.test(plan.sourceIdentity)
+  )
+    throw new Error('Unsupported source graphics profile or source identity')
+  ownSceneSpec(plan.scene)
+  if (plan.scene.rgbCameras.length + plan.scene.thermalCameras.length === 0)
+    throw new Error('Source graphics requires a requested camera')
+  if (plan.scene.thermalCameras.length > 0 !== (plan.thermal !== null))
+    throw new Error('Source graphics thermal selection changed')
+  if (plan.thermal !== null) ownThermalConfig(plan.thermal)
+  if (!Array.isArray(plan.droneIds) || plan.droneIds.length < 1 || plan.droneIds.length > 256)
+    throw new Error('Graphics drone roster outside the operating envelope')
+  let previous = ''
+  for (const id of plan.droneIds) {
+    if (typeof id !== 'string' || !/^[a-z][a-z0-9_-]{0,63}$/.test(id) || id <= previous)
+      throw new Error('Graphics drone IDs must be sorted and unique')
+    previous = id
+  }
+  return plan
+}
 export interface GraphicsFrames {
   planSha256: string
   inputSha256: string

@@ -6,6 +6,15 @@ import { randomUUID } from 'node:crypto'
 import { chromium } from 'playwright'
 import { createServer } from 'vite'
 import { verifyPinnedProductionVendorInstallation } from './production-vendor-boundary.mjs'
+import { sourceCleanupFailure } from '../../src/environment/GraphicsSourceErrors.js'
+import {
+  SOURCE_PLAN_BYTES,
+  SOURCE_INPUT_BYTES,
+  SourceGraphicsTransferError,
+  parseSourceJson,
+  closedSourceObject,
+  sourceIntegrity,
+} from './source-graphics-codec.mjs'
 
 const PROJECT_ROOT = resolve(fileURLToPath(new URL('../..', import.meta.url)))
 const MAX_INPUT_BYTES = 1024 * 1024
@@ -30,9 +39,20 @@ export class OwnedGraphicsRuntime {
   #timeoutMs
   #diagnostics
   #generation = randomUUID()
+  #sourceMode = false
+  #sourceRetirement = null
+  #browserRetirement = null
 
-  static async prepare(planJson, { timeoutMs = 15000, onBrowserProcess = () => {} } = {}) {
-    const plan = parseInput(planJson)
+  static prepare(planJson, options = {}) {
+    return OwnedGraphicsRuntime.#prepare(planJson, options, false)
+  }
+
+  static prepareSources(planJson, options = {}) {
+    return OwnedGraphicsRuntime.#prepare(planJson, options, true)
+  }
+
+  static async #prepare(planJson, { timeoutMs = 15000, onBrowserProcess = () => {} }, sourceMode) {
+    const plan = sourceMode ? parseSourceJson(planJson, SOURCE_PLAN_BYTES) : parseInput(planJson)
     if (!Number.isInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 60000)
       throw new Error('Graphics watchdog must be between 100 and 60000 milliseconds')
     if (process.platform !== 'darwin' && process.platform !== 'linux')
@@ -40,6 +60,7 @@ export class OwnedGraphicsRuntime {
     verifyPinnedProductionVendorInstallation(PROJECT_ROOT)
     const owner = new OwnedGraphicsRuntime()
     owner.#timeoutMs = timeoutMs
+    owner.#sourceMode = sourceMode
     try {
       owner.#cache = await mkdtemp(join(tmpdir(), 'crebain-owned-graphics-'))
       owner.#server = await createServer({
@@ -90,10 +111,20 @@ export class OwnedGraphicsRuntime {
       const page = await context.newPage()
       await owner.#bounded(async () => {
         await page.goto(`${origin}/environment-owner`)
-        owner.#owner = await page.evaluateHandle(async (input) => {
-          const { GraphicsOwner } = await import('/src/environment/GraphicsOwner.ts')
-          return GraphicsOwner.prepare(input)
-        }, plan)
+        owner.#owner = await page.evaluateHandle(
+          async ({ input, sourceMode }) => {
+            const { GraphicsOwner } = await import('/src/environment/GraphicsOwner.ts')
+            if (sourceMode) {
+              const { GraphicsSourceRetention } =
+                await import('/src/environment/GraphicsSourceRetention.ts')
+              return GraphicsSourceRetention.prepare(input, (value) =>
+                GraphicsOwner.prepareSources(value)
+              )
+            }
+            return GraphicsOwner.prepare(input)
+          },
+          { input: plan, sourceMode }
+        )
         owner.#diagnostics = {
           generation: owner.#generation,
           pid: owner.#browserServer.process().pid,
@@ -101,6 +132,13 @@ export class OwnedGraphicsRuntime {
           planSha256: await owner.#owner.evaluate((instance) => instance.planSha256),
           graphics: await owner.#owner.evaluate((instance) => instance.runtimeIdentity()),
           distributionScope: 'development-component',
+          ...(sourceMode
+            ? {
+                sourceRetentionBytes: await owner.#owner.evaluate(
+                  (instance) => instance.capacityBytes
+                ),
+              }
+            : {}),
         }
       })
       if (owner.#phase !== 'preparing')
@@ -108,6 +146,7 @@ export class OwnedGraphicsRuntime {
       owner.#phase = 'active'
       return owner
     } catch (error) {
+      if (sourceMode) return owner.#sourceFailure(error)
       await owner.retire()
       throw error
     }
@@ -126,7 +165,7 @@ export class OwnedGraphicsRuntime {
         this.#phase = 'retired'
         // Playwright's pinned POSIX launcher kills the detached process group with SIGKILL.
         // Reject only after it observes process exit. Merely abandoning the Promise is insufficient.
-        this.#browserServer.kill().then(
+        this.#killBrowser().then(
           () => reject(new Error('Graphics watchdog expired; owned process group terminated')),
           (cause) =>
             reject(new Error('Graphics watchdog termination could not be confirmed', { cause }))
@@ -144,6 +183,7 @@ export class OwnedGraphicsRuntime {
   }
 
   async capture(inputJson) {
+    if (this.#sourceMode) throw new Error('Individual source mode cannot capture aggregate frames')
     if (this.#phase !== 'active') throw new Error(`Graphics process is ${this.#phase}`)
     const input = parseInput(inputJson)
     this.#phase = 'busy'
@@ -195,8 +235,127 @@ export class OwnedGraphicsRuntime {
     }
   }
 
+  async #sourceFailure(primary) {
+    try {
+      await this.retire()
+    } catch (cleanup) {
+      throw sourceCleanupFailure(primary, cleanup, 'Source graphics failed with unresolved cleanup')
+    }
+    throw primary
+  }
+
+  #killBrowser() {
+    if (!this.#sourceMode) return this.#browserServer.kill()
+    this.#browserRetirement ??= this.#browserServer.kill()
+    return this.#browserRetirement
+  }
+
+  /** These operations exist only for the explicitly selected private source mode. */
+  async sourceOperation(operation, body) {
+    if (!this.#sourceMode || this.#phase !== 'active')
+      throw sourceIntegrity('Individual source runtime is unavailable')
+    let value
+    if (operation === 'capture_source') {
+      closedSourceObject(body, ['inputJson', 'source'])
+      value = { input: parseSourceJson(body.inputJson, SOURCE_INPUT_BYTES), source: body.source }
+    } else if (operation === 'read_source') {
+      value = closedSourceObject(body, ['sequence', 'originalSha256', 'offset'])
+    } else if (operation === 'release_source') {
+      value = closedSourceObject(body, ['sequence', 'originalSha256'])
+    } else throw sourceIntegrity('Unknown individual source operation')
+    this.#phase = 'busy'
+    try {
+      const reply = await this.#bounded(() =>
+        this.#owner.evaluate(
+          async (instance, request) => {
+            const { GraphicsSourceAcquisitionError } =
+              await import('/src/environment/GraphicsSourceRetention.ts')
+            try {
+              const body = request.body
+              if (request.operation === 'capture_source')
+                return { kind: 'value', value: await instance.capture(body.input, body.source) }
+              if (request.operation === 'release_source') {
+                instance.release(body.sequence, body.originalSha256)
+                return { kind: 'value', value: { ...body, released: true } }
+              }
+              const chunk = await instance.read(body.sequence, body.originalSha256, body.offset)
+              let binary = ''
+              for (let offset = 0; offset < chunk.bytes.length; offset += 8192)
+                binary += String.fromCharCode(...chunk.bytes.subarray(offset, offset + 8192))
+              return {
+                kind: 'value',
+                value: {
+                  sequence: chunk.sequence,
+                  originalSha256: chunk.originalSha256,
+                  offset: chunk.offset,
+                  bytesBase64: btoa(binary),
+                  chunkSha256: chunk.chunkSha256,
+                },
+              }
+            } catch (error) {
+              // Only this exact local acquisition class can select the source-failure route.
+              let message = 'Unprintable private source error'
+              try {
+                if (typeof error?.message === 'string') message = error.message.slice(0, 256)
+              } catch {
+                /* Diagnostic only. */
+              }
+              return {
+                kind: 'failure',
+                category:
+                  error instanceof GraphicsSourceAcquisitionError ? 'acquisition' : 'integrity',
+                message,
+              }
+            }
+          },
+          { operation, body: value }
+        )
+      )
+      if (this.#phase !== 'busy') throw sourceIntegrity('Retired source runtime cannot publish')
+      if (reply?.kind === 'failure') {
+        closedSourceObject(reply, ['kind', 'category', 'message'])
+        if (typeof reply.message !== 'string' || reply.message.length > 256)
+          throw sourceIntegrity('Invalid source failure summary')
+        throw new SourceGraphicsTransferError(reply.category, reply.message)
+      }
+      closedSourceObject(reply, ['kind', 'value'])
+      if (reply.kind !== 'value') throw sourceIntegrity('Unknown browser source result')
+      this.#phase = 'active'
+      return reply.value
+    } catch (error) {
+      return this.#sourceFailure(error)
+    }
+  }
+
   async retire() {
     this.#phase = 'retired'
+    if (this.#sourceMode) {
+      this.#sourceRetirement ??= (async () => {
+        const failures = []
+        for (const operation of [
+          async () => {
+            if (this.#browserServer) await this.#killBrowser()
+          },
+          async () => {
+            if (this.#server) await this.#server.close()
+          },
+          async () => {
+            if (this.#cache) await rm(this.#cache, { recursive: true, force: true })
+          },
+        ]) {
+          try {
+            await operation()
+          } catch (error) {
+            failures.push(error)
+          }
+        }
+        if (failures.length)
+          throw new AggregateError(failures, 'Source runtime cleanup unresolved', {
+            cause: failures[0],
+          })
+      })()
+      return this.#sourceRetirement
+    }
     try {
       if (this.#browserServer) await this.#browserServer.kill()
     } finally {

@@ -26,6 +26,7 @@ import {
 } from '../ForceCityEnvironment'
 import {
   graphicsInputDigest,
+  GraphicsSourceIntegrityError,
   type SourceGraphicsPlan,
   type SourceGraphicsInput,
   type SourceGraphicsPort,
@@ -34,6 +35,7 @@ import {
   type GraphicsSourceReceipt,
 } from '../GraphicsContract'
 import { cityPlan, citySet, cityHold } from './CitySourceFixtures'
+import { SourceGraphicsTransferError } from '../GraphicsSourceErrors.js'
 
 /** Synthetic source transport. It cannot establish actual rendered pixels or native qualification. */
 class SourceControl implements SourceGraphicsPort {
@@ -422,6 +424,31 @@ describe('shared physical clock and original source custody', () => {
 })
 
 describe('post-effect failures and preparation retirement', () => {
+  it.each([
+    new GraphicsSourceIntegrityError('transferred original digest changed'),
+    new SourceGraphicsTransferError('integrity', 'private source chunk changed'),
+  ])(
+    'distinguishes transfer integrity failure from a known source acquisition failure: %s',
+    async (failure) => {
+      const plan = cityPlan()
+      const control = new SourceControl()
+      control.failCamera = 'rgb-0'
+      control.failure = failure
+      const { owner } = await prepare(plan, control)
+      const error = await owner.advance(citySet(plan)).catch((value: unknown) => value)
+      expect(error).toBeInstanceOf(CityEnvironmentError)
+      expect((error as CityEnvironmentError).outcome).toMatchObject({
+        stage: 'source_validation',
+        executedTick: 1,
+        componentCleanup: 'confirmed',
+        completeObservation: false,
+      })
+      expect((error as CityEnvironmentError).handle).toBeNull()
+      expect((error as Error).cause).toBe(control.failure)
+      expect(control.retires).toBe(1)
+      await expect(owner.advance(citySet(plan))).rejects.toThrow()
+    }
+  )
   it('retains a bounded receipt at maximum identifier lengths and escaped failure text', async () => {
     const plan = cityPlan(256, { rgb: 4, thermal: 4, pressure: 4 })
     plan.world.drones.forEach((row, index) => {

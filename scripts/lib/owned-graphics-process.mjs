@@ -3,6 +3,14 @@ import { chromium } from 'playwright'
 import { fileURLToPath } from 'node:url'
 import { isAbsolute } from 'node:path'
 import { classifyOwnedProcess } from './owned-process-identity.mjs'
+import { sourceCleanupFailure } from '../../src/environment/GraphicsSourceErrors.js'
+import {
+  SOURCE_PLAN_BYTES,
+  SourceGraphicsTransferError,
+  parseSourceJson,
+  copyRetainedSource,
+  sourceIntegrity,
+} from './source-graphics-codec.mjs'
 
 const WORKER = fileURLToPath(new URL('./owned-graphics-worker.mjs', import.meta.url))
 const MAX_INPUT_BYTES = 1024 * 1024
@@ -50,9 +58,21 @@ export class OwnedGraphicsProcess {
   #timeoutMs
   #logs = ''
   #cleanup = null
+  #sourceMode = false
+  #sourcePlan
+  #sourceSequence = 0
 
-  static async prepare(planJson, { timeoutMs = 15000, nodeExecutable } = {}) {
-    primitiveJson(planJson)
+  static prepare(planJson, options = {}) {
+    return OwnedGraphicsProcess.#prepare(planJson, options, false)
+  }
+
+  static prepareSources(planJson, options = {}) {
+    return OwnedGraphicsProcess.#prepare(planJson, options, true)
+  }
+
+  static async #prepare(planJson, { timeoutMs = 15000, nodeExecutable }, sourceMode) {
+    const sourcePlan = sourceMode ? parseSourceJson(planJson, SOURCE_PLAN_BYTES) : null
+    if (!sourceMode) primitiveJson(planJson)
     if (!Number.isInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 60000)
       throw new Error('Graphics watchdog must be between 100 and 60000 milliseconds')
     if (process.platform !== 'darwin' && process.platform !== 'linux')
@@ -64,6 +84,8 @@ export class OwnedGraphicsProcess {
       throw new Error('Graphics preparation requires an explicit absolute Node executable')
     const owner = new OwnedGraphicsProcess()
     owner.#timeoutMs = timeoutMs
+    owner.#sourceMode = sourceMode
+    owner.#sourcePlan = sourcePlan
     owner.#worker = fork(WORKER, [], {
       execPath: executable,
       serialization: 'json',
@@ -82,7 +104,7 @@ export class OwnedGraphicsProcess {
       )
     )
     try {
-      const result = await owner.#request('prepare', planJson)
+      const result = await owner.#request(sourceMode ? 'prepare_sources' : 'prepare', planJson)
       if (owner.#phase !== 'preparing')
         throw new Error('Retired graphics preparation cannot publish')
       if (!owner.#browserIdentity || result.pid !== owner.#browserIdentity.pid)
@@ -91,6 +113,7 @@ export class OwnedGraphicsProcess {
       owner.#phase = 'active'
       return owner
     } catch (error) {
+      if (sourceMode) return owner.#sourceFailure(error)
       await owner.retire()
       throw error
     }
@@ -116,28 +139,40 @@ export class OwnedGraphicsProcess {
     }
     if (!this.#pending || message?.sequence !== this.#pending.sequence) return
     if (message.kind === 'result') this.#pending.resolve(message.result)
-    else if (message.kind === 'error') this.#pending.reject(new Error(message.error))
-    else this.#pending.reject(new Error('Unknown private graphics worker result'))
+    else if (message.kind === 'error') {
+      if (
+        this.#sourceMode &&
+        typeof message.error === 'string' &&
+        message.error.length <= 2048 &&
+        ['acquisition', 'integrity'].includes(message.category)
+      )
+        this.#pending.reject(new SourceGraphicsTransferError(message.category, message.error))
+      else this.#pending.reject(new Error(message.error))
+    } else this.#pending.reject(new Error('Unknown private graphics worker result'))
   }
 
-  async #request(operation, body) {
+  async #request(operation, body, deadline = null) {
     if (this.#pending) throw new Error('Graphics process request is already pending')
+    const timeoutMs =
+      operation === 'retire'
+        ? 5000
+        : deadline === null
+          ? this.#timeoutMs
+          : Math.min(this.#timeoutMs, deadline - performance.now())
+    if (timeoutMs <= 0) throw sourceIntegrity('Complete source-transfer deadline expired')
     const sequence = ++this.#sequence
     let timer
     try {
       return await new Promise((resolve, reject) => {
         this.#pending = { sequence, resolve, reject }
-        timer = setTimeout(
-          () => {
-            this.#phase = 'retired'
-            void this.#terminate().then(
-              (cleanup) =>
-                reject(new Error(`Graphics parent watchdog expired; cleanup ${cleanup.status}`)),
-              (cause) => reject(new Error('Graphics parent watchdog cleanup unresolved', { cause }))
-            )
-          },
-          operation === 'retire' ? 5000 : this.#timeoutMs
-        )
+        timer = setTimeout(() => {
+          this.#phase = 'retired'
+          void this.#terminate().then(
+            (cleanup) =>
+              reject(new Error(`Graphics parent watchdog expired; cleanup ${cleanup.status}`)),
+            (cause) => reject(new Error('Graphics parent watchdog cleanup unresolved', { cause }))
+          )
+        }, timeoutMs)
         this.#worker.send({ sequence, operation, body, timeoutMs: this.#timeoutMs }, (error) => {
           if (error) reject(error)
         })
@@ -153,6 +188,7 @@ export class OwnedGraphicsProcess {
   }
 
   async capture(inputJson) {
+    if (this.#sourceMode) throw new Error('Individual source mode cannot capture aggregate frames')
     if (this.#phase !== 'active') throw new Error(`Graphics process is ${this.#phase}`)
     const input = primitiveJson(inputJson)
     this.#phase = 'busy'
@@ -169,6 +205,49 @@ export class OwnedGraphicsProcess {
 
   async captureJson(inputJson) {
     return JSON.stringify(await this.capture(inputJson))
+  }
+
+  get planSha256() {
+    return this.#diagnostics?.planSha256
+  }
+
+  async #sourceFailure(primary) {
+    try {
+      await this.retire()
+    } catch (cleanup) {
+      throw sourceCleanupFailure(
+        primary,
+        cleanup,
+        'Source graphics failed with unresolved parent cleanup'
+      )
+    }
+    if (primary instanceof SourceGraphicsTransferError) throw primary
+    throw sourceIntegrity('Source process or transfer failed', primary)
+  }
+
+  async captureSourceInto(input, source, destination) {
+    if (!this.#sourceMode || this.#phase !== 'active')
+      throw sourceIntegrity('Individual source process is unavailable')
+    this.#phase = 'busy'
+    const deadline = performance.now() + this.#timeoutMs
+    try {
+      const result = await copyRetainedSource(
+        (operation, body) => this.#request(operation, body, deadline),
+        this.#sourcePlan,
+        this.planSha256,
+        input,
+        source,
+        destination,
+        this.#sourceSequence + 1
+      )
+      if (this.#phase !== 'busy' || performance.now() > deadline)
+        throw sourceIntegrity('Retired or expired source process cannot publish')
+      this.#sourceSequence++
+      this.#phase = 'active'
+      return result
+    } catch (error) {
+      return this.#sourceFailure(error)
+    }
   }
 
   async #terminate() {
