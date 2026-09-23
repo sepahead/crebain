@@ -103,7 +103,7 @@ def _selected_executable(path):
     return runtime.file_record(result)
 
 
-def build_producer(composition, build):
+def build_producer(composition, build, *, family=False):
     """Use an already-installed toolchain; Cargo cannot fetch dependencies."""
     rustup = shutil.which("rustup")
     runtime.require(rustup is not None, "Rustup and the declared installed toolchain are required")
@@ -114,13 +114,14 @@ def build_producer(composition, build):
     environment = {key: value for key, value in os.environ.items()
                    if not key.startswith(("CARGO_", "RUST", "CC", "CXX", "DYLD_", "LD_"))}
     environment.update(RUSTC=rustc, RUSTUP_TOOLCHAIN=TOOLCHAIN, CARGO_NET_OFFLINE="true")
-    command = [cargo, "build", "--locked", "--offline", "--release", "--manifest-path",
+    producer = runtime.FAMILY_PRODUCER if family else runtime.PRODUCER
+    command = [cargo, "build", "--locked", "--offline", "--release", "--bin", producer, "--manifest-path",
                str(composition / "application/Cargo.toml"), "--target-dir", str(build / "target")]
     (build / "command.json").write_text(json.dumps({"argv": command, "toolchain": TOOLCHAIN}, indent=2) + "\n")
     with (build / "cargo.log").open("xb") as log:
         subprocess.run(command, cwd=composition / "application", env=environment,
                        stdout=log, stderr=subprocess.STDOUT, check=True, timeout=1800)
-    return build / "target/release" / runtime.PRODUCER
+    return build / "target/release" / producer
 
 
 def check_browser(project, node, browser):
@@ -182,8 +183,10 @@ def check_package_resolution(project, executable, packages, *, engine):
     return result
 
 
-def install(ncp_source, output, bun, *, node=None, browser_root=None, root=ROOT):
+def install(ncp_source, output, bun, *, node=None, browser_root=None, root=ROOT, family=False):
     runtime.require((node is None) == (browser_root is None), "select Node and browser root together")
+    runtime.require(type(family) is bool and (not family or node is not None), "family installation requires selected Node and browser")
+    selected_class = runtime.InstalledFamilyRuntime if family else runtime.InstalledRuntime
     root = root.resolve(strict=True)
     ncp_source = ncp_source.resolve(strict=True)
     runtime.require(output.is_absolute() and not output.exists() and not output.is_symlink(),
@@ -224,10 +227,10 @@ def install(ncp_source, output, bun, *, node=None, browser_root=None, root=ROOT)
     compose = _module("crebain_selected_runtime_compose", project / "integrations/ncp-force-ground-sensors/compose.py")
     composition = build / "composition"
     receipt = compose.compose(ncp_source, composition)
-    built = build_producer(composition, build)
+    built = build_producer(composition, build, family=True) if family else build_producer(composition, build)
     binary = output / "bin"
     binary.mkdir(mode=0o700)
-    producer = binary / runtime.PRODUCER
+    producer = binary / selected_class._producer
     shutil.copyfile(built, producer)
     producer.chmod(0o755)
     runtime.require(source_snapshot(root) == snapshot, "source changed during installation")
@@ -243,16 +246,16 @@ def install(ncp_source, output, bun, *, node=None, browser_root=None, root=ROOT)
                         "browser root changed during installation")
     runtime.require(runtime.inventory_tree(project, external_links={"node_modules": modules}) == project_before,
                     "staged source changed during installation")
-    value = {"schema": runtime.SCHEMA, "source": source,
+    value = {"schema": selected_class._schema, "source": source,
              "ncp": {"commit": receipt["dependency_commit"], "tree": receipt["dependency_tree"]},
              "platform": {"system": platform.system(), "machine": platform.machine()},
-             "producer": runtime.file_record(producer, runtime.PRODUCER), "project": project_before,
+             "producer": runtime.file_record(producer, selected_class._producer), "project": project_before,
              "node_modules": selected_modules, "bun": selected_bun, "node": selected_node,
              "browser": selected_browser, "source_identity": runtime.source_identity(source)}
     with (output / runtime.MANIFEST).open("x") as stream:
         json.dump(value, stream, indent=2, sort_keys=True)
         stream.write("\n")
-    return runtime.InstalledRuntime.open(output)
+    return selected_class.open(output)
 
 
 def main():
@@ -262,11 +265,14 @@ def main():
     parser.add_argument("--bun", type=Path, required=True)
     parser.add_argument("--node", type=Path)
     parser.add_argument("--browser-root", type=Path)
+    parser.add_argument("--family", action="store_true", help="install the separate live checkpoint family runtime")
     args = parser.parse_args()
     if (args.node is None) != (args.browser_root is None):
         parser.error("--node and --browser-root must be supplied together")
+    if args.family and args.node is None:
+        parser.error("--family requires --node and --browser-root")
     selected = install(args.ncp_source, args.output, args.bun,
-                       node=args.node, browser_root=args.browser_root)
+                       node=args.node, browser_root=args.browser_root, family=args.family)
     print(json.dumps({"prefix": str(selected.prefix), "manifest_sha256": selected.manifest_sha256,
                       "source_identity": selected.source_identity, "native_session_executed": False,
                       "installed_qualified": False}))

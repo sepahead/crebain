@@ -85,6 +85,14 @@ pub fn validate<T: Serialize>(name: &str, value: &T) -> Result<(), ModularError>
     let definitions =
         DEFINITIONS.get_or_init(|| serde_json::from_slice(SCHEMA).map_err(|_| ModularError::Wire));
     let definitions = definitions.as_ref().map_err(|error| *error)?;
+    validate_definitions(name, value, definitions)
+}
+
+pub(crate) fn validate_definitions<T: Serialize>(
+    name: &str,
+    value: &T,
+    definitions: &Value,
+) -> Result<(), ModularError> {
     let schema = definitions
         .get("$defs")
         .and_then(|defs| defs.get(name))
@@ -109,6 +117,9 @@ fn matches(schema: &Value, value: &Value, definitions: &Value, depth: usize) -> 
     }
     if let Some(expected) = schema.get("const") {
         return value == expected;
+    }
+    if let Some(values) = schema.get("enum").and_then(Value::as_array) {
+        return values.contains(value);
     }
     if let Some(arms) = schema.get("oneOf").and_then(Value::as_array) {
         return arms
@@ -152,6 +163,17 @@ fn matches(schema: &Value, value: &Value, definitions: &Value, depth: usize) -> 
                         matches!(prefix, "rgb" | "thermal" | "pressure") && valid_id(id)
                     })
                 }
+                Some("^(rgb|thermal):[a-z][a-z0-9_-]{0,63}$") => {
+                    s.split_once(':').is_some_and(|(prefix, id)| {
+                        matches!(prefix, "rgb" | "thermal") && valid_id(id)
+                    })
+                }
+                Some("^pressure:[a-z][a-z0-9_-]{0,63}$") => {
+                    s.strip_prefix("pressure:").is_some_and(valid_id)
+                }
+                Some(
+                    "^ncp-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                ) => s.strip_prefix("ncp-").is_some_and(valid_uuid),
                 Some("^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$") => {
                     valid_uuid(s)
                 }

@@ -83,6 +83,17 @@ pub trait EnginePort {
         previous: Option<&str>,
         accepted: &str,
     ) -> Result<EngineBatch, EngineError>;
+    /// Bind an advance to its actual execution request when a family ledger needs it.
+    /// Ordinary sensor engines retain their existing advance behavior.
+    fn advance_bound(
+        &mut self,
+        command: &AdvanceTick,
+        previous: Option<&str>,
+        accepted: &str,
+        _request_digest: &str,
+    ) -> Result<EngineBatch, EngineError> {
+        self.advance(command, previous, accepted)
+    }
     /// Copy one bounded chunk from the exact retained native lease.
     fn read_chunk(
         &mut self,
@@ -160,11 +171,11 @@ impl<E: EnginePort> EnginePort for SharedEngine<E> {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Response {
+struct Response<T> {
     schema: String,
     generation: String,
     sequence: u64,
-    body: ResponseBody,
+    body: T,
 }
 #[derive(Deserialize)]
 #[serde(tag = "kind", deny_unknown_fields)]
@@ -293,11 +304,43 @@ impl EngineProcess {
         command: Value,
         deadline: Instant,
     ) -> Result<ResponseBody, EngineError> {
+        let result = (|| {
+            let value = self.exchange_body(
+                "crebain.sensor-engine-request.v1",
+                "crebain.sensor-engine-response.v1",
+                command,
+                deadline,
+            )?;
+            let response: ResponseBody = serde_json::from_value(value).map_err(|_| EngineError)?;
+            if let ResponseBody::Failed {
+                reason,
+                cleanup_confirmed,
+            } = response
+            {
+                // Native cleanup never changes an unknown operation into a committed one.
+                let _diagnostic = (reason, cleanup_confirmed);
+                return Err(EngineError);
+            }
+            Ok(response)
+        })();
+        if result.is_err() {
+            self.fail_private();
+        }
+        result
+    }
+
+    pub(crate) fn exchange_body(
+        &mut self,
+        request_schema: &'static str,
+        response_schema: &'static str,
+        command: Value,
+        deadline: Instant,
+    ) -> Result<Value, EngineError> {
         if self.broken || self.retired {
             return Err(EngineError);
         }
         self.sequence = self.sequence.checked_add(1).ok_or(EngineError)?;
-        let bytes = serde_json::to_vec(&json!({"schema":"crebain.sensor-engine-request.v1",
+        let bytes = serde_json::to_vec(&json!({"schema":request_schema,
             "generation":self.generation,"sequence":self.sequence,"command":command}))
         .map_err(|_| EngineError)?;
         let result = (|| {
@@ -319,20 +362,12 @@ impl EngineProcess {
             let mut bytes = vec![0; length];
             read_until(&mut self.stream, &mut bytes, deadline)?;
             let value = private_value(&bytes)?;
-            let response: Response = serde_json::from_value(value).map_err(|_| EngineError)?;
-            if response.schema != "crebain.sensor-engine-response.v1"
+            let response: Response<Value> =
+                serde_json::from_value(value).map_err(|_| EngineError)?;
+            if response.schema != response_schema
                 || response.generation != self.generation
                 || response.sequence != self.sequence
             {
-                return Err(EngineError);
-            }
-            if let ResponseBody::Failed {
-                reason,
-                cleanup_confirmed,
-            } = response.body
-            {
-                // A failed request stays unknown even when private cleanup was confirmed.
-                let _diagnostic = (reason, cleanup_confirmed);
                 return Err(EngineError);
             }
             Ok(response.body)
@@ -342,6 +377,22 @@ impl EngineProcess {
             let _closed = self.stream.shutdown(Shutdown::Both);
         }
         result
+    }
+
+    pub(crate) fn fail_private(&mut self) {
+        self.broken = true;
+        let _closed = self.stream.shutdown(Shutdown::Both);
+    }
+
+    pub(crate) fn close_and_wait(&mut self, deadline: Instant) -> Result<(), EngineError> {
+        let _closed = self.stream.shutdown(Shutdown::Both);
+        let result = self.wait_exit(deadline);
+        if result.is_err() || self.broken {
+            self.broken = true;
+            return Err(EngineError);
+        }
+        self.retired = true;
+        Ok(())
     }
 
     fn wait_exit(&mut self, deadline: Instant) -> Result<(), EngineError> {

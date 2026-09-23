@@ -12,6 +12,7 @@ from pathlib import Path, PurePosixPath
 import platform
 import re
 import stat
+from typing import ClassVar
 
 
 SCHEMA = "crebain.installed-sensor-runtime.v1"
@@ -19,6 +20,9 @@ MANIFEST = "runtime.json"
 BRIDGE = "integrations/ncp-force-ground-sensors/bridge/main.ts"
 DEPENDENCY = "integrations/ncp-force-ground-sensors/contracts/dependency-source.v1.json"
 PRODUCER = "crebain-ncp-force-ground-sensors"
+FAMILY_SCHEMA = "crebain.installed-checkpoint-family-runtime.v1"
+FAMILY_BRIDGE = "integrations/ncp-force-ground-sensors/bridge/family-main.ts"
+FAMILY_PRODUCER = "crebain-ncp-checkpoint-family"
 BUN_CONFIG = b'[install]\nauto = "disable"\n'
 MAX_MANIFEST_BYTES = 32 * 1024**2
 MAX_ENTRIES = 200_000
@@ -68,17 +72,38 @@ def _absolute(value):
 def file_record(path, relative=None):
     """Hash a direct regular file without following a replacement leaf symlink."""
     path = Path(path)
-    with os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW), "rb") as stream:
-        before = os.fstat(stream.fileno())
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    stream = None
+    failures = []
+    try:
+        before = os.fstat(descriptor)
         require(stat.S_ISREG(before.st_mode) and before.st_size <= MAX_TREE_BYTES,
                 "bounded regular runtime file required")
+        # The outer scope owns this descriptor even if stream construction fails.
+        stream = os.fdopen(descriptor, "rb", closefd=False)
         digest = hashlib.sha256()
         while chunk := stream.read(1024 * 1024):
             digest.update(chunk)
-        after = os.fstat(stream.fileno())
+        after = os.fstat(descriptor)
         require((before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns)
                 == (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns),
                 "runtime file changed while hashing")
+    except BaseException as primary:
+        failures.append(primary)
+    finally:
+        if stream is not None:
+            try:
+                stream.close()
+            except BaseException as cleanup:
+                failures.append(cleanup)
+        try:
+            os.close(descriptor)
+        except BaseException as cleanup:
+            failures.append(cleanup)
+    if len(failures) == 1:
+        raise failures[0]
+    if failures:
+        raise BaseExceptionGroup("Runtime file read and cleanup failed", failures)
     return {"path": relative if relative is not None else str(path), "kind": "file",
             "mode": stat.S_IMODE(before.st_mode), "bytes": before.st_size,
             "sha256": digest.hexdigest()}
@@ -206,6 +231,10 @@ class InstalledRuntime:
     source_identity: str
     manifest_sha256: str
     _environment: tuple[tuple[str, str], ...]
+    _schema: ClassVar[str] = SCHEMA
+    _producer: ClassVar[str] = PRODUCER
+    _bridge: ClassVar[str] = BRIDGE
+    _requires_graphics: ClassVar[bool] = False
 
     @property
     def environment(self) -> dict[str, str]:
@@ -225,7 +254,7 @@ class InstalledRuntime:
                            parse_constant=lambda token: (_ for _ in ()).throw(ValueError(token)))
         _object(value, {"schema", "source", "ncp", "platform", "producer", "project",
                         "node_modules", "bun", "node", "browser", "source_identity"})
-        require(value["schema"] == SCHEMA, "runtime schema")
+        require(value["schema"] == cls._schema, "runtime schema")
         require(value["platform"] == {"system": platform.system(), "machine": platform.machine()},
                 "runtime platform differs")
         source = value["source"]
@@ -243,6 +272,7 @@ class InstalledRuntime:
         bun = _executable(value["bun"])
         node = None if value["node"] is None else _executable(value["node"])
         require((node is None) == (browser is None), "Node and browser root must be selected together")
+        require(not cls._requires_graphics or node is not None, "family runtime requires selected graphics")
         project = prefix / "project"
         _records(value["project"])
         actual = inventory_tree(project, external_links={"node_modules": modules})
@@ -251,7 +281,7 @@ class InstalledRuntime:
         for row in source["files"]:
             require(selected.get(row["path"]) == row, "installed Git source changed")
         source_names = {row["path"] for row in source["files"]}
-        require({BRIDGE, DEPENDENCY, "package.json", "bun.lock", "LICENSE-MIT", "LICENSE-APACHE"}
+        require({cls._bridge, DEPENDENCY, "package.json", "bun.lock", "LICENSE-MIT", "LICENSE-APACHE"}
                 <= source_names, "complete source entrypoints required")
         leaves = {row["path"] for row in actual if row["kind"] != "directory"}
         require(leaves == source_names | {"bunfig.toml", "node_modules"}, "unselected project file")
@@ -266,14 +296,14 @@ class InstalledRuntime:
         dependency = json.loads((project / DEPENDENCY).read_bytes(), object_pairs_hook=_pairs)
         require({name: dependency.get(name) for name in ("commit", "tree")} == value["ncp"],
                 "staged NCP contract differs")
-        producer = prefix / "bin" / PRODUCER
+        producer = prefix / "bin" / cls._producer
         require(producer.parent.resolve(strict=True) == producer.parent,
                 "direct installed executable directory required")
         _records([value["producer"]])
-        require(value["producer"]["path"] == PRODUCER and value["producer"]["kind"] == "file"
+        require(value["producer"]["path"] == cls._producer and value["producer"]["kind"] == "file"
                 and value["producer"]["mode"] & 0o111 and os.access(producer, os.X_OK)
-                and file_record(producer, PRODUCER) == value["producer"], "installed producer changed")
-        require({p.name for p in (prefix / "bin").iterdir()} == {PRODUCER}, "unselected executable")
+                and file_record(producer, cls._producer) == value["producer"], "installed producer changed")
+        require({p.name for p in (prefix / "bin").iterdir()} == {cls._producer}, "unselected executable")
         require({p.name for p in prefix.iterdir()} <= {MANIFEST, "project", "bin", "build"},
                 "unselected runtime root")
         environment = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "DO_NOT_TRACK": "1",
@@ -281,6 +311,15 @@ class InstalledRuntime:
                        "NODE_OPTIONS": "--no-global-search-paths"}
         if browser is not None:
             environment.update(PLAYWRIGHT_BROWSERS_PATH=str(browser), PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD="1")
-        return cls(prefix, producer, bun, node, project / BRIDGE, project,
+        return cls(prefix, producer, bun, node, project / cls._bridge, project,
                    value["source_identity"], hashlib.sha256(raw).hexdigest(),
                    tuple(sorted(environment.items())))
+
+
+class InstalledFamilyRuntime(InstalledRuntime):
+    """Explicit optional family executable selection; admission is not native readiness."""
+
+    _schema = FAMILY_SCHEMA
+    _producer = FAMILY_PRODUCER
+    _bridge = FAMILY_BRIDGE
+    _requires_graphics = True

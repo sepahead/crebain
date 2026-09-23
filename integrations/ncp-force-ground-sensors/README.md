@@ -11,6 +11,10 @@ The independent Python client validates and reads complete sensor batches throug
 Cross-project observations use NCP buffers exclusively.
 The [Python reader](python/README.md) installs as an optional package with its exact NCP v1 dependency and owned contract resources.
 
+The separate [live checkpoint family](FAMILY.md) adds typed canonical and evaluation roles for a frozen branch roster.
+It retains actual native checkpoint authority across serial restored continuations, with separate SDK owners and explicit terminal, acknowledgment, and EOF states.
+Its source controls do not establish native family qualification or a completed E1 experiment.
+
 <p align="center">
   <img alt="CREBAIN sensor bytes pass through reserved NCP buffers to an independent Python client" src="../../assets/diagrams/ncp-sensor-transfer.svg" width="680">
 </p>

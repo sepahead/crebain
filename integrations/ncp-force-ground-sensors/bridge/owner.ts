@@ -3,6 +3,7 @@ import {
   observationEnvelopeBytes,
   type ObservationHandle,
   type EnvironmentGraphics,
+  type EnvironmentAncestry,
 } from '../../../src/environment/EnvironmentOwner'
 import {
   FORCE_GROUND_PROFILE,
@@ -54,8 +55,35 @@ export class SensorBridge {
   private cleanup: Promise<boolean> | null = null
   private scene = ''
   private planSha = ''
+  private ancestry: EnvironmentAncestry | null = null
 
   constructor(private readonly factory: OwnerFactory) {}
+
+  /**
+   * Internal family construction requires the actual already-forked native owner.
+   * This is not a peer operation, checkpoint loader, or ordinary v1 prepare mode.
+   */
+  static async restored(
+    owner: LeaseOwner,
+    preparation: Record<string, unknown>,
+    ancestry: EnvironmentAncestry
+  ): Promise<SensorBridge> {
+    const bridge = new SensorBridge(async () => owner)
+    await bridge.command(preparation)
+    if (ancestry.checkpointTick <= 0 || ancestry.checkpointTick >= bridge.horizon)
+      throw new Error('Restored checkpoint extent')
+    bridge.tick = ancestry.checkpointTick
+    bridge.previous = ancestry.parentAcceptedBatchSha256
+    bridge.ancestry = structuredClone(ancestry)
+    return bridge
+  }
+
+  /** Copy only the selected retained modality bytes inside the trusted family host. */
+  copyPayload(sensorId: string): Buffer {
+    const payload = this.retained?.payloads.find((row) => row.sensor_id === sensorId)
+    if (!payload) throw new Error('Selected retained payload is absent')
+    return Buffer.from(payload.bytes)
+  }
 
   async retire(): Promise<boolean> {
     this.closed = true
@@ -207,7 +235,7 @@ export class SensorBridge {
           batch.environmentProfile !== FORCE_GROUND_PROFILE ||
           batch.planSha256 !== this.planSha ||
           batch.ownerId !== owner.ownerId ||
-          batch.ancestry !== null ||
+          exactJson(batch.ancestry) !== exactJson(this.ancestry) ||
           batch.sourceIdentity !== plan.sourceIdentity ||
           batch.sceneSha256 !== this.scene ||
           batch.tick !== input.tick ||

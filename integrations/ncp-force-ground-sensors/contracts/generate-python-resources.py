@@ -12,6 +12,10 @@ CONTRACTS = (
     "rgba8.semantic.v1.json",
     "radiance.semantic.v1.json",
     "pressure.semantic.v1.json",
+    "family.application.descriptor.v1.json",
+    "family.application.schema.v1.json",
+    "family.composition.v1.json",
+    "pressure-window-rms.semantic.v1.json",
 )
 
 
@@ -35,7 +39,7 @@ def main():
             raise ValueError(f"packaged resource differs: {target.relative_to(APP)}")
     if set(path.name for path in package.iterdir()) != set(CONTRACTS):
         raise ValueError("packaged contract roster differs")
-    print("Python package resources: six exact contracts and two exact licenses")
+    print(f"Python package resources: {len(CONTRACTS)} exact contracts and two exact licenses")
 
 
 if __name__ == "__main__":

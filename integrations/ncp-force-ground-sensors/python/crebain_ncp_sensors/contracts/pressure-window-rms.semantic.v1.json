@@ -1,0 +1,39 @@
+{
+  "schema": "crebain.pressure-window-rms.v1",
+  "algorithm": "scaled-neumaier-binary64-400-v1",
+  "input": {
+    "sample_count": 400,
+    "sample_order": "increasing_original_sample_index",
+    "wire_representation": "little_endian_ieee754_binary64",
+    "unit": "pascal",
+    "finite_only": true
+  },
+  "arithmetic": {
+    "representation": "ieee754_binary64",
+    "rounding": "nearest_ties_even",
+    "reassociation": false,
+    "fused_multiply_add": false,
+    "steps": [
+      "m = max(abs(p[i])) for i in increasing original sample order",
+      "if m == 0, return positive_zero",
+      "sum = positive_zero; correction = positive_zero",
+      "for each p[i] in increasing original sample order: q = p[i] / m; value = q * q",
+      "next = sum + value",
+      "if abs(sum) >= abs(value): correction = correction + ((sum - next) + value)",
+      "else: correction = correction + ((value - next) + sum)",
+      "sum = next",
+      "combined = sum + correction",
+      "average = combined / 400",
+      "root = sqrt(average)",
+      "result = m * root"
+    ],
+    "nonfinite_sample_intermediate_or_result": "reject",
+    "wrong_sample_count": "reject",
+    "sqrt": "selected_runtime_qualified_binary64_sqrt",
+    "source_only_cross_platform_bit_identity_claimed": false
+  },
+  "output": {
+    "representation": "finite_nonnegative_ieee754_binary64",
+    "unit": "pascal"
+  }
+}

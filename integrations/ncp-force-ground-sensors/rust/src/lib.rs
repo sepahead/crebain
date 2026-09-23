@@ -6,6 +6,13 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 pub mod application;
 pub mod contract;
 pub mod engine;
+pub mod family_application;
+pub mod family_contract;
+pub mod family_engine;
+pub mod family_host;
+pub mod family_process;
+pub mod family_protocol;
+pub mod family_types;
 pub mod types;
 
 /// A finite continuous binary64 value that preserves the sign of zero.

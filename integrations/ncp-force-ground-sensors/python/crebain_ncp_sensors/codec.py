@@ -7,7 +7,7 @@ import math
 from pathlib import Path
 import re
 import struct
-from typing import Any
+from typing import Any, Protocol
 
 from ncp_local import modular_wire as w
 
@@ -65,20 +65,25 @@ _VARIANTS = {
 }
 
 
-def _decode(schema: Any, value: Any, name: str = "", depth: int = 0) -> Any:
+def _decode(schema: Any, value: Any, name: str = "", depth: int = 0, *,
+            definitions=None, classes=None) -> Any:
     """Interpret only the fixed, closed subset used by the committed descriptor."""
     require(depth <= 32 and schema is not False)
     require(type(schema) is dict)
+    definitions = _SCHEMA if definitions is None else definitions
+    classes = _CLASSES if classes is None else classes
     if "$ref" in schema:
         target = schema["$ref"].removeprefix("#/$defs/")
-        require(target in _SCHEMA)
-        return _decode(_SCHEMA[target], value, target, depth + 1)
+        require(target in definitions)
+        return _decode(definitions[target], value, target, depth + 1,
+                       definitions=definitions, classes=classes)
     for union in ("oneOf", "anyOf"):
         if union in schema:
             matches = []
             for option in schema[union]:
                 try:
-                    matches.append(_decode(option, value, name, depth + 1))
+                    matches.append(_decode(option, value, name, depth + 1,
+                                           definitions=definitions, classes=classes))
                 except w.ModularError:
                     pass
             require(len(matches) == 1)
@@ -87,6 +92,9 @@ def _decode(schema: Any, value: Any, name: str = "", depth: int = 0) -> Any:
         expected = schema["const"]
         require(type(value) is type(expected) and value == expected)
         return value
+    if "enum" in schema:
+        require(any(type(value) is type(item) and value == item for item in schema["enum"]))
+        return value
     kind = schema.get("type")
     if kind == "object":
         properties = schema["properties"]
@@ -94,10 +102,11 @@ def _decode(schema: Any, value: Any, name: str = "", depth: int = 0) -> Any:
         require(set(schema["required"]) == set(properties))
         w.closed(value, set(properties))
         decoded = {
-            key: _decode(rule, value[key], "CaptureReservation" if key == "capture_reservation" else "", depth + 1)
+            key: _decode(rule, value[key], "CaptureReservation" if key == "capture_reservation" else "", depth + 1,
+                         definitions=definitions, classes=classes)
             for key, rule in properties.items()
         }
-        cls = t.CaptureReservation if name == "CaptureReservation" else _CLASSES.get(name)
+        cls = t.CaptureReservation if name == "CaptureReservation" else classes.get(name)
         if name in _VARIANTS:
             cls = _VARIANTS[name].get(value.get("kind"))
         require(cls is not None)
@@ -107,8 +116,10 @@ def _decode(schema: Any, value: Any, name: str = "", depth: int = 0) -> Any:
         require(schema["minItems"] <= len(value) <= schema["maxItems"])
         if "prefixItems" in schema:
             require(schema["items"] is False and len(value) == len(schema["prefixItems"]))
-            return tuple(_decode(rule, item, depth=depth + 1) for rule, item in zip(schema["prefixItems"], value))
-        return tuple(_decode(schema["items"], item, depth=depth + 1) for item in value)
+            return tuple(_decode(rule, item, depth=depth + 1, definitions=definitions, classes=classes)
+                         for rule, item in zip(schema["prefixItems"], value))
+        return tuple(_decode(schema["items"], item, depth=depth + 1, definitions=definitions, classes=classes)
+                     for item in value)
     if kind in ("integer", "number"):
         require(type(value) is int if kind == "integer" else type(value) in (int, float))
         require(math.isfinite(value) and abs(value) <= 1e300)
@@ -232,7 +243,17 @@ def validate_batch_envelope(batch: t.SensorBatch, context: Any) -> None:
     require(total_bytes <= MAX_BATCH_BYTES and total_chunks <= MAX_BATCH_CHUNKS, "capacity")
 
 
-def validate_batch(prepare: t.Prepare, prepared: t.Prepared, command: t.Command, result: t.Advanced) -> None:
+class BatchContext(Protocol):
+    """Only the independently joined identity and catalog needed for batch validation."""
+
+    plan_digest: str
+    source_identity: str
+    engine_owner_id: str
+    scene_sha256: str
+    sensor_catalog: t.SensorCatalog
+
+
+def validate_batch(prepare: t.Prepare, prepared: BatchContext, command: t.Command, result: t.Advanced) -> None:
     batch = result.batch
     require(result.tick == batch.body_tick == command.tick <= prepare.planned_ticks, "binding")
     require(batch.previous_batch_digest == command.previous_batch_digest, "binding")

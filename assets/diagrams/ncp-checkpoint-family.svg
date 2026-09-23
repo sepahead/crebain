@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="800" viewBox="0 0 1440 800" role="img" aria-labelledby="title desc">
+  <title id="title">Live checkpoint family ownership and closure</title>
+  <desc id="desc">The trusted collector owns separate canonical and evaluation NCP channels. A serialized Rust host retains distinct SDK owners. One Bun registry keeps the real native parent and checkpoint while it restores one child at a time. A branch closes only after its terminal commits, its acknowledgment transmits, and actual EOF arrives. Predictors receive permitted observations only.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#40556e"/></marker>
+    <style>
+      text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #18283e; }
+      .title { font-size: 31px; font-weight: 700; }
+      .heading { font-size: 23px; font-weight: 650; }
+      .body { font-size: 20px; }
+      .note { font-size: 18px; fill: #40556e; }
+      .line { fill: none; stroke: #40556e; stroke-width: 2.5; marker-end: url(#arrow); }
+    </style>
+  </defs>
+  <rect width="1440" height="800" rx="20" fill="#f7f9fc"/>
+  <text x="52" y="66" class="title">One live origin. Separate peers. Observed closure.</text>
+  <text x="52" y="103" class="body">Construction candidate · one drone · 2–16 endpoints · one active restored child</text>
+  <rect x="52" y="143" width="404" height="355" rx="15" fill="#eaf2fc" stroke="#7297bf" stroke-width="2"/>
+  <text x="77" y="183" class="heading">Trusted collector</text>
+  <rect x="77" y="211" width="354" height="77" rx="9" fill="#fff" stroke="#7297bf"/>
+  <text x="95" y="242" class="body">Canonical NCP client</text>
+  <text x="95" y="268" class="note">Prepare · checkpoint · decision</text>
+  <rect x="77" y="318" width="354" height="77" rx="9" fill="#fff" stroke="#7297bf"/>
+  <text x="95" y="349" class="body">1–15 evaluation clients</text>
+  <text x="95" y="375" class="note">Fresh run / endpoint / generation</text>
+  <text x="77" y="433" class="body">Original sensor bytes through NCP</text>
+  <text x="77" y="466" class="note">Capture is independently optional</text>
+  <rect x="516" y="143" width="370" height="355" rx="15" fill="#eef7f2" stroke="#719883" stroke-width="2"/>
+  <text x="541" y="183" class="heading">Serialized Rust host</text>
+  <rect x="541" y="211" width="320" height="77" rx="9" fill="#fff" stroke="#719883"/>
+  <text x="560" y="243" class="body">Canonical SDK owner</text>
+  <text x="560" y="269" class="note">Fixed private channel</text>
+  <rect x="541" y="318" width="320" height="77" rx="9" fill="#fff" stroke="#719883"/>
+  <text x="560" y="350" class="body">Separate evaluation owners</text>
+  <text x="560" y="376" class="note">One channel per frozen binding</text>
+  <text x="541" y="433" class="body">One entered native operation</text>
+  <text x="541" y="466" class="note">One absolute family deadline</text>
+  <path d="M431 250H541" class="line"/>
+  <path d="M431 357H541" class="line"/>
+  <rect x="946" y="143" width="442" height="355" rx="15" fill="#fff5e9" stroke="#b59972" stroke-width="2"/>
+  <text x="971" y="183" class="heading">Bun native registry</text>
+  <rect x="971" y="211" width="392" height="77" rx="9" fill="#fff" stroke="#b59972"/>
+  <text x="990" y="242" class="body">Actual parent + checkpoint object</text>
+  <text x="990" y="268" class="note">Retained through every label</text>
+  <rect x="971" y="318" width="392" height="77" rx="9" fill="#fff" stroke="#b59972"/>
+  <text x="990" y="349" class="body">One restored native child</text>
+  <text x="990" y="375" class="note">Fresh renderer · exact CPU state</text>
+  <text x="971" y="433" class="body">Existing owner-authorized fork</text>
+  <text x="971" y="466" class="note">No checkpoint import from JSON</text>
+  <path d="M886 304H946" class="line"/>
+  <path d="M1167 288V318" class="line"/>
+  <rect x="52" y="537" width="404" height="117" rx="13" fill="#fff" stroke="#7297bf" stroke-width="2"/>
+  <text x="77" y="576" class="heading">Ordinary predictor</text>
+  <text x="77" y="609" class="body">Permitted observations only</text>
+  <text x="77" y="635" class="note">No family or evaluation capability</text>
+  <path d="M254 498V537" class="line"/>
+  <rect x="516" y="537" width="872" height="117" rx="13" fill="#fff" stroke="#7d8fa5" stroke-width="2"/>
+  <text x="541" y="576" class="heading">Required branch closure</text>
+  <text x="541" y="612" class="body">Native retirement → COMMITTED terminal → ACK sent → actual EOF</text>
+  <text x="541" y="640" class="note">A client shutdown request does not substitute for the peer's EOF observation.</text>
+  <text x="52" y="710" class="body">All branches close → release origin checkpoint → recheck unchanged parent → Finish parent</text>
+  <text x="52" y="750" class="note">Successful context exit separately requires observed SDK host exit. Source controls do not qualify native E1 or scientific results.</text>
+</svg>

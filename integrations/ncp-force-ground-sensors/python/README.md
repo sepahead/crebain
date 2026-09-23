@@ -3,6 +3,10 @@
 This Python component reads the closed CREBAIN sensor application through the generic NCP SDK.
 Use `body_session` to own an installed producer, or `SensorSession` with streams managed by your application.
 
+For privileged checkpoint labeling, use the separately selected [live-family API](../FAMILY.md#install-and-call-the-optional-family).
+It requires its own family runtime and frozen endpoint roster.
+Ordinary sensor sessions receive no checkpoint or evaluation capability.
+
 The optional `crebain-ncp-sensors` package installs its pinned NCP v1 SDK automatically.
 It includes the exact owned application, composition, schema, and sensor contract files.
 The reader verifies their application, composition, semantic, and schema commitments before use.

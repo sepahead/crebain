@@ -6,7 +6,11 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parent.parent
-DEFINITIONS = json.loads((ROOT / 'contracts/application.schema.v1.json').read_text())['$defs']
+FAMILY = sys.argv[1:2] == ['--family']
+ARGUMENTS = sys.argv[2:] if FAMILY else sys.argv[1:]
+SCHEMA_NAME = 'family.application.schema.v1.json' if FAMILY else 'application.schema.v1.json'
+DEFINITIONS = json.loads((ROOT / 'contracts' / SCHEMA_NAME).read_text())['$defs']
+BASE_NAMES = set(json.loads((ROOT / 'contracts/application.schema.v1.json').read_text())['$defs']) if FAMILY else set()
 NAMES = {'Result': 'SensorResult', 'Command': 'AdvanceTick'}
 PENDING = []
 DECLARATIONS = []
@@ -34,6 +38,11 @@ def rust_type(value, hint):
         return NAMES.get(name, name)
     if 'anyOf' in value:
         return 'Option<' + rust_type(value['anyOf'][0], hint) + '>'
+    if 'oneOf' in value and any(arm.get('type') == 'null' for arm in value['oneOf']):
+        concrete = [arm for arm in value['oneOf'] if arm.get('type') != 'null']
+        if len(concrete) != 1:
+            raise ValueError('only one concrete nullable family arm is allowed')
+        return 'Option<' + rust_type(concrete[0], hint) + '>'
     if 'const' in value:
         return 'bool' if type(value['const']) is bool else 'u64' if type(value['const']) is int else 'String'
     kind = value.get('type')
@@ -45,7 +54,7 @@ def rust_type(value, hint):
         element = rust_type(value['items'], hint + 'Item')
         low, high = value['minItems'], value['maxItems']
         return f'[{element}; {high}]' if low == high and high > 0 else f'Vec<{element}>'
-    if kind == 'object' or 'oneOf' in value:
+    if kind == 'object' or 'oneOf' in value or 'enum' in value:
         if hint not in KNOWN:
             KNOWN.add(hint)
             PENDING.append((hint, value))
@@ -66,6 +75,12 @@ def members(value, prefix, indent, omit_kind=False):
         # Keep the sparse due/not-due enum compact without changing its wire value.
         if prefix == 'SensorSlotDue' and key in ('typed_manifest', 'byte_manifest'):
             field_type = f'Box<{field_type}>'
+        if FAMILY and omit_kind and (resolve(item).get('type') == 'object' or 'oneOf' in resolve(item)):
+            field_type = ('Option<Box<' + field_type[7:-1] + '>>') if field_type.startswith('Option<') else f'Box<{field_type}>'
+        if FAMILY and omit_kind and field_type.startswith('['):
+            array = resolve(item)
+            if 'items' in array and resolve(array['items']).get('type') == 'object':
+                field_type = f'Box<{field_type}>'
         rows.append(indent + f'pub {field}: {field_type},')
     return rows
 
@@ -76,7 +91,16 @@ def declaration(name, value):
         return head + [f'pub type {name} = Never;']
     if value.get('type') == 'array':
         return head + [f'pub type {name} = {rust_type(value, name)};']
+    if value.get('type') in ('integer', 'number', 'boolean', 'string'):
+        return head + [f'pub type {name} = {rust_type(value, name)};']
     head.append('#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]')
+    if 'enum' in value:
+        if any(not isinstance(item, str) for item in value['enum']):
+            raise ValueError('family enums must contain only string literals')
+        head += [f'pub enum {name} {{']
+        for item in value['enum']:
+            head += [f'    /// Closed `{item}` value.', f'    #[serde(rename = "{item}")]', f'    {pascal(item)},']
+        return head + ['}']
     if 'oneOf' in value:
         head += ['#[serde(tag = "kind", deny_unknown_fields)]', f'pub enum {name} {{']
         for arm in value['oneOf']:
@@ -91,7 +115,7 @@ def declaration(name, value):
 
 
 for name, value in DEFINITIONS.items():
-    if name in ('BufferBinding', 'BufferManifest'):
+    if name in ('BufferBinding', 'BufferManifest') or name in BASE_NAMES:
         continue
     renamed = NAMES.get(name, name)
     KNOWN.add(renamed)
@@ -99,25 +123,24 @@ for name, value in DEFINITIONS.items():
 while PENDING:
     name, value = PENDING.pop(0)
     DECLARATIONS.extend(declaration(name, value) + [''])
-text = '\n'.join([
-    '//! Fixed application DTOs generated from `contracts/application.schema.v1.json`.',
-    'use serde::{Deserialize, Serialize};',
-    'use ncp_local::modular_buffer::BufferManifest;',
-    'use crate::Finite64;',
-    '',
+imports = ['use ncp_local::modular_buffer::BufferBinding;', 'use crate::types::*;', 'use crate::Finite64;', ''] if FAMILY else [
+    'use ncp_local::modular_buffer::BufferManifest;', 'use crate::Finite64;', '',
     '/// Uninhabited import and forbidden scene-solid payload.',
-    '#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]',
-    'pub enum Never {}',
-    '',
+    '#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]', 'pub enum Never {}', '',
+]
+text = '\n'.join([
+    f'//! Fixed application DTOs generated from `contracts/{SCHEMA_NAME}`.',
+    'use serde::{Deserialize, Serialize};',
+    *imports,
     *DECLARATIONS,
 ])
 text = subprocess.run(['rustfmt', '--edition', '2021', '--emit', 'stdout'],
                       input=text, text=True, capture_output=True, check=True).stdout
-target = ROOT / 'rust/src/types.rs'
-if sys.argv[1:] == ['--check']:
+target = ROOT / ('rust/src/family_types.rs' if FAMILY else 'rust/src/types.rs')
+if ARGUMENTS == ['--check']:
     if target.read_text() != text:
         raise SystemExit('fixed generated Rust DTOs drifted')
-elif sys.argv[1:]:
+elif ARGUMENTS:
     raise SystemExit('only --check is supported')
 else:
     target.write_text(text)

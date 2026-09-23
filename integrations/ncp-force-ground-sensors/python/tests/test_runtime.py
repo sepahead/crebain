@@ -2,14 +2,166 @@
 
 from copy import deepcopy
 from dataclasses import FrozenInstanceError
+import errno
+import hashlib
 import json
+import os
 from pathlib import Path
 import platform
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
 
 from crebain_ncp_sensors import runtime as r
+
+
+class RuntimeFileTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.base = Path(self.temporary.name).resolve()
+        self.path = self.base / "selected"
+        self.path.write_bytes(b"selected regular bytes\n")
+        self.opened = []
+        self.actual_open = os.open
+        self.actual_close = os.close
+
+    def tracked_open(self, path, flags):
+        descriptor = self.actual_open(path, flags)
+        self.opened.append((descriptor, flags))
+        return descriptor
+
+    def assert_closed(self):
+        self.assertEqual(len(self.opened), 1)
+        descriptor, flags = self.opened[0]
+        self.assertTrue(flags & os.O_NONBLOCK)
+        self.assertTrue(flags & os.O_NOFOLLOW)
+        with self.assertRaises(OSError) as caught:
+            os.fstat(descriptor)
+        self.assertEqual(caught.exception.errno, errno.EBADF)
+
+    def test_regular_file_hashes_identically_and_directory_rejection_closes_its_fd(self):
+        with patch.object(r.os, "open", self.tracked_open):
+            row = r.file_record(self.path, "selected")
+        self.assertEqual(row, {"path": "selected", "kind": "file", "mode": self.path.stat().st_mode & 0o7777,
+                              "bytes": self.path.stat().st_size,
+                              "sha256": hashlib.sha256(self.path.read_bytes()).hexdigest()})
+        self.assert_closed()
+        self.opened.clear()
+        with patch.object(r.os, "open", self.tracked_open), patch.object(r.os, "fdopen") as wrap:
+            with self.assertRaisesRegex(ValueError, "bounded regular"):
+                r.file_record(self.base)
+            wrap.assert_not_called()
+        self.assert_closed()
+
+    def test_fifo_without_writer_rejects_and_closes_before_a_bounded_child_deadline(self):
+        fifo = self.base / "fifo"
+        os.mkfifo(fifo)
+        code = '''
+import errno,json,os,runpy,sys
+reader=runpy.run_path(sys.argv[1])["file_record"]
+original=os.open
+opened=[]
+def record(path,flags):
+    descriptor=original(path,flags)
+    opened.append((descriptor,flags))
+    return descriptor
+os.open=record
+try:
+    reader(sys.argv[2])
+except ValueError:
+    rejected=True
+else:
+    rejected=False
+assert len(opened)==1
+descriptor,flags=opened[0]
+try:
+    os.fstat(descriptor)
+except OSError as error:
+    closed=error.errno==errno.EBADF
+else:
+    closed=False
+    os.close(descriptor)
+print(json.dumps({"rejected":rejected,"closed":closed,"nonblock":bool(flags & os.O_NONBLOCK)}))
+'''
+        result = subprocess.run([sys.executable, "-I", "-B", "-c", code, r.__file__, str(fifo)],
+                                capture_output=True, timeout=5, check=True)
+        self.assertEqual(json.loads(result.stdout), {"rejected": True, "closed": True, "nonblock": True})
+
+    def test_wrapper_construction_failure_preserves_its_original_object_and_closes_fd(self):
+        original = RuntimeError("wrapper construction failed")
+        with patch.object(r.os, "open", self.tracked_open), patch.object(r.os, "fdopen", side_effect=original) as wrap:
+            try:
+                r.file_record(self.path)
+            except BaseException as error:
+                self.assertIs(error, original)
+            else:
+                self.fail("wrapper failure was accepted")
+            wrap.assert_called_once_with(self.opened[0][0], "rb", closefd=False)
+        self.assert_closed()
+
+    def test_primary_stream_and_descriptor_failures_remain_original_and_ordered(self):
+        events = []
+
+        class HostilePrimary(RuntimeError):
+            @property
+            def __class__(self):
+                raise AssertionError("exception classification invoked user code")
+
+            def __str__(self):
+                raise AssertionError("exception formatting invoked user code")
+
+        primary = HostilePrimary()
+        stream_error = RuntimeError("stream cleanup")
+        descriptor_error = RuntimeError("descriptor cleanup")
+
+        class Stream:
+            def read(self, count):
+                events.append("read")
+                raise primary
+
+            def close(self):
+                events.append("stream-close")
+                raise stream_error
+
+        def close(descriptor):
+            events.append("descriptor-close")
+            self.actual_close(descriptor)
+            raise descriptor_error
+
+        with patch.object(r.os, "open", self.tracked_open), patch.object(r.os, "fdopen", return_value=Stream()), \
+                patch.object(r.os, "close", close):
+            try:
+                r.file_record(self.path)
+            except BaseExceptionGroup as failure:
+                self.assertEqual(len(failure.exceptions), 3)
+                for observed, original in zip(failure.exceptions, (primary, stream_error, descriptor_error)):
+                    self.assertIs(observed, original)
+            else:
+                self.fail("operation and cleanup failures were accepted")
+        self.assertEqual(events, ["read", "stream-close", "descriptor-close"])
+        self.assert_closed()
+
+    def test_stream_cleanup_failure_alone_still_closes_the_owned_descriptor(self):
+        original = RuntimeError("stream close failed")
+
+        class Stream:
+            def read(self, count):
+                return b""
+
+            def close(self):
+                raise original
+
+        with patch.object(r.os, "open", self.tracked_open), patch.object(r.os, "fdopen", return_value=Stream()):
+            try:
+                r.file_record(self.path)
+            except BaseException as error:
+                self.assertIs(error, original)
+            else:
+                self.fail("stream cleanup failure was accepted")
+        self.assert_closed()
 
 
 class RuntimeTests(unittest.TestCase):
@@ -79,6 +231,43 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(result.environment["NODE_OPTIONS"], "--no-global-search-paths")
         with self.assertRaises(FrozenInstanceError):
             result.bun = self.producer
+
+    def test_family_requires_its_own_schema_executable_bridge_and_graphics_selection(self):
+        self.positive()
+        with self.assertRaises(ValueError):
+            r.InstalledFamilyRuntime.open(self.prefix)
+        family_bridge = self.project / r.FAMILY_BRIDGE
+        family_bridge.write_text("selected synthetic family source; never executed")
+        source = self.value["source"]
+        source["files"] = sorted([*source["files"], r.file_record(family_bridge, r.FAMILY_BRIDGE)], key=lambda row: row["path"])
+        self.value["source_identity"] = r.source_identity(source)
+        modules = Path(self.value["node_modules"]["path"])
+        self.value["project"] = r.inventory_tree(self.project, external_links={"node_modules": modules})
+        self.producer.rename(self.prefix / "bin" / r.FAMILY_PRODUCER)
+        self.producer = self.prefix / "bin" / r.FAMILY_PRODUCER
+        self.value["producer"] = r.file_record(self.producer, r.FAMILY_PRODUCER)
+        self.value["schema"] = r.FAMILY_SCHEMA
+        self.save()
+        with self.assertRaisesRegex(ValueError, "requires selected graphics"):
+            r.InstalledFamilyRuntime.open(self.prefix)
+        browser = self.base / "browsers"
+        browser.mkdir()
+        (browser / "browser").write_text("synthetic browser; never executed")
+        self.value["node"] = r.file_record(self.bun)
+        self.value["browser"] = {"path": str(browser), "entries": r.inventory_tree(browser)}
+        self.save()
+        with patch("subprocess.Popen", side_effect=AssertionError("profile discovery executed a child")):
+            selected = r.InstalledFamilyRuntime.open(self.prefix)
+            self.assertEqual(selected.bridge, family_bridge)
+            self.assertEqual(selected.producer, self.producer)
+            with self.assertRaises(ValueError):
+                r.InstalledRuntime.open(self.prefix)
+        original = self.producer.read_bytes()
+        self.producer.write_bytes(original + b"drift")
+        with self.assertRaisesRegex(ValueError, "producer changed"):
+            r.InstalledFamilyRuntime.open(self.prefix)
+        self.producer.write_bytes(original)
+        self.assertEqual(r.InstalledFamilyRuntime.open(self.prefix), selected)
 
     def test_graphics_requires_both_selected_resources(self):
         browser = self.base / "browsers"

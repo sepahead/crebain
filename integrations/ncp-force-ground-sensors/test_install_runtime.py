@@ -34,7 +34,7 @@ class InstallTests(unittest.TestCase):
             "def checked_dependency(source):\n"
             "    return None\n"
         )
-        files = {r.BRIDGE: b"selected bridge", r.DEPENDENCY: json.dumps(ncp).encode(),
+        files = {r.BRIDGE: b"selected bridge", r.FAMILY_BRIDGE: b"selected family bridge", r.DEPENDENCY: json.dumps(ncp).encode(),
                  "package.json": b"{}", "bun.lock": b"selected lock", "LICENSE-MIT": b"MIT license",
                  "LICENSE-APACHE": b"Apache license",
                  "integrations/ncp-force-ground-sensors/compose.py": compose.encode()}
@@ -67,7 +67,7 @@ class InstallTests(unittest.TestCase):
         self.resolution = resolution_patch.start()
         self.addCleanup(resolution_patch.stop)
 
-    def build(self, composition, output):
+    def build(self, composition, output, *, family=False):
         producer = output / "synthetic-producer"
         producer.write_text("synthetic build result")
         return producer
@@ -97,6 +97,34 @@ class InstallTests(unittest.TestCase):
                                        browser_root=browser, root=self.source)
         probe.assert_called_once_with(selected.project, self.bun, browser)
         self.assertEqual(selected.environment["PLAYWRIGHT_BROWSERS_PATH"], str(browser))
+
+    def test_explicit_family_install_selects_only_its_fixed_host_and_bridge(self):
+        browser = self.base / "browser"
+        browser.mkdir()
+        (browser / "LICENSE").write_text("browser license")
+        with patch.object(builder, "source_snapshot", return_value=self.snapshot), \
+                patch.object(builder, "build_producer", side_effect=self.build) as build, \
+                patch.object(builder, "check_browser") as probe, \
+                patch("subprocess.Popen", side_effect=AssertionError("test launched a process")):
+            selected = builder.install(self.sdk, self.output, self.bun, node=self.bun,
+                                       browser_root=browser, root=self.source, family=True)
+        self.assertEqual(type(selected), r.InstalledFamilyRuntime)
+        self.assertEqual(selected.producer.name, r.FAMILY_PRODUCER)
+        self.assertEqual(selected.bridge, selected.project / r.FAMILY_BRIDGE)
+        self.assertEqual(build.call_args.kwargs, {"family": True})
+        probe.assert_called_once_with(selected.project, self.bun, browser)
+        self.assertEqual(r.InstalledFamilyRuntime.open(self.output), selected)
+        with self.assertRaisesRegex(ValueError, "runtime schema"):
+            r.InstalledRuntime.open(self.output)
+
+    def test_family_install_requires_graphics_and_an_exact_boolean_before_source_or_build(self):
+        with patch.object(builder, "source_snapshot") as source, patch.object(builder, "build_producer") as build:
+            for selected in (True, "true", 1):
+                with self.subTest(selected=selected), self.assertRaises(ValueError):
+                    builder.install(self.sdk, self.output, self.bun, root=self.source, family=selected)
+            source.assert_not_called()
+            build.assert_not_called()
+            self.assertFalse(self.output.exists())
 
     def test_vendor_preflight_precedes_build_and_failure_blocks_publication(self):
         order = []

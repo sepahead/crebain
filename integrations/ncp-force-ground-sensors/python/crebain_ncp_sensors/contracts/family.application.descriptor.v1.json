@@ -1,0 +1,31 @@
+{
+  "schema": "crebain.ncp-force-ground-checkpoint-family.v1",
+  "status": "construction-candidate",
+  "types_schema_sha256": "f42eb3bdae7fb0988d61f7d76e365b51e6338d3ec1eca41ab5765420649da373",
+  "sensor_types_schema_sha256": "48fcb078d2682fcb2cd4d71172c95196fa9b8e990abe46af57978e6b61fc575a",
+  "roles": {
+    "canonical": {
+      "Prepare": "CanonicalPrepare",
+      "Command": "CanonicalCommand",
+      "Result": "CanonicalResult",
+      "Finish": "CanonicalFinish",
+      "Terminal": "CanonicalTerminal"
+    },
+    "evaluation": {
+      "Prepare": "EvaluationPrepare",
+      "Command": "EvaluationCommand",
+      "Result": "EvaluationResultUnion",
+      "Finish": "EvaluationFinish",
+      "Terminal": "EvaluationTerminal"
+    }
+  },
+  "imports": "uninhabited",
+  "checkpoint_authority": "actual-originating-native-owner-and-retained-handle",
+  "maximum_endpoints": 16,
+  "maximum_evaluation_slots": 15,
+  "maximum_active_native_owners": 2,
+  "maximum_encoded_application_result_bytes": 32768,
+  "maximum_family_wall_seconds": 600,
+  "shared_process_retirement": "pending-until-actual-host-exit",
+  "qualified_scope": "none until exact source and installed family gates pass"
+}

@@ -27,6 +27,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "crebain-ncp-checkpoint-family"
+version = "0.1.0"
+dependencies = [
+ "crebain-ncp-force-ground-sensors",
+ "libc",
+]
+
+[[package]]
 name = "crebain-ncp-force-ground-sensors"
 version = "0.1.0"
 dependencies = [

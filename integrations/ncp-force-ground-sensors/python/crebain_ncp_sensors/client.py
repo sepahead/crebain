@@ -54,12 +54,20 @@ class SessionError(RuntimeError):
         self.engine_retirement_confirmed = engine_retirement_confirmed
 
 
+class _BatchOwner(Protocol):
+    _pending: PendingBatch | None
+
+    def _require_active(self) -> None: ...
+    def _release(self, batch: PendingBatch) -> None: ...
+    def close(self) -> None: ...
+
+
 class PendingBatch:
     """A complete observation whose producer buffers still await explicit release."""
 
     def __init__(
         self,
-        session: SensorSession,
+        session: _BatchOwner,
         request: bytes,
         response: w.Response,
         observation: t.BatchObservation,
@@ -102,6 +110,31 @@ class PendingBatch:
             self.release()
         else:
             self._session.close()
+
+
+def _read_observation(result: t.Advanced, execute, acknowledge) -> t.BatchObservation:
+    """Reuse the complete sensor-byte gate across constructor-selected application roles."""
+    readings = []
+    for slot in result.batch.slots:
+        if type(slot) is t.NotDue:
+            continue
+        manifest = slot.byte_manifest
+        payload = bytearray(manifest.byte_length)
+        for index in range(manifest.chunk_count):
+            _, chunk_response = execute(w.Read(manifest.reference(), manifest.manifest_digest, index))
+            chunk = chunk_response.body.data
+            decoded = chunk.decoded()
+            remaining = manifest.byte_length - index * manifest.chunk_bytes
+            c.require(chunk.manifest_digest == manifest.manifest_digest and chunk.index == index, "binding")
+            c.require(chunk.offset == index * manifest.chunk_bytes
+                      and len(decoded) == min(manifest.chunk_bytes, remaining), "binding")
+            payload[chunk.offset:chunk.offset + len(decoded)] = decoded
+            acknowledge()
+        del chunk, decoded
+        readings.append(c.validate_payload(slot.typed_manifest, manifest, bytes(payload)))
+        del payload
+    # An earlier modality never escapes as a partial successful batch.
+    return t.BatchObservation(result.batch, tuple(readings))
 
 
 class SensorSession:
@@ -247,41 +280,10 @@ class SensorSession:
             # Acknowledgement frees the result slot. Sensor buffers remain live.
             self._acknowledge()
             self._stage = "read"
-            readings = []
-            for slot in result.batch.slots:
-                if type(slot) is t.NotDue:
-                    continue
-                manifest = slot.byte_manifest
-                payload = bytearray(manifest.byte_length)
-                for index in range(manifest.chunk_count):
-                    _, chunk_response = self._execute(
-                        w.Read(manifest.reference(), manifest.manifest_digest, index)
-                    )
-                    chunk = chunk_response.body.data
-                    decoded = chunk.decoded()
-                    remaining = manifest.byte_length - index * manifest.chunk_bytes
-                    c.require(
-                        chunk.manifest_digest == manifest.manifest_digest
-                        and chunk.index == index,
-                        "binding",
-                    )
-                    c.require(
-                        chunk.offset == index * manifest.chunk_bytes
-                        and len(decoded) == min(manifest.chunk_bytes, remaining),
-                        "binding",
-                    )
-                    payload[chunk.offset : chunk.offset + len(decoded)] = decoded
-                    self._acknowledge()
-                del chunk, decoded
-                readings.append(
-                    c.validate_payload(slot.typed_manifest, manifest, bytes(payload))
-                )
-                del payload
-            # Expose no partial batch, even when an earlier modality passed.
-            observation = t.BatchObservation(result.batch, tuple(readings))
+            observation = _read_observation(result, self._execute, self._acknowledge)
             self._validated, self._last_digest = result.tick, result.batch.batch_digest
-            self._raw_bytes += sum(len(reading.payload) for reading in readings)
-            self._payload_count += len(readings)
+            self._raw_bytes += sum(len(reading.payload) for reading in observation.readings)
+            self._payload_count += len(observation.readings)
             self._pending = PendingBatch(self, request, response, observation)
             return self._pending
 

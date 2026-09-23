@@ -1,0 +1,1074 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "crebain.force-ground-checkpoint-family.additions.v1",
+  "$comment": "Canonical family additions. generate-family-contracts.py combines these definitions with the unchanged owned sensor schema. A schema alone does not grant checkpoint authority.",
+  "$defs": {
+    "Digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "Uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "Token": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+    },
+    "CommittedStamp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "binding",
+        "sequence",
+        "request_digest",
+        "result_digest"
+      ],
+      "properties": {
+        "binding": {
+          "$ref": "#/$defs/BufferBinding"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "request_digest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "result_digest": {
+          "$ref": "#/$defs/Digest"
+        }
+      }
+    },
+    "CheckpointReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "family_id",
+        "checkpoint_token",
+        "parent_binding",
+        "parent_native_owner_id",
+        "tick",
+        "checkpoint_sha256"
+      ],
+      "properties": {
+        "family_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "checkpoint_token": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "parent_binding": {
+          "$ref": "#/$defs/BufferBinding"
+        },
+        "parent_native_owner_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "tick": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7199
+        },
+        "checkpoint_sha256": {
+          "$ref": "#/$defs/Digest"
+        }
+      }
+    },
+    "PressureWindow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "sensor_id",
+        "first_tick",
+        "last_tick",
+        "sample_count",
+        "unit",
+        "target_function_digest"
+      ],
+      "properties": {
+        "kind": {
+          "const": "scaled_compensated_pressure_rms400_v1"
+        },
+        "sensor_id": {
+          "type": "string",
+          "pattern": "^pressure:[a-z][a-z0-9_-]{0,63}$",
+          "maxLength": 73
+        },
+        "first_tick": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7198
+        },
+        "last_tick": {
+          "type": "integer",
+          "minimum": 3,
+          "maximum": 7200
+        },
+        "sample_count": {
+          "const": 400
+        },
+        "unit": {
+          "const": "pascal"
+        },
+        "target_function_digest": {
+          "$ref": "#/$defs/Digest"
+        }
+      }
+    },
+    "BranchPlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "slot",
+        "case_id",
+        "purpose",
+        "binding",
+        "target"
+      ],
+      "properties": {
+        "slot": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 15
+        },
+        "case_id": {
+          "$ref": "#/$defs/Token"
+        },
+        "purpose": {
+          "enum": [
+            "label",
+            "same_action_control"
+          ]
+        },
+        "binding": {
+          "$ref": "#/$defs/BufferBinding"
+        },
+        "target": {
+          "$ref": "#/$defs/SetTarget"
+        }
+      }
+    },
+    "FamilyLimits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total_wall_seconds",
+        "endpoint_count",
+        "max_active_native_owners",
+        "public_checkpoint_slots",
+        "temporary_checkpoint_slots",
+        "evaluation_window_bytes"
+      ],
+      "properties": {
+        "total_wall_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 600
+        },
+        "endpoint_count": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 16
+        },
+        "max_active_native_owners": {
+          "const": 2
+        },
+        "public_checkpoint_slots": {
+          "const": 1
+        },
+        "temporary_checkpoint_slots": {
+          "const": 1
+        },
+        "evaluation_window_bytes": {
+          "const": 3200
+        }
+      }
+    },
+    "FamilyPlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "family_id",
+        "canonical_binding",
+        "body",
+        "landmark_tick",
+        "branches",
+        "evaluation",
+        "limits"
+      ],
+      "properties": {
+        "family_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "canonical_binding": {
+          "$ref": "#/$defs/BufferBinding"
+        },
+        "body": {
+          "$ref": "#/$defs/Prepare"
+        },
+        "landmark_tick": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7199
+        },
+        "branches": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 15,
+          "items": {
+            "$ref": "#/$defs/BranchPlan"
+          }
+        },
+        "evaluation": {
+          "$ref": "#/$defs/PressureWindow"
+        },
+        "limits": {
+          "$ref": "#/$defs/FamilyLimits"
+        }
+      }
+    },
+    "CanonicalPrepare": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "plan"
+      ],
+      "properties": {
+        "plan": {
+          "$ref": "#/$defs/FamilyPlan"
+        }
+      }
+    },
+    "CheckpointCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "tick",
+        "expected_batch_digest"
+      ],
+      "properties": {
+        "kind": {
+          "const": "checkpoint"
+        },
+        "tick": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7199
+        },
+        "expected_batch_digest": {
+          "$ref": "#/$defs/Digest"
+        }
+      }
+    },
+    "CommitDecisionCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "checkpoint",
+        "forecast_commitment_digest",
+        "selected_case_id"
+      ],
+      "properties": {
+        "kind": {
+          "const": "commit_decision"
+        },
+        "checkpoint": {
+          "$ref": "#/$defs/CheckpointReference"
+        },
+        "forecast_commitment_digest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "selected_case_id": {
+          "$ref": "#/$defs/Token"
+        }
+      }
+    },
+    "ReserveBranchCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "checkpoint",
+        "case_id",
+        "expected_selected_execution_result_digest"
+      ],
+      "properties": {
+        "kind": {
+          "const": "reserve_branch"
+        },
+        "checkpoint": {
+          "$ref": "#/$defs/CheckpointReference"
+        },
+        "case_id": {
+          "$ref": "#/$defs/Token"
+        },
+        "expected_selected_execution_result_digest": {
+          "$ref": "#/$defs/Digest"
+        }
+      }
+    },
+    "ReleaseCheckpointCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "checkpoint",
+        "expected_last_branch_terminal_result_digest"
+      ],
+      "properties": {
+        "kind": {
+          "const": "release_checkpoint"
+        },
+        "checkpoint": {
+          "$ref": "#/$defs/CheckpointReference"
+        },
+        "expected_last_branch_terminal_result_digest": {
+          "$ref": "#/$defs/Digest"
+        }
+      }
+    },
+    "CanonicalCommand": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Command"
+        },
+        {
+          "$ref": "#/$defs/CheckpointCommand"
+        },
+        {
+          "$ref": "#/$defs/CommitDecisionCommand"
+        },
+        {
+          "$ref": "#/$defs/ReserveBranchCommand"
+        },
+        {
+          "$ref": "#/$defs/ReleaseCheckpointCommand"
+        }
+      ]
+    },
+    "ReservationReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "family_id",
+        "reservation_token",
+        "case_id",
+        "branch_binding",
+        "checkpoint",
+        "reserving_request_digest"
+      ],
+      "properties": {
+        "family_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "reservation_token": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "case_id": {
+          "$ref": "#/$defs/Token"
+        },
+        "branch_binding": {
+          "$ref": "#/$defs/BufferBinding"
+        },
+        "checkpoint": {
+          "$ref": "#/$defs/CheckpointReference"
+        },
+        "reserving_request_digest": {
+          "$ref": "#/$defs/Digest"
+        }
+      }
+    },
+    "EvaluationPrepare": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reservation",
+        "expected_family_plan_digest"
+      ],
+      "properties": {
+        "reservation": {
+          "$ref": "#/$defs/ReservationReference"
+        },
+        "expected_family_plan_digest": {
+          "$ref": "#/$defs/Digest"
+        }
+      }
+    },
+    "EvaluateCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "expected_batch_digest",
+        "expected_target_function_digest"
+      ],
+      "properties": {
+        "kind": {
+          "const": "evaluate_pressure_window"
+        },
+        "expected_batch_digest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "expected_target_function_digest": {
+          "$ref": "#/$defs/Digest"
+        }
+      }
+    },
+    "EvaluationCommand": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Command"
+        },
+        {
+          "$ref": "#/$defs/EvaluateCommand"
+        }
+      ]
+    },
+    "BranchAncestry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "family_id",
+        "case_id",
+        "origin",
+        "origin_plan_digest",
+        "origin_engine_run_id",
+        "origin_native_batch_sha256",
+        "origin_sensor_batch_digest",
+        "action_history_position",
+        "selection",
+        "selected_execution",
+        "execution_binding",
+        "native_owner_id",
+        "graphics_generation",
+        "reconstruction"
+      ],
+      "properties": {
+        "family_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "case_id": {
+          "$ref": "#/$defs/Token"
+        },
+        "origin": {
+          "$ref": "#/$defs/CheckpointReference"
+        },
+        "origin_plan_digest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "origin_engine_run_id": {
+          "type": "string",
+          "pattern": "^ncp-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "origin_native_batch_sha256": {
+          "$ref": "#/$defs/Digest"
+        },
+        "origin_sensor_batch_digest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "action_history_position": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7200
+        },
+        "selection": {
+          "$ref": "#/$defs/CommittedStamp"
+        },
+        "selected_execution": {
+          "$ref": "#/$defs/CommittedStamp"
+        },
+        "execution_binding": {
+          "$ref": "#/$defs/BufferBinding"
+        },
+        "native_owner_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "graphics_generation": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "reconstruction": {
+          "const": "exact-cpu-and-current-static-pixels"
+        }
+      }
+    },
+    "PixelIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sensor_id",
+        "payload_sha256"
+      ],
+      "properties": {
+        "sensor_id": {
+          "type": "string",
+          "pattern": "^(rgb|thermal):[a-z][a-z0-9_-]{0,63}$",
+          "maxLength": 73
+        },
+        "payload_sha256": {
+          "$ref": "#/$defs/Digest"
+        }
+      }
+    },
+    "Checkpointed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "reference",
+        "cpu_state_sha256",
+        "graphics_plan_sha256",
+        "render_input_sha256",
+        "pixels",
+        "accepted_native_batch_sha256",
+        "accepted_sensor_batch_digest",
+        "accepted_action_position"
+      ],
+      "properties": {
+        "kind": {
+          "const": "checkpointed"
+        },
+        "reference": {
+          "$ref": "#/$defs/CheckpointReference"
+        },
+        "cpu_state_sha256": {
+          "$ref": "#/$defs/Digest"
+        },
+        "graphics_plan_sha256": {
+          "$ref": "#/$defs/Digest"
+        },
+        "render_input_sha256": {
+          "$ref": "#/$defs/Digest"
+        },
+        "pixels": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": {
+            "$ref": "#/$defs/PixelIdentity"
+          }
+        },
+        "accepted_native_batch_sha256": {
+          "$ref": "#/$defs/Digest"
+        },
+        "accepted_sensor_batch_digest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "accepted_action_position": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7200
+        }
+      }
+    },
+    "DecisionCommitted": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "checkpoint",
+        "forecast_commitment_digest",
+        "selected_case_id",
+        "selected_target"
+      ],
+      "properties": {
+        "kind": {
+          "const": "decision_committed"
+        },
+        "checkpoint": {
+          "$ref": "#/$defs/CheckpointReference"
+        },
+        "forecast_commitment_digest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "selected_case_id": {
+          "$ref": "#/$defs/Token"
+        },
+        "selected_target": {
+          "$ref": "#/$defs/SetTarget"
+        }
+      }
+    },
+    "BranchReserved": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "reference",
+        "family_plan_digest"
+      ],
+      "properties": {
+        "kind": {
+          "const": "branch_reserved"
+        },
+        "reference": {
+          "$ref": "#/$defs/ReservationReference"
+        },
+        "family_plan_digest": {
+          "$ref": "#/$defs/Digest"
+        }
+      }
+    },
+    "CheckpointReleased": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "reference",
+        "native_release"
+      ],
+      "properties": {
+        "kind": {
+          "const": "checkpoint_released"
+        },
+        "reference": {
+          "$ref": "#/$defs/CheckpointReference"
+        },
+        "native_release": {
+          "const": "confirmed"
+        }
+      }
+    },
+    "FamilyPrepared": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "family_plan_digest",
+        "body",
+        "endpoint_count",
+        "native_owner_count"
+      ],
+      "properties": {
+        "kind": {
+          "const": "family_prepared"
+        },
+        "family_plan_digest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "body": {
+          "$ref": "#/$defs/Prepared"
+        },
+        "endpoint_count": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 16
+        },
+        "native_owner_count": {
+          "const": 1
+        }
+      }
+    },
+    "Restored": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "family_plan_digest",
+        "sensor_catalog",
+        "initial_observation",
+        "ancestry",
+        "cpu_state_sha256",
+        "render_input_sha256",
+        "pixels"
+      ],
+      "properties": {
+        "kind": {
+          "const": "restored"
+        },
+        "family_plan_digest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "sensor_catalog": {
+          "$ref": "#/$defs/SensorCatalog"
+        },
+        "initial_observation": {
+          "const": "inherited_checkpoint"
+        },
+        "ancestry": {
+          "$ref": "#/$defs/BranchAncestry"
+        },
+        "cpu_state_sha256": {
+          "$ref": "#/$defs/Digest"
+        },
+        "render_input_sha256": {
+          "$ref": "#/$defs/Digest"
+        },
+        "pixels": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": {
+            "$ref": "#/$defs/PixelIdentity"
+          }
+        }
+      }
+    },
+    "FamilyAdvanced": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "body",
+        "ancestry",
+        "canonical_final_state"
+      ],
+      "properties": {
+        "kind": {
+          "const": "family_advanced"
+        },
+        "body": {
+          "$ref": "#/$defs/Advanced"
+        },
+        "ancestry": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/BranchAncestry"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "canonical_final_state": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/CanonicalFinalState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "PressureSegment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_body_tick",
+        "available_after_body_tick",
+        "sample_start",
+        "sample_end",
+        "typed_manifest_digest",
+        "byte_manifest_digest",
+        "payload_sha256",
+        "byte_length"
+      ],
+      "properties": {
+        "source_body_tick": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7200
+        },
+        "available_after_body_tick": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7200
+        },
+        "sample_start": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 960000
+        },
+        "sample_end": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 960000
+        },
+        "typed_manifest_digest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "byte_manifest_digest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "payload_sha256": {
+          "$ref": "#/$defs/Digest"
+        },
+        "byte_length": {
+          "type": "integer",
+          "minimum": 1064,
+          "maximum": 1072
+        }
+      }
+    },
+    "EvaluationResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "ancestry",
+        "target",
+        "segments",
+        "window_payload_sha256",
+        "value_pa",
+        "final_cpu_state_sha256",
+        "final_native_batch_sha256",
+        "final_sensor_batch_digest",
+        "accepted_action_request_digest",
+        "scientific_validation"
+      ],
+      "properties": {
+        "kind": {
+          "const": "pressure_window_evaluated"
+        },
+        "ancestry": {
+          "$ref": "#/$defs/BranchAncestry"
+        },
+        "target": {
+          "$ref": "#/$defs/PressureWindow"
+        },
+        "segments": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "$ref": "#/$defs/PressureSegment"
+          }
+        },
+        "window_payload_sha256": {
+          "$ref": "#/$defs/Digest"
+        },
+        "value_pa": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1e+300
+        },
+        "final_cpu_state_sha256": {
+          "$ref": "#/$defs/Digest"
+        },
+        "final_native_batch_sha256": {
+          "$ref": "#/$defs/Digest"
+        },
+        "final_sensor_batch_digest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "accepted_action_request_digest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "scientific_validation": {
+          "const": false
+        }
+      }
+    },
+    "CanonicalResult": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/FamilyPrepared"
+        },
+        {
+          "$ref": "#/$defs/FamilyAdvanced"
+        },
+        {
+          "$ref": "#/$defs/Checkpointed"
+        },
+        {
+          "$ref": "#/$defs/DecisionCommitted"
+        },
+        {
+          "$ref": "#/$defs/BranchReserved"
+        },
+        {
+          "$ref": "#/$defs/CheckpointReleased"
+        }
+      ]
+    },
+    "EvaluationResultUnion": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Restored"
+        },
+        {
+          "$ref": "#/$defs/FamilyAdvanced"
+        },
+        {
+          "$ref": "#/$defs/EvaluationResult"
+        }
+      ]
+    },
+    "CanonicalFinish": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "body",
+        "family_plan_digest",
+        "expected_branch_terminals"
+      ],
+      "properties": {
+        "body": {
+          "$ref": "#/$defs/Finish"
+        },
+        "family_plan_digest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "expected_branch_terminals": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 15,
+          "items": {
+            "$ref": "#/$defs/CommittedStamp"
+          }
+        }
+      }
+    },
+    "EvaluationFinish": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "body",
+        "evaluation_result_digest"
+      ],
+      "properties": {
+        "body": {
+          "$ref": "#/$defs/Finish"
+        },
+        "evaluation_result_digest": {
+          "$ref": "#/$defs/Digest"
+        }
+      }
+    },
+    "EvaluationTerminal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "family_id",
+        "case_id",
+        "ancestry",
+        "last_batch_digest",
+        "evaluation_result_digest",
+        "native_owner_retirement",
+        "graphics_retirement",
+        "shared_family_process_retirement",
+        "promised_sensor_output",
+        "scientific_validation"
+      ],
+      "properties": {
+        "family_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "case_id": {
+          "$ref": "#/$defs/Token"
+        },
+        "ancestry": {
+          "$ref": "#/$defs/BranchAncestry"
+        },
+        "last_batch_digest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "evaluation_result_digest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "native_owner_retirement": {
+          "const": "confirmed"
+        },
+        "graphics_retirement": {
+          "const": "confirmed"
+        },
+        "shared_family_process_retirement": {
+          "const": "pending"
+        },
+        "promised_sensor_output": {
+          "const": "complete"
+        },
+        "scientific_validation": {
+          "const": false
+        }
+      }
+    },
+    "CanonicalTerminal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "family_id",
+        "family_plan_digest",
+        "last_batch_digest",
+        "branch_terminals",
+        "checkpoint_release",
+        "native_family_retirement",
+        "bun_process_retirement",
+        "sdk_host_process_retirement",
+        "scientific_validation",
+        "canonical_final_state",
+        "canonical_state_recheck"
+      ],
+      "properties": {
+        "family_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "family_plan_digest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "last_batch_digest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "branch_terminals": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 15,
+          "items": {
+            "$ref": "#/$defs/CommittedStamp"
+          }
+        },
+        "checkpoint_release": {
+          "const": "confirmed"
+        },
+        "native_family_retirement": {
+          "const": "confirmed"
+        },
+        "bun_process_retirement": {
+          "const": "confirmed"
+        },
+        "sdk_host_process_retirement": {
+          "const": "pending"
+        },
+        "scientific_validation": {
+          "const": false
+        },
+        "canonical_final_state": {
+          "$ref": "#/$defs/CanonicalFinalState"
+        },
+        "canonical_state_recheck": {
+          "const": "confirmed"
+        }
+      }
+    },
+    "CanonicalFinalState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "body_tick",
+        "native_batch_sha256",
+        "cpu_state_sha256",
+        "render_input_sha256",
+        "pixels"
+      ],
+      "properties": {
+        "body_tick": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7200
+        },
+        "native_batch_sha256": {
+          "$ref": "#/$defs/Digest"
+        },
+        "cpu_state_sha256": {
+          "$ref": "#/$defs/Digest"
+        },
+        "render_input_sha256": {
+          "$ref": "#/$defs/Digest"
+        },
+        "pixels": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": {
+            "$ref": "#/$defs/PixelIdentity"
+          }
+        }
+      }
+    }
+  }
+}

@@ -9,6 +9,8 @@ publish = false
 
 [workspace]
 resolver = "2"
+members = ["family-host"]
+default-members = [".", "family-host"]
 
 [dependencies]
 # The construction tool supplies this exact pinned crate in a fresh composition.

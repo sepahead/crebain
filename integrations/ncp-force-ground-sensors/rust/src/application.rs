@@ -145,11 +145,18 @@ fn sorted<'a>(ids: impl Iterator<Item = &'a str>) -> bool {
 
 /// Apply source-owned semantic bounds beyond the closed JSON shape.
 pub fn validate_prepare(prepare: &Prepare) -> Result<(), ModularError> {
+    validate_prepare_for(prepare, &contract::composition_digest()?)
+}
+
+pub(crate) fn validate_prepare_for(
+    prepare: &Prepare,
+    composition: &str,
+) -> Result<(), ModularError> {
     contract::validate("Prepare", prepare)?;
     let spec = &prepare.specification;
     let scene = &spec.scene;
     let cameras = scene.rgb_cameras.iter().chain(&scene.thermal_cameras);
-    if prepare.composition_digest != contract::composition_digest()?
+    if prepare.composition_digest != composition
         || (scene.rgb_cameras.is_empty()
             && scene.thermal_cameras.is_empty()
             && scene.microphones.is_empty())
@@ -195,7 +202,11 @@ fn action_ok(prepare: &Prepare, action: &Action, last: Option<&str>) -> bool {
     }
 }
 
-fn plan_digest(prepare: &Prepare, run_id: &str, source: &str) -> Result<String, ModularError> {
+pub(crate) fn plan_digest(
+    prepare: &Prepare,
+    run_id: &str,
+    source: &str,
+) -> Result<String, ModularError> {
     contract::commit(
         Commitment::Plan,
         &json!({
@@ -238,7 +249,7 @@ fn tensor_bytes(tensor: &Tensor, tick: u64) -> Result<usize, ModularError> {
     }
 }
 
-fn catalog(prepare: &Prepare, plan: &str) -> Result<SensorCatalog, ModularError> {
+pub(crate) fn catalog(prepare: &Prepare, plan: &str) -> Result<SensorCatalog, ModularError> {
     let mut entries = Vec::with_capacity(12);
     for c in &prepare.specification.scene.rgb_cameras {
         entries.push(CatalogEntry::Rgba8 {
@@ -314,6 +325,63 @@ impl<E: EnginePort> SensorApplication<E> {
         self.engine.retire().map_err(|_| Diagnostic::Backend)
     }
 
+    pub(crate) fn current(&self) -> Option<(u64, &str, Option<&str>)> {
+        self.active.as_ref().map(|active| {
+            (
+                active.tick,
+                active.plan_digest.as_str(),
+                active.batch_digest.as_deref(),
+            )
+        })
+    }
+
+    // The live-family constructor supplies an actual prepared or restored owner.
+    // This does not expose restoration through the ordinary sensor contract.
+    pub(crate) fn initialize_native(
+        &mut self,
+        prepare: &Prepare,
+        identity: EnginePrepared,
+        origin_run: &str,
+        initial_tick: u64,
+        native_predecessor: Option<String>,
+    ) -> Result<Prepared, ModularError> {
+        if self.active.is_some()
+            || self.failed
+            || initial_tick >= prepare.planned_ticks
+            || !contract::valid_uuid(origin_run)
+            || !contract::valid_uuid(&identity.engine_owner_id)
+            || !wire::valid_digest(&identity.scene_sha256)
+            || (initial_tick == 0) != native_predecessor.is_none()
+            || native_predecessor
+                .as_ref()
+                .is_some_and(|value| !wire::valid_digest(value))
+        {
+            return Err(ModularError::Binding);
+        }
+        let plan = plan_digest(prepare, origin_run, &self.source_identity)?;
+        let catalog = catalog(prepare, &plan)?;
+        let prepared = Prepared {
+            kind: "prepared".into(),
+            plan_digest: plan.clone(),
+            sensor_catalog: catalog.clone(),
+            initial_observation: "not_acquired".into(),
+            source_identity: self.source_identity.clone(),
+            engine_owner_id: identity.engine_owner_id.clone(),
+            scene_sha256: identity.scene_sha256.clone(),
+        };
+        self.active = Some(Active {
+            prepare: prepare.clone(),
+            plan_digest: plan,
+            catalog,
+            identity,
+            tick: initial_tick,
+            batch_digest: None,
+            engine_batch: native_predecessor,
+            accepted_action: None,
+        });
+        Ok(prepared)
+    }
+
     fn execute_inner(
         &mut self,
         op: &AppOperation<Self>,
@@ -361,7 +429,12 @@ impl<E: EnginePort> SensorApplication<E> {
                 };
                 let native = self
                     .engine
-                    .advance(command, active.engine_batch.as_deref(), &accepted)
+                    .advance_bound(
+                        command,
+                        active.engine_batch.as_deref(),
+                        &accepted,
+                        permit.context().request_digest(),
+                    )
                     .map_err(|_| Diagnostic::Backend)?;
                 if native.engine_owner_id != active.identity.engine_owner_id
                     || native.scene_sha256 != active.identity.scene_sha256

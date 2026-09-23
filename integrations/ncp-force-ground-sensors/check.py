@@ -82,24 +82,33 @@ def main():
         for name in ("cargo", "rustc", "rustfmt", "bun", "node"):
             run(name + "-version", [tools[name], "--version"])
         run("generated-dtos", [sys.executable, "-B", APP / "contracts/generate-rust-types.py", "--check"])
+        run("generated-family-contracts", [sys.executable, "-B", APP / "contracts/generate-family-contracts.py", "--check"])
+        run("generated-family-bridge", [sys.executable, "-B", APP / "contracts/generate-family-bridge.py", "--check"])
+        run("generated-family-rust", [sys.executable, "-B", APP / "contracts/generate-rust-types.py", "--family", "--check"])
         run("packaged-resources", [sys.executable, "-B", APP / "contracts/generate-python-resources.py", "--check"])
         run("runtime-installer-controls", [sys.executable, "-B", "-m", "unittest", "discover", "-s", APP, "-p", "test_install_runtime.py", "-v"])
         run("bridge-types", [tools["bun"], "x", "--no-install", "tsc", "-p", APP / "tsconfig.json"])
         run("bridge-lint", [tools["bun"], "x", "--no-install", "eslint", "--config", APP / "eslint.config.mjs", APP / "bridge", "--max-warnings", "0"])
-        run("bridge-controls", [tools["bun"], "test", APP / "bridge/owner.test.ts"])
+        run("bridge-controls", [tools["bun"], "test", APP / "bridge/owner.test.ts",
+                                APP / "bridge/family.test.ts", APP / "bridge/family-transport.test.ts",
+                                APP / "bridge/family-failure.test.ts"])
         python_path = os.pathsep.join(map(str, [build / "sdk-python", build / "python", build / "python/tests"]))
+        runtime = {"CREBAIN_SENSOR_BUN": tools["bun"], "CREBAIN_SENSOR_NODE": tools["node"],
+                   "CREBAIN_SENSOR_BRIDGE": str(APP / "bridge/main.ts"),
+                   "CREBAIN_FAMILY_PRODUCER": str(build / "application/target/debug/crebain-ncp-checkpoint-family")}
+        run("rust-producers", [tools["cargo"], "build", "--locked", "--offline", "--workspace"], cwd=build / "application")
         run("python-controls", [sys.executable, "-B", "-m", "unittest", "discover", "-s", build / "python/tests", "-v"],
-            extra={"PYTHONPATH": python_path})
+            extra={"PYTHONPATH": python_path, **runtime})
         vector = output / "numeric-parity-python.json"
         with vector.open("wb") as stream:
             subprocess.run([sys.executable, "-B", build / "python/tests/numeric_parity.py"], env=dict(env, PYTHONPATH=python_path),
                            stdout=stream, check=True, timeout=30)
-        runtime = {"CREBAIN_SENSOR_NUMERIC_VECTORS": str(vector), "CREBAIN_SENSOR_BUN": tools["bun"],
-                   "CREBAIN_SENSOR_NODE": tools["node"], "CREBAIN_SENSOR_BRIDGE": str(APP / "bridge/main.ts")}
+        runtime["CREBAIN_SENSOR_NUMERIC_VECTORS"] = str(vector)
         run("rust-format", [tools["cargo"], "fmt", "--all", "--", "--check"], cwd=build / "application")
-        run("rust-controls", [tools["cargo"], "test", "--locked", "--offline"], cwd=build / "application", extra=runtime)
-        run("rust-clippy", [tools["cargo"], "clippy", "--locked", "--offline", "--all-targets", "--", "-D", "warnings"], cwd=build / "application")
-        run("rust-doc", [tools["cargo"], "doc", "--locked", "--offline", "--no-deps"], cwd=build / "application", extra={"RUSTDOCFLAGS": "-D warnings"})
+        run("rust-controls", [tools["cargo"], "test", "--locked", "--offline", "--workspace", "--all-targets"], cwd=build / "application", extra=runtime)
+        run("rust-doc-controls", [tools["cargo"], "test", "--locked", "--offline", "--workspace", "--doc"], cwd=build / "application")
+        run("rust-clippy", [tools["cargo"], "clippy", "--locked", "--offline", "--workspace", "--all-targets", "--", "-D", "warnings"], cwd=build / "application")
+        run("rust-doc", [tools["cargo"], "doc", "--locked", "--offline", "--workspace", "--no-deps"], cwd=build / "application", extra={"RUSTDOCFLAGS": "-D warnings"})
         checked_dependency(Path(args.ncp_source))
         if inventory() != before:
             raise ValueError("application source changed during construction gate")

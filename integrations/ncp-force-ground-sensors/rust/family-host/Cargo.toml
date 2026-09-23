@@ -1,0 +1,18 @@
+[package]
+name = "crebain-ncp-checkpoint-family"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.91"
+license = "MIT OR Apache-2.0"
+description = "Private descriptor bootstrap for the optional CREBAIN live family"
+publish = false
+
+[dependencies]
+crebain-ncp-force-ground-sensors = { version = "=0.1.0", path = ".." }
+libc = "=0.2.189"
+
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }

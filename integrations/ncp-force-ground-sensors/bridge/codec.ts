@@ -14,6 +14,9 @@ const runtime = JSON.parse(
     'utf8'
   )
 ) as { $defs: Record<string, Schema> }
+let family: { $defs: Record<string, Schema> } | undefined
+let familyBridge: { $defs: Record<string, Schema> } | undefined
+let familyRuntime: { $defs: Record<string, Schema> } | undefined
 
 export function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -115,16 +118,47 @@ function matches(
 export function validateFrozen(
   name: string,
   value: unknown,
-  side: 'bridge' | 'application' | 'runtime' = 'bridge'
+  side:
+    'bridge' | 'application' | 'runtime' | 'family' | 'familyBridge' | 'familyRuntime' = 'bridge'
 ): void {
-  const definitions = (side === 'bridge' ? bridge : side === 'application' ? application : runtime)
-    .$defs
+  if (side === 'family')
+    family ??= JSON.parse(
+      readFileSync(
+        new URL('../contracts/family.application.schema.v1.json', import.meta.url),
+        'utf8'
+      )
+    ) as { $defs: Record<string, Schema> }
+  if (side === 'familyBridge')
+    familyBridge ??= JSON.parse(
+      readFileSync(
+        new URL('../contracts/family.engine-bridge.schema.v1.json', import.meta.url),
+        'utf8'
+      )
+    ) as { $defs: Record<string, Schema> }
+  if (side === 'familyRuntime')
+    familyRuntime ??= JSON.parse(
+      readFileSync(
+        new URL('../contracts/family.runtime-receipt.schema.v1.json', import.meta.url),
+        'utf8'
+      )
+    ) as { $defs: Record<string, Schema> }
+  const definitions = {
+    bridge,
+    application,
+    runtime,
+    family,
+    familyBridge,
+    familyRuntime,
+  }[side]!.$defs
   if (!Object.hasOwn(definitions, name) || !matches(definitions[name], value, definitions))
     throw new Error('Closed installed schema rejected')
 }
 
 /** Parse only bounded compact integer JSON; continuous values use typed bit wrappers. */
-export function decodeFrame(bytes: Uint8Array): Record<string, unknown> {
+export function decodeFrame(
+  bytes: Uint8Array,
+  side: 'bridge' | 'familyBridge' = 'bridge'
+): Record<string, unknown> {
   if (bytes.byteLength === 0 || bytes.byteLength > 65536) throw new Error('Frame bound')
   const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
   const value: unknown = JSON.parse(text)
@@ -152,8 +186,72 @@ export function decodeFrame(bytes: Uint8Array): Record<string, unknown> {
   // Decoded duplicates, noncanonical escapes, whitespace and alternate number
   // spellings cannot reproduce the original compact string.
   if (JSON.stringify(value) !== text) throw new Error('Noncanonical bridge JSON')
-  validateFrozen('Request', value)
+  validateFrozen('Request', value, side)
   return object(value)
+}
+
+/** Encode declared continuous response fields by schema, preserving integral floats and -0. */
+export function encodeFamilyFrame(value: unknown): Buffer {
+  if (!familyBridge)
+    familyBridge = JSON.parse(
+      readFileSync(
+        new URL('../contracts/family.engine-bridge.schema.v1.json', import.meta.url),
+        'utf8'
+      )
+    ) as { $defs: Record<string, Schema> }
+  const definitions = familyBridge.$defs
+  const convert = (schema: Schema, input: unknown, depth = 0): unknown => {
+    if (depth > 24 || typeof schema === 'boolean') throw new Error('Family response schema bound')
+    if (schema.$ref === '#/$defs/Float64') {
+      if (typeof input !== 'number' || !Number.isFinite(input))
+        throw new Error('Family response scalar')
+      const bytes = Buffer.alloc(8)
+      bytes.writeDoubleBE(input)
+      return { f64: bytes.toString('hex') }
+    }
+    if (typeof schema.$ref === 'string')
+      return convert(definitions[schema.$ref.slice(8)], input, depth + 1)
+    const choices = schema.oneOf ?? schema.anyOf
+    if (Array.isArray(choices)) {
+      const accepted: unknown[] = []
+      for (const arm of choices as Schema[]) {
+        try {
+          accepted.push(convert(arm, input, depth + 1))
+        } catch {
+          /* Another closed arm may fit. */
+        }
+      }
+      if (accepted.length !== 1) throw new Error('Family response union')
+      return accepted[0]
+    }
+    let converted = input
+    if (schema.type === 'object') {
+      const fields = schema.properties as Record<string, Schema>
+      const record = keys(input, Object.keys(fields))
+      converted = Object.fromEntries(
+        Object.entries(fields).map(([name, field]) => [
+          name,
+          convert(field, record[name], depth + 1),
+        ])
+      )
+    } else if (schema.type === 'array') {
+      converted = rows(input).map((item, index) =>
+        convert(
+          Array.isArray(schema.prefixItems)
+            ? (schema.prefixItems[index] as Schema)
+            : (schema.items as Schema),
+          item,
+          depth + 1
+        )
+      )
+    }
+    if (!matches(schema, converted, definitions)) throw new Error('Family response shape')
+    return converted
+  }
+  const encoded = convert(definitions.Response, value)
+  const bytes = Buffer.from(JSON.stringify(encoded))
+  if (bytes.length === 0 || bytes.length > 65536) throw new Error('Family response frame bound')
+  return bytes
 }
 
 export function unwrapFloats(value: unknown): unknown {

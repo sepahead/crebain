@@ -1,0 +1,329 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "crebain.family-graphics-runtime.types.v1",
+  "$defs": {
+    "Uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "Sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "Pid": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "Text": {
+      "type": "string",
+      "pattern": "^[\\x20-\\x7e]+$",
+      "maxLength": 256
+    },
+    "ReportedGraphics": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "$ref": "#/$defs/Text"
+        },
+        "renderer": {
+          "$ref": "#/$defs/Text"
+        },
+        "vendor": {
+          "$ref": "#/$defs/Text"
+        }
+      },
+      "required": [
+        "version",
+        "renderer",
+        "vendor"
+      ],
+      "additionalProperties": false
+    },
+    "Diagnostics": {
+      "type": "object",
+      "properties": {
+        "generation": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "pid": {
+          "$ref": "#/$defs/Pid"
+        },
+        "browserVersion": {
+          "$ref": "#/$defs/Text"
+        },
+        "planSha256": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "graphics": {
+          "$ref": "#/$defs/ReportedGraphics"
+        },
+        "distributionScope": {
+          "const": "development-component"
+        },
+        "workerPid": {
+          "$ref": "#/$defs/Pid"
+        },
+        "workerRuntime": {
+          "$ref": "#/$defs/WorkerRuntime"
+        }
+      },
+      "required": [
+        "generation",
+        "pid",
+        "browserVersion",
+        "planSha256",
+        "graphics",
+        "distributionScope",
+        "workerPid",
+        "workerRuntime"
+      ],
+      "additionalProperties": false
+    },
+    "Graphics": {
+      "type": "object",
+      "properties": {
+        "generation": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "plan_sha256": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "browser_pid": {
+          "$ref": "#/$defs/Pid"
+        },
+        "worker_pid": {
+          "$ref": "#/$defs/Pid"
+        },
+        "browser_version": {
+          "$ref": "#/$defs/Text"
+        },
+        "webgl_version": {
+          "$ref": "#/$defs/Text"
+        },
+        "renderer": {
+          "$ref": "#/$defs/Text"
+        },
+        "vendor": {
+          "$ref": "#/$defs/Text"
+        },
+        "distribution_scope": {
+          "const": "development-component"
+        }
+      },
+      "required": [
+        "generation",
+        "plan_sha256",
+        "browser_pid",
+        "worker_pid",
+        "browser_version",
+        "webgl_version",
+        "renderer",
+        "vendor",
+        "distribution_scope"
+      ],
+      "additionalProperties": false
+    },
+    "WorkerRuntime": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "const": "node"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "maxLength": 64
+        },
+        "executable": {
+          "type": "string",
+          "pattern": "^/[\\x20-\\x7e]+$",
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "executable"
+      ],
+      "additionalProperties": false
+    },
+    "RenderedReceipt": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "crebain.sensor-engine-runtime-receipt.v1"
+        },
+        "generation": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "sequence": {
+          "const": 1
+        },
+        "run_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "source_identity": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "engine_owner_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "scene_sha256": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "graphics": {
+          "$ref": "#/$defs/Graphics"
+        },
+        "identity_scope": {
+          "const": "browser-reported-strings-not-loaded-code-or-hardware-proof"
+        }
+      },
+      "required": [
+        "schema",
+        "generation",
+        "sequence",
+        "run_id",
+        "source_identity",
+        "engine_owner_id",
+        "scene_sha256",
+        "graphics",
+        "identity_scope"
+      ],
+      "additionalProperties": false
+    },
+    "CameraFreeReceipt": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "crebain.sensor-engine-runtime-receipt.v1"
+        },
+        "generation": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "sequence": {
+          "const": 1
+        },
+        "run_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "source_identity": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "engine_owner_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "scene_sha256": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "graphics": {
+          "type": "null"
+        },
+        "identity_scope": {
+          "const": "graphics-unselected-by-camera-roster"
+        }
+      },
+      "required": [
+        "schema",
+        "generation",
+        "sequence",
+        "run_id",
+        "source_identity",
+        "engine_owner_id",
+        "scene_sha256",
+        "graphics",
+        "identity_scope"
+      ],
+      "additionalProperties": false
+    },
+    "Receipt": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/RenderedReceipt"
+        },
+        {
+          "$ref": "#/$defs/CameraFreeReceipt"
+        }
+      ]
+    },
+    "BufferBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile_digest",
+        "application_digest",
+        "run_id",
+        "endpoint_id",
+        "generation"
+      ],
+      "properties": {
+        "profile_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "application_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "run_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "endpoint_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "generation": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        }
+      }
+    },
+    "FamilyReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "family_id",
+        "family_plan_digest",
+        "slot",
+        "binding",
+        "source_identity",
+        "native_owner_id",
+        "graphics",
+        "identity_scope"
+      ],
+      "properties": {
+        "schema": {
+          "const": "crebain.family-graphics-runtime.v1"
+        },
+        "family_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "family_plan_digest": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "slot": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 15
+        },
+        "binding": {
+          "$ref": "#/$defs/BufferBinding"
+        },
+        "source_identity": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "native_owner_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "graphics": {
+          "$ref": "#/$defs/Graphics"
+        },
+        "identity_scope": {
+          "const": "browser-reported-strings-not-loaded-code-or-hardware-proof"
+        }
+      }
+    }
+  }
+}

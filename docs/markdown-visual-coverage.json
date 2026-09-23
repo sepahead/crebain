@@ -352,6 +352,11 @@
       }
     },
     {
+      "path": "integrations/ncp-force-ground-sensors/FAMILY.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/ncp-checkpoint-family.svg"]
+    },
+    {
       "path": "integrations/ncp-force-ground-sensors/README.md",
       "classification": "active-technical",
       "visuals": [

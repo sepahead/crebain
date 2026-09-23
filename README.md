@@ -155,6 +155,8 @@ Prisoma uses CREBAIN as an environment for embodied-agent experiments.
 Prisoma owns forecasts, experiment ordering, comparisons, and recorded outcomes.
 Its [Agent Bridge](https://github.com/sepahead/prisoma/tree/main/integrations/agent-bridge) already records selected sensor execution through NCP.
 The complete learned forecast and independently restored outcome comparison remains open.
+The optional [live checkpoint family](integrations/ncp-force-ground-sensors/FAMILY.md) supplies its typed restoration and evaluation prerequisite as a construction candidate.
+It retains native owner authority and separate branch identities; native family qualification and E1 remain separate gates.
 CREBAIN runs without Prisoma.
 
 The target paper workflow starts with Engram's review of PDF evidence.
