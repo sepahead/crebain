@@ -175,7 +175,7 @@
     },
     {
       "path": "docs/baselines/phase0-command-surfaces.json",
-      "sha256": "aea2d56d02c3bc68b52958a1b499fc7c6877fa5eddb98b0ab094d7efe1722cea"
+      "sha256": "ec1918598d00cc50c98565fbd2c9d90bc1b342b897bd656378a71f353050e0f1"
     },
     {
       "path": "docs/baselines/phase0-hazards.json",

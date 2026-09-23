@@ -264,7 +264,8 @@ function diagnostic(error: unknown): string {
   return 'Unprintable force-city failure'
 }
 
-function ownPlan(input: ForceCityPlan): ForceCityPlan {
+/** Pure bounded admission, shared with the separately owned city environment. */
+export function ownForceCityPlan(input: ForceCityPlan): ForceCityPlan {
   const plan = copyPlainData(input)
   exactKeys(plan, [
     'profile',
@@ -328,7 +329,7 @@ export class ForceCityWorld {
   }
 
   static async prepare(input: ForceCityPlan): Promise<ForceCityWorld> {
-    const plan = ownPlan(input)
+    const plan = ownForceCityPlan(input)
     const physics = new DronePhysicsWorld('explicit', prepareStaticGeometry(plan.staticGeometry))
     try {
       await physics.init()
@@ -381,6 +382,17 @@ export class ForceCityWorld {
   referenceState(): string {
     this.active()
     return this.serializedState()
+  }
+
+  /** Detached privileged mechanical state; this is not a sensor observation. */
+  observeBodies(): Array<{ droneId: string; body: ForceCityBodyState }> {
+    this.active()
+    const drones = this.#physics.getAllDrones()
+    require(drones.length === this.#plan.drones.length &&
+      drones.every(
+        (drone, index) => drone.id === this.#plan.drones[index].id
+      ), 'Owned force-city roster changed')
+    return drones.map((drone) => ({ droneId: drone.id, body: bodyState(drone) }))
   }
 
   private serializedState(): string {

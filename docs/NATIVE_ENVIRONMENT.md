@@ -161,6 +161,122 @@ Specify dimensions, projection, sampling, pose, and source tick when defining a 
 This campaign establishes no general visibility guarantee, physical calibration, force-controlled city, many-drone force control, or nonzero Gaussian contribution.
 NCP transport and a complete Prisoma experiment remain separate open contracts.
 
+## Force-city source component
+
+`ForceCityEnvironment` selects `crebain.force-city-environment.v1` separately from both existing environment profiles.
+It reuses one [force-city CPU world](DETERMINISTIC_DYNAMICS.md#whole-roster-force-city-component), its unchanged controller gains, and the existing observation models.
+Its source ceiling is 256 bodies and 64 static cuboids.
+These admission bounds do not establish 256-body tracking, stability, resource performance, or installed NCP qualification.
+
+The plan contains `world`, `scene`, and an ordered `requests` roster.
+The accepted physics cuboids must equal the scene's ordered cuboid shapes exactly.
+Each request binds `requestId`, `sourceId`, `entityId`, `kind`, `sceneSourceId`, and `periodTicks`.
+Request and source identities must be unique.
+Every declared camera or microphone must have exactly one request.
+The recipient entity must belong to the prepared body roster.
+
+The sources are distinct world-fixed instances observing the shared scene.
+`entityId` identifies an exclusive recipient; it does not attach a camera or isolate one drone's sound.
+Identical source configurations can produce equal bytes while retaining different production identities.
+Mounted, body-frame, radar, inertial, and range requests are unsupported and reject.
+
+The complete request count is zero through twelve, with at most four sources per modality.
+An entity can have no request.
+An absent request grants no observation and creates no placeholder tensor.
+`acoustic` must appear exactly when pressure is selected; `thermal` must appear exactly when thermal cameras are selected.
+Zero-source and pressure-only plans import no graphics owner and require no graphics launcher.
+RGB-only plans require no thermal state or floating-point thermal capability.
+
+`prepare(plan, launcher, limits)` admits the complete plan and output storage before constructing the CPU or graphics owner.
+The optional limits contain original, receipt, and privileged control byte capacities.
+Insufficient capacities reject before construction.
+Requested images receive actual tick-zero readbacks before any motor write.
+These readiness pixels create no observation lease or produced-source identity.
+The separate source graphics profile is `crebain.owned-force-city-source-graphics.v1`.
+Existing aggregate graphics preparation, capture order, and process adapters retain their selected behavior.
+
+`advance(batch)` accepts the CPU owner's complete ordered set-or-hold batch.
+It performs one shared physical transition, then advances each selected forward model once.
+Pressure blocks retain the exact 133, 133, 134 sample cadence.
+Sparse pressure periods select one tick's block; they neither aggregate missing intervals nor fill them with zeros.
+Images are due when their period divides the completed tick.
+Unrequested and not-due measurements are different states.
+
+Acquisition copies pressure first, then RGB, then thermal; each modality follows the prepared request order.
+The published slot roster retains its original request order.
+Each slot is `not_due`, `produced`, `failed`, or `absent` after an identified acquisition failure.
+A produced slot joins entity, source, configuration, scene, executed tick, extent, original digest, and production digest.
+Its bytes come from the actual forward model or selected renderer readback.
+Privileged control bytes remain separate from all modality payloads and ordinary predictor inputs.
+
+The returned handle carries one local observation lease.
+`observation(handle)` returns frozen metadata.
+`readChunk(handle, requestId, digest, offset)` copies at most 32,768 original bytes.
+Offsets must begin on that chunk boundary and remain inside the selected original.
+`readControlChunk(handle, digest, offset)` provides a separate privileged mechanical and controller record.
+Copied handles, foreign sources, wrong digests, and released leases reject.
+`release(handle)` discards retained bytes before another advance.
+Release proves neither complete reading nor durable export; a containing application must enforce its promised export transaction.
+
+An invalid control row rejects before effects and leaves the active world unchanged.
+A later physical, model, integrity, or publication failure retires the component.
+Known physical completion remains separate from successful observation completion.
+If an actual source acquisition throws, complete earlier originals remain available through the failure-carried lease.
+Later due sources are explicitly absent; no failed source becomes a zero-valued success.
+Malformed source metadata cannot become a favorable partial batch.
+A receipt failure can leave no readable lease, even when some private storage was written.
+The original acquisition error, later receipt error, and cleanup errors remain separately inspectable.
+
+Cleanup is attempted once per component and unresolved cleanup stays unresolved.
+`componentCleanup` describes returned local cleanup calls only.
+`processRetirement=outside_component_scope` grants no browser or worker exit claim.
+Retained partial bytes remain private audit inputs until a containing process owner establishes its required retirement and transfer checks.
+The component supplies no deadline, forced termination, resume, successful Finish, checkpoint, or fork authority.
+Its caller must enforce process deadlines; a stuck rendering promise cannot establish cleanup.
+
+### Source storage and construction bounds
+
+Let `N` be the body count and `S` the total requested-source count.
+Let `B` sum `4*width*height` per image and `134*8` per microphone.
+Let `C=4096+32768*N` bound one encoded privileged CPU transition.
+Let `D=16384+256*N+4096*S` bound one encoded observation receipt.
+All quantities in these equations use bytes.
+
+Preparation allocates original storage `B`, privileged control storage `C`, and receipt storage `D` before engine construction.
+Their maxima are 27,857,088, 8,392,704, and 131,072 bytes respectively.
+The combined backing allocation is at most 36,380,864 bytes.
+The 256-body control bound exceeds an 8 MiB single-buffer limit by 4,096 bytes; callers must segment it.
+The receipt bound covers 64-byte identifiers, fixed digests, control selections, tensor metadata, and escaped bounded failure diagnostics.
+The implementation checks each encoded extent before returning a lease.
+
+Each RGB viewpoint retains one `4*width*height` readback buffer.
+Thermal acquisition shares one scratch buffer sized to the largest selected `16*width*height` RGBA32F readback.
+Their maxima are 26,214,400 and 1,638,400 bytes.
+Original thermal storage contains only its red radiance channel as little-endian Float32 values.
+Color targets reserve `4*width*height` per RGB camera and `16*width*height` per thermal camera.
+Their combined logical color extent is at most 32,768,000 bytes; depth attachments are additional driver resources.
+Tick-zero readiness exercises every selected fixed target and readback extent.
+
+The acoustic delay history uses `8*N*(ceil(range/sound_speed*16000)+2)` bytes, at most 13,985,792 bytes.
+One pressure block adds at most 4,288 bytes.
+Acoustic phases, noise state, thermal temperatures, and temporary path records are separately bounded by the entity and microphone counts.
+Scene construction creates both mesh projections and at most `64*6*8*8=24,576` authored Gaussians.
+The source profile uses the existing Spark sorting and scene implementation without a duplicate simulator.
+
+CPU transition construction temporarily reserves another `C`-byte return buffer through its own contract.
+Canonical JSON strings, plain-data copies, hash implementations, and small metadata objects consume additional runtime memory.
+The admitted plan encoding is at most 512 KiB; a graphics input encoding is at most 128 KiB.
+Each chunk call allocates at most 32,768 detached bytes; caller-retained copies require separate accounting.
+These bounds do not promise garbage-collection timing or total process, GPU, driver, or operating-system memory limits.
+`opaqueRuntimeMemoryBound=false` preserves that distinction.
+Retirement revokes advancement but retains audit storage while its lease remains owned.
+
+Source controls cover actual shared Rapier transitions and direct acoustic byte comparisons at 1, 2, 3, and 256 bodies.
+They cover zero, two, three, four, and twelve sources, maximum backing admission, and failed later-source retention.
+Graphics primitive controls verify aggregate parity and failure handling with synthetic readbacks.
+These tests establish no native GPU, installed application, tracking, or scientific qualification.
+The required 256-body native campaign needs its own frozen tracking, resource, source, process, and NCP acceptance checks.
+
 ## Ownership and public interfaces
 
 | Owner | Interface and meaning |
@@ -240,7 +356,8 @@ The [dynamics evidence summary](DETERMINISTIC_DYNAMICS.md#observed-controller-an
 RGB output contains awaited Spark and Three.js rasterization, with `rgba8-srgb` channels and a bottom-left row origin.
 Each camera has independent dimensions and an integer capture period.
 A camera emits only when its period divides the completed tick.
-The initial tick-zero image is not acquired automatically.
+The legacy aggregate owner does not acquire the initial tick-zero image automatically.
+The separate force-city source owner performs unpublished tick-zero readiness readbacks.
 
 The admitted Gaussian scene is static.
 The renderer prepares its fixed-origin Gaussian collection once, then sorts and renders each requested view.

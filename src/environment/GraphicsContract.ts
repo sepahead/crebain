@@ -18,6 +18,51 @@ export interface GraphicsInput {
     temperatureK: number
   }>
 }
+/** Separate source-level graphics profile; unrequested thermal physics is absent. */
+export interface SourceGraphicsPlan {
+  profile: 'crebain.owned-force-city-source-graphics.v1'
+  sourceIdentity: string
+  scene: SceneSpec
+  droneIds: string[]
+  thermal: ThermalConfig | null
+}
+export interface SourceGraphicsInput {
+  planSha256: string
+  tick: number
+  drones: Array<{
+    id: string
+    position: [number, number, number]
+    orientation: [number, number, number, number]
+    temperatureK: number | null
+  }>
+}
+export interface GraphicsSourceSelection {
+  kind: 'rgb' | 'thermal'
+  cameraId: string
+}
+export interface GraphicsSourceReceipt {
+  planSha256: string
+  inputSha256: string
+  tick: number
+  kind: 'rgb' | 'thermal'
+  cameraId: string
+  width: number
+  height: number
+  rowOrigin: 'bottom-left'
+  encoding: 'rgba8-srgb' | 'float32-le'
+  byteLength: number
+}
+/** Caller installs the real owner. Disposal here does not attest operating-system exit. */
+export interface SourceGraphicsPort {
+  readonly planSha256: string
+  captureSourceInto(
+    input: SourceGraphicsInput,
+    source: GraphicsSourceSelection,
+    destination: Uint8Array
+  ): Promise<GraphicsSourceReceipt>
+  retire(): void | Promise<void>
+}
+export type SourceGraphicsLauncher = (plan: SourceGraphicsPlan) => Promise<SourceGraphicsPort>
 export interface GraphicsFrames {
   planSha256: string
   inputSha256: string
