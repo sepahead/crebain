@@ -2,8 +2,8 @@
 
 This separate application uses one actual force-city world and one NCP endpoint.
 It admits 1–256 ordered entities and zero through twelve exclusive world-fixed source requests.
-The required native qualification target is 256 entities.
-Installed qualification, GPU qualification, and the frozen 256-entity campaign have not run.
+Installed cases exercised 256 entities, including twelve selected sources, through typed NCP.
+The [dated evidence](evidence/NATIVE_CITY_2026-09-23.md) separates delivery, expected failures, tracking observations, and remaining qualification limits.
 
 The Rust owner supplies closed NCP types and application admission.
 A private Bun process owns the actual `ForceCityEnvironment` and optional graphics process.
@@ -145,7 +145,8 @@ Session deadlines do not bound installation verification or interrupt an arbitra
 Construction controls exercise actual Rapier dynamics through Rust, Bun, and typed Python NCP calls.
 Pressure controls use actual native microphones; graphics controls use declared synthetic source implementations.
 They establish neither installed-source identity nor native GPU delivery, tracking, memory performance, or physical sensor calibration.
-The required operational target remains 256 entities with unchanged force-controller gains.
+The [installed campaign](evidence/NATIVE_CITY_2026-09-23.md) retained those gains and exercised selected 256-entity sensor and tracking cases.
+Available numerical checks passed, but continuous contact remains unverified and general tracking qualification stays open.
 Literal source failures must preserve earlier actual originals without relabeling shared-renderer loss as a known acquisition failure.
 Privileged fault injection requires separately frozen test fixtures; no peer-accessible fault option exists.
 

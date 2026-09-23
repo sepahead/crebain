@@ -357,6 +357,14 @@
       "visuals": ["assets/diagrams/ncp-sensor-transfer.svg"]
     },
     {
+      "path": "integrations/ncp-force-city-sources/evidence/NATIVE_CITY_2026-09-23.md",
+      "classification": "frozen-evidence",
+      "exemption": {
+        "kind": "dated-campaign-record",
+        "reason": "This dated record binds exact installed campaigns, outcomes, and unavailable evidence. Its tables preserve the distinct scopes without a diagram implying broader qualification."
+      }
+    },
+    {
       "path": "integrations/ncp-force-ground-sensors/FAMILY.md",
       "classification": "active-technical",
       "visuals": ["assets/diagrams/ncp-checkpoint-family.svg"]

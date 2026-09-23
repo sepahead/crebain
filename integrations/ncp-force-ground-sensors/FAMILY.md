@@ -1,6 +1,6 @@
 # Optional live checkpoint family
 
-This construction candidate exposes the existing native checkpoint owner through a separate typed NCP application.
+This optional application exposes the existing native checkpoint owner through a separate typed NCP application.
 It supports one canonical trajectory and a prospectively frozen roster of restored continuations.
 The admitted environment still contains one drone and zero city solids.
 The ordinary [sensor application](README.md) remains independently usable.
@@ -29,8 +29,12 @@ The parent remains live until every child closes and the checkpoint releases.
 | Restoration | Existing native fork with exact CPU reconstruction and fresh current static rendering |
 | Evaluation | One frozen pressure source, three complete ticks, and 400 original binary64 samples |
 | Source controls | Typed contracts, SDK lifecycle, actual private channels, synthetic native owners, and process cleanup |
-| Native family qualification | Not run; requires a separate immutable installed artifact and retained native evidence |
-| E1 experiment | Not complete; source controls supply no predictor-quality or scientific result |
+| Native family qualification | Installed one-drone E1 cases used exact CREBAIN `50f1e214a19f6778d581f1ebef375df3b4602ba9` |
+| E1 experiment | Eight qualification cases and 112 study episodes completed. The forecast result is null or inconclusive. |
+
+The [dated E1 evidence](https://github.com/sepahead/prisoma/blob/88ee414837d771a630bfa567d709e4175bb92fae/integrations/agent-bridge/evidence/E1_NATIVE_2026-09-23.md) binds the installed source, original captures, restored labels, and result.
+The three- and sixteen-endpoint construction controls retain their separate scope.
+The one-drone E1 result does not establish general predictor quality, policy benefit, or many-entity checkpoint qualification.
 
 The historical sensor, M1, and neural results retain their original scopes.
 They do not qualify this new family lifetime, checkpoint application, or evaluation operation.

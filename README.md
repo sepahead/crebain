@@ -152,15 +152,16 @@ NCP carries typed requests and observations; the host selects the controller and
 Its installed example completed 24 body ticks and eight NEST steps, with and without Prisoma recording.
 
 The separate [typed city application](integrations/ncp-force-city-sources/README.md) implements whole-roster actions and sparse world-fixed source requests for 1–256 entities.
-Its construction controls preserve complete shared physics, original payloads, and explicit source failures.
-Installed 256-entity execution, GPU transfer, tracking, and resource qualification remain separate operational gates.
+Its [installed evidence](integrations/ncp-force-city-sources/evidence/NATIVE_CITY_2026-09-23.md) includes 256-entity execution, actual GPU originals, optional recording, and explicit source failures.
+Available tracking checks passed.
+Continuous contact, general stability, timing, and opaque runtime memory remain unqualified.
 
 Prisoma uses CREBAIN as an environment for embodied-agent experiments.
 Prisoma owns forecasts, experiment ordering, comparisons, and recorded outcomes.
 Its [Agent Bridge](https://github.com/sepahead/prisoma/tree/main/integrations/agent-bridge) already records selected sensor execution through NCP.
-The complete learned forecast and independently restored outcome comparison remains open.
-The optional [live checkpoint family](integrations/ncp-force-ground-sensors/FAMILY.md) supplies its typed restoration and evaluation prerequisite as a construction candidate.
-It retains native owner authority and separate branch identities; native family qualification and E1 remain separate gates.
+Its [bounded E1 study](https://github.com/sepahead/prisoma/blob/88ee414837d771a630bfa567d709e4175bb92fae/integrations/agent-bridge/evidence/E1_NATIVE_2026-09-23.md) completed 112 episodes with a null or inconclusive forecast result.
+The optional [live checkpoint family](integrations/ncp-force-ground-sensors/FAMILY.md) supplies typed restoration and evaluation while retaining native owner authority and separate branch identities.
+General model and policy benefit remain unqualified.
 CREBAIN runs without Prisoma.
 
 The target paper workflow starts with Engram's review of PDF evidence.
@@ -192,7 +193,7 @@ Each composition needs its own exact application and evidence contract.
 The scalar profile emits one visual innovation modality.
 Galadriel retains its two-modality minimum and reports insufficiency on that input; it does not demonstrate multimodal tampering detection.
 No project is required for standalone CREBAIN.
-The many-drone city environment still needs a separate observation transport and applied-action/predictor-access contract for a complete Prisoma experiment.
+The city observation transport does not itself define applied-action or predictor-access rules for a complete Prisoma experiment.
 Raw simulated modalities do not establish independent statistical measurements or qualified fusion.
 Haldir and real vehicle actuation are outside the current local environment profile.
 
@@ -256,9 +257,10 @@ They do not establish model accuracy or physical deployment readiness.
 | Surface | Completed within the stated scope | Remaining work |
 | --- | --- | --- |
 | Standalone environment | Native dynamics, actual sensor output, and reconstructed branches | Larger-workload measurements and sensor calibration |
-| Typed NCP sensors | Selected sensor rosters, installed launcher, and complete payload transfer | Many-entity transport and its measured resource envelope |
+| Typed NCP sensors | Selected sensor rosters, installed launcher, and complete payload transfer | Resource measurements beyond the selected profiles |
+| Typed NCP city | Selected 256-entity delivery, retained originals, failure controls, and available tracking checks | Continuous contact, general tracking qualification, timing, and physical calibration |
 | Engram neural control | Installed explicit NEST/body loop and a fresh same-NEST comparison | Paper-derived experiment construction and broader controller profiles |
-| Prisoma | Optional transcript capture and a separate canonical sensor-execution adapter | Learned forecasts, applied-action comparison, and independently restored outcome labels |
+| Prisoma | Optional capture, canonical sensor execution, and a 112-episode E1 forecast/restored-label study with a null result | General model qualification and selected-policy benefit |
 | Galadriel | Separate advisory monitor for compatible evidence | A qualified application for this typed sensor composition |
 
 Galadriel is optional. Its alerts identify statistical inconsistency, without proving an attack or granting control authority.

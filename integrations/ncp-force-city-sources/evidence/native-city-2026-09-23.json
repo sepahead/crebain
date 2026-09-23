@@ -1,0 +1,802 @@
+{
+  "date": "2026-09-23",
+  "evidence_custody": {
+    "artifact_paths": "Relative names under the retained continuation custody root, not public download URLs.",
+    "originals": "Private operator custody; the public summary does not include original captures or detailed audit artifacts.",
+    "receipts": "Local observations and content joins, not scientific signatures.",
+    "retained_private_artifacts": [
+      {
+        "bytes": 1837,
+        "retained_path": "gates/city-adapter-source-002/publication.json",
+        "sha256": "ff313f193f0cc43bc5084171bb9b21a25f6a0aec768a648d326007c0b830265d"
+      },
+      {
+        "bytes": 1972,
+        "retained_path": "gates/city-adapter-source-002/complete-result.json",
+        "sha256": "32af10372e69de779aaa40cab18d02124d67f1ade2070a520e59b7d904dffcfe"
+      },
+      {
+        "bytes": 893,
+        "retained_path": "gates/city-adapter-root-review-002/result.json",
+        "sha256": "a262797043968c106701d7e85f4794a3e567c407d7415ad8295a29a0d71a4793"
+      },
+      {
+        "bytes": 746,
+        "retained_path": "gates/city-adapter-council-002/result.json",
+        "sha256": "bb97ade66264fd0dd5e0cf0113c5792358002b8333fb0a9ce3c77b8c74fe43d7"
+      },
+      {
+        "bytes": 28677,
+        "retained_path": "native/city-install-001/artifacts/installation-joins.json",
+        "sha256": "06a9f8b7b87b8606ae2d489b09122c3678880635cb3b1074e3ad0b41a6acb8ae"
+      },
+      {
+        "bytes": 2365,
+        "retained_path": "gates/city-install-council-001/result.json",
+        "sha256": "99bc5f09e7b52ab50a5a6c8f5b7d931c91659e609e12d39f0a88f257fc6e40b3"
+      },
+      {
+        "bytes": 1354,
+        "retained_path": "native/city-install-001/artifacts/transcript-joins.json",
+        "sha256": "7d0c6df23c8a99d355c56d989908f5402bbb1b6a26853b340eb205f1012ea9ec"
+      },
+      {
+        "bytes": 2638,
+        "retained_path": "gates/city-sensor-tools-cut-002/cut.json",
+        "sha256": "1fc8e35986665f9a0910092f2b542468cb473200e172b3f1a6c76019df27c7d5"
+      },
+      {
+        "bytes": 5372,
+        "retained_path": "gates/city-sensor-tools-cut-002/result.json",
+        "sha256": "e5f7be405b70356c107a0e8399ab60fcf3908dc7a4246c493d8766cc790781cb"
+      },
+      {
+        "bytes": 12926,
+        "retained_path": "gates/city-sensor-council-002/result.json",
+        "sha256": "fee27a667614cc4a6d0164f397a31fd935ef47e948b999797830ae30ea31af6d"
+      },
+      {
+        "bytes": 305257,
+        "retained_path": "native/city-sensor-campaign-001/freeze.json",
+        "sha256": "85f6995bab176f985b8f41ac5dcd307228355705e838d6d41fa77b8f3d4d177a"
+      },
+      {
+        "bytes": 3765,
+        "retained_path": "gates/city-sensor-freeze-root-001/result.json",
+        "sha256": "1a127452d7cafd8cf11deb07b84a5d5a22e31ddc01a3ed23a7a13069129f313f"
+      },
+      {
+        "bytes": 930,
+        "retained_path": "gates/city-sensor-native-command-001/result.json",
+        "sha256": "ffc9aa5022ba89b4a31f6a006b58617cd1d6fca7f253d88e4ea1e55c4e848fbc"
+      },
+      {
+        "bytes": 48731,
+        "retained_path": "native/city-sensor-campaign-001/execution.json",
+        "sha256": "b702cd8d41356797fa13342d2488217b82f89053fa313e0de70c2fef53ed0b00"
+      },
+      {
+        "bytes": 1755,
+        "retained_path": "gates/city-sensor-terminal-audit-001/result.json",
+        "sha256": "fda0d6693be1e3471cf797f558f839357a7c81a66cd95a4e19266d504e2f64dc"
+      },
+      {
+        "bytes": 60565,
+        "retained_path": "gates/city-sensor-terminal-audit-001/qualification.json",
+        "sha256": "63edba642e56d0a3fa255dd92231aa2ae3790988a27a96755c47626b3ba81cf0"
+      },
+      {
+        "bytes": 9606,
+        "retained_path": "gates/city-sensor-terminal-council-001/result.json",
+        "sha256": "763d8b69c26720d375f147b8b328565996d08ee2a412d4136647bd7ea8a9233c"
+      },
+      {
+        "bytes": 55149,
+        "retained_path": "gates/city-evidence-publication-plan-001/sensor-artifacts.json",
+        "sha256": "256f12e61811e734515a15f1e3ce6130ebf2cc1eba8c7baa9d0521d4be031d75"
+      },
+      {
+        "bytes": 74846,
+        "retained_path": "native/city-tracking-campaign-001/freeze.json",
+        "sha256": "3a085a3a0567afb0454cf4be461e782bb2f9cfe64481463e2a4c311682269e01"
+      },
+      {
+        "bytes": 919,
+        "retained_path": "gates/city-tracking-native-command-001/result.json",
+        "sha256": "bb0d660395c51d3b4b7ebed9eef4d15a1514f4650911d5b46733ce464921939f"
+      },
+      {
+        "bytes": 57144,
+        "retained_path": "native/city-tracking-campaign-001/outputs/result.json",
+        "sha256": "a68494b1b3552b813f269950a074091821ca65b162fc524b284214b1dd8df9db"
+      },
+      {
+        "bytes": 2257,
+        "retained_path": "gates/city-tracking-terminal-001/result.json",
+        "sha256": "14b014422f4f028ffad4f87aa56cd050516f25442aad6d24892d6d768f55622a"
+      },
+      {
+        "bytes": 1802049,
+        "retained_path": "gates/city-tracking-terminal-001/report.json",
+        "sha256": "aa42d1323d0e1aacc4a2600283842479e0df1498e207d9870e92c4e0a9db95de"
+      },
+      {
+        "bytes": 186858,
+        "retained_path": "gates/city-tracking-terminal-001/original-case-roster.json",
+        "sha256": "79aa397987b6cec7baa0bd28ebf332aa11398b0d636cb059ab7330d502de426b"
+      },
+      {
+        "bytes": 15849,
+        "retained_path": "gates/city-tracking-tools-005/result.json",
+        "sha256": "b6beb3fbc967c4185f4a6b26447df7ca1a9910a6aee59625e7bc697d6f774936"
+      },
+      {
+        "bytes": 22950,
+        "retained_path": "gates/city-tracking-council-005/result.json",
+        "sha256": "faab315c44e51d37500cfa6cd1b5ac3d1ed6663b745c3094ac50f150e6800885"
+      },
+      {
+        "bytes": 1405,
+        "retained_path": "gates/city-tracking-freeze-root-001/result.json",
+        "sha256": "85579a8ac80fb222e2848f03cc7400780fc9a10cb9b98cf5c02152fb0d08ceb7"
+      },
+      {
+        "bytes": 5715,
+        "retained_path": "gates/city-tracking-terminal-001/summary.json",
+        "sha256": "b5171a25f5457c90ae25a2047aa9258285fd40e4b8650bfd43a3088e900c9c8a"
+      },
+      {
+        "bytes": 3811,
+        "retained_path": "gates/city-tracking-plan-002/geometry.json",
+        "sha256": "80d1f57ec40c7e0c9aba18aed2785231a275cc2170defb9673dc9381409afb50"
+      },
+      {
+        "bytes": 55266,
+        "retained_path": "gates/city-tracking-plan-002/initial-rosters.json",
+        "sha256": "b94251a34b1162e4203bb6c6e20e2dc0825b6062ccbc12e3cd58805b2208cfe2"
+      },
+      {
+        "bytes": 295065,
+        "retained_path": "gates/city-tracking-plan-002/cases.json",
+        "sha256": "702084f1fba46a701ee2cc4b6392975f448f62ad2a178a16b4ba1bc5cfb454f2"
+      },
+      {
+        "bytes": 14788,
+        "retained_path": "gates/city-tracking-plan-002/proposal.json",
+        "sha256": "78a26ba2493be4894b036c18010439462f98d33fff5dcbf329526f9cefcd9a3d"
+      },
+      {
+        "bytes": 90033,
+        "retained_path": "native/city-install-001/artifacts/crebain_ncp_sensors-0.1.0-py3-none-any.whl",
+        "sha256": "64f9016811762fb3bd6fc238e2cb55c27eba0796ea012e49b863132a7774ee21"
+      },
+      {
+        "bytes": 6262868,
+        "retained_path": "native/city-install-001/runtime-002/runtime.json",
+        "sha256": "5960649d492a91a35cbf7a22aa339f387731e441b1293c847c85e9f521955f0a"
+      },
+      {
+        "bytes": 6362,
+        "retained_path": "gates/city-adapter-plan-001/native-cpu-controls-001.log",
+        "sha256": "ec1beb755d8533283b4d1cce91925e70b918c9e048466fc120881a5b1e687407"
+      },
+      {
+        "bytes": 207,
+        "retained_path": "gates/city-adapter-plan-001/native-cpu-controls-001-retained/crebain-sensors-p3ocnyxz/exit.json",
+        "sha256": "196085da7e06abb852e33bc543910a2d5320acf72aa07d9e5c53c2002904c8f5"
+      },
+      {
+        "bytes": 207,
+        "retained_path": "gates/city-adapter-plan-001/native-cpu-controls-001-retained/crebain-sensors-9dtz5f_5/exit.json",
+        "sha256": "f13b66d0050f7b25d808138a806cfd23f3c03878779cc5d38e4edb9c97ae4009"
+      }
+    ],
+    "simulator_rerun_during_terminal_audit": false
+  },
+  "historical_failures": {
+    "legacy_attitude_controller": "The unchanged legacy controller failures remain documented at the immutable operational source in docs/DETERMINISTIC_DYNAMICS.md.",
+    "prepublication_cpu_attempts": "Two failed native construction controls and their cleanup_confirmed=false receipts remain retained. Later source repairs and installed qualification have separate records.",
+    "replaced": false
+  },
+  "measurement_meaning": {
+    "heterogeneous_physical_models": false,
+    "isolated_emitter_measurement": false,
+    "mounted": false,
+    "recipient_motor_authority": false,
+    "shared_scene": true,
+    "unrequested_modalities_have_no_payload": true,
+    "world_fixed": true
+  },
+  "operational_source": {
+    "application": "crebain.ncp.force-city-sources.v1",
+    "commit": "3fe34a1c9dd5b4cd575f6f1c3950e8ba8e51521c",
+    "ncp_consumed_files_match_commit": "58fe8aea81498d2c89c76c0602385cc7a6f08397",
+    "ncp_consumed_source_files": 41,
+    "ncp_source_commit": "c0465d40f1f2b9df2caf9793183d11e65ac9ec74",
+    "repository": "https://github.com/sepahead/crebain",
+    "runtime_manifest_sha256": "5960649d492a91a35cbf7a22aa339f387731e441b1293c847c85e9f521955f0a",
+    "runtime_source_identity": "da18ad031d6ef5db3b13e2e210460fae3b5421e0b366cb5bc5618dc416a03270",
+    "source_gate": "validate:with-ncp-city",
+    "transcript_source_commit": "7a1730e4cc1c7a62fa207e2baa0d6f231454bd3f",
+    "transcript_wheel_sha256": "d8bd70274e44d2fef5b3133e6be3623f412535979980ad1974e51726bc7c3e39",
+    "tree": "8761a94dfeaac4abac961db298bf2b6d04d18ea6",
+    "wheel_sha256": "64f9016811762fb3bd6fc238e2cb55c27eba0796ea012e49b863132a7774ee21"
+  },
+  "publication_base": {
+    "commit": "f29f5bb3cab56ae4abd68e4b428d1076dc8bdc41",
+    "scope": "Documentation descendant only; selected operational source and installed runtime remain unchanged."
+  },
+  "qualification_limits": {
+    "continuous_contact_absence": null,
+    "external_monitor_qualified": false,
+    "loaded_code_attestation": false,
+    "neural_controller_qualified": false,
+    "physical_validation": false,
+    "release_qualified": false,
+    "timing_qualified": false,
+    "tracking_qualified": false
+  },
+  "schema": "crebain.city-native-evidence-summary.v1",
+  "sensor_delivery": {
+    "case_artifact_bytes": 76959079,
+    "cases": [
+      {
+        "acknowledged_terminal": true,
+        "acknowledged_tick": 3,
+        "capture": null,
+        "case_command_returncode": 0,
+        "case_id": "cpu256",
+        "cleanup_confirmed": true,
+        "entities": 256,
+        "expected_fault": null,
+        "forced": false,
+        "indeterminate_attempted_tick": null,
+        "observed_native_retirement": true,
+        "original_payload_bytes": 0,
+        "original_payloads": 0,
+        "prepared_horizon_ticks": 3,
+        "process_returncode": 0,
+        "requested_sources": 0,
+        "sampled_births_observed_retired": 4,
+        "source_kinds": [],
+        "source_period_ticks": [],
+        "validated_observed_tick": 3
+      },
+      {
+        "acknowledged_terminal": true,
+        "acknowledged_tick": 6,
+        "capture": {
+          "application_completion_validated": false,
+          "exchange_pairs": 82,
+          "finished_peers": 1,
+          "journal_bytes": 185604,
+          "journal_digest": "50c5a4a6325c0449c14ed219591dd6ec06e917908780504426ac9ac9914a5f49",
+          "peer_count": 1,
+          "pending_peer_operations": 0,
+          "scientific_validation": false,
+          "store_completion": "complete",
+          "unanswered_request": false
+        },
+        "case_command_returncode": 0,
+        "case_id": "pressure2",
+        "cleanup_confirmed": true,
+        "entities": 1,
+        "expected_fault": null,
+        "forced": false,
+        "indeterminate_attempted_tick": null,
+        "observed_native_retirement": true,
+        "original_payload_bytes": 9600,
+        "original_payloads": 9,
+        "prepared_horizon_ticks": 6,
+        "process_returncode": 0,
+        "requested_sources": 2,
+        "sampled_births_observed_retired": 4,
+        "source_kinds": ["pressure", "pressure"],
+        "source_period_ticks": [1, 2],
+        "validated_observed_tick": 6
+      },
+      {
+        "acknowledged_terminal": true,
+        "acknowledged_tick": 6,
+        "capture": {
+          "application_completion_validated": false,
+          "exchange_pairs": 100,
+          "finished_peers": 1,
+          "journal_bytes": 377159,
+          "journal_digest": "f5105362054cd652eb7f88dc91dfe06e1f43f11626e3b38428688ea03a49aaf6",
+          "peer_count": 1,
+          "pending_peer_operations": 0,
+          "scientific_validation": false,
+          "store_completion": "complete",
+          "unanswered_request": false
+        },
+        "case_command_returncode": 0,
+        "case_id": "mixed3",
+        "cleanup_confirmed": true,
+        "entities": 2,
+        "expected_fault": null,
+        "forced": false,
+        "indeterminate_attempted_tick": null,
+        "observed_native_retirement": true,
+        "original_payload_bytes": 125184,
+        "original_payloads": 11,
+        "prepared_horizon_ticks": 6,
+        "process_returncode": 0,
+        "requested_sources": 3,
+        "sampled_births_observed_retired": 11,
+        "source_kinds": ["rgb", "thermal", "pressure"],
+        "source_period_ticks": [2, 3, 1],
+        "validated_observed_tick": 6
+      },
+      {
+        "acknowledged_terminal": true,
+        "acknowledged_tick": 6,
+        "capture": null,
+        "case_command_returncode": 0,
+        "case_id": "mixed3_uncaptured",
+        "cleanup_confirmed": true,
+        "entities": 2,
+        "expected_fault": null,
+        "forced": false,
+        "indeterminate_attempted_tick": null,
+        "observed_native_retirement": true,
+        "original_payload_bytes": 125184,
+        "original_payloads": 11,
+        "prepared_horizon_ticks": 6,
+        "process_returncode": 0,
+        "requested_sources": 3,
+        "sampled_births_observed_retired": 13,
+        "source_kinds": ["rgb", "thermal", "pressure"],
+        "source_period_ticks": [2, 3, 1],
+        "validated_observed_tick": 6
+      },
+      {
+        "acknowledged_terminal": true,
+        "acknowledged_tick": 12,
+        "capture": {
+          "application_completion_validated": false,
+          "exchange_pairs": 238,
+          "finished_peers": 1,
+          "journal_bytes": 1402156,
+          "journal_digest": "df3e57b41893838f29d5ff42a30e8950ef3423320bb09ac90f6494977604cf8d",
+          "peer_count": 1,
+          "pending_peer_operations": 0,
+          "scientific_validation": false,
+          "store_completion": "complete",
+          "unanswered_request": false
+        },
+        "case_command_returncode": 0,
+        "case_id": "mixed4",
+        "cleanup_confirmed": true,
+        "entities": 3,
+        "expected_fault": null,
+        "forced": false,
+        "indeterminate_attempted_tick": null,
+        "observed_native_retirement": true,
+        "original_payload_bytes": 683136,
+        "original_payloads": 25,
+        "prepared_horizon_ticks": 12,
+        "process_returncode": 0,
+        "requested_sources": 4,
+        "sampled_births_observed_retired": 11,
+        "source_kinds": ["rgb", "rgb", "thermal", "pressure"],
+        "source_period_ticks": [1, 2, 3, 4],
+        "validated_observed_tick": 12
+      },
+      {
+        "acknowledged_terminal": true,
+        "acknowledged_tick": 1,
+        "capture": {
+          "application_completion_validated": false,
+          "exchange_pairs": 1768,
+          "finished_peers": 1,
+          "journal_bytes": 40285334,
+          "journal_digest": "4b2aaac8be1a5e02f54e0a0316301008c8ff7cdc8fca3d544ad435a74a1adaa3",
+          "peer_count": 1,
+          "pending_peer_operations": 0,
+          "scientific_validation": false,
+          "store_completion": "complete",
+          "unanswered_request": false
+        },
+        "case_command_returncode": 0,
+        "case_id": "maximum12",
+        "cleanup_confirmed": true,
+        "entities": 256,
+        "expected_fault": null,
+        "forced": false,
+        "indeterminate_attempted_tick": null,
+        "observed_native_retirement": true,
+        "original_payload_bytes": 27857056,
+        "original_payloads": 12,
+        "prepared_horizon_ticks": 1,
+        "process_returncode": 0,
+        "requested_sources": 12,
+        "sampled_births_observed_retired": 12,
+        "source_kinds": [
+          "rgb",
+          "rgb",
+          "rgb",
+          "rgb",
+          "thermal",
+          "thermal",
+          "thermal",
+          "thermal",
+          "pressure",
+          "pressure",
+          "pressure",
+          "pressure"
+        ],
+        "source_period_ticks": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        "validated_observed_tick": 1
+      },
+      {
+        "acknowledged_terminal": true,
+        "acknowledged_tick": 12,
+        "capture": {
+          "application_completion_validated": false,
+          "exchange_pairs": 552,
+          "finished_peers": 1,
+          "journal_bytes": 3058178,
+          "journal_digest": "f0ccb189f80fbc642cab4d0f578c72d605b6fc14585d5d77e03ef8036ed5e696",
+          "peer_count": 1,
+          "pending_peer_operations": 0,
+          "scientific_validation": false,
+          "store_completion": "complete",
+          "unanswered_request": false
+        },
+        "case_command_returncode": 0,
+        "case_id": "sparse12",
+        "cleanup_confirmed": true,
+        "entities": 256,
+        "expected_fault": null,
+        "forced": false,
+        "indeterminate_attempted_tick": null,
+        "observed_native_retirement": true,
+        "original_payload_bytes": 1050688,
+        "original_payloads": 75,
+        "prepared_horizon_ticks": 12,
+        "process_returncode": 0,
+        "requested_sources": 12,
+        "sampled_births_observed_retired": 12,
+        "source_kinds": [
+          "rgb",
+          "rgb",
+          "rgb",
+          "rgb",
+          "thermal",
+          "thermal",
+          "thermal",
+          "thermal",
+          "pressure",
+          "pressure",
+          "pressure",
+          "pressure"
+        ],
+        "source_period_ticks": [1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4],
+        "validated_observed_tick": 12
+      },
+      {
+        "acknowledged_terminal": false,
+        "acknowledged_tick": 2,
+        "capture": {
+          "application_completion_validated": false,
+          "exchange_pairs": 42,
+          "finished_peers": 0,
+          "journal_bytes": 242312,
+          "journal_digest": "71f6da7008d633a26aabb4a49ae1c13c6e7ad741ea945cb9d4b7193a9da03187",
+          "peer_count": 1,
+          "pending_peer_operations": 0,
+          "scientific_validation": false,
+          "store_completion": "aborted",
+          "unanswered_request": false
+        },
+        "case_command_returncode": 1,
+        "case_id": "acquisition",
+        "cleanup_confirmed": true,
+        "entities": 3,
+        "expected_fault": "acquisition",
+        "forced": false,
+        "indeterminate_attempted_tick": null,
+        "observed_native_retirement": true,
+        "original_payload_bytes": 114688,
+        "original_payloads": 4,
+        "prepared_horizon_ticks": 3,
+        "process_returncode": 0,
+        "requested_sources": 4,
+        "sampled_births_observed_retired": 12,
+        "source_kinds": ["rgb", "rgb", "thermal", "pressure"],
+        "source_period_ticks": [1, 1, 1, 3],
+        "validated_observed_tick": 2
+      },
+      {
+        "acknowledged_terminal": false,
+        "acknowledged_tick": 1,
+        "capture": {
+          "application_completion_validated": false,
+          "exchange_pairs": 29,
+          "finished_peers": 0,
+          "journal_bytes": 167316,
+          "journal_digest": "e386c41c0406a951aa2da0e90599ea137f3f3e3c3c8534c7b4588bdc43451cb1",
+          "peer_count": 1,
+          "pending_peer_operations": 1,
+          "scientific_validation": false,
+          "store_completion": "aborted",
+          "unanswered_request": false
+        },
+        "case_command_returncode": 1,
+        "case_id": "integrity",
+        "cleanup_confirmed": false,
+        "entities": 3,
+        "expected_fault": "integrity",
+        "forced": false,
+        "indeterminate_attempted_tick": 2,
+        "observed_native_retirement": false,
+        "original_payload_bytes": 77824,
+        "original_payloads": 3,
+        "prepared_horizon_ticks": 3,
+        "process_returncode": 1,
+        "requested_sources": 4,
+        "sampled_births_observed_retired": 12,
+        "source_kinds": ["rgb", "rgb", "thermal", "pressure"],
+        "source_period_ticks": [1, 1, 1, 3],
+        "validated_observed_tick": 1
+      },
+      {
+        "acknowledged_terminal": false,
+        "acknowledged_tick": 1,
+        "capture": {
+          "application_completion_validated": false,
+          "exchange_pairs": 29,
+          "finished_peers": 0,
+          "journal_bytes": 167316,
+          "journal_digest": "e6bb19ffc389931421a96da330ed7fd7a8f137e0bc5c300a46b3a117e8835475",
+          "peer_count": 1,
+          "pending_peer_operations": 1,
+          "scientific_validation": false,
+          "store_completion": "aborted",
+          "unanswered_request": false
+        },
+        "case_command_returncode": 1,
+        "case_id": "renderer_loss",
+        "cleanup_confirmed": false,
+        "entities": 3,
+        "expected_fault": "renderer_loss",
+        "forced": false,
+        "indeterminate_attempted_tick": 2,
+        "observed_native_retirement": false,
+        "original_payload_bytes": 77824,
+        "original_payloads": 3,
+        "prepared_horizon_ticks": 3,
+        "process_returncode": 1,
+        "requested_sources": 4,
+        "sampled_births_observed_retired": 12,
+        "source_kinds": ["rgb", "rgb", "thermal", "pressure"],
+        "source_period_ticks": [1, 1, 1, 3],
+        "validated_observed_tick": 1
+      }
+    ],
+    "expected_failed_operations": 3,
+    "ordinary_operations_completed": 7,
+    "original_payload_bytes": 30121184,
+    "original_payloads": 153,
+    "sampled_births_observed_retired": 103
+  },
+  "sensor_fault_interpretation": {
+    "acquisition": "A frozen private fixture throws at a selected source boundary after a real preceding RGB readback; known CPU tick2 completion retains earlier original bytes and ordered source outcomes. The operation stays failed.",
+    "cleanup_scope": "The two false cleanup receipts remain false despite observed retirement of sampled process identities; no complete descendant containment claim.",
+    "integrity": "A private fixture changes source receipt identity after a real readback; tick2 is attempted and indeterminate at the public boundary.",
+    "last_acknowledged_tick_scope": "Prefix of validated, acknowledged results; it does not bound possible physical execution after an indeterminate attempt.",
+    "renderer_loss": "A private fixture signals only the browser selected by owned birth, user, parent and executable identity; tick2 is attempted and indeterminate at the public boundary."
+  },
+  "sensor_resources": {
+    "admitted_maximum_batch_original_bytes": 27857088,
+    "batch_ceiling_pressure_samples_per_source": 134,
+    "frozen_case_artifact_capacity_bytes": 534280560,
+    "independently_rehashed_files": 280,
+    "independently_rehashed_logical_bytes": 77393776,
+    "maximum_case_pressure_samples_per_source": 133,
+    "observed_case_artifact_bytes": 76959079,
+    "observed_maximum_case_original_bytes": 27857056,
+    "scope": "Logical original and artifact capacities only; no opaque engine, browser, driver, allocator, RSS, GPU memory, or real-time bound."
+  },
+  "status": "selected_native_delivery_and_available_tracking_checks_passed_with_explicit_limits",
+  "tracking_observations": {
+    "accepted_transition_pairs": 31680,
+    "available_gates_passed": true,
+    "case_ids": [
+      "n001-family-rotation-01",
+      "n001-family-rotation-02",
+      "n001-family-rotation-03",
+      "n001-family-rotation-04",
+      "n001-family-rotation-05",
+      "n001-family-rotation-06",
+      "n001-family-rotation-07",
+      "n001-family-rotation-08",
+      "n001-family-rotation-09",
+      "n001-family-rotation-10",
+      "n001-family-rotation-11",
+      "n001-family-rotation-12",
+      "n001-matched-hold",
+      "n002-family-rotation-00",
+      "n002-family-rotation-01",
+      "n002-family-rotation-02",
+      "n002-family-rotation-03",
+      "n002-family-rotation-04",
+      "n002-family-rotation-05",
+      "n002-family-rotation-06",
+      "n002-family-rotation-07",
+      "n002-family-rotation-08",
+      "n002-family-rotation-09",
+      "n002-family-rotation-10",
+      "n002-family-rotation-11",
+      "n002-family-rotation-12",
+      "n002-matched-hold",
+      "n003-family-rotation-00",
+      "n003-family-rotation-01",
+      "n003-family-rotation-02",
+      "n003-family-rotation-03",
+      "n003-family-rotation-04",
+      "n003-family-rotation-05",
+      "n003-family-rotation-06",
+      "n003-family-rotation-07",
+      "n003-family-rotation-08",
+      "n003-family-rotation-09",
+      "n003-family-rotation-10",
+      "n003-family-rotation-11",
+      "n003-family-rotation-12",
+      "n003-matched-hold",
+      "n256-family-rotation-00",
+      "n256-family-rotation-01",
+      "n256-matched-hold"
+    ],
+    "completed_executions": 176,
+    "continuous_contact_absence": null,
+    "counts": [
+      {
+        "commands": 52,
+        "entities_per_world": 1,
+        "paired_comparisons": 26,
+        "paired_entity_case_records": 26,
+        "selected_cases": 13
+      },
+      {
+        "commands": 56,
+        "entities_per_world": 2,
+        "paired_comparisons": 28,
+        "paired_entity_case_records": 56,
+        "selected_cases": 14
+      },
+      {
+        "commands": 56,
+        "entities_per_world": 3,
+        "paired_comparisons": 28,
+        "paired_entity_case_records": 84,
+        "selected_cases": 14
+      },
+      {
+        "commands": 12,
+        "entities_per_world": 256,
+        "paired_comparisons": 6,
+        "paired_entity_case_records": 1536,
+        "selected_cases": 3
+      }
+    ],
+    "failed_criteria": [],
+    "family_record_counts": {
+      "altitude_negative": 88,
+      "altitude_positive": 88,
+      "baseline_attitude_hold": 612,
+      "baseline_pitch_negative": 92,
+      "baseline_pitch_positive": 92,
+      "baseline_roll_negative": 92,
+      "baseline_roll_positive": 92,
+      "heading_negative": 92,
+      "heading_positive": 92,
+      "pitch_boundary": 88,
+      "roll_boundary": 90,
+      "tilted_heading_negative": 92,
+      "tilted_heading_positive": 92
+    },
+    "frequency_hz": 120,
+    "historical_failures_replaced": false,
+    "joined_distinct_reference_states": 31768,
+    "measurement_scope": "Numerical criteria use the 120-sample window at ticks 241 through 360. Mechanical checks cover every transition. Shared deterministic simulator records are not independent physical replicates.",
+    "mechanical_check_counts": {
+      "allocation": 1702,
+      "feedback": 1702,
+      "motor_bounds": 1702,
+      "rotor_equations": 1702,
+      "state_envelope": 1702
+    },
+    "numerical_check_counts": {
+      "altitude": 1702,
+      "matched_altitude_response": 176,
+      "motor_endpoints": 1702,
+      "original_hold_attitude": 612,
+      "rotation": 1702,
+      "signed_axis_angle": 368,
+      "signed_axis_velocity": 368,
+      "vertical_velocity": 1702
+    },
+    "observed_births_retired": 440,
+    "original_capture_bytes": 343397862,
+    "original_direct_export_bytes": 5797548796,
+    "original_direct_exports": 95216,
+    "paired_direct_ncp_comparisons": 88,
+    "paired_entity_case_records": 1702,
+    "per_entity_acceptance": {
+      "all_entities_required": true,
+      "finite_values_and_unchanged_existing_state_envelope": true,
+      "full_rotation_rms_rad_max": 0.05,
+      "max_altitude_error_m": 2.0,
+      "motor_endpoint_fraction_max": 0.1,
+      "no_aggregated_average_can_hide_failed_entity": true,
+      "original_hold_max_abs_roll_pitch_rad": 0.05,
+      "original_signed_mean_velocity_mps_min": 0.02,
+      "original_single_axis_rms_rad_max": 0.015,
+      "signed_altitude_contrast_vs_same_entity_matched_hold_m_min": 0.1,
+      "vertical_mean_abs_velocity_mps_max": 0.5,
+      "window_ticks": [241, 360]
+    },
+    "physical_validation": false,
+    "planned_executions": 176,
+    "public_original_exchange_pairs": 127072,
+    "release_qualified": false,
+    "repeat_agreement_row_flags": 88,
+    "required_contact_gate": "Continuous within-step contact absence remains unavailable; stored final narrow-phase manifolds alone do not satisfy it.",
+    "sampled_contact_clear_pair_records": 88,
+    "shared_host": true,
+    "status": "PASS_AVAILABLE_FROZEN_GATES_WITH_CONTINUOUS_CONTACT_HOLD",
+    "ticks_per_execution": 360,
+    "timing_qualified": false,
+    "tracking_qualified": false,
+    "unique_cases_with_exact_repeat_agreement": 44,
+    "value_ranges": {
+      "max_abs_roll_pitch_rad": {
+        "max": 0.09644428528820524,
+        "min": 0.0,
+        "records": 1702
+      },
+      "max_altitude_error_m": {
+        "max": 0.7866592407226562,
+        "min": 0.19324874877929688,
+        "records": 1702
+      },
+      "mean_abs_vy_mps": {
+        "max": 0.3733843172589938,
+        "min": 0.08675931418935458,
+        "records": 1702
+      },
+      "mean_y_m": {
+        "max": 51.91266934076945,
+        "min": 49.35188554128011,
+        "records": 1702
+      },
+      "motor_endpoint_fraction": {
+        "max": 0.0,
+        "min": 0.0,
+        "records": 1702
+      },
+      "rotation_rms_rad": {
+        "max": 0.008337319279955673,
+        "min": 0.0,
+        "records": 1702
+      },
+      "signed_axis_rms_rad": {
+        "max": 0.002224857278086292,
+        "min": 0.002224836725621488,
+        "records": 368
+      },
+      "signed_mean_velocity_mps": {
+        "max": 0.4060437875489394,
+        "min": 0.40604378034671146,
+        "records": 368
+      },
+      "signed_mean_y_contrast_m": {
+        "max": 0.2957635243733705,
+        "min": 0.2650202751159654,
+        "records": 176
+      }
+    }
+  }
+}

@@ -366,10 +366,11 @@ They reject an invalid later row before effects and inject failures after the fi
 They also test target lineage, complete rosters, output admission, original errors, uncertain execution, and cleanup failures.
 The existing force-ground checkpoint and fork controls remain required.
 
-This component supplies no city NCP application, renderer, sensor output, mounted modality, or per-entity sensor authority.
-Shared scene observations do not satisfy a requirement for independently attributable per-entity sensor failures.
-Those semantics remain unresolved and cannot be filled with replicated association rows.
-City stability, installed execution, resource qualification, and complete 256-drone end-to-end operation remain unqualified.
+This CPU component supplies no renderer, sensor output, mounted modality, or per-entity sensor authority.
+The separate [city application](../integrations/ncp-force-city-sources/README.md) assigns distinct world-fixed source requests to entity recipients and preserves individual due and failure states.
+Its [installed evidence](../integrations/ncp-force-city-sources/evidence/NATIVE_CITY_2026-09-23.md) covers selected 256-entity delivery and available tracking checks.
+Recipient identity does not create mounted measurements or independent physical observations.
+Continuous contact, general stability, timing, and opaque runtime memory remain unqualified.
 
 ## Complete state and replay
 
