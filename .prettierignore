@@ -36,3 +36,6 @@ public/
 integrations/ncp-force-ground-sensors/contracts/*.json
 integrations/ncp-force-ground-sensors/python/crebain_ncp_sensors/contracts/*.json
 integrations/ncp-force-ground-sensors/rust/
+integrations/ncp-force-city-sources/contracts/*.json
+integrations/ncp-force-city-sources/rust/
+integrations/ncp-force-ground-sensors/python/crebain_ncp_sensors/city/contracts/*.json

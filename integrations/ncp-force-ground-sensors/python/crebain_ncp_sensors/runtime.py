@@ -234,6 +234,7 @@ class InstalledRuntime:
     _schema: ClassVar[str] = SCHEMA
     _producer: ClassVar[str] = PRODUCER
     _bridge: ClassVar[str] = BRIDGE
+    _dependency: ClassVar[str] = DEPENDENCY
     _requires_graphics: ClassVar[bool] = False
 
     @property
@@ -281,7 +282,7 @@ class InstalledRuntime:
         for row in source["files"]:
             require(selected.get(row["path"]) == row, "installed Git source changed")
         source_names = {row["path"] for row in source["files"]}
-        require({cls._bridge, DEPENDENCY, "package.json", "bun.lock", "LICENSE-MIT", "LICENSE-APACHE"}
+        require({cls._bridge, cls._dependency, "package.json", "bun.lock", "LICENSE-MIT", "LICENSE-APACHE"}
                 <= source_names, "complete source entrypoints required")
         leaves = {row["path"] for row in actual if row["kind"] != "directory"}
         require(leaves == source_names | {"bunfig.toml", "node_modules"}, "unselected project file")
@@ -293,7 +294,7 @@ class InstalledRuntime:
         check_package_roots(project, modules, graphics=node is not None)
         require(not any(Path(name).name.startswith(".env") and Path(name).name != ".env.example"
                         for name in source_names), "dotenv runtime configuration is not selected")
-        dependency = json.loads((project / DEPENDENCY).read_bytes(), object_pairs_hook=_pairs)
+        dependency = json.loads((project / cls._dependency).read_bytes(), object_pairs_hook=_pairs)
         require({name: dependency.get(name) for name in ("commit", "tree")} == value["ncp"],
                 "staged NCP contract differs")
         producer = prefix / "bin" / cls._producer
@@ -323,3 +324,13 @@ class InstalledFamilyRuntime(InstalledRuntime):
     _producer = FAMILY_PRODUCER
     _bridge = FAMILY_BRIDGE
     _requires_graphics = True
+
+
+class InstalledCityRuntime(InstalledRuntime):
+    """Explicit shared-world city selection; source admission is not native qualification."""
+
+    _schema = "crebain.installed-force-city-runtime.v1"
+    _producer = "crebain-ncp-force-city-sources"
+    _bridge = "integrations/ncp-force-city-sources/bridge/main.ts"
+    _dependency = "integrations/ncp-force-city-sources/contracts/dependency-source.v1.json"
+    _requires_graphics = False

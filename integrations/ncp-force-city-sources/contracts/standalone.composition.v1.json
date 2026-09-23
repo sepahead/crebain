@@ -1,0 +1,12 @@
+{
+  "schema": "crebain.standalone-city-source-composition.v1",
+  "producer_application_digest": "de05b5b9e8586d50702847aa4e6f097172e9c3ecb0eb8ba7355c58832eccefbf",
+  "roles": [
+    "producer"
+  ],
+  "controller_authority": "explicit-trusted-host-complete-roster",
+  "capture": "optional-host-exchange",
+  "monitor": "absent",
+  "neural": "absent",
+  "experiment": "absent"
+}

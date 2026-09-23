@@ -39,6 +39,7 @@ has no vehicle-authority path.
 - [CREBAIN managed simulation](../integrations/engram/managed-simulation/README.md) — Host API 2.0 schemas, tick order, receipts, packaging, and simulator-only boundaries
 - [Native NCP simulation](NATIVE_NCP_SIMULATION.md) — Bounded local body process, source binding, actual application, and failure limits
 - [Optional live checkpoint family](../integrations/ncp-force-ground-sensors/FAMILY.md) — Typed live restoration, separate branch peers, pressure evaluation, and source-only qualification limits
+- [Optional typed city application](../integrations/ncp-force-city-sources/README.md) — Whole-roster control, sparse world-fixed sources, original-byte retention, and separate installation selection
 - [Native simulation kernel](NATIVE_SIMULATION_KERNEL.md) — Project-local kernel reuse, actual innovation recording, and numerical parity limits
 
 ## Plant foundation (inactive/unwired candidates)

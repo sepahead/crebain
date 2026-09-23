@@ -135,7 +135,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "c0151adb4c49f798f29e879e20f74c2a49ff7aa841693a8a3eae1a80df6be3f0"
+      "sha256": "4c95913623c235d2ceba45fb6d4492e9d1abe6fbaf82533042c2cca458ff5d53"
     },
     {
       "path": "bun.lock",

@@ -151,6 +151,10 @@ CREBAIN owns physics, sensor generation, and action application.
 NCP carries typed requests and observations; the host selects the controller and optional recording.
 Its installed example completed 24 body ticks and eight NEST steps, with and without Prisoma recording.
 
+The separate [typed city application](integrations/ncp-force-city-sources/README.md) implements whole-roster actions and sparse world-fixed source requests for 1–256 entities.
+Its construction controls preserve complete shared physics, original payloads, and explicit source failures.
+Installed 256-entity execution, GPU transfer, tracking, and resource qualification remain separate operational gates.
+
 Prisoma uses CREBAIN as an environment for embodied-agent experiments.
 Prisoma owns forecasts, experiment ordering, comparisons, and recorded outcomes.
 Its [Agent Bridge](https://github.com/sepahead/prisoma/tree/main/integrations/agent-bridge) already records selected sensor execution through NCP.
@@ -225,6 +229,7 @@ bun run validate:all
 The complete local gate covers frontend checks, contracts, managed simulation, the native local NCP package, inert plant, and applicable Rust targets.
 Typed sensor changes also require the [explicit construction gate](integrations/ncp-force-ground-sensors/README.md#construction-and-qualification).
 Its `validate:with-ncp-sensors` aggregate requires an explicitly selected NCP checkout; standalone `validate:all` does not require that optional dependency.
+City adapter changes require `validate:with-ncp-city`, which also runs the sensor and complete source gates.
 Focused backend commands are `bun run check:rust`, `bun run test:rust`, and `bun run clippy:rust`.
 Documentation checks are `bun run check:docs-visuals` and `git diff --check`.
 

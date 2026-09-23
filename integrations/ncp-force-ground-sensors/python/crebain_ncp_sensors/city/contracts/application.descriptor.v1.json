@@ -1,0 +1,23 @@
+{
+  "schema": "crebain.ncp.force-city-sources.v1",
+  "status": "construction-candidate",
+  "role": "standalone-shared-world-source-producer",
+  "types_schema_sha256": "9a78200c0b4d1e4aa27bb702932dc68a59f0ac6a631aa9e23534f09f2ffa3213",
+  "operations": [
+    "prepare",
+    "application",
+    "buffer_read",
+    "buffer_release",
+    "finish",
+    "abort"
+  ],
+  "imports": "uninhabited",
+  "composition_policy": "trusted-host-whole-roster-no-required-peers",
+  "maximum_entities": 256,
+  "maximum_sources": 12,
+  "maximum_sources_per_modality": 4,
+  "maximum_outstanding_batches": 1,
+  "maximum_encoded_application_result_bytes": 49152,
+  "maximum_application_original_bytes": 27857088,
+  "qualified_scope": "none until exact source and installed gates pass"
+}

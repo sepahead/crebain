@@ -1,0 +1,46 @@
+{
+  "schema": "crebain.sensor-radiance.v1",
+  "tensor": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "kind",
+      "dtype",
+      "shape",
+      "layout",
+      "row_origin",
+      "unit"
+    ],
+    "properties": {
+      "kind": {
+        "const": "radiance"
+      },
+      "dtype": {
+        "const": "f32le"
+      },
+      "shape": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 2,
+        "items": {
+          "type": "integer",
+          "minimum": 8,
+          "maximum": 320
+        }
+      },
+      "layout": {
+        "const": "c_contiguous"
+      },
+      "row_origin": {
+        "const": "bottom-left"
+      },
+      "unit": {
+        "const": "W/(m2 sr)"
+      }
+    }
+  },
+  "time": "source_body_tick=available_after_body_tick=k; t=k/120 seconds",
+  "raw_bit_preservation": true,
+  "floating_point_policy": "finite; signed zero preserved",
+  "meaning": "actual source bolometric gray-surface float32-le radiance, finite [0,10000]"
+}

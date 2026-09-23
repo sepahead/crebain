@@ -103,7 +103,7 @@ def _selected_executable(path):
     return runtime.file_record(result)
 
 
-def build_producer(composition, build, *, family=False):
+def build_producer(composition, build, *, family=False, _city=False):
     """Use an already-installed toolchain; Cargo cannot fetch dependencies."""
     rustup = shutil.which("rustup")
     runtime.require(rustup is not None, "Rustup and the declared installed toolchain are required")
@@ -114,7 +114,8 @@ def build_producer(composition, build, *, family=False):
     environment = {key: value for key, value in os.environ.items()
                    if not key.startswith(("CARGO_", "RUST", "CC", "CXX", "DYLD_", "LD_"))}
     environment.update(RUSTC=rustc, RUSTUP_TOOLCHAIN=TOOLCHAIN, CARGO_NET_OFFLINE="true")
-    producer = runtime.FAMILY_PRODUCER if family else runtime.PRODUCER
+    runtime.require(type(_city) is bool and not (family and _city), "one producer selector required")
+    producer = runtime.InstalledCityRuntime._producer if _city else runtime.FAMILY_PRODUCER if family else runtime.PRODUCER
     command = [cargo, "build", "--locked", "--offline", "--release", "--bin", producer, "--manifest-path",
                str(composition / "application/Cargo.toml"), "--target-dir", str(build / "target")]
     (build / "command.json").write_text(json.dumps({"argv": command, "toolchain": TOOLCHAIN}, indent=2) + "\n")
@@ -187,6 +188,17 @@ def install(ncp_source, output, bun, *, node=None, browser_root=None, root=ROOT,
     runtime.require((node is None) == (browser_root is None), "select Node and browser root together")
     runtime.require(type(family) is bool and (not family or node is not None), "family installation requires selected Node and browser")
     selected_class = runtime.InstalledFamilyRuntime if family else runtime.InstalledRuntime
+    return _install(ncp_source, output, bun, node=node, browser_root=browser_root, root=root,
+                    selected_class=selected_class)
+
+
+def _install(ncp_source, output, bun, *, node, browser_root, root, selected_class):
+    """Shared byte-custody mechanism; only fixed source-owned selectors are accepted."""
+    runtime.require(selected_class in (runtime.InstalledRuntime, runtime.InstalledFamilyRuntime,
+                                      runtime.InstalledCityRuntime), "fixed runtime selector required")
+    runtime.require((node is None) == (browser_root is None), "select Node and browser root together")
+    runtime.require(not selected_class._requires_graphics or node is not None,
+                    "this selector requires selected graphics")
     root = root.resolve(strict=True)
     ncp_source = ncp_source.resolve(strict=True)
     runtime.require(output.is_absolute() and not output.exists() and not output.is_symlink(),
@@ -224,10 +236,16 @@ def install(ncp_source, output, bun, *, node=None, browser_root=None, root=ROOT,
     check_vendors(project, Path(selected_bun["path"]), build / "vendor-preflight.log")
     if selected_node is not None:
         check_browser(project, Path(selected_node["path"]), browser_root)
-    compose = _module("crebain_selected_runtime_compose", project / "integrations/ncp-force-ground-sensors/compose.py")
+    compose_path = Path(selected_class._dependency).parents[1] / "compose.py"
+    compose = _module("crebain_selected_runtime_compose", project / compose_path)
     composition = build / "composition"
     receipt = compose.compose(ncp_source, composition)
-    built = build_producer(composition, build, family=True) if family else build_producer(composition, build)
+    if selected_class is runtime.InstalledFamilyRuntime:
+        built = build_producer(composition, build, family=True)
+    elif selected_class is runtime.InstalledCityRuntime:
+        built = build_producer(composition, build, _city=True)
+    else:
+        built = build_producer(composition, build)
     binary = output / "bin"
     binary.mkdir(mode=0o700)
     producer = binary / selected_class._producer

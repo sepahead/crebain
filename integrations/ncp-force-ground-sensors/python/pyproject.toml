@@ -19,7 +19,9 @@ Documentation = "https://github.com/sepahead/crebain/tree/main/integrations/ncp-
 Issues = "https://github.com/sepahead/crebain/issues"
 
 [tool.setuptools.packages.find]
-include = ["crebain_ncp_sensors"]
+include = ["crebain_ncp_sensors", "crebain_ncp_sensors.city"]
 
 [tool.setuptools.package-data]
 crebain_ncp_sensors = ["contracts/*.json", "py.typed"]
+
+"crebain_ncp_sensors.city" = ["contracts/*.json"]

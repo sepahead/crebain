@@ -7,6 +7,10 @@ For privileged checkpoint labeling, use the separately selected [live-family API
 It requires its own family runtime and frozen endpoint roster.
 Ordinary sensor sessions receive no checkpoint or evaluation capability.
 
+The separately selected [city API](../../ncp-force-city-sources/README.md) lives in `crebain_ncp_sensors.city` within this distribution.
+It requires `InstalledCityRuntime` and its own typed preparation; scalar and family runtimes cannot authorize city sessions.
+City construction controls do not establish installed 256-entity qualification.
+
 The optional `crebain-ncp-sensors` package installs its pinned NCP v1 SDK automatically.
 It includes the exact owned application, composition, schema, and sensor contract files.
 The reader verifies their application, composition, semantic, and schema commitments before use.

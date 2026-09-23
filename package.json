@@ -104,7 +104,9 @@
     "validate:ncp-simulation": "bun run fmt:ncp-simulation:check && bun run check:ncp-simulation && bun run test:ncp-simulation && bun run clippy:ncp-simulation && bun run doc:ncp-simulation",
     "validate:ncp-sensors": "python3 integrations/ncp-force-ground-sensors/check.py",
     "validate:with-ncp-sensors": "bun run validate:ncp-sensors && bun run validate:all",
-    "check:source-graphics": "node --experimental-vm-modules --test scripts/test-source-graphics-codec.mjs scripts/test-source-graphics-runtime.mjs scripts/test-source-graphics-process.mjs scripts/test-source-graphics-worker.mjs"
+    "check:source-graphics": "node --experimental-vm-modules --test scripts/test-source-graphics-codec.mjs scripts/test-source-graphics-runtime.mjs scripts/test-source-graphics-process.mjs scripts/test-source-graphics-worker.mjs",
+    "validate:ncp-city": "python3 integrations/ncp-force-city-sources/check.py",
+    "validate:with-ncp-city": "bun run validate:ncp-city && bun run validate:with-ncp-sensors"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "0.19.3",

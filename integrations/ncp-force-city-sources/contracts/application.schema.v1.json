@@ -1,0 +1,1837 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "crebain.ncp.force-city-sources.types.v1",
+  "$comment": "Fixed installed city application types; source qualification is separate from native qualification.",
+  "$defs": {
+    "Vec3": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "number",
+        "minimum": -1000,
+        "maximum": 1000
+      }
+    },
+    "Material": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "linearRgb",
+        "gaussianOpacity",
+        "temperatureK",
+        "emissivity"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+        },
+        "linearRgb": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "gaussianOpacity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "temperatureK": {
+          "type": "number",
+          "minimum": 150,
+          "maximum": 800
+        },
+        "emissivity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "Acoustic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "sampleRateHz",
+        "soundSpeedMps",
+        "maximumRangeM",
+        "referenceDistanceM",
+        "referencePressurePa",
+        "bladeCount",
+        "blockedGain",
+        "noiseStdPa",
+        "seed"
+      ],
+      "properties": {
+        "profile": {
+          "const": "crebain.discrete-direct-acoustic.v1"
+        },
+        "sampleRateHz": {
+          "const": 16000
+        },
+        "soundSpeedMps": {
+          "type": "number",
+          "minimum": 300,
+          "maximum": 400
+        },
+        "maximumRangeM": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 128
+        },
+        "referenceDistanceM": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 128
+        },
+        "referencePressurePa": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "bladeCount": {
+          "const": 2
+        },
+        "blockedGain": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "noiseStdPa": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        }
+      }
+    },
+    "Thermal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "ambientK",
+        "initialK",
+        "capacityJPerK",
+        "areaM2",
+        "convectionWPerM2K",
+        "emissivity",
+        "motorEfficiency"
+      ],
+      "properties": {
+        "profile": {
+          "const": "crebain.lumped-gray-thermal.v1"
+        },
+        "ambientK": {
+          "type": "number",
+          "minimum": 150,
+          "maximum": 400
+        },
+        "initialK": {
+          "type": "number",
+          "minimum": 150,
+          "maximum": 800
+        },
+        "capacityJPerK": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 100000
+        },
+        "areaM2": {
+          "type": "number",
+          "minimum": 0.001,
+          "maximum": 100
+        },
+        "convectionWPerM2K": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "emissivity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "motorEfficiency": {
+          "type": "number",
+          "minimum": 0.05,
+          "maximum": 1
+        }
+      }
+    },
+    "Tensor": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/RgbaTensor"
+        },
+        {
+          "$ref": "#/$defs/RadianceTensor"
+        },
+        {
+          "$ref": "#/$defs/PressureTensor"
+        }
+      ]
+    },
+    "BufferBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile_digest",
+        "application_digest",
+        "run_id",
+        "endpoint_id",
+        "generation"
+      ],
+      "properties": {
+        "profile_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "application_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "run_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "endpoint_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "generation": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        }
+      }
+    },
+    "BufferManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "binding",
+        "buffer_id",
+        "creating_request_digest",
+        "causal_predecessor",
+        "semantic_digest",
+        "byte_length",
+        "payload_sha256",
+        "chunk_bytes",
+        "chunk_count",
+        "imported_manifest_digest",
+        "manifest_digest"
+      ],
+      "properties": {
+        "schema": {
+          "const": "ncp.modular.buffer-manifest.v1"
+        },
+        "binding": {
+          "$ref": "#/$defs/BufferBinding"
+        },
+        "buffer_id": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "creating_request_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "causal_predecessor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "semantic_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "byte_length": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8388608
+        },
+        "payload_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "chunk_bytes": {
+          "const": 32768
+        },
+        "chunk_count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 256
+        },
+        "imported_manifest_digest": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "manifest_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "ControllerReference": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number",
+          "minimum": -99999,
+          "maximum": 99999
+        },
+        {
+          "type": "number",
+          "minimum": -3.141592653589793,
+          "maximum": 3.141592653589793
+        }
+      ],
+      "items": false,
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "Solid": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "center",
+        "half_extents",
+        "yaw",
+        "friction",
+        "restitution",
+        "material_index"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+        },
+        "center": {
+          "$ref": "#/$defs/Vec3"
+        },
+        "half_extents": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0.01,
+            "maximum": 100
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "yaw": {
+          "type": "number",
+          "minimum": -3.141592653589793,
+          "maximum": 3.141592653589793
+        },
+        "friction": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2
+        },
+        "restitution": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "material_index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 15
+        }
+      }
+    },
+    "World": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "engine_model",
+        "frame",
+        "horizon_ticks",
+        "action_budget",
+        "entity_ids",
+        "initial_positions",
+        "controller_references"
+      ],
+      "properties": {
+        "profile": {
+          "const": "crebain.rapier-force-city.v1"
+        },
+        "engine_model": {
+          "const": "rapier-0.19.3-observed-no-gyro-v1"
+        },
+        "frame": {
+          "const": "three-y-up-z-forward-m"
+        },
+        "horizon_ticks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7200
+        },
+        "action_budget": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4096
+        },
+        "entity_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+          },
+          "minItems": 1,
+          "maxItems": 256
+        },
+        "initial_positions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Vec3"
+          },
+          "minItems": 1,
+          "maxItems": 256
+        },
+        "controller_references": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ControllerReference"
+          },
+          "minItems": 1,
+          "maxItems": 256
+        }
+      }
+    },
+    "Scene": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "materials",
+        "solids"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+        },
+        "materials": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Material"
+          },
+          "minItems": 1,
+          "maxItems": 16
+        },
+        "solids": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Solid"
+          },
+          "minItems": 0,
+          "maxItems": 64
+        }
+      }
+    },
+    "RGBRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request_id",
+        "source_id",
+        "entity_index",
+        "scope",
+        "position",
+        "publication_period_ticks",
+        "kind",
+        "target",
+        "width",
+        "height",
+        "fov_degrees",
+        "rendering_mode"
+      ],
+      "properties": {
+        "request_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+        },
+        "source_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+        },
+        "entity_index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        "scope": {
+          "const": "entity_requested_world_fixed"
+        },
+        "position": {
+          "$ref": "#/$defs/Vec3"
+        },
+        "publication_period_ticks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 120
+        },
+        "kind": {
+          "const": "rgb"
+        },
+        "target": {
+          "$ref": "#/$defs/Vec3"
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 8,
+          "maximum": 1280
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 8,
+          "maximum": 1280
+        },
+        "fov_degrees": {
+          "type": "number",
+          "minimum": 5,
+          "maximum": 120
+        },
+        "rendering_mode": {
+          "const": "mesh_and_authored_gaussians"
+        }
+      }
+    },
+    "ThermalRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request_id",
+        "source_id",
+        "entity_index",
+        "scope",
+        "position",
+        "publication_period_ticks",
+        "kind",
+        "target",
+        "width",
+        "height",
+        "fov_degrees",
+        "rendering_mode"
+      ],
+      "properties": {
+        "request_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+        },
+        "source_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+        },
+        "entity_index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        "scope": {
+          "const": "entity_requested_world_fixed"
+        },
+        "position": {
+          "$ref": "#/$defs/Vec3"
+        },
+        "publication_period_ticks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 120
+        },
+        "kind": {
+          "const": "thermal"
+        },
+        "target": {
+          "$ref": "#/$defs/Vec3"
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 8,
+          "maximum": 320
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 8,
+          "maximum": 320
+        },
+        "fov_degrees": {
+          "type": "number",
+          "minimum": 5,
+          "maximum": 120
+        },
+        "rendering_mode": {
+          "const": "bolometric_mesh"
+        }
+      }
+    },
+    "PressureRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request_id",
+        "source_id",
+        "entity_index",
+        "scope",
+        "position",
+        "publication_period_ticks",
+        "kind",
+        "sample_rate_hz",
+        "observation_model"
+      ],
+      "properties": {
+        "request_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+        },
+        "source_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+        },
+        "entity_index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        "scope": {
+          "const": "entity_requested_world_fixed"
+        },
+        "position": {
+          "$ref": "#/$defs/Vec3"
+        },
+        "publication_period_ticks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 120
+        },
+        "kind": {
+          "const": "pressure"
+        },
+        "sample_rate_hz": {
+          "const": 16000
+        },
+        "observation_model": {
+          "const": "crebain.discrete-direct-acoustic.v1"
+        }
+      }
+    },
+    "SourceRequest": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/RGBRequest"
+        },
+        {
+          "$ref": "#/$defs/ThermalRequest"
+        },
+        {
+          "$ref": "#/$defs/PressureRequest"
+        }
+      ]
+    },
+    "Prepare": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "composition_digest",
+        "resource_plan_digest",
+        "world",
+        "scene",
+        "sources"
+      ],
+      "properties": {
+        "schema": {
+          "const": "crebain.force-city-prepare.v1"
+        },
+        "composition_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "resource_plan_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "world": {
+          "$ref": "#/$defs/World"
+        },
+        "scene": {
+          "$ref": "#/$defs/Scene"
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SourceRequest"
+          },
+          "minItems": 0,
+          "maxItems": 12,
+          "allOf": [
+            {
+              "contains": {
+                "properties": {
+                  "kind": {
+                    "const": "rgb"
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              },
+              "minContains": 0,
+              "maxContains": 4
+            },
+            {
+              "contains": {
+                "properties": {
+                  "kind": {
+                    "const": "thermal"
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              },
+              "minContains": 0,
+              "maxContains": 4
+            },
+            {
+              "contains": {
+                "properties": {
+                  "kind": {
+                    "const": "pressure"
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              },
+              "minContains": 0,
+              "maxContains": 4
+            }
+          ]
+        },
+        "acoustic": {
+          "$ref": "#/$defs/Acoustic"
+        },
+        "thermal": {
+          "$ref": "#/$defs/Thermal"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "sources": {
+                "contains": {
+                  "properties": {
+                    "kind": {
+                      "const": "pressure"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ]
+                }
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "acoustic"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "acoustic"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "sources": {
+                "contains": {
+                  "properties": {
+                    "kind": {
+                      "const": "thermal"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ]
+                }
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "thermal"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "thermal"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "Target": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number",
+          "minimum": -0.1,
+          "maximum": 0.1
+        },
+        {
+          "type": "number",
+          "minimum": -0.1,
+          "maximum": 0.1
+        },
+        {
+          "type": "number",
+          "minimum": -3.141592653589793,
+          "maximum": 3.141592653589793
+        },
+        {
+          "type": "number",
+          "minimum": -100000,
+          "maximum": 100000
+        }
+      ],
+      "items": false,
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "SetRow": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        {
+          "const": "set"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "$ref": "#/$defs/Target"
+        }
+      ],
+      "items": false,
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "HoldRow": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        {
+          "const": "hold"
+        },
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      ],
+      "items": false,
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "ControlRow": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/SetRow"
+        },
+        {
+          "$ref": "#/$defs/HoldRow"
+        }
+      ]
+    },
+    "Advance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "plan_digest",
+        "roster_digest",
+        "tick",
+        "previous_batch_digest",
+        "rows"
+      ],
+      "properties": {
+        "kind": {
+          "const": "advance"
+        },
+        "plan_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "roster_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "tick": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7200
+        },
+        "previous_batch_digest": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ControlRow"
+          },
+          "minItems": 1,
+          "maxItems": 256
+        }
+      }
+    },
+    "ExportSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request_id",
+        "source_id",
+        "entity_index",
+        "kind",
+        "plan_digest",
+        "batch_digest",
+        "source_body_tick",
+        "source_production_digest",
+        "original_payload_sha256"
+      ],
+      "properties": {
+        "request_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+        },
+        "source_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+        },
+        "entity_index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        "kind": {
+          "const": "export_source"
+        },
+        "plan_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "batch_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "source_body_tick": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7200
+        },
+        "source_production_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "original_payload_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "ReleaseBatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "plan_digest",
+        "batch_digest",
+        "tick"
+      ],
+      "properties": {
+        "kind": {
+          "const": "release_batch"
+        },
+        "plan_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "batch_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "tick": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7200
+        }
+      }
+    },
+    "Command": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Advance"
+        },
+        {
+          "$ref": "#/$defs/ExportSource"
+        },
+        {
+          "$ref": "#/$defs/ReleaseBatch"
+        }
+      ]
+    },
+    "NotDue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request_id",
+        "source_id",
+        "entity_index",
+        "status",
+        "next_due_tick"
+      ],
+      "properties": {
+        "request_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+        },
+        "source_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+        },
+        "entity_index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        "status": {
+          "const": "not_due"
+        },
+        "next_due_tick": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 7200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "Produced": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request_id",
+        "source_id",
+        "entity_index",
+        "status",
+        "source_config_digest",
+        "source_body_tick",
+        "available_after_body_tick",
+        "source_production_digest",
+        "original_payload_sha256",
+        "byte_length",
+        "tensor"
+      ],
+      "properties": {
+        "request_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+        },
+        "source_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+        },
+        "entity_index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        "status": {
+          "const": "produced"
+        },
+        "source_config_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "source_body_tick": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7200
+        },
+        "available_after_body_tick": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7200
+        },
+        "source_production_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "original_payload_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "byte_length": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8388608
+        },
+        "tensor": {
+          "$ref": "#/$defs/Tensor"
+        }
+      }
+    },
+    "Failed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request_id",
+        "source_id",
+        "entity_index",
+        "status",
+        "attempted_at_tick",
+        "reason",
+        "diagnostic"
+      ],
+      "properties": {
+        "request_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+        },
+        "source_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+        },
+        "entity_index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        "status": {
+          "const": "failed"
+        },
+        "attempted_at_tick": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7200
+        },
+        "reason": {
+          "const": "acquisition_failed"
+        },
+        "diagnostic": {
+          "type": "string",
+          "maxLength": 256
+        }
+      }
+    },
+    "Absent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request_id",
+        "source_id",
+        "entity_index",
+        "status",
+        "due_at_tick",
+        "reason",
+        "causal_failed_request_id"
+      ],
+      "properties": {
+        "request_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+        },
+        "source_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+        },
+        "entity_index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        "status": {
+          "const": "absent"
+        },
+        "due_at_tick": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7200
+        },
+        "reason": {
+          "const": "not_attempted_after_failure"
+        },
+        "causal_failed_request_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+        }
+      }
+    },
+    "SourceOutcome": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/NotDue"
+        },
+        {
+          "$ref": "#/$defs/Produced"
+        },
+        {
+          "$ref": "#/$defs/Failed"
+        },
+        {
+          "$ref": "#/$defs/Absent"
+        }
+      ]
+    },
+    "AppliedRow": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        {
+          "enum": [
+            "set",
+            "hold"
+          ]
+        },
+        {
+          "type": "boolean"
+        }
+      ],
+      "items": false,
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "ControlReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tick",
+        "execution",
+        "before_state_sha256",
+        "after_state_sha256",
+        "native_transition_sha256",
+        "all_motor_assignments_completed",
+        "rows"
+      ],
+      "properties": {
+        "tick": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7200
+        },
+        "execution": {
+          "const": "known_completed"
+        },
+        "before_state_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "after_state_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "native_transition_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "all_motor_assignments_completed": {
+          "const": true
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AppliedRow"
+          },
+          "minItems": 1,
+          "maxItems": 256
+        }
+      }
+    },
+    "Batch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "plan_digest",
+        "roster_digest",
+        "scene_sha256",
+        "source_catalog_digest",
+        "tick",
+        "previous_batch_digest",
+        "control",
+        "slots",
+        "batch_digest"
+      ],
+      "properties": {
+        "plan_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "roster_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "scene_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "source_catalog_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "tick": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7200
+        },
+        "previous_batch_digest": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "control": {
+          "$ref": "#/$defs/ControlReceipt"
+        },
+        "slots": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SourceOutcome"
+          },
+          "minItems": 0,
+          "maxItems": 12
+        },
+        "batch_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "Prepared": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "plan_digest",
+        "roster_digest",
+        "scene_sha256",
+        "source_catalog_digest",
+        "resource_plan_digest",
+        "source_identity",
+        "engine_owner_id",
+        "native_plan_sha256"
+      ],
+      "properties": {
+        "kind": {
+          "const": "prepared"
+        },
+        "plan_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "roster_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "scene_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "source_catalog_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "resource_plan_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "source_identity": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "engine_owner_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "native_plan_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "Advanced": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "batch"
+      ],
+      "properties": {
+        "kind": {
+          "const": "advanced"
+        },
+        "batch": {
+          "$ref": "#/$defs/Batch"
+        }
+      }
+    },
+    "AdvanceFailed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "batch",
+        "native_retirement",
+        "physical_advance_allowed",
+        "successful_finish_allowed"
+      ],
+      "properties": {
+        "kind": {
+          "const": "advance_failed"
+        },
+        "batch": {
+          "$ref": "#/$defs/Batch"
+        },
+        "native_retirement": {
+          "const": "confirmed"
+        },
+        "physical_advance_allowed": {
+          "const": false
+        },
+        "successful_finish_allowed": {
+          "const": false
+        }
+      }
+    },
+    "SourceManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request_id",
+        "source_id",
+        "entity_index",
+        "schema",
+        "plan_digest",
+        "scene_sha256",
+        "source_catalog_digest",
+        "source_config_digest",
+        "batch_digest",
+        "source_body_tick",
+        "available_after_body_tick",
+        "source_production_digest",
+        "original_payload_sha256",
+        "byte_manifest_digest",
+        "tensor",
+        "manifest_digest"
+      ],
+      "properties": {
+        "request_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+        },
+        "source_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+        },
+        "entity_index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        "schema": {
+          "const": "crebain.force-city-source-manifest.v1"
+        },
+        "plan_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "scene_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "source_catalog_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "source_config_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "batch_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "source_body_tick": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7200
+        },
+        "available_after_body_tick": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7200
+        },
+        "source_production_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "original_payload_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "byte_manifest_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "tensor": {
+          "$ref": "#/$defs/Tensor"
+        },
+        "manifest_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "Exported": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "typed_manifest",
+        "byte_manifest"
+      ],
+      "properties": {
+        "kind": {
+          "const": "source_exported"
+        },
+        "typed_manifest": {
+          "$ref": "#/$defs/SourceManifest"
+        },
+        "byte_manifest": {
+          "$ref": "#/$defs/BufferManifest"
+        }
+      }
+    },
+    "BatchReleased": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "plan_digest",
+        "batch_digest",
+        "tick"
+      ],
+      "properties": {
+        "kind": {
+          "const": "batch_released"
+        },
+        "plan_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "batch_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "tick": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7200
+        }
+      }
+    },
+    "Result": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Prepared"
+        },
+        {
+          "$ref": "#/$defs/Advanced"
+        },
+        {
+          "$ref": "#/$defs/AdvanceFailed"
+        },
+        {
+          "$ref": "#/$defs/Exported"
+        },
+        {
+          "$ref": "#/$defs/BatchReleased"
+        }
+      ]
+    },
+    "Finish": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "plan_digest",
+        "completed_ticks",
+        "last_released_batch_digest"
+      ],
+      "properties": {
+        "plan_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "completed_ticks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7200
+        },
+        "last_released_batch_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "Terminal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "plan_digest",
+        "completed_ticks",
+        "last_released_batch_digest",
+        "native_retirement",
+        "promised_source_output",
+        "scientific_validation"
+      ],
+      "properties": {
+        "plan_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "completed_ticks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7200
+        },
+        "last_released_batch_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "native_retirement": {
+          "const": "confirmed"
+        },
+        "promised_source_output": {
+          "const": "complete"
+        },
+        "scientific_validation": {
+          "const": false
+        }
+      }
+    },
+    "ImportDescriptor": false,
+    "ImportMetadata": false,
+    "Imported": false,
+    "RgbaTensor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "dtype",
+        "shape",
+        "layout",
+        "row_origin",
+        "encoding"
+      ],
+      "properties": {
+        "kind": {
+          "const": "rgba8"
+        },
+        "dtype": {
+          "const": "u8"
+        },
+        "shape": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "integer",
+              "minimum": 8,
+              "maximum": 1280
+            },
+            {
+              "type": "integer",
+              "minimum": 8,
+              "maximum": 1280
+            },
+            {
+              "const": 4
+            }
+          ],
+          "items": false,
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "layout": {
+          "const": "c_contiguous"
+        },
+        "row_origin": {
+          "const": "bottom-left"
+        },
+        "encoding": {
+          "const": "rgba8-srgb"
+        }
+      }
+    },
+    "RadianceTensor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "dtype",
+        "shape",
+        "layout",
+        "row_origin",
+        "unit"
+      ],
+      "properties": {
+        "kind": {
+          "const": "radiance"
+        },
+        "dtype": {
+          "const": "f32le"
+        },
+        "shape": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "integer",
+            "minimum": 8,
+            "maximum": 320
+          }
+        },
+        "layout": {
+          "const": "c_contiguous"
+        },
+        "row_origin": {
+          "const": "bottom-left"
+        },
+        "unit": {
+          "const": "W/(m2 sr)"
+        }
+      }
+    },
+    "PressureTensor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "dtype",
+        "shape",
+        "layout",
+        "sample_start",
+        "sample_end",
+        "sample_rate_hz",
+        "unit"
+      ],
+      "properties": {
+        "kind": {
+          "const": "pressure"
+        },
+        "dtype": {
+          "const": "f64le"
+        },
+        "shape": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "type": "integer",
+            "minimum": 133,
+            "maximum": 134
+          }
+        },
+        "layout": {
+          "const": "c_contiguous"
+        },
+        "sample_start": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 960000
+        },
+        "sample_end": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 960000
+        },
+        "sample_rate_hz": {
+          "const": 16000
+        },
+        "unit": {
+          "const": "pascal"
+        }
+      }
+    }
+  }
+}
