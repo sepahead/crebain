@@ -177,9 +177,11 @@ Composition checks the exact dependency before Cargo fetches locked registry pac
 The gate creates another fresh composition and retains offline Cargo execution.
 
 The [hosted construction workflow](../../.github/workflows/ncp-sensors.yml) runs on pushes and pull requests.
+Separate jobs check the sensor and city applications.
 It selects Node 26.7.0, Bun 1.3.14, Rust 1.91.1, and Python 3.14.6.
 Its NCP checkout has an explicit repository, commit, and directory outside the CREBAIN source tree.
 It runs every construction control and audits the composed Rust graph with the existing cargo-deny policy.
+Process controls cover caller exit during startup and after every selected channel reports readiness.
 These Linux source controls prepare no Metal renderer and grant no installed-runtime qualification.
 Publishing this integration requires the exact NCP commit to pass its owning bootstrap and become publicly available.
 

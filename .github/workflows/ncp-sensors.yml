@@ -1,4 +1,4 @@
-name: Typed sensor construction
+name: Typed sensor and city construction
 
 on:
   push:
@@ -16,9 +16,19 @@ concurrency:
 
 jobs:
   construction:
-    name: Rust, Bun, and independent Python construction
+    name: Rust, Bun, and Python (${{ matrix.profile }})
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - profile: sensor
+            integration: ncp-force-ground-sensors
+            gate: validate:ncp-sensors
+          - profile: city
+            integration: ncp-force-city-sources
+            gate: validate:ncp-city
     defaults:
       run:
         working-directory: crebain
@@ -70,19 +80,19 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Verify SDK bytes and compose locked fetch inputs
         run: |
-          python3 integrations/ncp-force-ground-sensors/compose.py \
+          python3 integrations/${{ matrix.integration }}/compose.py \
             --ncp-source "$GITHUB_WORKSPACE/ncp-dependency" \
-            --output "$GITHUB_WORKSPACE/sensor-prefetch"
+            --output "$GITHUB_WORKSPACE/${{ matrix.profile }}-prefetch"
       - name: Fetch locked Cargo dependencies
-        run: cargo fetch --locked --manifest-path "$GITHUB_WORKSPACE/sensor-prefetch/application/Cargo.toml"
+        run: cargo fetch --locked --manifest-path "$GITHUB_WORKSPACE/${{ matrix.profile }}-prefetch/application/Cargo.toml"
       - name: Run the offline construction gate
         env:
           CREBAIN_SENSOR_NCP_SOURCE: ${{ github.workspace }}/ncp-dependency
-        run: bun run validate:ncp-sensors -- --output "$GITHUB_WORKSPACE/sensor-construction"
+        run: bun run ${{ matrix.gate }} -- --output "$GITHUB_WORKSPACE/${{ matrix.profile }}-construction"
       - name: Audit the composed Rust dependency graph
         uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
         with:
-          manifest-path: sensor-prefetch/application/Cargo.toml
+          manifest-path: ${{ matrix.profile }}-prefetch/application/Cargo.toml
           rust-version: 1.91.1
           arguments: --all-features --locked --config crebain/src-tauri/deny.toml
           command: check
@@ -90,10 +100,10 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: ncp-sensor-construction-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: ncp-${{ matrix.profile }}-construction-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            sensor-prefetch/construction.json
-            sensor-construction/*.json
-            sensor-construction/*.log
+            ${{ matrix.profile }}-prefetch/construction.json
+            ${{ matrix.profile }}-construction/*.json
+            ${{ matrix.profile }}-construction/*.log
           if-no-files-found: error
           retention-days: 30

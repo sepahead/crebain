@@ -94,6 +94,7 @@ CREBAIN_SENSOR_NCP_SOURCE=/operator/selected/NCP bun run validate:with-ncp-city
 The gate checks generated records, the shared Python package, public Rust transactions, actual CPU source processes, and synthetic graphics boundaries.
 It includes the existing scalar/family construction and complete repository gates.
 It neither downloads dependencies nor executes a native GPU campaign.
+The [hosted workflow](../../.github/workflows/ncp-sensors.yml) runs separate city and sensor construction jobs on Linux.
 Prepare locked Cargo dependencies through the existing [sensor construction procedure](../ncp-force-ground-sensors/README.md#construction-and-qualification).
 
 After publishing the gated source, install into fresh operator-selected locations:

@@ -131,22 +131,37 @@ class FamilyProcessTests(unittest.TestCase):
                     self.assertEqual(len(process.diagnostics), size + len(b"all selected channels closed"))
 
     def test_caller_exit_closes_all_sixteen_channels_without_observer_signals(self):
+        self.caller_exit(ready=False)
+
+    def test_ready_caller_exit_closes_all_sixteen_channels_without_observer_signals(self):
+        self.caller_exit(ready=True)
+
+    def caller_exit(self, *, ready):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             state, marker = root / "state.json", root / "retired"
-            producer = ORDERLY + f"\nfrom pathlib import Path; Path({str(marker)!r}).write_text('retired')\n"
+            # Startup retirement needs only EOF. A ready producer must deliver all
+            # readiness bytes before caller loss can close their receiving ends.
+            producer = ORDERLY if ready else ORDERLY.replace("for channel in channels: channel.sendall(b'R')", "")
+            producer += f"\nfrom pathlib import Path; Path({str(marker)!r}).write_text('retired')\n"
             script = f"""
-import importlib.util,json,os,pathlib,sys,time
+import importlib.util,json,os,pathlib,selectors,sys,time
 spec=importlib.util.spec_from_file_location('family_process_under_test',{_process.__file__!r})
 module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
 process=module._Process([sys.executable,'-I','-S','-B','-c',{producer!r}],{ENV!r},pathlib.Path.cwd(),deadline=time.monotonic()+3,_cleanup_grace=2,_family_endpoints=16)
+if {ready!r}:
+    for reader,_ in process.streams:
+        with selectors.DefaultSelector() as selector:
+            selector.register(reader,selectors.EVENT_READ)
+            assert selector.select(3), 'channel readiness timed out'
+            assert reader.read(1)==b'R', 'channel readiness missing'
 pathlib.Path({str(state)!r}).write_text(json.dumps({{'directory':str(process.directory)}}))
 os._exit(0)
 """
             caller = subprocess.Popen([sys.executable, "-I", "-S", "-B", "-c", script], env=ENV,
                                       stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
             try:
-                wait_for(state.exists)
+                wait_for(lambda: state.exists() or caller.poll() is not None)
                 _, stderr = caller.communicate(timeout=5)
                 self.assertEqual(caller.returncode, 0, stderr.decode())
                 wait_for(marker.exists)
