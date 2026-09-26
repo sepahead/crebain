@@ -373,6 +373,14 @@
       }
     },
     {
+      "path": "integrations/ncp-force-city-sources/evidence/native-city-containment-2026-09-27.md",
+      "classification": "frozen-evidence",
+      "exemption": {
+        "kind": "dated-campaign-record",
+        "reason": "The table preserves exact fault boundaries, sampled retirement, and the separate failed predecessor. A diagram would duplicate the outcome record."
+      }
+    },
+    {
       "path": "integrations/ncp-force-city-sources/evidence/native-city-resource-2026-09-26.md",
       "classification": "frozen-evidence",
       "exemption": {

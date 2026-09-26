@@ -155,6 +155,7 @@ The separate [typed city application](integrations/ncp-force-city-sources/README
 Its [installed evidence](integrations/ncp-force-city-sources/evidence/NATIVE_CITY_2026-09-23.md) includes 256-entity execution, actual GPU originals, optional recording, and explicit source failures.
 The [three-tick boundary case](integrations/ncp-force-city-sources/evidence/NATIVE_CITY_BOUNDARY_2026-09-26.md) delivered the exact 27,857,088-byte maximum original batch.
 Twelve [installed resource sessions](integrations/ncp-force-city-sources/evidence/native-city-resource-2026-09-26.md) preserved identical pressure bytes across legacy, budgeted, and recorded routes.
+Four [recorder and consumer stalls](integrations/ncp-force-city-sources/evidence/native-city-containment-2026-09-27.md) passed observed-process containment checks while preserving cleanup uncertainty and the earlier failed campaign.
 Available tracking checks passed.
 A separate [read-only certificate](integrations/ncp-force-city-sources/evidence/NATIVE_CITY_2026-09-23.md#derived-integration-law-separation-september-26-2026) proves integration-law hull separation for the frozen trajectories.
 General tracking, stability, timing, and opaque runtime memory remain unqualified.

@@ -1,0 +1,329 @@
+{
+  "schema": "crebain.city-observed-containment-evidence.v1",
+  "date": "2026-09-27",
+  "date_timezone": "Europe/Berlin",
+  "author": "Sepehr Mahmoudian",
+  "status": "scoped_observed_containment_pass",
+  "original_evidence_scope": "private_locally_observed_bytes_and_actions",
+  "public_projection_scope": "summary_and_public_source_identities",
+  "source_commit": "194cfb984440370692d6f62dffb19a428c785d3b",
+  "source_tree": "6cfadcb6a36cbbefaed8b54b7a2decb9cc569924",
+  "runtime_source_identity": "894587110a4dca991bcddac4b99ff8b38ede4514ac6db40f500c59a6e7212192",
+  "runtime_manifest_sha256": "c40450222003c63d7def1d5116f97f8bda1ba816438c2fc31c46a8612a146ffe",
+  "producer_sha256": "9fa7f541d9595b9185675d56c37c41b48b00b91cf9bdf274cfb7478c5178c9a9",
+  "client_wheel_sha256": "8bcf5bbc17e145599ce3a9485cb1001ad5789fff13114868ad8299c26cbe7fc9",
+  "ncp_sdk_commit": "c0465d40f1f2b9df2caf9793183d11e65ac9ec74",
+  "ncp_sdk_wheel_sha256": "9eb744571e79a0f8d5f4dbdf78c92b23e521f03c4351976a38e53ed600644787",
+  "transcript_commit": "7a1730e4cc1c7a62fa207e2baa0d6f231454bd3f",
+  "transcript_wheel_sha256": "d8bd70274e44d2fef5b3133e6be3623f412535979980ad1974e51726bc7c3e39",
+  "host": {
+    "shared": true,
+    "native_started_utc": "2026-09-26T22:28:15.177970+00:00",
+    "native_outer_seconds": 289.326157333795,
+    "native_outer_returncode": 0
+  },
+  "selection": {
+    "entities": 1,
+    "solids": 16,
+    "planned_ticks": 3,
+    "model_tick_hz": 120,
+    "pressure_periods_ticks": [1, 2],
+    "graphics_sources": 0,
+    "fresh_bindings": true,
+    "retries": 0,
+    "replacements": 0
+  },
+  "counts": {
+    "planned_cases": 4,
+    "attempted_cases": 4,
+    "verified_cases": 4,
+    "observed_process_births": 13,
+    "remaining_observed_births": 0,
+    "original_payloads": 6,
+    "original_payload_bytes": 6392,
+    "capture_complete_pairs": 63,
+    "terminal_readback_original_files": 60,
+    "case_artifact_bytes": 265051
+  },
+  "limits": {
+    "campaign_seconds": 1800,
+    "case_artifact_bytes": 33554432,
+    "event_bytes": 65536,
+    "event_count": 512,
+    "guardian_cleanup_seconds": 205,
+    "native_session_seconds": 30,
+    "outer_exceptional_grace_seconds": 5,
+    "outer_wall_seconds": 60,
+    "stream_bytes": 1048576
+  },
+  "source_controls": {
+    "journal_methods": 14,
+    "campaign_methods": 20,
+    "observed_containment_methods": 7,
+    "total_methods": 41,
+    "skips": 0,
+    "synthetic_child_cases": 6,
+    "native_simulations_in_source_controls": false
+  },
+  "cases": [
+    {
+      "boundary": "header",
+      "worker_returncode": -9,
+      "worker_deadline_reached": true,
+      "worker_forced": true,
+      "worker_elapsed_seconds": 65.09045283263549,
+      "observed_process_births": 1,
+      "observed_process_births_retired": true,
+      "signals_to_descendants": 0,
+      "caller_return_confirmed": false,
+      "journal_return_confirmed": false,
+      "capture_complete_pairs": 0,
+      "capture_store_terminal": null,
+      "partial_capture_authenticated": false,
+      "observed_advance_ticks": [],
+      "acknowledged_batch_release_ticks": [],
+      "original_payloads": 0,
+      "original_payload_bytes": 0,
+      "retirement_source": "no_producer_constructed",
+      "producer_returncode": null,
+      "producer_forced": null,
+      "producer_cleanup_confirmed": null,
+      "producer_started": false,
+      "binding": {
+        "application_digest": "de05b5b9e8586d50702847aa4e6f097172e9c3ecb0eb8ba7355c58832eccefbf",
+        "endpoint_id": "ce295f8c-1d66-4677-b4b9-563f5457cf81",
+        "generation": "903b8107-d73e-4b3d-bf0f-63586b41de54",
+        "profile_digest": "e64d071f0e48d3e8c5d70f368ea2b648517af1869e9465e8ec6fdb91e4851396",
+        "run_id": "65a5e9d5-ca60-4907-984e-9d3e438bbf47"
+      },
+      "command": {
+        "private_relative_path": "native/city-observed-containment-campaign-20260927-001/cases/header-command.json",
+        "bytes": 1845,
+        "sha256": "a6e6efe6bb6d0a82b85245009898af51710851ca3b3d0d380266903ae7b08960"
+      },
+      "verification": {
+        "private_relative_path": "native/city-observed-containment-campaign-20260927-001/cases/header-verification.json",
+        "bytes": 1361,
+        "sha256": "eb66075075d1e1d138206f099554966cecdff9e7625eddd1d68a926dd1504ef4"
+      }
+    },
+    {
+      "boundary": "response",
+      "worker_returncode": -9,
+      "worker_deadline_reached": true,
+      "worker_forced": true,
+      "worker_elapsed_seconds": 65.05406225007027,
+      "observed_process_births": 4,
+      "observed_process_births_retired": true,
+      "signals_to_descendants": 0,
+      "caller_return_confirmed": false,
+      "journal_return_confirmed": false,
+      "capture_complete_pairs": 13,
+      "capture_store_terminal": null,
+      "partial_capture_authenticated": false,
+      "observed_advance_ticks": [1, 2],
+      "acknowledged_batch_release_ticks": [1],
+      "original_payloads": 1,
+      "original_payload_bytes": 1064,
+      "retirement_source": "original_guardian_exit",
+      "producer_returncode": 1,
+      "producer_forced": false,
+      "producer_cleanup_confirmed": false,
+      "producer_started": true,
+      "binding": {
+        "application_digest": "de05b5b9e8586d50702847aa4e6f097172e9c3ecb0eb8ba7355c58832eccefbf",
+        "endpoint_id": "bb2bb296-ae83-4873-a2fa-297c9ee6d519",
+        "generation": "9034bcd8-f062-41cd-999c-e552df53007d",
+        "profile_digest": "e64d071f0e48d3e8c5d70f368ea2b648517af1869e9465e8ec6fdb91e4851396",
+        "run_id": "58989a69-adfe-4be5-9a92-e77ba52e43a8"
+      },
+      "command": {
+        "private_relative_path": "native/city-observed-containment-campaign-20260927-001/cases/response-command.json",
+        "bytes": 2436,
+        "sha256": "28a80f513a993ab435cf4a7ef0cfd28185db33362df34c647407d88245b3c394"
+      },
+      "verification": {
+        "private_relative_path": "native/city-observed-containment-campaign-20260927-001/cases/response-verification.json",
+        "bytes": 2899,
+        "sha256": "73a28fd0b3b3898ee8169c0fd3d7d236983a288106e16db3f82345b59a27b6ce"
+      }
+    },
+    {
+      "boundary": "terminal",
+      "worker_returncode": -9,
+      "worker_deadline_reached": true,
+      "worker_forced": true,
+      "worker_elapsed_seconds": 65.06536020804197,
+      "observed_process_births": 4,
+      "observed_process_births_retired": true,
+      "signals_to_descendants": 0,
+      "caller_return_confirmed": false,
+      "journal_return_confirmed": false,
+      "capture_complete_pairs": 40,
+      "capture_store_terminal": "complete",
+      "partial_capture_authenticated": false,
+      "observed_advance_ticks": [1, 2, 3],
+      "acknowledged_batch_release_ticks": [1, 2, 3],
+      "original_payloads": 4,
+      "original_payload_bytes": 4264,
+      "retirement_source": "public_city_retirement",
+      "producer_returncode": 0,
+      "producer_forced": false,
+      "producer_cleanup_confirmed": true,
+      "producer_started": true,
+      "binding": {
+        "application_digest": "de05b5b9e8586d50702847aa4e6f097172e9c3ecb0eb8ba7355c58832eccefbf",
+        "endpoint_id": "89107ba8-e010-48d3-9efa-889f80ae2d69",
+        "generation": "ec04554d-fb36-4e81-b7af-79af558d9a88",
+        "profile_digest": "e64d071f0e48d3e8c5d70f368ea2b648517af1869e9465e8ec6fdb91e4851396",
+        "run_id": "5800dd35-4ec0-4734-bcdd-ffc20b26d280"
+      },
+      "command": {
+        "private_relative_path": "native/city-observed-containment-campaign-20260927-001/cases/terminal-command.json",
+        "bytes": 2438,
+        "sha256": "5bb1398498b4bb3787674b4eed833cce3a776a68a252665e7806dce47efeb5fe"
+      },
+      "verification": {
+        "private_relative_path": "native/city-observed-containment-campaign-20260927-001/cases/terminal-verification.json",
+        "bytes": 2769,
+        "sha256": "e40088a40bfb1a1b1d4ed2424f96bdecf25462954ce70fb456e7a686c9b66025"
+      }
+    },
+    {
+      "boundary": "consumer",
+      "worker_returncode": -9,
+      "worker_deadline_reached": true,
+      "worker_forced": true,
+      "worker_elapsed_seconds": 65.06231937510893,
+      "observed_process_births": 4,
+      "observed_process_births_retired": true,
+      "signals_to_descendants": 0,
+      "caller_return_confirmed": false,
+      "journal_return_confirmed": false,
+      "capture_complete_pairs": 10,
+      "capture_store_terminal": null,
+      "partial_capture_authenticated": false,
+      "observed_advance_ticks": [1],
+      "acknowledged_batch_release_ticks": [],
+      "original_payloads": 1,
+      "original_payload_bytes": 1064,
+      "retirement_source": "original_guardian_exit",
+      "producer_returncode": 1,
+      "producer_forced": false,
+      "producer_cleanup_confirmed": false,
+      "producer_started": true,
+      "binding": {
+        "application_digest": "de05b5b9e8586d50702847aa4e6f097172e9c3ecb0eb8ba7355c58832eccefbf",
+        "endpoint_id": "1b697418-e760-40f1-b886-7a75a8a102f2",
+        "generation": "67df1d02-71b9-444e-b649-83b7b93157cb",
+        "profile_digest": "e64d071f0e48d3e8c5d70f368ea2b648517af1869e9465e8ec6fdb91e4851396",
+        "run_id": "b2997a44-73a6-4e5e-846e-10ef8991e06f"
+      },
+      "command": {
+        "private_relative_path": "native/city-observed-containment-campaign-20260927-001/cases/consumer-command.json",
+        "bytes": 2427,
+        "sha256": "20ff351962bc31a8395de6e1d8b6294a67092551f93acdfd35f2c2b6f1aad98d"
+      },
+      "verification": {
+        "private_relative_path": "native/city-observed-containment-campaign-20260927-001/cases/consumer-verification.json",
+        "bytes": 2889,
+        "sha256": "96055238a0b2872752ee862157d888fde5c533804132bbf9252d76b5777b0050"
+      }
+    }
+  ],
+  "prior_stronger_campaign": {
+    "status": "failed",
+    "planned_cases": 6,
+    "attempted_cases": 2,
+    "verified_cases": 1,
+    "healthy_case": "passed",
+    "request_stall_case": "failed_successful_producer_exit_and_confirmed_cleanup_criterion",
+    "request_stall_worker_returncode": -9,
+    "request_stall_producer_returncode": 1,
+    "request_stall_producer_forced": false,
+    "request_stall_cleanup_confirmed": false,
+    "request_stall_caller_retirement": null,
+    "all_eight_observed_births_retired": true,
+    "old_verdict_or_receipts_changed": false
+  },
+  "authority": {
+    "observed_bounded_containment_for_four_selected_cases": true,
+    "owner_confirmed_cleanup_for_every_fault": false,
+    "stronger_six_case_qualified": false,
+    "partial_capture_authentication": false,
+    "physical_storage_failure_qualified": false,
+    "complete_descendant_containment": false,
+    "hostile_containment": false,
+    "loaded_code_attestation": false,
+    "process_or_gpu_memory_bound": false,
+    "timing_or_realtime_qualified": false,
+    "full_v1_release_qualified": false
+  },
+  "private_receipts": {
+    "source_cut": {
+      "private_relative_path": "gates/city-observed-containment-source-001/cut.json",
+      "bytes": 15833,
+      "sha256": "fe123a45afa3122d97f0926eec1a98c94a315d744e5f30bcd3c3e5c0d0aed265"
+    },
+    "complete_source_gate": {
+      "private_relative_path": "gates/city-observed-containment-source-001/result.json",
+      "bytes": 3991,
+      "sha256": "5952cbce3fc7a86ebe04bfb668254c2a2e41e686c1458cc0c147b6ef6a2e2c9f"
+    },
+    "root_source_review": {
+      "private_relative_path": "gates/city-observed-containment-root-source-001/result.json",
+      "bytes": 22292,
+      "sha256": "ec5c00c5b435092e523e99b0232c488eb9ddec318387ac9811a4628c3a18bc61"
+    },
+    "freeze": {
+      "private_relative_path": "native/city-observed-containment-campaign-20260927-001/freeze.json",
+      "bytes": 408994,
+      "sha256": "715d77236099eb26e4c46c7852c94d4cacf0491ae054e904cbdf63718f2eaed4"
+    },
+    "root_freeze_review": {
+      "private_relative_path": "gates/city-observed-containment-root-freeze-001/result.json",
+      "bytes": 2235,
+      "sha256": "67f54f718367d842aa04ed7bbf98f841cdebc5cc3346da48ae386eb21e1fd531"
+    },
+    "native_outer": {
+      "private_relative_path": "gates/city-observed-containment-native-command-001/result.json",
+      "bytes": 3355,
+      "sha256": "e3bf8120f7114712ebf2cf8cf94e521b69e39a918988420ea8ef2c68d7389fff"
+    },
+    "execution": {
+      "private_relative_path": "native/city-observed-containment-campaign-20260927-001/execution.json",
+      "bytes": 2830,
+      "sha256": "23361fb7b2371d11eecd34a1cbcf4e199cbb8dbf86ce1a378f195bdea6e4ab8f"
+    },
+    "bounded_terminal_command": {
+      "private_relative_path": "gates/city-observed-containment-terminal-20260927-001/command.json",
+      "bytes": 2438,
+      "sha256": "83621c73f6ac286802eb704308eddacdab19258623255907276e69a961148450"
+    },
+    "root_terminal_readback": {
+      "private_relative_path": "gates/city-observed-containment-terminal-20260927-001/result.json",
+      "bytes": 33194,
+      "sha256": "63927c76ab38aed806f52a3f2ffeacf1d1a8c7d429b078e0418a5ff3020468e0"
+    },
+    "prior_failed_terminal": {
+      "private_relative_path": "gates/city-containment-terminal-20260926-001/result.json",
+      "bytes": 14718,
+      "sha256": "5a34aac563e0754b52eee460c06c0f6885de7370eaec44a88714fe7df12987b4"
+    },
+    "exit_semantics_council": {
+      "private_relative_path": "gates/city-clean-abort-semantics-council-001/result.json",
+      "bytes": 4126,
+      "sha256": "ae3c71b93321ac9d0f380ea69d3dbe05daf9c517160dfac2cd0e3daa1d76fd06"
+    },
+    "root_scope_decision": {
+      "private_relative_path": "gates/city-observed-containment-root-decision-001/result.json",
+      "bytes": 1550,
+      "sha256": "01a88241dac65c4834061056ddb48b3112f7a7209aca534a8e6e536bc86772fb"
+    },
+    "installation_handoff": {
+      "private_relative_path": "native/city-decoder-client-install-20260926/handoff-001.json",
+      "bytes": 5832,
+      "sha256": "4d4abf86eb0ee9dcc3918b380f429f68c10a3e6f8f6353c7d8f71dcf525fa846"
+    }
+  }
+}
