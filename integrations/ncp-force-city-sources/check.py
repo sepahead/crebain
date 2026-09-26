@@ -137,6 +137,10 @@ def main():
             "CREBAIN_CITY_PRODUCER": str(
                 build / "application/target/debug/crebain-ncp-force-city-sources"
             ),
+            "CREBAIN_CITY_CODEC_PROBE": str(
+                build / "application/target/debug/examples/city_codec_probe"
+            ),
+            "CREBAIN_CITY_CODEC_OUTPUT": str(output / "codec-parity"),
         }
         run(
             "generated-types",
@@ -187,6 +191,11 @@ def main():
         run(
             "rust-controls",
             cargo + ["test", "--locked", "--offline", "--all-targets"],
+            cwd=build / "application",
+        )
+        run(
+            "rust-codec-probe",
+            cargo + ["build", "--locked", "--offline", "--example", "city_codec_probe"],
             cwd=build / "application",
         )
         run(

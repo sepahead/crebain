@@ -487,3 +487,92 @@ fn declared_backing_bytes_must_equal_actual_preparation_reservations() {
     assert_eq!(state.borrow().advances, 0);
     assert_eq!(state.borrow().retires, 1);
 }
+
+#[test]
+fn public_failed_response_requires_exactly_one_causal_source_failure() {
+    let p = small(2, 3);
+    let (mut owner, mut client, _, _) = setup(&p, Fault::Source);
+    let raw_request = client
+        .begin(Operation::Application(CityCommand::Advance(Box::new(
+            advance(&p, 1, None),
+        ))))
+        .unwrap()
+        .to_vec();
+    let request = w::Request::<AppOperation<App>>::decode(&raw_request, &binding()).unwrap();
+    let raw_response = owner.process(&raw_request).unwrap().to_vec();
+    let original = w::parse_value(&raw_response).unwrap();
+    ncp_local::modular_owner::verify_response::<App>(&binding(), &request, &raw_response)
+        .expect("one actual synthetic source failure is valid");
+    for failed_count in [0, 1, 2] {
+        let mut value = original.clone();
+        let b = &mut value["body"]["data"]["batch"];
+        let mut failed = b["slots"][1].clone();
+        failed["request_id"] = json!("r000");
+        failed["source_id"] = json!("s000");
+        let not_due = json!({"request_id":"r001", "source_id":"s001", "entity_index":1,
+            "status":"not_due", "next_due_tick":null});
+        if failed_count == 0 {
+            b["slots"][1] = not_due;
+        }
+        if failed_count == 2 {
+            b["slots"][0] = failed;
+        }
+        b["batch_digest"] = json!(contract::commit(contract::Commitment::Batch, b).unwrap());
+        value["result_digest"] =
+            json!(w::typed_digest(w::RESPONSE_SCHEMA, &value, Some("result_digest")).unwrap());
+        let bytes = serde_json::to_vec(&value).unwrap();
+        assert_eq!(
+            ncp_local::modular_owner::verify_response::<App>(&binding(), &request, &bytes).is_ok(),
+            failed_count == 1,
+            "full public verifier must reject {failed_count} Failed rows"
+        );
+    }
+}
+
+#[test]
+fn public_continuous_fields_preserve_float_tokens_and_reject_coercion() {
+    let p = small(1, 0);
+    let bytes = w::Request::<AppOperation<App>>::encode(
+        binding(),
+        1,
+        w::Command::Execute {
+            expected_predecessor_result_digest: None,
+            operation: Operation::Prepare(p),
+        },
+    )
+    .unwrap();
+    let original = w::parse_value(&bytes).unwrap();
+    let frame = |number: serde_json::Value| {
+        let mut value = original.clone();
+        value["command"]["operation"]["data"]["world"]["initial_positions"][0][0] = number;
+        value["request_digest"] =
+            json!(w::typed_digest(w::REQUEST_SCHEMA, &value, Some("request_digest")).unwrap());
+        serde_json::to_vec(&value).unwrap()
+    };
+    for number in [0.0_f64, -0.0, 0.03, f64::from_bits(0.03_f64.to_bits() + 1)] {
+        let request = w::Request::<AppOperation<App>>::decode(&frame(json!(number)), &binding())
+            .expect("finite float token");
+        let w::Command::Execute { operation, .. } = request.command else {
+            panic!("execute required")
+        };
+        <App as ncp_local::modular_owner::Contract>::check_input(&operation).unwrap();
+        let Operation::Prepare(p) = operation else {
+            panic!("prepare required")
+        };
+        assert_eq!(
+            p.world.initial_positions[0][0].get().to_bits(),
+            number.to_bits()
+        );
+    }
+    let exponent = String::from_utf8(frame(json!(0.03))).unwrap();
+    assert_eq!(exponent.matches("[0.03,50.0").count(), 1);
+    let exponent = exponent.replace("[0.03,50.0", "[3e-2,50.0");
+    assert!(w::Request::<AppOperation<App>>::decode(exponent.as_bytes(), &binding()).is_ok());
+    for number in [json!(0), json!(true)] {
+        assert!(w::Request::<AppOperation<App>>::decode(&frame(number), &binding()).is_err());
+    }
+    let nonfinite = String::from_utf8(frame(json!(0.03)))
+        .unwrap()
+        .replace("[0.03,50.0", "[NaN,50.0");
+    assert!(w::Request::<AppOperation<App>>::decode(nonfinite.as_bytes(), &binding()).is_err());
+}

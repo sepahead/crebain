@@ -140,6 +140,11 @@ It neither downloads dependencies nor executes a native GPU campaign.
 The [hosted workflow](../../.github/workflows/ncp-sensors.yml) runs separate city and sensor construction jobs on Linux.
 Prepare locked Cargo dependencies through the existing [sensor construction procedure](../ncp-force-ground-sensors/README.md#construction-and-qualification).
 
+The city gate also runs 105 shared cases through independent public Rust and Python request and response verifiers.
+It retains original bytes, both reports, typed digests, and any disagreement in `codec-parity` under the gate output.
+The bounded Rust probe cannot construct an engine. A missing probe, failed child, or incomplete report fails the control.
+These stateless controls cover declared shapes and response relationships. Prepared-session lineage and native behavior require their separate controls.
+
 For capture coverage, select a Python environment with the actual optional transcript package:
 
 ```sh

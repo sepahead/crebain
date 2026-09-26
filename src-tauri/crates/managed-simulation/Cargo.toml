@@ -1,5 +1,6 @@
 [package]
 name = "crebain-managed-simulation"
+authors = ["Sepehr Mahmoudian"]
 version = "0.1.0"
 description = "Deterministic simulator-only CREBAIN managed runtime"
 license = "MIT OR Apache-2.0"

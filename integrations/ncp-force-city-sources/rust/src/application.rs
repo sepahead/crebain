@@ -550,10 +550,11 @@ fn check_public_batch(c: &Advance, b: &Batch, failed: bool) -> Result<bool, Modu
             .enumerate()
             .all(|(i, row)| row.0 == i as u64)
         && b.batch_digest == contract::commit(Commitment::Batch, b)?
-        && failed
+        && usize::from(failed)
             == b.slots
                 .iter()
-                .any(|s| matches!(s, SourceOutcome::Failed(_)))
+                .filter(|s| matches!(s, SourceOutcome::Failed(_)))
+                .count()
         && (failed
             || b.slots
                 .iter()

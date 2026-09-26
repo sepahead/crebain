@@ -43,6 +43,22 @@ impl Serialize for Finite64 {
 
 impl<'de> Deserialize<'de> for Finite64 {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        Self::new(f64::deserialize(deserializer)?).map_err(serde::de::Error::custom)
+        struct ContinuousVisitor;
+
+        impl serde::de::Visitor<'_> for ContinuousVisitor {
+            type Value = Finite64;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("a finite continuous binary64 token")
+            }
+
+            fn visit_f64<E: serde::de::Error>(self, value: f64) -> Result<Self::Value, E> {
+                Finite64::new(value).map_err(E::custom)
+            }
+        }
+
+        // Integer and boolean visits retain the default rejection. Coercion would
+        // disagree with the independent Python continuous-field decoder.
+        deserializer.deserialize_any(ContinuousVisitor)
     }
 }
