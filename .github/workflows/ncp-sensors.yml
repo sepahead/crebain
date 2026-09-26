@@ -69,6 +69,23 @@ jobs:
         with:
           toolchain: 1.91.1
           components: clippy, rustfmt
+      - name: Check out the exact optional city capture owner
+        if: matrix.profile == 'city'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          repository: sepahead/Prisoma
+          ref: 7a1730e4cc1c7a62fa207e2baa0d6f231454bd3f
+          path: prisoma-capture
+          persist-credentials: false
+      - name: Prepare the selected optional city capture environment
+        if: matrix.profile == 'city'
+        run: |
+          python3 -m venv "$RUNNER_TEMP/city-capture"
+          "$RUNNER_TEMP/city-capture/bin/python" -m pip install \
+            --report "$GITHUB_WORKSPACE/city-capture-pip-report.json" \
+            "$GITHUB_WORKSPACE/prisoma-capture/integrations/ncp-transcript"
+          "$RUNNER_TEMP/city-capture/bin/python" -m pip check
+          printf 'CREBAIN_CITY_TRANSCRIPT_PYTHON=%s\n' "$RUNNER_TEMP/city-capture/bin/python" >> "$GITHUB_ENV"
       - name: Verify selected tool versions
         run: |
           set -euo pipefail
@@ -105,5 +122,6 @@ jobs:
             ${{ matrix.profile }}-prefetch/construction.json
             ${{ matrix.profile }}-construction/*.json
             ${{ matrix.profile }}-construction/*.log
+            city-capture-pip-report.json
           if-no-files-found: error
           retention-days: 30

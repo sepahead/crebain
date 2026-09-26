@@ -18,19 +18,33 @@ from .owned import (
     new_binding,
 )
 from .runtime import InstalledCityRuntime
+from .composition import budgeted_city_session
+from .resources import (
+    CompositionResources,
+    ResourceAdmission,
+    ResourceBudget,
+    admit_composition,
+    composition_resources,
+)
 
 __all__ = [
     "CityContract",
     "CitySession",
+    "CompositionResources",
     "InstalledCityRuntime",
     "Observation",
     "OwnedCitySession",
     "PendingBatch",
     "Reading",
     "RetirementReceipt",
+    "ResourceAdmission",
+    "ResourceBudget",
     "SessionResult",
     "SourceFailure",
     "city_session",
+    "budgeted_city_session",
+    "admit_composition",
+    "composition_resources",
     "decode",
     "failure_retirement",
     "new_binding",

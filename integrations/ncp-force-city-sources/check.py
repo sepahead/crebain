@@ -45,6 +45,12 @@ def main():
         "--ncp-source", type=Path, default=os.environ.get("CREBAIN_SENSOR_NCP_SOURCE")
     )
     parser.add_argument("--output", type=Path)
+    parser.add_argument(
+        "--transcript-python",
+        type=Path,
+        default=os.environ.get("CREBAIN_CITY_TRANSCRIPT_PYTHON"),
+        help="explicit Python environment with the optional Prisoma transcript installed",
+    )
     args = parser.parse_args()
     if args.ncp_source is None:
         parser.error(
@@ -222,6 +228,14 @@ def main():
             ],
             extra=runtime,
         )
+        if args.transcript_python is not None:
+            if not args.transcript_python.is_absolute():
+                raise ValueError("selected transcript Python must be absolute")
+            run(
+                "capture-owner-controls",
+                [str(args.transcript_python), "-B", APP / "check_capture.py"],
+                extra=runtime,
+            )
         checked_dependency(Path(args.ncp_source))
         if inventory() != before:
             raise ValueError("selected source changed during city construction gate")
@@ -242,6 +256,11 @@ def main():
             "native_256_qualified": False,
             "scientific_validation": False,
             "dependency_ready": False,
+            "capture_owner_controls_selected": args.transcript_python is not None,
+            "capture_owner_controls_passed": any(
+                row["name"] == "capture-owner-controls" and row["returncode"] == 0
+                for row in executions
+            ),
         }
         (output / "result.json").write_text(json.dumps(result, indent=2) + "\n")
         print(

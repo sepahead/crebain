@@ -41,6 +41,45 @@ def source_selection():
 
 
 class OwnedControls(unittest.TestCase):
+    def test_budgeted_path_preserves_originals_and_rejects_late_invalid_action(self):
+        from crebain_ncp_sensors.city import composition, resources
+        from test_native_cpu import microphone_plan
+        from test_resources import exact_budget
+
+        p = microphone_plan(n=2, ticks=3, count=2)
+        originals = []
+        for selected in (False, True):
+            payloads = []
+            binding = owned.new_binding()
+            with source_selection() as runtime:
+                options = {"binding": binding, "timeout_s": 60}
+                launch = owned.city_session
+                if selected:
+                    launch = composition.budgeted_city_session
+                    options["budget"] = exact_budget(
+                        resources.composition_resources(p, binding)
+                    )
+                with launch(runtime, p, **options) as session:
+                    if selected:
+                        observed = session.last_committed
+                        rows = set_rows(p)
+                        with self.assertRaises(w.ModularError):
+                            session.advance(rows[:-1] + ((2, *rows[-1][1:]),))
+                        self.assertIs(session.last_committed, observed)
+                        self.assertEqual(session.acknowledged_completed_tick, 0)
+                    for _ in range(3):
+                        with session.advance(set_rows(p)) as pending:
+                            payloads.extend(
+                                reading.payload
+                                for reading in pending.observation.readings
+                            )
+                self.assertTrue(session.retirement.process_exit["cleanup_confirmed"])
+                self.assertEqual(session.retirement.acknowledged_completed_tick, 3)
+                self.assertEqual(session.resource_admission is not None, selected)
+                originals.append(payloads)
+        self.assertEqual(originals[0], originals[1])
+        self.assertEqual(sum(map(len, originals[1])), 2 * 400 * 8)
+
     def test_success_has_observed_and_acknowledged_terminal_with_exit(self):
         p = plan(ticks=1)
         with source_selection() as runtime:

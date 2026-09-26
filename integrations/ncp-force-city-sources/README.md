@@ -70,6 +70,45 @@ At the schema's admitted extrema, that history bound is 13,985,792 bytes.
 The resource commitment separately includes actual graphics scratch, target, and source-retention bounds from the native owner.
 These logical capacities do not bound opaque Rapier, JavaScript, browser, driver, or allocator memory.
 
+### Trusted composition admission
+
+Use `budgeted_city_session` when selecting complete body or body-plus-transcript logical allowances.
+Its `ResourceBudget` supplies aggregate logical, graphics-color, and selected storage limits in bytes.
+All limits require exact nonnegative integers.
+The launcher independently derives the complete plan costs before constructing a recorder or process.
+It validates the actual public Prepare frame, runtime selection, timeout, and required camera launcher before capture creation.
+The process owner rechecks the admission before launch.
+Copied totals and the peer resource digest grant no capacity authority.
+
+| Allowance | Included extent |
+| --- | --- |
+| Source | Originals, receipt, retained control, separate CPU return, acoustic history, pressure block |
+| Application and NCP | Separate original arena, bounded result, public payload, actual endpoint-owner overhead |
+| Graphics | Readbacks, thermal scratch, single-source retention, logical color targets |
+| Canonical encoding | Public projection, native plan, native receipt/control, selected graphics input |
+| Host retention | Every due original across the horizon, batch/manifest encodings, current transfer copies |
+| Optional capture | Independent frame/projection staging and the transcript owner's exact file capacity |
+
+Pressure intervals use the actual integer 16,000-sample/120-tick partition.
+Three ticks therefore include 133, 133, and 134 samples per due microphone.
+Canonical encoding allowances describe byte representations, not a canonical experiment.
+Canonical experiment storage remains unselected at zero; requesting that mode rejects before effects.
+
+These calculations allocate no physical resources and do not bound opaque process or GPU memory.
+Native and application arenas retain their separate actual reservation contracts.
+The finite host allowance covers unique originals and encoded metadata, excluding Python object overhead and arbitrary caller copies.
+The caller remains responsible for downstream consumers and additional storage.
+The historical `city_session` path remains available but lacks this aggregate composition admission.
+
+Selected capture uses the existing optional Prisoma `Journal`, without an arbitrary exchange callback or another recorder.
+Its actual capacity API admits the full planned exchange count plus one Abort-and-ACK contingency.
+The current transcript limits remain 8,190 exchange pairs and 1 GiB per file.
+An excessive capture horizon rejects before file or process creation, even when body-only execution admits that horizon.
+A free-disk observation supplies an additional precondition, not a physical reservation.
+Later I/O failures retain original errors and available retirement facts.
+Failure closes the existing journal without inventing a successful terminal or retrying the producer.
+Successful capture completion does not prove scientific validity.
+
 An application result reserves at most `4,096 + 96N + 1,024S` bytes within its 49,152-byte capacity.
 The header allowance includes the sole possible failed-source diagnostic and conservative JSON escaping.
 No response repeats the entire world for each entity.
@@ -97,6 +136,21 @@ It neither downloads dependencies nor executes a native GPU campaign.
 The [hosted workflow](../../.github/workflows/ncp-sensors.yml) runs separate city and sensor construction jobs on Linux.
 Prepare locked Cargo dependencies through the existing [sensor construction procedure](../ncp-force-ground-sensors/README.md#construction-and-qualification).
 
+For capture coverage, select a Python environment with the actual optional transcript package:
+
+```sh
+CREBAIN_SENSOR_NCP_SOURCE=/operator/selected/NCP \
+CREBAIN_CITY_TRANSCRIPT_PYTHON=/operator/capture-environment/bin/python \
+  bun run validate:with-ncp-city
+```
+
+The city gate also accepts `--transcript-python` with that absolute interpreter path.
+Missing selected packages fail; no capture test skips an unavailable owner.
+The default body-only command does not claim capture coverage.
+The hosted city job installs Prisoma transcript source `7a1730e4cc1c7a62fa207e2baa0d6f231454bd3f` with normal dependency resolution.
+It retains the installation report, selected module identities, and actual optional-owner control results.
+The sensor job retains its independent dependency boundary.
+
 After publishing the gated source, install into fresh operator-selected locations:
 
 ```sh
@@ -112,10 +166,17 @@ CPU-only and pressure-only selections require neither Node nor a browser.
 The city selector preserves the scalar and checkpoint-family selectors and their independent contracts.
 
 ```python
-from crebain_ncp_sensors.city import InstalledCityRuntime, city_session
+from crebain_ncp_sensors.city import (
+    InstalledCityRuntime, ResourceBudget, budgeted_city_session,
+)
 
 runtime = InstalledCityRuntime.open("/operator/runtimes/crebain-city")
-with city_session(runtime, prepare, timeout_s=600) as city:
+budget = ResourceBudget(
+    logical_bytes=host_logical_limit,
+    graphics_color_bytes=host_color_limit,
+    storage_bytes=host_capture_limit,
+)
+with budgeted_city_session(runtime, prepare, budget=budget, timeout_s=600) as city:
     for rows in whole_roster_schedule:
         with city.advance(rows) as pending:
             consume(pending.observation)
@@ -124,10 +185,12 @@ with city_session(runtime, prepare, timeout_s=600) as city:
 assert city.retirement.process_exit["cleanup_confirmed"]
 ```
 
-The caller supplies a validated `Prepare`, complete ordered row batches, and a bounded observation consumer.
+The caller supplies trusted byte limits, a validated `Prepare`, complete ordered row batches, and a bounded observation consumer.
 Use `CityContract.decode_prepare` for closed typed configuration decoding.
-Host-retained observations require host-owned memory limits after their application batch is released.
-The caller may select a trusted `exchange` hook for original-frame capture; the peer cannot select code or runtime paths.
+Use `composition_resources(prepare, binding)` to inspect the derived body-only allowances before selecting limits.
+Add `capture_path` to select the budgeted transcript route; use `capture=True` when calculating its allowances.
+The peer cannot select code, runtime paths, or host limits.
+The historical launcher retains its trusted `exchange` hook outside the budgeted contract.
 
 Context exit requires the full prepared horizon and no outstanding batch.
 `failure_retirement(error)` retrieves available retirement facts, including failures before the context yields.

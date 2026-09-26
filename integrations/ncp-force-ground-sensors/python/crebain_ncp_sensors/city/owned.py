@@ -14,6 +14,7 @@ from . import codec as c, types as t
 from .client import CitySession, CommittedObservation
 from .contract import CityContract
 from .runtime import InstalledCityRuntime
+from .resources import ResourceAdmission, recheck_admission
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,6 +39,8 @@ class RetirementReceipt:
 
 class OwnedCitySession(CitySession):
     retirement: RetirementReceipt | None = None
+    resource_admission: ResourceAdmission | None = None
+    capture_terminal: dict | None = None
 
 
 def new_binding(*, run_id=None):
@@ -61,23 +64,37 @@ def failure_retirement(error):
     return value if type(value) is RetirementReceipt else None
 
 
-@contextmanager
-def city_session(runtime, prepare, *, timeout_s=600, binding=None, exchange=None):
-    """Verify installed bytes, use one absolute command deadline, then retire owned processes.
-
-    The existing process guardian has a separate 205-second cleanup grace.
-    A constructor failure without a returned process has unavailable exit evidence.
-    """
+def _launch_preflight(runtime, prepare, *, timeout_s, binding):
+    """Reopen selected installation and validate launch inputs without construction."""
     CityContract.check_input(w.Prepare(prepare))
     c.require(type(timeout_s) is int and 1 <= timeout_s <= 600)
-    c.require(exchange is None or callable(exchange))
-    binding = new_binding() if binding is None else binding
     c.require(type(binding) is t.BufferBinding)
     Client(binding, CityContract)
     c.require(type(runtime) is InstalledCityRuntime)
     c.require(InstalledCityRuntime.open(runtime.prefix) == runtime, "binding")
     cameras = any(type(s) in (t.RGBRequest, t.ThermalRequest) for s in prepare.sources)
     c.require(not cameras or runtime.node is not None)
+    return cameras
+
+
+@contextmanager
+def city_session(
+    runtime,
+    prepare,
+    *,
+    timeout_s=600,
+    binding=None,
+    exchange=None,
+    _resource_admission=None,
+):
+    """Verify installed bytes, use one absolute command deadline, then retire owned processes.
+
+    The existing process guardian has a separate 205-second cleanup grace.
+    A constructor failure without a returned process has unavailable exit evidence.
+    """
+    c.require(exchange is None or callable(exchange))
+    binding = new_binding() if binding is None else binding
+    cameras = _launch_preflight(runtime, prepare, timeout_s=timeout_s, binding=binding)
     deadline = time.monotonic() + timeout_s
     command = [str(runtime.producer), "--bun", str(runtime.bun)]
     if cameras:
@@ -96,6 +113,9 @@ def city_session(runtime, prepare, *, timeout_s=600, binding=None, exchange=None
     yielded = False
     failures = []
     try:
+        if _resource_admission is not None:
+            recheck_admission(prepare, binding, _resource_admission)
+            c.require(_resource_admission.capture == (exchange is not None), "binding")
         process = _Process(
             command, runtime.environment, runtime.project, deadline=deadline
         )
@@ -109,6 +129,7 @@ def city_session(runtime, prepare, *, timeout_s=600, binding=None, exchange=None
             source_identity=runtime.source_identity,
         )
         session.prepare()
+        session.resource_admission = _resource_admission
         yielded = True
         yield session
         if time.monotonic() >= deadline:

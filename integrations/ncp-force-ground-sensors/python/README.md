@@ -10,6 +10,8 @@ Ordinary sensor sessions receive no checkpoint or evaluation capability.
 The separately selected [city API](../../ncp-force-city-sources/README.md) lives in `crebain_ncp_sensors.city` within this distribution.
 It requires `InstalledCityRuntime` and its own typed preparation; scalar and family runtimes cannot authorize city sessions.
 City construction controls do not establish installed 256-entity qualification.
+Use its `budgeted_city_session` for independently admitted body or optional-transcript logical allowances before construction.
+The legacy city launcher supplies no aggregate resource admission; neither path bounds opaque process memory.
 
 The optional `crebain-ncp-sensors` package installs its pinned NCP v1 SDK automatically.
 It includes the exact owned application, composition, schema, and sensor contract files.
