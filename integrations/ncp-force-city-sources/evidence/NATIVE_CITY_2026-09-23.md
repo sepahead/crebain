@@ -171,6 +171,7 @@ This dependency-source interpretation is not reproducible-build or loaded-code a
 General tracking, complete 256-entity profile, timing, runtime-memory, and release qualification remain open.
 The result supplies no physical-flight safety claim.
 Original captures and detailed checker artifacts remain in private operator custody.
+The [checker guide](../README.md#what-the-trajectory-checker-establishes) explains its purpose, reuse limits, and possible robotics applications.
 
 ## Custody and limits
 

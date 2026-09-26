@@ -219,6 +219,69 @@ General tracking qualification stays open.
 Literal source failures must preserve earlier actual originals without relabeling shared-renderer loss as a known acquisition failure.
 Privileged fault injection requires separately frozen test fixtures; no peer-accessible fault option exists.
 
+## What the trajectory checker establishes
+
+The checker certifies body separation under the selected solver's four-substep integration law.
+It does not replace Rapier's collision detector, change the controller, or execute a new physics simulation.
+NCP byte transfer does not require this checker.
+It addresses a separate gap in CREBAIN's trajectory evidence.
+
+The original tracking runs found no contact at sampled states.
+Those observations alone could not establish separation throughout each interval.
+Sampling has a related limitation in robotics: Drake's [edge collision checker](https://drake.mit.edu/doxygen_cxx/classdrake_1_1planning_1_1_collision_checker.html) explicitly describes approximate checks along sampled paths.
+That reference explains the general problem, not qualification of this checker.
+
+The checker encloses each body's motion and shape in a conservative region.
+It checks separation from every other admitted body, each scene solid, and the ground.
+The bound includes solver substeps and numerical rounding.
+Strict comparisons reject touching.
+Disjoint regions certify separation under the checked assumptions.
+Overlapping regions mean that this method cannot certify separation.
+They do not prove an actual collision.
+
+The current [certificate](evidence/NATIVE_CITY_2026-09-23.md#derived-integration-law-separation-september-26-2026) covers 88 frozen direct/NCP trajectory pairs and their original execution joins.
+Its 0.55 m envelope follows the selected drone shape, dynamics, force limits, and rounding bounds.
+That radius is not a general robot clearance setting.
+
+### Reuse and current limits
+
+The geometry and interval reasoning do not depend on an expected experiment outcome.
+The current tooling still binds a specific solver profile, snapshot format, and evidence roster.
+It remains an offline audit tool in private evidence custody, not an installed public verification API.
+The public record supplies the result, assumptions, and artifact identities.
+
+A different body, solver, timestep, force range, or coordinate range requires new bounds and admission controls.
+Articulated robots also require link geometry, joint motion, and self-collision rules.
+A proposed trajectory and a recorded execution are different claims.
+Checking one does not qualify the other.
+
+### NCP, Zenoh, and robotics
+
+NCP supplies typed control, observation, identity, and lifecycle records for the selected execution.
+The checker joins those records to simulator states before applying its geometric argument.
+A received message or digest alone does not prove correct physics or physical execution.
+
+Zenoh provides [publish/subscribe and query abstractions](https://zenoh.io/docs/manual/abstractions/).
+A future adapter could transport suitable evidence, but this checker has no implemented or tested Zenoh adapter.
+Such an adapter would need explicit schema, units, ordering, timing, identity, missing-data, and provenance checks.
+Transport compatibility does not supply those application meanings automatically.
+
+The following uses are design applications of the verification pattern, not qualified CREBAIN robotics features.
+
+| Potential use | Useful result | Additional requirement |
+| --- | --- | --- |
+| Simulation regression | Identify trajectories that no longer satisfy the certificate's assumptions or separation checks | Versioned models, frozen inputs, complete traces, and paired failure controls |
+| Planner or learned-policy evaluation | Check geometric constraints separately from task reward | Bounds for the proposed or executed motion, plus distinct task-quality tests |
+| Mobile robots or robot arms | Check body, link, obstacle, and self-separation over motion intervals | Robot-specific geometry, dynamics, joint limits, and numerical bounds |
+| Recorded failure analysis | Locate an unsupported assumption or interval without a certificate | Complete command/state ancestry and explicit unavailable evidence |
+
+Walking, grasping, and assembly can require intended contact.
+They need separate rules for permitted contacts, forces, friction, and task constraints.
+A contact-free certificate cannot evaluate those tasks by itself.
+
+Physical deployment additionally needs validated state estimation, model-error bounds, latency, actuator behavior, and environment uncertainty.
+The current checker supplies no hardware safety guarantee, online intervention, learned policy, or real-time deadline qualification.
+
 ## Implementation decision
 
 | Approach | Benefit | Failure mode and decisive control |
