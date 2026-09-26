@@ -1,0 +1,244 @@
+{
+  "admitted_source_profile": {
+    "additional_solver_iterations": 0,
+    "centered_dynamic_cuboids_and_zero_local_center_of_mass": true,
+    "complete_dynamic_and_fixed_collider_rosters": true,
+    "continuous_collision_detection": false,
+    "effective_inverse_mass": "binary32(1/1.5), equal on all three axes",
+    "interpretation": "Official pinned dependency-source interpretation, not reproducible-build or loaded-code attestation.",
+    "javascript_rapier_version": "0.19.3",
+    "joint_counts": 0,
+    "kinematic_bodies": false,
+    "mass_kg": "1.5",
+    "nalgebra_version": "0.34.1",
+    "retained_manifolds": 0,
+    "rust_rapier_version": "0.30.1",
+    "sleeping_scope": "Skipped sleeping bodies add no displacement.",
+    "snapshot_phase": "State 0 begins interval 1. Snapshot k retains the before-solve narrow-phase constraints for interval [k-1,k]. State 360 closes the final interval.",
+    "soft_ccd": false,
+    "translation_scope": "Each of the four solver substeps uses its constant integrated velocity; no arbitrary whole-tick endpoint interpolation."
+  },
+  "bounds": {
+    "center_motion_radius_m": "0.25",
+    "complete_envelope_radius_m": "0.55",
+    "full_collider_radius_m": "0.30",
+    "intermediate_velocity_component_max_mps": 7,
+    "nominal_collider_half_extents_m": ["0.20", "0.05", "0.20"],
+    "nominal_collider_radius_squared_m2": "0.0825",
+    "outward_acceleration_component_max_mps2": 200,
+    "position_addition_rounding_bound_per_axis_per_substep_m": "2^-8",
+    "retained_user_force_component_abs_max_n": 250,
+    "retained_user_torque_component_abs_max_nm": 250,
+    "start_angular_speed_norm_max_radps": 1,
+    "start_position_component_abs_max_m": 100000,
+    "start_speed_norm_max_mps": 5,
+    "strict_touching_rejected": true,
+    "substeps_per_tick": 4,
+    "tick_duration": "binary32(1/120) seconds"
+  },
+  "command_observation": {
+    "all_restore_only_child_returncodes_zero": true,
+    "child_stderr": {
+      "bytes_each": 90,
+      "classification": "Expected warning from the unchanged selected Rapier initializer.",
+      "count": 88,
+      "literal": "using deprecated parameters for the initialization function; pass a single object instead\n",
+      "sha256": "06210b38572a0a9d5c904cc541365ad69d7afaac6d4ed10f5d33268b0ae185d2"
+    },
+    "elapsed_scope": "Diagnostic wall time; no timing qualification.",
+    "elapsed_seconds": 1314.2458675839007,
+    "failure": null,
+    "forced_kill": false,
+    "interrupted": false,
+    "output_overflow": false,
+    "restore_only_children": 88,
+    "returncode": 0,
+    "timed_out": false
+  },
+  "controls": {
+    "actual_361_snapshot_child_control": 1,
+    "actual_sdk_synthetic_capture_negative_joins": 3,
+    "actual_sdk_synthetic_capture_test": 1,
+    "bun_snapshot_admission_tests": 6,
+    "commands_passed": 7,
+    "native_simulator_steps": 0,
+    "negative_classes": [
+      "touching",
+      "interior crossing",
+      "rotation",
+      "opposing bodies",
+      "omitted interval",
+      "omitted solid",
+      "nonfinite input",
+      "altered source",
+      "foreign typed target",
+      "altered original state commitment"
+    ],
+    "original_256_body_restore_only_phase_controls": 3,
+    "python_geometry_and_reader_tests": 16
+  },
+  "counts": {
+    "axis_separated_pairs": 66494946,
+    "body_intervals": 612720,
+    "body_pairs": 70542720,
+    "body_solid_pairs": 9803520,
+    "full_distance_pairs": 4047774,
+    "ground_pairs": 612720,
+    "intervals": 31680,
+    "joined_executions": 176,
+    "original_capture_bytes": 343397862,
+    "paired_trajectories": 88,
+    "public_exchange_pairs": 127072,
+    "snapshot_admissions": 31768
+  },
+  "date": "2026-09-26",
+  "derived_claim": {
+    "full_256_profile_qualified": false,
+    "integrator_hull_separation_proved": true,
+    "new_simulator_steps": 0,
+    "original_outcomes_changed": false,
+    "physical_flight_safety": false,
+    "release_qualified": false,
+    "runtime_memory_qualified": false,
+    "scope": "Strict separation of complete collider envelopes under the selected four-substep translation law for the frozen original trajectories.",
+    "timing_qualified": false,
+    "tracking_qualified": false
+  },
+  "evidence_custody": {
+    "artifact_paths": "Relative names within retained operator custody, not public download URLs.",
+    "originals": "Private operator custody. This public record excludes original captures, source snapshots, and detailed checker artifacts.",
+    "receipts": "Local observations and hash joins, not scientific signatures.",
+    "retained_private_artifacts": [
+      {
+        "bytes": 74846,
+        "retained_path": "native/city-tracking-campaign-001/freeze.json",
+        "sha256": "3a085a3a0567afb0454cf4be461e782bb2f9cfe64481463e2a4c311682269e01"
+      },
+      {
+        "bytes": 57144,
+        "retained_path": "native/city-tracking-campaign-001/outputs/result.json",
+        "sha256": "a68494b1b3552b813f269950a074091821ca65b162fc524b284214b1dd8df9db"
+      },
+      {
+        "bytes": 5046,
+        "retained_path": "native/city-clearance-tools-20260926/selection.json",
+        "sha256": "47999db98a9786bb5ddfdc131ba6a619f6d60a5e261ca2909911cef0d954eb13"
+      },
+      {
+        "bytes": 13655,
+        "retained_path": "gates/city-continuous-contact-sufficiency-20260926/inputs.json",
+        "sha256": "41d94a2ee91a1f82399f4b1830c6ed411b7e6641cee1d42d64ed46dba96e0ccd"
+      },
+      {
+        "bytes": 12848,
+        "retained_path": "gates/city-continuous-contact-sufficiency-20260926/DECISION.md",
+        "sha256": "41c4990d6e11bf1db8863ee29c2dd8a5da5f6fde105ae886da06790dca95cbcc"
+      },
+      {
+        "bytes": 2439,
+        "retained_path": "gates/city-continuous-contact-sufficiency-20260926/PROOF-SUPPLEMENT.md",
+        "sha256": "85add32b8f8c56ac4450ea8e5ac240998388748d8d3a0b9744ffb9a51c8c2dde"
+      },
+      {
+        "bytes": 1834,
+        "retained_path": "gates/city-continuous-contact-sufficiency-20260926/upstream-crate-join.json",
+        "sha256": "8ef50b753e9b816baebf0ae4287ba11ead05bf2f1fd261ed3108ef8527d746b5"
+      },
+      {
+        "bytes": 753,
+        "retained_path": "gates/city-continuous-contact-sufficiency-20260926/nalgebra-crate-join.json",
+        "sha256": "98ea6e66de2f692a9fe12b08c4efc717a9715503f9cbde16681143bc779c972e"
+      },
+      {
+        "bytes": 3327,
+        "retained_path": "gates/city-clearance-tools-003/cut.json",
+        "sha256": "9d9f56eff0cbc927f8780a0e4c52b7b60a10fb5bf6544d2034595bd0c0717c11"
+      },
+      {
+        "bytes": 4710,
+        "retained_path": "gates/city-clearance-tools-003/result.json",
+        "sha256": "871c06797748956c481ae65d9f38fd19aed6a7918c07f43d022dc91aa45cf28b"
+      },
+      {
+        "bytes": 1925,
+        "retained_path": "gates/city-clearance-root-review-001/result.json",
+        "sha256": "4e7ebca956ab4bbfd7000b5f5c188af663d63dbe4c3fc5d879b3ee5e325dde41"
+      },
+      {
+        "bytes": 1992,
+        "retained_path": "gates/city-clearance-command-001/start.json",
+        "sha256": "aa66fbbd8d6762d67a5fbcaf07480236dc3602eda781367ae5e674b947f934e5"
+      },
+      {
+        "bytes": 2084,
+        "retained_path": "gates/city-clearance-command-001/result.json",
+        "sha256": "3a6059f815fede69e1dc88aef0e368efd1849866f6d5841a06eacbbd69f848a1"
+      },
+      {
+        "bytes": 3951,
+        "retained_path": "gates/city-clearance-command-001/stdout.bin",
+        "sha256": "f04380cfaec69c4e32d98ecdbe7e22bc4603fe3bb6297507b5267c83f6d424fe"
+      },
+      {
+        "bytes": 0,
+        "retained_path": "gates/city-clearance-command-001/stderr.bin",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 66965,
+        "retained_path": "native/city-clearance-certificate-001/result.json",
+        "sha256": "c42938c7b43ce1cf6ddeca9ae2eff5e25d1c793669b7a70bb5d74aaa848109a8"
+      },
+      {
+        "bytes": 143985,
+        "retained_path": "gates/city-clearance-terminal-root-001/result.json",
+        "sha256": "f67ea09bd94bfaa49a4d9c935c634f298a07207bff0394e7c35e928b3b5170c4"
+      }
+    ]
+  },
+  "independent_terminal_review": {
+    "geometry_rerun": false,
+    "status": "PASS_SCOPED_TERMINAL_RECEIPT_REVIEW"
+  },
+  "joins": [
+    "All 176 original command receipts and the original campaign terminal were reverified before and after replay.",
+    "All 88 original journals replayed through the installed public typed client with original request-byte equality.",
+    "Every NCP control commitment rejoined original direct-world state and transition digests.",
+    "Every interval joins both original endpoint states and the retained force/contact phase for that interval.",
+    "Every state includes the admitted body, fixed collider, center-of-mass, joint, and solver roster.",
+    "All selected tools and source records were rehashed after replay."
+  ],
+  "limitations": [
+    "The claim covers the admitted numerical integration law, not physical flight or an unspecified continuous trajectory.",
+    "Both routes reuse the same physics implementation; they are not independent physical-model oracles.",
+    "The radii were frozen before clearance evaluation and remained unchanged after outcomes.",
+    "General tracking, complete 256-entity profile, timing, opaque runtime memory, and release qualification remain open.",
+    "Existing failed attempts and original unknown/false fields remain unchanged."
+  ],
+  "original_campaign": {
+    "freeze_sha256": "3a085a3a0567afb0454cf4be461e782bb2f9cfe64481463e2a4c311682269e01",
+    "preserved_fields": {
+      "continuous_contact_absence": null,
+      "release_qualified": false,
+      "tracking_qualified": false
+    },
+    "public_record": {
+      "bytes": 30114,
+      "published_commit": "37a786f8438a02013ecd542f355c8a67b3c714f7",
+      "repository_path": "integrations/ncp-force-city-sources/evidence/native-city-2026-09-23.json",
+      "sha256": "654bb9a60d26d4ef32fcee9572647261504aca8de4f95084e312ebf3930af68b"
+    },
+    "runtime_manifest_sha256": "5960649d492a91a35cbf7a22aa339f387731e441b1293c847c85e9f521955f0a",
+    "source_commit": "3fe34a1c9dd5b4cd575f6f1c3950e8ba8e51521c",
+    "source_tree": "8761a94dfeaac4abac961db298bf2b6d04d18ea6",
+    "terminal_sha256": "a68494b1b3552b813f269950a074091821ca65b162fc524b284214b1dd8df9db"
+  },
+  "roster_pairs_by_entity_count": {
+    "1": 26,
+    "2": 28,
+    "256": 6,
+    "3": 28
+  },
+  "schema": "crebain.city-integrator-hull-evidence.v1",
+  "status": "frozen_integration_law_hull_separation_passed"
+}

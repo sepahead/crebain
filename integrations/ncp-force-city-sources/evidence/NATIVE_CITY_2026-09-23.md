@@ -4,7 +4,9 @@ The installed city application completed the selected 256-entity sensor cases th
 Seven ordinary operations completed.
 Three deliberately faulted operations remained failures and passed their separate failure assertions.
 The tracking campaign passed every available numerical and mechanical check.
-Continuous contact remains unverified, so general tracking qualification stays open.
+The original report left continuous contact unverified.
+A [September 26 certificate](#derived-integration-law-separation-september-26-2026) separately proves integration-law hull separation for the frozen trajectories.
+General tracking qualification stays open.
 
 Both campaigns used published CREBAIN [`3fe34a1c`](https://github.com/sepahead/crebain/tree/3fe34a1c9dd5b4cd575f6f1c3950e8ba8e51521c).
 Each case used one shared Rapier world, unchanged force-controller gains, and the frozen sixteen-cuboid scene.
@@ -40,6 +42,7 @@ The maximum-dimension case selected four 1280-by-1280 RGB sources, four 320-by-3
 Its first pressure windows contained 133 samples each.
 Its observed total is 32 bytes below the admitted 27,857,088-byte batch ceiling for 134-sample windows.
 This observation does not measure that larger window or every possible combination of field maxima.
+A separate [September 26 boundary case](NATIVE_CITY_BOUNDARY_2026-09-26.md) later reached the exact batch ceiling without changing this original result.
 
 ## Fault observations
 
@@ -104,8 +107,70 @@ All target families, geometry, controller bytes, thresholds, and exclusions were
 
 Stored narrow-phase contact observations were clear in all 88 paired records.
 They observe stored manifolds at selected states and cannot prove absence of contact between those states.
-Consequently, `continuous_contact_absence=null`, `tracking_qualified=false`, and `release_qualified=false` remain unchanged.
+The original record therefore retains `continuous_contact_absence=null`, `tracking_qualified=false`, and `release_qualified=false`.
+The separately derived result below does not rewrite those fields.
 Shared-host execution supplies no timing qualification or general stability proof.
+
+## Derived integration-law separation, September 26, 2026
+
+A separate read-only checker proved integration-law hull separation for all 88 original direct/NCP pairs.
+It restored retained snapshots without advancing a world.
+Original NCP control commitments rejoined the corresponding direct-world state and transition digests.
+The [derived machine-readable record](integrator-hull-2026-09-26.json) binds the frozen checker, proof, source inputs, controls, actual exits, and independent terminal review.
+
+| Accounted quantity | Count |
+| --- | ---: |
+| Original executions joined | 176 |
+| Paired trajectories | 88 |
+| Paired intervals | 31,680 |
+| Restored snapshot admissions | 31,768 |
+| Body-intervals | 612,720 |
+| Unordered body-pair checks | 70,542,720 |
+| Body pairs excluded by exact axis separation | 66,494,946 |
+| Body pairs requiring exact squared-distance checks | 4,047,774 |
+| Body-solid checks | 9,803,520 |
+| Body-ground checks | 612,720 |
+
+The totals count each paired trajectory once across both routes.
+Every interval includes all bodies, the ground, and all sixteen original solids.
+Both bodies contribute their complete motion envelopes to each body-pair check.
+Strict comparisons reject touching.
+
+The selected JavaScript Rapier 0.19.3 package uses Rust Rapier 0.30.1.
+The reviewed solver advances translation through four constant-velocity substeps per tick.
+Let `h` denote the tick duration, rounded to binary32 from 1/120 seconds.
+Each solver substep lasts `h/4` seconds.
+The admitted start speed is at most 5 m/s, and each retained user-force component is at most 250 N.
+All admitted drone bodies have mass 1.5 kg and the selected gravity, damping, inertia, and inverse-mass values.
+The source-derived acceleration envelope is 200 m/s² per axis.
+Each intermediate velocity component stays below 7 m/s.
+
+Each start coordinate has magnitude at most 100,000 m.
+Four position additions each contribute at most `2^-8` m of rounding per axis.
+The full translation bound stays below 0.129 m.
+The checker uses a conservative 0.25 m center-motion radius.
+The nominal collider half-extents are 0.20, 0.05, and 0.20 m.
+Their enclosing radius is `sqrt(0.0825)` m.
+A fixed 0.30 m collider radius includes shape, rotation, and coordinate-rounding allowances.
+The complete envelope radius is therefore 0.55 m around each interval's initial center.
+These bounds were frozen before clearance evaluation.
+
+Restored-state admission checked centered colliders, zero local center of mass, complete rosters, and the exact solver profile.
+It rejected joints, kinematic bodies, continuous collision detection, extra solver iterations, and retained contact manifolds.
+Snapshot zero starts the first interval.
+Snapshot 360 closes the last interval.
+The retained narrow-phase data in snapshot `k` belongs to the solver interval from state `k-1` to state `k`.
+The proof follows each selected solver translation segment, not an arbitrary path between whole-tick endpoints.
+
+All 88 restore-only children and the outer replay command exited zero.
+An independent terminal review verified the selected records, complete roster, and count formulas.
+The expected Rapier initialization warning remained in each child stream.
+No simulator rerun, input replacement, threshold adjustment, or original-result edit occurred.
+
+This dependency-source interpretation is not reproducible-build or loaded-code attestation.
+General tracking, complete 256-entity profile, timing, runtime-memory, and release qualification remain open.
+The result supplies no physical-flight safety claim.
+Original captures and detailed checker artifacts remain in private operator custody.
 
 ## Custody and limits
 

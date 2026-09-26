@@ -1,0 +1,471 @@
+{
+  "schema": "crebain.city-resource-functional-evidence.v1",
+  "date": "2026-09-26",
+  "status": "scoped_functional_pass",
+  "publication_state": "reviewed_summary",
+  "original_evidence_scope": "private_locally_observed_bytes_and_actions",
+  "public_projection_scope": "summary_and_public_source_identities",
+  "client": {
+    "commit": "eea2a64efbae3c34f74d4784d1ee0dc64cfba5e5",
+    "tree": "0249b51dc39b38f7c341b784da021c9a3f83727e",
+    "wheel_sha256": "db29a9d457be351dcb07b1651c901d087d1094fdddfe7360c0ebda5fe3678469"
+  },
+  "native": {
+    "source_commit": "3fe34a1c9dd5b4cd575f6f1c3950e8ba8e51521c",
+    "source_identity": "da18ad031d6ef5db3b13e2e210460fae3b5421e0b366cb5bc5618dc416a03270",
+    "manifest_sha256": "5960649d492a91a35cbf7a22aa339f387731e441b1293c847c85e9f521955f0a",
+    "unchanged_from_city_install_001": true
+  },
+  "dependencies": {
+    "ncp_sdk_commit": "c0465d40f1f2b9df2caf9793183d11e65ac9ec74",
+    "ncp_sdk_wheel_sha256": "1c74f2a7a98999cf82c4499da611b0bd44a1bc95e5d3c46b39c4e1246b7eef34",
+    "captured_only_transcript_commit": "7a1730e4cc1c7a62fa207e2baa0d6f231454bd3f",
+    "captured_only_transcript_wheel_sha256": "d8bd70274e44d2fef5b3133e6be3623f412535979980ad1974e51726bc7c3e39"
+  },
+  "selection": {
+    "entity_counts": [1, 256],
+    "solids": 16,
+    "ticks_per_case": 3,
+    "fixed_model_tick_hz": 120,
+    "pressure_sample_rate_hz": 16000,
+    "pressure_periods_ticks": [1, 2],
+    "pressure_samples_by_tick": [
+      [133, null],
+      [133, 133],
+      [134, null]
+    ],
+    "actions": "original frozen initial set actions; subsequent accepted holds",
+    "source_outcome_retries": 0,
+    "replacement_cases": 0,
+    "selected_graphics_sources": 0
+  },
+  "counts": {
+    "body_ticks": 36,
+    "original_bytes": 25584,
+    "pressure_payloads": 24,
+    "sessions": 12,
+    "successful_sessions": 12,
+    "budgeted_sessions": 8,
+    "legacy_sessions_without_aggregate_admission": 4,
+    "body_only_sessions": 8,
+    "captured_sessions": 4,
+    "owner_derived_normal_exchange_pairs_all_routes": 336,
+    "actual_captured_exchange_pairs": 112,
+    "captured_original_payloads": 8,
+    "captured_original_bytes": 8528,
+    "matched_route_groups": 4,
+    "nonempty_pressure_comparison_groups": 2,
+    "pairwise_full_payload_comparisons": 16,
+    "confirmed_owner_cleanups": 12,
+    "sampled_births": 48,
+    "remaining_sampled_births": 0,
+    "retained_original_artifact_identities": 137,
+    "actual_case_artifact_bytes": 1119933
+  },
+  "cases": [
+    {
+      "case_id": "n001-cpu-legacy_body",
+      "entities": 1,
+      "source_kinds": [],
+      "source_periods_ticks": [],
+      "route": "legacy_body",
+      "body_ticks": 3,
+      "payloads": 0,
+      "original_bytes": 0,
+      "resource_admission_applied": false,
+      "calculated_logical_allowance": {
+        "graphics_color_bytes": 0,
+        "logical_bytes": 2961920,
+        "storage_bytes": 0
+      },
+      "captured_exchange_pairs": null,
+      "owner_cleanup_confirmed": true,
+      "owner_forced": false,
+      "outer_returncode": 0,
+      "sampled_births": 4,
+      "sampled_births_retired": true
+    },
+    {
+      "case_id": "n001-cpu-budgeted_body",
+      "entities": 1,
+      "source_kinds": [],
+      "source_periods_ticks": [],
+      "route": "budgeted_body",
+      "body_ticks": 3,
+      "payloads": 0,
+      "original_bytes": 0,
+      "resource_admission_applied": true,
+      "calculated_logical_allowance": {
+        "graphics_color_bytes": 0,
+        "logical_bytes": 2961920,
+        "storage_bytes": 0
+      },
+      "captured_exchange_pairs": null,
+      "owner_cleanup_confirmed": true,
+      "owner_forced": false,
+      "outer_returncode": 0,
+      "sampled_births": 4,
+      "sampled_births_retired": true
+    },
+    {
+      "case_id": "n001-cpu-budgeted_captured",
+      "entities": 1,
+      "source_kinds": [],
+      "source_periods_ticks": [],
+      "route": "budgeted_captured",
+      "body_ticks": 3,
+      "payloads": 0,
+      "original_bytes": 0,
+      "resource_admission_applied": true,
+      "calculated_logical_allowance": {
+        "graphics_color_bytes": 0,
+        "logical_bytes": 3355136,
+        "storage_bytes": 2362592
+      },
+      "captured_exchange_pairs": 16,
+      "owner_cleanup_confirmed": true,
+      "owner_forced": false,
+      "outer_returncode": 0,
+      "sampled_births": 4,
+      "sampled_births_retired": true
+    },
+    {
+      "case_id": "n001-pressure-legacy_body",
+      "entities": 1,
+      "source_kinds": ["pressure", "pressure"],
+      "source_periods_ticks": [1, 2],
+      "route": "legacy_body",
+      "body_ticks": 3,
+      "payloads": 4,
+      "original_bytes": 4264,
+      "resource_admission_applied": false,
+      "calculated_logical_allowance": {
+        "graphics_color_bytes": 0,
+        "logical_bytes": 3302144,
+        "storage_bytes": 0
+      },
+      "captured_exchange_pairs": null,
+      "owner_cleanup_confirmed": true,
+      "owner_forced": false,
+      "outer_returncode": 0,
+      "sampled_births": 4,
+      "sampled_births_retired": true
+    },
+    {
+      "case_id": "n001-pressure-budgeted_body",
+      "entities": 1,
+      "source_kinds": ["pressure", "pressure"],
+      "source_periods_ticks": [1, 2],
+      "route": "budgeted_body",
+      "body_ticks": 3,
+      "payloads": 4,
+      "original_bytes": 4264,
+      "resource_admission_applied": true,
+      "calculated_logical_allowance": {
+        "graphics_color_bytes": 0,
+        "logical_bytes": 3302144,
+        "storage_bytes": 0
+      },
+      "captured_exchange_pairs": null,
+      "owner_cleanup_confirmed": true,
+      "owner_forced": false,
+      "outer_returncode": 0,
+      "sampled_births": 4,
+      "sampled_births_retired": true
+    },
+    {
+      "case_id": "n001-pressure-budgeted_captured",
+      "entities": 1,
+      "source_kinds": ["pressure", "pressure"],
+      "source_periods_ticks": [1, 2],
+      "route": "budgeted_captured",
+      "body_ticks": 3,
+      "payloads": 4,
+      "original_bytes": 4264,
+      "resource_admission_applied": true,
+      "calculated_logical_allowance": {
+        "graphics_color_bytes": 0,
+        "logical_bytes": 3695360,
+        "storage_bytes": 5510528
+      },
+      "captured_exchange_pairs": 40,
+      "owner_cleanup_confirmed": true,
+      "owner_forced": false,
+      "outer_returncode": 0,
+      "sampled_births": 4,
+      "sampled_births_retired": true
+    },
+    {
+      "case_id": "n256-cpu-legacy_body",
+      "entities": 256,
+      "source_kinds": [],
+      "source_periods_ticks": [],
+      "route": "legacy_body",
+      "body_ticks": 3,
+      "payloads": 0,
+      "original_bytes": 0,
+      "resource_admission_applied": false,
+      "calculated_logical_allowance": {
+        "graphics_color_bytes": 0,
+        "logical_bytes": 28160000,
+        "storage_bytes": 0
+      },
+      "captured_exchange_pairs": null,
+      "owner_cleanup_confirmed": true,
+      "owner_forced": false,
+      "outer_returncode": 0,
+      "sampled_births": 4,
+      "sampled_births_retired": true
+    },
+    {
+      "case_id": "n256-cpu-budgeted_body",
+      "entities": 256,
+      "source_kinds": [],
+      "source_periods_ticks": [],
+      "route": "budgeted_body",
+      "body_ticks": 3,
+      "payloads": 0,
+      "original_bytes": 0,
+      "resource_admission_applied": true,
+      "calculated_logical_allowance": {
+        "graphics_color_bytes": 0,
+        "logical_bytes": 28160000,
+        "storage_bytes": 0
+      },
+      "captured_exchange_pairs": null,
+      "owner_cleanup_confirmed": true,
+      "owner_forced": false,
+      "outer_returncode": 0,
+      "sampled_births": 4,
+      "sampled_births_retired": true
+    },
+    {
+      "case_id": "n256-cpu-budgeted_captured",
+      "entities": 256,
+      "source_kinds": [],
+      "source_periods_ticks": [],
+      "route": "budgeted_captured",
+      "body_ticks": 3,
+      "payloads": 0,
+      "original_bytes": 0,
+      "resource_admission_applied": true,
+      "calculated_logical_allowance": {
+        "graphics_color_bytes": 0,
+        "logical_bytes": 28553216,
+        "storage_bytes": 2362592
+      },
+      "captured_exchange_pairs": 16,
+      "owner_cleanup_confirmed": true,
+      "owner_forced": false,
+      "outer_returncode": 0,
+      "sampled_births": 4,
+      "sampled_births_retired": true
+    },
+    {
+      "case_id": "n256-pressure-legacy_body",
+      "entities": 256,
+      "source_kinds": ["pressure", "pressure"],
+      "source_periods_ticks": [1, 2],
+      "route": "legacy_body",
+      "body_ticks": 3,
+      "payloads": 4,
+      "original_bytes": 4264,
+      "resource_admission_applied": false,
+      "calculated_logical_allowance": {
+        "graphics_color_bytes": 0,
+        "logical_bytes": 40685144,
+        "storage_bytes": 0
+      },
+      "captured_exchange_pairs": null,
+      "owner_cleanup_confirmed": true,
+      "owner_forced": false,
+      "outer_returncode": 0,
+      "sampled_births": 4,
+      "sampled_births_retired": true
+    },
+    {
+      "case_id": "n256-pressure-budgeted_body",
+      "entities": 256,
+      "source_kinds": ["pressure", "pressure"],
+      "source_periods_ticks": [1, 2],
+      "route": "budgeted_body",
+      "body_ticks": 3,
+      "payloads": 4,
+      "original_bytes": 4264,
+      "resource_admission_applied": true,
+      "calculated_logical_allowance": {
+        "graphics_color_bytes": 0,
+        "logical_bytes": 40685144,
+        "storage_bytes": 0
+      },
+      "captured_exchange_pairs": null,
+      "owner_cleanup_confirmed": true,
+      "owner_forced": false,
+      "outer_returncode": 0,
+      "sampled_births": 4,
+      "sampled_births_retired": true
+    },
+    {
+      "case_id": "n256-pressure-budgeted_captured",
+      "entities": 256,
+      "source_kinds": ["pressure", "pressure"],
+      "source_periods_ticks": [1, 2],
+      "route": "budgeted_captured",
+      "body_ticks": 3,
+      "payloads": 4,
+      "original_bytes": 4264,
+      "resource_admission_applied": true,
+      "calculated_logical_allowance": {
+        "graphics_color_bytes": 0,
+        "logical_bytes": 41078360,
+        "storage_bytes": 5510528
+      },
+      "captured_exchange_pairs": 40,
+      "owner_cleanup_confirmed": true,
+      "owner_forced": false,
+      "outer_returncode": 0,
+      "sampled_births": 4,
+      "sampled_births_retired": true
+    }
+  ],
+  "limits": {
+    "inner_seconds": 600,
+    "case_outer_seconds": 900,
+    "case_exceptional_cleanup_seconds": 215,
+    "campaign_seconds": 14400,
+    "campaign_outer_seconds": 15000,
+    "campaign_outer_exceptional_cleanup_seconds": 215,
+    "case_combined_stream_bytes": 8388608,
+    "outer_stream_bytes_each": 4194304,
+    "planned_artifact_allowance_bytes": 519088304,
+    "planned_capture_capacity_bytes": 15746240,
+    "observed_free_space_is_reservation": false,
+    "observer_birth_limit_per_case": 256
+  },
+  "controls": {
+    "body_installed_methods": 7,
+    "captured_installed_methods": 11,
+    "pure_and_historical_methods": 13,
+    "method_executions": 31,
+    "distinct_methods": 24,
+    "skipped": 0,
+    "native_process_in_control_suite": false,
+    "constructor_sentinels": "Explicit synthetic process boundaries; selected real installed admission and Journal code",
+    "negative_classes": [
+      "each positive budget component minus one",
+      "unsupported canonical experiment",
+      "invalid launcher and non-integer timeout",
+      "insufficient sampled disk",
+      "late invalid roster",
+      "recorder exchange ceiling",
+      "forged admission",
+      "missing/reordered/changed payload and source rows",
+      "copied command and terminal drift"
+    ],
+    "positive_controls_paired": true,
+    "historical_readback_is_new_execution": false
+  },
+  "host": {
+    "shared_host_scope": true,
+    "started_utc": "2026-09-26T19:18:34.826510+00:00",
+    "finished_utc": "2026-09-26T19:21:25.730698+00:00",
+    "ncp_full_005_terminal_present_at_start": true,
+    "ncp_full_005_terminal_present_at_finish": true,
+    "concurrent_ncp_execution_claimed": false,
+    "timing_measurement": false
+  },
+  "authority": {
+    "functional_logical_admission_for_selected_cases": true,
+    "body_only_canonical_capture_authentication": false,
+    "opaque_process_memory_bound": false,
+    "operating_system_or_gpu_memory_ceiling": false,
+    "physical_reservation": false,
+    "loaded_code_attestation": false,
+    "complete_descendant_containment": false,
+    "continuous_contact_absence": null,
+    "tracking_qualified": false,
+    "real_time_qualified": false,
+    "full_7200_tick_capture_qualified": false,
+    "physical_calibration": false,
+    "general_stability": false,
+    "release_qualified": false
+  },
+  "private_receipts": {
+    "source_cut": {
+      "private_relative_path": "gates/city-resource-tools-001/cut.json",
+      "bytes": 7489,
+      "sha256": "b982efb680f07ac03ced593525bb9c88b0d7c31d926fc4b7a9db9d25d488d40b"
+    },
+    "source_gate": {
+      "private_relative_path": "gates/city-resource-tools-001/result.json",
+      "bytes": 4198,
+      "sha256": "cb4c7c3a72b57cfb2a52a2b179d7b5bdae7282a27371275e0a08e8eb57069afe"
+    },
+    "source_review": {
+      "private_relative_path": "gates/city-resource-tools-root-review-001/result.json",
+      "bytes": 1990,
+      "sha256": "ee41514c4e03b0bf8ed27566dc4b45c5f5684be41e0687a4410776ee47342df0"
+    },
+    "freeze_review": {
+      "private_relative_path": "gates/city-resource-tools-root-review-001/freeze-review.json",
+      "bytes": 2803,
+      "sha256": "e8128f8a2937008d7fddc15c52db2d2af9c633d86ebf562b0432f410d2a85279"
+    },
+    "freeze": {
+      "private_relative_path": "native/city-resource-campaign-20260926-001/freeze.json",
+      "bytes": 560248,
+      "sha256": "bc92bbc33d0b36a79c4d15c9f95cc69ac19e76b01f989da0bcfa8ecb1f696409"
+    },
+    "installation": {
+      "private_relative_path": "native/city-resource-install-20260926/handoff-001.json",
+      "bytes": 4651,
+      "sha256": "8b932733bf8f5aa2e9d17139ca3e618417701e38e730d172a522e0c82405397d"
+    },
+    "body_package_joins": {
+      "private_relative_path": "native/city-resource-install-20260926/attempt-001/artifacts/body-installation-joins.json",
+      "bytes": 22068,
+      "sha256": "0576eaeceea39265d89bb09b97a3fc5f9c635223b2793290433ebea98b37a150"
+    },
+    "captured_package_joins": {
+      "private_relative_path": "native/city-resource-install-20260926/attempt-001/artifacts/captured-installation-joins.json",
+      "bytes": 25998,
+      "sha256": "a83dfe9d5120e63892f20a4a43742a1021430c111b07848345d3dde750bcdb72"
+    },
+    "native_start": {
+      "private_relative_path": "gates/city-resource-native-command-20260926-001/start.json",
+      "bytes": 4472,
+      "sha256": "ce7d40d0318477e1f1fadea47a34f41d005c630f0bfb3e2b5fd36e45ff8b1a9a"
+    },
+    "native_outer": {
+      "private_relative_path": "gates/city-resource-native-command-20260926-001/result.json",
+      "bytes": 3595,
+      "sha256": "69721fef395e34ee2795f33d7cf7810dca7ea06fc3d1741a306ea0b85db9f9cf"
+    },
+    "execution": {
+      "private_relative_path": "native/city-resource-campaign-20260926-001/execution.json",
+      "bytes": 39255,
+      "sha256": "82648411d9ade0aa353855447e5f087b38827e4d4aa1d80101a78d6ffc8b0abd"
+    },
+    "audit_outer": {
+      "private_relative_path": "gates/city-resource-terminal-20260926-001/result.json",
+      "bytes": 3960,
+      "sha256": "4bdf7a25df61782c40371b8bcace9ef652688cb01d8168b353b72d5ec5af8943"
+    },
+    "terminal_audit": {
+      "private_relative_path": "gates/city-resource-terminal-20260926-001/audit.json",
+      "bytes": 184979,
+      "sha256": "9882be7f080371f5dcac43e1016868aa97ae6930238de07a900588868e6106c2"
+    },
+    "scheduling_council": {
+      "private_relative_path": "gates/city-functional-scheduling-council-20260926/result.json",
+      "bytes": 4014,
+      "sha256": "db7f245809db71bfb6645dc1fd6d00804373be698c0ebef8b2b36bf9760b9241"
+    },
+    "independent_terminal_review": {
+      "private_relative_path": "gates/city-resource-terminal-root-001/result.json",
+      "bytes": 54460,
+      "sha256": "e09944167fb790bcb6ad324e4aef2482067bcce7c3769d4e6a77c30160474a4c"
+    }
+  },
+  "retained_failures": "Historical sensor renderer/invalid-source outcomes, tracking continuous-contact hold, prior performance failures, and tooling attempts remain unchanged."
+}

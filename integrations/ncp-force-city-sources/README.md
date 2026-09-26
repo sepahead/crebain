@@ -4,6 +4,7 @@ This separate application uses one actual force-city world and one NCP endpoint.
 It admits 1–256 ordered entities and zero through twelve exclusive world-fixed source requests.
 Installed cases exercised 256 entities, including twelve selected sources, through typed NCP.
 The [dated evidence](evidence/NATIVE_CITY_2026-09-23.md) separates delivery, expected failures, tracking observations, and remaining qualification limits.
+The separate [three-tick boundary case](evidence/NATIVE_CITY_BOUNDARY_2026-09-26.md) delivered the exact 27,857,088-byte maximum original batch with complete capture and confirmed owner cleanup.
 
 The Rust owner supplies closed NCP types and application admission.
 A private Bun process owns the actual `ForceCityEnvironment` and optional graphics process.
@@ -71,6 +72,9 @@ The resource commitment separately includes actual graphics scratch, target, and
 These logical capacities do not bound opaque Rapier, JavaScript, browser, driver, or allocator memory.
 
 ### Trusted composition admission
+
+Twelve [installed resource sessions](evidence/native-city-resource-2026-09-26.md) passed across legacy, budgeted, and recorded routes.
+The selected one- and 256-entity groups preserved identical pressure bytes and completed owner cleanup.
 
 Use `budgeted_city_session` when selecting complete body or body-plus-transcript logical allowances.
 Its `ResourceBudget` supplies aggregate logical, graphics-color, and selected storage limits in bytes.
@@ -209,7 +213,9 @@ Construction controls exercise actual Rapier dynamics through Rust, Bun, and typ
 Pressure controls use actual native microphones; graphics controls use declared synthetic source implementations.
 They establish neither installed-source identity nor native GPU delivery, tracking, memory performance, or physical sensor calibration.
 The [installed campaign](evidence/NATIVE_CITY_2026-09-23.md) retained those gains and exercised selected 256-entity sensor and tracking cases.
-Available numerical checks passed, but continuous contact remains unverified and general tracking qualification stays open.
+The original tracking report left continuous contact unverified.
+A separate [read-only certificate](evidence/NATIVE_CITY_2026-09-23.md#derived-integration-law-separation-september-26-2026) proves integration-law hull separation for those frozen trajectories.
+General tracking qualification stays open.
 Literal source failures must preserve earlier actual originals without relabeling shared-renderer loss as a known acquisition failure.
 Privileged fault injection requires separately frozen test fixtures; no peer-accessible fault option exists.
 

@@ -1,0 +1,275 @@
+{
+  "batches": [
+    {
+      "original_bytes": 27857056,
+      "original_payloads": 12,
+      "pressure_sample_interval": [0, 133],
+      "pressure_samples_per_microphone": 133,
+      "sources": 12,
+      "tick": 1
+    },
+    {
+      "original_bytes": 27857056,
+      "original_payloads": 12,
+      "pressure_sample_interval": [133, 266],
+      "pressure_samples_per_microphone": 133,
+      "sources": 12,
+      "tick": 2
+    },
+    {
+      "original_bytes": 27857088,
+      "original_payloads": 12,
+      "pressure_sample_interval": [266, 400],
+      "pressure_samples_per_microphone": 134,
+      "sources": 12,
+      "tick": 3
+    }
+  ],
+  "capture": {
+    "application_completion_validated": false,
+    "exchange_pairs": 5296,
+    "finished_peers": 1,
+    "journal_bytes": 120839621,
+    "journal_digest": "583af21f2793784af7ea958151eb7caadaf9241a10c0c320dfb10ae71b09dc04",
+    "peer_count": 1,
+    "pending_peer_operations": 0,
+    "scientific_validation": false,
+    "store_completion": "complete",
+    "unanswered_request": false
+  },
+  "case": {
+    "entities": 256,
+    "measurements": "distinct world-fixed source instances observing a shared scene",
+    "ncp_endpoints": 1,
+    "physical_models": "one default drone model; distinct initial states and targets",
+    "pressure_sample_rate_hz": 16000,
+    "pressure_sources": 4,
+    "rgb_dimensions": [1280, 1280],
+    "rgb_sources": 4,
+    "scene_frame": "three-y-up-z-forward-m",
+    "solids": 16,
+    "source_period_ticks": 1,
+    "thermal_dimensions": [320, 320],
+    "thermal_sources": 4,
+    "ticks": 3,
+    "worlds": 1
+  },
+  "date": "2026-09-26",
+  "evidence_custody": {
+    "artifact_hashes_describe": "observed local file bytes; not signatures or independent release authority",
+    "artifacts": [
+      {
+        "bytes": 216135,
+        "custody_locator": "native/city-boundary-campaign-20260926-001/freeze.json",
+        "sha256": "77181c39b941016f4d1fff581efed7d296f57d582efa56fe95c367bf41f6cdeb"
+      },
+      {
+        "bytes": 3833,
+        "custody_locator": "gates/city-boundary-tools-003/result.json",
+        "sha256": "7d3c09341a7d8a8d19191584ff941a6dc4146456daa3988277c475ea4d2b6448"
+      },
+      {
+        "bytes": 3165,
+        "custody_locator": "gates/city-boundary-root-review-001/result.json",
+        "sha256": "6d204bb51f019a01dbc6a01e5bafa98f8fb055122bf77c59d7f5275c8fbb0e1d"
+      },
+      {
+        "bytes": 4014,
+        "custody_locator": "gates/city-functional-scheduling-council-20260926/result.json",
+        "sha256": "db7f245809db71bfb6645dc1fd6d00804373be698c0ebef8b2b36bf9760b9241"
+      },
+      {
+        "bytes": 4167,
+        "custody_locator": "gates/city-boundary-native-command-20260926-001/start.json",
+        "sha256": "863c868a6667c59b8b32df1f8930eba48ed1a0919b094235ad39f255316c5a80"
+      },
+      {
+        "bytes": 3565,
+        "custody_locator": "gates/city-boundary-native-command-20260926-001/result.json",
+        "sha256": "86de8b12d501380b267844e1a2b98ba976c4c53a22489d316562b82b47e8bfb2"
+      },
+      {
+        "bytes": 3929,
+        "custody_locator": "gates/city-boundary-terminal-20260926-001/result.json",
+        "sha256": "e33dee42a94e925f86af9646bbf9ec05761cb94d7e5cff86a26f34e86404b2cd"
+      },
+      {
+        "bytes": 29159,
+        "custody_locator": "gates/city-boundary-terminal-20260926-001/audit.json",
+        "sha256": "d9723b6ca991e4c2957a059a6006e4f7713bf91302d4a6cc0f4dceb83104bf5c"
+      },
+      {
+        "bytes": 4931,
+        "custody_locator": "gates/city-boundary-terminal-20260926-001/summary-002.json",
+        "sha256": "30dd39ceded51e57e698aa029b7824df2e3d4a6d30ec03b825fc33812c9f9285"
+      },
+      {
+        "bytes": 6971,
+        "custody_locator": "native/city-boundary-campaign-20260926-001/execution.json",
+        "sha256": "73ecbc17ac408b34d7c9e52d7c7d51484ff44e1e3ce94d5667100a9229ccc5af"
+      },
+      {
+        "bytes": 3952,
+        "custody_locator": "native/city-boundary-campaign-20260926-001/cases/maximum12-three-ticks-command.json",
+        "sha256": "ac7f377d3e2ca47b71af7b447673e4dc61c9ff8a1acbb0cb2f7660a64ccb6d94"
+      },
+      {
+        "bytes": 3764,
+        "custody_locator": "native/city-boundary-campaign-20260926-001/cases/maximum12-three-ticks/result.json",
+        "sha256": "2466520fc1c1259b60d73cd4907025ccad91a627123f1e368d7489b3bbf9e4cd"
+      },
+      {
+        "bytes": 28677,
+        "custody_locator": "native/city-install-001/artifacts/installation-joins.json",
+        "sha256": "06a9f8b7b87b8606ae2d489b09122c3678880635cb3b1074e3ad0b41a6acb8ae"
+      },
+      {
+        "bytes": 1354,
+        "custody_locator": "native/city-install-001/artifacts/transcript-joins.json",
+        "sha256": "7d0c6df23c8a99d355c56d989908f5402bbb1b6a26853b340eb205f1012ea9ec"
+      },
+      {
+        "bytes": 2365,
+        "custody_locator": "gates/city-install-council-001/result.json",
+        "sha256": "99bc5f09e7b52ab50a5a6c8f5b7d931c91659e609e12d39f0a88f257fc6e40b3"
+      },
+      {
+        "bytes": 10475,
+        "custody_locator": "gates/run-city-boundary-20260926.py",
+        "sha256": "6b4c74c0d14731cd4637f3182d6f44b8ba523599729d66bf41a60400341c1a2b"
+      }
+    ],
+    "originals": "private operator custody; not included in this public summary",
+    "tools": {
+      "DECISION.md": {
+        "bytes": 7207,
+        "sha256": "243f8fb2e09c0db294c1bbdd9f3e3140da5541f5d80434373e99fa88ea5a1006"
+      },
+      "DEPENDENCIES.json": {
+        "bytes": 2371,
+        "sha256": "5f56e0e4d9f3f708ca377c26f2589a20078c04f5e5816682ae5e13f76107999e"
+      },
+      "boundary_audit.py": {
+        "bytes": 26604,
+        "sha256": "50f198971edbb0ec08bfb33f7be1fcff969a0106b4eceedcd9a282a726a418d0"
+      },
+      "boundary_campaign.py": {
+        "bytes": 22700,
+        "sha256": "94b2c38bdc3a724e52771e51e5b28a1049521e60590be15c22b0f5a679f1ef16"
+      },
+      "city-sensor-tools/sensor_audit.py": {
+        "bytes": 23329,
+        "sha256": "55c06226c7c372918a7509346fa61f09bb36169ef27a39f81309a6ed898af8db"
+      },
+      "city-sensor-tools/sensor_campaign.py": {
+        "bytes": 33252,
+        "sha256": "69042163fc272e780e6634e97c72ab76e4a0717db7c0158d6e683066c733c087"
+      },
+      "e1-study-tools/qualified/SOURCES.json": {
+        "bytes": 1674,
+        "sha256": "ccb471f948b9842f6121173f8b58089b83b47726cd34a6e3d49bb03c5b21e6fe"
+      },
+      "e1-study-tools/qualified/m1_campaign.py": {
+        "bytes": 96313,
+        "sha256": "dfe1f913f1929243f377549aa8d154496346f09a1b651d5533c3d249fcdecab7"
+      },
+      "e1-study-tools/qualified/m1_run.py": {
+        "bytes": 11771,
+        "sha256": "e3df791bfe940410404f04a6c871379320a10037ad1e6670580ef7db3ab10582"
+      },
+      "e1-study-tools/qualified/owned_observer.py": {
+        "bytes": 9084,
+        "sha256": "c0726c77f1b25582962dafe2ec189e8b5066f649bc40c416f05a3ff270b7ccef"
+      },
+      "e1-study-tools/qualified/perf_campaign.py": {
+        "bytes": 25644,
+        "sha256": "6bf1c8956b212c2ae351efa48bfeb702f63cab25f9c25bb1feaf307462285234"
+      },
+      "e1-study-tools/qualified/perf_common.py": {
+        "bytes": 10215,
+        "sha256": "b534cad0969eccf24827f3501cdc7634b7c73534bfbb4315f4dec5c38ea6881b"
+      },
+      "test_boundary.py": {
+        "bytes": 29598,
+        "sha256": "48e724b3e0eef335a742998697328106b83c5e039155ac2e35a89e435cc7603c"
+      }
+    }
+  },
+  "execution": {
+    "audit_outer_returncode": 0,
+    "campaign_seconds": 1800,
+    "cleanup_seconds": 215,
+    "command_seconds": 900,
+    "finished_utc": "2026-09-26T19:10:37.811604+00:00",
+    "native_outer_returncode": 0,
+    "native_runs": 1,
+    "outer_wall_seconds": 2100,
+    "overlap": "NCP005 source gate continued under a separate prospective scheduling authorization",
+    "retries": 0,
+    "session_seconds": 600,
+    "shared_host": true,
+    "started_utc": "2026-09-26T19:09:48.358035+00:00"
+  },
+  "historical_scope": {
+    "complete_legacy_output_inventory_repeated": false,
+    "prior_one_tick_gap_bytes": 32,
+    "prior_one_tick_original_bytes": 27857056,
+    "prior_report": "NATIVE_CITY_2026-09-23.md",
+    "prior_results_replaced": false
+  },
+  "operational_source": {
+    "application": "crebain.ncp.force-city-sources.v1",
+    "commit": "3fe34a1c9dd5b4cd575f6f1c3950e8ba8e51521c",
+    "ncp_consumed_files_match_commit": "58fe8aea81498d2c89c76c0602385cc7a6f08397",
+    "ncp_consumed_source_files": 41,
+    "ncp_source_commit": "c0465d40f1f2b9df2caf9793183d11e65ac9ec74",
+    "repository": "https://github.com/sepahead/crebain",
+    "runtime_manifest_sha256": "5960649d492a91a35cbf7a22aa339f387731e441b1293c847c85e9f521955f0a",
+    "runtime_source_identity": "da18ad031d6ef5db3b13e2e210460fae3b5421e0b366cb5bc5618dc416a03270",
+    "source_gate": "validate:with-ncp-city",
+    "transcript_source_commit": "7a1730e4cc1c7a62fa207e2baa0d6f231454bd3f",
+    "transcript_wheel_sha256": "d8bd70274e44d2fef5b3133e6be3623f412535979980ad1974e51726bc7c3e39",
+    "tree": "8761a94dfeaac4abac961db298bf2b6d04d18ea6",
+    "wheel_sha256": "64f9016811762fb3bd6fc238e2cb55c27eba0796ea012e49b863132a7774ee21"
+  },
+  "publication_base": "eea2a64efbae3c34f74d4784d1ee0dc64cfba5e5",
+  "qualification_limits": {
+    "aggregate_physical_memory_qualified": false,
+    "continuous_contact_absence": null,
+    "general_256_profile_qualified": false,
+    "loaded_code_attestation": false,
+    "opaque_runtime_memory_bound": false,
+    "physical_flight_qualified": false,
+    "real_time_qualified": false,
+    "release_qualified": false,
+    "resource_client_qualified": false,
+    "sensor_calibration_qualified": false,
+    "timing_qualified": false,
+    "tracking_qualified": false
+  },
+  "retirement": {
+    "acknowledged_completed_tick": 3,
+    "cleanup_confirmed": true,
+    "complete_descendant_containment": false,
+    "diagnostics_truncated": false,
+    "finish_acknowledged": true,
+    "native_retirement_confirmed": true,
+    "observed_births_retired": true,
+    "observed_completed_tick": 3,
+    "observed_process_births": 12,
+    "producer_forced": false,
+    "producer_returncode": 0
+  },
+  "schema": "crebain.city-boundary-evidence.v1",
+  "status": "scoped_native_payload_boundary_pass",
+  "totals": {
+    "capture_bytes": 120839621,
+    "captured_exchange_pairs": 5296,
+    "case_logical_artifact_allowance_bytes": 787844608,
+    "case_logical_artifact_bytes": 204591249,
+    "maximum_batch_original_bytes": 27857088,
+    "original_bytes": 83571200,
+    "original_payloads": 36,
+    "retained_audit_artifacts": 46
+  }
+}

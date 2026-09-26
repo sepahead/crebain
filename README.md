@@ -153,8 +153,11 @@ Its installed example completed 24 body ticks and eight NEST steps, with and wit
 
 The separate [typed city application](integrations/ncp-force-city-sources/README.md) implements whole-roster actions and sparse world-fixed source requests for 1–256 entities.
 Its [installed evidence](integrations/ncp-force-city-sources/evidence/NATIVE_CITY_2026-09-23.md) includes 256-entity execution, actual GPU originals, optional recording, and explicit source failures.
+The [three-tick boundary case](integrations/ncp-force-city-sources/evidence/NATIVE_CITY_BOUNDARY_2026-09-26.md) delivered the exact 27,857,088-byte maximum original batch.
+Twelve [installed resource sessions](integrations/ncp-force-city-sources/evidence/native-city-resource-2026-09-26.md) preserved identical pressure bytes across legacy, budgeted, and recorded routes.
 Available tracking checks passed.
-Continuous contact, general stability, timing, and opaque runtime memory remain unqualified.
+A separate [read-only certificate](integrations/ncp-force-city-sources/evidence/NATIVE_CITY_2026-09-23.md#derived-integration-law-separation-september-26-2026) proves integration-law hull separation for the frozen trajectories.
+General tracking, stability, timing, and opaque runtime memory remain unqualified.
 
 Prisoma uses CREBAIN as an environment for embodied-agent experiments.
 Prisoma owns forecasts, experiment ordering, comparisons, and recorded outcomes.
@@ -258,7 +261,7 @@ They do not establish model accuracy or physical deployment readiness.
 | --- | --- | --- |
 | Standalone environment | Native dynamics, actual sensor output, and reconstructed branches | Larger-workload measurements and sensor calibration |
 | Typed NCP sensors | Selected sensor rosters, installed launcher, and complete payload transfer | Resource measurements beyond the selected profiles |
-| Typed NCP city | Selected 256-entity delivery, retained originals, failure controls, and available tracking checks | Continuous contact, general tracking qualification, timing, and physical calibration |
+| Typed NCP city | Selected 256-entity delivery, retained originals, available tracking checks, and derived integration-law hull separation | Contact guarantees beyond the frozen trajectories, general tracking qualification, timing, and physical calibration |
 | Engram neural control | Installed explicit NEST/body loop and a fresh same-NEST comparison | Paper-derived experiment construction and broader controller profiles |
 | Prisoma | Optional capture, canonical sensor execution, and a 112-episode E1 forecast/restored-label study with a null result | General model qualification and selected-policy benefit |
 | Galadriel | Separate advisory monitor for compatible evidence | A qualified application for this typed sensor composition |

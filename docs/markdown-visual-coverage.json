@@ -365,6 +365,22 @@
       }
     },
     {
+      "path": "integrations/ncp-force-city-sources/evidence/NATIVE_CITY_BOUNDARY_2026-09-26.md",
+      "classification": "frozen-evidence",
+      "exemption": {
+        "kind": "dated-campaign-record",
+        "reason": "This dated record binds exact installed cases, original bytes, and limits. Its compact tables preserve tested scope without implying broader qualification."
+      }
+    },
+    {
+      "path": "integrations/ncp-force-city-sources/evidence/native-city-resource-2026-09-26.md",
+      "classification": "frozen-evidence",
+      "exemption": {
+        "kind": "dated-campaign-record",
+        "reason": "This dated record binds exact installed cases, original bytes, and limits. Its compact tables preserve tested scope without implying broader qualification."
+      }
+    },
+    {
       "path": "integrations/ncp-force-ground-sensors/FAMILY.md",
       "classification": "active-technical",
       "visuals": ["assets/diagrams/ncp-checkpoint-family.svg"]
