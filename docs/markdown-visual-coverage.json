@@ -381,6 +381,14 @@
       }
     },
     {
+      "path": "integrations/ncp-force-city-sources/evidence/native-city-cpu-storage-2026-09-27.md",
+      "classification": "frozen-evidence",
+      "exemption": {
+        "kind": "dated-campaign-record",
+        "reason": "The ordered measurement table preserves timing failures and limited sampling. A diagram would duplicate these outcomes."
+      }
+    },
+    {
       "path": "integrations/ncp-force-city-sources/evidence/native-city-resource-2026-09-26.md",
       "classification": "frozen-evidence",
       "exemption": {

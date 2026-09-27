@@ -77,6 +77,8 @@ Twelve [installed resource sessions](evidence/native-city-resource-2026-09-26.md
 The selected one- and 256-entity groups preserved identical pressure bytes and completed owner cleanup.
 Four [installed recorder and consumer stall cases](evidence/native-city-containment-2026-09-27.md) passed separate observed-process containment checks.
 Their original failed predecessor and false or unavailable cleanup fields remain explicit.
+Six [CPU and storage characterization cases](evidence/native-city-cpu-storage-2026-09-27.md) preserved all original payload bytes.
+All 144 route and export deadlines were missed. These measurements do not qualify real-time performance.
 
 Use `budgeted_city_session` when selecting complete body or body-plus-transcript logical allowances.
 Its `ResourceBudget` supplies aggregate logical, graphics-color, and selected storage limits in bytes.

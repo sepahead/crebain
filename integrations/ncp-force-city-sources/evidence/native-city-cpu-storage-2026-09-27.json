@@ -1,0 +1,1277 @@
+{
+  "author": "Sepehr Mahmoudian",
+  "original_evidence_scope": "private_locally_observed_bytes_and_actions",
+  "public_projection_scope": "summary_and_public_source_identities",
+  "source_commit": "194cfb984440370692d6f62dffb19a428c785d3b",
+  "source_tree": "6cfadcb6a36cbbefaed8b54b7a2decb9cc569924",
+  "runtime_source_identity": "894587110a4dca991bcddac4b99ff8b38ede4514ac6db40f500c59a6e7212192",
+  "runtime_manifest_sha256": "c40450222003c63d7def1d5116f97f8bda1ba816438c2fc31c46a8612a146ffe",
+  "producer_sha256": "9fa7f541d9595b9185675d56c37c41b48b00b91cf9bdf274cfb7478c5178c9a9",
+  "client_wheel_sha256": "8bcf5bbc17e145599ce3a9485cb1001ad5789fff13114868ad8299c26cbe7fc9",
+  "ncp_sdk_commit": "c0465d40f1f2b9df2caf9793183d11e65ac9ec74",
+  "ncp_sdk_wheel_sha256": "9eb744571e79a0f8d5f4dbdf78c92b23e521f03c4351976a38e53ed600644787",
+  "transcript_commit": "7a1730e4cc1c7a62fa207e2baa0d6f231454bd3f",
+  "transcript_wheel_sha256": "d8bd70274e44d2fef5b3133e6be3623f412535979980ad1974e51726bc7c3e39",
+  "schema": "crebain.city-cpu-storage-characterization.v1",
+  "date": "2026-09-27",
+  "status": "scoped_characterization_pass_all_deadlines_missed",
+  "host": {
+    "shared": true,
+    "exclusive_measurement": false,
+    "concurrent_ncp_source_gate": true
+  },
+  "counts": {
+    "cases": 6,
+    "ticks": 144,
+    "route_deadline_misses": 144,
+    "export_deadline_misses": 144,
+    "payloads": 216,
+    "original_payload_bytes": 230400,
+    "capture_exchange_pairs": 1896,
+    "sampled_retired_births": 26,
+    "artifact_bytes": 6368960
+  },
+  "comparison": {
+    "compared_bytes_to_first": 192000,
+    "comparisons_to_first": 180,
+    "same_literal_payloads": true,
+    "same_typed_meanings": true,
+    "same_wire_identities": false,
+    "statistical_population_claim": false
+  },
+  "cases": [
+    {
+      "id": "normal-minimal",
+      "ticks": 24,
+      "payload_count": 36,
+      "original_payload_bytes": 38400,
+      "capture": {
+        "application_completion_validated": false,
+        "exchange_pairs": 316,
+        "finished_peers": 1,
+        "journal_bytes": 709723,
+        "journal_digest": "bc574439c6e3ec343a939bfe4364ff69ea6c955c173454d81ec4f0e1b9883308",
+        "peer_count": 1,
+        "pending_peer_operations": 0,
+        "scientific_validation": false,
+        "store_completion": "complete",
+        "unanswered_request": false
+      },
+      "sampled_retired_births": 4,
+      "timing": {
+        "all_ticks": {
+          "caller_route_thread_cpu_ns": {
+            "max": 50809541,
+            "method": "nearest_rank",
+            "n": 24,
+            "p50": 32673834,
+            "p99": 50809541,
+            "p99_9": 50809541
+          },
+          "export_deadline_misses": 24,
+          "route_deadline_misses": 24,
+          "route_wall_ns": {
+            "max": 951919374,
+            "method": "nearest_rank",
+            "n": 24,
+            "p50": 482936041,
+            "p99": 951919374,
+            "p99_9": 951919374
+          },
+          "ticks": 24
+        },
+        "ticks_after_six": {
+          "caller_route_thread_cpu_ns": {
+            "max": 50809541,
+            "method": "nearest_rank",
+            "n": 18,
+            "p50": 31645917,
+            "p99": 50809541,
+            "p99_9": 50809541
+          },
+          "export_deadline_misses": 18,
+          "route_deadline_misses": 18,
+          "route_wall_ns": {
+            "max": 951919374,
+            "method": "nearest_rank",
+            "n": 18,
+            "p50": 590687499,
+            "p99": 951919374,
+            "p99_9": 951919374
+          },
+          "ticks": 18
+        }
+      },
+      "instrumentation": {
+        "append_calls": 634,
+        "condition": "normal",
+        "counters": {
+          "all_hash_work_complete": false,
+          "allocation_complete": false,
+          "calls": 0,
+          "failed": false,
+          "inclusive": true,
+          "maximum_calls": 32768,
+          "native_cpu_complete": false,
+          "physical_copy_complete": false,
+          "rows": {},
+          "scope": "named-caller-invocations-only"
+        },
+        "delays": [],
+        "detailed": false,
+        "exchange_calls": 316,
+        "native_internals_measured": false,
+        "normal_return_required": true,
+        "release_qualified": false,
+        "restored": true,
+        "schema": "local.cpu-storage-observation.v1",
+        "sync_calls": 634
+      },
+      "cpu_helper": null,
+      "verification": {
+        "custody_path": "native/cpu-storage-campaign-20260927-001/cases/normal-minimal-verification.json",
+        "bytes": 1706,
+        "sha256": "eb3ccb432f999b1045c1b5eba083a122d2bcd949c3456a9f7bcce3da5615f098"
+      },
+      "original_result": {
+        "custody_path": "native/cpu-storage-campaign-20260927-001/cases/normal-minimal/result.json",
+        "bytes": 18237,
+        "sha256": "0a5f78999e6c4433f37198a1415737c41c096ad6d8d50a7f21474fb0801667f5"
+      }
+    },
+    {
+      "id": "cpu-minimal",
+      "ticks": 24,
+      "payload_count": 36,
+      "original_payload_bytes": 38400,
+      "capture": {
+        "application_completion_validated": false,
+        "exchange_pairs": 316,
+        "finished_peers": 1,
+        "journal_bytes": 709723,
+        "journal_digest": "acfe7369a31b6f9687bcfb0a27cb9037432a98b244f7a9f72ad88b7b9305b836",
+        "peer_count": 1,
+        "pending_peer_operations": 0,
+        "scientific_validation": false,
+        "store_completion": "complete",
+        "unanswered_request": false
+      },
+      "sampled_retired_births": 5,
+      "timing": {
+        "all_ticks": {
+          "caller_route_thread_cpu_ns": {
+            "max": 50441250,
+            "method": "nearest_rank",
+            "n": 24,
+            "p50": 32589875,
+            "p99": 50441250,
+            "p99_9": 50441250
+          },
+          "export_deadline_misses": 24,
+          "route_deadline_misses": 24,
+          "route_wall_ns": {
+            "max": 961160500,
+            "method": "nearest_rank",
+            "n": 24,
+            "p50": 482812667,
+            "p99": 961160500,
+            "p99_9": 961160500
+          },
+          "ticks": 24
+        },
+        "ticks_after_six": {
+          "caller_route_thread_cpu_ns": {
+            "max": 50441250,
+            "method": "nearest_rank",
+            "n": 18,
+            "p50": 32114458,
+            "p99": 50441250,
+            "p99_9": 50441250
+          },
+          "export_deadline_misses": 18,
+          "route_deadline_misses": 18,
+          "route_wall_ns": {
+            "max": 961160500,
+            "method": "nearest_rank",
+            "n": 18,
+            "p50": 595401833,
+            "p99": 961160500,
+            "p99_9": 961160500
+          },
+          "ticks": 18
+        }
+      },
+      "instrumentation": {
+        "append_calls": 634,
+        "condition": "cpu",
+        "counters": {
+          "all_hash_work_complete": false,
+          "allocation_complete": false,
+          "calls": 0,
+          "failed": false,
+          "inclusive": true,
+          "maximum_calls": 32768,
+          "native_cpu_complete": false,
+          "physical_copy_complete": false,
+          "rows": {},
+          "scope": "named-caller-invocations-only"
+        },
+        "delays": [],
+        "detailed": false,
+        "exchange_calls": 316,
+        "native_internals_measured": false,
+        "normal_return_required": true,
+        "release_qualified": false,
+        "restored": true,
+        "schema": "local.cpu-storage-observation.v1",
+        "sync_calls": 634
+      },
+      "cpu_helper": {
+        "returncode": 0,
+        "reaped": true,
+        "report": {
+          "arithmetic_batches": 6072,
+          "arithmetic_state": 1978986497,
+          "completed_periods": 24,
+          "deadline_reached": false,
+          "elapsed_ns": 1181975541,
+          "host_saturation_qualified": false,
+          "missed_periods": 0,
+          "normal_eof": true,
+          "offered_periods": 24,
+          "period_ns": 50000000,
+          "process_cpu_ns": 120616000,
+          "requested_work_cpu_ns_per_period": 5000000,
+          "schema": "local.cpu-load.v1",
+          "startup_wait_elapsed_ns": 3790689459,
+          "startup_wait_limit_ns": 40000000000,
+          "wall_limit_ns": 30000000000,
+          "work_loop_cpu_ns": 120238000
+        }
+      },
+      "verification": {
+        "custody_path": "native/cpu-storage-campaign-20260927-001/cases/cpu-minimal-verification.json",
+        "bytes": 1700,
+        "sha256": "6086414947d2aa276296863b8e977ed9866d37c43ca73db9723bbf178c327ba0"
+      },
+      "original_result": {
+        "custody_path": "native/cpu-storage-campaign-20260927-001/cases/cpu-minimal/result.json",
+        "bytes": 19060,
+        "sha256": "4a3608df44e4aa2446ce2855b8336c050a982555606a0e3a3865af6ce175a342"
+      }
+    },
+    {
+      "id": "storage-minimal",
+      "ticks": 24,
+      "payload_count": 36,
+      "original_payload_bytes": 38400,
+      "capture": {
+        "application_completion_validated": false,
+        "exchange_pairs": 316,
+        "finished_peers": 1,
+        "journal_bytes": 709723,
+        "journal_digest": "f16d3b98dddeb3b157972805233e1b6a15066403aa4508da2f5e9a8b55386c32",
+        "peer_count": 1,
+        "pending_peer_operations": 0,
+        "scientific_validation": false,
+        "store_completion": "complete",
+        "unanswered_request": false
+      },
+      "sampled_retired_births": 4,
+      "timing": {
+        "all_ticks": {
+          "caller_route_thread_cpu_ns": {
+            "max": 51247542,
+            "method": "nearest_rank",
+            "n": 24,
+            "p50": 33081375,
+            "p99": 51247542,
+            "p99_9": 51247542
+          },
+          "export_deadline_misses": 24,
+          "route_deadline_misses": 24,
+          "route_wall_ns": {
+            "max": 1013700167,
+            "method": "nearest_rank",
+            "n": 24,
+            "p50": 511679750,
+            "p99": 1013700167,
+            "p99_9": 1013700167
+          },
+          "ticks": 24
+        },
+        "ticks_after_six": {
+          "caller_route_thread_cpu_ns": {
+            "max": 51247542,
+            "method": "nearest_rank",
+            "n": 18,
+            "p50": 32382709,
+            "p99": 51247542,
+            "p99_9": 51247542
+          },
+          "export_deadline_misses": 18,
+          "route_deadline_misses": 18,
+          "route_wall_ns": {
+            "max": 1013700167,
+            "method": "nearest_rank",
+            "n": 18,
+            "p50": 619538417,
+            "p99": 1013700167,
+            "p99_9": 1013700167
+          },
+          "ticks": 18
+        }
+      },
+      "instrumentation": {
+        "append_calls": 634,
+        "condition": "storage",
+        "counters": {
+          "all_hash_work_complete": false,
+          "allocation_complete": false,
+          "calls": 4,
+          "failed": false,
+          "inclusive": true,
+          "maximum_calls": 32768,
+          "native_cpu_complete": false,
+          "physical_copy_complete": false,
+          "rows": {
+            "injected.wait": {
+              "calls": 2,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 32000,
+              "thread_cpu_ns": 34167,
+              "wall_ns": 50037916
+            },
+            "journal.fsync": {
+              "calls": 2,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 85000,
+              "thread_cpu_ns": 85541,
+              "wall_ns": 123667
+            }
+          },
+          "scope": "named-caller-invocations-only"
+        },
+        "delays": [
+          {
+            "actual_fsync": {
+              "process_cpu_ns": 44000,
+              "thread_cpu_ns": 45125,
+              "wall_ns": 62875
+            },
+            "actual_wait": {
+              "process_cpu_ns": 13000,
+              "thread_cpu_ns": 14667,
+              "wall_ns": 25015083
+            },
+            "request_digest": "83a40510ae7342f70934ef063560ad19b2bab2260ec051ab8d5b32394a2495e8",
+            "requested_wait_ns": 20000000,
+            "returned": true,
+            "sequence": 46,
+            "target": ["request", 8],
+            "wait_returned": true
+          },
+          {
+            "actual_fsync": {
+              "process_cpu_ns": 41000,
+              "thread_cpu_ns": 40416,
+              "wall_ns": 60792
+            },
+            "actual_wait": {
+              "process_cpu_ns": 19000,
+              "thread_cpu_ns": 19500,
+              "wall_ns": 25022833
+            },
+            "request_digest": "ab0159b0adccfa608ec0be70461c5f1286ef11b9d82132bfe7d6e72008950cfa",
+            "requested_wait_ns": 20000000,
+            "returned": true,
+            "sequence": 98,
+            "target": ["response", 16],
+            "wait_returned": true
+          }
+        ],
+        "detailed": false,
+        "exchange_calls": 316,
+        "native_internals_measured": false,
+        "normal_return_required": true,
+        "release_qualified": false,
+        "restored": true,
+        "schema": "local.cpu-storage-observation.v1",
+        "sync_calls": 634
+      },
+      "cpu_helper": null,
+      "verification": {
+        "custody_path": "native/cpu-storage-campaign-20260927-001/cases/storage-minimal-verification.json",
+        "bytes": 1714,
+        "sha256": "48ec207cb4625e664fa0eeb3809d76f0abd235207f7159382b8f2df829a5df7f"
+      },
+      "original_result": {
+        "custody_path": "native/cpu-storage-campaign-20260927-001/cases/storage-minimal/result.json",
+        "bytes": 19220,
+        "sha256": "a84f6c411cf5f6e2f943e92b696dc17f02b23ce3bdd4de065c5792ba09f00b99"
+      }
+    },
+    {
+      "id": "storage-detailed",
+      "ticks": 24,
+      "payload_count": 36,
+      "original_payload_bytes": 38400,
+      "capture": {
+        "application_completion_validated": false,
+        "exchange_pairs": 316,
+        "finished_peers": 1,
+        "journal_bytes": 709723,
+        "journal_digest": "4680d60618fbc3603d98e5ee8ade34cfdfdbae173ee737dad0a3a59b5f109c0b",
+        "peer_count": 1,
+        "pending_peer_operations": 0,
+        "scientific_validation": false,
+        "store_completion": "complete",
+        "unanswered_request": false
+      },
+      "sampled_retired_births": 4,
+      "timing": {
+        "all_ticks": {
+          "caller_route_thread_cpu_ns": {
+            "max": 56620875,
+            "method": "nearest_rank",
+            "n": 24,
+            "p50": 39093417,
+            "p99": 56620875,
+            "p99_9": 56620875
+          },
+          "export_deadline_misses": 24,
+          "route_deadline_misses": 24,
+          "route_wall_ns": {
+            "max": 1123116374,
+            "method": "nearest_rank",
+            "n": 24,
+            "p50": 571394749,
+            "p99": 1123116374,
+            "p99_9": 1123116374
+          },
+          "ticks": 24
+        },
+        "ticks_after_six": {
+          "caller_route_thread_cpu_ns": {
+            "max": 56620875,
+            "method": "nearest_rank",
+            "n": 18,
+            "p50": 39093417,
+            "p99": 56620875,
+            "p99_9": 56620875
+          },
+          "export_deadline_misses": 18,
+          "route_deadline_misses": 18,
+          "route_wall_ns": {
+            "max": 1123116374,
+            "method": "nearest_rank",
+            "n": 18,
+            "p50": 690404833,
+            "p99": 1123116374,
+            "p99_9": 1123116374
+          },
+          "ticks": 18
+        }
+      },
+      "instrumentation": {
+        "append_calls": 634,
+        "condition": "storage",
+        "counters": {
+          "all_hash_work_complete": false,
+          "allocation_complete": false,
+          "calls": 6811,
+          "failed": false,
+          "inclusive": true,
+          "maximum_calls": 32768,
+          "native_cpu_complete": false,
+          "physical_copy_complete": false,
+          "rows": {
+            "caller.advance": {
+              "calls": 24,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 917666000,
+              "thread_cpu_ns": 917670207,
+              "wall_ns": 1138846291
+            },
+            "caller.export": {
+              "calls": 24,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 27437000,
+              "thread_cpu_ns": 27455876,
+              "wall_ns": 28853629
+            },
+            "caller.finish": {
+              "calls": 1,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 5556000,
+              "thread_cpu_ns": 5555500,
+              "wall_ns": 17300916
+            },
+            "caller.release": {
+              "calls": 24,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 139857000,
+              "thread_cpu_ns": 139857914,
+              "wall_ns": 145698585
+            },
+            "city.commitment": {
+              "calls": 159,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 8139000,
+              "thread_cpu_ns": 8117546,
+              "wall_ns": 8155251
+            },
+            "city.validate_batch": {
+              "calls": 24,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 1965000,
+              "thread_cpu_ns": 1969622,
+              "wall_ns": 1966125
+            },
+            "city.validate_payload": {
+              "calls": 36,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 465000,
+              "thread_cpu_ns": 454458,
+              "wall_ns": 466872
+            },
+            "injected.wait": {
+              "calls": 2,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 28000,
+              "thread_cpu_ns": 30958,
+              "wall_ns": 45908708
+            },
+            "journal.append": {
+              "calls": 634,
+              "failures": 0,
+              "input_bytes": 681185,
+              "output_bytes": null,
+              "process_cpu_ns": 41120000,
+              "thread_cpu_ns": 40773972,
+              "wall_ns": 107867045
+            },
+            "journal.exchange": {
+              "calls": 316,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 712758000,
+              "thread_cpu_ns": 712751004,
+              "wall_ns": 1014366508
+            },
+            "journal.fsync": {
+              "calls": 634,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 12805000,
+              "thread_cpu_ns": 12916177,
+              "wall_ns": 24071346
+            },
+            "journal.seal": {
+              "calls": 634,
+              "failures": 0,
+              "input_bytes": 730637,
+              "output_bytes": 709715,
+              "process_cpu_ns": 2643000,
+              "thread_cpu_ns": 2634377,
+              "wall_ns": 2636327
+            },
+            "sdk.acknowledgement": {
+              "calls": 632,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 209011000,
+              "thread_cpu_ns": 208968808,
+              "wall_ns": 209196036
+            },
+            "sdk.begin": {
+              "calls": 320,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 189075000,
+              "thread_cpu_ns": 189091217,
+              "wall_ns": 189225454
+            },
+            "sdk.observe": {
+              "calls": 316,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 299149000,
+              "thread_cpu_ns": 299221830,
+              "wall_ns": 299332197
+            },
+            "sdk.observe_acknowledgement": {
+              "calls": 316,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 209886000,
+              "thread_cpu_ns": 210002239,
+              "wall_ns": 210028794
+            },
+            "wire.encode": {
+              "calls": 2715,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": 1841752,
+              "process_cpu_ns": 188571000,
+              "thread_cpu_ns": 188268271,
+              "wall_ns": 188813358
+            }
+          },
+          "scope": "named-caller-invocations-only"
+        },
+        "delays": [
+          {
+            "actual_fsync": {
+              "process_cpu_ns": 35000,
+              "thread_cpu_ns": 35792,
+              "wall_ns": 48666
+            },
+            "actual_wait": {
+              "process_cpu_ns": 11000,
+              "thread_cpu_ns": 12166,
+              "wall_ns": 20885583
+            },
+            "request_digest": "63c75e7531b81db0e91c1fd3024836a650f1bca69000f3a1b4f972f6c4528a80",
+            "requested_wait_ns": 20000000,
+            "returned": true,
+            "sequence": 46,
+            "target": ["request", 8],
+            "wait_returned": true
+          },
+          {
+            "actual_fsync": {
+              "process_cpu_ns": 53000,
+              "thread_cpu_ns": 52917,
+              "wall_ns": 74667
+            },
+            "actual_wait": {
+              "process_cpu_ns": 17000,
+              "thread_cpu_ns": 18792,
+              "wall_ns": 25023125
+            },
+            "request_digest": "8bf6fee84393777888a7400f3d6b4f6868849c018c1ad9eab405617a460be8de",
+            "requested_wait_ns": 20000000,
+            "returned": true,
+            "sequence": 98,
+            "target": ["response", 16],
+            "wait_returned": true
+          }
+        ],
+        "detailed": true,
+        "exchange_calls": 316,
+        "native_internals_measured": false,
+        "normal_return_required": true,
+        "release_qualified": false,
+        "restored": true,
+        "schema": "local.cpu-storage-observation.v1",
+        "sync_calls": 634
+      },
+      "cpu_helper": null,
+      "verification": {
+        "custody_path": "native/cpu-storage-campaign-20260927-001/cases/storage-detailed-verification.json",
+        "bytes": 1716,
+        "sha256": "da5033ee93354766e1f48bc6dabee984f08e0223b45090a3c3c92d1003ea3631"
+      },
+      "original_result": {
+        "custody_path": "native/cpu-storage-campaign-20260927-001/cases/storage-detailed/result.json",
+        "bytes": 21558,
+        "sha256": "5bd1d6d2d3880a5eb349d5cd1811910127f56e94e2de6a44314dc182670630d8"
+      }
+    },
+    {
+      "id": "cpu-detailed",
+      "ticks": 24,
+      "payload_count": 36,
+      "original_payload_bytes": 38400,
+      "capture": {
+        "application_completion_validated": false,
+        "exchange_pairs": 316,
+        "finished_peers": 1,
+        "journal_bytes": 709723,
+        "journal_digest": "641eb1a09bf781f61a3863a2cfdca2eb1c74da74a1e0e65f9c115a04b1d982aa",
+        "peer_count": 1,
+        "pending_peer_operations": 0,
+        "scientific_validation": false,
+        "store_completion": "complete",
+        "unanswered_request": false
+      },
+      "sampled_retired_births": 5,
+      "timing": {
+        "all_ticks": {
+          "caller_route_thread_cpu_ns": {
+            "max": 56453541,
+            "method": "nearest_rank",
+            "n": 24,
+            "p50": 38942792,
+            "p99": 56453541,
+            "p99_9": 56453541
+          },
+          "export_deadline_misses": 24,
+          "route_deadline_misses": 24,
+          "route_wall_ns": {
+            "max": 1057808208,
+            "method": "nearest_rank",
+            "n": 24,
+            "p50": 535233167,
+            "p99": 1057808208,
+            "p99_9": 1057808208
+          },
+          "ticks": 24
+        },
+        "ticks_after_six": {
+          "caller_route_thread_cpu_ns": {
+            "max": 56453541,
+            "method": "nearest_rank",
+            "n": 18,
+            "p50": 38942792,
+            "p99": 56453541,
+            "p99_9": 56453541
+          },
+          "export_deadline_misses": 18,
+          "route_deadline_misses": 18,
+          "route_wall_ns": {
+            "max": 1057808208,
+            "method": "nearest_rank",
+            "n": 18,
+            "p50": 654547833,
+            "p99": 1057808208,
+            "p99_9": 1057808208
+          },
+          "ticks": 18
+        }
+      },
+      "instrumentation": {
+        "append_calls": 634,
+        "condition": "cpu",
+        "counters": {
+          "all_hash_work_complete": false,
+          "allocation_complete": false,
+          "calls": 6809,
+          "failed": false,
+          "inclusive": true,
+          "maximum_calls": 32768,
+          "native_cpu_complete": false,
+          "physical_copy_complete": false,
+          "rows": {
+            "caller.advance": {
+              "calls": 24,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 911200000,
+              "thread_cpu_ns": 911198918,
+              "wall_ns": 1077663045
+            },
+            "caller.export": {
+              "calls": 24,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 26570000,
+              "thread_cpu_ns": 26583751,
+              "wall_ns": 27384876
+            },
+            "caller.finish": {
+              "calls": 1,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 5547000,
+              "thread_cpu_ns": 5547166,
+              "wall_ns": 17253125
+            },
+            "caller.release": {
+              "calls": 24,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 137376000,
+              "thread_cpu_ns": 137376124,
+              "wall_ns": 143066082
+            },
+            "city.commitment": {
+              "calls": 159,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 8212000,
+              "thread_cpu_ns": 8181003,
+              "wall_ns": 8216541
+            },
+            "city.validate_batch": {
+              "calls": 24,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 1962000,
+              "thread_cpu_ns": 1965456,
+              "wall_ns": 1959914
+            },
+            "city.validate_payload": {
+              "calls": 36,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 453000,
+              "thread_cpu_ns": 444418,
+              "wall_ns": 448791
+            },
+            "journal.append": {
+              "calls": 634,
+              "failures": 0,
+              "input_bytes": 681185,
+              "output_bytes": null,
+              "process_cpu_ns": 37067000,
+              "thread_cpu_ns": 36680406,
+              "wall_ns": 47606966
+            },
+            "journal.exchange": {
+              "calls": 316,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 705773000,
+              "thread_cpu_ns": 705785049,
+              "wall_ns": 955330433
+            },
+            "journal.fsync": {
+              "calls": 634,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 11684000,
+              "thread_cpu_ns": 11787797,
+              "wall_ns": 22115170
+            },
+            "journal.seal": {
+              "calls": 634,
+              "failures": 0,
+              "input_bytes": 730637,
+              "output_bytes": 709715,
+              "process_cpu_ns": 2638000,
+              "thread_cpu_ns": 2626156,
+              "wall_ns": 2635778
+            },
+            "sdk.acknowledgement": {
+              "calls": 632,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 207508000,
+              "thread_cpu_ns": 207475160,
+              "wall_ns": 207625951
+            },
+            "sdk.begin": {
+              "calls": 320,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 188572000,
+              "thread_cpu_ns": 188596449,
+              "wall_ns": 188683169
+            },
+            "sdk.observe": {
+              "calls": 316,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 298000000,
+              "thread_cpu_ns": 298068417,
+              "wall_ns": 298162074
+            },
+            "sdk.observe_acknowledgement": {
+              "calls": 316,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 207584000,
+              "thread_cpu_ns": 207715875,
+              "wall_ns": 207681831
+            },
+            "wire.encode": {
+              "calls": 2715,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": 1841752,
+              "process_cpu_ns": 187158000,
+              "thread_cpu_ns": 186785134,
+              "wall_ns": 187339987
+            }
+          },
+          "scope": "named-caller-invocations-only"
+        },
+        "delays": [],
+        "detailed": true,
+        "exchange_calls": 316,
+        "native_internals_measured": false,
+        "normal_return_required": true,
+        "release_qualified": false,
+        "restored": true,
+        "schema": "local.cpu-storage-observation.v1",
+        "sync_calls": 634
+      },
+      "cpu_helper": {
+        "returncode": 0,
+        "reaped": true,
+        "report": {
+          "arithmetic_batches": 6571,
+          "arithmetic_state": 4167452161,
+          "completed_periods": 26,
+          "deadline_reached": false,
+          "elapsed_ns": 1276764333,
+          "host_saturation_qualified": false,
+          "missed_periods": 0,
+          "normal_eof": true,
+          "offered_periods": 26,
+          "period_ns": 50000000,
+          "process_cpu_ns": 130662000,
+          "requested_work_cpu_ns_per_period": 5000000,
+          "schema": "local.cpu-load.v1",
+          "startup_wait_elapsed_ns": 3895269917,
+          "startup_wait_limit_ns": 40000000000,
+          "wall_limit_ns": 30000000000,
+          "work_loop_cpu_ns": 130250000
+        }
+      },
+      "verification": {
+        "custody_path": "native/cpu-storage-campaign-20260927-001/cases/cpu-detailed-verification.json",
+        "bytes": 1708,
+        "sha256": "a9d6297fb38e43024d1489ab65a65b61bfc7df7b643be23fb4d20abaabc21ba8"
+      },
+      "original_result": {
+        "custody_path": "native/cpu-storage-campaign-20260927-001/cases/cpu-detailed/result.json",
+        "bytes": 21537,
+        "sha256": "cf224e8180b5bf79ec0a404603dc4d54ddce35bd5d13071f5337f1501d45d595"
+      }
+    },
+    {
+      "id": "normal-detailed",
+      "ticks": 24,
+      "payload_count": 36,
+      "original_payload_bytes": 38400,
+      "capture": {
+        "application_completion_validated": false,
+        "exchange_pairs": 316,
+        "finished_peers": 1,
+        "journal_bytes": 709723,
+        "journal_digest": "857bfa96192936c4899c0d80bfb027b35b4369907b18fdc2cecc3048192257c6",
+        "peer_count": 1,
+        "pending_peer_operations": 0,
+        "scientific_validation": false,
+        "store_completion": "complete",
+        "unanswered_request": false
+      },
+      "sampled_retired_births": 4,
+      "timing": {
+        "all_ticks": {
+          "caller_route_thread_cpu_ns": {
+            "max": 57481291,
+            "method": "nearest_rank",
+            "n": 24,
+            "p50": 38737541,
+            "p99": 57481291,
+            "p99_9": 57481291
+          },
+          "export_deadline_misses": 24,
+          "route_deadline_misses": 24,
+          "route_wall_ns": {
+            "max": 1087585958,
+            "method": "nearest_rank",
+            "n": 24,
+            "p50": 547585958,
+            "p99": 1087585958,
+            "p99_9": 1087585958
+          },
+          "ticks": 24
+        },
+        "ticks_after_six": {
+          "caller_route_thread_cpu_ns": {
+            "max": 57481291,
+            "method": "nearest_rank",
+            "n": 18,
+            "p50": 38737541,
+            "p99": 57481291,
+            "p99_9": 57481291
+          },
+          "export_deadline_misses": 18,
+          "route_deadline_misses": 18,
+          "route_wall_ns": {
+            "max": 1087585958,
+            "method": "nearest_rank",
+            "n": 18,
+            "p50": 674491666,
+            "p99": 1087585958,
+            "p99_9": 1087585958
+          },
+          "ticks": 18
+        }
+      },
+      "instrumentation": {
+        "append_calls": 634,
+        "condition": "normal",
+        "counters": {
+          "all_hash_work_complete": false,
+          "allocation_complete": false,
+          "calls": 6809,
+          "failed": false,
+          "inclusive": true,
+          "maximum_calls": 32768,
+          "native_cpu_complete": false,
+          "physical_copy_complete": false,
+          "rows": {
+            "caller.advance": {
+              "calls": 24,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 933558000,
+              "thread_cpu_ns": 933559081,
+              "wall_ns": 1103976875
+            },
+            "caller.export": {
+              "calls": 24,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 26094000,
+              "thread_cpu_ns": 26114211,
+              "wall_ns": 26940751
+            },
+            "caller.finish": {
+              "calls": 1,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 5739000,
+              "thread_cpu_ns": 5740083,
+              "wall_ns": 18876875
+            },
+            "caller.release": {
+              "calls": 24,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 141251000,
+              "thread_cpu_ns": 141251499,
+              "wall_ns": 146877458
+            },
+            "city.commitment": {
+              "calls": 159,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 8251000,
+              "thread_cpu_ns": 8222876,
+              "wall_ns": 8267592
+            },
+            "city.validate_batch": {
+              "calls": 24,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 2045000,
+              "thread_cpu_ns": 2050081,
+              "wall_ns": 2051666
+            },
+            "city.validate_payload": {
+              "calls": 36,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 472000,
+              "thread_cpu_ns": 462790,
+              "wall_ns": 467211
+            },
+            "journal.append": {
+              "calls": 634,
+              "failures": 0,
+              "input_bytes": 681185,
+              "output_bytes": null,
+              "process_cpu_ns": 43273000,
+              "thread_cpu_ns": 42951670,
+              "wall_ns": 54093032
+            },
+            "journal.exchange": {
+              "calls": 316,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 725512000,
+              "thread_cpu_ns": 725530865,
+              "wall_ns": 978451506
+            },
+            "journal.fsync": {
+              "calls": 634,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 13584000,
+              "thread_cpu_ns": 13735488,
+              "wall_ns": 23647459
+            },
+            "journal.seal": {
+              "calls": 634,
+              "failures": 0,
+              "input_bytes": 730637,
+              "output_bytes": 709715,
+              "process_cpu_ns": 2875000,
+              "thread_cpu_ns": 2852753,
+              "wall_ns": 2855499
+            },
+            "sdk.acknowledgement": {
+              "calls": 632,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 211432000,
+              "thread_cpu_ns": 211419614,
+              "wall_ns": 211564458
+            },
+            "sdk.begin": {
+              "calls": 320,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 193151000,
+              "thread_cpu_ns": 193152297,
+              "wall_ns": 193318540
+            },
+            "sdk.observe": {
+              "calls": 316,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 303562000,
+              "thread_cpu_ns": 303655054,
+              "wall_ns": 303776267
+            },
+            "sdk.observe_acknowledgement": {
+              "calls": 316,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": null,
+              "process_cpu_ns": 212049000,
+              "thread_cpu_ns": 212153801,
+              "wall_ns": 212182287
+            },
+            "wire.encode": {
+              "calls": 2715,
+              "failures": 0,
+              "input_bytes": null,
+              "output_bytes": 1841752,
+              "process_cpu_ns": 190646000,
+              "thread_cpu_ns": 190359316,
+              "wall_ns": 190909079
+            }
+          },
+          "scope": "named-caller-invocations-only"
+        },
+        "delays": [],
+        "detailed": true,
+        "exchange_calls": 316,
+        "native_internals_measured": false,
+        "normal_return_required": true,
+        "release_qualified": false,
+        "restored": true,
+        "schema": "local.cpu-storage-observation.v1",
+        "sync_calls": 634
+      },
+      "cpu_helper": null,
+      "verification": {
+        "custody_path": "native/cpu-storage-campaign-20260927-001/cases/normal-detailed-verification.json",
+        "bytes": 1714,
+        "sha256": "2efe8f6ad2058de3d6afe1d2c550c98fb8c9395f2001cf94bf5560a7100e4d7a"
+      },
+      "original_result": {
+        "custody_path": "native/cpu-storage-campaign-20260927-001/cases/normal-detailed/result.json",
+        "bytes": 20714,
+        "sha256": "4a6f9efef4ba0de8c4903486479ae8b960222231ccfdc672338ddb69436e1cf4"
+      }
+    }
+  ],
+  "scope": {
+    "all_hash_work_complete": false,
+    "allocation_complete": false,
+    "characterization_only": true,
+    "hostile_containment": false,
+    "loaded_code_attestation": false,
+    "native_cpu_complete": false,
+    "physical_copy_complete": false,
+    "physical_storage_qualified": false,
+    "real_time_qualified": false,
+    "release_qualified": false
+  },
+  "source_controls": {
+    "methods": 38,
+    "skips": 0
+  },
+  "receipts": [
+    {
+      "custody_path": "native/cpu-storage-campaign-20260927-001/freeze.json",
+      "bytes": 239283,
+      "sha256": "1d658baae2de379dab5d6aee941b8bedcf30fd49d35e7859af31708cd88c4aad"
+    },
+    {
+      "custody_path": "native/cpu-storage-campaign-20260927-001/execution.json",
+      "bytes": 4255,
+      "sha256": "23199021a1336636179e7bf1f3fd8b70c5668891db856c88ea1194bd992cc655"
+    },
+    {
+      "custody_path": "gates/cpu-storage-native-command-20260927-001/result.json",
+      "bytes": 2656,
+      "sha256": "509157024ae61b2eb87c330875fb2afcfa3bc0fb3d082c7a9408cd586ea9743a"
+    },
+    {
+      "custody_path": "gates/cpu-storage-terminal-command-20260927-001/result.json",
+      "bytes": 2665,
+      "sha256": "30deed1a75fb10df79cac4fd385cd019ea4e29b86730a06c239891de837c0bf1"
+    },
+    {
+      "custody_path": "gates/cpu-storage-root-source-20260927-001/result.json",
+      "bytes": 1996,
+      "sha256": "72f73e4b89e2855c3ef28228eb2b20d3660f8b3c407be03e2544252c279200de"
+    },
+    {
+      "custody_path": "gates/cpu-storage-root-freeze-20260927-001/result.json",
+      "bytes": 2362,
+      "sha256": "b1885438500dc0d57ee3cfa11f0b3e0a0d1deba98787bb1a06b693133c3d755d"
+    }
+  ],
+  "native_command": {
+    "returncode": 0,
+    "elapsed_seconds": 98.48754108278081,
+    "inputs_unchanged": true
+  },
+  "terminal_command": {
+    "returncode": 0,
+    "elapsed_seconds": 9.956051833927631,
+    "inputs_unchanged": true
+  }
+}
