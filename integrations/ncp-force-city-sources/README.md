@@ -79,6 +79,8 @@ Four [installed recorder and consumer stall cases](evidence/native-city-containm
 Their original failed predecessor and false or unavailable cleanup fields remain explicit.
 Six [CPU and storage characterization cases](evidence/native-city-cpu-storage-2026-09-27.md) preserved all original payload bytes.
 All 144 route and export deadlines were missed. These measurements do not qualify real-time performance.
+The [maximum-batch and horizon campaign](evidence/native-city-horizon-2026-09-27.md) completed the largest batch but missed the 7,200-tick CPU horizon.
+It stopped at tick 4,070 under its fixed deadline. Complete city qualification remains open.
 
 Use `budgeted_city_session` when selecting complete body or body-plus-transcript logical allowances.
 Its `ResourceBudget` supplies aggregate logical, graphics-color, and selected storage limits in bytes.

@@ -1,0 +1,339 @@
+{
+  "schema": "crebain.city-horizon-observation.v1",
+  "date": "2026-09-27",
+  "author": "Sepehr Mahmoudian",
+  "status": "FAILED_REQUIRED_HORIZON",
+  "original_evidence_scope": "private and locally observed",
+  "public_projection_scope": "public and reopenable; derived fields and original artifact identities",
+  "installed_sources": {
+    "source_commit": "194cfb984440370692d6f62dffb19a428c785d3b",
+    "source_tree": "6cfadcb6a36cbbefaed8b54b7a2decb9cc569924",
+    "runtime_source_identity": "894587110a4dca991bcddac4b99ff8b38ede4514ac6db40f500c59a6e7212192",
+    "runtime_manifest_sha256": "c40450222003c63d7def1d5116f97f8bda1ba816438c2fc31c46a8612a146ffe",
+    "producer_sha256": "9fa7f541d9595b9185675d56c37c41b48b00b91cf9bdf274cfb7478c5178c9a9",
+    "client_wheel_sha256": "8bcf5bbc17e145599ce3a9485cb1001ad5789fff13114868ad8299c26cbe7fc9",
+    "ncp_sdk_commit": "c0465d40f1f2b9df2caf9793183d11e65ac9ec74",
+    "ncp_sdk_wheel_sha256": "9eb744571e79a0f8d5f4dbdf78c92b23e521f03c4351976a38e53ed600644787",
+    "transcript_commit": "7a1730e4cc1c7a62fa207e2baa0d6f231454bd3f",
+    "transcript_wheel_sha256": "d8bd70274e44d2fef5b3133e6be3623f412535979980ad1974e51726bc7c3e39"
+  },
+  "original_campaign": {
+    "freeze": {
+      "custody_path": "native/resource-horizon-campaign-20260927-001/freeze.json",
+      "bytes": 601222,
+      "sha256": "03caef2a8ea1de6da67c28362674646a6209568dae354dbd88bac1bc70e12a9b"
+    },
+    "disposition": {
+      "custody_path": "gates/resource-horizon-first-failure-20260927-001/result.json",
+      "bytes": 1511,
+      "sha256": "3d8061ef7d256006baaca3abdd7b428998cf7b587f9da9cfae94a0060b3f5034"
+    },
+    "command": {
+      "custody_path": "gates/resource-horizon-native-command-20260927-001/result.json",
+      "bytes": 2788,
+      "sha256": "c00d580da1398d24312eec7e9c1f8cb7ff02b5c9f8d24bbf934d7fc39c9a5644"
+    },
+    "status": "FAILED_UNCHANGED",
+    "attempted_groups": 1,
+    "planned_groups": 8,
+    "completed_groups": 0,
+    "unstarted_sessions": 15,
+    "observed_births_retired": 7,
+    "reason": "Initial BSD process identity unavailable; helper exit 6 with empty streams. Cause unknown."
+  },
+  "successor": {
+    "freeze": {
+      "custody_path": "native/resource-horizon-campaign-20260927-002/freeze.json",
+      "bytes": 601796,
+      "sha256": "29c4f0813c72b201f4c9c9fdac5e6aff57b4f576e278886f30a2885f70e7bf01"
+    },
+    "execution": {
+      "custody_path": "native/resource-horizon-campaign-20260927-002/execution.json",
+      "bytes": 6075,
+      "sha256": "9b8a6742a575de2e7c683f6a879f8723b602e838037759110e446c5bc1ce9a6f"
+    },
+    "command": {
+      "custody_path": "gates/resource-horizon-native-command-20260927-002/result.json",
+      "bytes": 2799,
+      "sha256": "1e9f53020a48ee59b24473fe9bda4e17de40f968c5e28d869b6ba51efdf98823"
+    },
+    "scope": "Separate finite-workflow campaign with incomplete diagnostic resource selection; original qualification failure remains.",
+    "attempted_groups": ["group-00", "group-01"],
+    "completed_groups": ["group-00"],
+    "unstarted_groups": ["group-02", "group-03", "group-04", "group-05", "group-06", "group-07"],
+    "unstarted_sessions_at_stop": 14,
+    "native_session_limit_seconds": 600,
+    "native_workloads_limits_or_prices_changed": false
+  },
+  "maximum_case": {
+    "case_id": "n256-maximum12-3",
+    "entities": 256,
+    "solids": 16,
+    "sources": 12,
+    "completed_ticks": 3,
+    "payloads": 36,
+    "original_payload_bytes": 83571200,
+    "maximum_batch_bytes": 27857088,
+    "exchange_pairs": 5296,
+    "application": {
+      "actual_command_return_verified": false,
+      "capture": {
+        "application_completion_validated": false,
+        "exchange_pairs": 5296,
+        "finished_peers": 1,
+        "journal_bytes": 120838895,
+        "journal_digest": "a581e40141a09d05232c4ae75bf0ceef44d48d24fdeadba4726c343f8e691fa8",
+        "peer_count": 1,
+        "pending_peer_operations": 0,
+        "scientific_validation": false,
+        "store_completion": "complete",
+        "unanswered_request": false
+      },
+      "case_id": "n256-maximum12-3",
+      "cleanup_confirmed": true,
+      "completed_ticks": 3,
+      "fault": "none",
+      "full_original_wire_history": true,
+      "gpu_memory_bound": false,
+      "invalid_prepare_valid_plan_budget_only": false,
+      "original_payload_bytes": 83571200,
+      "owner_retirement": {
+        "acknowledged_completed_tick": 3,
+        "acknowledged_prepared": true,
+        "acknowledged_result_digest": "f5bf6713f5ecc124f21ec384d74c0b483e8c105c1917c47229e9089f35d49fa1",
+        "acknowledged_terminal": true,
+        "diagnostics_original": {
+          "bucket": "auxiliary",
+          "bytes": 1248,
+          "name": "native-diagnostics.bin",
+          "sha256": "21872a5800676171f6965046ab9030086c72a5cdd12261e968c92968bc0a658a"
+        },
+        "diagnostics_truncated": false,
+        "last_committed": {
+          "operation": "finish",
+          "response": {
+            "binding": {
+              "application_digest": "de05b5b9e8586d50702847aa4e6f097172e9c3ecb0eb8ba7355c58832eccefbf",
+              "endpoint_id": "736802f1-da68-486e-a03f-f46bc05896e7",
+              "generation": "7e2d2281-2cd7-4f17-89f6-ce9f52cba798",
+              "profile_digest": "e64d071f0e48d3e8c5d70f368ea2b648517af1869e9465e8ec6fdb91e4851396",
+              "run_id": "416eee2c-25d4-466a-ad95-49f2577b2d60"
+            },
+            "body": {
+              "data": {
+                "completed_ticks": 3,
+                "last_released_batch_digest": "387620888dd0a5a641a4389294a2d2a7c75e5ffb2235779554715c49785993bc",
+                "native_retirement": "confirmed",
+                "plan_digest": "729a74938bd07f292cfb482ac3d2772bcf0dd32e793dd3e88b108c3b151ccea6",
+                "promised_source_output": "complete",
+                "scientific_validation": false
+              },
+              "kind": "finished"
+            },
+            "code": "ok",
+            "operation": "finish",
+            "outcome": "committed",
+            "request_digest": "ab2632adaead0fd8a20c2c4ed6e1546f5051fbe7b929c5d07d45ed4832ef5556",
+            "result_digest": "f5bf6713f5ecc124f21ec384d74c0b483e8c105c1917c47229e9089f35d49fa1",
+            "sequence": 2648
+          }
+        },
+        "observed_completed_tick": 3,
+        "observed_native_retirement": true,
+        "observed_prepared": true,
+        "observed_terminal": {
+          "completed_ticks": 3,
+          "last_released_batch_digest": "387620888dd0a5a641a4389294a2d2a7c75e5ffb2235779554715c49785993bc",
+          "native_retirement": "confirmed",
+          "plan_digest": "729a74938bd07f292cfb482ac3d2772bcf0dd32e793dd3e88b108c3b151ccea6",
+          "promised_source_output": "complete",
+          "scientific_validation": false
+        },
+        "process_exit": {
+          "cleanup_confirmed": true,
+          "diagnostics_bytes": 1248,
+          "diagnostics_truncated": false,
+          "forced": false,
+          "pid": 44782,
+          "reason": "owner_shutdown",
+          "returncode": 0,
+          "schema": "crebain.sensor-process-exit.v1"
+        },
+        "schema": "crebain.city-session-retirement.v1",
+        "yielded": true
+      },
+      "payload_count": 36,
+      "physical_reservation": false,
+      "process_memory_bound": false,
+      "real_time_qualified": false,
+      "release_qualified": false,
+      "response_projection_verified": true,
+      "retained": {
+        "bytes": {
+          "auxiliary": 1248,
+          "metadata": 236527,
+          "payload": 83571200
+        },
+        "files": 83,
+        "ordered_file_identity_sha256": "fe16b6eb5c2701bb0e106e13e9f477e49dc9b46371dcfc68beaf45f8d6192750",
+        "physical_reservation": false
+      },
+      "sampled_descendant_retirement_verified": false,
+      "schema": "local.city-resource-readback.v1",
+      "status": "completed",
+      "tracking_qualified": false
+    },
+    "metrics": {
+      "all_short_lived_births_observed": false,
+      "distinct_observed_births": 12,
+      "distinct_selected_births": 11,
+      "maximum_individual_observed_values": {
+        "lifetime_max_physical_footprint_bytes": 647890024,
+        "physical_footprint_bytes": 633570432,
+        "resident_bytes": 605814784,
+        "thread_count": 58,
+        "virtual_bytes": 1999998599168
+      },
+      "metric_calls": 257,
+      "opaque_memory_bound": false,
+      "rounds": 34,
+      "samples_with_unavailable_fields": 0,
+      "simultaneous_memory_sum": false,
+      "unavailable_selection_opportunities": 1,
+      "universal_non_growth_law": false
+    },
+    "headroom": {
+      "bytes": 17479,
+      "files": 21,
+      "minimum_observed_free_page_bytes": 39788544000,
+      "reservation": false,
+      "rounds": 7
+    },
+    "observed_births_retired": 13,
+    "originals": {
+      "bytes": 205207506,
+      "files": 705,
+      "ordered_identity_sha256": "87a22b95bbd8b88642b799a0970af9d22909b7f98a66db2223a625b9c647c54b"
+    }
+  },
+  "cpu_case": {
+    "case_id": "n256-cpu-7200",
+    "entities": 256,
+    "solids": 16,
+    "sources": 0,
+    "requested_ticks": 7200,
+    "last_acknowledged_tick": 4070,
+    "projected_request_response_pairs": 4070,
+    "raw_wire_capture_selected": false,
+    "status": "failed",
+    "owner_retirement": {
+      "acknowledged_completed_tick": 4070,
+      "acknowledged_prepared": true,
+      "acknowledged_result_digest": "8b8d4f07fc38d52323dd531f066ed4f5dda0d864cb3c364e0f643226384fd051",
+      "acknowledged_terminal": false,
+      "diagnostics_original": {
+        "bucket": "auxiliary",
+        "bytes": 755,
+        "name": "native-diagnostics.bin",
+        "sha256": "327a2041922ba2a6a3629ce0c887402a88429cc97841b7aa6f6e5819bc09f22c"
+      },
+      "diagnostics_truncated": false,
+      "last_committed": {
+        "operation": "batch_release",
+        "response": {
+          "binding": {
+            "application_digest": "de05b5b9e8586d50702847aa4e6f097172e9c3ecb0eb8ba7355c58832eccefbf",
+            "endpoint_id": "b5007a1e-48cc-425a-958a-e4cd798c071b",
+            "generation": "16dea643-268b-4261-9755-287080dcdf53",
+            "profile_digest": "e64d071f0e48d3e8c5d70f368ea2b648517af1869e9465e8ec6fdb91e4851396",
+            "run_id": "17f39952-61e9-4465-9a6b-f7eccac9a71b"
+          },
+          "body": {
+            "data": {
+              "batch_digest": "7749633c82045db84d3e1afa7ba0e46ca94bb1765e71a57d147cedf3c97561fe",
+              "kind": "batch_released",
+              "plan_digest": "e6b85f4018736eef0d05ee66bb225afb7be468a554746a02d2673f47bbc3455c",
+              "tick": 4070
+            },
+            "kind": "application"
+          },
+          "code": "ok",
+          "operation": "application",
+          "outcome": "committed",
+          "request_digest": "9bafd3fbca4d882ef57e0e3866833ec18eabcf51b59488dbf7e957a6bc5ab3e7",
+          "result_digest": "8b8d4f07fc38d52323dd531f066ed4f5dda0d864cb3c364e0f643226384fd051",
+          "sequence": 8141
+        }
+      },
+      "observed_completed_tick": 4070,
+      "observed_native_retirement": false,
+      "observed_prepared": true,
+      "observed_terminal": null,
+      "process_exit": {
+        "cleanup_confirmed": false,
+        "diagnostics_bytes": 755,
+        "diagnostics_truncated": false,
+        "forced": false,
+        "pid": 45671,
+        "reason": "deadline",
+        "returncode": 1,
+        "schema": "crebain.sensor-process-exit.v1"
+      },
+      "schema": "crebain.city-session-retirement.v1",
+      "yielded": true
+    },
+    "observed_births_retired": 4,
+    "supervisor_returncode": 1,
+    "supervisor_actions": {
+      "interrupt_attempted": false,
+      "interrupt_call_returned": null,
+      "kill_attempted": false,
+      "kill_call_returned": null
+    },
+    "metric_summary": {
+      "all_short_lived_births_observed": false,
+      "distinct_observed_births": 4,
+      "distinct_selected_births": 4,
+      "maximum_individual_observed_values": {
+        "lifetime_max_physical_footprint_bytes": 227820648,
+        "physical_footprint_bytes": 181224552,
+        "resident_bytes": 346587136,
+        "thread_count": 30,
+        "virtual_bytes": 520966897664
+      },
+      "metric_calls": 2346,
+      "opaque_memory_bound": false,
+      "rounds": 594,
+      "samples_with_unavailable_fields": 0,
+      "simultaneous_memory_sum": false,
+      "unavailable_selection_opportunities": 0,
+      "universal_non_growth_law": false
+    },
+    "originals": {
+      "bytes": 186241526,
+      "files": 13825,
+      "ordered_identity_sha256": "9ad935a5b91f5a2ed5fbe14a2b7b6bb73b025624c085d7ce7568d002a476ae57"
+    }
+  },
+  "separate_readback": {
+    "custody_path": "gates/resource-horizon-partial-terminal-20260927-001/result.json",
+    "bytes": 9150,
+    "sha256": "6f51297d9723ee4a3b8e200d695c63a5fe21a2b5d7ff179e786a65f299ef5342"
+  },
+  "scope": {
+    "full_campaign_passed": false,
+    "maximum_case_readback_passed": true,
+    "failed_cpu_terminal_reopened": true,
+    "cpu_application_readback_passed": false,
+    "complete_process_coverage": false,
+    "physical_reservation": false,
+    "opaque_memory_bound": false,
+    "universal_non_growth_law": false,
+    "simultaneous_memory_sum": false,
+    "loaded_code_attestation": false,
+    "real_time_qualified": false,
+    "tracking_qualified": false,
+    "release_qualified": false,
+    "hostile_containment": false
+  }
+}

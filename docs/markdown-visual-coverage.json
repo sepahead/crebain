@@ -389,6 +389,14 @@
       }
     },
     {
+      "path": "integrations/ncp-force-city-sources/evidence/native-city-horizon-2026-09-27.md",
+      "classification": "frozen-evidence",
+      "exemption": {
+        "kind": "dated-campaign-record",
+        "reason": "The tables preserve the completed maximum batch, failed horizon, and missing resource observations. A diagram would duplicate these measured outcomes."
+      }
+    },
+    {
       "path": "integrations/ncp-force-city-sources/evidence/native-city-resource-2026-09-26.md",
       "classification": "frozen-evidence",
       "exemption": {
