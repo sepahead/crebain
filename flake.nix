@@ -237,7 +237,7 @@
             # One fixed-output source covers both optional packages because
             # Cargo.lock resolves ncp-core and ncp-zenoh from the same commit.
             outputHashes = {
-              "ncp-core-0.8.0" = "sha256-GaYmp35xnxlZ0TClyKsFNYswzulgyaCA+TPzF6bJMVk=";
+              "ncp-core-1.0.0-rc.1" = "sha256-8NGiapsQXwtPZdD7Amp5grNqn8YR/fsYgTBKE0abBh4=";
             };
           };
 

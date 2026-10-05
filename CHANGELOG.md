@@ -46,7 +46,7 @@ README and treated as unverified until measured on target hardware.
   untagged NCP 1.0.0-rc.1 candidate at commit
   `2819dae3b6338bb1df6d105ebb5b7433936a993d` (wire 1.0, compact contract hash
   `163acc57d8a62b66`) in both Cargo manifests, `Cargo.lock`, `package.json`,
-  `bun.lock`, and `bun.nix`. `.ncp-consumer` now uses revision rows, and the
+  `bun.lock`, `bun.nix`, and the flake's cargo source hash. `.ncp-consumer` now uses revision rows, and the
   coherence check and its self-test bind exact revisions instead of tags.
 - The Galadriel observation and producer-monitor envelopes now use schema 2.0
   with `ncp_version` 1.0. Their shapes are unchanged, and the golden bytes match
@@ -133,6 +133,11 @@ README and treated as unverified until measured on target hardware.
 - Removed inert Rust dependency surfaces.
 
 ### Security
+
+- Bumped the exact `brace-expansion` override from 5.0.9 to 5.0.12. This fixes
+  GHSA-qhr7-859c-m2p7, GHSA-6j4f-fj2g-mc7p, and GHSA-q2hr-2g5m-vwhr in the
+  eslint and typescript-eslint development toolchain; `bun audit` reports no
+  vulnerabilities.
 
 - Updated the `brace-expansion` override to 5.0.9 after the advisory range
   changed to include 5.0.7.
