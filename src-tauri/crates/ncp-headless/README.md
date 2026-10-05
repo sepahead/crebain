@@ -1,29 +1,33 @@
 # CREBAIN headless NCP perception runner
 
-<!-- ncp-pin: v0.8.0 -->
+<!-- ncp-pin: v1.0.0-rc.1 -->
 
 `crebain-ncp-headless` is a dependency-isolated, opt-in workspace package. Its
 default feature set is empty. Cargo feature `ncp` enables its binary and pinned
-NCP wire-0.8 dependencies.
+NCP wire-1.0 dependencies (the untagged 1.0.0-rc.1 candidate).
 
 <p align="center">
   <img alt="CREBAIN headless NCP and Engram host boundaries" src="../../../assets/diagrams/engram-ncp-boundary.svg" width="900">
 </p>
 
-Text alternative: The feature-gated `crebain-ncp-headless` process uses
-strict-client-config NCP wire 0.8 without Tauri, inference, image, or plant dependencies.
-It bounds open, 1–4,096 steps, and close against a compatible external responder.
-Self-check and validation do not cross the transport boundary. The separate
-Engram UI host is read-only and has no NCP path. Current Engram wire 1.0 is
-incompatible, and no translator or live loop exists. A successful, validated
-RPC reply shows that one compatible responder replied. It does not prove
-receiver identity, end-to-end effect, TLS, ACL, scientific validity, or
-deployment readiness.
+Text alternative: The feature-gated `crebain-ncp-headless` process uses a strict
+client configuration and NCP wire 1.0 (the untagged 1.0.0-rc.1 candidate)
+without Tauri, inference, image, or plant dependencies. Self-check and
+validation do not cross the transport boundary. Its open, 1–4,096 steps, and
+close lifecycle is closed under the candidate, because CREBAIN does not
+implement the NCP 1.0 lifecycle role and the pinned ncp-zenoh has no
+production-secure identity binding. The separate Engram UI host is read-only and
+has no NCP path, and no NCP translator or live CREBAIN↔Engram loop exists. A
+validated reply would show only that one compatible responder replied. It would
+not prove receiver identity, end-to-end effect, TLS, ACL, scientific validity,
+or deployment readiness.
 
 ## Scope
 
-The process runs one perception-only lifecycle. It opens a feature-neuron
-session, performs 1–4,096 steps, and closes the session. Each handled path after
+The process is built for one perception-only lifecycle: open a feature-neuron
+session, perform 1–4,096 steps, and close the session. Under the pinned NCP 1.0
+candidate, `run` fails closed before it opens a transport; see [NCP 1.0
+lifecycle status](#ncp-10-lifecycle-status). Each handled path after
 a confirmed open makes one bounded close attempt while the process runs.
 
 The package has no dependency on Tauri, inference runtimes, image libraries, or
@@ -56,7 +60,7 @@ The CLI requires an explicit subcommand:
 |---|---|
 | `self-check` | Reads no runner configuration and opens no Zenoh session |
 | `validate --session-id <id>` | Validates bounded arguments and the strict client posture in `NCP_ZENOH_CONFIG`; opens no Zenoh session |
-| `run --session-id <id>` | Accepts only the strict secure-client configuration posture and runs the bounded lifecycle against a compatible NCP wire-0.8 responder |
+| `run --session-id <id>` | Validates the strict secure-client configuration posture, then fails closed before transport because the NCP 1.0 lifecycle role is not implemented |
 
 The CLI applies these limits before it opens a transport:
 
@@ -87,11 +91,33 @@ replies must return it. The shared client retains at most 256 session states.
 It fails closed after an ambiguous open, step, or close outcome. An ambiguous
 step permits only the bounded cleanup close.
 
+## NCP 1.0 lifecycle status
+
+The pinned NCP 1.0.0-rc.1 candidate makes `step_request`, `run_request`, and
+`close_session` lifecycle mutations. Each needs an operation context with a
+request digest and a bounded authority lease, and `open_session` needs a
+negotiated identity claim, security profile, and security-state digest. Replies
+carry receipts that the client must verify. CREBAIN does not implement this
+commander role yet. The pinned `ncp-zenoh` also reports
+`PRODUCTION_SECURE_IDENTITY_BINDING_AVAILABLE = false`, so a remote secure
+session cannot bind its identity claim to the verified transport principal.
+
+The runner therefore fails closed:
+
+- `self-check` and `validate` report `"lifecycle": "unavailable"` and open no
+  Zenoh session.
+- `run` validates its arguments and configuration, then stops with
+  `NCP 1.0 lifecycle role unavailable` before it opens a transport.
+- A compile-time check fails the build if a later `ncp-zenoh` pin makes
+  production-secure identity binding available, so that pin bump must revisit
+  this boundary.
+
 ## Compatibility and evidence boundary
 
-The `engram/ncp` realm is only a routing default. It does not establish responder
-compatibility. Current Engram/Paper2Brain native wire 1.0 is incompatible with
-CREBAIN's wire 0.8 pin. No translator or live CREBAIN↔current-Engram loop exists.
+The `engram/ncp` realm is only a routing default. It does not establish
+responder compatibility. No translator or live CREBAIN↔Engram loop exists, and
+compatibility with any particular Engram/Paper2Brain responder is not
+established.
 
 An RPC reply shows that some responder replied. It does not identify that
 responder as the intended deployment receiver. It does not prove an end-to-end

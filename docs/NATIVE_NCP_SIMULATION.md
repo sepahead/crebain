@@ -119,7 +119,7 @@ bun run validate:ncp-simulation
 ```
 
 The offline coherence check joins the native manifest, lock version, exact Git source, and documentation marker.
-It separately preserves the historical wire-0.8 dependency checks.
+It separately checks the wire-1.0 dependency pins (the untagged 1.0.0-rc.1 candidate).
 The native aggregate checks formatting, release compilation, all-target tests, doctests, strict Clippy, and Rust documentation.
 Both `validate:all` and the existing Rust CI job invoke this aggregate.
 The existing supply-chain job separately audits this package with `src-tauri/deny.toml`.

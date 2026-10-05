@@ -110,7 +110,7 @@
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "0.19.3",
-    "@sepahead/ncp": "github:sepahead/NCP#v0.8.0",
+    "@sepahead/ncp": "github:sepahead/NCP#2819dae3b6338bb1df6d105ebb5b7433936a993d",
     "@sparkjsdev/spark": "0.1.10",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",

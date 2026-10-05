@@ -8,15 +8,17 @@ Engram Host API 2.0 adds a separate managed simulation runtime.
   <img alt="CREBAIN headless NCP and Engram host boundaries" src="../../assets/diagrams/engram-ncp-boundary.svg" width="900">
 </p>
 
-Text alternative: The feature-gated `crebain-ncp-headless` process uses
-strict-client-config NCP wire 0.8 without Tauri, inference, image, or plant dependencies.
-It bounds open, 1–4,096 steps, and close against a compatible external responder.
-Self-check and validation do not cross the transport boundary. The separate
-Engram UI host is read-only and has no NCP path. Current Engram wire 1.0 is
-incompatible, and no NCP translator or NCP action loop exists. A validated
-RPC reply shows that one compatible responder replied. It does not prove
-receiver identity, end-to-end effect, TLS, ACL, scientific validity, or
-deployment readiness.
+Text alternative: The feature-gated `crebain-ncp-headless` process uses a strict
+client configuration and NCP wire 1.0 (the untagged 1.0.0-rc.1 candidate)
+without Tauri, inference, image, or plant dependencies. Self-check and
+validation do not cross the transport boundary. Its open, 1–4,096 steps, and
+close lifecycle is closed under the candidate, because CREBAIN does not
+implement the NCP 1.0 lifecycle role and the pinned ncp-zenoh has no
+production-secure identity binding. The separate Engram UI host is read-only and
+has no NCP path, and no NCP translator or live CREBAIN↔Engram loop exists. A
+validated reply would show only that one compatible responder replied. It would
+not prove receiver identity, end-to-end effect, TLS, ACL, scientific validity,
+or deployment readiness.
 
 ## Start CREBAIN
 
@@ -141,15 +143,17 @@ The separate Host API 2.0 runtime enables a bounded simulator-only closed loop.
 It does not use the browser protocol.
 
 The dependency-isolated `crebain-ncp-headless` process is not part of this host
-protocol. Engram does not start, configure, or control it. Its networked mode
-requires a compatible external NCP wire-0.8 responder. The `engram/ncp` default
+protocol. Engram does not start, configure, or control it. Its networked mode fails closed under the pinned NCP 1.0
+candidate. The `engram/ncp` default
 realm is only routing text and does not establish current Engram compatibility.
 
-CREBAIN pins the latest immutable NCP release, `v0.8.0` (wire `0.8`). The NCP
-`1.0.0-rc.1` candidate uses wire `1.0` and compact proto contract hash
-`163acc57d8a62b66`. It is unreleased, release-blocked, and incompatible with
-wire `0.8`. No native-1.0 role is certified. Engram's native-1.0 migration
-worktree is neither an installed artifact nor a live certification result.
+CREBAIN pins the untagged NCP `1.0.0-rc.1` candidate at commit
+`2819dae3b6338bb1df6d105ebb5b7433936a993d` (wire `1.0`, compact proto contract
+hash `163acc57d8a62b66`), which replaces the retired `v0.8.0` pin. It is
+unreleased, and no native-1.0 role is certified. The host protocol vector in
+this directory still declares the retired extension wire `0.8`. The host
+handshake carries no NCP traffic, and that field changes only together with
+Engram's copy of the vector.
 No NCP translator or NCP action loop exists.
 The managed simulator loop does not use NCP.
 

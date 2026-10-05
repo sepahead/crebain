@@ -1,6 +1,6 @@
 # CREBAIN ↔ NCP bridge handoff
 
-<!-- ncp-pin: v0.8.0 -->
+<!-- ncp-pin: v1.0.0-rc.1 -->
 
 This is the current implementation handoff for CREBAIN's optional
 Neuro-Cybernetic Protocol integrations: a dormant action adapter, a separate
@@ -12,15 +12,17 @@ historical and fixed.
   <img alt="CREBAIN headless NCP and Engram host boundaries" src="../assets/diagrams/engram-ncp-boundary.svg" width="900">
 </p>
 
-Text alternative: The feature-gated `crebain-ncp-headless` process uses
-strict-client-config NCP wire 0.8 without Tauri, inference, image, or plant dependencies.
-It bounds open, 1–4,096 steps, and close against a compatible external responder.
-Self-check and validation do not cross the transport boundary. The separate
-Engram UI host is read-only and has no NCP path. Current Engram wire 1.0 is
-incompatible, and no NCP translator or NCP action loop exists. A validated
-RPC reply shows that one compatible responder replied. It does not prove
-receiver identity, end-to-end effect, TLS, ACL, scientific validity, or
-deployment readiness.
+Text alternative: The feature-gated `crebain-ncp-headless` process uses a strict
+client configuration and NCP wire 1.0 (the untagged 1.0.0-rc.1 candidate)
+without Tauri, inference, image, or plant dependencies. Self-check and
+validation do not cross the transport boundary. Its open, 1–4,096 steps, and
+close lifecycle is closed under the candidate, because CREBAIN does not
+implement the NCP 1.0 lifecycle role and the pinned ncp-zenoh has no
+production-secure identity binding. The separate Engram UI host is read-only and
+has no NCP path, and no NCP translator or live CREBAIN↔Engram loop exists. A
+validated reply would show only that one compatible responder replied. It would
+not prove receiver identity, end-to-end effect, TLS, ACL, scientific validity,
+or deployment readiness.
 
 ## Product boundary
 
@@ -29,9 +31,9 @@ standalone. NCP is not on the default runtime path:
 
 | Surface | Current state |
 |---------|---------------|
-| Rust `src-tauri/src/ncp/mod.rs` | Compiles only with the off-by-default `ncp` feature; provides `NcpBridge`, validated feature-neuron RPCs, and a wired fail-closed `CommandPlant` action loop as library APIs |
+| Rust `src-tauri/src/ncp/mod.rs` | Compiles only with the off-by-default `ncp` feature; provides `NcpBridge`, a fail-closed feature-neuron lifecycle (NCP 1.0 role not implemented), and a wired fail-closed `CommandPlant` action loop as library APIs |
 | Rust Tauri commands | Defined, but `NcpHandle` is not managed and the four `ncp_*` commands are not registered |
-| External `crebain-ncp-headless` process | Separate dependency-isolated workspace package with empty default features; compiles its binary only with `ncp`; provides local `self-check`, a `validate` command that opens no Zenoh session, and an explicit bounded secure-configuration-only perception `run` against a compatible NCP wire-0.8 responder |
+| External `crebain-ncp-headless` process | Separate dependency-isolated workspace package with empty default features; compiles its binary only with `ncp`; provides local `self-check`, a `validate` command that opens no Zenoh session, and a secure-configuration-only perception `run` that fails closed before transport under the NCP 1.0 candidate |
 | Rust Galadriel producer | Compiles with `ncp`; managed by the app only when `CREBAIN_GALADRIEL_ENABLE=1`, an explicit key-safe process epoch is supplied, and all registry/config/executable pins pass; writes only two named perception evidence routes |
 | TypeScript `src/neuro` | Thin guarded re-export of `@sepahead/ncp`; imported by no product component/hook |
 | Vite-dev `window.__ncpDrone` | Manual in-browser wire-shaped command injection. It opens no NCP transport or session. It is absent from production builds and Engram embedded mode. |
@@ -42,8 +44,7 @@ standalone. NCP is not on the default runtime path:
 
 No Engram process or sibling checkout is required to run the CREBAIN application.
 Cargo's pinned Git dependencies must still be network/cache-resolvable when
-resolving or building the NCP feature. The headless `run` command separately
-requires a compatible NCP wire-0.8 responder. “No sibling checkout” does not
+resolving or building the NCP feature. The headless `run` command fails closed under the pinned NCP 1.0 candidate. “No sibling checkout” does not
 mean “no dependency resolution.”
 
 Engram can host the standalone Vite interface with `engramHost=1`. This mode
@@ -52,26 +53,24 @@ remains latched for the document lifetime. Each loaded document must echo a
 fresh context nonce. It must also answer continued health challenges. Engram
 must relock a stale frame or a frame that can reach Engram native IPC. These
 messages correlate a document. They do not attest the process or build. This
-mode does not use the native NCP adapter. CREBAIN pins the latest immutable NCP
-release, `v0.8.0` (wire `0.8`). The NCP `1.0.0-rc.1` candidate has the `1.0`
-wire string. Its compact proto contract hash is
-`163acc57d8a62b66`. It is unreleased, release-blocked, and incompatible with
-wire `0.8`. No native-1.0 role is
-certified. Engram's native-1.0 migration worktree is neither an installed
-artifact nor a live certification result. The manifest therefore marks
-compatibility as false. The source repository and Engram share a digest-locked
+mode does not use the native NCP adapter. CREBAIN pins the untagged NCP `1.0.0-rc.1` candidate at commit
+`2819dae3b6338bb1df6d105ebb5b7433936a993d` (wire `1.0`, compact contract hash
+`163acc57d8a62b66`). It is unreleased and replaces the retired `v0.8.0` pin
+(wire `0.8`). No native-1.0 role is certified. The manifest marks compatibility
+as false. The shared `engram.host.v1` vector still declares the retired
+extension wire `0.8`; that host handshake carries no NCP traffic, and the field
+moves only in a coordinated vector update with Engram. The source repository and Engram share a digest-locked
 `engram.host.v1` protocol vector.
 
 The restricted Engram UI host has no NCP path. The headless runner does not use
-the host protocol. Its `engram/ncp` default is only an NCP realm string. Current
-Engram/Paper2Brain native wire 1.0 is incompatible with CREBAIN's wire 0.8 pin.
-No NCP translator or NCP action loop exists.
+the host protocol. Its `engram/ncp` default is only an NCP realm string. No NCP translator or NCP action loop exists, and compatibility with any particular
+Engram/Paper2Brain responder is not established.
 The separate managed simulation loop does not use NCP.
 
 ## Current dependency contract
 
-The canonical NCP SDK lives at `github.com/sepahead/NCP`. CREBAIN pins tag
-`v0.8.0` in:
+The canonical NCP SDK lives at `github.com/sepahead/NCP`. CREBAIN pins commit `2819dae3b6338bb1df6d105ebb5b7433936a993d`
+(the untagged NCP 1.0.0-rc.1 candidate) in:
 
 - `ncp-core` and `ncp-zenoh` in `src-tauri/Cargo.toml`,
   `src-tauri/crates/ncp-headless/Cargo.toml`, and the shared `Cargo.lock`
@@ -83,12 +82,11 @@ Engram examples that show an older incompatible wire contract, old package scope
 or `std_msgs` profiles are stale integration material and must be corrected in their owning
 repository rather than copied here.
 
-The `v0.8.0` annotated tag object is
-`54008b16ea0c195a4ccc9691cb533dd1153bf7f0`. The Bun lock stores its `54008b1`
-abbreviation. Cargo peels the tag and stores commit
-`2f5bd586d4bb20c90362bb6f5698b7f64057ba4e`. The values differ because they
-identify different Git object types. The offline coherence check binds this
-exact mapping through `scripts/ncp-release-identities.tsv`.
+The candidate has no tag object. Cargo stores the full commit, and the Bun lock
+stores its `2819dae` abbreviation. The offline coherence check binds both
+through `scripts/ncp-release-identities.tsv`, which also keeps the retired
+`v0.8.0` row (tag object `54008b16ea0c195a4ccc9691cb533dd1153bf7f0`, commit
+`2f5bd586d4bb20c90362bb6f5698b7f64057ba4e`).
 
 The audited external ACL/profile set does not establish an authorized
 Galadriel-sidecar identity in CREBAIN's intended realm. Producer code does not
@@ -101,7 +99,7 @@ ecosystem claim.
 
 `crebain-ncp-headless` is an external process from a separate
 dependency-isolated workspace package. Its default feature set is empty. Cargo
-feature `ncp` enables the binary and pinned wire-0.8 dependencies. It is not a
+feature `ncp` enables the binary and pinned wire-1.0 dependencies. It is not a
 Tauri command and does not change the desktop app.
 
 The process accepts three explicit subcommands:
@@ -110,7 +108,7 @@ The process accepts three explicit subcommands:
 |---|---|
 | `self-check` | Reads no runner configuration and opens no Zenoh session |
 | `validate --session-id <id>` | Validates bounded arguments and the strict client posture in `NCP_ZENOH_CONFIG`; opens no Zenoh session |
-| `run --session-id <id>` | Accepts only the strict secure-client configuration posture, requires `NCP_ZENOH_CONFIG`, and runs one bounded perception lifecycle against a compatible NCP wire-0.8 responder |
+| `run --session-id <id>` | Requires `NCP_ZENOH_CONFIG`, validates the strict secure-client configuration posture, then fails closed before transport because the NCP 1.0 lifecycle role is not implemented |
 
 The bounded inputs are:
 
@@ -195,14 +193,20 @@ state.
 The sensor publisher requires the payload `session_id` to equal its requested
 transport route. Normal command ingress requires both the concrete callback key
 and the decoded payload `session_id` to match the subscribed route before it can
-change `CommandPlant`. The legacy wire-0.8 raw ESTOP exception is checked against
-the concrete callback key, but it still accepts an omitted or malformed payload
-session field. These checks are not transport-principal authentication or a
-native-1.0 live-generation/authority lease. This local wire-0.8 hardening does
-not satisfy NCP ecosystem ledger task C01 or C02. It is not native-1.0
-qualification evidence.
+change `CommandPlant`. The raw ESTOP latch, retained from the retired wire 0.8 as a fail-safe, is
+checked against the concrete callback key, but it still accepts an omitted or
+malformed payload session field. NCP 1.0 requires a complete ESTOP envelope and
+live binding, so this latch is more permissive than the 1.0 rule; it can only
+stop the plant. An active command must carry an authority lease bound to the
+session generation, which `ncp-core` validates. These checks are not
+transport-principal authentication. This local hardening does not satisfy NCP
+ecosystem ledger task C01 or C02 and is not native-1.0 qualification evidence.
 
-Lifecycle RPCs use CREBAIN's shared feature-neuron client over `ZenohBus`.
+Under the pinned NCP 1.0 candidate, the shared feature-neuron client refuses to
+open a session before any request leaves the peer, because CREBAIN does not
+implement the NCP 1.0 lifecycle role. The remaining paragraph describes the
+client's retained safety design. Lifecycle RPCs use CREBAIN's shared
+feature-neuron client over `ZenohBus`.
 Pinned `ncp-core` checks the raw envelope before typed deserialization. It binds
 reply kind and session ID to the request and validates typed-error attribution.
 CREBAIN also binds the server-issued generation across open, step, observation,

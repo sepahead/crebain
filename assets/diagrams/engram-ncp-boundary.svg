@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" xml:lang="en" viewBox="0 0 1200 800" width="1200" height="800" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="engram-ncp-title engram-ncp-desc">
   <title id="engram-ncp-title">CREBAIN headless NCP and restricted Engram host boundaries</title>
-  <desc id="engram-ncp-desc">The separate feature-gated ncp-headless workspace package provides the external crebain-ncp-headless process without Tauri, inference, image, or plant dependencies. It requires a strict client configuration for NCP wire 0.8 and runs a bounded open, 1–4,096 steps, and close lifecycle against a compatible external wire 0.8 responder. Local self-check and validation modes do not cross the transport boundary. The separate restricted Engram UI host is read-only and has no NCP path. The current Engram native candidate uses incompatible wire 1.0, and no translation or live loop exists. A successful reply proves that one compatible responder replied. It does not identify the intended deployment receiver or prove end-to-end deployment effect, TLS, ACL, scientific validity, or deployment readiness.</desc>
+  <desc id="engram-ncp-desc">The separate feature-gated ncp-headless workspace package provides the external crebain-ncp-headless process without Tauri, inference, image, or plant dependencies. It requires a strict client configuration for NCP wire 1.0, the untagged 1.0.0-rc.1 candidate. Its bounded open, 1–4,096 steps, and close lifecycle fails closed before transport, because CREBAIN does not implement the NCP 1.0 lifecycle role. Local self-check and validation modes do not cross the transport boundary. The separate restricted Engram UI host is read-only and has no NCP path, and no translation or live loop exists. A reply would prove only that one compatible responder replied. It would not identify the intended deployment receiver or prove end-to-end deployment effect, TLS, ACL, scientific validity, or deployment readiness.</desc>
   <style>
     * { vector-effect: non-scaling-stroke; }
     .canvas { fill: #f8fafc; }
@@ -57,7 +57,7 @@
   <rect class="canvas" x="0" y="0" width="1200" height="800"/>
   <path class="corner" d="M18 42 V18 H42 M1158 18 H1182 V42 M18 758 V782 H42 M1182 758 V782 H1158"/>
   <text class="title" x="48" y="42">CREBAIN · HEADLESS NCP + RESTRICTED ENGRAM HOST BOUNDARIES</text>
-  <text class="subtitle" x="48" y="66">DEPENDENCY-ISOLATED WORKSPACE PACKAGE · NCP WIRE 0.8 · CLAIM BOUNDARIES STAY SEPARATE</text>
+  <text class="subtitle" x="48" y="66">DEPENDENCY-ISOLATED WORKSPACE PACKAGE · NCP WIRE 1.0 · CLAIM BOUNDARIES STAY SEPARATE</text>
 
   <rect class="local-zone" x="40" y="96" width="1120" height="184"/>
   <text class="section present-text" x="62" y="124">LOCAL COMPONENT EVIDENCE · NO NETWORK REQUIRED</text>
@@ -77,7 +77,7 @@
   <rect class="surface" x="776" y="136" width="352" height="118"/>
   <text class="present-text" x="952" y="166">crebain-ncp-headless</text>
   <text class="small" x="952" y="190">separate opt-in package · feature "ncp"</text>
-  <text class="small conditional-text" x="952" y="214">strict client config · pinned NCP wire 0.8</text>
+  <text class="small conditional-text" x="952" y="214">strict client config · pinned NCP wire 1.0</text>
   <text class="small" x="952" y="237">no Tauri · ORT · image · plant dependency</text>
 
   <rect class="transport-zone" x="40" y="310" width="1120" height="286"/>
@@ -100,12 +100,12 @@
   <path class="transport-edge" d="M808 425 H844"/>
   <rect class="surface" x="852" y="370" width="276" height="110"/>
   <text class="conditional-text" x="990" y="400">Compatible NCP responder</text>
-  <text class="small" x="990" y="425">external wire 0.8 request / reply</text>
+  <text class="small" x="990" y="425">wire 1.0 lifecycle · fails closed</text>
   <text class="small" x="990" y="449">secure mode requested</text>
-  <text class="small absent-text" x="990" y="471">NOT CURRENT ENGRAM 1.0</text>
+  <text class="small absent-text" x="990" y="471">NO ENGRAM CLAIM</text>
 
   <rect class="absent-box" x="86" y="496" width="1042" height="88"/>
-  <text class="absent-text" x="607" y="524">CURRENT ENGRAM NATIVE CANDIDATE IS WIRE 1.0 · INCOMPATIBLE · NO TRANSLATION OR LIVE LOOP</text>
+  <text class="absent-text" x="607" y="524">NCP 1.0 LIFECYCLE ROLE NOT IMPLEMENTED · NO TRANSLATION OR LIVE LOOP</text>
   <text class="small absent-text" x="607" y="548">NO ACTION SUBSCRIPTION · NO TAURI COMMAND · NO PLANT OR FCU PATH</text>
   <text class="small" x="607" y="572">The headless lifecycle is request / reply only. It cannot authorize or apply vehicle motion.</text>
 

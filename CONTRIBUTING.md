@@ -90,7 +90,7 @@ bun run validate:all
 |-------------|----------------|
 | Markdown-only, no command/status changes | `bun run check:docs-visuals` and `git diff --check` |
 | NCP manifest, lockfile, or normative-doc changes | `bun run check:ncp-coherence` |
-| Headless NCP runner, CLI, lifecycle, or report changes | `bun run check:ncp-headless-boundary`, `bun run check:ncp-headless`, `bun run clippy:ncp-headless`, `bun run test:ncp-headless`, and `bun run self-check:ncp-headless`; `bun run validate:all` runs these gates together. A live claim also requires a compatible wire-0.8 responder and external topology evidence. |
+| Headless NCP runner, CLI, lifecycle, or report changes | `bun run check:ncp-headless-boundary`, `bun run check:ncp-headless`, `bun run clippy:ncp-headless`, `bun run test:ncp-headless`, and `bun run self-check:ncp-headless`; `bun run validate:all` runs these gates together. A live claim also requires the NCP 1.0 lifecycle role, a compatible wire-1.0 responder, and external topology evidence. |
 | Galadriel producer registry/config/envelope/security/baseline changes | `bun run check:phase0-baseline` plus `bun run check:ncp-coherence`; use `bun run validate:all` for source behavior |
 | Frontend-only source/test changes | `bun run validate` |
 | Responsive layout, panel chrome, or UI-scale changes | `bun run validate`, `bun run check:bundle`, and `bun run test:responsive` |

@@ -8,16 +8,17 @@ proof that a Galadriel process received or accepted anything.
   <img alt="CREBAIN headless NCP and Engram host boundaries" src="../assets/diagrams/engram-ncp-boundary.svg" width="900">
 </p>
 
-Text alternative: The feature-gated `crebain-ncp-headless` process accepts only
-the NCP wire-0.8 strict client configuration posture. It has no Tauri, inference,
-image, or plant dependencies.
-It bounds open, 1–4,096 steps, and close against a compatible external responder.
-Self-check and validation do not cross the transport boundary. The separate
-Engram UI host is read-only and has no NCP path. Current Engram wire 1.0 is
-incompatible, and no translator or live loop exists. A successful, validated
-RPC reply shows that one compatible responder replied. It does not prove
-receiver identity, end-to-end effect, TLS, ACL, scientific validity, or
-deployment readiness.
+Text alternative: The feature-gated `crebain-ncp-headless` process uses a strict
+client configuration and NCP wire 1.0 (the untagged 1.0.0-rc.1 candidate)
+without Tauri, inference, image, or plant dependencies. Self-check and
+validation do not cross the transport boundary. Its open, 1–4,096 steps, and
+close lifecycle is closed under the candidate, because CREBAIN does not
+implement the NCP 1.0 lifecycle role and the pinned ncp-zenoh has no
+production-secure identity binding. The separate Engram UI host is read-only and
+has no NCP path, and no NCP translator or live CREBAIN↔Engram loop exists. A
+validated reply would show only that one compatible responder replied. It would
+not prove receiver identity, end-to-end effect, TLS, ACL, scientific validity,
+or deployment readiness.
 
 ## Two independent opt-ins
 
@@ -147,7 +148,10 @@ configured process epoch:
 The first carries frozen Galadriel sidecar envelopes. The second carries ordered
 modality outcomes, aggregate misses, frame summaries, and periodic producer
 heartbeats. The envelope codecs, bounds, and golden bytes mirror the pinned NCP
-and Galadriel component contracts. This is a narrow raw NCP `put` path. It does
+and Galadriel component contracts. Both envelopes use schema `2.0` with `ncp_version` `1.0` and the pinned
+candidate's contract hash `163acc57d8a62b66`. Schema `2.0` keeps the frozen
+schema `1.0` shapes, which carried the retired wire `0.8`; "v1 observation"
+below names that frozen observation shape. This is a narrow raw NCP `put` path. It does
 not restore a generic renderer, ROS, service, setpoint, action, or FCU publisher.
 
 CREBAIN does not execute registry transform chains. A common consistency

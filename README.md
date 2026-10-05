@@ -201,8 +201,8 @@ The city observation transport does not itself define applied-action or predicto
 Raw simulated modalities do not establish independent statistical measurements or qualified fusion.
 Haldir and real vehicle actuation are outside the current local environment profile.
 
-The retained Host API 2.0 runtime and wire-0.8 NCP paths remain separately documented in the [workflow guide](docs/WORKFLOWS.md).
-The host runtime has no NCP dependency. The wire-0.8 paths have no translator to the local SDK.
+The retained Host API 2.0 runtime and the NCP wire-1.0 paths remain separately documented in the [workflow guide](docs/WORKFLOWS.md).
+The host runtime has no NCP dependency. The wire-1.0 paths pin the untagged NCP 1.0.0-rc.1 candidate, keep their feature-neuron lifecycle closed, and have no translator to the local SDK.
 A source pin, local put, configuration check, or captured result is not installed interoperability or receiver-delivery proof.
 
 ## Desktop detection and fusion

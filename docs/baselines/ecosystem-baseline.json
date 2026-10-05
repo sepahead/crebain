@@ -135,23 +135,23 @@
     },
     {
       "path": "package.json",
-      "sha256": "4c95913623c235d2ceba45fb6d4492e9d1abe6fbaf82533042c2cca458ff5d53"
+      "sha256": "6afbbacb18bc6b8f30453f5593603225edeaaafbef3fc5f3f98d4d9393e32394"
     },
     {
       "path": "bun.lock",
-      "sha256": "74479efd80bf1ddf27ce09279f4ff03a3ecbd327adb44c29c8a64af09675e609"
+      "sha256": "62f5577784f99f6cdadf57b54896d0065ecc50f59bbb4cc6d0267fbc9386c254"
     },
     {
       "path": "src-tauri/Cargo.toml",
-      "sha256": "b29da60420b08a1c5e694e4246321721cb7ffcfb5350a793fc348ff01f7c5ca1"
+      "sha256": "e858d8a2ca9dbdf2e67dfd744f5901df3952e238d6ad96076759966618528f02"
     },
     {
       "path": "src-tauri/Cargo.lock",
-      "sha256": "7cd055cb4cb24ab05676cd26456b12b5f9ae98939ffe40213914596b1f38fb63"
+      "sha256": "cf527faecf40b56a1d32c4fba1483d014251b322fb4250944d8cdcf9d2ae4535"
     },
     {
       "path": "src-tauri/crates/ncp-headless/Cargo.toml",
-      "sha256": "81fa450b5e189c5216f7280e2870bbae9f4b78dcd1c9d36079f720d68277e998"
+      "sha256": "1c29661230c12d8a78bbe51e64ccf5949b7f497aec05c7e59cf7d180782c3584"
     },
     {
       "path": "src-tauri/crates/plant-authority/Cargo.toml",
@@ -159,7 +159,7 @@
     },
     {
       "path": ".ncp-consumer",
-      "sha256": "da9b80d50a73bf4d12beac64e9dc253dc92dfbad0a0bfb069abccbb2a0ad5442"
+      "sha256": "8a27fdb6f6dec5b5dfe65244e8d74a569a77d207a84fb7ffe0e846a73f88e72e"
     },
     {
       "path": "src-tauri/tauri.conf.json",
@@ -239,11 +239,11 @@
     },
     {
       "path": "scripts/check-ncp-coherence.sh",
-      "sha256": "a472f326e9e9f36f8e96d75c6e6617cbae6e1b6c2fbc5bedc70e5d8ce7ccd3a8"
+      "sha256": "e5ec4c4ddcef3f07eea92d09ae7dfe528d14766459c3b999ed90657d978fb5b2"
     },
     {
       "path": "scripts/test-ncp-coherence.sh",
-      "sha256": "f1d5061e96754440a70cce26295c8044e8e54bc6e2dcafcf620506685a2d41c3"
+      "sha256": "63c2c5233df3db7e7b45b8ad7786977165834820e6b241c34bacf1c3716f385f"
     },
     {
       "path": "scripts/check-ncp-headless-boundary.mjs",
@@ -255,7 +255,7 @@
     },
     {
       "path": "scripts/ncp-release-identities.tsv",
-      "sha256": "5c7e531c8f6eb949717fe37dd0c9c99f906c52dce3e66b755aea41dd58b78a9b"
+      "sha256": "ca9b99412aaf49646a362c1205ea24b2e088c8d531733179e9088fe311d1746b"
     },
     {
       "path": ".github/workflows/ci.yml",
@@ -271,7 +271,7 @@
     },
     {
       "path": "docs/GALADRIEL_PRODUCER.md",
-      "sha256": "8df6a9585d2c32027bf90360be64f3fceba2ed3267dc4944b4648305ea3e934e"
+      "sha256": "ead65fd5b92c30b7b4abb020b47faf0c7cb22b50993094bff188eb670e337fc6"
     },
     {
       "path": "scripts/fixtures/phase0-evidence-artifact-valid.json",
@@ -287,7 +287,7 @@
     },
     {
       "path": "bun.nix",
-      "sha256": "2b74c57b1cfc24f68ca4c845457b690c820d758607379386130215ba569e53ff"
+      "sha256": "84ebdfad07bee1b72563c046abffc1f670cff754ced023d3649042de9b71cc32"
     },
     {
       "path": "flake.nix",
@@ -367,11 +367,11 @@
     },
     {
       "path": "scripts/normalize-bun-nix.mjs",
-      "sha256": "53d0ae84ac7e79216debe0764ea16addaa44c9f0d64e6d0bfe8a871fba58ce85"
+      "sha256": "3839ea20dd8bef33570587303882b3ed5526a66f978f606b8737e360dfa368f3"
     },
     {
       "path": "scripts/test-normalize-bun-nix.mjs",
-      "sha256": "d3458449ba2602b9347fbb36ffa2e806cc847f3d180ebf47a5e60803f85e7011"
+      "sha256": "17aafe896c1f5c0806c6029e0f2d1a45ce9b8deac77d17c3e72ff2e0622161a4"
     },
     {
       "path": "src-tauri/vendor-compat/PROVENANCE.json",

@@ -3,25 +3,25 @@
 import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 
-const NCP_KEY = '@sepahead/ncp@github:sepahead/NCP#54008b1'
-const NCP_CACHE_KEY = 'github:sepahead-NCP-54008b1'
-const NCP_COMMIT = '2f5bd586d4bb20c90362bb6f5698b7f64057ba4e'
-const NCP_NAR_HASH = 'sha256-GaYmp35xnxlZ0TClyKsFNYswzulgyaCA+TPzF6bJMVk='
+const NCP_KEY = '@sepahead/ncp@github:sepahead/NCP#2819dae'
+const NCP_CACHE_KEY = 'github:sepahead-NCP-2819dae'
+const NCP_COMMIT = '2819dae3b6338bb1df6d105ebb5b7433936a993d'
+const NCP_NAR_HASH = 'sha256-8NGiapsQXwtPZdD7Amp5grNqn8YR/fsYgTBKE0abBh4='
 const NCP_INTEGRITY =
-  'sha512-khEm3dk8N9A1ugKBJwYuMycUChCVI6BQjM7enpfBcm1e8twmQc0vY35rT+kSV5N3FOFkG7cCOkred3CBcIh2jQ=='
+  'sha512-1ZzbfQ0egAFA+8WnEKZIDn/vlzIHRksyx2si9605XQyCqWCAO+0yBYq9rlF/JRTzdTSNyyhNjg7IXHfRHVbcWg=='
 
 function fail(message) {
   throw new Error(`bun.nix normalization failed: ${message}`)
 }
 
 export function normalizeBunNix(raw, lockText) {
-  const expectedTuple = `"@sepahead/ncp": ["${NCP_KEY}", {}, "sepahead-NCP-54008b1", "${NCP_INTEGRITY}"]`
+  const expectedTuple = `"@sepahead/ncp": ["${NCP_KEY}", {}, "sepahead-NCP-2819dae", "${NCP_INTEGRITY}"]`
   if (lockText.split(expectedTuple).length - 1 !== 1) {
-    fail('Bun NCP lock identity differs from the reviewed v0.8.0 tuple')
+    fail('Bun NCP lock identity differs from the reviewed v1.0.0-rc.1 tuple')
   }
 
   const invalidBlock = `  "${NCP_KEY}" = fetchurl {
-    url = "https://registry.npmjs.org/@sepahead/ncp/-/ncp-github:sepahead/NCP#54008b1.tgz";
+    url = "https://registry.npmjs.org/@sepahead/ncp/-/ncp-github:sepahead/NCP#2819dae.tgz";
     hash = "${NCP_INTEGRITY}";
   };`
   const occurrences = raw.split(invalidBlock).length - 1
@@ -30,7 +30,7 @@ export function normalizeBunNix(raw, lockText) {
   }
 
   const fixedBlock = `  # bun2nix 2.1.1 misclassifies Bun 1.3's four-field GitHub lock entry.
-  # Bind Bun's GitHub cache key to the full peeled commit shared with Cargo.lock.
+  # Bind Bun's GitHub cache key to the full commit shared with Cargo.lock.
   "${NCP_CACHE_KEY}" = fetchFromGitHub {
     owner = "sepahead";
     repo = "NCP";

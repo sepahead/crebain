@@ -182,7 +182,7 @@ crebain/
 ├── src-tauri/         # Rust backend (inference, transport, sensor fusion,
 │                      #   native CoreML/ONNX, NCP bridge + Galadriel producer)
 │   ├── crates/managed-simulation/ # Host API 2.0 simulator-only runtime
-│   ├── crates/ncp-headless/       # Opt-in wire-0.8 perception runner
+│   ├── crates/ncp-headless/       # Opt-in wire-1.0 perception runner
 │   └── crates/plant-authority/    # Inert plant foundation (unwired)
 ├── ros/               # ROS 1 reference package (crebain_msgs + launch files)
 ├── docs/              # Design docs, contracts, release gates
@@ -254,12 +254,11 @@ dependency-isolated workspace package supplies the external
 `crebain-ncp-headless` perception process. It has explicit `self-check`,
 no-Zenoh `validate`, and networked `run` commands. `validate` checks the bounded
 strict client configuration and does not open a Zenoh session. `run` accepts only the strict
-secure-client configuration posture and requires `NCP_ZENOH_CONFIG` plus a
-compatible NCP wire-0.8 responder. This posture does not attest TLS, an ACL, or
+secure-client configuration posture, requires `NCP_ZENOH_CONFIG`, and then fails
+closed before transport under the pinned NCP 1.0 candidate. This posture does not attest TLS, an ACL, or
 peer identity. The
-default `engram/ncp` realm is only a routing default. It does not make the
-current Engram native wire-1.0 candidate compatible.
-This wire-0.8 path has no translator or NCP action loop.
+default `engram/ncp` realm is only a routing default and does not establish Engram
+compatibility. This path has no translator or NCP action loop.
 The separate managed simulation runtime does not use NCP.
 The newer local NCP body has its own [contract](NATIVE_NCP_SIMULATION.md).
 
@@ -381,9 +380,9 @@ The digest-locked vector in
 [`integrations/engram/engram.host.v1.vector.json`](../integrations/engram/engram.host.v1.vector.json)
 binds the exact cross-repository challenge and status exchange.
 
-The retained TypeScript and feature-gated native bridge pin NCP `v0.8.0`, with wire `0.8`.
-Their historical `1.0.0-rc.1` comparison uses wire `1.0` and compact proto contract hash `163acc57d8a62b66`.
-These surfaces are incompatible and have no translator.
+The TypeScript and feature-gated native bridge pin the untagged NCP `1.0.0-rc.1` candidate at commit `2819dae3b6338bb1df6d105ebb5b7433936a993d`, with wire `1.0` and compact proto contract hash `163acc57d8a62b66`.
+The shared `engram.host.v1` vector still declares the retired extension wire `0.8`. That host handshake carries no NCP traffic, and the field changes only together with Engram's copy of the vector.
+There is no translator.
 The embedded interface creates no NCP control loop.
 Its [manifest](../integrations/engram/manifest.json) describes that retained boundary.
 

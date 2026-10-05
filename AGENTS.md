@@ -19,7 +19,7 @@ Then read the document that owns the affected surface:
 | Models, inference, benchmarks | [Model contracts](docs/MODEL_CONTRACTS.md), [Detector benchmarks](docs/NATIVE_DETECTOR_BENCHMARK.md) |
 | Scene files, downloads, settings, controls | [Configuration](docs/CONFIGURATION.md), [Controls](docs/CONTROLS.md) |
 | ROS and Zenoh telemetry | [ROS reference](ros/README.md), [Desktop architecture](docs/ARCHITECTURE.md) |
-| Retained wire-0.8 bridge or advisory producer | [Retained NCP bridge](docs/NCP_BRIDGE_HANDOFF.md), [Advisory producer](docs/GALADRIEL_PRODUCER.md) |
+| Wire-1.0 bridge or advisory producer | [Retained NCP bridge](docs/NCP_BRIDGE_HANDOFF.md), [Advisory producer](docs/GALADRIEL_PRODUCER.md) |
 | Engram embedding | [Restricted embedding](integrations/engram/README.md) |
 | Host API 2.0 package and recorded NEST work | [Host API package](integrations/engram/managed-simulation/README.md) |
 | Inert plant components | The applicable `docs/PLANT_*.md` contract and [System context](docs/SYSTEM_CONTEXT.md) |
@@ -96,7 +96,7 @@ Raw modality output does not qualify fusion, tampering detection, or a completed
 | Native city environment | Standalone, 1–256 admitted drones; no installed desktop/NCP environment profile |
 | `crates/ncp-simulation` | Separate workspace, exact public `ncp-local` pin, 1–3-entity local kinematic/Kalman body |
 | `crates/managed-simulation` | Host API 2.0, 1–3 simulator channels, independent fusion lanes; no NCP/Tauri/network/artifact/plant dependency |
-| `crates/ncp-headless` | Separate opt-in wire-0.8 perception process; no translator or generic command capability |
+| `crates/ncp-headless` | Separate opt-in wire-1.0 perception process (lifecycle closed under the 1.0 candidate); no translator or generic command capability |
 | `src-tauri/src/ncp` | Off-by-default retained adapter; Tauri commands remain unregistered |
 | `crates/plant-authority` | Inert, dependency-free, unwired foundation; no vehicle write or authority chain |
 

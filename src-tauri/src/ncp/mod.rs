@@ -1,18 +1,19 @@
 //! Neuro-Cybernetic Protocol (NCP) — CREBAIN's Rust client + adapter.
 //!
-//! Lets CREBAIN ask a compatible NCP wire-0.8 responder for a neural simulation
+//! Lets CREBAIN ask a compatible NCP wire-1.0 responder for a neural simulation
 //! and exposes dormant controller helpers over Zenoh. It uses the canonical Rust
 //! NCP SDK (`ncp-core` + `ncp-zenoh`). The TypeScript client in `src/neuro/`
-//! uses the same pinned wire-0.8 contract over WebSocket.
+//! uses the same pinned wire-1.0 contract (the untagged 1.0.0-rc.1 candidate)
+//! over WebSocket.
 //!
 //! **Project specifics stay here, not in an NCP responder.** This module owns
 //! CREBAIN's pose/velocity mapping and topic wiring. The perception plane carries
 //! `SensorFrame`s CREBAIN publishes. The dormant action plane can produce typed
 //! local proposals, but it has no plant adapter.
 //!
-//! The `engram/ncp` default is only a realm address. Current Engram native-1.0
-//! material is wire-incompatible. This module contains no 0.8-to-1.0 translator
-//! and does not establish a live integration with that candidate.
+//! The `engram/ncp` default is only a realm address. This module contains no
+//! protocol translator and does not establish a live integration with any
+//! particular Engram responder.
 //!
 //! Feature-gated behind `ncp` (off by default) so the default CREBAIN build is
 //! unchanged. To expose it to the frontend, register the commands at the bottom
@@ -174,7 +175,7 @@ where
 // ───────────────────────── project mapping (CREBAIN-specific) ─────────────────────────
 
 /// CREBAIN pose + body velocity → an NCP `SensorFrame` (perception plane).
-/// Channels: `pose_position` (vec3, m), `pose_velocity` (vec3, m/s). Wire 0.8:
+/// Channels: `pose_position` (vec3, m), `pose_velocity` (vec3, m/s). Wire 1.0:
 /// `stream` stamps this sensor stream's OWN incarnation + position (the `{epoch,
 /// seq}` a command computed from it echoes back in `source`), and
 /// `session_id`/`session` bind the frame to the live session incarnation; `t` is
@@ -316,7 +317,7 @@ fn command_for_buffer(command: &CommandFrame) -> Result<CommandFrame, String> {
         return Ok(CommandFrame {
             ncp_version: command.ncp_version.clone(),
             kind: "command_frame".into(),
-            // Wire 0.8: copy this command stream's OWN position — the ActionBuffer
+            // Wire 1.0: copy this command stream's OWN position — the ActionBuffer
             // dedup / `seq >= 1` gate reads `stream.{epoch,seq}` — AND the driving
             // sensor echo in `source` (correlation/provenance, never loss accounting).
             stream: command.stream.clone(),
@@ -331,6 +332,9 @@ fn command_for_buffer(command: &CommandFrame) -> Result<CommandFrame, String> {
             horizon_dt_ms: command.horizon_dt_ms,
             session: command.session.clone(),
             session_id: command.session_id.clone(),
+            // Wire 1.0: an Active command carries its authority lease. The sanitized
+            // copy keeps the exact lease so downstream checks see the original grant.
+            authority: command.authority.clone(),
         });
     }
 
@@ -800,7 +804,7 @@ fn ingest_command_payload(
     if envelope.get("mode").and_then(serde_json::Value::as_str) == Some("estop") {
         // After the concrete callback key matches, a recognizable ESTOP is
         // fail-safe even when a peer omitted or skewed any other typed field.
-        // Every other mode must pass the full wire-0.8 and payload-session gates.
+        // Every other mode must pass the full wire-1.0 and payload-session gates.
         return lock_unpoisoned(plant).on_command(now_s, minimal_estop_command());
     }
 
@@ -968,13 +972,14 @@ impl NcpBridge {
         validate_session_id(session_id)?;
         let lifecycle_lock = self.lifecycle_lock(session_id)?;
         let _lifecycle_guard = lifecycle_lock.lock().await;
-        self.client
+        let session = self
+            .client
             .ensure_open(session_id)
             .await
             .map_err(|error| error.to_string())?;
         let bytes = encode_sensor_payload_for_route(session_id, frame)?;
         self.bus
-            .put_sensor(session_id, &bytes)
+            .put_sensor(session_id, &session, &bytes)
             .await
             .map_err(|e| e.to_string())
     }
@@ -1020,7 +1025,8 @@ impl NcpBridge {
             .map_err(|error| error.to_string())?;
         let lifecycle_lock = self.lifecycle_lock(session_id)?;
         let _lifecycle_guard = lifecycle_lock.lock().await;
-        self.client
+        let session = self
+            .client
             .ensure_open(session_id)
             .await
             .map_err(|error| error.to_string())?;
@@ -1034,7 +1040,7 @@ impl NcpBridge {
         let subscribe_result = rpc_with_timeout(
             "action_subscribe",
             NCP_RPC_TIMEOUT,
-            action_bus.subscribe_commands(session_id, move |key, bytes| {
+            action_bus.subscribe_commands(session_id, &session, move |key, bytes| {
                 let now_s = started.elapsed().as_secs_f64();
                 if let Err(error) = ingest_command_payload(
                     &command_plant,
@@ -1126,7 +1132,7 @@ pub async fn ncp_connect(
 ) -> Result<(), String> {
     // Default to the historical Engram rendezvous realm. This is routing only.
     // It does not make a current native-1.0 Engram candidate wire-compatible.
-    // Override the address when a compatible wire-0.8 responder uses another realm.
+    // Override the address when a compatible wire-1.0 responder uses another realm.
     // Hold the managed slot across connect/teardown/install so concurrent
     // reconnect commands cannot expose and then orphan an intermediate bridge.
     let mut slot = state.0.lock().await;
@@ -1184,7 +1190,7 @@ pub async fn ncp_close(
 mod tests {
     use super::*;
 
-    // Wire-0.8 identity fixtures: canonical lowercase UUIDv4 `stream.epoch` /
+    // Wire identity fixtures (0.8 rules, unchanged in 1.0): canonical lowercase UUIDv4 `stream.epoch` /
     // `session.generation` and a valid `session_id`, so a constructed frame passes
     // `WireFrame::validate_wire`.
     const TEST_EPOCH: &str = "00000000-0000-4000-8000-000000000001";
@@ -1201,6 +1207,21 @@ mod tests {
     fn test_session() -> SessionRef {
         SessionRef {
             generation: TEST_GEN.into(),
+        }
+    }
+
+    // Wire 1.0: an Active command carries an authority lease bound to the session
+    // generation. These values satisfy ncp-core's lease shape check.
+    fn test_lease() -> ncp_core::AuthorityLease {
+        ncp_core::AuthorityLease {
+            session_epoch: TEST_GEN.into(),
+            term: 1,
+            lease_id: "00000000-0000-4000-8000-0000000000b3".into(),
+            issuer_principal_id: "test-issuer".into(),
+            holder_principal_id: "crebain".into(),
+            holder_entity_id: "base_link".into(),
+            issued_at_utc_ms: 1_700_000_000_000,
+            expires_at_utc_ms: 1_700_000_001_000,
         }
     }
 
@@ -1224,6 +1245,7 @@ mod tests {
             mode: ncp_core::Mode::Active,
             ttl_ms: 200.0,
             channels: command_channels(values, unit),
+            authority: Some(test_lease()),
             ..Default::default()
         }
     }
@@ -1348,7 +1370,7 @@ mod tests {
 
     #[test]
     fn typed_rpc_gate_rejects_wrong_kinds_and_unversioned_or_misattributed_errors() {
-        // A VALID wire-0.8 observation (stamped stream/session identity) of the
+        // A VALID wire-1.0 observation (stamped stream/session identity) of the
         // WRONG kind for a close_session request: it must pass frame validation and
         // then be rejected specifically as a reply-kind mismatch.
         let wrong_kind = serde_json::to_vec(&ObservationFrame {
@@ -1577,6 +1599,7 @@ mod tests {
             session_id: TEST_SID.into(),
             mode: ncp_core::Mode::Active,
             ttl_ms: 200.0,
+            authority: Some(test_lease()),
             ..Default::default()
         };
         assert!(velocity_from_command(&missing, "base").is_err());
@@ -2057,19 +2080,20 @@ mod tests {
             ncp_core::check_version(ncp_core::NCP_VERSION, true).unwrap(),
             "the wire version CREBAIN is pinned to must be self-compatible"
         );
-        // A stale pre-1.0 wire is a breaking-minor skew and fails closed.
+        // The retired pre-1.0 wires are a different major and fail closed.
+        assert!(ncp_core::check_version("0.8", true).is_err());
         assert!(ncp_core::check_version("0.6", true).is_err());
-        // A breaking-minor skew (pre-1.0 minors are breaking) is rejected, not coerced.
-        assert!(ncp_core::check_version("0.1", true).is_err());
-        // A different major is rejected.
-        assert!(ncp_core::check_version("1.0", true).is_err());
+        // A different stable major is rejected, not coerced.
+        assert!(ncp_core::check_version("2.0", true).is_err());
+        // Stable NCP compares the major only, so a later 1.x minor is compatible.
+        assert!(ncp_core::check_version("1.1", true).unwrap());
         // A malformed version string is rejected rather than silently parsed.
-        assert!(ncp_core::check_version("0.2.GARBAGE", true).is_err());
+        assert!(ncp_core::check_version("1.0.GARBAGE", true).is_err());
     }
 
     #[test]
     fn action_and_perception_with_crebain() {
-        // PERCEPTION: CREBAIN pose and velocity map to a wire-0.8 SensorFrame.
+        // PERCEPTION: CREBAIN pose and velocity map to a wire-1.0 SensorFrame.
         let pose = PoseData {
             position: [2.0, 0.0, 0.0],
             orientation: [0.0, 0.0, 0.0, 1.0],
@@ -2099,7 +2123,7 @@ mod tests {
         };
         let mut plant = CommandPlant::new("base_link").unwrap();
         let cmd = CommandFrame {
-            // Wire 0.8: a command MUST stamp stream.seq >= 1 (its own position,
+            // Wire 1.0: a command MUST stamp stream.seq >= 1 (its own position,
             // echoing the driving sensor's stream in `source`); the ActionBuffer
             // drops stream.seq < 1, so an unstamped fixture would HOLD.
             stream: test_stream(5),
@@ -2111,6 +2135,7 @@ mod tests {
             channels: mk(-0.5),
             horizon: vec![mk(-0.4), mk(-0.3)],
             horizon_dt_ms: Some(50.0),
+            authority: Some(test_lease()),
             ..Default::default()
         };
         plant.on_command(10.0, cmd).unwrap();

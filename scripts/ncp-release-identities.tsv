@@ -1,3 +1,5 @@
-# NCP release tag, full annotated tag object, and peeled commit.
-# Keep one whitespace-delimited row for each CREBAIN-supported immutable release.
+# NCP release label, full annotated tag object ("-" when untagged), and commit.
+# Keep one whitespace-delimited row for each CREBAIN-supported immutable pin.
+# v0.8.0 is the retired wire-0.8 release; v1.0.0-rc.1 is the untagged candidate.
 v0.8.0 54008b16ea0c195a4ccc9691cb533dd1153bf7f0 2f5bd586d4bb20c90362bb6f5698b7f64057ba4e
+v1.0.0-rc.1 - 2819dae3b6338bb1df6d105ebb5b7433936a993d

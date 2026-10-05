@@ -370,12 +370,12 @@
     hash = "sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw==";
   };
   # bun2nix 2.1.1 misclassifies Bun 1.3's four-field GitHub lock entry.
-  # Bind Bun's GitHub cache key to the full peeled commit shared with Cargo.lock.
-  "github:sepahead-NCP-54008b1" = fetchFromGitHub {
+  # Bind Bun's GitHub cache key to the full commit shared with Cargo.lock.
+  "github:sepahead-NCP-2819dae" = fetchFromGitHub {
     owner = "sepahead";
     repo = "NCP";
-    rev = "2f5bd586d4bb20c90362bb6f5698b7f64057ba4e";
-    hash = "sha256-GaYmp35xnxlZ0TClyKsFNYswzulgyaCA+TPzF6bJMVk=";
+    rev = "2819dae3b6338bb1df6d105ebb5b7433936a993d";
+    hash = "sha256-8NGiapsQXwtPZdD7Amp5grNqn8YR/fsYgTBKE0abBh4=";
   };
   "@sparkjsdev/spark@0.1.10" = fetchurl {
     url = "https://registry.npmjs.org/@sparkjsdev/spark/-/spark-0.1.10.tgz";

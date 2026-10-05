@@ -35,66 +35,57 @@ done
 
 CREBAIN_NCP_COHERENCE_ROOT="$FIXTURE_ROOT" "$CHECKER" >/dev/null
 
-sed -i.bak 's/54008b16ea0c195a4ccc9691cb533dd1153bf7f0/64008b16ea0c195a4ccc9691cb533dd1153bf7f0/' \
+expect_pin_rejection() {
+  local label="$1"
+  local diagnostic="$2"
+  if CREBAIN_NCP_COHERENCE_ROOT="$FIXTURE_ROOT" "$CHECKER" \
+    >"$FIXTURE_ROOT/$label.out" 2>&1; then
+    echo "ERROR: $label was accepted" >&2
+    exit 1
+  fi
+  grep -Fq "$diagnostic" "$FIXTURE_ROOT/$label.out" \
+    || { cat "$FIXTURE_ROOT/$label.out" >&2; exit 1; }
+}
+
+sed -i.bak 's/^v1.0.0-rc.1 - 2819dae3b6338bb1df6d105ebb5b7433936a993d$/v1.0.0-rc.1 - 3819dae3b6338bb1df6d105ebb5b7433936a993d/' \
   "$FIXTURE_ROOT/scripts/ncp-release-identities.tsv"
 rm "$FIXTURE_ROOT/scripts/ncp-release-identities.tsv.bak"
-if CREBAIN_NCP_COHERENCE_ROOT="$FIXTURE_ROOT" "$CHECKER" \
-  >"$FIXTURE_ROOT/tag-object-drift.out" 2>&1; then
-  echo "ERROR: annotated tag-object drift was accepted" >&2
-  exit 1
-fi
-grep -q "is not an abbreviation of the mapped" "$FIXTURE_ROOT/tag-object-drift.out" \
-  || { cat "$FIXTURE_ROOT/tag-object-drift.out" >&2; exit 1; }
-
+expect_pin_rejection identity-commit-drift "does not equal the mapped"
 copy_file "scripts/ncp-release-identities.tsv"
-sed -i.bak 's/2f5bd586d4bb20c90362bb6f5698b7f64057ba4e/3f5bd586d4bb20c90362bb6f5698b7f64057ba4e/' \
-  "$FIXTURE_ROOT/scripts/ncp-release-identities.tsv"
-rm "$FIXTURE_ROOT/scripts/ncp-release-identities.tsv.bak"
-if CREBAIN_NCP_COHERENCE_ROOT="$FIXTURE_ROOT" "$CHECKER" \
-  >"$FIXTURE_ROOT/peeled-commit-drift.out" 2>&1; then
-  echo "ERROR: peeled-commit drift was accepted" >&2
-  exit 1
-fi
-grep -q "does not equal the mapped" "$FIXTURE_ROOT/peeled-commit-drift.out" \
-  || { cat "$FIXTURE_ROOT/peeled-commit-drift.out" >&2; exit 1; }
 
-copy_file "scripts/ncp-release-identities.tsv"
+sed -i.bak 's/sepahead\/NCP#2819dae"/sepahead\/NCP#3819dae"/; s/"sepahead-NCP-2819dae"/"sepahead-NCP-3819dae"/' \
+  "$FIXTURE_ROOT/bun.lock"
+rm "$FIXTURE_ROOT/bun.lock.bak"
+expect_pin_rejection bun-ref-drift "is not an abbreviation of the declared revision"
+copy_file "bun.lock"
 
 rm "$FIXTURE_ROOT/package.json"
 ln -s "$REPO_ROOT/package.json" "$FIXTURE_ROOT/package.json"
-if CREBAIN_NCP_COHERENCE_ROOT="$FIXTURE_ROOT" "$CHECKER" \
-  >"$FIXTURE_ROOT/symlink-escape.out" 2>&1; then
-  echo "ERROR: a symbolic-link pin escape was accepted" >&2
-  exit 1
-fi
-grep -q "must not be a symbolic link" "$FIXTURE_ROOT/symlink-escape.out" \
-  || { cat "$FIXTURE_ROOT/symlink-escape.out" >&2; exit 1; }
-
+expect_pin_rejection symlink-escape "must not be a symbolic link"
 rm "$FIXTURE_ROOT/package.json"
 copy_file "package.json"
 
-printf '\n\nThis runtime uses wire 1.0.\n' >> "$FIXTURE_ROOT/src-tauri/crates/ncp-headless/README.md"
-if CREBAIN_NCP_COHERENCE_ROOT="$FIXTURE_ROOT" "$CHECKER" \
-  >"$FIXTURE_ROOT/unqualified.out" 2>&1; then
-  echo "ERROR: unqualified incompatible wire mutation was accepted" >&2
-  exit 1
-fi
-grep -q "contains unqualified NCP wire reference '1.0'" "$FIXTURE_ROOT/unqualified.out" \
-  || { cat "$FIXTURE_ROOT/unqualified.out" >&2; exit 1; }
-
+printf '\n\nThis runtime uses wire 0.8.\n' >> "$FIXTURE_ROOT/src-tauri/crates/ncp-headless/README.md"
+expect_pin_rejection unqualified-wire "contains unqualified NCP wire reference '0.8'"
 copy_file "src-tauri/crates/ncp-headless/README.md"
-sed -i.bak 's/tag = "v0.8.0"/tag = "v0.7.0"/g' \
+
+sed -i.bak 's/rev = "2819dae3b6338bb1df6d105ebb5b7433936a993d"/rev = "3819dae3b6338bb1df6d105ebb5b7433936a993d"/g' \
   "$FIXTURE_ROOT/src-tauri/crates/ncp-headless/Cargo.toml"
 rm "$FIXTURE_ROOT/src-tauri/crates/ncp-headless/Cargo.toml.bak"
-if CREBAIN_NCP_COHERENCE_ROOT="$FIXTURE_ROOT" "$CHECKER" \
-  >"$FIXTURE_ROOT/tag-drift.out" 2>&1; then
-  echo "ERROR: isolated manifest tag drift was accepted" >&2
-  exit 1
-fi
-grep -q "NCP Cargo manifests pin different tags" "$FIXTURE_ROOT/tag-drift.out" \
-  || { cat "$FIXTURE_ROOT/tag-drift.out" >&2; exit 1; }
-
+expect_pin_rejection manifest-revision-drift "NCP Cargo manifest does not pin the declared revision"
 copy_file "src-tauri/crates/ncp-headless/Cargo.toml"
+
+sed -i.bak '/^cargo_lock_rev/s/v1\.0\.0-rc\.1/v1.0.0-rc.2/' "$FIXTURE_ROOT/.ncp-consumer"
+rm "$FIXTURE_ROOT/.ncp-consumer.bak"
+expect_pin_rejection descriptor-row-disagreement "NCP pin rows disagree"
+copy_file ".ncp-consumer"
+
+sed -i.bak 's/^cargo_rev       src-tauri\/Cargo.toml .*/cargo_tag   src-tauri\/Cargo.toml/' "$FIXTURE_ROOT/.ncp-consumer"
+rm "$FIXTURE_ROOT/.ncp-consumer.bak"
+expect_pin_rejection legacy-tag-row "unsupported .ncp-consumer pin type for CREBAIN: cargo_tag"
+copy_file ".ncp-consumer"
+
+CREBAIN_NCP_COHERENCE_ROOT="$FIXTURE_ROOT" "$CHECKER" >/dev/null
 
 native_manifest="src-tauri/crates/ncp-simulation/Cargo.toml"
 native_lock="src-tauri/crates/ncp-simulation/Cargo.lock"
@@ -184,4 +175,4 @@ rm "$FIXTURE_ROOT/$native_lock"
 copy_file "$native_lock"
 CREBAIN_NCP_COHERENCE_ROOT="$FIXTURE_ROOT" "$CHECKER" >/dev/null
 
-echo "OK: NCP coherence self-test passed (5 historical and 12 native negatives; restored positive after each native mutation)"
+echo "OK: NCP coherence self-test passed (7 revision-pin and 12 native negatives; restored positive after each native mutation)"

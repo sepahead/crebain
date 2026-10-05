@@ -40,12 +40,14 @@ integration evidence.
 
 ## Current exact dependency
 
-CREBAIN's dormant opt-in NCP paths remain pinned to annotated tag `v0.8.0`:
-the tag object is `54008b16ea0c195a4ccc9691cb533dd1153bf7f0` and its peeled Cargo commit is
-`2f5bd586d4bb20c90362bb6f5698b7f64057ba4e`. The TypeScript lock records the
-tag-object abbreviation. `Cargo.lock` records the peeled commit. Default 0.9
-packages omit the NCP feature. This is not an NCP 1.0 or ecosystem-convergence
-claim.
+CREBAIN's dormant opt-in NCP paths pin the untagged `1.0.0-rc.1` candidate at
+commit `2819dae3b6338bb1df6d105ebb5b7433936a993d` in the Cargo manifests,
+`Cargo.lock`, `package.json`, and `bun.lock`. The retired pin was annotated tag
+`v0.8.0` (tag object `54008b16ea0c195a4ccc9691cb533dd1153bf7f0`, commit
+`2f5bd586d4bb20c90362bb6f5698b7f64057ba4e`). Default 0.9 packages omit the NCP
+feature. CREBAIN does not implement the NCP 1.0 lifecycle role, so its
+feature-neuron lifecycle fails closed. This is not an NCP 1.0 or
+ecosystem-convergence claim.
 
 ## Future change requests
 

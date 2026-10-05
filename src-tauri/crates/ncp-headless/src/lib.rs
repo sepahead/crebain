@@ -3,9 +3,9 @@
 //! The runner opens one feature-neuron session, performs a bounded number of
 //! steps, and closes the session. It never subscribes to commands, publishes
 //! sensor frames, constructs plant authority, or registers a Tauri command.
-//! It requires a compatible NCP wire-0.8 responder. The `engram/ncp` default is
-//! only a routing address. Current Engram native-1.0 material is incompatible,
-//! and this package contains no protocol translator.
+//! It requires a compatible NCP wire-1.0 responder (the untagged 1.0.0-rc.1
+//! candidate). The `engram/ncp` default is only a routing address, and this
+//! package contains no protocol translator.
 //!
 //! During the supervised lifecycle, every handled path after a confirmed open
 //! makes a bounded close attempt. An open timeout leaves remote state unconfirmed.
@@ -60,10 +60,30 @@ const MIN_OPERATION_TIMEOUT_MS: u64 = 10;
 const MAX_OPERATION_TIMEOUT_MS: u64 = 15_000;
 const REQUIRED_OPERATION_BUDGETS: u64 = 4;
 const MAX_ZENOH_CONFIG_BYTES: u64 = 1024 * 1024;
-const EXPECTED_NCP_WIRE: &str = "0.8";
-const EXPECTED_NCP_CONTRACT_HASH: &str = "d1b50a2d8a265276";
+const EXPECTED_NCP_WIRE: &str = "1.0";
+const EXPECTED_NCP_CONTRACT_HASH: &str = "163acc57d8a62b66";
 
-pub const USAGE: &str = "Usage:\n  crebain-ncp-headless self-check\n  crebain-ncp-headless validate --session-id <id> [options]\n  crebain-ncp-headless run --session-id <id> [options]\n\nOptions:\n  --realm <realm>                  NCP realm (default: engram/ncp)\n  --model <name>                   Built-in model (default: iaf_psc_alpha)\n  --drive-pa <number>              Current for each step (default: 500)\n  --advance-ms <number>            Simulated time per step (default: 10)\n  --steps <integer>                Step count, 1..=4096 (default: 1)\n  --operation-timeout-ms <integer> Per-operation bound, 10..=15000 (default: 15000)\n  --lifecycle-timeout-ms <integer> Whole-run bound, up to 300000 (default: 60000)\n\nThe run command requires a compatible NCP wire-0.8 responder.\nIt requires NCP_ZENOH_CONFIG and accepts only the strict client configuration posture.\nThat local check does not prove TLS, ACL, peer identity, or end-to-end effect.\nThe default realm does not establish responder compatibility.\nThe validate command checks the configuration but opens no Zenoh session.\n";
+/// Wire 1.0 lifecycle mutations need a negotiated identity claim, a security
+/// profile and digest, operation contexts with request digests, a bounded
+/// authority lease, and verified responder receipts. CREBAIN does not implement
+/// that commander role yet, and the pinned ncp-zenoh has no production-secure
+/// identity binding. The feature-neuron lifecycle therefore fails closed before
+/// any request leaves this peer.
+const FEATURE_NEURON_LIFECYCLE_AVAILABLE: bool = false;
+
+/// Report value for the feature-neuron lifecycle state.
+const fn lifecycle_status() -> &'static str {
+    if FEATURE_NEURON_LIFECYCLE_AVAILABLE {
+        "available"
+    } else {
+        "unavailable"
+    }
+}
+
+/// Operator-facing reason for the closed feature-neuron lifecycle.
+pub const LIFECYCLE_ROLE_UNAVAILABLE: &str = "NCP 1.0 lifecycle role unavailable: open, step, and close need an identity claim, a security profile and digest, operation contexts, an authority lease, and receipt verification; the pinned ncp-zenoh also has no production-secure identity binding";
+
+pub const USAGE: &str = "Usage:\n  crebain-ncp-headless self-check\n  crebain-ncp-headless validate --session-id <id> [options]\n  crebain-ncp-headless run --session-id <id> [options]\n\nOptions:\n  --realm <realm>                  NCP realm (default: engram/ncp)\n  --model <name>                   Built-in model (default: iaf_psc_alpha)\n  --drive-pa <number>              Current for each step (default: 500)\n  --advance-ms <number>            Simulated time per step (default: 10)\n  --steps <integer>                Step count, 1..=4096 (default: 1)\n  --operation-timeout-ms <integer> Per-operation bound, 10..=15000 (default: 15000)\n  --lifecycle-timeout-ms <integer> Whole-run bound, up to 300000 (default: 60000)\n\nThe run command requires a compatible NCP wire-1.0 responder.\nIt requires NCP_ZENOH_CONFIG and accepts only the strict client configuration posture.\nThat local check does not prove TLS, ACL, peer identity, or end-to-end effect.\nThe default realm does not establish responder compatibility.\nThe validate command checks the configuration but opens no Zenoh session.\n";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NcpInputField {
@@ -566,6 +586,7 @@ pub struct HeadlessSelfCheckReport {
     pub strict_client_configuration: &'static str,
     pub scope: &'static str,
     pub peer_requirement: &'static str,
+    pub lifecycle: &'static str,
     pub network_opened: bool,
 }
 
@@ -577,6 +598,7 @@ pub struct HeadlessValidationReport {
     pub config_bytes: u64,
     pub strict_client_configuration_validated: bool,
     pub peer_requirement: &'static str,
+    pub lifecycle: &'static str,
     pub network_opened: bool,
     pub security_policy_proven: bool,
 }
@@ -629,7 +651,7 @@ pub enum HeadlessDispatch {
 ///
 /// # Errors
 ///
-/// Returns [`HeadlessError`] if a compiled invariant does not match wire 0.8.
+/// Returns [`HeadlessError`] if a compiled invariant does not match wire 1.0.
 pub fn self_check() -> Result<HeadlessSelfCheckReport, HeadlessError> {
     HeadlessSessionConfig::new("self-check").validate()?;
     Ok(HeadlessSelfCheckReport {
@@ -639,7 +661,8 @@ pub fn self_check() -> Result<HeadlessSelfCheckReport, HeadlessError> {
         contract_hash: ncp_core::CONTRACT_HASH,
         strict_client_configuration: "required_for_run",
         scope: "perception_rpc_only",
-        peer_requirement: "compatible_ncp_wire_0.8_responder",
+        peer_requirement: "compatible_ncp_wire_1.0_responder",
+        lifecycle: lifecycle_status(),
         network_opened: false,
     })
 }
@@ -660,7 +683,8 @@ pub fn validate_offline(
         ncp_wire: ncp_core::NCP_VERSION,
         config_bytes: secure_config.bytes,
         strict_client_configuration_validated: true,
-        peer_requirement: "compatible_ncp_wire_0.8_responder",
+        peer_requirement: "compatible_ncp_wire_1.0_responder",
+        lifecycle: lifecycle_status(),
         network_opened: false,
         security_policy_proven: false,
     })
@@ -691,6 +715,8 @@ pub fn dispatch(command: HeadlessCommand) -> Result<HeadlessDispatch, HeadlessEr
 ///
 /// This is the only function that opens NCP transport. The local configuration
 /// checks do not attest the deployed security policy or remote peer identity.
+/// Under the pinned NCP 1.0 candidate it fails closed after those checks and
+/// before any transport opens; see [`LIFECYCLE_ROLE_UNAVAILABLE`].
 ///
 /// # Errors
 ///
@@ -700,6 +726,12 @@ pub async fn run_strict_client(
 ) -> Result<HeadlessSessionReport, HeadlessError> {
     config.validate()?;
     let secure_config = validated_secure_config_from_env()?;
+    if !FEATURE_NEURON_LIFECYCLE_AVAILABLE {
+        return Err(HeadlessError::Operation {
+            phase: HeadlessPhase::Open,
+            reason: LIFECYCLE_ROLE_UNAVAILABLE.to_string(),
+        });
+    }
     run_owned_with_connector(
         ProductionConnector {
             config: secure_config.config,
@@ -824,9 +856,17 @@ fn collect_endpoint_strings<'a>(value: &'a serde_json::Value, endpoints: &mut Ve
     }
 }
 
-// Keep these gates equal to the immutable ncp-zenoh v0.8.0 open_secure policy.
+// Keep these gates equal to ncp-zenoh's `validate_secure_client_config`
+// preflight at the pinned 1.0.0-rc.1 candidate (unchanged since v0.8.0).
 // Parsing once and passing this exact object to with_config removes the file
 // reopen race while retaining the pinned secure-client requirements.
+// NCP 1.0's `open_secure` additionally fails closed because production-secure
+// identity binding is unavailable. This gate is a transport-configuration check
+// only and makes no production-secure identity claim.
+const _: () = assert!(
+    !ncp_zenoh::PRODUCTION_SECURE_IDENTITY_BINDING_AVAILABLE,
+    "ncp-zenoh now binds identity claims to transport principals; adopt open_secure"
+);
 fn validate_secure_client_config(config: &ZenohConfig) -> Result<(), HeadlessError> {
     if secure_config_value(config, "mode")?.as_str() != Some("client") {
         return Err(HeadlessError::SecureConfig {
@@ -965,7 +1005,7 @@ struct FeatureSessionEntry {
     lifecycle: Arc<tokio::sync::Mutex<()>>,
 }
 
-/// Shared typed client for the wire-0.8 feature-neuron RPC lifecycle.
+/// Shared typed client for the wire-1.0 feature-neuron RPC lifecycle.
 ///
 /// The client retains each server-issued session generation. It serializes all
 /// operations for a logical session and echoes that generation on step and close.
@@ -994,6 +1034,12 @@ impl FeatureNeuronClient {
     pub async fn open(&self, session_id: &str, model: &str) -> Result<(), FeatureNeuronError> {
         validate_session_id(session_id)?;
         validate_model_name(model)?;
+        if !FEATURE_NEURON_LIFECYCLE_AVAILABLE {
+            return Err(FeatureNeuronError::Request {
+                phase: FeatureNeuronPhase::Open,
+                reason: LIFECYCLE_ROLE_UNAVAILABLE.to_string(),
+            });
+        }
         let lifecycle = self.reserve_open(session_id)?;
         let _guard = lifecycle.lock().await;
         let request = feature_neuron_open_request(session_id, model);
@@ -1058,7 +1104,9 @@ impl FeatureNeuronClient {
         Ok(count)
     }
 
-    /// Confirm that this client owns a currently open session incarnation.
+    /// Confirm that this client owns a currently open session incarnation and
+    /// return its live `(session_id, generation)` binding. Wire 1.0 transports
+    /// validate sensor publications and command subscriptions against it.
     ///
     /// The check is serialized with open, step, and close for the same logical
     /// session. A caller that needs the state to remain stable must also retain
@@ -1067,11 +1115,14 @@ impl FeatureNeuronClient {
     /// # Errors
     ///
     /// Returns [`FeatureNeuronError`] for invalid input or any non-open state.
-    pub async fn ensure_open(&self, session_id: &str) -> Result<(), FeatureNeuronError> {
+    pub async fn ensure_open(
+        &self,
+        session_id: &str,
+    ) -> Result<ncp_core::SessionRef, FeatureNeuronError> {
         validate_session_id(session_id)?;
         let lifecycle = self.existing_lifecycle(session_id)?;
         let _guard = lifecycle.lock().await;
-        self.open_session_ref(session_id, &lifecycle).map(drop)
+        self.open_session_ref(session_id, &lifecycle)
     }
 
     /// Close one validated feature-neuron session through the typed NCP RPC.
@@ -1955,7 +2006,7 @@ where
             steps_requested: config.steps,
             steps_completed: spike_counts.len(),
             spike_counts,
-            peer_requirement: "compatible_ncp_wire_0.8_responder",
+            peer_requirement: "compatible_ncp_wire_1.0_responder",
             execution_evidence: HeadlessExecutionEvidence {
                 rpc_close_confirmed: true,
                 strict_client_configuration_validated: true,
@@ -2311,8 +2362,10 @@ mod tests {
             request.stimulus.as_ref().map(|frame| &frame.session),
             Some(&request.session)
         );
+        // Wire 1.0 also requires an operation context and an authority lease, which
+        // CREBAIN does not build yet; the lifecycle therefore fails closed.
         let value = serde_json::to_value(request).unwrap();
-        assert!(ncp_core::validate(&value).is_ok(), "{value}");
+        assert!(ncp_core::validate(&value).is_err(), "{value}");
     }
 
     #[test]
@@ -2324,8 +2377,9 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(request.session, session);
+        // A wire-1.0 close also needs an operation context and an authority lease.
         let value = serde_json::to_value(request).unwrap();
-        assert!(ncp_core::validate(&value).is_ok(), "{value}");
+        assert!(ncp_core::validate(&value).is_err(), "{value}");
     }
 
     #[test]
@@ -2437,6 +2491,7 @@ mod tests {
         ));
 
         let error = serde_json::to_vec(&ncp_core::ErrorFrame {
+            code: "NCP-AUTH-002".to_string(),
             error: "denied".to_string(),
             session_id: Some("session-a".to_string()),
             request_kind: Some("step_request".to_string()),

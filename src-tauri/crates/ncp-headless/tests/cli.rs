@@ -44,14 +44,15 @@ fn self_check_is_network_free_and_wire_exact() {
     assert!(output.status.success(), "{output:?}");
     let report = stdout_json(&output);
     assert_eq!(report["status"], "ok");
-    assert_eq!(report["ncp_wire"], "0.8");
-    assert_eq!(report["contract_hash"], "d1b50a2d8a265276");
+    assert_eq!(report["ncp_wire"], "1.0");
+    assert_eq!(report["contract_hash"], "163acc57d8a62b66");
     assert_eq!(report["strict_client_configuration"], "required_for_run");
     assert_eq!(report["scope"], "perception_rpc_only");
     assert_eq!(
         report["peer_requirement"],
-        "compatible_ncp_wire_0.8_responder"
+        "compatible_ncp_wire_1.0_responder"
     );
+    assert_eq!(report["lifecycle"], "unavailable");
     assert_eq!(report["network_opened"], false);
 }
 
@@ -115,7 +116,7 @@ fn validate_checks_strict_client_configuration_without_making_a_deployment_claim
     assert_eq!(report["strict_client_configuration_validated"], true);
     assert_eq!(
         report["peer_requirement"],
-        "compatible_ncp_wire_0.8_responder"
+        "compatible_ncp_wire_1.0_responder"
     );
     assert_eq!(report["network_opened"], false);
     assert_eq!(report["security_policy_proven"], false);
@@ -139,4 +140,24 @@ fn run_rejects_a_non_secure_snapshot_before_opening_transport() {
     assert!(report["error"]
         .as_str()
         .is_some_and(|error| error.contains("secure config") && error.contains("mode")));
+}
+
+#[test]
+fn run_fails_closed_on_the_ncp_1_0_lifecycle_before_opening_transport() {
+    let mut file = tempfile::Builder::new()
+        .suffix(".json5")
+        .tempfile()
+        .expect("temporary config must open");
+    file.write_all(STRICT_CLIENT_CONFIG)
+        .expect("temporary config must be writable");
+    let output = Command::new(env!("CARGO_BIN_EXE_crebain-ncp-headless"))
+        .args(["run", "--session-id", "dry-check"])
+        .env("NCP_ZENOH_CONFIG", file.path())
+        .output()
+        .expect("headless binary must start");
+    assert!(!output.status.success(), "{output:?}");
+    let report = stderr_json(&output);
+    assert!(report["error"]
+        .as_str()
+        .is_some_and(|error| error.contains("NCP 1.0 lifecycle role unavailable")));
 }

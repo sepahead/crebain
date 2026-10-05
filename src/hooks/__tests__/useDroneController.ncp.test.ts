@@ -12,8 +12,9 @@ import {
   validateDevNcpKinematicSpawn,
 } from '../useDroneController'
 
-// Wire-0.8 identity fixtures: canonical lowercase UUIDv4 stream.epoch /
-// session.generation and a valid session_id, so a fixture passes assertWireFrame.
+// Wire-1.0 identity fixtures: canonical lowercase UUIDv4 stream.epoch /
+// session.generation, a valid session_id, and an authority lease bound to that
+// generation, so a fixture passes assertWireFrame.
 const TEST_EPOCH = '00000000-0000-4000-8000-000000000001'
 const TEST_GEN = '00000000-0000-4000-8000-0000000000a2'
 const TEST_SID = 'sess'
@@ -31,6 +32,16 @@ function activeCommand(seq = 1) {
     ttl_ms: 200,
     channels: {
       velocity_setpoint: { data: [1, 2, 3], unit: 'm/s' },
+    },
+    authority: {
+      session_epoch: TEST_GEN,
+      term: 1,
+      lease_id: '00000000-0000-4000-8000-0000000000b3',
+      issuer_principal_id: 'test-issuer',
+      holder_principal_id: 'crebain',
+      holder_entity_id: 'base_link',
+      issued_at_utc_ms: 1_700_000_000_000,
+      expires_at_utc_ms: 1_700_000_001_000,
     },
   }
 }
@@ -52,7 +63,7 @@ describe('dev NCP command ingress', () => {
     expect(resetTime).toHaveBeenCalledTimes(2)
   })
 
-  it('accepts a complete published wire-0.8 command', () => {
+  it('accepts a complete wire-1.0 command with its authority lease', () => {
     const command = normalizeDevNcpCommand(activeCommand())
     expect(command.mode).toBe('active')
     expect(command.channels.velocity_setpoint?.data).toEqual([1, 2, 3])
@@ -182,12 +193,14 @@ describe('dev NCP command ingress', () => {
 
   it('bounds and validates predictive horizons', () => {
     const step = { velocity_setpoint: { data: [0.5, 0, 0], unit: 'm/s' } }
+    // Wire 1.0 keeps every horizon step strictly before expiry: at most
+    // ceil(ttl / dt) - 1 steps, so 100 ms at 50 ms admits one step.
     expect(() =>
       normalizeDevNcpCommand({
         ...activeCommand(),
         ttl_ms: 100,
         horizon_dt_ms: 50,
-        horizon: [step, step],
+        horizon: [step],
       })
     ).not.toThrow()
     expect(() =>
@@ -195,7 +208,7 @@ describe('dev NCP command ingress', () => {
         ...activeCommand(),
         ttl_ms: 100,
         horizon_dt_ms: 50,
-        horizon: [step, step, step],
+        horizon: [step, step],
       })
     ).toThrow(/horizon|ttl/)
     expect(() => normalizeDevNcpCommand({ ...activeCommand(), horizon: [step] })).toThrow(

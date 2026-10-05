@@ -24,13 +24,15 @@ export interface DevNcpCommandFrame {
   kind?: unknown
   ncp_version?: unknown
   mode?: unknown
-  // Wire 0.8: the old top-level `seq` is gone. `stream` is this frame's own
+  // Wire 1.0 (as 0.8): there is no top-level `seq`. `stream` is this frame's own
   // position. `source` is correlation only. The session fields bind the live
-  // incarnation.
+  // incarnation, and an active command also carries an authority lease bound to
+  // that session generation.
   stream?: unknown
   source?: unknown
   session?: unknown
   session_id?: unknown
+  authority?: unknown
   t?: unknown
   frame_id?: unknown
   ttl_ms?: unknown
@@ -151,7 +153,26 @@ function requireVelocitySetpoint(channels: WireChannels, label: string): void {
   }
 }
 
-/** Normalize and validate the dev-only NCP action ingress against published wire 0.8. */
+const AUTHORITY_LEASE_FIELDS = [
+  'session_epoch',
+  'term',
+  'lease_id',
+  'issuer_principal_id',
+  'holder_principal_id',
+  'holder_entity_id',
+  'issued_at_utc_ms',
+  'expires_at_utc_ms',
+] as const
+
+/** Copy only the known lease members so validation never walks the caller's object. */
+function copyAuthorityLease(value: unknown): Record<string, unknown> {
+  if (!isRecord(value)) throw new Error('NCP active command authority must be an object')
+  const lease: Record<string, unknown> = {}
+  for (const field of AUTHORITY_LEASE_FIELDS) lease[field] = value[field]
+  return lease
+}
+
+/** Normalize and validate the dev-only NCP action ingress against the pinned wire 1.0. */
 export function normalizeDevNcpCommand(input: unknown): CommandLike {
   if (!isRecord(input)) throw new Error('NCP command must be an object')
   if (input.kind !== 'command_frame') {
@@ -261,6 +282,7 @@ export function normalizeDevNcpCommand(input: unknown): CommandLike {
     channels,
     horizon,
     horizon_dt_ms: horizonDtMs,
+    authority: copyAuthorityLease(input.authority),
   }
   // Ask the pinned NCP implementation to validate only the bounded, copied
   // frame. It must never traverse the original caller-owned object first.
@@ -268,7 +290,7 @@ export function normalizeDevNcpCommand(input: unknown): CommandLike {
   return normalized
 }
 
-/** Latch raw ESTOP first, then admit only a fully validated wire-0.8 command. */
+/** Latch raw ESTOP first, then admit only a fully validated wire-1.0 command. */
 export function ingestDevNcpCommand(
   buffer: ActionBuffer,
   nowS: number,

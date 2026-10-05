@@ -120,7 +120,7 @@ before public disclosure. Reporters are credited on request.
 
 ## Threat model summary
 
-<!-- ncp-pin: v0.8.0 -->
+<!-- ncp-pin: v1.0.0-rc.1 -->
 
 ### Model loading
 
@@ -230,17 +230,17 @@ before public disclosure. Reporters are credited on request.
 
 - **Untrusted inputs:** Realm/session/model text, Zenoh configuration, RPC replies, command frames
 
-- **Current controls:** Off-by-default feature and unregistered commands; secure mode requires `NCP_ZENOH_CONFIG`; bounded inputs/timeouts; explicit `ok` plus kind/session/version checks; sensor and normal-command payload session IDs bind to their route; command callbacks require the exact subscribed key; per-session lifecycle/subscriber cleanup; timeout warnings omit external session identifiers; sanitized `CommandPlant`, sequence, TTL/horizon, route-bound legacy raw ESTOP, and bounded final-HOLD attempt
+- **Current controls:** Off-by-default feature and unregistered commands; secure mode requires `NCP_ZENOH_CONFIG`; bounded inputs/timeouts; explicit `ok` plus kind/session/version checks; the feature-neuron lifecycle fails closed because the NCP 1.0 lifecycle role is not implemented; sensor and normal-command payload session IDs bind to their route; active commands carry an authority lease bound to the session generation; command callbacks require the exact subscribed key; per-session lifecycle/subscriber cleanup; timeout warnings omit external session identifiers; sanitized `CommandPlant`, sequence, TTL/horizon, route-bound legacy raw ESTOP, and bounded final-HOLD attempt
 
-- **Required review before release claims:** Audit actual TLS identities, ACLs, certificates, and topology; the raw wire-0.8 ESTOP exception remains payload-session-unbound; config loading and route equality are not principal authentication or native-1.0 generation/authority evidence; no always-on Engram/action loop exists. The separately integrated evidence producer does not activate these commands
+- **Required review before release claims:** Audit actual TLS identities, ACLs, certificates, and topology; the raw ESTOP fail-safe latch, retained from the retired wire 0.8, remains payload-session-unbound and is more permissive than NCP 1.0's complete ESTOP envelope rule; config loading and route equality are not principal authentication or NCP 1.0 identity-binding evidence; no always-on Engram/action loop exists. The separately integrated evidence producer does not activate these commands
 
 ### Headless NCP perception runner
 
-- **Untrusted inputs:** CLI arguments; realm, session, and model identifiers; finite step values and counts; operation and lifecycle timeouts; `NCP_ZENOH_CONFIG` path and bounded file content; NCP wire-0.8 replies and transport failures
+- **Untrusted inputs:** CLI arguments; realm, session, and model identifiers; finite step values and counts; operation and lifecycle timeouts; `NCP_ZENOH_CONFIG` path and bounded file content; NCP wire-1.0 replies and transport failures
 
-- **Current controls:** Separate dependency-isolated, opt-in workspace package and process; explicit subcommand required; `self-check` reads no runner configuration and opens no Zenoh session; `validate` checks bounded CLI values and one strict client snapshot of at most 1 MiB, and opens no Zenoh session; `run` accepts only the same strict secure-client posture and requires a compatible NCP wire-0.8 responder; both file-reading commands validate the exact snapshot read through one file handle; `run` passes its parsed snapshot to Zenoh without reopening the path; one reply and 1 MiB reply-materialization limits; exact server-issued session-generation binding; at most 256 retained session states; one bounded open, 1–4,096 steps, and close lifecycle; after open is confirmed, the running process makes a bounded close attempt; no quiet-development mode, command subscription, sensor put, action callback, Tauri registration, or plant dependency
+- **Current controls:** Separate dependency-isolated, opt-in workspace package and process; explicit subcommand required; `self-check` reads no runner configuration and opens no Zenoh session; `validate` checks bounded CLI values and one strict client snapshot of at most 1 MiB, and opens no Zenoh session; `run` accepts only the same strict secure-client posture and then fails closed before transport because the NCP 1.0 lifecycle role is not implemented; both file-reading commands validate the exact snapshot read through one file handle; `run` passes its parsed snapshot to Zenoh without reopening the path; one reply and 1 MiB reply-materialization limits; exact server-issued session-generation binding; at most 256 retained session states; one bounded open, 1–4,096 steps, and close lifecycle; after open is confirmed, the running process makes a bounded close attempt; no quiet-development mode, command subscription, sensor put, action callback, Tauri registration, or plant dependency
 
-- **Required review before release claims:** The default `engram/ncp` realm is only routing text. Current Engram/Paper2Brain native wire 1.0 is incompatible, and no translator or live CREBAIN↔current-Engram loop exists. A parsed configuration does not prove TLS identity or access-control-list policy. An RPC reply shows that some responder replied. It does not identify the intended deployment receiver or prove deployment compatibility, end-to-end effect, or scientific validity
+- **Required review before release claims:** The default `engram/ncp` realm is only routing text. No translator or live CREBAIN↔Engram loop exists, and compatibility with any particular Engram/Paper2Brain responder is not established. A parsed configuration does not prove TLS identity or access-control-list policy. An RPC reply shows that some responder replied. It does not identify the intended deployment receiver or prove deployment compatibility, end-to-end effect, or scientific validity
 
 ### Headless plant foundation
 
@@ -262,7 +262,7 @@ before public disclosure. Reporters are credited on request.
 
 - **Untrusted inputs:** Manual `window.__ncpDrone` calls with wire-shaped commands
 
-- **Current controls:** Development-only/no transport; per-entity buffers; strict wire-0.8 active vec3/horizon bounds; local elapsed-time integration; malformed-call HOLD; raw ESTOP latch and freshness-reset
+- **Current controls:** Development-only/no transport; per-entity buffers; strict wire-1.0 active vec3/horizon bounds and a bounded authority-lease copy; local elapsed-time integration; malformed-call HOLD; raw ESTOP latch and freshness-reset
 
 - **Required review before release claims:** Not a live NCP/action-plane test; absent from production builds and Engram embedded mode; never treat browser injection as Engram/ACL evidence
 
@@ -319,13 +319,13 @@ Before a demo, operational-readiness, deployment, or 1.0 claim:
    to receiver-side TLS/ACL, receive-size, delivery, heartbeat, restart, clock,
    and loss artifacts.
 
-These checks are necessary but not sufficient for a 1.0 claim. CREBAIN pins
-`v0.8.0` and wire `0.8`. NCP `1.0.0-rc.1` has the `1.0` wire string. Its compact
-proto contract hash is `163acc57d8a62b66`. It is unreleased and release-blocked. No
-native-1.0 role is certified. Engram's native-1.0 migration worktree is neither
-an installed artifact nor a live certification result. A future 1.0 claim also
-requires the runtime, descriptor, fixtures, and transport behavior to migrate
-together. It also requires separate CREBAIN body and Galadriel-producer role
+These checks are necessary but not sufficient for a 1.0 claim. CREBAIN pins the
+untagged NCP `1.0.0-rc.1` candidate at commit
+`2819dae3b6338bb1df6d105ebb5b7433936a993d` (wire `1.0`, compact proto contract
+hash `163acc57d8a62b66`), which replaces the retired `v0.8.0` pin. The candidate
+is unreleased and release-blocked. No native-1.0 role is certified, and CREBAIN
+does not implement the NCP 1.0 lifecycle role, so its feature-neuron lifecycle
+fails closed. A future 1.0 claim requires separate CREBAIN body and Galadriel-producer role
 qualification, final cross-repository convergence, and all applicable external
 and independent evidence for the blockers identified in
 [`docs/NARROWED_GO_0.9.0.md`](docs/NARROWED_GO_0.9.0.md).

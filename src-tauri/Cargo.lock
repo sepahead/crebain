@@ -3216,17 +3216,19 @@ dependencies = [
 
 [[package]]
 name = "ncp-core"
-version = "0.8.0"
-source = "git+https://github.com/sepahead/NCP?tag=v0.8.0#2f5bd586d4bb20c90362bb6f5698b7f64057ba4e"
+version = "1.0.0-rc.1"
+source = "git+https://github.com/sepahead/NCP?rev=2819dae3b6338bb1df6d105ebb5b7433936a993d#2819dae3b6338bb1df6d105ebb5b7433936a993d"
 dependencies = [
+ "getrandom 0.3.4",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
 ]
 
 [[package]]
 name = "ncp-zenoh"
-version = "0.8.0"
-source = "git+https://github.com/sepahead/NCP?tag=v0.8.0#2f5bd586d4bb20c90362bb6f5698b7f64057ba4e"
+version = "1.0.0-rc.1"
+source = "git+https://github.com/sepahead/NCP?rev=2819dae3b6338bb1df6d105ebb5b7433936a993d#2819dae3b6338bb1df6d105ebb5b7433936a993d"
 dependencies = [
  "ncp-core",
  "serde",

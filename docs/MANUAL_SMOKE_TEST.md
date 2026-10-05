@@ -235,7 +235,7 @@ candidate:
 
 - **Expected result:** `self-check` reads no runner configuration and opens no Zenoh session; `validate --session-id <id>` checks bounded strict client configuration and opens no Zenoh session; `run --session-id <id>` accepts only that local posture and performs open, 1–4,096 steps, and close; the posture does not prove transport security; after open is confirmed, the running process makes a bounded close attempt
 
-- **Compatibility boundary:** Run only against an explicitly compatible NCP wire-0.8 responder. The `engram/ncp` default realm does not establish compatibility. Current Engram/Paper2Brain native wire 1.0 is incompatible, and no translator or live CREBAIN↔current-Engram loop exists
+- **Compatibility boundary:** Under the pinned NCP 1.0 candidate, `run` fails closed before transport; a networked smoke test first needs the NCP 1.0 lifecycle role. The `engram/ncp` default realm does not establish compatibility, and no translator or live CREBAIN↔Engram loop exists
 
 - **Automated:** ✅ CLI parsing, local modes with no Zenoh session, bounded lifecycle, close-attempt, and package-boundary tests; live intended-responder, end-to-end-effect, TLS identity, ACL, and scientific-validity evidence absent
 

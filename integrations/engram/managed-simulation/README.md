@@ -528,10 +528,10 @@ It does not import Engram or require Engram's Python dependencies.
 ## NCP separation
 
 This runtime does not import or implement NCP.
-It does not translate NCP wire 0.8 or wire 1.0.
+It does not translate NCP wire 1.0 or the retired wire 0.8.
 It makes no native NCP 1.0 qualification claim.
 
-The existing wire-0.8 integration remains separate and unchanged.
+The existing NCP wire-1.0 integration remains separate.
 No managed-simulation operation can publish an NCP message or control a plant.
 
 The project-local Rust kernel also supports an explicit innovation-recording option.

@@ -12,7 +12,7 @@ these documents for detailed information:
 This document owns the desktop and retained telemetry/integration architecture.
 The separate [native city environment](NATIVE_ENVIRONMENT.md) owns explicit simulation ticks, actual sensor arrays, and reconstructed branches.
 The separate [local NCP body](NATIVE_NCP_SIMULATION.md) owns the one-to-three-entity kinematic/Kalman application.
-Neither component replaces the desktop scheduler or makes the retained wire-0.8 paths compatible with the local SDK.
+Neither component replaces the desktop scheduler or makes the retained wire-1.0 paths compatible with the local SDK.
 
 ## Table of contents
 
@@ -239,11 +239,11 @@ Generation checks prevent stale cleanup.
 - **Headless NCP perception runner (separate package, optional)** — the
   dependency-isolated `crebain-ncp-headless` workspace package is outside the
   Tauri application. Its explicit `run` command accepts only the strict client
-  configuration posture for one bounded wire-0.8 open, 1–4,096 steps, and close.
-  That local posture does not prove transport security. It requires a compatible NCP
-  wire-0.8 responder. The default `engram/ncp` realm does not establish current
-  Engram compatibility. Current Engram native wire 1.0 is incompatible, and no
-  NCP translator or NCP action loop exists. The package has no command subscription,
+  configuration posture and, under the pinned NCP 1.0 candidate, fails closed
+  before transport because CREBAIN does not implement the NCP 1.0 lifecycle role.
+  That local posture does not prove transport security. The default `engram/ncp`
+  realm does not establish Engram compatibility, and no NCP translator or NCP
+  action loop exists. The package has no command subscription,
   sensor put, action callback, Tauri registration, or plant dependency.
 - **Managed simulation runtime (separate package, optional)** — the
   dependency-isolated `crebain-managed-simulation` package implements Engram
@@ -495,13 +495,13 @@ src-tauri/src/
 ### Isolated backend crates (`src-tauri/crates/`)
 
 - `managed-simulation/` implements the simulator-only Engram Host API 2.0 runtime.
-- `ncp-headless/` implements the optional NCP wire-0.8 perception runner.
+- `ncp-headless/` implements the optional NCP wire-1.0 perception runner.
 - `plant-authority/` contains the inert and unwired plant foundation.
 
 ```text
 src-tauri/crates/
 ├── managed-simulation/  # Private-pipe Host API 2.0 simulator runtime
-├── ncp-headless/         # Dependency-isolated opt-in wire-0.8 perception runner
+├── ncp-headless/         # Dependency-isolated opt-in wire-1.0 perception runner
 └── plant-authority/      # Inert headless plant foundation
 ```
 

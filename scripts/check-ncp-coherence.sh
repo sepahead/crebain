@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Read-only, offline guard for CREBAIN's NCP consumer contract.
 #
-# `.ncp-consumer` declares the pin-bearing files. This guard derives the release
-# tag from the Cargo manifest, then requires the Rust and npm manifests,
-# lockfiles, and curated current-state documentation to agree. It intentionally
-# performs no install, build, git, or network operation.
+# `.ncp-consumer` declares the revision-pinned Cargo files. This guard requires
+# the Rust and npm manifests, lockfiles, the identity map, and curated
+# current-state documentation to agree on that exact NCP revision. It
+# intentionally performs no install, build, git, or network operation.
 
 set -euo pipefail
 
@@ -59,42 +59,48 @@ safe_repo_file "scripts/ncp-release-identities.tsv" "NCP release identity map"
 
 cargo_manifests=()
 cargo_lock=""
-npm_manifest=""
-npm_lock=""
-
+label=""
+revision=""
 while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
   line="${raw_line%%#*}"
   kind=""
   relative=""
+  row_label=""
+  row_revision=""
   extra=""
-  read -r kind relative extra <<< "$line"
+  read -r kind relative row_label row_revision extra <<< "$line"
   [[ -n "$kind" ]] || continue
-  [[ -n "$relative" && -z "$extra" ]] || die "malformed .ncp-consumer row: $raw_line"
-  safe_declared_file "$relative"
   case "$kind" in
-    cargo_tag)
+    cargo_rev|cargo_lock_rev) ;;
+    *) die "unsupported .ncp-consumer pin type for CREBAIN: $kind" ;;
+  esac
+  [[ -n "$relative" && -n "$row_label" && -n "$row_revision" && -z "$extra" ]] \
+    || die "malformed .ncp-consumer row: $raw_line"
+  safe_declared_file "$relative"
+  [[ "$row_label" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]] \
+    || die "NCP pin label is not vMAJOR.MINOR.PATCH or a release candidate: $row_label"
+  [[ "$row_revision" =~ ^[0-9a-f]{40}$ ]] \
+    || die "NCP pin revision must contain 40 lowercase hex characters: $row_revision"
+  if [[ -z "$label" ]]; then
+    label="$row_label"
+    revision="$row_revision"
+  else
+    [[ "$row_label" == "$label" && "$row_revision" == "$revision" ]] \
+      || die "NCP pin rows disagree: $label $revision and $row_label $row_revision"
+  fi
+  case "$kind" in
+    cargo_rev)
       cargo_manifests+=("$REPO_ROOT/$relative")
       ;;
-    cargo_lock)
-      [[ -z "$cargo_lock" ]] || die "duplicate cargo_lock declaration"
+    cargo_lock_rev)
+      [[ -z "$cargo_lock" ]] || die "duplicate cargo_lock_rev declaration"
       cargo_lock="$REPO_ROOT/$relative"
       ;;
-    npm_tag)
-      [[ -z "$npm_manifest" ]] || die "duplicate npm_tag declaration"
-      npm_manifest="$REPO_ROOT/$relative"
-      ;;
-    npm_lock)
-      [[ -z "$npm_lock" ]] || die "duplicate npm_lock declaration"
-      npm_lock="$REPO_ROOT/$relative"
-      ;;
-    *) die "unsupported .ncp-consumer pin type for CREBAIN: $kind" ;;
   esac
 done < "$DESCRIPTOR"
 
-[[ "${#cargo_manifests[@]}" -gt 0 ]] || die ".ncp-consumer has no cargo_tag declaration"
-[[ -n "$cargo_lock" ]] || die ".ncp-consumer has no cargo_lock declaration"
-[[ -n "$npm_manifest" ]] || die ".ncp-consumer has no npm_tag declaration"
-[[ -n "$npm_lock" ]] || die ".ncp-consumer has no npm_lock declaration"
+[[ "${#cargo_manifests[@]}" -gt 0 ]] || die ".ncp-consumer has no cargo_rev declaration"
+[[ -n "$cargo_lock" ]] || die ".ncp-consumer has no cargo_lock_rev declaration"
 
 cargo_line() {
   local manifest="$1"
@@ -112,29 +118,18 @@ cargo_field() {
   single_value "$field field in NCP Cargo dependency" "$values"
 }
 
-tag=""
 for cargo_manifest in "${cargo_manifests[@]}"; do
   core_line="$(cargo_line "$cargo_manifest" ncp-core)"
   zenoh_line="$(cargo_line "$cargo_manifest" ncp-zenoh)"
   for declaration in "$core_line" "$zenoh_line"; do
     [[ "$(cargo_field "$declaration" git)" == "https://github.com/sepahead/NCP" ]] \
       || die "NCP Cargo dependency does not use the canonical repository"
-    if printf '%s\n' "$declaration" | grep -Eq '(branch|rev)[[:space:]]*='; then
-      die "tag-based .ncp-consumer entry may not also declare branch/rev"
+    if printf '%s\n' "$declaration" | grep -Eq '(branch|tag)[[:space:]]*='; then
+      die "revision-pinned NCP Cargo dependency may not also declare a branch or tag"
     fi
+    [[ "$(cargo_field "$declaration" rev)" == "$revision" ]] \
+      || die "NCP Cargo manifest does not pin the declared revision in ${cargo_manifest#"$REPO_ROOT/"}"
   done
-
-  manifest_tag="$(cargo_field "$core_line" tag)"
-  [[ "$manifest_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] \
-    || die "NCP Cargo tag is not a stable vMAJOR.MINOR.PATCH release: $manifest_tag"
-  [[ "$(cargo_field "$zenoh_line" tag)" == "$manifest_tag" ]] \
-    || die "ncp-core and ncp-zenoh tags differ in ${cargo_manifest#"$REPO_ROOT/"}"
-  if [[ -z "$tag" ]]; then
-    tag="$manifest_tag"
-  else
-    [[ "$manifest_tag" == "$tag" ]] \
-      || die "NCP Cargo manifests pin different tags: $tag and $manifest_tag"
-  fi
 done
 
 lock_source() {
@@ -159,61 +154,59 @@ lock_source() {
   ' "$lock_file"
 }
 
-lock_commit=""
 for crate in ncp-core ncp-zenoh; do
   source="$(single_value "$crate source in ${cargo_lock#"$REPO_ROOT/"}" "$(lock_source "$crate")")"
-  prefix="git+https://github.com/sepahead/NCP?tag=$tag#"
-  [[ "$source" == "$prefix"* ]] || die "$crate lock source does not pin $tag: $source"
-  commit="${source#"$prefix"}"
-  [[ "$commit" =~ ^[0-9a-f]{40}$ ]] || die "$crate lock source lacks a 40-hex commit"
-  if [[ -z "$lock_commit" ]]; then
-    lock_commit="$commit"
-  else
-    [[ "$commit" == "$lock_commit" ]] || die "ncp-core and ncp-zenoh resolve different commits"
-  fi
+  [[ "$source" == "git+https://github.com/sepahead/NCP?rev=$revision#$revision" ]] \
+    || die "$crate lock source does not pin $revision: $source"
 done
 
+# NCP's consumer grammar has no npm revision row, so the npm pin files are fixed
+# here instead of being declared in `.ncp-consumer`.
+safe_repo_file "package.json" "NCP npm manifest"
+safe_repo_file "bun.lock" "NCP npm lockfile"
+npm_manifest="$REPO_ROOT/package.json"
+npm_lock="$REPO_ROOT/bun.lock"
+expected_npm_spec="github:sepahead/NCP#$revision"
 npm_spec="$(single_value \
-  "@sepahead/ncp declaration in ${npm_manifest#"$REPO_ROOT/"}" \
+  "@sepahead/ncp declaration in package.json" \
   "$(sed -nE 's/^[[:space:]]*"@sepahead\/ncp"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' "$npm_manifest")")"
-expected_npm_spec="github:sepahead/NCP#$tag"
 [[ "$npm_spec" == "$expected_npm_spec" ]] \
   || die "npm manifest pins '$npm_spec', expected '$expected_npm_spec'"
-
 npm_lock_spec="$(single_value \
-  "@sepahead/ncp root spec in ${npm_lock#"$REPO_ROOT/"}" \
+  "@sepahead/ncp root spec in bun.lock" \
   "$(sed -nE 's/^[[:space:]]*"@sepahead\/ncp"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' "$npm_lock")")"
 [[ "$npm_lock_spec" == "$expected_npm_spec" ]] \
   || die "npm lock root spec pins '$npm_lock_spec', expected '$expected_npm_spec'"
-
 npm_resolution="$(single_value \
-  "@sepahead/ncp resolved package in ${npm_lock#"$REPO_ROOT/"}" \
+  "@sepahead/ncp resolved package in bun.lock" \
   "$(sed -nE 's/^[[:space:]]*"@sepahead\/ncp"[[:space:]]*:[[:space:]]*\["@sepahead\/ncp@github:sepahead\/NCP#([0-9a-f]+)".*"sepahead-NCP-([0-9a-f]+)".*/\1 \2/p' "$npm_lock")")"
 read -r npm_commit npm_cache_key <<< "$npm_resolution"
 [[ "$npm_commit" == "$npm_cache_key" ]] \
   || die "npm lock resolved commit and cache key differ"
 [[ "${#npm_commit}" -ge 7 && "${#npm_commit}" -le 40 ]] \
   || die "npm lock resolved ref must contain 7 to 40 hex characters"
+[[ "$revision" == "$npm_commit"* ]] \
+  || die "Bun lock ref $npm_commit is not an abbreviation of the declared revision $revision"
 
-identity_rows="$(awk -v release="$tag" '
+identity_rows="$(awk -v release="$label" '
   /^[[:space:]]*#/ || /^[[:space:]]*$/ { next }
   $1 == release { print }
 ' "$RELEASE_IDENTITIES")"
-identity_row="$(single_value "release identity for $tag" "$identity_rows")"
-read -r identity_tag tag_object peeled_commit identity_extra <<< "$identity_row"
-[[ "$identity_tag" == "$tag" && -z "$identity_extra" ]] \
-  || die "malformed release identity for $tag"
-[[ "$tag_object" =~ ^[0-9a-f]{40}$ ]] \
-  || die "$tag annotated object must contain 40 lowercase hex characters"
-[[ "$peeled_commit" =~ ^[0-9a-f]{40}$ ]] \
-  || die "$tag peeled commit must contain 40 lowercase hex characters"
-[[ "$lock_commit" == "$peeled_commit" ]] \
-  || die "Cargo lock commit $lock_commit does not equal the mapped $tag peeled commit $peeled_commit"
-[[ "$tag_object" == "$npm_commit"* ]] \
-  || die "Bun lock ref $npm_commit is not an abbreviation of the mapped $tag annotated object $tag_object"
+identity_row="$(single_value "release identity for $label" "$identity_rows")"
+read -r identity_label tag_object identity_commit identity_extra <<< "$identity_row"
+[[ "$identity_label" == "$label" && -z "$identity_extra" ]] \
+  || die "malformed release identity for $label"
+[[ "$tag_object" == "-" || "$tag_object" =~ ^[0-9a-f]{40}$ ]] \
+  || die "$label tag object must be '-' (untagged) or 40 lowercase hex characters"
+[[ "$identity_commit" =~ ^[0-9a-f]{40}$ ]] \
+  || die "$label commit must contain 40 lowercase hex characters"
+[[ "$revision" == "$identity_commit" ]] \
+  || die "declared revision $revision does not equal the mapped $label commit $identity_commit"
 
-wire="${tag#v}"
+wire="${label#v}"
+wire="${wire%%-*}"
 wire="${wire%.*}"
+
 normative_docs=(
   "docs/NCP_BRIDGE_HANDOFF.md"
   "src/neuro/README.md"
@@ -221,19 +214,13 @@ normative_docs=(
   "src-tauri/crates/ncp-headless/README.md"
   "SECURITY.md"
 )
-
 for relative in "${normative_docs[@]}"; do
   file="$REPO_ROOT/$relative"
   [[ -f "$file" ]] || die "normative NCP document is missing: $relative"
   marker="$(single_value \
     "ncp-pin marker in $relative" \
     "$(sed -nE 's/^[[:space:]]*<!--[[:space:]]*ncp-pin:[[:space:]]*([^[:space:]]+)[[:space:]]*-->[[:space:]]*$/\1/p' "$file")")"
-  [[ "$marker" == "$tag" ]] || die "$relative marker pins '$marker', expected '$tag'"
-
-  # The explicit marker is the authoritative NCP release pin. These documents
-  # also describe CREBAIN releases and may legitimately contain other semantic
-  # versions, so a document-wide version scan would conflate independent pins.
-
+  [[ "$marker" == "$label" ]] || die "$relative marker pins '$marker', expected '$label'"
   while IFS=: read -r line_number matched; do
     [[ -n "$line_number" && -n "$matched" ]] || continue
     reference="$(printf '%s\n' "$matched" | grep -Eo '[0-9]+\.[0-9]+' | head -1)"
@@ -244,12 +231,11 @@ for relative in "${normative_docs[@]}"; do
     context_start=$((line_number > 1 ? line_number - 1 : 1))
     context_end=$((line_number + 1))
     context="$(sed -n "${context_start},${context_end}p" "$file")"
-    if [[ "$reference" == "1.0" ]] \
-      && printf '%s\n' "$context" | grep -Eiq \
-        '(incompatib|no[[:space:]]+([^[:space:]]+[[:space:]]+){0,3}translat|candidate)'; then
+    if printf '%s\n' "$context" | grep -Eiq \
+      '(retired|historical|previous|formerly|incompatib|no[[:space:]]+([^[:space:]]+[[:space:]]+){0,3}translat)'; then
       continue
     fi
-    die "$relative:$line_number contains unqualified NCP wire reference '$reference' (CREBAIN pins '$wire'; external wire 1.0 must be explicitly incompatible)"
+    die "$relative:$line_number contains unqualified NCP wire reference '$reference' (CREBAIN pins '$wire'; another wire must be explicitly retired or incompatible)"
   done < <(grep -Enio 'wire[-[:space:]]+`?[0-9]+\.[0-9]+' "$file" || true)
 done
 
@@ -296,9 +282,9 @@ native_marker="$(single_value 'native ncp-local documentation marker' "$(sed -nE
 [[ "$native_marker" == "$native_version $native_rev" ]] \
   || die "native ncp-local documentation marker differs from its exact manifest pin"
 
-echo "OK: NCP $tag (wire $wire) is coherent"
-echo "  Annotated tag object: $tag_object"
-echo "  Peeled Cargo commit: $lock_commit"
-echo "  Bun tag-object ref:  $npm_commit"
+echo "OK: NCP $label ($revision, wire $wire) is coherent"
+echo "  Release identity:  tag object $tag_object, commit $identity_commit"
+echo "  Cargo revision:    $revision"
+echo "  Bun ref:           $npm_commit"
 echo "  Normative docs:    ${normative_docs[*]}"
 echo "OK: native ncp-local $native_version at $native_rev is coherent (offline source join only)"

@@ -36,11 +36,11 @@ no action/FCU capability and does not establish a live Galadriel receiver,
 authenticated deployment, or Haldir→NCP→native-plant→FCU authority chain.
 
 A separate dependency-isolated workspace package builds the opt-in
-`crebain-ncp-headless` process. Its explicit networked mode runs only a bounded
-perception open, step, and close lifecycle against a compatible NCP wire-0.8
-responder. It has no command subscription, sensor put, Tauri registration, or
+`crebain-ncp-headless` process. Its explicit networked mode is built for a bounded
+perception open, step, and close lifecycle; under the pinned NCP 1.0 candidate it
+fails closed before transport. It has no command subscription, sensor put, Tauri registration, or
 plant dependency. The `engram/ncp` default realm does not establish current
-Engram compatibility. That retained wire-0.8 interface has no translator to the
+Engram compatibility. That wire-1.0 interface has no translator to the
 current local NCP applications. The installed neural/body loop uses the separate
 typed application linked above.
 

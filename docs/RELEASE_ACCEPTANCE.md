@@ -197,11 +197,11 @@ The retained bytes are local observations, not signatures or external attestatio
 
 - **Acceptance evidence:** Default runtime remains independent; NCP feature compiles/tests; missing secure config fails closed; quiet development is explicit; lifecycle `ok`, payload/command bounds, sensor/normal-command route binding, exact callback-key gating, subscriber cleanup, raw ESTOP, malformed dev-call HOLD, per-entity sequencing, TTL, and final-HOLD failure reporting are tested
 
-- **Blocking conditions:** Registering/invoking dormant action paths accidentally, accepting inferred success, sharing action state across entities, treating the raw wire-0.8 ESTOP exception as payload-session-bound, or claiming a live Engram/action/TLS-secure loop without deployment evidence
+- **Blocking conditions:** Registering/invoking dormant action paths accidentally, accepting inferred success, sharing action state across entities, treating the raw ESTOP fail-safe latch (retained from the retired wire 0.8) as payload-session-bound, or claiming a live Engram/action/TLS-secure loop without deployment evidence
 
 ### Headless NCP perception runner
 
-- **Acceptance evidence:** The runner remains a separate dependency-isolated, opt-in workspace package; `self-check` reads no runner configuration and opens no Zenoh session; `validate` checks bounded CLI values and the required strict client snapshot without opening a Zenoh session; `run` accepts only that local posture, requires a compatible wire-0.8 responder, and bounds open, 1–4,096 steps, close, each operation, and the whole lifecycle; the posture does not prove transport security; after open is confirmed, the running process makes a bounded close attempt; the package has no command subscription, sensor put, action callback, Tauri registration, or plant dependency
+- **Acceptance evidence:** The runner remains a separate dependency-isolated, opt-in workspace package; `self-check` reads no runner configuration and opens no Zenoh session; `validate` checks bounded CLI values and the required strict client snapshot without opening a Zenoh session; `run` accepts only that local posture and fails closed before transport under the pinned NCP 1.0 candidate, while its open, 1–4,096 steps, close, operation, and lifecycle bounds stay in force; the posture does not prove transport security; after open is confirmed, the running process makes a bounded close attempt; the package has no command subscription, sensor put, action callback, Tauri registration, or plant dependency
 
 - **Blocking conditions:** Including the runner in default app behavior; adding quiet development or an implicit network command; skipping the bounded close attempt in a running process after confirmed open; treating the `engram/ncp` default realm as compatibility; claiming current Engram/Paper2Brain wire-1.0 compatibility, translation, a live loop, intended deployment-receiver identity, end-to-end effect, TLS identity, ACL proof, deployment qualification, or scientific validity without external evidence
 
@@ -245,16 +245,17 @@ A demo, operational-readiness, or deployment candidate may be tagged only when:
 4. experimental and dormant paths cannot masquerade as validated product capability.
 5. every external input path is validated, tested, or explicitly ruled out of scope.
 
-These checks are necessary but not sufficient for a 1.0 claim. CREBAIN pins
-`v0.8.0` and wire `0.8`. NCP `1.0.0-rc.1` uses wire `1.0` and compact proto contract hash
-`163acc57d8a62b66`; it is unreleased and release-blocked. No native-1.0 role is
-certified. Engram's native-1.0 migration worktree is neither an installed
-artifact nor a live certification result.
+These checks are necessary but not sufficient for a 1.0 claim. CREBAIN pins the untagged NCP `1.0.0-rc.1` candidate at commit
+`2819dae3b6338bb1df6d105ebb5b7433936a993d` (wire `1.0`, compact proto contract
+hash `163acc57d8a62b66`); it is unreleased and release-blocked. No native-1.0
+role is certified, and CREBAIN's feature-neuron lifecycle fails closed because
+the NCP 1.0 lifecycle role is not implemented.
 
 A future 1.0 claim also requires:
 
-1. the runtime, descriptor, fixtures, and transport behavior to migrate to
-   native wire 1.0 together;
+1. the NCP 1.0 lifecycle role (identity claim, security profile and digest,
+   operation contexts, authority leases, and receipt verification) and a
+   production-secure transport identity binding;
 2. separate CREBAIN body and Galadriel-producer role qualification;
 3. final Haldir, NCP/Engram, Galadriel, Prisoma, deployment-topology, hardware,
    independent-review, and cross-repository evidence;

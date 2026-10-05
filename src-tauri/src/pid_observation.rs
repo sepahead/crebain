@@ -42,14 +42,17 @@ pub const SIDECAR_SENSOR_NAME: &str = "galadriel-pid";
 /// Frozen observation-envelope discriminator.
 pub const SIDECAR_KIND: &str = "galadriel_pid_observation";
 
-/// Frozen Galadriel-owned observation-envelope schema version.
-pub const SIDECAR_SCHEMA_VERSION: &str = "1.0";
+/// Galadriel-owned observation-envelope schema version. Schema 2.0 carries NCP
+/// wire 1.0 with the frozen observation shape; schema 1.0 carried the retired
+/// wire 0.8 and is no longer accepted.
+pub const SIDECAR_SCHEMA_VERSION: &str = "2.0";
 
-/// NCP wire version pinned by both Crebain and Galadriel.
-pub const SIDECAR_NCP_VERSION: &str = "0.8";
+/// NCP wire version pinned by both Crebain and Galadriel (the untagged
+/// 1.0.0-rc.1 candidate).
+pub const SIDECAR_NCP_VERSION: &str = "1.0";
 
 /// Advisory identity of the pinned NCP contract revision.
-pub const SIDECAR_CONTRACT_HASH: &str = "d1b50a2d8a265276";
+pub const SIDECAR_CONTRACT_HASH: &str = "163acc57d8a62b66";
 
 /// Project-neutral fallback realm used by NCP.
 pub const SIDECAR_DEFAULT_REALM: &str = "ncp";
@@ -670,8 +673,8 @@ mod tests {
     fn sidecar_envelope_exact_json_matches_galadriel() {
         let encoded = envelope().encode().expect("valid envelope encodes");
         let expected = concat!(
-            r#"{"kind":"galadriel_pid_observation","schema_version":"1.0","#,
-            r#""ncp_version":"0.8","contract_hash":"d1b50a2d8a265276","#,
+            r#"{"kind":"galadriel_pid_observation","schema_version":"2.0","#,
+            r#""ncp_version":"1.0","contract_hash":"163acc57d8a62b66","#,
             r#""session_id":"uav3","producer_id":"crebain","observation":{"#,
             r#""track_id":42,"timestamp_ms":1700000000000,"seq":7,"#,
             r#""modality":"radar","nis":2.75,"dof":3}}"#
@@ -689,19 +692,23 @@ mod tests {
             Err(SidecarEnvelopeError::InvalidKind { .. })
         ));
 
-        candidate = envelope();
-        candidate.schema_version = "2.0".to_string();
-        assert!(matches!(
-            candidate.validate(),
-            Err(SidecarEnvelopeError::UnsupportedSchemaVersion { .. })
-        ));
+        for retired_or_future in ["1.0", "3.0"] {
+            candidate = envelope();
+            candidate.schema_version = retired_or_future.to_string();
+            assert!(matches!(
+                candidate.validate(),
+                Err(SidecarEnvelopeError::UnsupportedSchemaVersion { .. })
+            ));
+        }
 
-        candidate = envelope();
-        candidate.ncp_version = "0.7".to_string();
-        assert!(matches!(
-            candidate.validate(),
-            Err(SidecarEnvelopeError::IncompatibleNcpVersion(_))
-        ));
+        for incompatible in ["0.7", "0.8"] {
+            candidate = envelope();
+            candidate.ncp_version = incompatible.to_string();
+            assert!(matches!(
+                candidate.validate(),
+                Err(SidecarEnvelopeError::IncompatibleNcpVersion(_))
+            ));
+        }
     }
 
     #[test]
@@ -719,7 +726,7 @@ mod tests {
 
     #[test]
     fn sidecar_envelope_rejects_malformed_contract_hashes() {
-        for malformed in ["deadbeef", "D1B50A2D8A265276", "gggggggggggggggg"] {
+        for malformed in ["deadbeef", "163ACC57D8A62B66", "gggggggggggggggg"] {
             let mut candidate = envelope();
             candidate.contract_hash = malformed.to_string();
 

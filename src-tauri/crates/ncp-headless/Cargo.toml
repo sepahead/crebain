@@ -30,8 +30,8 @@ path = "src/main.rs"
 required-features = ["ncp"]
 
 [dependencies]
-ncp-core = { git = "https://github.com/sepahead/NCP", tag = "v0.8.0", optional = true }
-ncp-zenoh = { git = "https://github.com/sepahead/NCP", tag = "v0.8.0", optional = true }
+ncp-core = { git = "https://github.com/sepahead/NCP", rev = "2819dae3b6338bb1df6d105ebb5b7433936a993d", optional = true }
+ncp-zenoh = { git = "https://github.com/sepahead/NCP", rev = "2819dae3b6338bb1df6d105ebb5b7433936a993d", optional = true }
 serde = { version = "1.0", features = ["derive"], optional = true }
 serde_json = { version = "1.0", optional = true }
 tokio = { version = "1.48", features = ["macros", "rt-multi-thread", "sync", "time"], optional = true }

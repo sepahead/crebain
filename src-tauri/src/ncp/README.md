@@ -1,6 +1,6 @@
 # `src-tauri/src/ncp` — optional native NCP adapter
 
-<!-- ncp-pin: v0.8.0 -->
+<!-- ncp-pin: v1.0.0-rc.1 -->
 
 This module is CREBAIN's Rust + Zenoh adapter for the Neuro-Cybernetic Protocol
 (NCP). Project-specific pose/velocity/channel mapping stays here. The canonical
@@ -11,19 +11,25 @@ dependencies in [`src-tauri/Cargo.toml`](../../Cargo.toml).
   <img alt="CREBAIN headless NCP and Engram host boundaries" src="../../../assets/diagrams/engram-ncp-boundary.svg" width="900">
 </p>
 
-Text alternative: The feature-gated `crebain-ncp-headless` process uses
-strict-client-config NCP wire 0.8 without Tauri, inference, image, or plant dependencies.
-It bounds open, 1–4,096 steps, and close against a compatible external responder.
-Self-check and validation do not cross the transport boundary. The separate
-Engram UI host is read-only and has no NCP path. Current Engram wire 1.0 is
-incompatible, and no translator or live loop exists. A successful, validated
-RPC reply shows that one compatible responder replied. It does not prove
-receiver identity, end-to-end effect, TLS, ACL, scientific validity, or
-deployment readiness.
+Text alternative: The feature-gated `crebain-ncp-headless` process uses a strict
+client configuration and NCP wire 1.0 (the untagged 1.0.0-rc.1 candidate)
+without Tauri, inference, image, or plant dependencies. Self-check and
+validation do not cross the transport boundary. Its open, 1–4,096 steps, and
+close lifecycle is closed under the candidate, because CREBAIN does not
+implement the NCP 1.0 lifecycle role and the pinned ncp-zenoh has no
+production-secure identity binding. The separate Engram UI host is read-only and
+has no NCP path, and no NCP translator or live CREBAIN↔Engram loop exists. A
+validated reply would show only that one compatible responder replied. It would
+not prove receiver identity, end-to-end effect, TLS, ACL, scientific validity,
+or deployment readiness.
 
-The adapter requires a compatible NCP wire-0.8 responder. The default
-`engram/ncp` realm is only a routing address. Current Engram native-1.0 material
-is incompatible with this adapter. CREBAIN has no 0.8-to-1.0 translator.
+The adapter speaks NCP wire 1.0 at the pinned 1.0.0-rc.1 candidate. Its sensor
+publisher and command subscriber bind to the live session generation, and an
+active command must carry an authority lease bound to that generation. Its
+feature-neuron lifecycle fails closed before any request leaves the peer,
+because CREBAIN does not implement the NCP 1.0 lifecycle role. The default
+`engram/ncp` realm is only a routing address, and CREBAIN has no protocol
+translator.
 
 This action/control adapter is **dormant in the product runtime**:
 
@@ -46,11 +52,10 @@ preflight while all four `ncp_*` commands here remain unregistered.
 
 ## Build and test
 
-The SDK is pinned to tag `v0.8.0` in both Cargo and npm manifests. The Bun lock
-uses the annotated tag-object abbreviation `54008b1`. The Cargo lock uses the
-peeled commit `2f5bd586d4bb20c90362bb6f5698b7f64057ba4e`. These identities differ
-by Git object type. The offline coherence check binds both to the full tag object
-in `scripts/ncp-release-identities.tsv`. A sibling checkout is not required, but
+The SDK is pinned to commit `2819dae3b6338bb1df6d105ebb5b7433936a993d`, the
+untagged NCP 1.0.0-rc.1 candidate, in both Cargo and npm manifests. The Bun lock
+stores the `2819dae` abbreviation of the same commit. The offline coherence
+check binds both to the identity map in `scripts/ncp-release-identities.tsv`. A sibling checkout is not required, but
 the pinned dependency must be resolvable when Cargo builds the feature.
 
 ```bash
@@ -68,10 +73,7 @@ bun run self-check:ncp-headless
 ```
 
 Keep `src-tauri/Cargo.toml`, `src-tauri/crates/ncp-headless/Cargo.toml`,
-`src-tauri/Cargo.lock`, `package.json`, and `bun.lock` on one compatible NCP
-release. Do not copy a wire version from an external example. Current
-Engram/Paper2Brain native wire-1.0 material is newer and incompatible with
-CREBAIN wire 0.8. Stale `std_msgs` conventions must also be corrected in their
+`src-tauri/Cargo.lock`, `package.json`, and `bun.lock` on one exact NCP commit. Do not copy a wire version from an external example. Stale `std_msgs` conventions must also be corrected in their
 owning repository before use as deployment evidence.
 
 ## Headless perception process
@@ -93,9 +95,10 @@ requires `NCP_ZENOH_CONFIG`. It validates the bounded strict client configuratio
 and opens no Zenoh session. This preflight does not prove Transport Layer Security (TLS), access
 control list (ACL), identity, certificate, topology, or peer compatibility.
 
-Only `run` opens transport. It accepts only the strict secure-client
-configuration posture and requires a compatible wire-0.8 responder. It accepts
-at most 4,096 steps. Each operation is limited to 15 seconds. The whole
+Only `run` can open transport. Under the pinned NCP 1.0 candidate it validates
+the strict secure-client configuration posture and then fails closed before
+transport, because the NCP 1.0 lifecycle role is unavailable. Its bounds remain:
+it accepts at most 4,096 steps. Each operation is limited to 15 seconds. The whole
 lifecycle is limited to 300 seconds and reserves a close window. Output contains
 at most 4,096 finite, nonnegative spike counts.
 

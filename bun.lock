@@ -6,7 +6,7 @@
       "name": "crebain",
       "dependencies": {
         "@dimforge/rapier3d-compat": "0.19.3",
-        "@sepahead/ncp": "github:sepahead/NCP#v0.8.0",
+        "@sepahead/ncp": "github:sepahead/NCP#2819dae3b6338bb1df6d105ebb5b7433936a993d",
         "@sparkjsdev/spark": "0.1.10",
         "react": "^19.2.8",
         "react-dom": "^19.2.8",
@@ -216,7 +216,7 @@
 
     "@rolldown/pluginutils": ["@rolldown/pluginutils@1.0.1", "", {}, "sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw=="],
 
-    "@sepahead/ncp": ["@sepahead/ncp@github:sepahead/NCP#54008b1", {}, "sepahead-NCP-54008b1", "sha512-khEm3dk8N9A1ugKBJwYuMycUChCVI6BQjM7enpfBcm1e8twmQc0vY35rT+kSV5N3FOFkG7cCOkred3CBcIh2jQ=="],
+    "@sepahead/ncp": ["@sepahead/ncp@github:sepahead/NCP#2819dae", {}, "sepahead-NCP-2819dae", "sha512-1ZzbfQ0egAFA+8WnEKZIDn/vlzIHRksyx2si9605XQyCqWCAO+0yBYq9rlF/JRTzdTSNyyhNjg7IXHfRHVbcWg=="],
 
     "@sparkjsdev/spark": ["@sparkjsdev/spark@0.1.10", "", { "dependencies": { "fflate": "^0.8.2" } }, "sha512-CiijdZQuj7KPDUqIZPiEqyUkJCYo1JqR05vq/V+ElxMwqR7L70ZuZDyIKcasjZHSiPB8pGRMH8HZGqUKO9aRPQ=="],
 

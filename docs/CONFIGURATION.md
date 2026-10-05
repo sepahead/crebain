@@ -125,12 +125,10 @@ environment variable other than `NCP_ZENOH_CONFIG`.
 
 `self-check` reads no runner configuration and opens no Zenoh session.
 `validate` requires and checks the bounded strict client configuration but does
-not open a Zenoh session. `run` accepts the same strict secure-client posture
-and requires a compatible NCP wire-0.8 responder. It validates the exact parsed
-snapshot that it passes to Zenoh. This gate does not attest TLS, an ACL, or peer
-identity. The `engram/ncp` default realm is only routing text. Current
-Engram/Paper2Brain native wire 1.0 is incompatible, and no translator or live
-loop exists. See
+not open a Zenoh session. `run` accepts the same strict secure-client posture and validates the exact parsed
+snapshot, then fails closed before transport under the pinned NCP 1.0 candidate
+because CREBAIN does not implement the NCP 1.0 lifecycle role. This gate does not attest TLS, an ACL, or peer
+identity. The `engram/ncp` default realm is only routing text. No translator or live loop exists. See
 [NCP_BRIDGE_HANDOFF.md](NCP_BRIDGE_HANDOFF.md) for CLI bounds and lifecycle
 semantics.
 

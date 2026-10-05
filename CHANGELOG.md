@@ -42,6 +42,30 @@ README and treated as unverified until measured on target hardware.
 
 ### Changed
 
+- Moved the optional NCP integration from tag `v0.8.0` (wire 0.8) to the
+  untagged NCP 1.0.0-rc.1 candidate at commit
+  `2819dae3b6338bb1df6d105ebb5b7433936a993d` (wire 1.0, compact contract hash
+  `163acc57d8a62b66`) in both Cargo manifests, `Cargo.lock`, `package.json`,
+  `bun.lock`, and `bun.nix`. `.ncp-consumer` now uses revision rows, and the
+  coherence check and its self-test bind exact revisions instead of tags.
+- The Galadriel observation and producer-monitor envelopes now use schema 2.0
+  with `ncp_version` 1.0. Their shapes are unchanged, and the golden bytes match
+  Galadriel byte for byte.
+- Active commands now carry an authority lease bound to the session generation:
+  the native sanitizer keeps the incoming lease, and the dev browser harness
+  copies a bounded lease. Sensor publication and command subscription bind to
+  the client's live session.
+- The feature-neuron lifecycle (headless `run`, `FeatureNeuronClient::open`)
+  now fails closed before any request leaves the peer. Wire 1.0 lifecycle
+  mutations need an identity claim, a security profile and digest, operation
+  contexts, an authority lease, and receipt verification, which CREBAIN does not
+  implement yet, and the pinned `ncp-zenoh` has no production-secure identity
+  binding. `self-check` and `validate` report `"lifecycle": "unavailable"`, and
+  a compile-time check flags a future pin that adds that binding.
+- The `engram.host.v1` handshake still declares the retired extension wire 0.8.
+  It carries no NCP traffic and moves only in a coordinated update with Engram's
+  copy of the shared vector.
+
 - Moved native detector and Galadriel initialization out of Tauri setup. Their
   explicit states keep diagnostics and non-inference IPC responsive during
   model, configuration, and transport startup.

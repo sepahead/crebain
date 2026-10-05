@@ -25,8 +25,9 @@ pub const MONITOR_SENSOR_NAME: &str = "galadriel-monitor";
 /// Producer-monitor payload discriminator.
 pub const MONITOR_KIND: &str = "galadriel_producer_event";
 
-/// Current Galadriel producer-monitor schema version.
-pub const MONITOR_SCHEMA_VERSION: &str = "1.0";
+/// Current Galadriel producer-monitor schema version. Schema 2.0 carries NCP
+/// wire 1.0; schema 1.0 carried the retired wire 0.8 and is no longer accepted.
+pub const MONITOR_SCHEMA_VERSION: &str = "2.0";
 
 /// Largest declared heartbeat interval or deadline, in milliseconds.
 pub const MAX_HEARTBEAT_DURATION_MS: u64 = 300_000;
@@ -1140,8 +1141,8 @@ mod tests {
         )
         .unwrap();
         let expected = concat!(
-            r#"{"kind":"galadriel_producer_event","schema_version":"1.0","#,
-            r#""ncp_version":"0.8","contract_hash":"d1b50a2d8a265276","#,
+            r#"{"kind":"galadriel_producer_event","schema_version":"2.0","#,
+            r#""ncp_version":"1.0","contract_hash":"163acc57d8a62b66","#,
             r#""session_id":"uav3","producer_id":"crebain","event_seq":8,"#,
             r#""event":{"type":"modality_outcome","data":{"fusion_seq":41,"#,
             r#""fusion_timestamp_ms":1700000000000,"frame_id":17,"context_id":23,"#,
@@ -1274,7 +1275,7 @@ mod tests {
 
     #[test]
     fn strict_wire_types_reject_unknown_fields() {
-        let encoded = br#"{"kind":"galadriel_producer_event","schema_version":"1.0","ncp_version":"0.8","contract_hash":"d1b50a2d8a265276","session_id":"uav3","producer_id":"crebain","event_seq":1,"event":{"type":"heartbeat","data":{"producer_timestamp_ms":1,"uptime_ms":1,"declared_interval_ms":1,"declared_deadline_ms":1,"active_track_count":0,"degraded":false,"queue_health":{"capacity":1,"depth":0,"dropped_event_count":0,"published_event_count":0},"unexpected":true}}}"#;
+        let encoded = br#"{"kind":"galadriel_producer_event","schema_version":"2.0","ncp_version":"1.0","contract_hash":"163acc57d8a62b66","session_id":"uav3","producer_id":"crebain","event_seq":1,"event":{"type":"heartbeat","data":{"producer_timestamp_ms":1,"uptime_ms":1,"declared_interval_ms":1,"declared_deadline_ms":1,"active_track_count":0,"degraded":false,"queue_health":{"capacity":1,"depth":0,"dropped_event_count":0,"published_event_count":0},"unexpected":true}}}"#;
 
         assert!(serde_json::from_slice::<MonitorEnvelope>(encoded).is_err());
     }
