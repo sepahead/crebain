@@ -175,6 +175,31 @@ The complete local gate also covers managed simulation, native local NCP, retain
 Hosted coverage, bundle, responsive-browser, feature, CodeQL, and supply-chain jobs remain separate where documented.
 A partial command sequence is not a complete gate.
 
+### Frozen, shared, and generated artifacts
+
+Classify an artifact before you change it.
+A shared artifact changes only together with its other owner.
+A generated artifact changes only through its generator.
+
+- `integrations/engram/engram.host.v1.vector.json` and its lock are shared with Engram (Paper2Brain).
+  Change them only together with Engram's copy.
+  The vector still declares the retired extension wire `0.8`.
+  `bun run test:run` checks the lock.
+- `integrations/engram/manifest.json` and its lock bind the restricted Engram host.
+  Change them only in a coordinated Engram host update.
+- `bun.nix` is generated from `bun.lock`.
+  Run `bunx --bun bun2nix | node scripts/normalize-bun-nix.mjs > bun.nix`, then `bun run check:nix-deps`.
+- `flake.nix` pins one NAR hash for each Git dependency source in `cargoLock.outputHashes`.
+  Recompute that hash when a Git pin changes. The Nix flake job checks it.
+- `docs/baselines/ipc-contract-registry.json` is generated.
+  Run `node scripts/generate-ipc-contract-registry.mjs --write`, then `bun run check:ipc-contracts`.
+- `docs/baselines/ecosystem-baseline.json` is a captured baseline with live configuration digests.
+  After you change a pinned file, update its `sha256` in `crebain_configuration_artifacts`.
+  Keep the captured fields historical. `bun run check:phase0-baseline` checks the digests.
+- `src-tauri/vendor-compat/` holds hash-verified upstream archives.
+  Do not edit their sources. Record manifest-only changes in `PROVENANCE.json`.
+  `bun run check:vendor-compat` checks them.
+
 Use a bootstrap source gate before the exact publication commit.
 Where qualification requires an immutable installed artifact, run the operational gate from that commit afterward.
 The bootstrap commit grants no installed, model, field, authority, or scientific completion claim.
