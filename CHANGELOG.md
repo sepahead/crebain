@@ -42,6 +42,8 @@ README and treated as unverified until measured on target hardware.
 
 ### Changed
 
+- Rewrote the agent contract. `AGENTS.md` gains an authority-and-workflow section: agents may
+  commit, push, and merge to `main` after the applicable complete gate. `CLAUDE.md` imports it.
 - Moved the optional NCP integration from tag `v0.8.0` (wire 0.8) to the
   untagged NCP 1.0.0-rc.1 candidate at commit
   `2819dae3b6338bb1df6d105ebb5b7433936a993d` (wire 1.0, compact contract hash

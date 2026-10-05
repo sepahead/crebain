@@ -4,6 +4,19 @@ CREBAIN develops standalone 3D simulation, sensor models, visualization, and sen
 Its desktop, native environment, and protocol adapters have distinct ownership and evidence contracts.
 Every completion claim must identify the tested scope and remaining limitations.
 
+## Authority and workflow
+
+The owner authorizes agents to commit, push, and merge to `main`.
+`main` has no branch protection. Run the applicable complete gate in [Commands and gates](#commands-and-gates) before each push.
+CREBAIN commits are unsigned. The repository configuration sets `commit.gpgsign=false`.
+Do not add AI attribution, co-author trailers, or generated-by lines to commits or review descriptions.
+Releases, tags, and repository settings remain owner actions.
+
+Preserve unrelated changes and another contributor's active scope.
+Do not publish another owner's changes.
+The shared checkout can hold another agent's uncommitted work. Use a separate worktree from `origin/main`.
+Change a vector or descriptor that Engram shares only in coordination with Engram's owner.
+
 ## Read before changing
 
 Read [README.md](README.md) first.
@@ -32,15 +45,16 @@ Historical records and proposed capabilities cannot override current executable 
 ## Working method
 
 1. Inventory staged changes, unstaged changes, branches, and worktrees before recovery work.
-2. Preserve unrelated changes and another contributor's active scope.
-3. Compare five to ten credible approaches before each material decision.
-4. State assumptions, benefits, failure modes, and a decisive experiment for each approach.
-5. Use independent reviews for separable scientific, ownership, security, and release decisions.
-6. Select a compatible design with explicit reasons and unresolved objections.
-7. Implement generic, schema-driven behavior.
-8. Add a negative control for each new accept path.
-9. Add a positive control for each new rejection path.
-10. Run the complete applicable gate before presenting a milestone for publication.
+2. Question each assumption in the task and verify each fact against its primary source.
+3. Classify each artifact you change with [the artifact classes](#frozen-shared-and-generated-artifacts).
+4. Compare five to ten credible approaches before each material decision.
+5. State assumptions, benefits, failure modes, and a decisive experiment for each approach.
+6. Use independent reviews for separable scientific, ownership, security, and release decisions.
+7. Select a compatible design with explicit reasons and unresolved objections.
+8. Implement generic, schema-driven behavior.
+9. Add a negative control for each new accept path.
+10. Add a positive control for each new rejection path.
+11. Run the complete applicable gate before you push to `main`.
 
 A majority vote cannot override a failed scientific or provenance requirement.
 Do not branch on fixture names, expected outcomes, benchmark rows, or selected sample identities.
@@ -51,8 +65,6 @@ Retain failed trials and negative results. Do not replace difficult cases to imp
 Recover useful work at the hunk or component level.
 Record retained, integrated, superseded, and rejected changes with reasons.
 Remove a branch or worktree only after preserving its useful changes and audit evidence.
-Follow the user's authorized publication workflow; do not create branches or publish another owner's changes by default.
-Do not add AI co-author trailers or generated-by lines to commits or review descriptions.
 
 ## Runtime and scientific boundaries
 
