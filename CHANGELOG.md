@@ -11,6 +11,11 @@ README and treated as unverified until measured on target hardware.
 
 ### Added
 
+- Added five accessible figures: the three native sensor models with units and
+  worked numbers, checkpointed sibling branches, one tracker cycle with its ellipse
+  gate, the drone fixture's shared-exclusion atoms, and the atoms of a degraded
+  acoustic sensor against the proved support-change bound. Their text is drawn as
+  outlines, so they need no external font or data URL.
 - Added a deterministic three-sensor drone study fixture for offline Galadriel
   research. It binds external ENU truth, ordered pre-fusion visual, radar, and
   acoustic symbols, fresh fusion-engine episodes, and complete frozen-prior
@@ -107,6 +112,10 @@ README and treated as unverified until measured on target hardware.
 
 ### Fixed
 
+- Fixed label overflow and a label drawn over an arrow in four diagrams. The
+  steady rotor allocation figure now names generic font fallbacks, moves the
+  torque-plateau label off the cap line, and separates the model rows; its PDF is
+  rebuilt from the corrected SVG with embedded DejaVu fonts.
 - Made the persistent inference runtime own packaged CoreML model discovery,
   loading, warmup, and failure state. An early frame can no longer race a
   separate startup loader into selecting the wrong fallback backend.

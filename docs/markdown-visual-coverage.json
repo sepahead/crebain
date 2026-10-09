@@ -176,7 +176,9 @@
       "classification": "active-technical",
       "visuals": [
         "assets/diagrams/drone-mgw-study.svg",
-        "assets/diagrams/pid-method-eligibility.svg"
+        "assets/diagrams/pid-method-eligibility.svg",
+        "assets/diagrams/drone-mgw-lattice.svg",
+        "assets/diagrams/drone-mgw-degradation.svg"
       ]
     },
     {
@@ -230,7 +232,9 @@
       "classification": "active-technical",
       "visuals": [
         "assets/diagrams/native-environment.svg",
-        "assets/diagrams/force-ground-coupled.svg"
+        "assets/diagrams/force-ground-coupled.svg",
+        "assets/diagrams/native-sensor-models.svg",
+        "assets/diagrams/checkpoint-siblings.svg"
       ]
     },
     {
@@ -318,7 +322,11 @@
     {
       "path": "docs/SENSOR_FUSION.md",
       "classification": "active-technical",
-      "visuals": ["assets/diagrams/fusion-pipeline.svg", "assets/diagrams/drone-mgw-study.svg"]
+      "visuals": [
+        "assets/diagrams/fusion-pipeline.svg",
+        "assets/diagrams/drone-mgw-study.svg",
+        "assets/diagrams/tracker-cycle-gate.svg"
+      ]
     },
     {
       "path": "docs/SYSTEM_CONTEXT.md",

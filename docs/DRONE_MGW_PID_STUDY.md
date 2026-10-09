@@ -168,6 +168,38 @@ coordinates. The exploratory question uses the three-source, 18-antichain
 lattice. A successful three-source fixture does not close pid-rs's separate
 108-coordinate assurance program.
 
+### The fixture's atoms
+
+<p align="center">
+  <img alt="Two-source and three-source shared-exclusion atoms of the drone fixture" src="../assets/diagrams/drone-mgw-lattice.svg" width="900">
+</p>
+
+Text alternative: For the visual and radar bits about the horizontal target, the
+categorical decomposition is the AND gate: redundancy 0.085, two unique atoms of
+0.131, and synergy 0.216 nats. For all three bits about the volumetric target, the
+figure places the 18 net atoms on the lattice. The five atoms outside the down-set
+of the visual and radar pair add up to the acoustic bit's conditional information,
+one quarter of log 2.
+
+Each atom is the logarithm of an exact rational number. The values were recomputed
+from the 64 fixture rows and agree with the retained pid-core values to all printed
+decimals.
+
+### Degrading one sensor
+
+<p align="center">
+  <img alt="Atoms of a degraded acoustic sensor against a proved support-change bound" src="../assets/diagrams/drone-mgw-degradation.svg" width="900">
+</p>
+
+Text alternative: The acoustic bit is flipped at random with probability epsilon.
+The five atoms that the acoustic bit adds sum to its conditional information, which
+falls to zero. The unique acoustic atom turns negative at epsilon 0.060, while the
+bit still adds 0.116 of its 0.173 nats. The realised changes stay below the proved
+support-change bound in all 3,078 checks.
+
+A negative unique atom therefore does not measure a sensor's value. Use the
+conditional mutual information for that question.
+
 ## 4. Why PID is not forced
 
 Use PID only when atom allocation is the scientific question. Use another

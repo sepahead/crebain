@@ -34,7 +34,7 @@
 
   <path d="M340 265V320" class="arrow" stroke="#83dbc1"/>
   <path d="m333 311 7 11 7-11" fill="none" stroke="#83dbc1" stroke-width="3"/>
-  <rect x="356" y="275" width="235" height="27" rx="5" fill="#111d2c"/>
+  <rect x="356" y="275" width="268" height="27" rx="5" fill="#111d2c"/>
   <text x="365" y="295" class="small">Private Bun bridge · leased bytes</text>
 
   <rect x="82" y="331" width="516" height="143" rx="15" fill="#172b45" stroke="#618fcb"/>

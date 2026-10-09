@@ -59,7 +59,7 @@ L 0 3.5
       </g>
      </g>
      <g id="text_1">
-      <text style="fill: #435368; font: 12px 'DejaVu Sans'; text-anchor: middle" x="65.52" y="379.804525" transform="rotate(-0 65.52 379.804525)">0</text>
+      <text style="fill: #435368; font: 12px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: middle" x="65.52" y="379.804525" transform="rotate(-0 65.52 379.804525)">0</text>
      </g>
     </g>
     <g id="xtick_2">
@@ -69,7 +69,7 @@ L 0 3.5
       </g>
      </g>
      <g id="text_2">
-      <text style="fill: #435368; font: 12px 'DejaVu Sans'; text-anchor: middle" x="113.52" y="379.804525" transform="rotate(-0 113.52 379.804525)">1</text>
+      <text style="fill: #435368; font: 12px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: middle" x="113.52" y="379.804525" transform="rotate(-0 113.52 379.804525)">1</text>
      </g>
     </g>
     <g id="xtick_3">
@@ -79,7 +79,7 @@ L 0 3.5
       </g>
      </g>
      <g id="text_3">
-      <text style="fill: #435368; font: 12px 'DejaVu Sans'; text-anchor: middle" x="161.52" y="379.804525" transform="rotate(-0 161.52 379.804525)">2</text>
+      <text style="fill: #435368; font: 12px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: middle" x="161.52" y="379.804525" transform="rotate(-0 161.52 379.804525)">2</text>
      </g>
     </g>
     <g id="xtick_4">
@@ -89,7 +89,7 @@ L 0 3.5
       </g>
      </g>
      <g id="text_4">
-      <text style="fill: #435368; font: 12px 'DejaVu Sans'; text-anchor: middle" x="209.52" y="379.804525" transform="rotate(-0 209.52 379.804525)">3</text>
+      <text style="fill: #435368; font: 12px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: middle" x="209.52" y="379.804525" transform="rotate(-0 209.52 379.804525)">3</text>
      </g>
     </g>
     <g id="xtick_5">
@@ -99,7 +99,7 @@ L 0 3.5
       </g>
      </g>
      <g id="text_5">
-      <text style="fill: #435368; font: 12px 'DejaVu Sans'; text-anchor: middle" x="257.52" y="379.804525" transform="rotate(-0 257.52 379.804525)">4</text>
+      <text style="fill: #435368; font: 12px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: middle" x="257.52" y="379.804525" transform="rotate(-0 257.52 379.804525)">4</text>
      </g>
     </g>
     <g id="xtick_6">
@@ -109,11 +109,11 @@ L 0 3.5
       </g>
      </g>
      <g id="text_6">
-      <text style="fill: #435368; font: 12px 'DejaVu Sans'; text-anchor: middle" x="305.52" y="379.804525" transform="rotate(-0 305.52 379.804525)">5</text>
+      <text style="fill: #435368; font: 12px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: middle" x="305.52" y="379.804525" transform="rotate(-0 305.52 379.804525)">5</text>
      </g>
     </g>
     <g id="text_7">
-     <text style="fill: #25354a; font: 12px 'DejaVu Sans'; text-anchor: middle" x="185.52" y="395.418275" transform="rotate(-0 185.52 395.418275)">One rotor's thrust f  [N]</text>
+     <text style="fill: #25354a; font: 12px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: middle" x="185.52" y="395.418275" transform="rotate(-0 185.52 395.418275)">One rotor's thrust f  [N]</text>
     </g>
    </g>
    <g id="matplotlib.axis_2">
@@ -134,7 +134,7 @@ L -3.5 0
       </g>
      </g>
      <g id="text_8">
-      <text style="fill: #435368; font: 12px 'DejaVu Sans'; text-anchor: end" x="58.52" y="368.245463" transform="rotate(-0 58.52 368.245463)">0.0</text>
+      <text style="fill: #435368; font: 12px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: end" x="58.52" y="368.245463" transform="rotate(-0 58.52 368.245463)">0.0</text>
      </g>
     </g>
     <g id="ytick_2">
@@ -149,7 +149,7 @@ L 305.52 328.2972
       </g>
      </g>
      <g id="text_9">
-      <text style="fill: #435368; font: 12px 'DejaVu Sans'; text-anchor: end" x="58.52" y="332.856262" transform="rotate(-0 58.52 332.856262)">0.1</text>
+      <text style="fill: #435368; font: 12px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: end" x="58.52" y="332.856262" transform="rotate(-0 58.52 332.856262)">0.1</text>
      </g>
     </g>
     <g id="ytick_3">
@@ -164,7 +164,7 @@ L 305.52 292.908
       </g>
      </g>
      <g id="text_10">
-      <text style="fill: #435368; font: 12px 'DejaVu Sans'; text-anchor: end" x="58.52" y="297.467062" transform="rotate(-0 58.52 297.467062)">0.2</text>
+      <text style="fill: #435368; font: 12px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: end" x="58.52" y="297.467062" transform="rotate(-0 58.52 297.467062)">0.2</text>
      </g>
     </g>
     <g id="ytick_4">
@@ -179,7 +179,7 @@ L 305.52 257.5188
       </g>
      </g>
      <g id="text_11">
-      <text style="fill: #435368; font: 12px 'DejaVu Sans'; text-anchor: end" x="58.52" y="262.077862" transform="rotate(-0 58.52 262.077862)">0.3</text>
+      <text style="fill: #435368; font: 12px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: end" x="58.52" y="262.077862" transform="rotate(-0 58.52 262.077862)">0.3</text>
      </g>
     </g>
     <g id="ytick_5">
@@ -194,7 +194,7 @@ L 305.52 222.1296
       </g>
      </g>
      <g id="text_12">
-      <text style="fill: #435368; font: 12px 'DejaVu Sans'; text-anchor: end" x="58.52" y="226.688662" transform="rotate(-0 58.52 226.688662)">0.4</text>
+      <text style="fill: #435368; font: 12px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: end" x="58.52" y="226.688662" transform="rotate(-0 58.52 226.688662)">0.4</text>
      </g>
     </g>
     <g id="ytick_6">
@@ -209,7 +209,7 @@ L 305.52 186.7404
       </g>
      </g>
      <g id="text_13">
-      <text style="fill: #435368; font: 12px 'DejaVu Sans'; text-anchor: end" x="58.52" y="191.299463" transform="rotate(-0 58.52 191.299463)">0.5</text>
+      <text style="fill: #435368; font: 12px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: end" x="58.52" y="191.299463" transform="rotate(-0 58.52 191.299463)">0.5</text>
      </g>
     </g>
     <g id="ytick_7">
@@ -224,11 +224,11 @@ L 305.52 151.3512
       </g>
      </g>
      <g id="text_14">
-      <text style="fill: #435368; font: 12px 'DejaVu Sans'; text-anchor: end" x="58.52" y="155.910262" transform="rotate(-0 58.52 155.910262)">0.6</text>
+      <text style="fill: #435368; font: 12px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: end" x="58.52" y="155.910262" transform="rotate(-0 58.52 155.910262)">0.6</text>
      </g>
     </g>
     <g id="text_15">
-     <text style="fill: #25354a; font: 12px 'DejaVu Sans'; text-anchor: middle" x="32.940625" y="257.5188" transform="rotate(-90 32.940625 257.5188)">Reaction-torque magnitude q  [N·m]</text>
+     <text style="fill: #25354a; font: 12px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: middle" x="32.940625" y="257.5188" transform="rotate(-90 32.940625 257.5188)">Reaction-torque magnitude q  [N·m]</text>
     </g>
    </g>
    <g id="line2d_21">
@@ -254,7 +254,7 @@ L 305.52 363.6864
 " style="fill: none; stroke: #a4b1bf; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
    </g>
    <g id="text_16">
-    <text style="fill: #bd601f; font: 10px 'DejaVu Sans'; text-anchor: middle" x="257.04" y="174.35418" transform="rotate(-0 257.04 174.35418)">torque plateau</text>
+    <text style="fill: #bd601f; font: 10px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: end" x="237" y="174.35418" transform="rotate(-0 237 174.35418)">torque plateau</text>
    </g>
    <g id="text_17">
     <path d="M 129.080923 250.458076
@@ -1586,7 +1586,7 @@ z
 " style="fill: #162638"/>
    </g>
    <g id="text_19">
-    <text style="fill: #162638; font: 700 12px 'DejaVu Sans'; text-anchor: start" x="65.52" y="134.3512" transform="rotate(-0 65.52 134.3512)">1  Each rotor has a torque cap</text>
+    <text style="fill: #162638; font: 700 12px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: start" x="65.52" y="134.3512" transform="rotate(-0 65.52 134.3512)">1  Each rotor has a torque cap</text>
    </g>
   </g>
   <g id="axes_2">
@@ -2617,7 +2617,7 @@ z
       </g>
      </g>
      <g id="text_20">
-      <text style="fill: #435368; font: 12px 'DejaVu Sans'; text-anchor: middle" x="408.350769" y="379.804525" transform="rotate(-0 408.350769 379.804525)">0.00</text>
+      <text style="fill: #435368; font: 12px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: middle" x="408.350769" y="379.804525" transform="rotate(-0 408.350769 379.804525)">0.00</text>
      </g>
     </g>
     <g id="xtick_8">
@@ -2627,7 +2627,7 @@ z
       </g>
      </g>
      <g id="text_21">
-      <text style="fill: #435368; font: 12px 'DejaVu Sans'; text-anchor: middle" x="482.196923" y="379.804525" transform="rotate(-0 482.196923 379.804525)">0.04</text>
+      <text style="fill: #435368; font: 12px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: middle" x="482.196923" y="379.804525" transform="rotate(-0 482.196923 379.804525)">0.04</text>
      </g>
     </g>
     <g id="xtick_9">
@@ -2637,7 +2637,7 @@ z
       </g>
      </g>
      <g id="text_22">
-      <text style="fill: #435368; font: 12px 'DejaVu Sans'; text-anchor: middle" x="556.043077" y="379.804525" transform="rotate(-0 556.043077 379.804525)">0.08</text>
+      <text style="fill: #435368; font: 12px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: middle" x="556.043077" y="379.804525" transform="rotate(-0 556.043077 379.804525)">0.08</text>
      </g>
     </g>
     <g id="xtick_10">
@@ -2647,7 +2647,7 @@ z
       </g>
      </g>
      <g id="text_23">
-      <text style="fill: #435368; font: 12px 'DejaVu Sans'; text-anchor: middle" x="629.889231" y="379.804525" transform="rotate(-0 629.889231 379.804525)">0.12</text>
+      <text style="fill: #435368; font: 12px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: middle" x="629.889231" y="379.804525" transform="rotate(-0 629.889231 379.804525)">0.12</text>
      </g>
     </g>
     <g id="text_24">
@@ -3275,7 +3275,7 @@ L 639.12 354.0348
       </g>
      </g>
      <g id="text_25">
-      <text style="fill: #435368; font: 12px 'DejaVu Sans'; text-anchor: end" x="392.12" y="358.593863" transform="rotate(-0 392.12 358.593863)">15</text>
+      <text style="fill: #435368; font: 12px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: end" x="392.12" y="358.593863" transform="rotate(-0 392.12 358.593863)">15</text>
      </g>
     </g>
     <g id="ytick_9">
@@ -3290,7 +3290,7 @@ L 639.12 305.7768
       </g>
      </g>
      <g id="text_26">
-      <text style="fill: #435368; font: 12px 'DejaVu Sans'; text-anchor: end" x="392.12" y="310.335863" transform="rotate(-0 392.12 310.335863)">16</text>
+      <text style="fill: #435368; font: 12px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: end" x="392.12" y="310.335863" transform="rotate(-0 392.12 310.335863)">16</text>
      </g>
     </g>
     <g id="ytick_10">
@@ -3305,7 +3305,7 @@ L 639.12 257.5188
       </g>
      </g>
      <g id="text_27">
-      <text style="fill: #435368; font: 12px 'DejaVu Sans'; text-anchor: end" x="392.12" y="262.077863" transform="rotate(-0 392.12 262.077863)">17</text>
+      <text style="fill: #435368; font: 12px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: end" x="392.12" y="262.077863" transform="rotate(-0 392.12 262.077863)">17</text>
      </g>
     </g>
     <g id="ytick_11">
@@ -3320,7 +3320,7 @@ L 639.12 209.2608
       </g>
      </g>
      <g id="text_28">
-      <text style="fill: #435368; font: 12px 'DejaVu Sans'; text-anchor: end" x="392.12" y="213.819863" transform="rotate(-0 392.12 213.819863)">18</text>
+      <text style="fill: #435368; font: 12px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: end" x="392.12" y="213.819863" transform="rotate(-0 392.12 213.819863)">18</text>
      </g>
     </g>
     <g id="ytick_12">
@@ -3335,11 +3335,11 @@ L 639.12 161.0028
       </g>
      </g>
      <g id="text_29">
-      <text style="fill: #435368; font: 12px 'DejaVu Sans'; text-anchor: end" x="392.12" y="165.561863" transform="rotate(-0 392.12 165.561863)">19</text>
+      <text style="fill: #435368; font: 12px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: end" x="392.12" y="165.561863" transform="rotate(-0 392.12 165.561863)">19</text>
      </g>
     </g>
     <g id="text_30">
-     <text style="fill: #25354a; font: 12px 'DejaVu Sans'; text-anchor: middle" x="370.354375" y="257.5188" transform="rotate(-90 370.354375 257.5188)">Greatest collective F  [N]</text>
+     <text style="fill: #25354a; font: 12px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: middle" x="370.354375" y="257.5188" transform="rotate(-90 370.354375 257.5188)">Greatest collective F  [N]</text>
     </g>
    </g>
    <g id="line2d_37">
@@ -3364,7 +3364,7 @@ L 639.12 363.6864
 " style="fill: none; stroke: #a4b1bf; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
    </g>
    <g id="text_31">
-    <text style="fill: #53687b; font: 10px 'DejaVu Sans'; text-anchor: start" x="478.504615" y="204.435" transform="rotate(-0 478.504615 204.435)">18 N request</text>
+    <text style="fill: #53687b; font: 10px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: start" x="478.504615" y="204.435" transform="rotate(-0 478.504615 204.435)">18 N request</text>
    </g>
    <g id="patch_9">
     <path d="M 459.739386 168.02403
@@ -3372,7 +3372,7 @@ Q 435.044057 168.106636 410.348728 168.189242
 " style="fill: none; stroke: #233b56; stroke-linecap: round"/>
    </g>
    <g id="text_32">
-    <text style="fill: #233b56; font: 10px 'DejaVu Sans'; text-anchor: start" x="463.735385" y="170.6544" transform="rotate(-0 463.735385 170.6544)">zero yaw only</text>
+    <text style="fill: #233b56; font: 10px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: start" x="463.735385" y="170.6544" transform="rotate(-0 463.735385 170.6544)">zero yaw only</text>
    </g>
    <g id="patch_10">
     <path d="M 487.916644 316.052365
@@ -3380,14 +3380,14 @@ Q 493.894815 302.076907 499.872986 288.101449
 " style="fill: none; stroke: #bd601f; stroke-linecap: round"/>
    </g>
    <g id="text_33">
-    <text style="fill: #bd601f; font: 10px 'DejaVu Sans'; text-anchor: start" x="458.196923" y="327.4929" transform="rotate(-0 458.196923 327.4929)">16.4043 N</text>
+    <text style="fill: #bd601f; font: 10px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: start" x="458.196923" y="327.4929" transform="rotate(-0 458.196923 327.4929)">16.4043 N</text>
    </g>
    <g id="text_34">
-    <text style="fill: #162638; font: 10.5px 'DejaVu Sans'" transform="translate(401.52 435.365319)">Zero roll and pitch moments; exact model.</text>
-    <text style="fill: #162638; font: 10.5px 'DejaVu Sans'" transform="translate(401.52 449.51653)">The jump comes from the torque plateau.</text>
+    <text style="fill: #162638; font: 10.5px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif" transform="translate(401.52 435.365319)">Zero roll and pitch moments; exact model.</text>
+    <text style="fill: #162638; font: 10.5px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif" transform="translate(401.52 449.51653)">The jump comes from the torque plateau.</text>
    </g>
    <g id="text_35">
-    <text style="fill: #162638; font: 700 12px 'DejaVu Sans'; text-anchor: start" x="399.12" y="134.3512" transform="rotate(-0 399.12 134.3512)">2  Yaw can lower the thrust ceiling</text>
+    <text style="fill: #162638; font: 700 12px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: start" x="399.12" y="134.3512" transform="rotate(-0 399.12 134.3512)">2  Yaw can lower the thrust ceiling</text>
    </g>
    <g id="PathCollection_1">
     <defs>
@@ -3461,8 +3461,8 @@ z
       </g>
      </g>
      <g id="text_36">
-      <text style="fill: #435368; font: 10px 'DejaVu Sans'" transform="translate(749.166378 378.284837)">Front</text>
-      <text style="fill: #435368; font: 10px 'DejaVu Sans'" transform="translate(747.933565 389.48265)">left −</text>
+      <text style="fill: #435368; font: 10px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif" transform="translate(749.166378 378.284837)">Front</text>
+      <text style="fill: #435368; font: 10px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif" transform="translate(747.933565 389.48265)">left −</text>
      </g>
     </g>
     <g id="xtick_12">
@@ -3472,8 +3472,8 @@ z
       </g>
      </g>
      <g id="text_37">
-      <text style="fill: #435368; font: 10px 'DejaVu Sans'" transform="translate(809.772438 378.284837)">Front</text>
-      <text style="fill: #435368; font: 10px 'DejaVu Sans'" transform="translate(804.890407 389.48265)">right +</text>
+      <text style="fill: #435368; font: 10px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif" transform="translate(809.772438 378.284837)">Front</text>
+      <text style="fill: #435368; font: 10px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif" transform="translate(804.890407 389.48265)">right +</text>
      </g>
     </g>
     <g id="xtick_13">
@@ -3483,8 +3483,8 @@ z
       </g>
      </g>
      <g id="text_38">
-      <text style="fill: #435368; font: 10px 'DejaVu Sans'" transform="translate(871.577718 378.284837)">Rear</text>
-      <text style="fill: #435368; font: 10px 'DejaVu Sans'" transform="translate(869.145687 389.48265)">left +</text>
+      <text style="fill: #435368; font: 10px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif" transform="translate(871.577718 378.284837)">Rear</text>
+      <text style="fill: #435368; font: 10px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif" transform="translate(869.145687 389.48265)">left +</text>
      </g>
     </g>
     <g id="xtick_14">
@@ -3494,8 +3494,8 @@ z
       </g>
      </g>
      <g id="text_39">
-      <text style="fill: #435368; font: 10px 'DejaVu Sans'" transform="translate(932.183778 378.284837)">Rear</text>
-      <text style="fill: #435368; font: 10px 'DejaVu Sans'" transform="translate(926.102528 389.48265)">right −</text>
+      <text style="fill: #435368; font: 10px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif" transform="translate(932.183778 378.284837)">Rear</text>
+      <text style="fill: #435368; font: 10px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif" transform="translate(926.102528 389.48265)">right −</text>
      </g>
     </g>
    </g>
@@ -3512,7 +3512,7 @@ L 972.72 363.6864
       </g>
      </g>
      <g id="text_40">
-      <text style="fill: #435368; font: 12px 'DejaVu Sans'; text-anchor: end" x="725.72" y="368.245463" transform="rotate(-0 725.72 368.245463)">0</text>
+      <text style="fill: #435368; font: 12px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: end" x="725.72" y="368.245463" transform="rotate(-0 725.72 368.245463)">0</text>
      </g>
     </g>
     <g id="ytick_14">
@@ -3527,7 +3527,7 @@ L 972.72 324.365067
       </g>
      </g>
      <g id="text_41">
-      <text style="fill: #435368; font: 12px 'DejaVu Sans'; text-anchor: end" x="725.72" y="328.924129" transform="rotate(-0 725.72 328.924129)">1</text>
+      <text style="fill: #435368; font: 12px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: end" x="725.72" y="328.924129" transform="rotate(-0 725.72 328.924129)">1</text>
      </g>
     </g>
     <g id="ytick_15">
@@ -3542,7 +3542,7 @@ L 972.72 285.043733
       </g>
      </g>
      <g id="text_42">
-      <text style="fill: #435368; font: 12px 'DejaVu Sans'; text-anchor: end" x="725.72" y="289.602796" transform="rotate(-0 725.72 289.602796)">2</text>
+      <text style="fill: #435368; font: 12px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: end" x="725.72" y="289.602796" transform="rotate(-0 725.72 289.602796)">2</text>
      </g>
     </g>
     <g id="ytick_16">
@@ -3557,7 +3557,7 @@ L 972.72 245.7224
       </g>
      </g>
      <g id="text_43">
-      <text style="fill: #435368; font: 12px 'DejaVu Sans'; text-anchor: end" x="725.72" y="250.281462" transform="rotate(-0 725.72 250.281462)">3</text>
+      <text style="fill: #435368; font: 12px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: end" x="725.72" y="250.281462" transform="rotate(-0 725.72 250.281462)">3</text>
      </g>
     </g>
     <g id="ytick_17">
@@ -3572,7 +3572,7 @@ L 972.72 206.401067
       </g>
      </g>
      <g id="text_44">
-      <text style="fill: #435368; font: 12px 'DejaVu Sans'; text-anchor: end" x="725.72" y="210.960129" transform="rotate(-0 725.72 210.960129)">4</text>
+      <text style="fill: #435368; font: 12px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: end" x="725.72" y="210.960129" transform="rotate(-0 725.72 210.960129)">4</text>
      </g>
     </g>
     <g id="ytick_18">
@@ -3587,7 +3587,7 @@ L 972.72 167.079733
       </g>
      </g>
      <g id="text_45">
-      <text style="fill: #435368; font: 12px 'DejaVu Sans'; text-anchor: end" x="725.72" y="171.638796" transform="rotate(-0 725.72 171.638796)">5</text>
+      <text style="fill: #435368; font: 12px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: end" x="725.72" y="171.638796" transform="rotate(-0 725.72 171.638796)">5</text>
      </g>
     </g>
     <g id="text_46">
@@ -4091,36 +4091,36 @@ z
 " clip-path="url(#p81bf38ef0e)" style="fill: #bd601f"/>
    </g>
    <g id="text_47">
-    <text style="fill: #162638; font: 10px 'DejaVu Sans'; text-anchor: middle" x="761.810909" y="214.681232" transform="rotate(-0 761.810909 214.681232)">3.489</text>
+    <text style="fill: #162638; font: 10px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: middle" x="761.810909" y="214.681232" transform="rotate(-0 761.810909 214.681232)">3.489</text>
    </g>
    <g id="text_48">
-    <text style="fill: #162638; font: 10px 'DejaVu Sans'; text-anchor: middle" x="822.41697" y="173.656773" transform="rotate(-0 822.41697 173.656773)">4.713</text>
+    <text style="fill: #162638; font: 10px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: middle" x="822.41697" y="173.656773" transform="rotate(-0 822.41697 173.656773)">4.713</text>
    </g>
    <g id="text_49">
-    <text style="fill: #162638; font: 10px 'DejaVu Sans'; text-anchor: middle" x="883.02303" y="173.656773" transform="rotate(-0 883.02303 173.656773)">4.713</text>
+    <text style="fill: #162638; font: 10px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: middle" x="883.02303" y="173.656773" transform="rotate(-0 883.02303 173.656773)">4.713</text>
    </g>
    <g id="text_50">
-    <text style="fill: #162638; font: 10px 'DejaVu Sans'; text-anchor: middle" x="943.629091" y="214.681232" transform="rotate(-0 943.629091 214.681232)">3.489</text>
+    <text style="fill: #162638; font: 10px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: middle" x="943.629091" y="214.681232" transform="rotate(-0 943.629091 214.681232)">3.489</text>
    </g>
    <g id="text_51">
-    <text style="fill: #162638; font: 10.5px 'DejaVu Sans'" transform="translate(735.12 435.365319)">Request: 18 N and yaw +0.05 N·m.</text>
-    <text style="fill: #162638; font: 10.5px 'DejaVu Sans'" transform="translate(735.12 449.51653)">Result: 16.4043 N; roll/pitch moments zero.</text>
+    <text style="fill: #162638; font: 10.5px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif" transform="translate(735.12 435.365319)">Request: 18 N and yaw +0.05 N·m.</text>
+    <text style="fill: #162638; font: 10.5px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif" transform="translate(735.12 449.51653)">Result: 16.4043 N; roll/pitch moments zero.</text>
    </g>
    <g id="text_52">
-    <text style="fill: #162638; font: 700 12px 'DejaVu Sans'; text-anchor: start" x="732.72" y="134.3512" transform="rotate(-0 732.72 134.3512)">3  A feasible worked example</text>
+    <text style="fill: #162638; font: 700 12px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: start" x="732.72" y="134.3512" transform="rotate(-0 732.72 134.3512)">3  A feasible worked example</text>
    </g>
   </g>
   <g id="text_53">
-   <text style="fill: #53687b; font: 700 11px 'DejaVu Sans'; text-anchor: start" x="55.44" y="28.8288" transform="rotate(-0 55.44 28.8288)">CREBAIN  /  STEADY ROTOR ALLOCATION</text>
+   <text style="fill: #53687b; font: 700 11px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: start" x="55.44" y="28.8288" transform="rotate(-0 55.44 28.8288)">CREBAIN  /  STEADY ROTOR ALLOCATION</text>
   </g>
   <g id="text_54">
-   <text style="fill: #162638; font: 700 22px 'DejaVu Sans'; text-anchor: start" x="55.44" y="58.212" transform="rotate(-0 55.44 58.212)">Preserve the moments. Reduce collective when required.</text>
+   <text style="fill: #162638; font: 700 22px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: start" x="55.44" y="58.212" transform="rotate(-0 55.44 58.212)">Preserve the moments. Reduce collective when required.</text>
   </g>
   <g id="text_55">
-   <text style="fill: #162638; font: 13px 'DejaVu Sans'; text-anchor: start" x="55.44" y="80.9424" transform="rotate(-0 55.44 80.9424)">At high thrust, the reaction-torque cap can eliminate yaw authority.</text>
+   <text style="fill: #162638; font: 13px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: start" x="55.44" y="80.9424" transform="rotate(-0 55.44 80.9424)">At high thrust, the reaction-torque cap can eliminate yaw authority.</text>
   </g>
   <g id="text_56">
-   <text style="fill: #53687b; font: 700 10px 'DejaVu Sans'; text-anchor: start" x="55.44" y="469.5768" transform="rotate(-0 55.44 469.5768)">MODEL</text>
+   <text style="fill: #53687b; font: 700 10px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: start" x="55.44" y="469.5768" transform="rotate(-0 55.44 469.5768)">MODEL</text>
   </g>
   <g id="text_57">
    <path d="M 126.381406 468.4718
@@ -4678,7 +4678,7 @@ L 443.611875 460.060394
 z
 " style="fill: #162638"/>
   </g>
-  <g id="text_58">
+  <g id="text_58" transform="translate(0 5)">
    <path d="M 126.857031 482.639369
 L 126.659375 483.617338
 Q 126.303594 483.359525 125.903125 483.230619
@@ -5558,10 +5558,10 @@ z
 " style="fill: #162638"/>
   </g>
   <g id="text_59">
-   <text style="fill: #53687b; font: 700 10px 'DejaVu Sans'; text-anchor: start" x="55.44" y="514.4832" transform="rotate(-0 55.44 514.4832)">SCOPE</text>
+   <text style="fill: #53687b; font: 700 10px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: start" x="55.44" y="514.4832" transform="rotate(-0 55.44 514.4832)">SCOPE</text>
   </g>
   <g id="text_60">
-   <text style="fill: #162638; font: 10.5px 'DejaVu Sans'; text-anchor: start" x="120.96" y="514.4832" transform="rotate(-0 120.96 514.4832)">Analytical illustration of the explicit one-drone profile. These are steady forces, not measured motor transients.</text>
+   <text style="fill: #162638; font: 10.5px 'DejaVu Sans', Verdana, 'Bitstream Vera Sans', sans-serif; text-anchor: start" x="120.96" y="514.4832" transform="rotate(-0 120.96 514.4832)">Analytical illustration of the explicit one-drone profile. These are steady forces, not measured motor transients.</text>
   </g>
   <g id="text_61">
    <path d="M 121.990312 522.825253

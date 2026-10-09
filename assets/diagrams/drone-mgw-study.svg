@@ -107,7 +107,7 @@
   <text class="small left" x="52" y="376">Targets are generated here</text>
   <text class="truth-text left" x="52" y="406">T_H = 𝟙[E≤50 ∧ N≤1]</text>
   <text class="truth-text left" x="52" y="435">T_V = 𝟙[E≤50 ∧ N≤1 ∧ U≤1]</text>
-  <text class="tiny left" x="52" y="467">Truth exists before projection,</text>
+  <text class="tiny left" x="52" y="467">Truth precedes projection,</text>
   <text class="tiny left" x="52" y="486">fusion, verdicts, and PID.</text>
   <rect class="note-box" x="52" y="510" width="186" height="42" rx="5"/>
   <text class="tiny boundary-text" x="145" y="528">NO TARGET FROM</text>

@@ -10,6 +10,7 @@
     .region-label { font-size: 14px; font-weight: 700; letter-spacing: 1.4px; text-anchor: start; }
     .small { font-size: 13px; fill: #475569; }
     .left { text-anchor: start; }
+    .right { text-anchor: end; }
     .present-text { fill: #047857; }
     .data-text { fill: #0369a1; }
     .conditional-text { fill: #92400e; }
@@ -122,7 +123,7 @@
   <path class="data-edge" d="M423 534 V566"/>
   <path class="optional-edge" d="M694 534 V566"/>
   <text class="small data-text" x="300" y="554">SUBSCRIBE ONLY · NO PUBLISH</text>
-  <text class="small optional-text" x="694" y="554">LOCAL PUT ≠ DELIVERY</text>
+  <text class="small optional-text right" x="684" y="554">LOCAL PUT ≠ DELIVERY</text>
 
   <rect class="region external" x="48" y="572" width="800" height="104"/>
   <text class="region-label data-text" x="66" y="596">EXTERNAL / DEPLOYMENT-DEPENDENT</text>

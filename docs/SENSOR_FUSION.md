@@ -318,6 +318,17 @@ per-measurement `R` for their innovation covariance and their state update.
 Before any filter update, the engine decides **which measurement updates which
 track**. This is a two-stage process.
 
+<p align="center">
+  <img alt="One tracker cycle with predict, gate, associate, update, initiate, and lifecycle" src="../assets/diagrams/tracker-cycle-gate.svg" width="900">
+</p>
+
+Text alternative: Each cycle predicts every track, gates candidate measurements by
+the squared Mahalanobis distance, assigns them one to one, updates with the
+Joseph-form covariance, initiates tentative tracks from unmatched measurements, and
+manages the lifecycle. The gate is an ellipse, so a measurement close in metres can
+still be rejected. The default threshold 11.345 is the 99 percent quantile of
+chi-square with three degrees of freedom.
+
 ### Gating
 
 For a track with predicted position `Hx` and innovation covariance `S = HPHᵀ + R`,

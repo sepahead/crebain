@@ -395,6 +395,19 @@ A separate pinned-runtime free-rotation probe observed no Euler gyroscopic evolu
 This twelve-tick observation does not characterize every Rapier mode or establish physical fidelity.
 The [dynamics evidence summary](DETERMINISTIC_DYNAMICS.md#observed-controller-and-angular-model-limits) records the bounded campaign sizes and limitations.
 
+## Three sensor models at a glance
+
+<p align="center">
+  <img alt="Camera, microphone, and heat camera models with units and worked numbers" src="../assets/diagrams/native-sensor-models.svg" width="900">
+</p>
+
+Text alternative: One CPU owner advances the world at 120 ticks per second. The
+camera renders splats and meshes into 320 by 240 RGBA frames when its period divides
+the tick. The microphone models two-bladed rotor harmonics, a distance delay, and
+seeded noise, with 133, 133, and 134 samples in three ticks. The heat camera models
+motor heat with backward Euler and reports radiance, not a temperature image. The
+three outputs share one simulated cause, so they are not independent measurements.
+
 ## Actual RGB and thermal pixels
 
 RGB output contains awaited Spark and Three.js rasterization, with `rgba8-srgb` channels and a bottom-left row origin.
@@ -520,6 +533,16 @@ Failed preparation attempts CPU and returned graphics cleanup independently.
 A launcher that returns no graphics authority does not prove that no graphics resources existed.
 
 ## Exact CPU state and reconstructed static branches
+
+<p align="center">
+  <img alt="A checkpoint at a camera-aligned tick and two reconstructed sibling branches" src="../assets/diagrams/checkpoint-siblings.svg" width="900">
+</p>
+
+Text alternative: A parent run pauses at a tick where every camera is due, and the
+complete CPU state is checkpointed. Before a sibling is admitted, the saved
+transitions are replayed, the canonical CPU state is compared, a fresh static
+renderer starts, and camera pixels are checked by digest. Restoring the engine's own
+snapshot failed full-state equality in larger cases, so replay is used.
 
 A checkpoint requires a released observation lease and a completed tick where every configured camera was due.
 The first possible barrier is the least common multiple of camera periods.
