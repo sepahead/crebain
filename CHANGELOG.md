@@ -145,6 +145,9 @@ README and treated as unverified until measured on target hardware.
 
 ### Security
 
+- Added an exact `source-map-js` 1.2.2 override. This fixes GHSA-68fv-2mgg-jv7q
+  in the postcss, Tailwind CSS, and magicast build toolchain; `bun audit`
+  reports no vulnerabilities.
 - Bumped the exact `brace-expansion` override from 5.0.9 to 5.0.12. This fixes
   GHSA-qhr7-859c-m2p7, GHSA-6j4f-fj2g-mc7p, and GHSA-q2hr-2g5m-vwhr in the
   eslint and typescript-eslint development toolchain; `bun audit` reports no

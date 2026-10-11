@@ -155,6 +155,7 @@
     "nanoid": "3.3.18",
     "picomatch": "4.0.5",
     "postcss": "8.5.25",
-    "rollup": "4.62.2"
+    "rollup": "4.62.2",
+    "source-map-js": "1.2.2"
   }
 }
