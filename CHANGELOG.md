@@ -11,6 +11,11 @@ README and treated as unverified until measured on target hardware.
 
 ### Added
 
+- Added `agent-index.json`, a machine-readable index of the gates, generated,
+  frozen, and shared artifacts, and ecosystem relations in `AGENTS.md`.
+  `scripts/check_agent_index.py` fails when a named path or script is missing, a
+  gate identifier repeats, or a machine-specific path appears; `bun run validate`
+  runs it through `check:agent-index`.
 - Added five accessible figures: the three native sensor models with units and
   worked numbers, checkpointed sibling branches, one tracker cycle with its ellipse
   gate, the drone fixture's shared-exclusion atoms, and the atoms of a degraded

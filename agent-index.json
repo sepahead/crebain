@@ -1,0 +1,104 @@
+{
+  "schema": "sepahead.agent-index.v1",
+  "repository": "sepahead/crebain",
+  "summary": "CREBAIN: a desktop and native simulation environment for drone sensing, deterministic dynamics, sensor fusion and an optional NCP body. AGENTS.md is the operating contract; this index restates its operational facts for tools.",
+  "entry_documents": [
+    { "path": "AGENTS.md", "role": "operating contract for agents" },
+    { "path": "README.md", "role": "overview" },
+    { "path": "docs/README.md", "role": "index of the complete contract set" },
+    { "path": "package.json", "role": "executable command registry" },
+    { "path": "docs/RELEASE_ACCEPTANCE.md", "role": "release and claim gates" },
+    { "path": "SECURITY.md", "role": "security policy" }
+  ],
+  "delivery": {
+    "default_branch": "main",
+    "merge": "Commit in a separate worktree from origin/main, run the applicable complete gate, then push to main.",
+    "signing": "unsigned (commit.gpgsign=false)",
+    "attribution": "no AI attribution, co-author trailers or generated-by lines",
+    "owner_only": ["release", "tag", "repository setting change"]
+  },
+  "gates": [
+    {
+      "id": "docs",
+      "when": "documentation only",
+      "command": "bun run check:docs-visuals && bun run format:check && git diff --check",
+      "cost": "fast"
+    },
+    {
+      "id": "agent-index",
+      "when": "agent-index.json or a path it names changes",
+      "command": "python3 scripts/check_agent_index.py",
+      "cost": "fast"
+    },
+    {
+      "id": "configuration-digests",
+      "when": "a pinned configuration file changes, such as package.json, bun.lock or bun.nix",
+      "command": "bun run check:phase0-baseline",
+      "cost": "fast"
+    },
+    {
+      "id": "nix-lock",
+      "when": "bun.lock changes",
+      "command": "bun run check:nix-deps",
+      "cost": "fast"
+    },
+    {
+      "id": "ncp-coherence",
+      "when": "NCP manifests, locks or normative prose change",
+      "command": "bun run check:ncp-coherence",
+      "cost": "medium"
+    },
+    {
+      "id": "frontend",
+      "when": "frontend behavior changes",
+      "command": "bun run validate",
+      "cost": "medium"
+    },
+    {
+      "id": "complete-local-gate",
+      "when": "native environment, dynamics, Rust, IPC, transport, models, scenes, fusion or cross-cutting behavior changes",
+      "command": "bun run validate:all",
+      "cost": "full"
+    }
+  ],
+  "generated": [
+    {
+      "path": "bun.nix",
+      "regenerate": "bunx --bun bun2nix | node scripts/normalize-bun-nix.mjs > bun.nix"
+    },
+    {
+      "path": "docs/baselines/ipc-contract-registry.json",
+      "regenerate": "node scripts/generate-ipc-contract-registry.mjs --write"
+    },
+    {
+      "path": "docs/baselines/ecosystem-baseline.json",
+      "regenerate": "update the sha256 of each changed pinned file in crebain_configuration_artifacts; keep captured fields historical"
+    }
+  ],
+  "frozen": [
+    {
+      "path": "src-tauri/vendor-compat/",
+      "reason": "hash-verified upstream archives; record manifest-only changes in PROVENANCE.json; bun run check:vendor-compat checks them"
+    },
+    { "path": "audit/frozen/", "reason": "retained audit inputs and review records" }
+  ],
+  "shared": [
+    {
+      "path": "integrations/engram/engram.host.v1.vector.json",
+      "reason": "shared with Engram (Paper2Brain) with its lock; change only together with Engram's copy"
+    },
+    {
+      "path": "integrations/engram/manifest.json",
+      "reason": "binds the restricted Engram host with its lock; change only in a coordinated Engram host update"
+    }
+  ],
+  "ecosystem": [
+    {
+      "repository": "sepahead/NCP",
+      "relation": "pins the 1.0.0-rc.1 candidate 2819dae for the optional body and sensor applications"
+    },
+    { "repository": "sepahead/galadriel", "relation": "advisory producer and drone study fixture" },
+    { "repository": "sepahead/Paper2Brain", "relation": "Engram embedding and shared host vector" },
+    { "repository": "sepahead/cobot-atlas", "relation": "mesh assets for scenes" }
+  ]
+}

@@ -167,6 +167,8 @@ Cancellation does not release reservations while detached work still owns them.
 ## Commands and gates
 
 `package.json` is the executable command registry.
+[`agent-index.json`](agent-index.json) restates these gates, the generated, frozen, and shared artifacts, and the ecosystem relations for tools.
+Update it when a gate or a named path changes, then run `bun run check:agent-index`.
 Use the repository's rustup toolchain and checked-in lockfiles.
 Do not rewrite dependency policy or upgrade tools to bypass a failing gate.
 
