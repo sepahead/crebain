@@ -80,7 +80,7 @@
   <rect class="deadline" x="878" y="180" width="282" height="70"/>
   <text class="conditional-text" x="1019" y="208">SETUP · SHARED 12 s DEADLINE</text>
   <text class="small" x="1019" y="232">listener registration + declaration</text>
-  <path class="message" d="M922 216 H574"/>
+  <path class="message" d="M922 216 H458"/>
 
   <rect class="budget" x="304" y="268" width="292" height="104"/>
   <text class="present-text" x="450" y="298">TRY RESERVE · NEVER WAIT</text>
@@ -99,14 +99,14 @@
   <text class="small" x="744" y="461">+ delivery identity</text>
   <text class="small" x="744" y="482">canonical nonzero-u64 IDs</text>
   <path class="message" d="M596 320 H610 V436 H614"/>
-  <path class="message" d="M866 436 H914"/>
+  <path class="message" d="M866 436 H1033"/>
 
   <rect class="deadline" x="922" y="506" width="238" height="86"/>
   <text class="conditional-text" x="1041" y="536">EXACT PULL · 10 s</text>
   <text class="small" x="1041" y="560">large frame transfers once</text>
   <text class="small" x="1041" y="582">permit remains charged</text>
   <path class="return" d="M922 548 H752"/>
-  <path class="message" d="M736 574 H574"/>
+  <path class="message" d="M736 574 H458"/>
 
   <rect class="deadline" x="922" y="612" width="238" height="94"/>
   <text class="conditional-text" x="1041" y="642">SETTLE LISTENERS · 8 s</text>
