@@ -17,12 +17,12 @@ An uncertain execution retires the generation.
 
 The package has a separate workspace and lockfile.
 It uses the standalone `ncp-local` SDK from `NCP/local/rust`.
-Its manifest selects version `=1.0.0` at immutable NCP revision `de751d499b5e07d1c95a072e08255083d77cb38b`.
+Its manifest selects version `=1.0.1` at immutable NCP revision `99e9adce147fe5bc770d2dcfe5f21cbd2274efeb`, the tag `sdk-v1.0.1`.
 Its lockfile resolves that same public Git revision and SDK version.
 The native package does not permit a sibling SDK fallback.
 Dependency resolution and component tests do not replace the installed artifact gate.
 
-<!-- ncp-local-pin: 1.0.0 de751d499b5e07d1c95a072e08255083d77cb38b -->
+<!-- ncp-local-pin: 1.0.1 99e9adce147fe5bc770d2dcfe5f21cbd2274efeb -->
 
 ```bash
 cargo build --locked --release \

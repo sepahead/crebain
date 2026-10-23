@@ -20,7 +20,16 @@ yanked = "deny"
 # deep transitive GUI stack pulled in by Tauri on Linux (gtk-rs, etc.) is not
 # something this project can fix and is tracked upstream.
 unmaintained = "workspace"
-ignore = []
+ignore = [
+    # zip 7.2.0 reaches the graph only through candle-core 0.9.2, which opens archives
+    # (ZipArchive::new, by_name, read) and writes .npz files but never calls
+    # ZipArchive::extract or ZipStreamReader::extract, the functions these advisories
+    # concern. Their fix is zip 9.0.0; no candle-core release accepts it (0.11.0
+    # requires ^8.6.0). Remove all three when candle-core accepts zip >= 9.
+    "RUSTSEC-2026-0367",
+    "RUSTSEC-2026-0368",
+    "RUSTSEC-2026-0369",
+]
 
 [licenses]
 version = 2

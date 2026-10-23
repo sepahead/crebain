@@ -187,7 +187,7 @@ This process provides no physical command authority.
 [Open the original SVG](https://raw.githubusercontent.com/sepahead/crebain/main/assets/diagrams/native-ncp-simulation.svg)
 · [Build and use the native body](docs/NATIVE_NCP_SIMULATION.md)
 
-The native package pins public `ncp-local` version `1.0.0` at immutable revision `de751d499b5e07d1c95a072e08255083d77cb38b`.
+The native package pins public `ncp-local` version `1.0.1` at immutable revision `99e9adce147fe5bc770d2dcfe5f21cbd2274efeb`, the tag `sdk-v1.0.1`.
 It uses inherited standard input/output and opens no network listener.
 Its current application profile, `crebain.local-kinematic-kalman.v1`, requires the exact retained neural response at each step.
 This application contract does not yet offer arbitrary body-only, body-plus-monitor, or body-plus-capture runs.

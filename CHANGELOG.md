@@ -52,6 +52,11 @@ README and treated as unverified until measured on target hardware.
 
 ### Changed
 
+- Moved the native body to the released `ncp-local` 1.0.1 SDK at commit
+  `99e9adce147fe5bc770d2dcfe5f21cbd2274efeb`, the NCP tag `sdk-v1.0.1`, in its
+  manifest, lockfile, README entry, and native guide. The SDK patch release keeps
+  every byte on the wire and every public interface and is faster. The two
+  construction integrations keep their pinned September SDK sources and evidence.
 - Rewrote the agent contract. `AGENTS.md` gains an authority-and-workflow section: agents may
   commit, push, and merge to `main` after the applicable complete gate. `CLAUDE.md` imports it.
 - Moved the optional NCP integration from tag `v0.8.0` (wire 0.8) to the
@@ -150,6 +155,28 @@ README and treated as unverified until measured on target hardware.
 
 ### Security
 
+- Updated `quinn-proto` to 0.11.19 (RUSTSEC-2026-0338 to -0342), `rustls` to
+  0.23.46 (RUSTSEC-2026-0346 to -0349), `rustls-webpki` to 0.103.16
+  (RUSTSEC-2026-0382), and `webpki-roots` and `webpki-root-certs` to 1.0.10
+  (RUSTSEC-2026-0381 and -0383) in `src-tauri/Cargo.lock`. All updates are
+  semver-compatible, and `cargo deny check advisories` passes. The inert vendored
+  lock snapshot is unchanged.
+- Updated Vite to 8.3.5 and Vitest, `@vitest/ui`, and `@vitest/coverage-istanbul` to
+  4.1.12. This fixes GHSA-9jrq-w75r-8gcw, GHSA-rq7h-c2jc-7f22, and GHSA-vfpm-58rq-9qcg
+  in Vite, GHSA-698v-4r3x-3vcv, GHSA-r825-w8mm-5pxw, and GHSA-587h-7wmj-h5pm in its
+  bundled `launch-editor`, and GHSA-qxg6-89mg-rqv8 and GHSA-xp26-3454-mjgp in
+  `@vitest/mocker`. The exact `picomatch` and `postcss` overrides move to 4.0.7 and
+  8.5.31, the minimum versions that Vite 8.3.5 accepts. Vite 8.3 no longer installs
+  `esbuild`, which the configured `build.minify: 'esbuild'` needs, so `esbuild` 0.27.2,
+  the version the lockfile resolved before, is now an exact development dependency.
+  `bun audit` reports no
+  vulnerabilities; `bun.lock`, `bun.nix`, and the pinned configuration digests are
+  regenerated.
+- Recorded RUSTSEC-2026-0367, -0368, and -0369 in `src-tauri/deny.toml`. They affect
+  `ZipArchive::extract` and `ZipStreamReader::extract` in `zip` 7.2.0, which reaches the
+  graph only through `candle-core` 0.9.2. Candle opens archives and writes `.npz` files
+  but never calls these functions. The fix is `zip` 9.0.0, and no `candle-core` release
+  accepts it. The exceptions end when one does.
 - Added an exact `source-map-js` 1.2.2 override. This fixes GHSA-68fv-2mgg-jv7q
   in the postcss, Tailwind CSS, and magicast build toolchain; `bun audit`
   reports no vulnerabilities.

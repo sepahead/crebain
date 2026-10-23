@@ -274,8 +274,8 @@ dependencies = [
 
 [[package]]
 name = "ncp-local"
-version = "1.0.0"
-source = "git+https://github.com/sepahead/NCP?rev=de751d499b5e07d1c95a072e08255083d77cb38b#de751d499b5e07d1c95a072e08255083d77cb38b"
+version = "1.0.1"
+source = "git+https://github.com/sepahead/NCP?rev=99e9adce147fe5bc770d2dcfe5f21cbd2274efeb#99e9adce147fe5bc770d2dcfe5f21cbd2274efeb"
 dependencies = [
  "serde",
  "serde_json",
