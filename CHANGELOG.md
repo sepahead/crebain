@@ -9,6 +9,12 @@ README and treated as unverified until measured on target hardware.
 
 ## [Unreleased]
 
+### Security
+
+- `src-tauri/Cargo.lock` moves `tokio` from 1.53.1 to 1.54.1 for RUSTSEC-2026-0386
+  (`AsyncFd` constructors violate I/O safety). Only tokio's version and checksum change;
+  the Phase 0 baseline records the new lockfile digest.
+
 ### Added
 
 - Added `agent-index.json`, a machine-readable index of the gates, generated,
