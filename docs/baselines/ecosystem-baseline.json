@@ -287,7 +287,7 @@
     },
     {
       "path": "bun.nix",
-      "sha256": "2e723442513818c1d8a9f5e1180214d0c6c556d61c98c7a9a7231feefb1866e6"
+      "sha256": "5b6b6943b5c60e5b6d04cc120322addf51d254046520cf3b54d597b2d6be3dff"
     },
     {
       "path": "flake.nix",
