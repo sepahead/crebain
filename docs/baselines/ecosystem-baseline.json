@@ -135,11 +135,11 @@
     },
     {
       "path": "package.json",
-      "sha256": "ea3df14cdb25a5bb2225051d2fa5213732842b3697351f0afecacee00f444929"
+      "sha256": "640e5080ca66d03016da837d641ad6581a0b087225714e482fbe42dadf120e49"
     },
     {
       "path": "bun.lock",
-      "sha256": "e862218c20f042675e3425fe04d6d3fec89fc96b27d0799bb8c34811aad35e26"
+      "sha256": "ca25cbeea64fc763e46d95b4363f440449f7bc62ac59f3606bdcba142b1d19cd"
     },
     {
       "path": "src-tauri/Cargo.toml",
@@ -147,7 +147,7 @@
     },
     {
       "path": "src-tauri/Cargo.lock",
-      "sha256": "1a67fdff6b4a9a168cadbd33d630152f240928f73ab987f8574ff894c5a83a44"
+      "sha256": "0ae7d1a669ad7a4654fd9a8e3e1cc815e260ab6964829937f445fdf37a871981"
     },
     {
       "path": "src-tauri/crates/ncp-headless/Cargo.toml",
@@ -287,7 +287,7 @@
     },
     {
       "path": "bun.nix",
-      "sha256": "2e723442513818c1d8a9f5e1180214d0c6c556d61c98c7a9a7231feefb1866e6"
+      "sha256": "5b6b6943b5c60e5b6d04cc120322addf51d254046520cf3b54d597b2d6be3dff"
     },
     {
       "path": "flake.nix",
