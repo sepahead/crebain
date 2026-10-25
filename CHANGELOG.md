@@ -14,6 +14,10 @@ README and treated as unverified until measured on target hardware.
 - `src-tauri/Cargo.lock` moves `tokio` from 1.53.1 to 1.54.1 for RUSTSEC-2026-0386
   (`AsyncFd` constructors violate I/O safety). Only tokio's version and checksum change;
   the Phase 0 baseline records the new lockfile digest.
+- `happy-dom` moves from ^20.11.1 to ^21.0.4 (GHSA-834v-8h66-3h79, import alias code
+  execution) and an exact override raises the lint-only transitive `zod` from 4.4.3 to 4.6.7
+  (GHSA-mrhx-c7xc-m3w5). `bun audit` reports no vulnerabilities; the 85 test files pass under
+  happy-dom 21.
 
 ### Added
 
