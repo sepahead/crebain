@@ -232,6 +232,9 @@ Use WARNING for injury or death and CAUTION for damage; explain the concrete app
 Avoid slang, unnecessary jargon, Latin abbreviations, and decorative technical claims.
 
 Keep requirements, historical observations, and proposed capabilities distinct.
+Social-media posts must not be cited. A post can be deleted or edited, and it can state an opinion as a fact.
+That biases readers and agents and weakens scientific rigor.
+State the substance in your own words with its date, cite the primary source, and do not link the post or name its author.
 Preserve frozen evidence, generated artifacts, vendored documentation, and failed trials without retroactive reinterpretation.
 Keep equations, examples, diagrams, PDFs, and prose consistent.
 Use self-contained SVGs, concise alt text, an adjacent text alternative, and direct original-asset links.
