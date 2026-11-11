@@ -1,31 +1,26 @@
-use std::io;
+//! `crebain-ncp-simulation`: one `crebain.body` session on standard input and output.
+//!
+//! The process opens no network listener. It takes no arguments; the host's `prepare` request
+//! carries the whole configuration.
 
-use crebain_ncp_simulation::BodyBackend;
-use ncp_local::local::{serve_local, LocalBinding, LocalCode, LocalError, LocalOwner};
-
-fn run() -> Result<(), LocalError> {
-    let mut args = std::env::args().skip(1);
-    if args.next().as_deref() != Some("--binding") {
-        return Err(LocalError(LocalCode::Binding));
-    }
-    let binding = args.next().ok_or(LocalError(LocalCode::Binding))?;
-    if binding.len() > 2_048 || args.next().is_some() {
-        return Err(LocalError(LocalCode::Binding));
-    }
-    let binding: LocalBinding =
-        serde_json::from_str(&binding).map_err(|_| LocalError(LocalCode::Binding))?;
-    let backend = BodyBackend::new(binding.clone())?;
-    let mut owner = LocalOwner::new(binding, backend)?;
-    serve_local(
-        &mut owner,
-        &mut io::stdin().lock(),
-        &mut io::stdout().lock(),
-    )
-}
+use crebain_ncp_simulation::{body::Body, body_contract};
+use ncp::{binding::serve_stdio, Owner, DEFAULT_BOUND};
 
 fn main() {
-    if let Err(error) = run() {
-        eprintln!("{error}");
+    if std::env::args().len() > 1 {
+        eprintln!("crebain-ncp-simulation takes no arguments; it serves one NCP 2 session on standard input and output");
         std::process::exit(2);
+    }
+    let contract = body_contract();
+    let mut owner = Owner::new(
+        &contract.application,
+        &contract.identity,
+        Body::default(),
+        contract.operations,
+        DEFAULT_BOUND,
+    );
+    if let Err(error) = serve_stdio(&mut owner) {
+        eprintln!("crebain-ncp-simulation: {error}");
+        std::process::exit(1);
     }
 }

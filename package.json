@@ -104,6 +104,7 @@
     "doc:ncp-simulation": "RUSTDOCFLAGS='-D warnings' cargo doc --locked --release --no-deps --manifest-path src-tauri/crates/ncp-simulation/Cargo.toml --all-features",
     "validate:ncp-simulation": "bun run fmt:ncp-simulation:check && bun run check:ncp-simulation && bun run test:ncp-simulation && bun run clippy:ncp-simulation && bun run doc:ncp-simulation",
     "validate:ncp-sensors": "python3 integrations/ncp-force-ground-sensors/check.py",
+    "validate:ncp2-nest": "python3 integrations/ncp2-nest-controller/check.py",
     "validate:with-ncp-sensors": "bun run validate:ncp-sensors && bun run validate:all",
     "check:source-graphics": "node --experimental-vm-modules --test scripts/test-source-graphics-codec.mjs scripts/test-source-graphics-runtime.mjs scripts/test-source-graphics-process.mjs scripts/test-source-graphics-worker.mjs",
     "validate:ncp-city": "python3 integrations/ncp-force-city-sources/check.py",

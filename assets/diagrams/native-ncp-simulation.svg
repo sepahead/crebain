@@ -1,38 +1,58 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 540" role="img" aria-labelledby="title desc">
-  <title id="title">Native NCP body ownership and evidence</title>
-  <desc id="desc">A supervisor supplies an immutable plan and bound neural response. The native NCP owner verifies the exact source, advances the CREBAIN kernel, and retains the actual result until acknowledgement. Unknown execution retires the generation.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 560" role="img" aria-labelledby="title desc">
+  <title id="title">CREBAIN NCP 2 closed loop of controllers and worlds</title>
+  <desc id="desc">A loop host runs controller programs and world programs, each with its own NCP 2 session. Each step, the controllers receive the latest observation and state digest of their drones and return accelerations; the worlds apply them with the controller response identities and reject actions computed from another state. Every session writes a transcript, which an offline check verifies.</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#35506d"/></marker>
-    <style>text{font-family:Arial,Helvetica,sans-serif;fill:#172b45} .heading{font-size:25px;font-weight:700}.label{font-size:19px;font-weight:700}.body{font-size:16px}.small{font-size:15px}.box{fill:#fff;stroke:#aec0d2;stroke-width:2}.flow{fill:none;stroke:#35506d;stroke-width:2.5;marker-end:url(#arrow)}</style>
+    <style>text{font-family:Arial,Helvetica,sans-serif;fill:#172b45} .heading{font-size:25px;font-weight:700}.label{font-size:19px;font-weight:700}.body{font-size:16px}.small{font-size:14px}.box{fill:#fff;stroke:#aec0d2;stroke-width:2}.flow{fill:none;stroke:#35506d;stroke-width:2.5;marker-end:url(#arrow)}</style>
   </defs>
-  <rect width="1100" height="540" rx="20" fill="#f3f6fa"/>
-  <text class="heading" x="38" y="48">CREBAIN · Native local simulation</text>
-  <text class="body" x="38" y="77">Exact source binding → one body advance → retained actual evidence</text>
-  <rect class="box" x="38" y="110" width="260" height="245" rx="12"/>
-  <text class="label" x="58" y="143">Supervisor</text>
-  <text class="body" x="58" y="178">Immutable plan and generation</text>
-  <text class="body" x="58" y="213">Retained neural response</text>
-  <text class="body" x="58" y="243">Exact source snapshot</text>
-  <text class="small" x="58" y="291">Inherited private input/output</text>
-  <text class="small" x="58" y="321">No network listener</text>
-  <rect class="box" x="348" y="110" width="330" height="245" rx="12"/>
-  <text class="label" x="370" y="143">Native NCP body owner</text>
-  <text class="body" x="370" y="178">Verify binding and request digest</text>
-  <text class="body" x="370" y="213">Verify source, modes, units, time</text>
-  <text class="body" x="370" y="243">Apply frozen availability schedule</text>
-  <text class="small" x="370" y="291">One result retained until ACK</text>
-  <text class="small" x="370" y="321">Duplicate request: same result bytes</text>
-  <rect class="box" x="728" y="110" width="334" height="245" rx="12"/>
-  <text class="label" x="750" y="143">Project-local kernel</text>
-  <text class="body" x="750" y="178">Bounded kinematic simulation</text>
-  <text class="body" x="750" y="213">Kalman fusion and actual NIS</text>
-  <text class="body" x="750" y="243">Explicit measurement absence</text>
-  <text class="small" x="750" y="291">Proposed and applied acceleration</text>
-  <text class="small" x="750" y="321">Separate values; no physical authority</text>
-  <path class="flow" d="M298 190H341"/><path class="flow" d="M678 190H721"/>
-  <path class="flow" d="M728 274H685"/><path class="flow" d="M348 274H305"/>
-  <rect x="38" y="394" width="1024" height="105" rx="12" fill="#e8eef6" stroke="#aec0d2"/>
-  <text class="label" x="58" y="427">Failure boundary</text>
-  <text class="body" x="58" y="457">Invalid input: preserve current state. Unknown execution: retire the generation.</text>
-  <text class="small" x="58" y="482">A captured closed prefix can remain valid when full planned completion is absent.</text>
+  <rect width="1160" height="560" rx="20" fill="#f3f6fa"/>
+  <text class="heading" x="40" y="48">CREBAIN · NCP 2 closed loop</text>
+  <text class="body" x="40" y="77">Controllers and worlds are separate programs; one host runs every step in a fixed order</text>
+
+  <rect class="box" x="40" y="110" width="280" height="250" rx="12"/>
+  <text class="label" x="60" y="143">Controllers</text>
+  <text class="body" x="60" y="176">N programs, one session each</text>
+  <text class="body" x="60" y="206">Reference law in Rust, or</text>
+  <text class="body" x="60" y="231">a NEST network in Python</text>
+  <text class="small" x="60" y="276">Each flies drones of one world</text>
+  <text class="small" x="60" y="301">Contract crebain.controller</text>
+  <text class="small" x="60" y="326">No other access to the world</text>
+
+  <rect class="box" x="440" y="110" width="280" height="250" rx="12"/>
+  <text class="label" x="460" y="143">Loop host</text>
+  <text class="body" x="460" y="176">crebain-ncp-loop</text>
+  <text class="body" x="460" y="206">1. call_all controllers</text>
+  <text class="body" x="460" y="231">2. call_all worlds</text>
+  <text class="small" x="460" y="276">The same order in every run</text>
+  <text class="small" x="460" y="301">One transcript per session</text>
+  <text class="small" x="460" y="326">Pipes to child processes</text>
+
+  <rect class="box" x="840" y="110" width="280" height="250" rx="12"/>
+  <text class="label" x="860" y="143">Worlds</text>
+  <text class="body" x="860" y="176">K programs, one session each</text>
+  <text class="body" x="860" y="206">1 to 3 drones in each</text>
+  <text class="body" x="860" y="231">CREBAIN kernel, Kalman filter</text>
+  <text class="small" x="860" y="276">Contract crebain.body</text>
+  <text class="small" x="860" y="301">Rejects actions computed</text>
+  <text class="small" x="860" y="326">from another state</text>
+
+  <path class="flow" d="M438 170 H322"/>
+  <text class="small" x="334" y="146">observation,</text>
+  <text class="small" x="334" y="162">state digest</text>
+  <path class="flow" d="M322 290 H438"/>
+  <text class="small" x="334" y="314">accelerations,</text>
+  <text class="small" x="334" y="330">response id</text>
+
+  <path class="flow" d="M722 290 H838"/>
+  <text class="small" x="734" y="314">accelerations,</text>
+  <text class="small" x="734" y="330">ids, digest</text>
+  <path class="flow" d="M838 170 H722"/>
+  <text class="small" x="734" y="146">observation,</text>
+  <text class="small" x="734" y="162">state digest</text>
+
+  <path class="flow" d="M580 362 V418"/>
+  <rect class="box" x="40" y="420" width="1080" height="100" rx="12"/>
+  <text class="label" x="60" y="453">Transcripts and the offline check</text>
+  <text class="body" x="60" y="483">crebain-ncp-loop verify checks every step: each applied action came from the controller response that the step names,</text>
+  <text class="body" x="60" y="507">and that response answered exactly the observation the world reported. The transcripts are not signed.</text>
 </svg>

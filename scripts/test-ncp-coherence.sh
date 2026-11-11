@@ -107,60 +107,63 @@ expect_native_rejection() {
   CREBAIN_NCP_COHERENCE_ROOT="$FIXTURE_ROOT" "$CHECKER" >/dev/null
 }
 
-sed -i.bak '/^ncp-local =/s@https://github.com/sepahead/NCP@https://github.com/example/NCP@' \
+sed -i.bak '/^ncp =/s/package = "sepahead-ncp-core"/package = "ncp-local"/' "$FIXTURE_ROOT/$native_manifest"
+expect_native_rejection native-package-drift 'native NCP 2 dependency must be the package sepahead-ncp-core'
+
+sed -i.bak '/^ncp =/s@https://github.com/sepahead/NCP@https://github.com/example/NCP@' \
   "$FIXTURE_ROOT/$native_manifest"
-expect_native_rejection native-repository-drift 'native ncp-local must use the canonical public Git repository'
+expect_native_rejection native-repository-drift 'native NCP 2 core must use the canonical public Git repository'
 
-sed -i.bak '/^ncp-local =/s/rev = "[0-9a-f]*"/rev = "0000000000000000000000000000000000000000"/' \
+sed -i.bak '/^ncp =/s/rev = "[0-9a-f]*"/rev = "0000000000000000000000000000000000000000"/' \
   "$FIXTURE_ROOT/$native_manifest"
-expect_native_rejection native-revision-drift 'native ncp-local lock source does not equal its exact public revision'
+expect_native_rejection native-revision-drift 'native NCP 2 core lock source does not equal its exact public revision'
 
-sed -i.bak '/^ncp-local =/s/rev = "[0-9a-f]*"/rev = "de751d4"/' \
+sed -i.bak '/^ncp =/s/rev = "[0-9a-f]*"/rev = "de751d4"/' \
   "$FIXTURE_ROOT/$native_manifest"
-expect_native_rejection native-short-revision 'native ncp-local revision must contain 40 lowercase hex characters'
+expect_native_rejection native-short-revision 'native NCP 2 core revision must contain 40 lowercase hex characters'
 
-sed -i.bak '/^ncp-local =/s/version = "=/version = "/' "$FIXTURE_ROOT/$native_manifest"
-expect_native_rejection native-version-range 'native ncp-local version must be an exact stable =MAJOR.MINOR.PATCH'
+sed -i.bak '/^ncp =/s/version = "=/version = "/' "$FIXTURE_ROOT/$native_manifest"
+expect_native_rejection native-version-range 'native NCP 2 core version must be an exact stable =MAJOR.MINOR.PATCH'
 
-sed -i.bak '/^ncp-local =/s/version = "=[^"]*"/version = "=99.0.0"/' "$FIXTURE_ROOT/$native_manifest"
-expect_native_rejection native-version-drift 'native ncp-local lock version differs from its exact manifest version'
+sed -i.bak '/^ncp =/s/version = "=[^"]*"/version = "=99.0.0"/' "$FIXTURE_ROOT/$native_manifest"
+expect_native_rejection native-version-drift 'native NCP 2 core lock version differs from its exact manifest version'
 
-sed -i.bak '/^ncp-local =/s/ }/, path = "..\/sibling" }/' "$FIXTURE_ROOT/$native_manifest"
-expect_native_rejection native-path-override 'native ncp-local may not declare a path, branch, or tag override'
+sed -i.bak '/^ncp =/s/ }/, path = "..\/sibling" }/' "$FIXTURE_ROOT/$native_manifest"
+expect_native_rejection native-path-override 'native NCP 2 core may not declare a path, branch, or tag override'
 
 printf '\n[patch."https://github.com/sepahead/NCP"]\n' >> "$FIXTURE_ROOT/$native_manifest"
-expect_native_rejection native-patch-override 'native ncp-local workspace may not declare patch or replace overrides'
+expect_native_rejection native-patch-override 'native NCP 2 workspace may not declare patch or replace overrides'
 
 awk '
   /^\[\[package\]\]$/ { in_package = 0 }
-  $0 == "name = \"ncp-local\"" { in_package = 1 }
+  $0 == "name = \"sepahead-ncp-core\"" { in_package = 1 }
   in_package && /^source = / { next }
   { print }
 ' "$FIXTURE_ROOT/$native_lock" > "$FIXTURE_ROOT/native-lock-mutated"
 mv "$FIXTURE_ROOT/native-lock-mutated" "$FIXTURE_ROOT/$native_lock"
-expect_native_rejection native-path-lock 'native ncp-local lock source does not equal its exact public revision'
+expect_native_rejection native-path-lock 'native NCP 2 core lock source does not equal its exact public revision'
 
 awk '
   /^\[\[package\]\]$/ { in_package = 0 }
-  $0 == "name = \"ncp-local\"" { in_package = 1 }
+  $0 == "name = \"sepahead-ncp-core\"" { in_package = 1 }
   in_package && /^source = / { sub(/#[0-9a-f]+/, "#0000000000000000000000000000000000000000") }
   { print }
 ' "$FIXTURE_ROOT/$native_lock" > "$FIXTURE_ROOT/native-lock-mutated"
 mv "$FIXTURE_ROOT/native-lock-mutated" "$FIXTURE_ROOT/$native_lock"
-expect_native_rejection native-lock-commit-drift 'native ncp-local lock source does not equal its exact public revision'
+expect_native_rejection native-lock-commit-drift 'native NCP 2 core lock source does not equal its exact public revision'
 
 awk '
   /^\[\[package\]\]$/ { in_package = 0 }
-  $0 == "name = \"ncp-local\"" { in_package = 1 }
+  $0 == "name = \"sepahead-ncp-core\"" { in_package = 1 }
   in_package && /^version = / { $0 = "version = \"99.0.0\"" }
   { print }
 ' "$FIXTURE_ROOT/$native_lock" > "$FIXTURE_ROOT/native-lock-mutated"
 mv "$FIXTURE_ROOT/native-lock-mutated" "$FIXTURE_ROOT/$native_lock"
-expect_native_rejection native-lock-version-drift 'native ncp-local lock version differs from its exact manifest version'
+expect_native_rejection native-lock-version-drift 'native NCP 2 core lock version differs from its exact manifest version'
 
-sed -i.bak '/^<!-- ncp-local-pin:/s/[0-9a-f]\{40\}/0000000000000000000000000000000000000000/' \
+sed -i.bak '/^<!-- ncp2-pin:/s/[0-9a-f]\{40\}/0000000000000000000000000000000000000000/' \
   "$FIXTURE_ROOT/$native_doc"
-expect_native_rejection native-doc-drift 'native ncp-local documentation marker differs from its exact manifest pin'
+expect_native_rejection native-doc-drift 'native NCP 2 documentation marker differs from its exact manifest pin'
 
 rm "$FIXTURE_ROOT/$native_lock"
 ln -s "$REPO_ROOT/$native_lock" "$FIXTURE_ROOT/$native_lock"
@@ -175,4 +178,4 @@ rm "$FIXTURE_ROOT/$native_lock"
 copy_file "$native_lock"
 CREBAIN_NCP_COHERENCE_ROOT="$FIXTURE_ROOT" "$CHECKER" >/dev/null
 
-echo "OK: NCP coherence self-test passed (7 revision-pin and 12 native negatives; restored positive after each native mutation)"
+echo "OK: NCP coherence self-test passed (7 revision-pin and 13 native negatives; restored positive after each native mutation)"

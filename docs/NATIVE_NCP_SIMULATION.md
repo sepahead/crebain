@@ -1,115 +1,104 @@
-# Native local NCP simulation
+# Native NCP simulation
 
-The `crebain-ncp-simulation` process owns a bounded CREBAIN body through the native NCP local profile.
-Its application profile is `crebain.local-kinematic-kalman.v1`.
-It serves one supervisor-owned run through inherited standard input and standard output.
-The process opens no network listener and supplies no physical command authority.
+The `crebain-ncp-simulation` package carries the CREBAIN simulation kernel over NCP 2.
+It has three programs:
 
-![Native NCP simulation ownership and evidence](../assets/diagrams/native-ncp-simulation.svg)
+- `crebain-ncp-simulation` owns one world of one to three simulated drones: one `crebain.body` session on its standard input and output.
+- `crebain-ncp-controller` is the reference controller: one `crebain.controller` session that proposes accelerations with a fixed proportional-derivative law.
+- `crebain-ncp-loop` is the host. It runs N controllers and K worlds in a closed loop, writes one transcript for each session, and checks the transcripts afterwards.
 
-Text alternative: The supervisor supplies one immutable binding and plan.
-The native owner verifies each retained neural response against its current snapshot.
-It advances the project-local kernel once and returns actual application and innovation evidence.
-The owner retains the exact response until acknowledgement.
-An uncertain execution retires the generation.
+The programs open no network listener and supply no physical command authority.
 
-## Build and launch
+![NCP 2 closed loop of controllers and worlds](../assets/diagrams/native-ncp-simulation.svg)
+
+Text alternative: The loop host runs controller programs and world programs, each with its own NCP 2 session over a pipe pair.
+In each step, every controller receives the latest observation and state digest of its drones and returns accelerations.
+Every world then applies the accelerations of its controllers, names their response identities and the state that they answered, and rejects actions computed from another state.
+Every session writes a transcript, and an offline check confirms each link of the chain.
+
+## Build and pin
 
 The package has a separate workspace and lockfile.
-It uses the standalone `ncp-local` SDK from `NCP/local/rust`.
-Its manifest selects version `=1.0.1` at immutable NCP revision `99e9adce147fe5bc770d2dcfe5f21cbd2274efeb`, the tag `sdk-v1.0.1`.
-Its lockfile resolves that same public Git revision and SDK version.
-The native package does not permit a sibling SDK fallback.
-Dependency resolution and component tests do not replace the installed artifact gate.
+It uses the NCP 2 Rust core, package `sepahead-ncp-core` (library `ncp`), version `=2.0.0`, at the immutable NCP revision `9e0696b531d036d8d4ab4236c75f980aebe753bb`.
+Its lockfile resolves that same public Git revision and version.
+The package does not permit a sibling path or a patch override.
 
-<!-- ncp-local-pin: 1.0.1 99e9adce147fe5bc770d2dcfe5f21cbd2274efeb -->
+<!-- ncp2-pin: 2.0.0 9e0696b531d036d8d4ab4236c75f980aebe753bb -->
 
 ```bash
 cargo build --locked --release \
   --manifest-path src-tauri/crates/ncp-simulation/Cargo.toml
 ```
 
-A supervisor launches the resulting binary with `--binding '<JSON>'`.
-The binding contains the exact profile digest, run UUID, endpoint generation UUID, and `body` role.
-The binary rejects other arguments.
-The binding establishes local context; it is not a signature or executable attestation.
-
-NCP owns the length framing, request digests, sequencing, result retention, and acknowledgement.
-The body exposes only `prepare`, `step`, `finish`, and `abort` application operations.
-The binary does not invoke historical Host API dispatch.
+NCP 2 owns the framing, the request and response identities, the order of requests, and the kept response that answers a repeated request, so each request runs at most once.
+The two contracts are exact JSON documents in [`contracts`](../src-tauri/crates/ncp-simulation/contracts): `crebain.body.v1.json` and `crebain.controller.v1.json`.
+A session opens only with the SHA-256 identity of its contract's exact bytes.
 The [kernel document](NATIVE_SIMULATION_KERNEL.md) defines the reused numerical implementation.
 
-## Prepare contract
+## The world: `crebain.body`
 
-The shared `PrepareData` contains the complete `RunPlan`, exact application profile, and closed `BodyConfiguration`.
-Preparation admits one to three entities and one to 1024 planned steps.
-Each step spans one to 1000 integral milliseconds.
-The body requires entity identifiers that start with a lowercase letter.
-Remaining characters are lowercase letters, digits, underscores, or hyphens.
-The common plan can admit identifiers that this body application rejects.
+`prepare` admits one to three drones with sorted, unique identifiers, a step of 1 to 1000 integral milliseconds, and 1 to 1024 planned steps.
+It takes three ENU position components, three velocity components, and three positive visual sensor variances for each drone.
+An optional frozen schedule holds at most 256 rows sorted by `(step, drone_id)`.
+Each row fixes, for one drone at one step, a sensor offset of at most 50 meters per component, the sensor's availability, and the actuator's availability.
+Steps without a row admit the sensor and the actuator without an offset.
+No step accepts a fault or environment override.
+The kernel rejects non-finite numbers and negative zero in every request.
 
-| Configuration field | Required meaning |
+The kernel runs every session with the same run label, `crebain.ncp2-body`.
+Equal inputs therefore give equal state digests in every run; the NCP session identifier distinguishes the runs.
+
+Every `prepare` and `step` result holds the kernel's frame, its Kalman innovation diagnostics, and an observation.
+The observation gives, for each drone, the filter's estimated position and velocity when its sensor was admitted and its estimate is available.
+Otherwise it gives `false` and zeros for that drone.
+The frame keeps the true positions, the proposed and applied accelerations, and saturation separately.
+
+A `step` names the next step, the state digest of the observation that its actions were computed from, three accelerations for each drone, and its proposals.
+Each proposal names the identity of one controller response and the drones that it moves.
+Every drone is in exactly one proposal, and no response identity appears twice.
+A step whose state digest is not the world's current state digest is rejected.
+`finish` requires the complete planned step count and returns the kernel's finish record with its cleanup status.
+After `finish`, the session accepts no further operation.
+
+A rejected request changes nothing, and the same session can go on.
+A failure after admission ends the session with `owner_failure` and clears the world.
+
+## The controllers: `crebain.controller`
+
+`prepare` gives a controller one to three drones of one world, the step length, one target position for each drone, and the controller's own parameters.
+Each `step` gives the world's observation of exactly those drones, with the step index and the state digest.
+The result echoes the step index, the digest, and the drones, and proposes three finite accelerations of at most 50 m/s² for each drone, without negative zero.
+
+The reference controller proposes `a = kp (target - position) - kd velocity` for each axis, limited to `max_acceleration_mps2`, and zero for a drone without an estimate.
+Its defaults are `kp` 1.0, `kd` 2.0, and a limit of 5 m/s².
+The [NEST controller](../integrations/ncp2-nest-controller/README.md) implements the same contract with a spiking network.
+
+## The closed loop
+
+`crebain-ncp-loop run CONFIG.json OUT_DIR` reads one JSON configuration:
+
+| Member | Meaning |
 | --- | --- |
-| `initial_position_m` | Three ENU position components per entity; absolute component limit: 100000 meters. |
-| `initial_velocity_mps` | Three ENU velocity components per entity; vector speed limit: 100 meters per second. |
-| `sensor_variance_m2` | Three positive visual variances per entity; component limit: 1000000 square meters. |
-| `expected_neural_generation` | Exact supervisor-installed neural generation, distinct from this body generation. |
-| `schedule` | At most 256 unique rows, sorted by `(step, entity_id)`. |
+| `tick_ms`, `steps` | The step length in milliseconds and the number of steps. |
+| `body_command` | The world program and its arguments. |
+| `worlds` | For each world, its drones in identifier order, each with `id`, `initial_position_m`, optional `initial_velocity_mps`, `sensor_variance_m2`, and `target_m`, and an optional `schedule`. |
+| `controllers` | For each controller, its `command`, the index of its `world`, its sorted `drone_ids`, and its `parameters`. |
 
-Each schedule row fixes a step, entity, sensor offset, sensor availability, and actuator availability.
-Offsets have a component limit of 50 meters.
-A row applies only at its declared step.
-Unlisted steps admit the sensor and actuator with zero sensor offset.
-The step operation accepts no environment or fault override.
+Every drone has exactly one controller, and every controller flies drones of one world.
+One world can have several controllers, so N controllers can fly M drones in K worlds.
+A program name without a path is looked up next to `crebain-ncp-loop` first.
 
-The internal kernel label is `ncp.` followed by the external run UUID.
-This deterministic local label satisfies the kernel grammar.
-It does not replace any external NCP identity or rename entities.
+In each step, the host first sends every controller its observation, and the controllers work at the same time.
+It then sends every world its accelerations and proposals.
+The order is the same in every run, so a repeated run gives the same results.
 
-Preparation returns the plan digest, application profile, and actual initial snapshot.
-The retained prepare response binds the complete configuration through its request digest.
-The initial filter track has no prior innovation and reports `birth` without a numeric NIS.
+The output directory receives one transcript for each session (`world-K.ncpt`, `controller-N.ncpt`), `manifest.json`, `trajectory.jsonl` with the true and the estimated positions of each step, and `summary.json` with the final distance of each drone from its target.
 
-## Coupled step
-
-A step contains the complete retained neural response.
-The body reconstructs the expected neural request from its own retained source snapshot.
-It verifies the response digest, request digest, role, generation, sequence, and committed outcome.
-It then verifies the proposal's source, plan, time, roster, units, modes, and numeric bounds.
-
-For logical step `k`, the expected neural sequence is `k + 1`.
-Sequence one belongs to preparation.
-Result queries and acknowledgements do not consume application sequence positions.
-The source snapshot is the completed body boundary `k - 1`.
-
-Each available entity supplies ENU position followed by ENU velocity.
-An unavailable entity supplies an explicit false availability value and six inert zeros.
-Only that entity requires `zero_acceleration` on its next proposal.
-Other entities can remain active.
-Zero acceleration permits existing velocity to continue.
-
-The kernel applies frozen actuator availability and its existing numerical bounds.
-The body result preserves proposed acceleration, actual applied acceleration, and actuator saturation separately.
-It reports the next snapshot and genuine Kalman innovation evidence.
-It never infers successful application from the proposal alone.
-
-## Evidence and failure limits
-
-Observed innovations include actual sensor labels, track IDs, fusion sequences, measurement times, residuals, covariance, NIS, and dimension.
-Missing measurements clear numeric innovation evidence for that step.
-The profile's numerical evidence limits can reject a computed result after kernel advancement.
-Such a failure is indeterminate and retires the generation.
-The process never drops evidence silently to return success.
-
-Admission failure preserves the source snapshot and kernel state.
-A failure after admitted execution clears the backend and prevents further execution.
-NCP retains the terminal outcome when it can construct one.
-A supervisor must distinguish a closed captured prefix from a complete run.
-
-`finish` requires the exact plan digest and complete planned step count.
-Premature completion fails before cleanup.
-`abort` accepts an empty object and clears the current body state.
-Both terminal operations report cleanup and permit no later body preparation in that generation.
+`crebain-ncp-loop verify OUT_DIR` checks the transcripts with the NCP 2 transcript verifier and then checks the whole chain.
+Every controller request must equal the world's previous observation of its drones.
+Every world step must name the state of that observation, and its accelerations must equal the named responses' accelerations bit for bit.
+Every controller response must be applied exactly once, and every world must finish from its last state.
+The transcripts are not signed. The check finds damaged and inconsistent records, not a complete and consistent forgery of every file.
 
 ## Verification
 
@@ -119,14 +108,23 @@ bun run validate:ncp-simulation
 ```
 
 The offline coherence check joins the native manifest, lock version, exact Git source, and documentation marker.
-It separately checks the wire-1.0 dependency pins (the untagged 1.0.0-rc.1 candidate).
+It separately checks the wire-1.0 dependency pins of the application (the untagged 1.0.0-rc.1 candidate).
 The native aggregate checks formatting, release compilation, all-target tests, doctests, strict Clippy, and Rust documentation.
 Both `validate:all` and the existing Rust CI job invoke this aggregate.
-The existing supply-chain job separately audits this package with `src-tauri/deny.toml`.
-It uses the pinned cargo-deny action, including version 0.20.2, without a native policy exception.
+The existing supply-chain job separately audits this package with `src-tauri/deny.toml`, which admits Git sources only from the NCP repository.
 
-The native tests run the actual kernel for one-, two-, and three-entity rosters.
-They compare trajectories with direct kernel execution and test source drift, missingness, application differences, exact recovery, and execution failure.
-A separate process test exchanges framed NCP bytes through private standard I/O.
-The controlled neural proposals in these tests are synthetic test inputs.
-These tests do not establish real NEST execution, installed ecosystem interoperability, calibrated inference, or physical safety.
+The tests run the actual kernel:
+
+- one, two, and three drones through the world match direct kernel execution frame for frame, innovations included;
+- the frozen schedule drops sensors and holds actuators exactly as the kernel does, and a dropped sensor hides the estimate;
+- invalid preparations and steps are rejected without a change, each followed by a valid request as a positive control;
+- a repeated request frame gets the kept response and advances the world once;
+- the world program answers anything but an NCP frame with `bad_frame` and takes no arguments;
+- the reference law, its limits, and the checks of controller results;
+- closed loops of one controller with one drone and of three controllers with five drones in two worlds, which reach their targets, verify, and repeat identically;
+- a changed transcript byte, a wrong manifest, or a missing transcript fails the check, and a bad assignment fails before any program starts.
+
+The optional [NEST check](../integrations/ncp2-nest-controller/README.md) runs the loop with spiking networks in NEST.
+These tests do not establish physical drones, physical safety, calibrated estimation, control performance beyond the stated runs, or installed interoperability with Engram.
+
+The previous native body used the NCP 1 local SDK (`ncp-local` 1.0.1) with the profile `crebain.local-kinematic-kalman.v1`; the Git history keeps it.

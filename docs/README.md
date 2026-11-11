@@ -37,7 +37,8 @@ has no vehicle-authority path.
 - [GALADRIEL_PRODUCER.md](GALADRIEL_PRODUCER.md) — Optional live evidence routes, deployment pins, bounds, and claim limits
 - [NCP_BRIDGE_HANDOFF.md](NCP_BRIDGE_HANDOFF.md) — Dormant action adapter, dependency-isolated headless perception runner, advisory producer, and Engram compatibility boundaries
 - [CREBAIN managed simulation](../integrations/engram/managed-simulation/README.md) — Host API 2.0 schemas, tick order, receipts, packaging, and simulator-only boundaries
-- [Native NCP simulation](NATIVE_NCP_SIMULATION.md) — Bounded local body process, source binding, actual application, and failure limits
+- [Native NCP simulation](NATIVE_NCP_SIMULATION.md) — NCP 2 worlds and controllers, the closed loop of N controllers and K worlds, and the offline check of its transcripts
+- [NEST controller](../integrations/ncp2-nest-controller/README.md) — A spiking network in NEST as a controller of the NCP 2 loop, with its check
 - [Optional live checkpoint family](../integrations/ncp-force-ground-sensors/FAMILY.md) — Typed live restoration, separate branch peers, pressure evaluation, and source-only qualification limits
 - [Optional typed city application](../integrations/ncp-force-city-sources/README.md) — Whole-roster control, sparse world-fixed sources, original-byte retention, and separate installation selection
 - [Native simulation kernel](NATIVE_SIMULATION_KERNEL.md) — Project-local kernel reuse, actual innovation recording, and numerical parity limits

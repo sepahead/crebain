@@ -431,6 +431,11 @@
       "visuals": ["assets/diagrams/ncp-sensor-transfer.svg"]
     },
     {
+      "path": "integrations/ncp2-nest-controller/README.md",
+      "classification": "active-technical",
+      "visuals": ["assets/diagrams/native-ncp-simulation.svg"]
+    },
+    {
       "path": "public/models/README.md",
       "classification": "active-technical",
       "visuals": ["assets/diagrams/evidence-claim-chain.svg"]

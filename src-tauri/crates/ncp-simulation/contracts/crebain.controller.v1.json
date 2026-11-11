@@ -1,0 +1,37 @@
+{
+  "ncp_contract": 1,
+  "application": "crebain.controller",
+  "version": "1",
+  "description": "A controller of 1 to 3 drones of one crebain.body world, for example a neural network. It receives the world's observation of its drones and proposes one acceleration for each drone. It has no other access to the world. ENU frame, meters, seconds.",
+  "operations": {
+    "prepare": {
+      "request": {
+        "drone_ids": "1 to 3 sorted, unique drone identifiers of one world",
+        "tick_ms": "milliseconds of simulated time for each step",
+        "targets_m": "3 target position components for each drone, in drone order",
+        "parameters": "an object with the controller's own settings; each controller documents its members"
+      },
+      "result": {
+        "controller": "a description of the controller, for example its model and settings",
+        "drone_ids": "the drone identifiers of the request"
+      }
+    },
+    "step": {
+      "request": {
+        "tick_index": "the step that the proposed actions will drive, one more than the observation's tick",
+        "source_state_digest": "the state digest of the world's observation",
+        "drone_ids": "the drone identifiers of prepare",
+        "estimate_available": "for each drone, whether the world has an estimate of it",
+        "position_m": "3 components of the estimated position for each drone; zeros where no estimate is available",
+        "velocity_mps": "3 components of the estimated velocity for each drone; zeros where no estimate is available"
+      },
+      "result": {
+        "tick_index": "the request's tick_index",
+        "source_state_digest": "the request's source_state_digest",
+        "drone_ids": "the request's drone_ids",
+        "acceleration_mps2": "3 finite components of the proposed acceleration for each drone; each at most 50 in magnitude and not negative zero, which the world rejects"
+      }
+    }
+  },
+  "streams": {}
+}

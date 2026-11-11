@@ -59,6 +59,12 @@
       "when": "native environment, dynamics, Rust, IPC, transport, models, scenes, fusion or cross-cutting behavior changes",
       "command": "bun run validate:all",
       "cost": "full"
+    },
+    {
+      "id": "ncp2-nest",
+      "when": "the NEST controller or the NCP 2 loop changes, with NEST and the NCP 2 Python SDK selected",
+      "command": "bun run validate:ncp2-nest",
+      "cost": "medium"
     }
   ],
   "generated": [
@@ -95,7 +101,7 @@
   "ecosystem": [
     {
       "repository": "sepahead/NCP",
-      "relation": "pins the 1.0.0-rc.1 candidate 2819dae for the optional body and sensor applications"
+      "relation": "the desktop adapter pins the wire 1.0.0-rc.1 candidate 2819dae; the native simulation and its closed loop pin the NCP 2 core 2.0.0 at 9e0696b; the sensor applications use the NCP 1 local SDK 1.0.0"
     },
     { "repository": "sepahead/galadriel", "relation": "advisory producer and drone study fixture" },
     { "repository": "sepahead/Paper2Brain", "relation": "Engram embedding and shared host vector" },

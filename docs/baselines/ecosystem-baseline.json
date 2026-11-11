@@ -135,7 +135,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "640e5080ca66d03016da837d641ad6581a0b087225714e482fbe42dadf120e49"
+      "sha256": "d352723e9cac706399b809ade938a14f56acee3d5c29556a9bdc351a47cfe65a"
     },
     {
       "path": "bun.lock",
@@ -239,11 +239,11 @@
     },
     {
       "path": "scripts/check-ncp-coherence.sh",
-      "sha256": "e5ec4c4ddcef3f07eea92d09ae7dfe528d14766459c3b999ed90657d978fb5b2"
+      "sha256": "1f3330a28c10ee4554762cf839aa21234d25abddbabec605550085e878256521"
     },
     {
       "path": "scripts/test-ncp-coherence.sh",
-      "sha256": "63c2c5233df3db7e7b45b8ad7786977165834820e6b241c34bacf1c3716f385f"
+      "sha256": "dbf8d57f293da54db210ee9de6a5430f4d49bb655e1cbd66eb986a3cc9564975"
     },
     {
       "path": "scripts/check-ncp-headless-boundary.mjs",

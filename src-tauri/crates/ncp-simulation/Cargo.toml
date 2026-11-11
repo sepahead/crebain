@@ -1,20 +1,32 @@
 [package]
 name = "crebain-ncp-simulation"
 authors = ["Sepehr Mahmoudian"]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.91.1"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/sepahead/crebain"
-description = "Native bounded local NCP responder owning the CREBAIN simulation kernel"
+description = "NCP 2 owner of the CREBAIN simulation kernel, a reference controller, and a closed-loop host"
 publish = false
 
 [workspace]
 resolver = "2"
 
+[[bin]]
+name = "crebain-ncp-simulation"
+path = "src/main.rs"
+
+[[bin]]
+name = "crebain-ncp-controller"
+path = "src/bin/controller.rs"
+
+[[bin]]
+name = "crebain-ncp-loop"
+path = "src/bin/loop.rs"
+
 [dependencies]
 crebain-managed-simulation = { path = "../managed-simulation" }
-ncp-local = { git = "https://github.com/sepahead/NCP", rev = "99e9adce147fe5bc770d2dcfe5f21cbd2274efeb", version = "=1.0.1" }
+ncp = { package = "sepahead-ncp-core", git = "https://github.com/sepahead/NCP", rev = "9e0696b531d036d8d4ab4236c75f980aebe753bb", version = "=2.0.0" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
 

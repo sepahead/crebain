@@ -1,0 +1,47 @@
+{
+  "ncp_contract": 1,
+  "application": "crebain.body",
+  "version": "1",
+  "description": "A simulator-only CREBAIN world of 1 to 3 kinematic drones over the managed-simulation kernel, with one simulated visual sensor and one Kalman filter for each drone. Positions and velocities use the ENU frame in meters and meters per second. Every number in a request must be finite and must not be negative zero. The owner has no physical authority.",
+  "operations": {
+    "prepare": {
+      "request": {
+        "drone_ids": "1 to 3 sorted, unique identifiers: a lowercase letter, then at most 63 lowercase letters, digits, '.', '_', or '-'",
+        "tick_ms": "milliseconds of simulated time for each step, an integer from 1 to 1000",
+        "planned_steps": "the number of steps of the run, an integer from 1 to 1024",
+        "initial_position_m": "3 components for each drone, in drone order; each at most 100000 in magnitude",
+        "initial_velocity_mps": "3 components for each drone; each speed at most 100",
+        "sensor_variance_m2": "3 positive variances of the visual sensor for each drone; each at most 1000000",
+        "schedule": "optional; at most 256 rows {step, drone_id, sensor_offset_m, sensor_available, actuator_available}, sorted by (step, drone_id) without repeats; a row applies only at its step, from 1 to planned_steps; each offset component at most 50 in magnitude; steps without a row admit the sensor and the actuator without an offset"
+      },
+      "result": {
+        "frame": "the kernel's prepare frame: tick_index 0, the true and the estimated state of each drone, and the state digest",
+        "innovations": "the kernel's Kalman innovation diagnostics for tick 0",
+        "observation": "{tick_index, state_digest, drone_ids, estimate_available, position_m, velocity_mps}: the filter's estimate of each drone when its sensor was admitted and its estimate is available, and zeros otherwise"
+      }
+    },
+    "step": {
+      "request": {
+        "tick_index": "the next step, one more than the last",
+        "source_state_digest": "the state digest of the observation from which the controllers computed this step's actions; it must equal the owner's current state digest",
+        "actuator_intent_acceleration_mps2": "3 components for each drone, in drone order; each at most 50 in magnitude",
+        "proposals": "[{response, drone_ids}]: for each controller response that this step applies, its identity and the drones that it moves; every drone appears in exactly one proposal"
+      },
+      "result": {
+        "frame": "the kernel's step frame, with the applied and the saturated accelerations",
+        "innovations": "the kernel's Kalman innovation diagnostics for this step",
+        "observation": "as for prepare, for this step"
+      }
+    },
+    "finish": {
+      "request": {
+        "completed_steps": "the number of steps run; it must equal planned_steps"
+      },
+      "result": {
+        "finish": "the kernel's finish record, with the final state digest and cleaned_up",
+        "completed_steps": "the number of steps run"
+      }
+    }
+  },
+  "streams": {}
+}

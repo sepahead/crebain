@@ -26,7 +26,7 @@ Then read the document that owns the affected surface:
 | --- | --- |
 | Native city, actual observations, renderer lifetime, coupled forks | [Native environment](docs/NATIVE_ENVIRONMENT.md) |
 | Rapier world, actions, time, complete CPU state, replay | [Deterministic dynamics](docs/DETERMINISTIC_DYNAMICS.md) |
-| Local NCP body, numerical kernel, retained responses | [Local NCP body](docs/NATIVE_NCP_SIMULATION.md), [Numerical kernel](docs/NATIVE_SIMULATION_KERNEL.md) |
+| NCP 2 worlds, controllers, closed loop, numerical kernel | [Native NCP simulation](docs/NATIVE_NCP_SIMULATION.md), [NEST controller](integrations/ncp2-nest-controller/README.md), [Numerical kernel](docs/NATIVE_SIMULATION_KERNEL.md) |
 | Desktop, module ownership, camera delivery | [Desktop architecture](docs/ARCHITECTURE.md), [Desktop workflows](docs/WORKFLOWS.md) |
 | Sensor fusion, association, covariance, evidence | [Sensor fusion](docs/SENSOR_FUSION.md), [Fusion validation](docs/FUSION_VALIDATION_PROTOCOL.md) |
 | Models, inference, benchmarks | [Model contracts](docs/MODEL_CONTRACTS.md), [Detector benchmarks](docs/NATIVE_DETECTOR_BENCHMARK.md) |
@@ -180,6 +180,7 @@ Do not rewrite dependency policy or upgrade tools to bypass a failing gate.
 | Native environment, dynamics, Rust, IPC, transport, models, scenes, fusion, or cross-cutting behavior | `bun run validate:all` |
 | Optional typed sensor application, bridge, Python reader, or construction workflow | `bun run validate:with-ncp-sensors` with an explicitly selected `CREBAIN_SENSOR_NCP_SOURCE`; read the [owning contract](integrations/ncp-force-ground-sensors/README.md) |
 | Separate typed city application or city reader | `bun run validate:with-ncp-city` with the same explicit dependency; read the [city contract](integrations/ncp-force-city-sources/README.md) |
+| NEST controller of the NCP 2 loop | `bun run validate:ncp2-nest` with explicitly selected `CREBAIN_NCP_PYTHON` and `CREBAIN_NEST_PYTHON`; read the [NEST controller](integrations/ncp2-nest-controller/README.md) |
 | Responsive UI or production graphics/bundle changes | Applicable source gate plus `bun run check:bundle` and `bun run test:responsive` |
 | Installed, scientific, performance, or release claim | Every applicable target/runtime/model/receipt gate in [Release acceptance](docs/RELEASE_ACCEPTANCE.md) |
 

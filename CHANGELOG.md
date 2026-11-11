@@ -62,6 +62,21 @@ README and treated as unverified until measured on target hardware.
 
 ### Changed
 
+- Moved the native simulation from the NCP 1 local SDK (`ncp-local` 1.0.1) to NCP 2: the
+  Rust core `sepahead-ncp-core` 2.0.0 at NCP commit `9e0696b531d036d8d4ab4236c75f980aebe753bb`.
+  `crebain-ncp-simulation` now owns one `crebain.body` world of one to three drones; it rejects
+  actions computed from another state and keeps the frozen schedule of sensor dropouts and
+  actuator holds. `crebain-ncp-controller` is a reference controller, and `crebain-ncp-loop`
+  runs N controllers and K worlds in a closed loop, writes a transcript for each session, and
+  checks afterwards that every applied action came from the controller response that the step
+  names, computed from the observation that the world reported. The two contracts are exact
+  JSON documents in `src-tauri/crates/ncp-simulation/contracts`. The NCP coherence check and its
+  self-test now join the NCP 2 pin, and the native guide and its diagram describe the loop.
+- Added a NEST controller, `integrations/ncp2-nest-controller`: a spiking network of
+  integrate-and-fire populations that flies drones through the same loop, with the optional gate
+  `bun run validate:ncp2-nest`. In its runs, one network brought one drone, and three networks
+  brought five drones in two worlds, to within 0.03 m of their targets in 600 steps of 20 ms,
+  and every transcript passed the check.
 - Moved the native body to the released `ncp-local` 1.0.1 SDK at commit
   `99e9adce147fe5bc770d2dcfe5f21cbd2274efeb`, the NCP tag `sdk-v1.0.1`, in its
   manifest, lockfile, README entry, and native guide. The SDK patch release keeps
