@@ -19,11 +19,11 @@ Every session writes a transcript, and an offline check confirms each link of th
 ## Build and pin
 
 The package has a separate workspace and lockfile.
-It uses the NCP 2 Rust core, package `sepahead-ncp-core` (library `ncp`), version `=2.0.0`, at the immutable NCP revision `9e0696b531d036d8d4ab4236c75f980aebe753bb`.
+It uses the NCP 2 Rust core, package `sepahead-ncp-core` (library `ncp`), version `=2.0.0`, at the immutable NCP revision `3b51a1b41f729e2a7d9d1978a77e81958e62e8b7`.
 Its lockfile resolves that same public Git revision and version.
 The package does not permit a sibling path or a patch override.
 
-<!-- ncp2-pin: 2.0.0 9e0696b531d036d8d4ab4236c75f980aebe753bb -->
+<!-- ncp2-pin: 2.0.0 3b51a1b41f729e2a7d9d1978a77e81958e62e8b7 -->
 
 ```bash
 cargo build --locked --release \
@@ -92,6 +92,7 @@ In each step, the host first sends every controller its observation, and the con
 It then sends every world its accelerations and proposals.
 The order is the same in every run, so a repeated run gives the same results.
 
+Each transcript records a request before the host sends it, so it holds every request that a world or a controller may have executed.
 The output directory receives one transcript for each session (`world-K.ncpt`, `controller-N.ncpt`), `manifest.json`, `trajectory.jsonl` with the true and the estimated positions of each step, and `summary.json` with the final distance of each drone from its target.
 
 `crebain-ncp-loop verify OUT_DIR` checks the transcripts with the NCP 2 transcript verifier and then checks the whole chain.

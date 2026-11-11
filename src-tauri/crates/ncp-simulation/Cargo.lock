@@ -342,7 +342,7 @@ dependencies = [
 [[package]]
 name = "sepahead-ncp-core"
 version = "2.0.0"
-source = "git+https://github.com/sepahead/NCP?rev=9e0696b531d036d8d4ab4236c75f980aebe753bb#9e0696b531d036d8d4ab4236c75f980aebe753bb"
+source = "git+https://github.com/sepahead/NCP?rev=3b51a1b41f729e2a7d9d1978a77e81958e62e8b7#3b51a1b41f729e2a7d9d1978a77e81958e62e8b7"
 dependencies = [
  "serde",
  "serde_json",

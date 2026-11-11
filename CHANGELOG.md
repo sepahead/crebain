@@ -63,7 +63,8 @@ README and treated as unverified until measured on target hardware.
 ### Changed
 
 - Moved the native simulation from the NCP 1 local SDK (`ncp-local` 1.0.1) to NCP 2: the
-  Rust core `sepahead-ncp-core` 2.0.0 at NCP commit `9e0696b531d036d8d4ab4236c75f980aebe753bb`.
+  Rust core `sepahead-ncp-core` 2.0.0 at NCP commit `3b51a1b41f729e2a7d9d1978a77e81958e62e8b7`,
+  whose transcripts record each request before it is sent.
   `crebain-ncp-simulation` now owns one `crebain.body` world of one to three drones; it rejects
   actions computed from another state and keeps the frozen schedule of sensor dropouts and
   actuator holds. `crebain-ncp-controller` is a reference controller, and `crebain-ncp-loop`
