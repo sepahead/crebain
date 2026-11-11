@@ -62,6 +62,29 @@ It then builds the native programs and runs two loops of 600 steps of 20 ms: one
 Every drone must end within 0.1 m of its target, `crebain-ncp-loop verify` must accept the transcripts, and a second run of the first loop must give the same summary.
 With `--evidence DIR`, it writes the summaries, the verification reports, the trajectories, and the environment into a new directory.
 
+## Results of 12 November 2026
+
+`check.py --evidence` ran from the clean CREBAIN commit `d0a3c28` with NEST 3.10.0 on Python 3.11.15 and the NCP 2 Python SDK of NCP commit `9e0696b`, on an Apple M4 Max with macOS.
+The [evidence](evidence/2026-11-12) holds the summaries, the verification reports, the trajectories of every step, and the environment; [`figure.py`](figure.py) draws the figure from them.
+
+![Distance of each NEST-flown drone from its target over time](../../assets/diagrams/ncp2-nest-loop-distance.svg)
+
+Text alternative: Three line charts show the distance between each drone's true position and its target over 12 seconds of simulated time.
+In each, every drone starts between 7.3 and 15.6 meters away and ends between 1.2 and 2.6 centimeters away.
+
+| Loop | Drone | Start, m | End, cm |
+| --- | --- | ---: | ---: |
+| One network, one drone | alpha | 15.62 | 2.6 |
+| World 1: one network flies alpha and bravo, one charlie | alpha | 12.25 | 2.0 |
+| | bravo | 7.35 | 1.2 |
+| | charlie | 9.38 | 1.6 |
+| World 2: one network flies delta and echo | delta | 15.10 | 2.6 |
+| | echo | 13.38 | 2.2 |
+
+- `crebain-ncp-loop verify` accepted every transcript: 600 controller responses in the first loop and 1,800 in the second, each applied once, from the state that it answered.
+- A second run of the first loop gave the same summary, final state digest included.
+- The controllers only received the filter's estimates; the distances above use the true positions, which the controllers never saw.
+
 ## What this does not show
 
 - Real drones, physical safety, or control quality beyond the stated runs.

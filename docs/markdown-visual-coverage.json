@@ -433,7 +433,10 @@
     {
       "path": "integrations/ncp2-nest-controller/README.md",
       "classification": "active-technical",
-      "visuals": ["assets/diagrams/native-ncp-simulation.svg"]
+      "visuals": [
+        "assets/diagrams/native-ncp-simulation.svg",
+        "assets/diagrams/ncp2-nest-loop-distance.svg"
+      ]
     },
     {
       "path": "public/models/README.md",

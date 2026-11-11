@@ -1,0 +1,10 @@
+{
+  "crebain_commit": "d0a3c2849a1ab0fe0653158460eb32d37f4d3c4f",
+  "crebain_tracked_files_unchanged": true,
+  "machine": "arm64",
+  "ncp_commit": "9e0696b531d036d8d4ab4236c75f980aebe753bb",
+  "nest": "3.10.0",
+  "nest_python": "3.11.15",
+  "release": "25.5.0",
+  "system": "Darwin"
+}
