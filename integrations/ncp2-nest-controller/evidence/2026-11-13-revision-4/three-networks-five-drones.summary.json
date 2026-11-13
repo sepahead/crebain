@@ -1,0 +1,99 @@
+{
+  "controllers": [
+    {
+      "kind": "NEST population rate code: two iaf_psc_alpha populations for each drone and axis",
+      "nest": "3.10.0",
+      "neurons": 600,
+      "parameters": {
+        "bias_pA": [400.0, 500.0],
+        "drive_pA_per_mps2": 100.0,
+        "gain_mps2_per_spike": 1.6,
+        "kd": 2.0,
+        "kp": 1.0,
+        "max_acceleration_mps2": 5.0,
+        "neurons": 50,
+        "seed": 1
+      }
+    },
+    {
+      "kind": "NEST population rate code: two iaf_psc_alpha populations for each drone and axis",
+      "nest": "3.10.0",
+      "neurons": 300,
+      "parameters": {
+        "bias_pA": [400.0, 500.0],
+        "drive_pA_per_mps2": 100.0,
+        "gain_mps2_per_spike": 1.6,
+        "kd": 2.0,
+        "kp": 1.0,
+        "max_acceleration_mps2": 5.0,
+        "neurons": 50,
+        "seed": 1
+      }
+    },
+    {
+      "kind": "NEST population rate code: two iaf_psc_alpha populations for each drone and axis",
+      "nest": "3.10.0",
+      "neurons": 600,
+      "parameters": {
+        "bias_pA": [400.0, 500.0],
+        "drive_pA_per_mps2": 100.0,
+        "gain_mps2_per_spike": 1.6,
+        "kd": 2.0,
+        "kp": 1.0,
+        "max_acceleration_mps2": 5.0,
+        "neurons": 50,
+        "seed": 1
+      }
+    }
+  ],
+  "exchanges": 3017,
+  "steps": 600,
+  "tick_ms": 20,
+  "worlds": [
+    {
+      "drones": [
+        {
+          "final_error_m": 0.020491778675372323,
+          "final_position_m": [9.983153599999994, 4.991750399999989, 14.991750399999995],
+          "id": "alpha",
+          "initial_error_m": 12.24744871391589,
+          "target_m": [10.0, 5.0, 15.0]
+        },
+        {
+          "final_error_m": 0.012062740305599395,
+          "final_position_m": [15.008249600000012, -4.991750399999989, 11.996934400000006],
+          "id": "bravo",
+          "initial_error_m": 7.3484692283495345,
+          "target_m": [15.0, -5.0, 12.0]
+        },
+        {
+          "final_error_m": 0.015645361249938795,
+          "final_position_m": [-4.009984000000028, 4.009984000000028, 8.993260800000002],
+          "id": "charlie",
+          "initial_error_m": 9.38083151964686,
+          "target_m": [-4.0, 4.0, 9.0]
+        }
+      ],
+      "final_state_digest": "ad4d2a061eeceb7ed5a483541a8b17a218f0995b4ceebd085d67e633b553b569"
+    },
+    {
+      "drones": [
+        {
+          "final_error_m": 0.02558840382358416,
+          "final_position_m": [7.986380800000014, 7.986380800000014, 20.016846399999988],
+          "id": "delta",
+          "initial_error_m": 15.0996688705415,
+          "target_m": [8.0, 8.0, 20.0]
+        },
+        {
+          "final_error_m": 0.022046693546201195,
+          "final_position_m": [-5.982020800000018, 1.9883071999999857, 22.00510720000004],
+          "id": "echo",
+          "initial_error_m": 13.379088160259652,
+          "target_m": [-6.0, 2.0, 22.0]
+        }
+      ],
+      "final_state_digest": "7a26bcf4b36f80558ba5394aaaa99c79114c6d283137501947e1dce37dd54bfa"
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "controllers": [
+    {
+      "kind": "NEST population rate code: two iaf_psc_alpha populations for each drone and axis",
+      "nest": "3.10.0",
+      "neurons": 300,
+      "parameters": {
+        "bias_pA": [400.0, 500.0],
+        "drive_pA_per_mps2": 100.0,
+        "gain_mps2_per_spike": 1.6,
+        "kd": 2.0,
+        "kp": 1.0,
+        "max_acceleration_mps2": 5.0,
+        "neurons": 50,
+        "seed": 1
+      }
+    }
+  ],
+  "exchanges": 1207,
+  "steps": 600,
+  "tick_ms": 20,
+  "worlds": [
+    {
+      "drones": [
+        {
+          "final_error_m": 0.02588946196119459,
+          "final_position_m": [11.980376000000001, -5.990015999999967, 17.986380800000017],
+          "id": "alpha",
+          "initial_error_m": 15.620499351813308,
+          "target_m": [12.0, -6.0, 18.0]
+        }
+      ],
+      "final_state_digest": "c79bdcc221cc6c23ef425c8b416514a2d0a49bb7e53362c6147d22bd881b56bb"
+    }
+  ]
+}
