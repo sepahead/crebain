@@ -19,11 +19,11 @@ Every session writes a transcript, and an offline check confirms each link of th
 ## Build and pin
 
 The package has a separate workspace and lockfile.
-It uses the NCP 2 Rust core, package `sepahead-ncp-core` (library `ncp`), version `=2.0.0`, at the immutable NCP revision `9f58e7a0bebfde8033abad64e07999d77e8b315f`, which implements revision 3 of the NCP 2 specification.
+It uses the NCP 2 Rust core, package `sepahead-ncp-core` (library `ncp`), version `=2.0.0`, at the immutable NCP revision `2e24ef5b89feb3f1e4f4972e290201d93e2d0a8d`, which implements revision 4 of the NCP 2 specification.
 Its lockfile resolves that same public Git revision and version.
 The package does not permit a sibling path or a patch override.
 
-<!-- ncp2-pin: 2.0.0 9f58e7a0bebfde8033abad64e07999d77e8b315f -->
+<!-- ncp2-pin: 2.0.0 2e24ef5b89feb3f1e4f4972e290201d93e2d0a8d -->
 
 ```bash
 cargo build --locked --release \

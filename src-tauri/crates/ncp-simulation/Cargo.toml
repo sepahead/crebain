@@ -26,7 +26,7 @@ path = "src/bin/loop.rs"
 
 [dependencies]
 crebain-managed-simulation = { path = "../managed-simulation" }
-ncp = { package = "sepahead-ncp-core", git = "https://github.com/sepahead/NCP", rev = "9f58e7a0bebfde8033abad64e07999d77e8b315f", version = "=2.0.0" }
+ncp = { package = "sepahead-ncp-core", git = "https://github.com/sepahead/NCP", rev = "2e24ef5b89feb3f1e4f4972e290201d93e2d0a8d", version = "=2.0.0" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
 

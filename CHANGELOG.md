@@ -72,6 +72,11 @@ README and treated as unverified until measured on target hardware.
 
 ### Changed
 
+- Moved the native simulation, its closed loop, and the NEST controller to revision 4 of the NCP 2
+  specification: the Rust core `sepahead-ncp-core` 2.0.0 at NCP commit
+  `2e24ef5b89feb3f1e4f4972e290201d93e2d0a8d` and the matching Python SDK. Revision 4 binds the responses that name no request to the
+  owner's chain, fences earlier sessions of the lockstep profile, and states transcript
+  verification exactly; the simulation and the controller need no change.
 - Moved the native simulation, its closed loop, and the NEST controller to revision 3 of the NCP 2
   specification: the Rust core `sepahead-ncp-core` 2.0.0 at NCP commit
   `9f58e7a0bebfde8033abad64e07999d77e8b315f` and the matching Python SDK. A request that breaks a rule of
