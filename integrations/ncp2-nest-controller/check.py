@@ -56,10 +56,10 @@ def unit_tests() -> None:
     import ncp
     import nest_controller as nc
 
-    def rejected(call, *args) -> None:
+    def declined(call, *args) -> None:
         try:
             call(*args)
-        except ncp.BodyInvalid:
+        except ncp.Declined:
             return
         raise AssertionError(f"accepted: {args}")
 
@@ -68,27 +68,27 @@ def unit_tests() -> None:
                "parameters": {"neurons": 10, "gain_mps2_per_spike": 1.0, "kp": 1.0, "kd": 0.0}}
     step = {"tick_index": 1, "source_state_digest": DIGEST, "drone_ids": ["alpha", "bravo"],
             "estimate_available": [True, False], "position_m": [0.0] * 6, "velocity_mps": [0.0] * 6}
-    rejected(controller.validate, "step", step)
+    declined(controller.check, "step", step)
     for change in ({"drone_ids": ["bravo", "alpha"]}, {"drone_ids": []}, {"tick_ms": 0},
                    {"targets_m": [1.0] * 5}, {"targets_m": [float("nan")] + [0.0] * 5},
                    {"parameters": {"ki": 1.0}}, {"parameters": {"neurons": 0}},
                    {"parameters": {"max_acceleration_mps2": 60.0}}, {"parameters": {"bias_pA": [500.0, 400.0]}},
                    {"extra": 1}):
-        rejected(controller.validate, "prepare", {**prepare, **change})
-    result = controller.execute("prepare", prepare)
+        declined(controller.check, "prepare", {**prepare, **change})
+    result = controller.run("prepare", prepare)
     assert result["drone_ids"] == ["alpha", "bravo"] and result["controller"]["parameters"]["neurons"] == 10
-    rejected(controller.validate, "prepare", prepare)
+    declined(controller.check, "prepare", prepare)
     for change in ({"tick_index": 2}, {"drone_ids": ["alpha"]}, {"source_state_digest": "x"},
                    {"estimate_available": [1, 0]}, {"position_m": [0.0] * 5},
                    {"velocity_mps": [float("inf")] + [0.0] * 5}):
-        rejected(controller.validate, "step", {**step, **change})
-    out = controller.execute("step", step)
+        declined(controller.check, "step", {**step, **change})
+    out = controller.run("step", step)
     # alpha, x: u = 1 -> 15 and 5 spikes in 10 neurons -> a = 1.0; bravo has no estimate -> 0.
     assert out["acceleration_mps2"] == [1.0, 0.0, 0.0, 0.0, 0.0, 0.0], out
     assert all(not (a == 0.0 and str(a).startswith("-")) for a in out["acceleration_mps2"]), "no negative zero"
     assert out["tick_index"] == 1 and out["source_state_digest"] == DIGEST
     far = {**step, "tick_index": 2, "position_m": [-90.0] + [0.0] * 5}
-    assert controller.execute("step", far)["acceleration_mps2"][0] == 5.0, "clamped to 5 m/s^2"
+    assert controller.run("step", far)["acceleration_mps2"][0] == 5.0, "clamped to 5 m/s^2"
     print("ok: controller validation and readout with a stand-in network")
 
 

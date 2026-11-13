@@ -112,7 +112,7 @@ def check_parameters(given: Any) -> dict[str, Any]:
     if given is None:
         given = {}
     if type(given) is not dict or not set(given) <= set(DEFAULTS):
-        raise ncp.BodyInvalid(f"parameters must be an object with members from {sorted(DEFAULTS)}")
+        raise ncp.Declined(f"parameters must be an object with members from {sorted(DEFAULTS)}")
     p = {**DEFAULTS, **given}
     bias = p["bias_pA"]
     if not (
@@ -128,31 +128,31 @@ def check_parameters(given: Any) -> dict[str, Any]:
         and type(p["seed"]) is int
         and 1 <= p["seed"] < 2**31
     ):
-        raise ncp.BodyInvalid("a parameter is out of range")
+        raise ncp.Declined("a parameter is out of range")
     return p
 
 
 def check_prepare(body: Any) -> None:
     if type(body) is not dict or set(body) - {"parameters"} != {"drone_ids", "tick_ms", "targets_m"}:
-        raise ncp.BodyInvalid("prepare needs drone_ids, tick_ms, targets_m, and optional parameters")
+        raise ncp.Declined("prepare needs drone_ids, tick_ms, targets_m, and optional parameters")
     ids = body["drone_ids"]
     if type(ids) is not list or not 1 <= len(ids) <= 3 or any(type(i) is not str for i in ids) or ids != sorted(set(ids)):
-        raise ncp.BodyInvalid("drone_ids must be 1 to 3 sorted, unique identifiers")
+        raise ncp.Declined("drone_ids must be 1 to 3 sorted, unique identifiers")
     if type(body["tick_ms"]) is not int or not 1 <= body["tick_ms"] <= 1000:
-        raise ncp.BodyInvalid("tick_ms must be an integer from 1 to 1000")
+        raise ncp.Declined("tick_ms must be an integer from 1 to 1000")
     targets = body["targets_m"]
     if type(targets) is not list or len(targets) != 3 * len(ids) or not all(_number(t) for t in targets):
-        raise ncp.BodyInvalid("targets_m needs 3 finite components for each drone")
+        raise ncp.Declined("targets_m needs 3 finite components for each drone")
     check_parameters(body.get("parameters"))
 
 
 def check_step(prepare: dict[str, Any], last: int, body: Any) -> None:
     members = {"tick_index", "source_state_digest", "drone_ids", "estimate_available", "position_m", "velocity_mps"}
     if type(body) is not dict or set(body) != members:
-        raise ncp.BodyInvalid(f"step needs exactly {sorted(members)}")
+        raise ncp.Declined(f"step needs exactly {sorted(members)}")
     n = len(prepare["drone_ids"])
     if type(body["tick_index"]) is not int or body["tick_index"] != last + 1:
-        raise ncp.BodyInvalid(f"tick_index must be {last + 1}")
+        raise ncp.Declined(f"tick_index must be {last + 1}")
     if (
         body["drone_ids"] != prepare["drone_ids"]
         or type(body["estimate_available"]) is not list
@@ -160,9 +160,9 @@ def check_step(prepare: dict[str, Any], last: int, body: Any) -> None:
         or any(type(a) is not bool for a in body["estimate_available"])
         or any(type(body[k]) is not list or len(body[k]) != 3 * n for k in ("position_m", "velocity_mps"))
         or not all(_number(v) for v in body["position_m"] + body["velocity_mps"])
-        or not ncp.exchange.is_identity(body["source_state_digest"])
+        or not ncp.messages.is_identity(body["source_state_digest"])
     ):
-        raise ncp.BodyInvalid("the step must name the prepared drones with finite values and a state digest")
+        raise ncp.Declined("the step must name the prepared drones with finite values and a state digest")
 
 
 class NestController:
@@ -173,20 +173,27 @@ class NestController:
         self.prepared: tuple[dict[str, Any], dict[str, Any], Network] | None = None
         self.last = 0
 
-    def validate(self, op: str, body: Any) -> None:
+    def validate(self, request: ncp.Request) -> None:
+        """A request that breaks a rule is declined: it never runs, and the session goes on."""
+        self.check(request.op, request.body)
+
+    def execute(self, request: ncp.Request) -> Any:
+        return self.run(request.op, request.body)
+
+    def check(self, op: str, body: Any) -> None:
         if op == "prepare":
             if self.prepared is not None:
-                raise ncp.BodyInvalid("the controller is prepared")
+                raise ncp.Declined("the controller is prepared")
             check_prepare(body)
         elif op == "step":
             if self.prepared is None:
-                raise ncp.BodyInvalid("prepare first")
+                raise ncp.Declined("prepare first")
             check_step(self.prepared[0], self.last, body)
         else:
-            raise ncp.BodyInvalid(f"unknown operation {op}")
+            raise ncp.Declined(f"unknown operation {op}")
 
-    def execute(self, op: str, body: Any) -> Any:
-        self.validate(op, body)
+    def run(self, op: str, body: Any) -> Any:
+        self.check(op, body)
         if op == "prepare":
             parameters = check_parameters(body.get("parameters"))
             network = self.make_network(3 * len(body["drone_ids"]), parameters)
@@ -219,7 +226,7 @@ class NestController:
 
 def owner(make_network: Callable[[int, dict[str, Any]], Network] = NestNetwork) -> ncp.Owner:
     contract = ncp.Contract.from_bytes(CONTRACT.read_bytes())
-    return ncp.Owner(contract.application, contract.identity, NestController(make_network), contract.operations)
+    return ncp.Owner(contract, NestController(make_network))
 
 
 def main() -> None:
