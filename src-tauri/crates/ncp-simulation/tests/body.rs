@@ -7,7 +7,7 @@ use crebain_ncp_simulation::body::{
     Body, PrepareBody, Proposal, ScheduledInput, StepBody, KERNEL_RUN_ID,
 };
 use crebain_ncp_simulation::{body_contract, BODY_APPLICATION};
-use ncp::binding::ChildChannel;
+use ncp::binding::PipeChild;
 use ncp::{Client, Error, Owner, DEFAULT_BOUND};
 use serde_json::{json, Value};
 use std::io::{Read, Write};
@@ -35,15 +35,22 @@ fn prepare_body(n: usize, steps: u64) -> PrepareBody {
     }
 }
 
-fn open() -> (Client<ChildChannel>, std::process::Child) {
-    let (channel, child) = ncp::spawn(Command::new(BINARY)).expect("spawn the body");
-    let contract = body_contract();
-    let mut client = Client::new(channel, BODY_APPLICATION, &contract.identity);
+fn open() -> Client<PipeChild> {
+    let channel = ncp::spawn(Command::new(BINARY)).expect("spawn the body");
+    let mut client = Client::new(channel, &body_contract());
     client.open().expect("open");
-    (client, child)
+    client
 }
 
-fn call(client: &mut Client<ChildChannel>, op: &str, body: Value) -> Result<Value, Error> {
+/// Whether the child exited successfully; closing the session ends it.
+fn exited(client: &mut Client<PipeChild>) -> bool {
+    client
+        .channel_mut()
+        .exit_status()
+        .is_some_and(|status| status.success())
+}
+
+fn call(client: &mut Client<PipeChild>, op: &str, body: Value) -> Result<Value, Error> {
     client
         .call(op, body, &[])
         .map(|d| d.message["body"].clone())
@@ -104,7 +111,7 @@ fn one_to_three_drones_match_the_kernel_frame_for_frame() {
     for n in 1..=3 {
         let steps = 12;
         let body = prepare_body(n, steps);
-        let (mut client, mut child) = open();
+        let mut client = open();
         let mut result = call(&mut client, "prepare", json!(body)).expect("prepare");
         let (mut kernel, frame) = MultiDroneSimulation::new()
             .prepare_with_recording(
@@ -135,7 +142,7 @@ fn one_to_three_drones_match_the_kernel_frame_for_frame() {
         assert_eq!(finish["finish"]["cleaned_up"], true);
         assert_eq!(finish["completed_steps"], steps);
         client.close().expect("close");
-        assert!(child.wait().expect("exit").success());
+        assert!(exited(&mut client));
     }
 }
 
@@ -166,7 +173,7 @@ fn the_frozen_schedule_drops_sensors_and_holds_actuators_as_the_kernel_does() {
             actuator_available: false,
         },
     ];
-    let (mut client, mut child) = open();
+    let mut client = open();
     let mut result = call(&mut client, "prepare", json!(body)).expect("prepare");
     let (mut kernel, _) = MultiDroneSimulation::new()
         .prepare_with_recording(
@@ -202,7 +209,7 @@ fn the_frozen_schedule_drops_sensors_and_holds_actuators_as_the_kernel_does() {
         assert_eq!(result["frame"], json!(frame), "step {tick}");
     }
     client.close().expect("close");
-    assert!(child.wait().expect("exit").success());
+    assert!(exited(&mut client));
 }
 
 #[test]
@@ -215,7 +222,7 @@ fn a_dropped_sensor_hides_the_estimate_from_the_observation() {
         sensor_available: false,
         actuator_available: true,
     }];
-    let (mut client, mut child) = open();
+    let mut client = open();
     let prepared = call(&mut client, "prepare", json!(body)).expect("prepare");
     assert_eq!(prepared["observation"]["estimate_available"], json!([true]));
     let dropped = call(
@@ -234,34 +241,35 @@ fn a_dropped_sensor_hides_the_estimate_from_the_observation() {
     .expect("step");
     assert_eq!(back["observation"]["estimate_available"], json!([true]));
     client.close().expect("close");
-    assert!(child.wait().expect("exit").success());
+    assert!(exited(&mut client));
 }
 
-fn rejected(result: Result<Value, Error>, what: &str) {
+/// An invalid request is declined: it never runs, and the session goes on (NCP 2, rule 7.3.12).
+fn declined(result: Result<Value, Error>, what: &str) {
     match result {
-        Err(Error::Rejected { .. }) => {}
-        other => panic!("{what}: expected a rejection, got {other:?}"),
+        Err(Error::Declined { .. }) => {}
+        other => panic!("{what}: expected a declined request, got {other:?}"),
     }
 }
 
 #[test]
-fn invalid_steps_are_rejected_and_change_nothing() {
+fn invalid_steps_are_declined_and_change_nothing() {
     let n = 2;
     let body = prepare_body(n, 3);
-    let (mut client, mut child) = open();
+    let mut client = open();
     let prepared = call(&mut client, "prepare", json!(body)).expect("prepare");
     let current = digest(&prepared);
     let good = step_body(n, 1, &current);
 
     let mut stale = good.clone();
     stale.source_state_digest = RESPONSE.into();
-    rejected(call(&mut client, "step", json!(stale)), "stale state");
+    declined(call(&mut client, "step", json!(stale)), "stale state");
     let mut skip = good.clone();
     skip.tick_index = 2;
-    rejected(call(&mut client, "step", json!(skip)), "skipped step");
+    declined(call(&mut client, "step", json!(skip)), "skipped step");
     let mut missing = good.clone();
     missing.proposals[0].drone_ids = vec!["alpha".into()];
-    rejected(
+    declined(
         call(&mut client, "step", json!(missing)),
         "a drone without a proposal",
     );
@@ -276,7 +284,7 @@ fn invalid_steps_are_rejected_and_change_nothing() {
             drone_ids: vec!["alpha".into(), "bravo".into()],
         },
     ];
-    rejected(
+    declined(
         call(&mut client, "step", json!(twice)),
         "a drone in two proposals",
     );
@@ -291,49 +299,49 @@ fn invalid_steps_are_rejected_and_change_nothing() {
             drone_ids: vec!["bravo".into()],
         },
     ];
-    rejected(
+    declined(
         call(&mut client, "step", json!(same)),
         "one response named twice",
     );
     let mut unknown = good.clone();
     unknown.proposals[0].drone_ids = vec!["alpha".into(), "zulu".into()];
-    rejected(
+    declined(
         call(&mut client, "step", json!(unknown)),
         "an unknown drone",
     );
     let mut not_identity = good.clone();
     not_identity.proposals[0].response = "ABC".into();
-    rejected(
+    declined(
         call(&mut client, "step", json!(not_identity)),
         "a response that is not an identity",
     );
     let mut too_strong = good.clone();
     too_strong.actuator_intent_acceleration_mps2[0] = 50.5;
-    rejected(
+    declined(
         call(&mut client, "step", json!(too_strong)),
         "an acceleration above 50",
     );
     let mut negative_zero = good.clone();
     negative_zero.actuator_intent_acceleration_mps2[1] = -0.0;
-    rejected(
+    declined(
         call(&mut client, "step", json!(negative_zero)),
         "a negative zero, which the kernel rejects",
     );
     let mut short = good.clone();
     short.actuator_intent_acceleration_mps2.pop();
-    rejected(
+    declined(
         call(&mut client, "step", json!(short)),
         "too few components",
     );
-    rejected(
+    declined(
         call(&mut client, "step", json!({"tick_index": 1})),
         "a malformed body",
     );
-    rejected(
+    declined(
         call(&mut client, "prepare", json!(body)),
         "a second prepare",
     );
-    rejected(
+    declined(
         call(&mut client, "finish", json!({"completed_steps": 0})),
         "an early finish",
     );
@@ -356,13 +364,13 @@ fn invalid_steps_are_rejected_and_change_nothing() {
         .expect("direct step");
     assert_eq!(result["frame"], json!(frame));
     client.close().expect("close");
-    assert!(child.wait().expect("exit").success());
+    assert!(exited(&mut client));
 }
 
 #[test]
 fn invalid_preparations_are_rejected_before_any_state() {
-    let (mut client, mut child) = open();
-    rejected(
+    let mut client = open();
+    declined(
         call(&mut client, "step", json!(step_body(1, 1, RESPONSE))),
         "a step before prepare",
     );
@@ -439,17 +447,17 @@ fn invalid_preparations_are_rejected_before_any_state() {
     long.planned_steps = 1025;
     cases.push(("1025 steps", long));
     for (what, body) in cases {
-        rejected(call(&mut client, "prepare", json!(body)), what);
+        declined(call(&mut client, "prepare", json!(body)), what);
     }
     // Positive control: a valid preparation on the same session.
     call(&mut client, "prepare", json!(prepare_body(1, 4))).expect("a valid prepare");
     client.close().expect("close");
-    assert!(child.wait().expect("exit").success());
+    assert!(exited(&mut client));
 }
 
 #[test]
 fn a_finished_run_accepts_nothing_more() {
-    let (mut client, mut child) = open();
+    let mut client = open();
     let mut result = call(&mut client, "prepare", json!(prepare_body(1, 2))).expect("prepare");
     for tick in 1..=2 {
         result = call(
@@ -459,7 +467,7 @@ fn a_finished_run_accepts_nothing_more() {
         )
         .expect("step");
     }
-    rejected(
+    declined(
         call(
             &mut client,
             "step",
@@ -469,16 +477,16 @@ fn a_finished_run_accepts_nothing_more() {
     );
     let finish = call(&mut client, "finish", json!({"completed_steps": 2})).expect("finish");
     assert_eq!(finish["finish"]["state_digest"], digest(&result));
-    rejected(
+    declined(
         call(&mut client, "finish", json!({"completed_steps": 2})),
         "a second finish",
     );
-    rejected(
+    declined(
         call(&mut client, "prepare", json!(prepare_body(1, 2))),
         "a prepare after finish",
     );
     client.close().expect("close");
-    assert!(child.wait().expect("exit").success());
+    assert!(exited(&mut client));
 }
 
 /// Request frames by hand, to send one frame twice.
@@ -493,13 +501,7 @@ fn frame(session: &str, seq: u64, op: &str, ack: Option<&str>, body: Value) -> V
 #[test]
 fn a_repeated_request_advances_the_body_once() {
     let contract = body_contract();
-    let mut owner = Owner::new(
-        BODY_APPLICATION,
-        &contract.identity,
-        Body::default(),
-        contract.operations.clone(),
-        DEFAULT_BOUND,
-    );
+    let mut owner = Owner::new(contract.clone(), Body::default());
     let session = ncp::random_session();
     let decode = |bytes: &[u8]| ncp::decode(bytes.to_vec(), DEFAULT_BOUND).expect("decode");
     let opened = decode(&owner.handle(frame(&session, 0, "open", None, json!({"application": BODY_APPLICATION, "contract": contract.identity, "bound": DEFAULT_BOUND}))).expect("open"));
@@ -534,7 +536,7 @@ fn a_repeated_request_advances_the_body_once() {
         .as_str()
         .unwrap()
         .to_owned();
-    // Had the repeat executed, the body would be at step 2 and reject step 2 from this state.
+    // Had the repeat executed, the body would be at step 2 and decline step 2 from this state.
     let second = decode(
         &owner
             .handle(frame(

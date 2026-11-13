@@ -3,8 +3,8 @@
 use crebain_ncp_simulation::controller::{
     ControllerPrepare, ControllerResult, ControllerStep, Gains, Reference,
 };
-use crebain_ncp_simulation::{controller_contract, CONTROLLER_APPLICATION};
-use ncp::binding::ChildChannel;
+use crebain_ncp_simulation::controller_contract;
+use ncp::binding::PipeChild;
 use ncp::{Client, Error};
 use serde_json::{json, Value};
 use std::process::Command;
@@ -12,15 +12,19 @@ use std::process::Command;
 const BINARY: &str = env!("CARGO_BIN_EXE_crebain-ncp-controller");
 const DIGEST: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
-fn open() -> (Client<ChildChannel>, std::process::Child) {
-    let (channel, child) = ncp::spawn(Command::new(BINARY)).expect("spawn");
-    let mut client = Client::new(
-        channel,
-        CONTROLLER_APPLICATION,
-        &controller_contract().identity,
-    );
+fn open() -> Client<PipeChild> {
+    let channel = ncp::spawn(Command::new(BINARY)).expect("spawn");
+    let mut client = Client::new(channel, &controller_contract());
     client.open().expect("open");
-    (client, child)
+    client
+}
+
+/// Whether the child exited successfully; closing the session ends it.
+fn exited(client: &mut Client<PipeChild>) -> bool {
+    client
+        .channel_mut()
+        .exit_status()
+        .is_some_and(|status| status.success())
 }
 
 fn prepare() -> ControllerPrepare {
@@ -43,7 +47,7 @@ fn step(tick: u64) -> ControllerStep {
     }
 }
 
-fn call(client: &mut Client<ChildChannel>, op: &str, body: Value) -> Result<Value, Error> {
+fn call(client: &mut Client<PipeChild>, op: &str, body: Value) -> Result<Value, Error> {
     client
         .call(op, body, &[])
         .map(|d| d.message["body"].clone())
@@ -51,7 +55,7 @@ fn call(client: &mut Client<ChildChannel>, op: &str, body: Value) -> Result<Valu
 
 #[test]
 fn the_reference_law_clamps_and_holds_drones_without_an_estimate() {
-    let (mut client, mut child) = open();
+    let mut client = open();
     let prepared = call(&mut client, "prepare", json!(prepare())).expect("prepare");
     assert_eq!(
         prepared["controller"]["gains"],
@@ -83,7 +87,7 @@ fn the_reference_law_clamps_and_holds_drones_without_an_estimate() {
         "clamped to max_acceleration_mps2"
     );
     client.close().expect("close");
-    assert!(child.wait().expect("exit").success());
+    assert!(exited(&mut client));
 }
 
 #[test]
@@ -148,17 +152,18 @@ fn results_that_do_not_answer_their_request_are_refused() {
     }
 }
 
-fn rejected(result: Result<Value, Error>, what: &str) {
+/// An invalid request is declined: it never runs, and the session goes on (NCP 2, rule 7.3.12).
+fn declined(result: Result<Value, Error>, what: &str) {
     assert!(
-        matches!(result, Err(Error::Rejected { .. })),
+        matches!(result, Err(Error::Declined { .. })),
         "{what}: {result:?}"
     );
 }
 
 #[test]
-fn invalid_requests_are_rejected_and_the_session_goes_on() {
-    let (mut client, mut child) = open();
-    rejected(
+fn invalid_requests_are_declined_and_the_session_goes_on() {
+    let mut client = open();
+    declined(
         call(&mut client, "step", json!(step(1))),
         "a step before prepare",
     );
@@ -167,7 +172,7 @@ fn invalid_requests_are_rejected_and_the_session_goes_on() {
         ("a limit above 50", json!({"max_acceleration_mps2": 60.0})),
         ("an unknown parameter", json!({"ki": 1.0})),
     ] {
-        rejected(
+        declined(
             call(
                 &mut client,
                 "prepare",
@@ -179,7 +184,7 @@ fn invalid_requests_are_rejected_and_the_session_goes_on() {
             what,
         );
     }
-    rejected(
+    declined(
         call(
             &mut client,
             "prepare",
@@ -190,7 +195,7 @@ fn invalid_requests_are_rejected_and_the_session_goes_on() {
         ),
         "unsorted drones",
     );
-    rejected(
+    declined(
         call(
             &mut client,
             "prepare",
@@ -202,8 +207,8 @@ fn invalid_requests_are_rejected_and_the_session_goes_on() {
         "short targets",
     );
     call(&mut client, "prepare", json!(prepare())).expect("positive control: a valid prepare");
-    rejected(call(&mut client, "step", json!(step(2))), "a skipped step");
-    rejected(
+    declined(call(&mut client, "step", json!(step(2))), "a skipped step");
+    declined(
         call(
             &mut client,
             "step",
@@ -214,7 +219,7 @@ fn invalid_requests_are_rejected_and_the_session_goes_on() {
         ),
         "other drones",
     );
-    rejected(
+    declined(
         call(
             &mut client,
             "step",
@@ -227,5 +232,5 @@ fn invalid_requests_are_rejected_and_the_session_goes_on() {
     );
     call(&mut client, "step", json!(step(1))).expect("positive control: step 1");
     client.close().expect("close");
-    assert!(child.wait().expect("exit").success());
+    assert!(exited(&mut client));
 }

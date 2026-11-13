@@ -62,6 +62,12 @@ README and treated as unverified until measured on target hardware.
 
 ### Changed
 
+- Moved the native simulation, its closed loop, and the NEST controller to revision 3 of the NCP 2
+  specification: the Rust core `sepahead-ncp-core` 2.0.0 at NCP commit
+  `9f58e7a0bebfde8033abad64e07999d77e8b315f` and the matching Python SDK. A request that breaks a rule of
+  the world or the controller is now declined: it is kept, it never runs, and the session goes on.
+  The owner's `open` response carries a nonce, and a rejection of any request but `open` ends the
+  session with the request possibly executed. The host's channels now own their child processes.
 - Moved the native simulation from the NCP 1 local SDK (`ncp-local` 1.0.1) to NCP 2: the
   Rust core `sepahead-ncp-core` 2.0.0 at NCP commit `3b51a1b41f729e2a7d9d1978a77e81958e62e8b7`,
   whose transcripts record each request before it is sent.

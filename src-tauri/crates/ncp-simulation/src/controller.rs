@@ -5,7 +5,7 @@
 //! network in NEST. The reference controller here is a deterministic proportional-derivative
 //! law, for tests and as a baseline; it is not a neural network.
 
-use ncp::{Decoded, Handler, Reply};
+use ncp::{declined, AppError, Handler, Invalid, Reply, Request};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -186,8 +186,8 @@ impl Reference {
         }
     }
 
-    fn check(&self, op: &str, request: &Decoded) -> Result<(), String> {
-        let body = request.message["body"].clone();
+    fn check(&self, op: &str, body: &Value) -> Result<(), String> {
+        let body = body.clone();
         match (op, &self.prepared) {
             ("prepare", None) => {
                 let prepare: ControllerPrepare =
@@ -226,17 +226,16 @@ impl Reference {
 }
 
 impl Handler for Reference {
-    fn validate(&mut self, op: &str, request: &Decoded) -> Result<(), String> {
-        self.check(op, request)
+    /// A request that breaks a rule of the controller is declined: it never runs, and the
+    /// session goes on (NCP 2, rule 7.3.12).
+    fn validate(&mut self, request: &Request<'_>) -> Result<(), Invalid> {
+        self.check(request.op, request.body).map_err(declined)
     }
 
-    fn execute(
-        &mut self,
-        op: &str,
-        request: &Decoded,
-    ) -> Result<Reply, Box<dyn std::error::Error + Send + Sync>> {
-        self.check(op, request)?;
-        let body = request.message["body"].clone();
+    fn execute(&mut self, request: &Request<'_>) -> Result<Reply, AppError> {
+        let op = request.op;
+        self.check(op, request.body)?;
+        let body = request.body.clone();
         if op == "prepare" {
             let prepare: ControllerPrepare = serde_json::from_value(body)?;
             let gains = Self::gains(&prepare)?;

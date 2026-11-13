@@ -9,17 +9,15 @@
 
 use crate::body::{FinishBody, PrepareBody, Proposal, ScheduledInput, StepBody};
 use crate::controller::{ControllerPrepare, ControllerResult, ControllerStep};
-use crate::{
-    body_contract, controller_contract, Observation, BODY_APPLICATION, CONTROLLER_APPLICATION,
-};
-use ncp::binding::ChildChannel;
-use ncp::{call_all, Client, Decoded, Tap};
+use crate::{body_contract, controller_contract, Observation};
+use ncp::binding::PipeChild;
+use ncp::{call_all, Client, Contract, Decoded, Tap};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command};
+use std::process::Command;
 use std::sync::Arc;
 
 /// The largest number of controllers, and of worlds, in one loop.
@@ -229,20 +227,6 @@ pub struct ManifestController {
     pub drone_ids: Vec<String>,
 }
 
-/// Child processes that are killed if the loop stops early.
-struct Children(Vec<Child>);
-
-impl Drop for Children {
-    fn drop(&mut self) {
-        for child in &mut self.0 {
-            if matches!(child.try_wait(), Ok(None)) {
-                let _ = child.kill();
-            }
-            let _ = child.wait();
-        }
-    }
-}
-
 /// A program name without a path is looked up next to the running executable first, so that
 /// `crebain-ncp-simulation` and `crebain-ncp-controller` find their installed siblings.
 fn program(name: &str) -> PathBuf {
@@ -259,21 +243,19 @@ fn program(name: &str) -> PathBuf {
     path.to_path_buf()
 }
 
+/// Start a program and open its session. The channel owns the child process: closing or
+/// dropping it ends the child, also when the loop stops early.
 fn start(
     command: &[String],
     transcript: &Path,
-    application: &str,
-    contract: &str,
-    children: &mut Children,
-) -> Result<Client<ChildChannel>, String> {
+    contract: &Contract,
+) -> Result<Client<PipeChild>, String> {
     let mut process = Command::new(program(&command[0]));
     process.args(&command[1..]);
-    let (channel, child) =
-        ncp::spawn(process).map_err(|error| format!("{}: {error}", command[0]))?;
-    children.0.push(child);
+    let channel = ncp::spawn(process).map_err(|error| format!("{}: {error}", command[0]))?;
     let tap =
         Tap::create(transcript).map_err(|error| format!("{}: {error}", transcript.display()))?;
-    let mut client = Client::new(channel.with_tap(Arc::new(tap)), application, contract);
+    let mut client = Client::new(channel.with_tap(Arc::new(tap)), contract);
     client
         .open()
         .map_err(|error| format!("{}: open: {error}", command[0]))?;
@@ -331,28 +313,15 @@ pub fn run(config: &LoopConfig, out: &Path) -> Result<Summary, String> {
     fs::create_dir(out).map_err(|error| format!("{}: {error}", out.display()))?;
     let body = body_contract();
     let controller = controller_contract();
-    let mut children = Children(Vec::new());
     let mut worlds = Vec::new();
     for index in 0..config.worlds.len() {
         let path = out.join(format!("world-{index}.ncpt"));
-        worlds.push(start(
-            &config.body_command,
-            &path,
-            BODY_APPLICATION,
-            &body.identity,
-            &mut children,
-        )?);
+        worlds.push(start(&config.body_command, &path, &body)?);
     }
     let mut controllers = Vec::new();
     for (index, c) in config.controllers.iter().enumerate() {
         let path = out.join(format!("controller-{index}.ncpt"));
-        controllers.push(start(
-            &c.command,
-            &path,
-            CONTROLLER_APPLICATION,
-            &controller.identity,
-            &mut children,
-        )?);
+        controllers.push(start(&c.command, &path, &controller)?);
     }
     let mut exchanges = (worlds.len() + controllers.len()) as u64;
 
@@ -506,15 +475,13 @@ pub fn run(config: &LoopConfig, out: &Path) -> Result<Summary, String> {
         }
     }
     for client in worlds.iter_mut().chain(controllers.iter_mut()) {
+        // Closing the session closes the channel, which ends the child process.
         client.close().map_err(|error| format!("close: {error}"))?;
         exchanges += 1;
-    }
-    drop(worlds);
-    drop(controllers);
-    for child in &mut children.0 {
-        let status = child.wait().map_err(|error| error.to_string())?;
-        if !status.success() {
-            return Err(format!("a process exited with {status}"));
+        match client.channel_mut().exit_status() {
+            Some(status) if status.success() => {}
+            Some(status) => return Err(format!("a process exited with {status}")),
+            None => return Err("a process did not exit".into()),
         }
     }
 

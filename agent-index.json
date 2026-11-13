@@ -101,7 +101,7 @@
   "ecosystem": [
     {
       "repository": "sepahead/NCP",
-      "relation": "the desktop adapter pins the wire 1.0.0-rc.1 candidate 2819dae; the native simulation and its closed loop pin the NCP 2 core 2.0.0 at 3b51a1b; the sensor applications use the NCP 1 local SDK 1.0.0"
+      "relation": "the desktop adapter pins the wire 1.0.0-rc.1 candidate 2819dae; the native simulation and its closed loop pin the NCP 2 core 2.0.0 at 9f58e7a (specification revision 3); the sensor applications use the NCP 1 local SDK 1.0.0"
     },
     { "repository": "sepahead/galadriel", "relation": "advisory producer and drone study fixture" },
     { "repository": "sepahead/Paper2Brain", "relation": "Engram embedding and shared host vector" },

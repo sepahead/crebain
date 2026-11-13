@@ -9,7 +9,7 @@ use crebain_managed_simulation::{
     validate_prepare_request, FaultCode, FinishRequest, InnovationRecording, MultiDroneSimulation,
     Outcome, PrepareRequest, Prepared, SimulationFrameResponse, StepRequest,
 };
-use ncp::{Decoded, Handler, Reply};
+use ncp::{declined, AppError, Handler, Invalid, Reply, Request};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -108,8 +108,8 @@ pub struct Body {
     finished: bool,
 }
 
-fn parse<T: DeserializeOwned>(request: &Decoded) -> Result<T, String> {
-    serde_json::from_value(request.message["body"].clone()).map_err(|error| error.to_string())
+fn parse<T: DeserializeOwned>(body: &Value) -> Result<T, String> {
+    serde_json::from_value(body.clone()).map_err(|error| error.to_string())
 }
 
 fn prepare_request(body: &PrepareBody) -> Result<PrepareRequest, String> {
@@ -296,24 +296,24 @@ fn result(
 }
 
 impl Body {
-    fn check(&self, op: &str, request: &Decoded) -> Result<(), String> {
+    fn check(&self, op: &str, body: &Value) -> Result<(), String> {
         if self.finished {
             return Err("the run is finished".into());
         }
         match (op, &self.active) {
-            ("prepare", None) => prepare_request(&parse(request)?).map(|_| ()),
-            ("step", Some(active)) => step_request(active, &parse(request)?).map(|_| ()),
-            ("finish", Some(active)) => finish_request(active, &parse(request)?).map(|_| ()),
+            ("prepare", None) => prepare_request(&parse(body)?).map(|_| ()),
+            ("step", Some(active)) => step_request(active, &parse(body)?).map(|_| ()),
+            ("finish", Some(active)) => finish_request(active, &parse(body)?).map(|_| ()),
             ("prepare", Some(_)) => Err("the run is prepared".into()),
             _ => Err("prepare first".into()),
         }
     }
 
-    fn run(&mut self, op: &str, request: &Decoded) -> Result<Value, String> {
-        self.check(op, request)?;
+    fn run(&mut self, op: &str, body: &Value) -> Result<Value, String> {
+        self.check(op, body)?;
         match op {
             "prepare" => {
-                let body: PrepareBody = parse(request)?;
+                let body: PrepareBody = parse(body)?;
                 let (kernel, frame) = MultiDroneSimulation::new()
                     .prepare_with_recording(
                         prepare_request(&body)?,
@@ -331,7 +331,7 @@ impl Body {
             }
             "step" => {
                 let active = self.active.as_mut().ok_or("prepare first")?;
-                let step = step_request(active, &parse(request)?)?;
+                let step = step_request(active, &parse(body)?)?;
                 let frame = active
                     .kernel
                     .step(step)
@@ -343,7 +343,7 @@ impl Body {
             }
             "finish" => {
                 let active = self.active.take().ok_or("prepare first")?;
-                let finish = finish_request(&active, &parse(request)?)?;
+                let finish = finish_request(&active, &parse(body)?)?;
                 self.finished = true;
                 let (finished, record) = active
                     .kernel
@@ -360,21 +360,21 @@ impl Body {
 }
 
 impl Handler for Body {
-    fn validate(&mut self, op: &str, request: &Decoded) -> Result<(), String> {
-        self.check(op, request)
+    /// A request that breaks a rule of the body is declined: it never runs, and the session
+    /// goes on (NCP 2, rule 7.3.12).
+    fn validate(&mut self, request: &Request<'_>) -> Result<(), Invalid> {
+        self.check(request.op, request.body).map_err(declined)
     }
 
-    fn execute(
-        &mut self,
-        op: &str,
-        request: &Decoded,
-    ) -> Result<Reply, Box<dyn std::error::Error + Send + Sync>> {
+    fn execute(&mut self, request: &Request<'_>) -> Result<Reply, AppError> {
         // A failure after validation ends the session with owner_failure; the body then keeps
         // no state that a later session could use.
-        self.run(op, request).map(Reply::from).map_err(|error| {
-            self.active = None;
-            self.finished = true;
-            error.into()
-        })
+        self.run(request.op, request.body)
+            .map(Reply::from)
+            .map_err(|error| {
+                self.active = None;
+                self.finished = true;
+                error.into()
+            })
     }
 }

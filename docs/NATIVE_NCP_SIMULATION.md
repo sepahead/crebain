@@ -13,17 +13,17 @@ The programs open no network listener and supply no physical command authority.
 
 Text alternative: The loop host runs controller programs and world programs, each with its own NCP 2 session over a pipe pair.
 In each step, every controller receives the latest observation and state digest of its drones and returns accelerations.
-Every world then applies the accelerations of its controllers, names their response identities and the state that they answered, and rejects actions computed from another state.
+Every world then applies the accelerations of its controllers, names their response identities and the state that they answered, and declines actions computed from another state.
 Every session writes a transcript, and an offline check confirms each link of the chain.
 
 ## Build and pin
 
 The package has a separate workspace and lockfile.
-It uses the NCP 2 Rust core, package `sepahead-ncp-core` (library `ncp`), version `=2.0.0`, at the immutable NCP revision `3b51a1b41f729e2a7d9d1978a77e81958e62e8b7`.
+It uses the NCP 2 Rust core, package `sepahead-ncp-core` (library `ncp`), version `=2.0.0`, at the immutable NCP revision `9f58e7a0bebfde8033abad64e07999d77e8b315f`, which implements revision 3 of the NCP 2 specification.
 Its lockfile resolves that same public Git revision and version.
 The package does not permit a sibling path or a patch override.
 
-<!-- ncp2-pin: 2.0.0 3b51a1b41f729e2a7d9d1978a77e81958e62e8b7 -->
+<!-- ncp2-pin: 2.0.0 9f58e7a0bebfde8033abad64e07999d77e8b315f -->
 
 ```bash
 cargo build --locked --release \
@@ -43,7 +43,7 @@ An optional frozen schedule holds at most 256 rows sorted by `(step, drone_id)`.
 Each row fixes, for one drone at one step, a sensor offset of at most 50 meters per component, the sensor's availability, and the actuator's availability.
 Steps without a row admit the sensor and the actuator without an offset.
 No step accepts a fault or environment override.
-The kernel rejects non-finite numbers and negative zero in every request.
+The world declines a request with non-finite numbers or negative zero.
 
 The kernel runs every session with the same run label, `crebain.ncp2-body`.
 Equal inputs therefore give equal state digests in every run; the NCP session identifier distinguishes the runs.
@@ -56,11 +56,11 @@ The frame keeps the true positions, the proposed and applied accelerations, and 
 A `step` names the next step, the state digest of the observation that its actions were computed from, three accelerations for each drone, and its proposals.
 Each proposal names the identity of one controller response and the drones that it moves.
 Every drone is in exactly one proposal, and no response identity appears twice.
-A step whose state digest is not the world's current state digest is rejected.
+A step whose state digest is not the world's current state digest is declined.
 `finish` requires the complete planned step count and returns the kernel's finish record with its cleanup status.
 After `finish`, the session accepts no further operation.
 
-A rejected request changes nothing, and the same session can go on.
+A declined request never runs and changes nothing, and the same session goes on (NCP 2, outcome `declined`, rule 7.3.12).
 A failure after admission ends the session with `owner_failure` and clears the world.
 
 ## The controllers: `crebain.controller`
@@ -118,7 +118,7 @@ The tests run the actual kernel:
 
 - one, two, and three drones through the world match direct kernel execution frame for frame, innovations included;
 - the frozen schedule drops sensors and holds actuators exactly as the kernel does, and a dropped sensor hides the estimate;
-- invalid preparations and steps are rejected without a change, each followed by a valid request as a positive control;
+- invalid preparations and steps are declined without a change, each followed by a valid request as a positive control;
 - a repeated request frame gets the kept response and advances the world once;
 - the world program answers anything but an NCP frame with `bad_frame` and takes no arguments;
 - the reference law, its limits, and the checks of controller results;

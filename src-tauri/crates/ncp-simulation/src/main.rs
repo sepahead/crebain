@@ -12,13 +12,7 @@ fn main() {
         std::process::exit(2);
     }
     let contract = body_contract();
-    let mut owner = Owner::new(
-        &contract.application,
-        &contract.identity,
-        Body::default(),
-        contract.operations,
-        DEFAULT_BOUND,
-    );
+    let mut owner = Owner::new(contract, Body::default()).with_max_bound(DEFAULT_BOUND);
     if let Err(error) = serve_stdio(&mut owner) {
         eprintln!("crebain-ncp-simulation: {error}");
         std::process::exit(1);

@@ -42,21 +42,32 @@ struct Exchange {
 
 fn exchanges(path: &Path, application: &str, contract: &str) -> Result<Vec<Exchange>, String> {
     let name = path.display();
-    let sessions = verify_transcript(path).map_err(|error| format!("{name}: {error}"))?;
-    if sessions.len() != 1 {
+    let report = verify_transcript(path, None).map_err(|error| format!("{name}: {error}"))?;
+    if !report.ok() || !report.closed {
         return Err(format!(
-            "{name}: {} sessions instead of one",
-            sessions.len()
+            "{name}: the transcript does not verify or was not closed: {:?}",
+            report.problems
         ));
     }
-    for (session, report) in &sessions {
-        if !report.problems.is_empty() || report.role != "client" {
-            return Err(format!("{name}: session {session}: {:?}", report.problems));
-        }
+    if report.sessions.len() != 1 {
+        return Err(format!(
+            "{name}: {} sessions instead of one",
+            report.sessions.len()
+        ));
+    }
+    let session = &report.sessions[0];
+    if session.role != "client" || !session.complete {
+        return Err(format!(
+            "{name}: session {} is not a complete client session",
+            session.session
+        ));
     }
     let mut out = Vec::new();
     let mut pending: Option<Decoded> = None;
-    for record in read(path).map_err(|error| format!("{name}: {error}"))? {
+    for record in read(path)
+        .map_err(|error| format!("{name}: {error}"))?
+        .records
+    {
         let decoded =
             decode(record.frame, MAX_BOUND).map_err(|error| format!("{name}: {error}"))?;
         match (record.kind, pending.take()) {
