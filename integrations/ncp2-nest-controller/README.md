@@ -62,6 +62,12 @@ It then builds the native programs and runs two loops of 600 steps of 20 ms: one
 Every drone must end within 0.1 m of its target, `crebain-ncp-loop verify` must accept the transcripts, and a second run of the first loop must give the same summary.
 With `--evidence DIR`, it writes the summaries, the verification reports, the trajectories, and the environment into a new directory.
 
+## Results of 13 November 2026, NCP 2 revision 3
+
+`check.py --evidence` ran again from the clean CREBAIN commit `c519e96`, with NEST 3.10.0 on Python 3.11.15 and the NCP 2 Python SDK of NCP commit `9f58e7a`, which implements revision 3 of the NCP 2 specification.
+The summaries, the verification reports, and the trajectories in the [evidence](evidence/2026-11-13) are byte for byte those of the run of 12 November below; only the environment differs. As for that run, Prettier formatted the JSON files after the run.
+So revision 3 changed no step, no observation, and no action of these loops.
+
 ## Results of 12 November 2026
 
 `check.py --evidence` ran from the clean CREBAIN commit `d0a3c28` with NEST 3.10.0 on Python 3.11.15 and the NCP 2 Python SDK of NCP commit `9e0696b`, on an Apple M4 Max with macOS.
