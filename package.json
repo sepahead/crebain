@@ -155,6 +155,7 @@
     "electron-to-chromium": "1.5.393",
     "fflate": "0.8.3",
     "flatted": "3.4.2",
+    "minimatch": "11.0.1",
     "nanoid": "3.3.18",
     "picomatch": "4.0.7",
     "postcss": "8.5.31",

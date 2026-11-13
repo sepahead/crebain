@@ -11,6 +11,16 @@ README and treated as unverified until measured on target hardware.
 
 ### Security
 
+- `src-tauri/Cargo.lock` moves `quinn-udp` from 0.5.14 to 0.5.16 for RUSTSEC-2026-0538 (a receive
+  loop that can spin after a truncated datagram on Apple and some BSD targets). Only its version
+  and checksum change; cargo 1.91.1 accepts the lock with `--locked`.
+- RUSTSEC-2026-0429 (`zip::ZipArchive::extract` and a symlink entry with a large declared size)
+  joins the three `zip` advisories that `src-tauri/deny.toml` already ignores: `zip` 7.2.0 reaches
+  the graph only through `candle-core` 0.9.2, which never calls `ZipArchive::extract`, and the fix,
+  `zip` 9.0.0, has no `candle-core` release that accepts it.
+- An exact override raises the lint-only transitive `minimatch` from 10.2.5 to 11.0.1
+  (GHSA-g3hv-75wg-m249); it adds `@isaacs/nonrecursive-glob-match` 1.1.0. ESLint runs unchanged.
+  `bun.nix` is regenerated, and the Phase 0 baseline records the new digests.
 - `src-tauri/Cargo.lock` moves `tokio` from 1.53.1 to 1.54.1 for RUSTSEC-2026-0386
   (`AsyncFd` constructors violate I/O safety). Only tokio's version and checksum change;
   the Phase 0 baseline records the new lockfile digest.
